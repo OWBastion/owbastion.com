@@ -3,6 +3,7 @@ import type {
   QqBindingResponse,
   SubmissionRequest,
   SubmissionResponse,
+  SubmissionStatusResponse,
 } from "@owbastion/contracts";
 
 export type AuthContext = {
@@ -15,6 +16,7 @@ export type AuthContext = {
 export type PlatformServices = {
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createSubmission(input: SubmissionRequest, auth: AuthContext, idempotencyKey: string): Promise<SubmissionResponse>;
+  getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
 };
 
 export type Authenticator<Env> = (request: Request, env: Env) => Promise<AuthContext | null>;

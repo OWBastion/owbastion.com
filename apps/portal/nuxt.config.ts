@@ -12,4 +12,9 @@ export default defineNuxtConfig({
       ],
     },
   },
+  runtimeConfig: {
+    public: {
+      apiBaseUrl: "http://localhost:8787",
+    },
+  },
 });

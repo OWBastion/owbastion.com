@@ -4,7 +4,7 @@ import { createApp } from "./app";
 
 const app = createApp({
   authenticate: authenticateQqBot,
-  services: (env) => createPlatformServices(env.DB),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET),
 });
 
 export default app;

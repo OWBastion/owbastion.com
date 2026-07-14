@@ -7,11 +7,14 @@ This document defines high-level contracts. It intentionally omits credentials, 
 The first platform vertical slice is implemented in the repository:
 
 - versioned `v1` QQ binding and submission contracts use stable opaque message metadata;
-- authenticated service calls can create an identity binding and a `received` submission;
-- D1 stores the binding, submission, attachment metadata, idempotency record, and audit event;
+- authenticated service calls can create or update a QQ identity binding with a player handle;
+- authenticated service calls can create a map-completion submission from QQ identity metadata;
+- the API can persist temporary QQ image sources into private R2 evidence and advance the submission to `ocr_pending`;
+- the public status endpoint exposes only the opaque submission ID, map, timestamps, and lifecycle status;
+- D1 stores the binding, player account, submission, attachment metadata, idempotency record, and audit event;
 - repeated writes with the same idempotency key replay the original response, while a changed request is rejected.
 
-R2 persistence, OCR orchestration, review decisions, grants, and release reconciliation remain future milestones.
+OCR orchestration, review decisions, grants, and release reconciliation remain future milestones.
 
 ## Submission lifecycle
 
