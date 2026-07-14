@@ -1,8 +1,8 @@
 services:
   portal:
-    build:
-      context: .
-      dockerfile: apps/portal/Dockerfile
+    image: >-
+      ghcr.io/owbastion/owbastion.codes-portal:${PORTAL_IMAGE_TAG:?set
+      PORTAL_IMAGE_TAG}
     environment:
       HOST: 0.0.0.0
       PORT: 3000
@@ -15,7 +15,9 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+        - >-
+          fetch('http://127.0.0.1:3000/health').then((r) =>
+          process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
       interval: 30s
       timeout: 5s
       retries: 3

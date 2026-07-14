@@ -45,13 +45,30 @@ The server operator owns the Tunnel installation and injects its configuration
 outside the repository. The Tunnel must route `owbastion.codes` to the Portal's
 server-local HTTP endpoint, normally `http://127.0.0.1:3000`.
 
-## Local verification
+## CI image publishing
 
-Build and start the Portal from the repository root:
+GitHub Actions builds the Portal image after the checks pass on `main` and
+publishes it to the public GitHub Container Registry package:
+
+```text
+ghcr.io/owbastion/owbastion.codes-portal
+```
+
+Each commit receives an immutable `sha-<commit>` tag. The `latest` tag is also
+updated for convenience, but production rollouts should use the commit tag.
+The package must be set to public in the repository's GitHub Packages settings;
+the HKG server then needs no GHCR pull credential.
+
+The workflow publishes the image only. It does not log in to HKG or change the
+server's Docker Compose state.
+
+## Image verification
+
+Build the image locally from the repository root when validating the Dockerfile:
 
 ```bash
-rtk docker compose up --build -d
-rtk docker compose ps
+rtk docker build -f apps/portal/Dockerfile -t owbastion-portal:local .
+rtk docker run -d --name portal-local -p 127.0.0.1:3000:3000 owbastion-portal:local
 rtk curl http://127.0.0.1:3000/health
 ```
 
@@ -64,7 +81,7 @@ The expected health response is:
 Stop it with:
 
 ```bash
-rtk docker compose down
+rtk docker rm -f portal-local
 ```
 
 The `PORTAL_PORT` environment variable may change the loopback port used by
@@ -80,10 +97,28 @@ Before the first rollout, the server operator must:
 3. confirm that no public firewall rule exposes the Portal port directly;
 4. verify the Tunnel's public HTTPS request and the local `/health` response.
 
-For an update, build the new image, recreate the Portal service, and verify
-`/health` before considering the rollout complete. For a rollback, redeploy
-the previous Git revision and repeat the same health check. Tunnel credentials
-and DNS changes are not part of either operation.
+For an update, set the published commit tag, pull that image, recreate the
+Portal service, and verify `/health`:
+
+```bash
+export PORTAL_IMAGE_TAG=sha-<commit>
+rtk docker compose pull portal
+rtk docker compose up -d portal
+rtk docker compose ps
+rtk curl http://127.0.0.1:3000/health
+```
+
+If the health check fails, inspect the container logs and restore the previous
+known-good commit tag:
+
+```bash
+export PORTAL_IMAGE_TAG=sha-<previous-commit>
+rtk docker compose pull portal
+rtk docker compose up -d portal
+rtk curl http://127.0.0.1:3000/health
+```
+
+Tunnel credentials and DNS changes are not part of either operation.
 
 ## Failure boundary
 
