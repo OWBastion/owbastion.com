@@ -7,7 +7,7 @@ This document defines high-level contracts. It intentionally omits credentials, 
 The first platform vertical slice is implemented in the repository:
 
 - versioned `v1` QQ binding and submission contracts use stable opaque message metadata;
-- authenticated service calls can create or update a QQ identity binding with a player handle;
+- authenticated service calls can register or bind a QQ group member to a player using separate mutable player name and stable numeric player ID fields;
 - authenticated service calls can create a map-completion submission from QQ identity metadata;
 - the API can persist temporary QQ image sources into private R2 evidence and advance the submission to `ocr_pending`;
 - the public status endpoint exposes only the opaque submission ID, map, timestamps, and lifecycle status;

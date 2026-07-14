@@ -52,6 +52,7 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(await dependencies.services(c.env).createBinding(parsed.data, auth, idempotencyKey), 201);
     } catch (error) {
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
+      if (error instanceof Error && error.message === "BINDING_CONFLICT") return errorResponse(c, 409, "BINDING_CONFLICT", "The QQ identity is already bound to another player");
       throw error;
     }
   });

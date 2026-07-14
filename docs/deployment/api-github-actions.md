@@ -57,6 +57,10 @@ Restart only the QQBot container. Then test in a dedicated QQ group:
 /成就挑战 Test Map + image attachment
 ```
 
+The binding test must be sent from the dedicated test group. QQ member OpenIDs
+are group-scoped, so the same QQ user in another group is a separate platform
+binding by design.
+
 The returned submission ID can be checked with:
 
 ```text

@@ -3,12 +3,15 @@ import { z } from "zod";
 export const contractVersion = z.literal("1");
 
 const externalId = z.string().trim().min(1).max(256);
+const playerId = z.string().regex(/^\d{1,10}$/);
 
 export const qqBindingRequestSchema = z.object({
   contractVersion,
   provider: z.literal("qq"),
-  externalUserId: externalId,
-  playerHandle: z.string().trim().min(3).max(128),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
 });
 
 export const qqBindingResponseSchema = z.object({
@@ -16,8 +19,10 @@ export const qqBindingResponseSchema = z.object({
   bindingId: z.string().uuid(),
   identityId: z.string().uuid(),
   provider: z.literal("qq"),
-  externalUserId: externalId,
-  playerHandle: z.string().trim().min(3).max(128),
+  groupOpenId: externalId,
+  memberOpenId: externalId,
+  playerName: z.string().trim().min(1).max(64),
+  playerId,
 });
 
 const attachmentSchema = z.object({
@@ -32,7 +37,8 @@ export const submissionRequestSchema = z.object({
   contractVersion,
   actor: z.object({
     provider: z.literal("qq"),
-    externalUserId: externalId,
+    groupOpenId: externalId,
+    memberOpenId: externalId,
   }),
   source: z.object({
     provider: z.literal("qq"),

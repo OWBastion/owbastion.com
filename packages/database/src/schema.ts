@@ -9,23 +9,24 @@ export const identities = sqliteTable("identities", {
 export const bindings = sqliteTable("bindings", {
   id: text("id").primaryKey(),
   identityId: text("identity_id").notNull(),
+  playerAccountId: text("player_account_id").notNull(),
   provider: text("provider").notNull(),
-  externalUserId: text("external_user_id").notNull(),
+  groupOpenId: text("group_open_id").notNull(),
+  memberOpenId: text("member_open_id").notNull(),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
-  providerExternalUser: uniqueIndex("bindings_provider_external_user_idx").on(table.provider, table.externalUserId),
+  providerExternalUser: uniqueIndex("bindings_provider_group_member_idx").on(table.provider, table.groupOpenId, table.memberOpenId),
 }));
 
 export const playerAccounts = sqliteTable("player_accounts", {
   id: text("id").primaryKey(),
-  identityId: text("identity_id").notNull(),
-  handle: text("handle").notNull(),
-  normalizedHandle: text("normalized_handle").notNull(),
+  playerId: text("player_id").notNull(),
+  playerName: text("player_name").notNull(),
+  normalizedPlayerName: text("normalized_player_name").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
-  identity: uniqueIndex("player_accounts_identity_idx").on(table.identityId),
-  normalized: uniqueIndex("player_accounts_normalized_handle_idx").on(table.normalizedHandle),
+  player: uniqueIndex("player_accounts_player_id_idx").on(table.playerId),
 }));
 
 export const submissions = sqliteTable("submissions", {

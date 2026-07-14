@@ -45,7 +45,7 @@ const recordAudit = async (db: ReturnType<typeof drizzle>, auth: AuthContext, op
   });
 };
 
-const normalizeHandle = (handle: string) => handle.trim().toLocaleLowerCase();
+const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase();
 
 const digestHex = async (value: ArrayBuffer) => {
   const digest = await crypto.subtle.digest("SHA-256", value);
@@ -83,16 +83,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<ReturnType<PlatformServices["createBinding"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.binding.create", idempotencyKey, input);
       if (replay) return replay;
 
-      const existing = await db.select().from(bindings).where(and(eq(bindings.provider, input.provider), eq(bindings.externalUserId, input.externalUserId))).get();
+      const existing = await db.select().from(bindings).where(and(eq(bindings.provider, input.provider), eq(bindings.groupOpenId, input.groupOpenId), eq(bindings.memberOpenId, input.memberOpenId))).get();
+      let account = existing
+        ? await db.select().from(playerAccounts).where(eq(playerAccounts.id, existing.playerAccountId)).get()
+        : await db.select().from(playerAccounts).where(eq(playerAccounts.playerId, input.playerId)).get();
+      if (existing && account?.playerId !== input.playerId) throw new Error("BINDING_CONFLICT");
+      if (!account) {
+        const timestamp = now();
+        account = { id: crypto.randomUUID(), playerId: input.playerId, playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), createdAt: timestamp, updatedAt: timestamp };
+        await db.insert(playerAccounts).values(account);
+      } else if (account.playerName !== input.playerName) {
+        await db.update(playerAccounts).set({ playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), updatedAt: now() }).where(eq(playerAccounts.id, account.id));
+        account = { ...account, playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), updatedAt: now() };
+      }
+
       if (existing) {
-        const account = await db.select().from(playerAccounts).where(eq(playerAccounts.identityId, existing.identityId)).get();
-        const response = { contractVersion: "1" as const, bindingId: existing.id, identityId: existing.identityId, provider: "qq" as const, externalUserId: existing.externalUserId, playerHandle: account?.handle ?? input.playerHandle };
-        if (!account) {
-          const timestamp = now();
-          await db.insert(playerAccounts).values({ id: crypto.randomUUID(), identityId: existing.identityId, handle: input.playerHandle, normalizedHandle: normalizeHandle(input.playerHandle), createdAt: timestamp, updatedAt: timestamp });
-        } else {
-          await db.update(playerAccounts).set({ handle: input.playerHandle, normalizedHandle: normalizeHandle(input.playerHandle), updatedAt: now() }).where(eq(playerAccounts.identityId, existing.identityId));
-        }
+        if (existing.playerAccountId !== account.id) throw new Error("BINDING_CONFLICT");
+        const response = { contractVersion: "1" as const, bindingId: existing.id, identityId: existing.identityId, provider: "qq" as const, groupOpenId: existing.groupOpenId, memberOpenId: existing.memberOpenId, playerName: account.playerName, playerId: account.playerId };
         await recordIdempotency(db, auth.subject, "qq.binding.create", idempotencyKey, input, response);
         return response;
       }
@@ -101,9 +108,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const bindingId = crypto.randomUUID();
       const timestamp = now();
       await db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp });
-      await db.insert(bindings).values({ id: bindingId, identityId, provider: input.provider, externalUserId: input.externalUserId, createdAt: timestamp });
-      await db.insert(playerAccounts).values({ id: crypto.randomUUID(), identityId, handle: input.playerHandle, normalizedHandle: normalizeHandle(input.playerHandle), createdAt: timestamp, updatedAt: timestamp });
-      const response = { contractVersion: "1" as const, bindingId, identityId, provider: "qq" as const, externalUserId: input.externalUserId, playerHandle: input.playerHandle };
+      await db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: input.provider, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, createdAt: timestamp });
+      const response = { contractVersion: "1" as const, bindingId, identityId, provider: "qq" as const, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, playerName: account.playerName, playerId: account.playerId };
       await recordIdempotency(db, auth.subject, "qq.binding.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "qq.binding.create", "binding", bindingId, { provider: input.provider });
       return response;
@@ -112,7 +118,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async createSubmission(input: SubmissionRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["createSubmission"]> extends Promise<infer T> ? T : never>(db, auth.subject, "submission.create", idempotencyKey, input);
       if (replay) return replay;
-      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, input.actor.provider), eq(bindings.externalUserId, input.actor.externalUserId))).get();
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, input.actor.provider), eq(bindings.groupOpenId, input.actor.groupOpenId), eq(bindings.memberOpenId, input.actor.memberOpenId))).get();
       if (!binding) throw new Error("BINDING_NOT_FOUND");
 
       const submissionId = crypto.randomUUID();
