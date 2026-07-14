@@ -12,6 +12,12 @@ const services: PlatformServices = {
   getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   upsertQqGroupAccess: async () => {},
+  getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
+    contractVersion: "1",
+    player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" },
+    recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
+  } : null,
+  logoutPortalSession: async () => {},
 };
 
 const app = createApp({
@@ -53,6 +59,38 @@ describe("API", () => {
     const status = await app.request(`http://localhost/v1/auth/qq/login-attempt/${payload.attemptId}`, { headers: { "x-login-attempt-token": payload.attemptToken } }, env);
     expect(status.status).toBe(200);
     expect(await status.json()).toMatchObject({ contractVersion: "1", status: "pending" });
+  });
+
+  it("sets a secure cookie only over HTTPS", async () => {
+    const verifiedApp = createApp({
+      authenticate: auth,
+      services: () => ({ ...services, getQqLoginStatus: async () => ({ contractVersion: "1", status: "verified", environment: "production", sessionToken: "a".repeat(64) }) }),
+    });
+    const response = await verifiedApp.request("https://api.owbastion.codes/v1/auth/qq/login-attempt/00000000-0000-0000-0000-000000000005", { headers: { "x-login-attempt-token": "a".repeat(64) } }, env);
+    expect(response.headers.get("set-cookie")).toContain("Secure");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.codes");
+  });
+
+  it("requires a valid portal session and returns only player-facing fields", async () => {
+    const unauthenticated = await app.request("http://localhost/v1/me", {}, env);
+    expect(unauthenticated.status).toBe(401);
+
+    const response = await app.request("http://localhost/v1/me", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      contractVersion: "1",
+      player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" },
+      recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
+    });
+  });
+
+  it("clears the portal session on logout", async () => {
+    const loggedOut: string[] = [];
+    const logoutApp = createApp({ authenticate: auth, services: () => ({ ...services, logoutPortalSession: async ({ sessionToken }) => { loggedOut.push(sessionToken); } }) });
+    const response = await logoutApp.request("http://localhost/v1/auth/logout", { method: "POST", headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(204);
+    expect(loggedOut).toEqual(["session-token"]);
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("requires a service idempotency key for QQ login verification", async () => {

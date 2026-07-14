@@ -98,6 +98,16 @@ export const submissionStatusResponseSchema = z.object({
   updatedAt: z.number().int(),
 });
 
+export const currentPlayerResponseSchema = z.object({
+  contractVersion,
+  player: z.object({
+    playerId,
+    playerName: z.string().trim().min(1).max(64),
+    bindingStatus: z.literal("bound"),
+  }),
+  recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
+});
+
 export const errorResponseSchema = z.object({
   contractVersion,
   error: z.object({
@@ -118,4 +128,5 @@ export type QqGroupAccessRequest = z.infer<typeof qqGroupAccessRequestSchema>;
 export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
+export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;

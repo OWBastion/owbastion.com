@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { currentPlayerResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("accepts stable QQ binding metadata", () => {
@@ -16,5 +16,9 @@ describe("v1 platform contracts", () => {
 
   it("accepts the QQ login verification contract", () => {
     expect(qqLoginVerifyRequestSchema.safeParse({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "user-1", messageId: "message-1" }).success).toBe(true);
+  });
+
+  it("accepts a player response without QQ identifiers", () => {
+    expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" }, recentSubmissions: [] }).success).toBe(true);
   });
 });

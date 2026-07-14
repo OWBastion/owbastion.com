@@ -34,10 +34,14 @@ const parseBody = async (request: Request) => {
   }
 };
 
+const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
+
+const sessionCookie = (request: Request, value: string, maxAge: number) => `owb_session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
+
 export const createApp = (dependencies: AppDependencies) => {
   const app = new Hono<{ Bindings: RuntimeEnv }>();
   const allowPortal = (c: any) => {
-    c.header("Access-Control-Allow-Origin", c.env.PORTAL_ORIGIN ?? "http://localhost:3000");
+    c.header("Access-Control-Allow-Origin", c.env.PORTAL_ORIGIN ?? "https://owbastion.codes");
     c.header("Access-Control-Allow-Credentials", "true");
     c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token");
     c.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -52,6 +56,8 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
 
   app.post("/v1/auth/qq/login-attempt", async (c) => {
     allowPortal(c);
@@ -67,7 +73,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!/^[0-9a-f-]{36}$/.test(attemptId) || !attemptToken) return errorResponse(c, 422, "INVALID_LOGIN_ATTEMPT", "The login attempt is invalid");
     try {
       const result = await dependencies.services(c.env).getQqLoginStatus({ attemptId, attemptToken });
-      if (result.sessionToken) c.header("Set-Cookie", `owb_session=${result.sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+      if (result.sessionToken) c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json(result);
     } catch (error) {
       if (error instanceof Error && error.message === "LOGIN_ATTEMPT_NOT_FOUND") return errorResponse(c, 404, "LOGIN_ATTEMPT_NOT_FOUND", "The login attempt does not exist");
@@ -88,10 +94,27 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
-      if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
+      if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED", "LOGIN_BINDING_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
+  });
+
+  app.get("/v1/me", async (c) => {
+    allowPortal(c);
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
+    if (!player) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    return c.json(player);
+  });
+
+  app.post("/v1/auth/logout", async (c) => {
+    allowPortal(c);
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (sessionToken) await dependencies.services(c.env).logoutPortalSession({ sessionToken });
+    c.header("Set-Cookie", sessionCookie(c.req.raw, "", 0));
+    return c.body(null, 204);
   });
 
   app.put("/v1/admin/qq/groups/:groupOpenId", async (c) => {

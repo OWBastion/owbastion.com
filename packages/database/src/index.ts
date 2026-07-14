@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { desc, eq, and, gt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
@@ -137,6 +137,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.enabled, 1))).get();
       if (!group) throw new Error("LOGIN_GROUP_NOT_ALLOWED");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, input.provider), eq(bindings.groupOpenId, input.groupOpenId), eq(bindings.memberOpenId, input.memberOpenId))).get();
+      if (!binding) throw new Error("LOGIN_BINDING_REQUIRED");
       const attempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, await hashRequest(input.code)), eq(qqLoginAttempts.status, "pending"))).get();
       if (!attempt) throw new Error("LOGIN_CODE_INVALID");
       if (attempt.expiresAt <= now()) {
@@ -148,6 +150,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordIdempotency(db, auth.subject, "qq.login.verify", idempotencyKey, input, response);
       await recordAudit(db, auth, "qq.login.verify", "qq_login_attempt", attempt.id, { environment: group.environment });
       return response;
+    },
+
+    async getCurrentPlayer(input) {
+      const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(input.sessionToken)), gt(qqSessions.expiresAt, now()))).get();
+      if (!session) return null;
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, session.groupOpenId), eq(bindings.memberOpenId, session.memberOpenId))).get();
+      if (!binding) return null;
+      const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
+      if (!player) return null;
+      const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
+        .from(submissions)
+        .where(eq(submissions.bindingId, binding.id))
+        .orderBy(desc(submissions.createdAt))
+        .limit(5);
+      return {
+        contractVersion: "1" as const,
+        player: { playerId: player.playerId, playerName: player.playerName, bindingStatus: "bound" as const },
+        recentSubmissions: recentSubmissions.map((submission) => ({ ...submission, status: submission.status as "received" | "evidence_pending" | "evidence_stored" | "ocr_pending" | "resubmission_required" })),
+      };
+    },
+
+    async logoutPortalSession(input) {
+      await db.delete(qqSessions).where(eq(qqSessions.tokenHash, await hashRequest(input.sessionToken)));
     },
 
     async createBinding(input: QqBindingRequest, auth, idempotencyKey) {

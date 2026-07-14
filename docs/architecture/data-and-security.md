@@ -38,7 +38,7 @@ Screenshots and review data are private by default. Implementations should valid
 
 Logs must not contain screenshot bytes, secrets, signed URLs, or unnecessary private identifiers.
 
-QQ login codes, browser attempt tokens, session tokens, group OpenIDs, and member OpenIDs are private. Only hashes of short-lived login credentials are persisted, and the Portal receives a session cookie only after the platform has verified a code from an enabled group. Login attempts expire after five minutes and are consumed once.
+QQ login codes, browser attempt tokens, session tokens, group OpenIDs, and member OpenIDs are private. Only hashes of short-lived login credentials are persisted, and the Portal receives a session cookie only after the platform has verified a code from an enabled group with an existing group-scoped player binding. Login attempts expire after five minutes and are consumed once. `GET /v1/me` exposes only the authenticated player's name, numeric player ID, binding status, and recent player-facing submission fields; QQ identifiers never leave the API boundary.
 
 ## Public-repository policy
 

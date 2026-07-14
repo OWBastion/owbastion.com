@@ -10,6 +10,7 @@ import type {
   QqLoginVerifyRequest,
   QqLoginVerifyResponse,
   QqGroupAccessRequest,
+  CurrentPlayerResponse,
 } from "@owbastion/contracts";
 
 export type AuthContext = {
@@ -27,6 +28,8 @@ export type PlatformServices = {
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext): Promise<void>;
+  getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
+  logoutPortalSession(input: { sessionToken: string }): Promise<void>;
 };
 
 export type Authenticator<Env> = (request: Request, env: Env) => Promise<AuthContext | null>;

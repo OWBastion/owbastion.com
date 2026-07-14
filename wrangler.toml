@@ -3,6 +3,9 @@ main = "apps/api/src/worker.ts"
 compatibility_date = "2026-07-14"
 workers_dev = false
 
+[vars]
+PORTAL_ORIGIN = "https://owbastion.codes"
+
 [[routes]]
 pattern = "api.owbastion.codes"
 custom_domain = true

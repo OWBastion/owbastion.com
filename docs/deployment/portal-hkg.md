@@ -17,7 +17,13 @@ visitor
 ```
 
 The public hostname for the Portal is `owbastion.codes`. The platform API is
-planned for `api.owbastion.codes` and is not part of this Compose deployment.
+served at `api.owbastion.codes` and is not part of this Compose deployment.
+
+The Portal container sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.codes`.
+The Worker allows credentialed browser requests only from `https://owbastion.codes`.
+For local browser development, run the Worker with `PORTAL_ORIGIN=http://localhost:3000`;
+the Portal defaults to `http://localhost:8787` and the API omits the `Secure`
+cookie attribute for that HTTP origin.
 
 ## Repository boundary
 
