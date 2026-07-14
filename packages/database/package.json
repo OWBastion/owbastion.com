@@ -10,7 +10,7 @@
   "dependencies": {
     "@owbastion/contracts": "workspace:*",
     "@owbastion/domain": "workspace:*",
-    "drizzle-orm": "^0.44.2"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250705.0"
