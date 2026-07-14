@@ -13,5 +13,5 @@ export function usePortalApi() {
   const baseUrl = config.public.apiBaseUrl.replace(/\/$/, "");
 
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) =>
-    await $fetch<T>(`${baseUrl}${path}`, { ...options, credentials: "include" });
+    await $fetch<T>(`${baseUrl}${path}`, { ...options, credentials: "include", retry: 0, timeout: 8_000 });
 }
