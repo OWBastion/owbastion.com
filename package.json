@@ -6,9 +6,17 @@
     "node": ">=26"
   },
   "scripts": {
+    "dev:portal": "pnpm --filter @owbastion/portal dev",
+    "dev:api": "pnpm exec wrangler dev --config wrangler.toml",
+    "build:portal": "pnpm --filter @owbastion/portal build",
+    "build:api": "pnpm --filter @owbastion/api build",
     "build": "pnpm --recursive --if-present run build",
+    "typecheck:portal": "pnpm --filter @owbastion/portal typecheck",
+    "typecheck:api": "pnpm --filter @owbastion/api typecheck",
     "test": "vitest run",
-    "typecheck": "pnpm --recursive --if-present run typecheck"
+    "test:api": "pnpm exec vitest run apps/api",
+    "typecheck": "pnpm --recursive --if-present run typecheck",
+    "check": "pnpm run test && pnpm run typecheck && pnpm run build"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250705.0",
