@@ -21,8 +21,8 @@ const statusText: Record<string, string> = {
 
 <template>
   <main class="submission-page">
-    <NuxtLink to="/" class="back-link">← OWBastion</NuxtLink>
-    <p class="eyebrow">SUBMISSION STATUS</p>
+    <NuxtLink to="/" class="back-link">← 躲避堡垒 3</NuxtLink>
+    <p class="eyebrow">提交状态</p>
     <h1>提交进度</h1>
     <p v-if="error" class="message">暂时无法找到这条提交记录。</p>
     <section v-else-if="data" class="card" aria-live="polite">
