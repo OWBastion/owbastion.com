@@ -10,8 +10,10 @@ binding creation, and authenticated v1 submission creation backed by local D1
 migrations. The contracts, domain, auth, and database packages own the
 corresponding boundaries.
 
-R2 evidence persistence, OCR, review, grants, Nuxt applications, and remote
-Cloudflare deployment are not implemented yet.
+R2 evidence persistence, OCR, review, grants, administrative Nuxt applications,
+and remote Cloudflare deployment are not implemented yet. The public Portal
+foundation is implemented and its HKG container deployment is documented
+separately below.
 
 The remaining foundation sequence from ADR 0001 must be introduced as separate
 validated milestones. Design documents do not imply that those capabilities
@@ -22,6 +24,11 @@ owbastion-codes-local --local`. Migrations are forward-only; a corrective change
 must be added as a new migration and verified against a restored local database.
 Remote application requires an explicit deployment change and is outside local
 tests.
+
+The public Portal is the first exception to the Cloudflare-only deployment
+assumption: its container is validated locally with Docker Compose and may be
+run on HKG. The server-managed Cloudflare Tunnel is not part of repository
+tests; its local route and public hostname must be verified during deployment.
 
 For a non-trivial change, identify:
 

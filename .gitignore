@@ -34,6 +34,8 @@ Icon
 node_modules/
 .pnpm-store/
 dist/
+.nuxt/
+.output/
 .wrangler/
 .dev.vars
 .env

@@ -16,4 +16,8 @@ This directory contains the detailed, public-facing project documentation. It de
 
 - [Testing and change policy](development/testing-and-change-policy.md) — implementation checklist, testing layers, idempotency, migrations, observability, and staged delivery.
 
+## Deployment
+
+- [HKG Portal deployment](deployment/portal-hkg.md) — Docker Compose deployment for the public Portal and the server-managed Cloudflare Tunnel boundary.
+
 For AI-agent routing, start with the repository-level [`AGENTS.md`](../AGENTS.md). For the short public introduction, start with [`README.md`](../README.md).

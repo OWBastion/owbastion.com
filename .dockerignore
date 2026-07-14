@@ -1,0 +1,12 @@
+.git
+.gitignore
+node_modules
+.pnpm-store
+.nuxt
+.output
+.wrangler
+coverage
+.env
+.env.*
+!.env.example
+*.log

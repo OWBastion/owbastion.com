@@ -2,7 +2,7 @@
 
 `OWBastion/owbastion.codes` 是 Bastion 生态的 Web Platform 与 operational control plane。
 
-本仓库用于承载面向玩家和开发者的公共能力，以及审核、业务数据和跨仓库变更编排。当前仓库仍处于目标架构和文档阶段，README 不代表这些功能已经实现或可直接部署。
+本仓库用于承载面向玩家和开发者的公共能力，以及审核、业务数据和跨仓库变更编排。当前仓库包含平台基础 API 和一个可通过 Docker Compose 部署的最小公共 Portal；完整业务能力仍按文档中的分阶段计划建设。
 
 ## 生态定位
 
@@ -24,6 +24,7 @@
 - [外部集成与业务流程](docs/architecture/integrations-and-workflows.md)：QQBot、OCRKit、Bastion 及状态流转。
 - [数据与安全边界](docs/architecture/data-and-security.md)：数据分类、授权和公开项目中的安全约束。
 - [开发、测试与变更](docs/development/testing-and-change-policy.md)：测试分层、幂等、迁移和发布要求。
+- [HKG Portal 部署](docs/deployment/portal-hkg.md)：公共 Portal 的 Docker Compose 与服务器侧 Cloudflare Tunnel 边界。
 - [AI agent 路由](AGENTS.md)：AI agent 执行任务前必须读取的英文指引。
 
 ## 公开项目约定
@@ -35,4 +36,4 @@
 
 ## 当前状态
 
-仓库的首要工作是建立可审查的架构、契约和开发基础。功能实现应遵循文档中的边界，并在代码、迁移、测试和运行手册准备完整后逐步推进。
+公共 Portal 当前部署在 HKG 的 Docker Compose 中，Cloudflare Tunnel 由服务器侧独立运行并提供公网 TLS。API、D1、R2、队列、审核和发布编排仍按文档中的分阶段计划推进。

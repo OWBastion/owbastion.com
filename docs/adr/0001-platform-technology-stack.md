@@ -19,7 +19,9 @@ The repository is currently at the architecture and foundation stage. A technolo
 
 ## Decision
 
-Use a TypeScript-first modular monorepo deployed primarily on Cloudflare.
+Use a TypeScript-first modular monorepo. Cloudflare remains the primary
+platform runtime for APIs and data services, while the public Portal may be
+deployed as a container on HKG when China-facing access requires it.
 
 ### Frontend
 
@@ -86,6 +88,18 @@ Use Cloudflare services according to the existing ownership contract:
 | Access control for privileged web surfaces | Cloudflare Access or equivalent | reviewer, administrator, developer, and maintainer authentication boundary |
 
 KV and process memory must never become the sole source of truth for identities, submissions, review state, grants, player assets, or release state.
+
+### Public Portal deployment
+
+The public Portal is deployed to HKG with Docker Compose. Cloudflare Edge
+provides public TLS and a server-managed Cloudflare Tunnel forwards the root
+hostname to the Portal's loopback HTTP port. `cloudflared`, Tunnel credentials,
+DNS, and Cloudflare Access configuration are operational concerns outside this
+repository.
+
+The Portal remains a rendering surface. It must not become a second business
+API or a durable data store; the canonical Hono API remains independently
+deployed and is planned for `api.owbastion.codes`.
 
 ### Repository organization
 

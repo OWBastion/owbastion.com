@@ -1,0 +1,17 @@
+{
+  "name": "@owbastion/portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "nuxt": "^3.17.5",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "vue-tsc": "^3.0.0"
+  }
+}

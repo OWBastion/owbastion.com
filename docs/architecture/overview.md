@@ -51,3 +51,15 @@ The conceptual structure is guidance, not proof that each directory already exis
 - Developer area: released-data inspection, analysis, structured drafts, validation, and reviewable change requests.
 
 Public views must use released snapshot data and must not expose private evidence, internal review notes, or unapproved drafts.
+
+## Initial deployment boundary
+
+The first public Portal slice runs as a Nuxt SSR application in a Docker
+Compose service on the HKG server. Cloudflare provides the public TLS edge and
+the server operator runs `cloudflared` independently of this repository. The
+repository does not own Tunnel credentials, DNS configuration, or production
+server configuration.
+
+The Portal is not the platform API and does not own durable business state.
+The Hono API remains a separate Cloudflare Worker surface, planned for
+`api.owbastion.codes`.
