@@ -17,7 +17,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="complete-page page-shell"><section class="complete-card surface-card" aria-live="polite"><p class="eyebrow">登录确认</p><h1 class="page-title">{{ state === 'checking' ? '正在连接你的玩家中心' : '无法完成登录' }}</h1><p class="body-copy">{{ state === 'checking' ? '正在安全确认本次浏览器会话。' : '会话没有成功建立，请返回后重新获取验证码。' }}</p><NuxtLink v-if="state === 'failed'" to="/login" class="primary-button">返回登录</NuxtLink></section></main>
+  <main class="complete-page page-shell"><section class="complete-card surface-card" aria-live="polite"><p class="eyebrow">登录确认</p><h1 class="page-title">{{ state === 'checking' ? '正在连接玩家中心' : '无法完成登录' }}</h1><p class="body-copy">{{ state === 'checking' ? '正在安全确认本次浏览器会话。' : '会话没有成功建立，请返回后重新获取验证码。' }}</p><NuxtLink v-if="state === 'failed'" to="/login" class="primary-button">返回登录</NuxtLink></section></main>
 </template>
 
 <style scoped>

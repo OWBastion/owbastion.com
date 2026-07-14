@@ -19,8 +19,8 @@ async function copy() {
   <main class="login-page page-shell">
     <section class="login-card surface-card" aria-live="polite">
       <p class="eyebrow">玩家登录</p>
-      <h1 class="page-title">用 QQ 确认<br>你的玩家身份</h1>
-      <p class="body-copy intro">登录不会公开你的 QQ 信息。请在已绑定且已开放的 QQ 群中完成一次验证。</p>
+      <h1 class="page-title">用 QQ 机器人<br>完成登录验证</h1>
+      <p class="body-copy intro">请在已绑定且已开放的 QQ 群中完成验证。</p>
 
       <div v-if="state === 'idle' || state === 'cancelled' || state === 'expired' || state === 'failed'" class="action-panel">
         <p v-if="state === 'expired'" class="notice warning">验证码已过期，请重新获取。</p>
