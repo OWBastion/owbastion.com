@@ -92,8 +92,5 @@ jobs:
         shell: bash
         run: printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
 
-      - name: Verify deployed Worker
-        run: curl --fail --retry 5 --retry-delay 2 https://api.owbastion.codes/health
-
       - name: Publish API URL
         run: echo "::notice title=Cloudflare Worker deployed::https://api.owbastion.codes"

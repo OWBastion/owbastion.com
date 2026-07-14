@@ -31,14 +31,16 @@ Worker as a secret and must be the same value configured on the HKG QQBot.
 
 Pull requests run install, tests, typecheck, and build only. A push to `main`
 or a manual dispatch runs those checks, applies forward-only remote D1
-migrations, updates the Worker secret, deploys the Worker, and checks `/health`.
+migrations, updates the Worker secret, deploys the Worker, and publishes the
+API URL.
 
 The workflow refuses to deploy while the D1 ID is still the repository's
 placeholder. It does not reset, delete, or roll back D1 data.
 
 The Worker is deployed to the Git-managed Custom Domain
-`https://api.owbastion.codes`. The workflow verifies that hostname after every
-deployment.
+`https://api.owbastion.codes`. The workflow does not automatically verify the
+public hostname after deployment; production reachability is checked through
+separate operational monitoring.
 
 ## HKG QQBot configuration
 
