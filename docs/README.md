@@ -8,6 +8,10 @@ This directory contains the detailed, public-facing project documentation. It de
 - [Integrations and workflows](architecture/integrations-and-workflows.md) — public contracts and high-level flows for QQBot, OCRKit, submissions, challenge rules, and Bastion changes.
 - [Data and security](architecture/data-and-security.md) — data classes, storage responsibilities, authorization, and public-repository safety.
 
+## Architecture decisions
+
+- [ADR 0001: Platform technology stack](adr/0001-platform-technology-stack.md) — frontend, backend, Cloudflare services, contract ownership, repository organization, and implementation guardrails.
+
 ## Development
 
 - [Testing and change policy](development/testing-and-change-policy.md) — implementation checklist, testing layers, idempotency, migrations, observability, and staged delivery.
