@@ -7,11 +7,28 @@ This document defines high-level contracts. It intentionally omits credentials, 
 Keep review approval, grant completion, and game release as separate states:
 
 ```text
-received → evidence_pending → ocr_pending → ocr_processing
+received
+→ evidence_pending
+→ ocr_pending
+→ ocr_processing
 → ready_for_review
-→ approved | rejected | resubmission_required
-→ grant_pending → pr_created → granted → released
+    ├→ approved
+    │   → grant_pending
+    │   → pr_created
+    │   → granted
+    │   → released
+    ├→ rejected
+    └→ resubmission_required
 ```
+
+The review and grant states have distinct meanings:
+
+| State | Definition |
+| --- | --- |
+| `approved` | The review decision passed, but Bastion has not yet been modified. |
+| `pr_created` | A Bastion pull request containing the grant request has been created. |
+| `granted` | The change to the authoritative title source has been merged or otherwise confirmed. |
+| `released` | A game version or public snapshot containing the grant has been released. |
 
 Failure states may include evidence, OCR, grant, and notification failures. Each transition needs an allowed predecessor, authorized actor, timestamp, idempotency behavior, audit record, and retry or reconciliation path.
 
