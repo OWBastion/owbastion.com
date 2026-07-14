@@ -48,7 +48,10 @@ server-local HTTP endpoint, normally `http://127.0.0.1:3000`.
 ## CI image publishing
 
 GitHub Actions builds the Portal image after the checks pass on `main` and
-publishes it to the public GitHub Container Registry package:
+publishes it to the public GitHub Container Registry package. The workflow
+runs only when `apps/portal`, shared packages, shared pnpm/TypeScript/Vitest
+build inputs, or the Portal workflow itself changes; API-only, migration, and
+documentation changes do not publish a Portal image:
 
 ```text
 ghcr.io/owbastion/owbastion.codes-portal

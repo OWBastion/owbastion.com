@@ -2,8 +2,26 @@ name: Publish Portal image
 
 on:
   pull_request:
+    paths:
+      - 'apps/portal/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/publish-portal.yml'
   push:
     branches: [main]
+    paths:
+      - 'apps/portal/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/publish-portal.yml'
 
 permissions:
   contents: read

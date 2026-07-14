@@ -29,10 +29,12 @@ Worker as a secret and must be the same value configured on the HKG QQBot.
 
 ## Workflow behavior
 
-Pull requests run install, tests, typecheck, and build only. A push to `main`
-or a manual dispatch runs those checks, applies forward-only remote D1
-migrations, updates the Worker secret, deploys the Worker, and publishes the
-API URL.
+The workflow runs for pull requests and pushes to `main` only when API inputs
+change: `apps/api`, shared packages, D1 migrations, `wrangler.toml`, shared
+pnpm/TypeScript/Vitest build inputs, or the API workflow itself. Pull requests
+run install, tests, typecheck, and build only. A qualifying push to `main` or
+a manual dispatch runs those checks, applies forward-only remote D1 migrations,
+updates the Worker secret, deploys the Worker, and publishes the API URL.
 
 The workflow refuses to deploy while the D1 ID is still the repository's
 placeholder. It does not reset, delete, or roll back D1 data.

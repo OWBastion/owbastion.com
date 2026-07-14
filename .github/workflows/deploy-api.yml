@@ -2,8 +2,30 @@ name: Deploy API
 
 on:
   pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'migrations/**'
+      - 'wrangler.toml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/deploy-api.yml'
   push:
     branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'migrations/**'
+      - 'wrangler.toml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - '.github/workflows/deploy-api.yml'
   workflow_dispatch:
 
 permissions:
