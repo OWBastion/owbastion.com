@@ -1,7 +1,35 @@
 import { Hono } from "hono";
+import {
+  qqBindingRequestSchema,
+  submissionRequestSchema,
+} from "@owbastion/contracts";
+import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
-export const createApp = () => {
-  const app = new Hono();
+export type RuntimeEnv = {
+  DB: D1Database;
+  QQBOT_API_TOKEN?: string;
+};
+
+type AppDependencies = {
+  authenticate: Authenticator<RuntimeEnv>;
+  services: (env: RuntimeEnv) => PlatformServices;
+};
+
+const requestId = (request: Request) => request.headers.get("x-request-id") ?? crypto.randomUUID();
+
+const errorResponse = (c: any, status: 400 | 401 | 403 | 409 | 422 | 500, code: string, message: string) =>
+  c.json({ contractVersion: "1", error: { code, message, requestId: requestId(c.req.raw) } }, status);
+
+const parseBody = async (request: Request) => {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+};
+
+export const createApp = (dependencies: AppDependencies) => {
+  const app = new Hono<{ Bindings: RuntimeEnv }>();
 
   app.get("/health", (c) =>
     c.json({
@@ -10,7 +38,42 @@ export const createApp = () => {
     }),
   );
 
+  app.post("/v1/qq/bindings", async (c) => {
+    const auth = await dependencies.authenticate(c.req.raw, c.env);
+    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = qqBindingRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+
+    try {
+      return c.json(await dependencies.services(c.env).createBinding(parsed.data, auth, idempotencyKey), 201);
+    } catch (error) {
+      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/submissions", async (c) => {
+    const auth = await dependencies.authenticate(c.req.raw, c.env);
+    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = submissionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+
+    try {
+      return c.json(await dependencies.services(c.env).createSubmission(parsed.data, auth, idempotencyKey), 201);
+    } catch (error) {
+      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
+      if (error instanceof Error && error.message === "BINDING_NOT_FOUND") return errorResponse(c, 422, "BINDING_NOT_FOUND", "The binding does not exist");
+      throw error;
+    }
+  });
+
   return app;
 };
 
-export const app = createApp();
+export type { AppDependencies };

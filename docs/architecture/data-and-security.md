@@ -11,6 +11,12 @@
 
 KV and in-memory state must not be the sole source for review status, grants, identity, or player assets. Private objects should use immutable namespaced keys and content hashes.
 
+The implemented foundation stores QQ identifiers and submission source metadata
+as private D1 business data. It accepts only authenticated QQBot service calls,
+requires an idempotency key for writes, and records write audit events. It does
+not expose these identifiers through public views and does not yet persist
+evidence objects to R2.
+
 ## Access roles
 
 The target role model is:

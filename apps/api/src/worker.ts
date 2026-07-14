@@ -1,3 +1,10 @@
-import { app } from "./app";
+import { authenticateQqBot } from "@owbastion/auth";
+import { createPlatformServices } from "@owbastion/database";
+import { createApp } from "./app";
+
+const app = createApp({
+  authenticate: authenticateQqBot,
+  services: (env) => createPlatformServices(env.DB),
+});
 
 export default app;

@@ -2,6 +2,17 @@
 
 This document defines high-level contracts. It intentionally omits credentials, private endpoints, deployment configuration, and other operational details that do not belong in a public repository.
 
+## Implemented foundation
+
+The first platform vertical slice is implemented in the repository:
+
+- versioned `v1` QQ binding and submission contracts use stable opaque message metadata;
+- authenticated service calls can create an identity binding and a `received` submission;
+- D1 stores the binding, submission, attachment metadata, idempotency record, and audit event;
+- repeated writes with the same idempotency key replay the original response, while a changed request is rejected.
+
+R2 persistence, OCR orchestration, review decisions, grants, and release reconciliation remain future milestones.
+
 ## Submission lifecycle
 
 Keep review approval, grant completion, and game release as separate states:

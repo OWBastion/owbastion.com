@@ -2,11 +2,16 @@
   "name": "@owbastion/api",
   "private": true,
   "type": "module",
+  "exports": { ".": { "types": "./src/app.ts", "default": "./src/app.ts" } },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@owbastion/auth": "workspace:*",
+    "@owbastion/contracts": "workspace:*",
+    "@owbastion/database": "workspace:*",
+    "@owbastion/domain": "workspace:*",
     "hono": "^4.7.11"
   }
 }

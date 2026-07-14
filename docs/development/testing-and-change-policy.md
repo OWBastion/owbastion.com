@@ -4,15 +4,24 @@
 
 ## Current foundation status
 
-The repository currently contains a runnable pnpm TypeScript workspace and a
-minimal Hono Cloudflare Worker API. `GET /health` is the only implemented API
-route. The contracts, domain, and database packages are package boundaries
-only; QQ bindings, submission contracts, D1 migrations, authentication,
-workers, and Nuxt applications are not implemented yet.
+The repository contains a runnable pnpm TypeScript workspace and a Hono
+Cloudflare Worker API. The API implements `GET /health`, authenticated v1 QQ
+binding creation, and authenticated v1 submission creation backed by local D1
+migrations. The contracts, domain, auth, and database packages own the
+corresponding boundaries.
+
+R2 evidence persistence, OCR, review, grants, Nuxt applications, and remote
+Cloudflare deployment are not implemented yet.
 
 The remaining foundation sequence from ADR 0001 must be introduced as separate
 validated milestones. Design documents do not imply that those capabilities
 already exist.
+
+The local D1 foundation is applied with `pnpm exec wrangler d1 migrations apply
+owbastion-codes-local --local`. Migrations are forward-only; a corrective change
+must be added as a new migration and verified against a restored local database.
+Remote application requires an explicit deployment change and is outside local
+tests.
 
 For a non-trivial change, identify:
 

@@ -2,8 +2,17 @@
   "name": "@owbastion/database",
   "private": true,
   "type": "module",
+  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@owbastion/contracts": "workspace:*",
+    "@owbastion/domain": "workspace:*",
+    "drizzle-orm": "^0.44.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250705.0"
   }
 }
