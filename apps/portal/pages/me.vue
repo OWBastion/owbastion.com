@@ -27,7 +27,6 @@ onMounted(async () => {
       <section class="intro" aria-labelledby="dashboard-title">
         <div class="intro-status"><p class="eyebrow">玩家中心</p><StatusBadge label="身份已绑定" tone="success" /></div>
         <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
-        <p class="body-copy">这里记录你已经提交的挑战，以及正在确认中的进度。完成新的挑战后，在 QQ 群中提交截图，进度会显示在这里。</p>
       </section>
 
       <section class="identity-card surface-card" aria-label="玩家身份">
@@ -39,35 +38,35 @@ onMounted(async () => {
       </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
-        <div class="section-heading"><div><p class="eyebrow">挑战记录</p><h2 id="submissions-title">留下每一次挑战</h2></div><span>最近 5 条</span></div>
+        <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><span>5 条</span></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
           <NuxtLink v-for="submission in player.recentSubmissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row surface-card">
             <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>
             <StatusBadge :label="statusText[submission.status] ?? submission.status" :tone="submission.status === 'resubmission_required' ? 'warning' : 'default'" />
           </NuxtLink>
         </div>
-        <EmptyState v-else title="还没有提交记录" description="完成挑战后，在 QQ 群中发送截图提交；新的进度会显示在这里。" />
+        <EmptyState v-else title="暂无记录" />
       </section>
 
       <section class="upcoming-section" aria-labelledby="upcoming-title">
-        <div class="section-heading upcoming-heading"><div><p class="eyebrow">后续开放</p><h2 id="upcoming-title">更多记录，稍后见</h2></div><p>这些内容目前尚未开放，开放后会在这里显示。</p></div>
+        <div class="section-heading upcoming-heading"><div><p class="eyebrow">未开放</p><h2 id="upcoming-title">更多功能</h2></div></div>
         <div class="upcoming-grid">
           <article class="upcoming-card surface-card">
-            <div class="upcoming-card-top"><span class="upcoming-index">01</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">个人收藏</p><h3>成就与称号</h3><p>开放后，可查看已确认的成就记录，以及随发布状态更新的称号。</p></div>
+            <div class="upcoming-card-top"><span class="upcoming-index">01</span><span class="coming-soon-label">未开放</span></div>
+            <div><p class="upcoming-kicker">个人收藏</p><h3>成就与称号</h3></div>
           </article>
           <article class="upcoming-card surface-card">
-            <div class="upcoming-card-top"><span class="upcoming-index">02</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">限时目标</p><h3>轮换挑战</h3><p>开放后，可查看当前挑战、参与条件和公开完成记录。</p></div>
+            <div class="upcoming-card-top"><span class="upcoming-index">02</span><span class="coming-soon-label">未开放</span></div>
+            <div><p class="upcoming-kicker">限时目标</p><h3>轮换挑战</h3></div>
           </article>
           <article class="upcoming-card surface-card">
-            <div class="upcoming-card-top"><span class="upcoming-index">03</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">地图记录</p><h3>地图挑战进度</h3><p>开放后，可按地图查看已提交的挑战与等待确认的进展。</p></div>
+            <div class="upcoming-card-top"><span class="upcoming-index">03</span><span class="coming-soon-label">未开放</span></div>
+            <div><p class="upcoming-kicker">地图记录</p><h3>地图挑战进度</h3></div>
           </article>
         </div>
       </section>
     </template>
-    <p v-else-if="loading" class="loading">正在读取你的玩家中心……</p>
+    <p v-else-if="loading" class="loading">读取中…</p>
   </main>
 </template>
 
@@ -77,7 +76,6 @@ onMounted(async () => {
 .intro-status { display: flex; align-items: center; gap: 11px; }
 .intro-status .eyebrow { margin-bottom: .8rem; }
 .intro-status .status-badge { margin-bottom: .8rem; }
-.intro .body-copy { max-width: 52ch; margin: 22px 0 0; }
 .identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 25px; background: color-mix(in oklch, var(--surface-raised) 78%, var(--surface)); box-shadow: 0 14px 34px oklch(0% 0 0 / 12%); backdrop-filter: blur(16px); }
 .battletag-identity { display: flex; min-width: 0; align-items: center; gap: 15px; }
 .battletag-mark { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 52%, var(--line)); border-radius: 50%; color: var(--accent); background: var(--accent-surface); font-size: 1.2rem; font-weight: 720; letter-spacing: -.04em; }
@@ -97,7 +95,6 @@ onMounted(async () => {
 .submission-row:hover { transform: translateY(-1px); border-color: var(--line-strong); }
 .submission-row strong { display: block; letter-spacing: -.02em; }
 .submission-row span:not(.status-badge) { display: block; margin-top: 5px; color: var(--quiet); font-size: .78rem; }
-.upcoming-heading > p { max-width: 30ch; margin: 0; color: var(--quiet); font-size: .8rem; line-height: 1.55; text-align: right; }
 .upcoming-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .upcoming-card { position: relative; display: flex; min-height: 272px; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 22px; background: color-mix(in oklch, var(--surface-raised) 72%, var(--surface)); }
 .upcoming-card::after { position: absolute; inset: auto -16% -36% auto; width: 165px; height: 165px; border-radius: 50%; background: oklch(54% .045 55 / 16%); filter: blur(18px); content: ""; }

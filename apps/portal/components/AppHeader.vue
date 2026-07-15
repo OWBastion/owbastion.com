@@ -21,7 +21,7 @@ async function signOut() {
       <NuxtLink to="/" class="brand" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
       <nav class="main-nav" aria-label="主导航"><NuxtLink to="/#events">事件</NuxtLink><NuxtLink to="/#achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></nav>
       <div class="account-actions">
-        <template v-if="player"><NuxtLink to="/me" class="account-link">我的中心</NuxtLink><button class="text-button" type="button" :disabled="loggingOut" @click="signOut">退出</button></template>
+        <template v-if="player"><NuxtLink to="/me" class="account-link">我的</NuxtLink><button class="text-button" type="button" :disabled="loggingOut" @click="signOut">退出</button></template>
         <NuxtLink v-else to="/login" class="login-link">登录 <span aria-hidden="true">↗</span></NuxtLink>
       </div>
     </div>
