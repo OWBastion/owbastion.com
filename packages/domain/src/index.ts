@@ -41,7 +41,7 @@ export type AuthContext = {
 
 export type PlatformServices = {
   listMaps(): Promise<Map[]>;
-  listChallenges(): Promise<Challenge[]>;
+  listChallenges(input?: { family?: "map" | "achievement" }): Promise<Challenge[]>;
   listTitles(input: { mapId?: string }): Promise<Title[]>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;

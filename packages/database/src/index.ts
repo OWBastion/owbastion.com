@@ -2,7 +2,7 @@ import { desc, eq, and, gt, like, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallenges, attachments, auditEvents, bindings, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, uploadSessions } from "./schema";
+import { achievementChallenges, attachments, auditEvents, bindings, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -100,22 +100,47 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return rows.map((row): Map => ({ mapId: row.id, mapName: row.name, gameVersion: row.gameVersion }));
     },
 
-    async listChallenges() {
-      const rows = await db.select({ challenge: achievementChallenges, map: maps })
-        .from(achievementChallenges)
-        .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-        .where(and(eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
-        .orderBy(maps.name, achievementChallenges.name);
-      return rows.map(({ challenge, map }): Challenge => ({
-        challengeId: challenge.id,
-        type: "map_completion",
-        kind: challenge.type as Challenge["kind"],
-        name: challenge.name,
-        mapId: map.id,
-        mapName: map.name,
-        difficulty: challenge.difficulty ?? undefined,
-        gameVersion: challenge.gameVersion,
-      }));
+    async listChallenges(input) {
+      const items: Challenge[] = [];
+      if (!input?.family || input.family === "map") {
+        const rows = await db.select({ challenge: achievementChallenges, map: maps })
+          .from(achievementChallenges)
+          .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
+          .where(and(eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
+          .orderBy(maps.name, achievementChallenges.name);
+        items.push(...rows.map(({ challenge, map }): Challenge => ({
+          challengeId: challenge.id,
+          family: "map",
+          type: "map_completion",
+          kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion",
+          name: challenge.name,
+          mapId: map.id,
+          mapName: map.name,
+          difficulty: challenge.difficulty ?? undefined,
+          gameVersion: challenge.gameVersion,
+        })));
+      }
+      if (!input?.family || input.family === "achievement") {
+        const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
+          .from(titleChallenges)
+          .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+          .where(and(eq(titleChallenges.status, "active"), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
+          .orderBy(titleCatalog.category, titleCatalog.label);
+        items.push(...rows.map(({ challenge, title }): Challenge => ({
+          challengeId: challenge.id,
+          family: "achievement",
+          type: "title_achievement",
+          kind: "title_achievement",
+          titleKey: title.key,
+          titleName: title.label,
+          category: title.category,
+          condition: challenge.condition,
+          evidenceRule: challenge.evidenceRule,
+          gameVersion: challenge.gameVersion,
+          status: "active",
+        })));
+      }
+      return items;
     },
 
     async listTitles(input) {
@@ -156,18 +181,26 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, session.groupOpenId), eq(bindings.memberOpenId, session.memberOpenId))).get();
       if (!binding) throw new Error("UNAUTHENTICATED");
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-      const challenge = await db.select({ challenge: achievementChallenges, map: maps })
+      const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps })
         .from(achievementChallenges)
         .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
         .where(and(eq(achievementChallenges.id, input.challengeId), eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
         .get();
+      const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog })
+        .from(titleChallenges)
+        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+        .where(and(eq(titleChallenges.id, input.challengeId), eq(titleChallenges.status, "active"), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
+        .get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
-      if (!challenge) throw new Error("CHALLENGE_NOT_FOUND");
+      if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
+      const challengeType = mapChallenge?.challenge.type ?? "title_achievement";
+      const mapName = mapChallenge?.map.name ?? "成就挑战";
+      const difficulty = mapChallenge?.challenge.difficulty ?? null;
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
       const objectKey = `evidence/submissions/${submissionId}/${input.sha256}.upload`;
-      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType: challenge.challenge.type, challengeId: challenge.challenge.id, mapName: challenge.map.name, difficulty: challenge.challenge.difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
+      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
     },

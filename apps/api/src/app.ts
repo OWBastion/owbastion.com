@@ -174,7 +174,9 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/challenges", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges() });
+    const family = c.req.query("family");
+    if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
+    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined }) });
   });
 
   app.get("/v1/titles", async (c) => {

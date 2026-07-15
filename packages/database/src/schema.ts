@@ -92,6 +92,19 @@ export const achievementChallenges = sqliteTable("achievement_challenges", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const titleChallenges = sqliteTable("title_challenges", {
+  id: text("id").primaryKey(),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  condition: text("condition").notNull(),
+  evidenceRule: text("evidence_rule").notNull(),
+  gameVersion: text("game_version").notNull(),
+  status: text("status").notNull(),
+  introducedVersion: text("introduced_version").notNull(),
+  retiredVersion: text("retired_version"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 export const submissions = sqliteTable("submissions", {
   id: text("id").primaryKey(),
   bindingId: text("binding_id").notNull(),

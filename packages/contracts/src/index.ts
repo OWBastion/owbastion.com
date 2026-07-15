@@ -84,8 +84,9 @@ const attachmentSchema = z.object({
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 
-export const challengeSchema = z.object({
+const mapChallengeSchema = z.object({
   challengeId: externalId,
+  family: z.literal("map"),
   type: z.literal("map_completion"),
   kind: z.enum(["difficulty_completion", "pioneer", "classic_completion"]),
   name: z.string().trim().min(1).max(256),
@@ -94,6 +95,22 @@ export const challengeSchema = z.object({
   difficulty: z.string().trim().min(1).max(64).optional(),
   gameVersion: z.string().trim().min(1).max(64),
 });
+
+const achievementChallengeSchema = z.object({
+  challengeId: externalId,
+  family: z.literal("achievement"),
+  type: z.literal("title_achievement"),
+  kind: z.literal("title_achievement"),
+  titleKey: externalId,
+  titleName: z.string().trim().min(1).max(256),
+  category: z.string().trim().min(1).max(128),
+  condition: z.string().trim().min(1).max(1024),
+  evidenceRule: z.string().trim().min(1).max(2048),
+  gameVersion: z.string().trim().min(1).max(64),
+  status: z.literal("active"),
+});
+
+export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
 
 export const challengeListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) });
 

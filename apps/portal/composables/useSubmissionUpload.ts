@@ -1,14 +1,17 @@
 import type { PortalApiError } from "./usePortalApi";
 
 export type Map = { mapId: string; mapName: string; gameVersion: string };
-export type Challenge = { challengeId: string; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion"; name: string; mapId: string; mapName: string; difficulty?: string; gameVersion: string };
+export type MapChallenge = { challengeId: string; family: "map"; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion"; name: string; mapId: string; mapName: string; difficulty?: string; gameVersion: string };
+export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "active" };
+export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
 export function useSubmissionUpload() {
   const api = usePortalApi();
   const maps = ref<Map[]>([]);
-  const challenges = ref<Challenge[]>([]);
+  const mapChallenges = ref<MapChallenge[]>([]);
+  const achievementChallenges = ref<AchievementChallenge[]>([]);
   const loading = ref(false);
   const catalogLoading = ref(false);
   const error = ref("");
@@ -17,12 +20,14 @@ export function useSubmissionUpload() {
     catalogLoading.value = true;
     error.value = "";
     try {
-      const [mapResponse, challengeResponse] = await Promise.all([
+      const [mapResponse, mapChallengeResponse, achievementChallengeResponse] = await Promise.all([
         api<{ items: Map[] }>("/v1/maps"),
-        api<{ items: Challenge[] }>("/v1/challenges"),
+        api<{ items: MapChallenge[] }>("/v1/challenges?family=map"),
+        api<{ items: AchievementChallenge[] }>("/v1/challenges?family=achievement"),
       ]);
       maps.value = mapResponse.items;
-      challenges.value = challengeResponse.items;
+      mapChallenges.value = mapChallengeResponse.items;
+      achievementChallenges.value = achievementChallengeResponse.items;
     } catch (cause) {
       const apiError = cause as PortalApiError;
       error.value = apiError.data?.error?.message ?? "暂时无法读取可提交内容，请稍后重试。";
@@ -45,5 +50,5 @@ export function useSubmissionUpload() {
     } finally { loading.value = false; }
   };
 
-  return { maps, challenges, loading, catalogLoading, error, loadCatalog, submit };
+  return { maps, mapChallenges, achievementChallenges, loading, catalogLoading, error, loadCatalog, submit };
 }
