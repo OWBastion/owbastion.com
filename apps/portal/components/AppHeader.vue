@@ -51,12 +51,12 @@ async function signOut() {
     <div class="app-header">
       <NuxtLink to="/" class="brand" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
       <nav class="main-nav" aria-label="主导航"><NuxtLink to="/#events">事件</NuxtLink><NuxtLink to="/#achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></nav>
-      <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-expanded="menuOpen" aria-controls="mobile-nav" @click="toggleMenu"><span>菜单</span><span class="menu-icon" aria-hidden="true">{{ menuOpen ? '×' : '＋' }}</span></button>
       <div class="account-actions">
         <ThemeMenu />
         <AccountMenu v-if="player" :player="player.player" @logout="signOut" />
-        <NuxtLink v-else to="/login" class="login-link">登录 <span aria-hidden="true">↗</span></NuxtLink>
+        <NuxtLink v-else to="/login" class="login-link">登录</NuxtLink>
       </div>
+      <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" aria-controls="mobile-nav" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
       <nav v-show="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" aria-label="移动端主导航"><NuxtLink to="/#events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/#achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" @click="closeMenu()">轮换挑战</NuxtLink></nav>
     </div>
   </header>
@@ -79,11 +79,11 @@ async function signOut() {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
   .app-header { position: relative; gap: 10px; min-height: 52px; padding: 6px 8px 6px 10px; }
   .main-nav { display: none; }
-  .mobile-menu-toggle { display: inline-flex; flex: 0 0 auto; min-height: 40px; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); font-size: .75rem; font-weight: 680; }
-  .menu-icon { color: var(--accent); font-size: 1rem; line-height: 1; }
+  .mobile-menu-toggle { display: inline-grid; flex: 0 0 40px; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
+  .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
   .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--menu-surface); box-shadow: 0 8px 18px -8px var(--shadow); }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; }
   .mobile-nav a:hover, .mobile-nav a:focus-visible { color: var(--text); background: var(--surface); }
 }
-@media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; }.mobile-menu-toggle { padding-inline: 8px; } }
+@media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; } }
 </style>
