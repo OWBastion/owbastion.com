@@ -70,7 +70,7 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; justify-content: center; gap: clamp(16px, 2.6vw, 34px); color: var(--muted); font-size: .78rem; }
+.main-nav { display: flex; flex: 1; justify-content: flex-start; gap: clamp(16px, 2.6vw, 34px); color: var(--muted); font-size: .78rem; }
 .main-nav a { text-decoration: none; transition: color 160ms ease; }
 .main-nav a:hover { color: var(--text); }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
