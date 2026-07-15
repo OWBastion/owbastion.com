@@ -9,7 +9,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: "zh-CN" },
       meta: [
         { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-        { name: "theme-color", content: "#151a1b" },
+        { name: "theme-color", content: "#f5f4ef" },
       ],
     },
   },

@@ -76,7 +76,7 @@ onMounted(async () => {
 .intro-status { display: flex; align-items: center; gap: 11px; }
 .intro-status .eyebrow { margin-bottom: .8rem; }
 .intro-status .status-badge { margin-bottom: .8rem; }
-.identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; padding: 22px 25px; background: color-mix(in oklch, var(--surface-raised) 78%, var(--surface)); box-shadow: 0 14px 34px oklch(0% 0 0 / 12%); backdrop-filter: blur(16px); }
+.identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; padding: 22px 25px; background: color-mix(in oklch, var(--surface-raised) 78%, var(--surface)); box-shadow: 0 14px 34px var(--shadow); backdrop-filter: blur(16px); }
 .battletag-identity { display: flex; min-width: 0; align-items: center; gap: 15px; }
 .battletag-mark { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 52%, var(--line)); border-radius: 50%; color: var(--accent); background: var(--accent-surface); font-size: 1.2rem; font-weight: 720; letter-spacing: -.04em; }
 .battletag-copy { min-width: 0; }
@@ -100,7 +100,7 @@ onMounted(async () => {
 .upcoming-card::after { position: absolute; inset: auto -16% -36% auto; width: 165px; height: 165px; border-radius: 50%; background: oklch(54% .045 55 / 16%); filter: blur(18px); content: ""; }
 .upcoming-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet); font-size: .68rem; font-weight: 720; letter-spacing: .08em; }
 .upcoming-index { color: color-mix(in oklch, var(--quiet) 75%, transparent); }
-.coming-soon-label { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: oklch(18% .012 48 / 48%); backdrop-filter: blur(12px); }
+.coming-soon-label { padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: color-mix(in oklch, var(--surface-raised) 70%, transparent); backdrop-filter: blur(12px); }
 .upcoming-card > div:last-child { position: relative; z-index: 1; max-width: 25ch; }
 .upcoming-kicker { margin: 0 0 9px; color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .05em; }
 .upcoming-card h3 { margin: 0; color: color-mix(in oklch, var(--text) 84%, var(--muted)); font-size: clamp(1.22rem, 2.3vw, 1.55rem); letter-spacing: -.035em; }

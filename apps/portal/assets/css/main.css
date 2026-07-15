@@ -1,4 +1,25 @@
 :root {
+  color-scheme: light;
+  --page: oklch(96% 0.012 90);
+  --surface: oklch(99% 0.006 90);
+  --surface-raised: oklch(94% 0.014 82);
+  --text: oklch(22% 0.025 55);
+  --muted: oklch(46% 0.022 55);
+  --quiet: oklch(61% 0.018 55);
+  --line: oklch(24% 0.025 55 / 14%);
+  --line-strong: oklch(24% 0.025 55 / 25%);
+  --accent: oklch(59% 0.16 48);
+  --accent-surface: oklch(91% 0.045 70);
+  --danger: oklch(57% 0.17 25);
+  --warning: oklch(58% 0.15 75);
+  --on-accent: oklch(99% 0.006 90);
+  --header-surface: oklch(99% 0.006 90 / 86%);
+  --menu-surface: oklch(98% 0.008 90 / 96%);
+  --shadow: oklch(20% 0.02 55 / 28%);
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+}
+
+html[data-theme="dark"] {
   color-scheme: dark;
   --page: oklch(16% 0.012 48);
   --surface: oklch(20% 0.014 48);
@@ -11,7 +32,22 @@
   --accent: oklch(74% 0.14 55);
   --accent-surface: oklch(30% 0.07 50);
   --danger: oklch(68% 0.16 25);
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  --warning: oklch(82% 0.12 85);
+  --on-accent: oklch(19% 0.026 50);
+  --header-surface: oklch(18% 0.013 48 / 82%);
+  --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black);
+  --shadow: oklch(0% 0 0 / 80%);
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    color-scheme: dark;
+    --page: oklch(16% 0.012 48); --surface: oklch(20% 0.014 48); --surface-raised: oklch(24% 0.018 48);
+    --text: oklch(93% 0.01 100); --muted: oklch(69% 0.016 48); --quiet: oklch(51% 0.014 48);
+    --line: oklch(92% 0.01 100 / 13%); --line-strong: oklch(92% 0.01 100 / 21%);
+    --accent: oklch(74% 0.14 55); --accent-surface: oklch(30% 0.07 50); --danger: oklch(68% 0.16 25); --warning: oklch(82% 0.12 85);
+    --on-accent: oklch(19% 0.026 50); --header-surface: oklch(18% 0.013 48 / 82%); --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black); --shadow: oklch(0% 0 0 / 80%);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +65,7 @@ a { color: inherit; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
 .surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .primary-button, .secondary-button { min-height: 44px; padding: 0 15px; border-radius: 11px; font-size: .88rem; font-weight: 680; transition: transform 100ms ease-out, background 180ms ease, border-color 180ms ease; }
-.primary-button { border: 1px solid color-mix(in oklch, var(--accent) 75%, white); color: oklch(19% 0.026 50); background: var(--accent); }
+.primary-button { border: 1px solid color-mix(in oklch, var(--accent) 75%, var(--on-accent)); color: var(--on-accent); background: var(--accent); }
 .secondary-button { border: 1px solid var(--line-strong); color: var(--text); background: var(--surface-raised); }
 .primary-button:active, .secondary-button:active { transform: scale(.97); }
 .primary-button:disabled, .secondary-button:disabled { cursor: default; opacity: .58; }
