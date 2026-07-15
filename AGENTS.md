@@ -55,3 +55,12 @@ production logs, or copied private payloads.
 Before handoff, run applicable tests, typechecks, and builds; update the
 relevant documentation for contract, data-owner, security-boundary, or
 operational changes. Use local fakes for external services in normal tests.
+
+## Portal 文案约定
+
+- 面向玩家使用简洁、克制、具体的中文，保持与 `apps/portal/pages/index.vue` 和 `apps/portal/pages/me.vue` 一致的编辑化语气。
+- 优先描述玩家能做什么、能看到什么，少使用审核、发放、发布等内部流程和实现术语。
+- 明确区分已开放、处理中、未开放和未来规划，不把未来功能写成当前能力。
+- 让标题承担叙事，说明文字补充范围、条件或状态，避免标题与说明重复表达同一件事。
+- 状态文案使用事实描述，不使用夸张承诺、模糊营销语或未确认的时间承诺。
+- 新增或修改 Portal 文案时，先参考首页和玩家中心的现有语气，再保持同一套用词和状态边界。

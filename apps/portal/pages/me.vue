@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ middleware: "auth-client" });
-useSeoMeta({ title: "我的中心 · 躲避堡垒 3" });
+useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
 
 const { player, refresh } = useCurrentPlayer();
 const loading = ref(true);
@@ -27,7 +27,7 @@ onMounted(async () => {
       <section class="intro" aria-labelledby="dashboard-title">
         <div class="intro-status"><p class="eyebrow">玩家中心</p><StatusBadge label="身份已绑定" tone="success" /></div>
         <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
-        <p class="body-copy">这里汇总你已绑定身份下的挑战进度。审核、发放和发布会继续保持各自独立的状态。</p>
+        <p class="body-copy">这里记录你已经提交的挑战，以及正在确认中的进度。完成新的挑战后，在 QQ 群中提交截图，进度会显示在这里。</p>
       </section>
 
       <section class="identity-card surface-card" aria-label="玩家身份">
@@ -37,7 +37,7 @@ onMounted(async () => {
       </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
-        <div class="section-heading"><div><p class="eyebrow">最近提交</p><h2 id="submissions-title">你的挑战进度</h2></div><span>最近 5 条</span></div>
+        <div class="section-heading"><div><p class="eyebrow">挑战记录</p><h2 id="submissions-title">留下每一次挑战</h2></div><span>最近 5 条</span></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
           <NuxtLink v-for="submission in player.recentSubmissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row surface-card">
             <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>
@@ -48,19 +48,19 @@ onMounted(async () => {
       </section>
 
       <section class="upcoming-section" aria-labelledby="upcoming-title">
-        <div class="section-heading upcoming-heading"><div><p class="eyebrow">探索更多</p><h2 id="upcoming-title">即将到来</h2></div><p>新的个人进度会在可确认后显示在这里。</p></div>
+        <div class="section-heading upcoming-heading"><div><p class="eyebrow">后续开放</p><h2 id="upcoming-title">更多记录，稍后见</h2></div><p>这些内容目前尚未开放，开放后会在这里显示。</p></div>
         <div class="upcoming-grid">
           <article class="upcoming-card surface-card">
             <div class="upcoming-card-top"><span class="upcoming-index">01</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">个人收藏</p><h3>成就与称号</h3><p>查看已确认的成就记录，以及随发布状态更新的称号。</p></div>
+            <div><p class="upcoming-kicker">个人收藏</p><h3>成就与称号</h3><p>开放后，可查看已确认的成就记录，以及随发布状态更新的称号。</p></div>
           </article>
           <article class="upcoming-card surface-card">
             <div class="upcoming-card-top"><span class="upcoming-index">02</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">限时目标</p><h3>轮换挑战</h3><p>在开放窗口内查看当前挑战、参与条件和完成记录。</p></div>
+            <div><p class="upcoming-kicker">限时目标</p><h3>轮换挑战</h3><p>开放后，可查看当前挑战、参与条件和公开完成记录。</p></div>
           </article>
           <article class="upcoming-card surface-card">
             <div class="upcoming-card-top"><span class="upcoming-index">03</span><span class="coming-soon-label">即将到来</span></div>
-            <div><p class="upcoming-kicker">地图记录</p><h3>地图挑战进度</h3><p>按地图查看已提交的挑战与等待确认的进展。</p></div>
+            <div><p class="upcoming-kicker">地图记录</p><h3>地图挑战进度</h3><p>开放后，可按地图查看已提交的挑战与等待确认的进展。</p></div>
           </article>
         </div>
       </section>
