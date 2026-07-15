@@ -11,9 +11,10 @@ group-access route. D1 migrations back the current business state.
 When EVIDENCE_BUCKET is configured, submission creation persists validated QQ
 image sources to private R2 and advances successful submissions to ocr_pending.
 The Nuxt Portal implements the public landing page, QQ login, player center,
-submission-status view, and Access-protected `/admin` player/group management.
+submission-status view, and platform-session-protected `/admin` player/group management.
 
-OCR orchestration, review, grants, snapshot import, queue processing, feature
+The first Portal map-challenge slice includes upload validation, Queue-backed
+OCR orchestration, and maintainer review. Grants, title issuance, feature
 switches, and Bastion/GitHub orchestration are not implemented.
 
 Apply local migrations with:
@@ -21,6 +22,16 @@ Apply local migrations with:
 ~~~bash
 pnpm exec wrangler d1 migrations apply DB --local
 ~~~
+
+To bootstrap the first production administrator after applying migrations, update
+the account directly in D1 with a reviewed player ID:
+
+~~~bash
+pnpm exec wrangler d1 execute owbastion-codes-prod --remote --command "UPDATE player_accounts SET is_admin = 1, updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE player_id = 'YOUR_PLAYER_ID';"
+~~~
+
+The account must log in again after promotion so the Portal refreshes its session
+state. Remove the flag with `is_admin = 0` when access should be revoked.
 
 For Portal development, use the complete local environment:
 

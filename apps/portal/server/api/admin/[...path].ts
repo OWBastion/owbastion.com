@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   const path = rawPath.startsWith("v1/") ? rawPath.slice(3) : rawPath;
   const request = event.node.req;
   const headers: Record<string, string> = { accept: "application/json" };
-  for (const name of ["cf-access-authenticated-user-email", "idempotency-key", "content-type"]) {
+  for (const name of ["cookie", "idempotency-key", "content-type"]) {
     const value = request.headers[name];
     if (value) headers[name] = Array.isArray(value) ? value[0] : value;
   }

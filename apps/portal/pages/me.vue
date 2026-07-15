@@ -10,6 +10,10 @@ const statusText: Record<string, string> = {
   evidence_pending: "正在保存截图",
   evidence_stored: "截图已保存",
   ocr_pending: "等待识别",
+  ready_for_review: "等待核对",
+  ocr_review_required: "等待处理",
+  approved: "已通过",
+  rejected: "未通过",
   resubmission_required: "需要重新提交",
 };
 
@@ -38,7 +42,7 @@ onMounted(async () => {
       </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
-        <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><span>5 条</span></div>
+        <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><NuxtLink to="/submissions/new" class="secondary-button">提交截图</NuxtLink></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
           <NuxtLink v-for="submission in player.recentSubmissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row surface-card">
             <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>

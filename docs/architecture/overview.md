@@ -7,15 +7,15 @@
 The repository contains an implemented TypeScript workspace with:
 
 - apps/api: a Hono Cloudflare Worker API;
-- apps/portal: a Nuxt player-facing Portal and Access-protected `/admin` control surface;
+- apps/portal: a Nuxt player-facing Portal and platform-session-protected `/admin` control surface;
 - packages/contracts, domain, database, and auth;
 - forward-only D1 migrations for bindings, submissions, evidence metadata, and
   QQ login/session state;
 - an R2 evidence binding used when EVIDENCE_BUCKET is available.
 
-OCR orchestration, review, grants, snapshot import, queues, and feature
-switches remain planned. The first administrative slice now covers player
-account status, QQ bindings, and QQ group access.
+OCR orchestration, review, Bastion challenge snapshot import, and Queue-backed
+submission processing are implemented for the first map-challenge slice.
+Grants, title issuance, and feature switches remain planned.
 
 ## Mission and ownership
 
@@ -32,17 +32,18 @@ released game content remains authoritative in OWBastion/Bastion.
 
 ## Current product surfaces
 
-- **Portal:** public landing content, QQ browser login, current-player data, and
-  player-facing recent submission/status views.
-- **API:** health, authenticated QQ binding/submission writes, public
-  submission status, QQ login verification, session lookup/logout, and a
-  Cloudflare Access-protected administrative API for players and group access.
+- **Portal:** public landing content, QQ browser login, current-player data,
+  player screenshot upload, recent submission/status views, and review UI.
+- **API:** health, authenticated QQ binding/submission writes, player upload
+  sessions, Queue-backed OCR processing, public submission status, QQ login
+  verification, session lookup/logout, and a platform-session-protected
+  administrative API for players, groups, and submissions.
 - **Evidence:** private QQ image retrieval and R2 storage during submission
   creation when the Worker R2 binding is configured.
 
 The Portal is a rendering surface and does not own durable business state.
-The Portal proxies administrator requests server-side so Access identity headers
-are forwarded to the Worker. Public responses do not expose private evidence,
+The Portal proxies administrator requests server-side so the platform session
+cookie is forwarded to the Worker. Public responses do not expose private evidence,
 QQ OpenIDs, review notes, or unapproved drafts.
 
 ## Design principles

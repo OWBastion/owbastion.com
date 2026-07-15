@@ -23,6 +23,7 @@ export const playerAccounts = sqliteTable("player_accounts", {
   playerId: text("player_id").notNull(),
   playerName: text("player_name").notNull(),
   normalizedPlayerName: text("normalized_player_name").notNull(),
+  isAdmin: integer("is_admin").notNull().default(0),
   status: text("status").notNull().default("active"),
   bannedAt: integer("banned_at"),
   bannedBy: text("banned_by"),
@@ -38,12 +39,49 @@ export const submissions = sqliteTable("submissions", {
   bindingId: text("binding_id").notNull(),
   status: text("status").notNull(),
   challengeType: text("challenge_type").notNull(),
+  challengeId: text("challenge_id"),
   mapName: text("map_name").notNull(),
+  difficulty: text("difficulty"),
+  playerName: text("player_name"),
+  reviewReason: text("review_reason"),
   sourceProvider: text("source_provider").notNull(),
   sourceConversationId: text("source_conversation_id").notNull(),
   sourceMessageId: text("source_message_id").notNull(),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
+});
+
+export const uploadSessions = sqliteTable("upload_sessions", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  playerAccountId: text("player_account_id").notNull(),
+  contentType: text("content_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  sha256: text("sha256").notNull(),
+  objectKey: text("object_key").notNull(),
+  status: text("status").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const ocrResults = sqliteTable("ocr_results", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  attempt: integer("attempt").notNull(),
+  status: text("status").notNull(),
+  responseJson: text("response_json"),
+  matchJson: text("match_json"),
+  errorCode: text("error_code"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const submissionReviews = sqliteTable("submission_reviews", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  decision: text("decision").notNull(),
+  reason: text("reason").notNull(),
+  reviewer: text("reviewer").notNull(),
+  createdAt: integer("created_at").notNull(),
 });
 
 export const attachments = sqliteTable("attachments", {

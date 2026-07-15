@@ -35,5 +35,14 @@ migrations_dir = "migrations"
 binding = "EVIDENCE_BUCKET"
 bucket_name = "owbastion-codes-evidence"
 
+[[queues.producers]]
+binding = "OCR_QUEUE"
+queue = "owbastion-ocr"
+
+[[queues.consumers]]
+queue = "owbastion-ocr"
+max_batch_size = 1
+max_retries = 3
+
 [placement]
 mode = "smart"

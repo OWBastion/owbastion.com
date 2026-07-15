@@ -88,7 +88,7 @@ Use Cloudflare services according to the existing ownership contract:
 | Private evidence and large artifacts | Cloudflare R2 | screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
 | Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, snapshot synchronization, and notifications |
 | Cache and short-lived coordination | Cloudflare KV | caches, rate limits, revocable sessions backed by durable truth, and short-lived derived results |
-| Access control for privileged web surfaces | Cloudflare Access or equivalent | reviewer, administrator, developer, and maintainer authentication boundary |
+| Access control for privileged web surfaces | Platform sessions with account roles | administrator and maintainer authentication boundary |
 
 KV and process memory must never become the sole source of truth for identities, submissions, review state, grants, player assets, or release state.
 
@@ -97,7 +97,7 @@ KV and process memory must never become the sole source of truth for identities,
 The public Portal is deployed to HKG with Docker Compose. Cloudflare Edge
 provides public TLS and a server-managed Cloudflare Tunnel forwards the root
 hostname to the Portal's loopback HTTP port. `cloudflared`, Tunnel credentials,
-DNS, and Cloudflare Access configuration are operational concerns outside this
+DNS and deployment configuration are operational concerns outside this
 repository.
 
 The Portal remains a rendering surface. It must not become a second business

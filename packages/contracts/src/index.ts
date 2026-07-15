@@ -82,6 +82,57 @@ const attachmentSchema = z.object({
   sourceUrl: z.string().url().max(4096),
 });
 
+const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
+
+export const challengeSchema = z.object({
+  challengeId: externalId,
+  type: z.literal("map_completion"),
+  mapName: z.string().trim().min(1).max(256),
+  difficulty: z.string().trim().min(1).max(64),
+  gameVersion: z.string().trim().min(1).max(64),
+});
+
+export const challengeListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) });
+
+export const playerUploadSessionRequestSchema = z.object({
+  contractVersion,
+  challengeId: externalId,
+  contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+  byteSize: z.number().int().positive().max(10 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+export const playerUploadSessionResponseSchema = z.object({
+  contractVersion,
+  submissionId: z.string().uuid(),
+  uploadId: z.string().uuid(),
+  uploadUrl: z.string().url(),
+  expiresAt: z.number().int(),
+  maxBytes: z.number().int().positive(),
+});
+
+export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
+
+export const adminSubmissionSchema = z.object({
+  submissionId: z.string().uuid(),
+  status: submissionStatus,
+  challengeId: externalId,
+  mapName: z.string(),
+  difficulty: z.string(),
+  playerName: z.string(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+  ocr: z.record(z.string(), z.unknown()).nullable(),
+  evidenceUrl: z.string().url().nullable(),
+});
+
+export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), hasMore: z.boolean() });
+export const adminSubmissionReviewRequestSchema = z.object({
+  contractVersion,
+  decision: z.enum(["approved", "rejected", "resubmission_required"]),
+  reason: z.string().trim().min(1).max(512),
+});
+
 export const submissionRequestSchema = z.object({
   contractVersion,
   actor: z.object({
@@ -112,8 +163,11 @@ export const submissionResponseSchema = z.object({
 export const submissionStatusResponseSchema = z.object({
   contractVersion,
   submissionId: z.string().uuid(),
-  status: z.enum(["received", "evidence_pending", "evidence_stored", "ocr_pending", "resubmission_required"]),
+  status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   mapName: z.string(),
+  challengeId: z.string().optional(),
+  difficulty: z.string().optional(),
+  reason: z.string().optional(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });
@@ -129,6 +183,7 @@ export const currentPlayerResponseSchema = z.object({
     playerId,
     playerName: z.string().trim().min(1).max(64),
     bindingStatus: z.literal("bound"),
+    isAdmin: z.boolean().default(false),
   }),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
@@ -160,3 +215,10 @@ export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
+export type Challenge = z.infer<typeof challengeSchema>;
+export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
+export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
+export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;
+export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
+export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
+export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;

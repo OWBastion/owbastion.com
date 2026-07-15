@@ -23,30 +23,35 @@ The current API implements versioned v1 QQ flows:
   timestamps, and status;
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
+- the Portal can select an imported Bastion challenge, create a single-image
+  upload session, upload private evidence, and complete the upload;
+- a versioned Queue message invokes OCRKit, persists the raw result and match
+  evidence, and moves matching submissions to `ready_for_review`;
+- the maintainer Portal can inspect private evidence and OCR output and record
+  an idempotent review decision.
 
-Evidence persistence currently occurs inside submission creation; no Queue or
-OCR worker is implemented.
+Portal uploads use a one-time platform upload URL backed by the private R2
+binding. The URL is intentionally scoped to one upload session and is not a
+public object URL.
 
 ## Submission lifecycle
 
 ~~~text
-received
-→ evidence_pending
-  ├→ ocr_pending
+upload_pending
+→ ocr_pending
+  ├→ ready_for_review → approved / rejected / resubmission_required
+  ├→ ocr_review_required → approved / rejected / resubmission_required
   └→ resubmission_required
 ~~~
 
-received is used when no evidence bucket is configured. With an evidence
-bucket, a new submission is evidence_pending during retrieval, becomes
-ocr_pending after every attachment is stored, or becomes
-resubmission_required for unavailable, unsupported, or invalid-size source
-images. evidence_stored is reserved by the current contract but is not written
-by the service.
+The legacy QQ flow retains its evidence retrieval states. Portal uploads are
+single-image submissions and enter `ocr_pending` only after the upload hash,
+size, content type, and private object ownership are verified. OCR mismatches
+become `resubmission_required`; repeated OCR service failures become
+`ocr_review_required`.
 
-OCR processing, ready_for_review, review decisions, grants, pull requests,
-and releases are future states. When those are implemented, only approved may
-enter grant processing; rejected and resubmission_required must remain explicit
-non-grant outcomes.
+Approval records the human decision only. Grant processing, pull requests, and
+releases remain outside this slice.
 
 ## QQBot and login
 
@@ -60,15 +65,17 @@ code, records the group environment, and issues a 30-day browser session when
 the Portal later polls the verified attempt. QQBot replies and recalls the code
 message only after a successful verification.
 
-Group access is managed through the Access-protected `/admin` Portal. The Worker
-accepts maintainer requests only when the Access email is in `ADMIN_EMAILS`.
+Group access is managed through the platform-session-protected `/admin` Portal.
+The Worker accepts maintainer requests only for player accounts with `is_admin`
+enabled.
 QQBot reads the enabled group snapshot with its service token at startup and on
 the configured refresh interval; it keeps the last successful snapshot when a
 later refresh fails and fails closed before the first successful snapshot.
 
-## Future integrations
+## OCR integration
 
-OCRKit remains the recognition-only service; future platform orchestration must
-persist raw versioned OCR evidence and keep human corrections separate. Bastion
-changes must remain reviewable, idempotent, and reconciled through its own CI
-and release process. Neither integration is implemented in this repository yet.
+OCRKit remains the recognition-only service. The platform compares its
+structured `map_name`, `difficulty`, `challenge_completed`, and `player` fields
+with the selected Bastion challenge and bound player. OCRKit does not decide
+eligibility or approval. Bastion changes must remain reviewable, idempotent,
+and reconciled through its own CI and release process.

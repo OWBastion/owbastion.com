@@ -1,13 +1,22 @@
 import { desc, eq, and, gt, like, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
-import { attachments, auditEvents, bindings, identities, idempotencyKeys, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissions } from "./schema";
+import type { Challenge, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
+import { attachments, auditEvents, bindings, identities, idempotencyKeys, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, uploadSessions } from "./schema";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const uploadTtlMs = 10 * 60 * 1000;
+const maxUploadBytes = 10 * 1024 * 1024;
+const challenges: Challenge[] = [
+  { challengeId: "map.samoa.hell", type: "map_completion", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "2026.07.15" },
+  { challengeId: "map.lijiang_tower.hell", type: "map_completion", mapName: "漓江塔", difficulty: "地狱", gameVersion: "2026.07.15" },
+  { challengeId: "map.oasis.hell", type: "map_completion", mapName: "绿洲城", difficulty: "地狱", gameVersion: "2026.07.15" },
+  { challengeId: "map.busan.hell", type: "map_completion", mapName: "釜山", difficulty: "地狱", gameVersion: "2026.07.15" },
+  { challengeId: "map.nepal.hell", type: "map_completion", mapName: "尼泊尔", difficulty: "地狱", gameVersion: "2026.07.15" },
+];
 
 const randomToken = (bytes = 32) => {
   const value = new Uint8Array(bytes);
@@ -90,10 +99,112 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrQueue?: Queue): PlatformServices => {
   const db = drizzle(database);
 
   return {
+    async listChallenges() {
+      return challenges;
+    },
+
+    async createPlayerUploadSession(input, sessionToken) {
+      const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
+      if (!session) throw new Error("UNAUTHENTICATED");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, session.groupOpenId), eq(bindings.memberOpenId, session.memberOpenId))).get();
+      if (!binding) throw new Error("UNAUTHENTICATED");
+      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
+      const challenge = challenges.find((item) => item.challengeId === input.challengeId);
+      if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
+      if (!challenge) throw new Error("CHALLENGE_NOT_FOUND");
+      const submissionId = crypto.randomUUID();
+      const uploadId = crypto.randomUUID();
+      const timestamp = now();
+      const objectKey = `evidence/submissions/${submissionId}/${input.sha256}.upload`;
+      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType: challenge.type, challengeId: challenge.challengeId, mapName: challenge.mapName, difficulty: challenge.difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
+      await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
+      return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
+    },
+
+    async uploadEvidence(input, sessionToken) {
+      if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
+      const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
+      if (!session || session.expiresAt <= now() || session.status !== "pending") throw new Error("UPLOAD_SESSION_INVALID");
+      const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
+      if (!authSession) throw new Error("UNAUTHENTICATED");
+      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, session.playerAccountId)).get();
+      if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
+      if (input.contentType !== session.contentType || input.body.byteLength !== session.byteSize || input.body.byteLength > maxUploadBytes) throw new Error("UPLOAD_METADATA_MISMATCH");
+      const sha256 = await digestHex(input.body);
+      if (sha256 !== session.sha256) throw new Error("UPLOAD_HASH_MISMATCH");
+      await evidenceBucket.put(session.objectKey, input.body, { httpMetadata: { contentType: input.contentType } });
+      await db.update(uploadSessions).set({ status: "uploaded" }).where(eq(uploadSessions.id, session.id));
+      await db.insert(attachments).values({ id: crypto.randomUUID(), submissionId: session.submissionId, provider: "portal", externalAttachmentId: session.id, contentType: input.contentType, byteSize: input.body.byteLength, sha256, objectKey: session.objectKey, uploadStatus: "stored", createdAt: now() });
+    },
+
+    async completePlayerUpload(input, sessionToken) {
+      const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
+      if (!session || session.expiresAt <= now() || session.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
+      const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
+      if (!authSession) throw new Error("UNAUTHENTICATED");
+      await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
+      await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
+      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, attempt: 1 });
+      return { submissionId: session.submissionId, status: "ocr_pending" };
+    },
+
+    async listAdminSubmissions(input) {
+      const rows = await db.select().from(submissions).where(input.status ? eq(submissions.status, input.status) : undefined).orderBy(desc(submissions.updatedAt)).limit(51);
+      return { contractVersion: "1" as const, items: rows.slice(0, 50).map((row) => ({ submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` })), hasMore: rows.length > 50 };
+    },
+
+    async getAdminSubmission(input) {
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const ocr = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      return { submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+    },
+
+    async getAdminEvidence(input) {
+      if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
+      const attachment = await db.select().from(attachments).where(eq(attachments.submissionId, input.submissionId)).orderBy(desc(attachments.createdAt)).limit(1).get();
+      if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
+      const object = await evidenceBucket.get(attachment.objectKey);
+      if (!object) throw new Error("EVIDENCE_NOT_FOUND");
+      return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
+    },
+
+    async reviewSubmission(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "submission.review", idempotencyKey, input);
+      if (replay) return;
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      if (!["ready_for_review", "ocr_review_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+      const timestamp = now();
+      await db.update(submissions).set({ status: input.decision, reviewReason: input.reason, updatedAt: timestamp }).where(eq(submissions.id, row.id));
+      await db.insert(submissionReviews).values({ id: crypto.randomUUID(), submissionId: row.id, decision: input.decision, reason: input.reason, reviewer: auth.subject, createdAt: timestamp });
+      await recordIdempotency(db, auth.subject, "submission.review", idempotencyKey, input, {});
+      await recordAudit(db, auth, "submission.review", "submission", row.id, { decision: input.decision, reason: input.reason });
+    },
+
+    async processOcrJob(input) {
+      if (!evidenceBucket || !ocrkitBaseUrl) throw new Error("OCR_NOT_CONFIGURED");
+      const response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ object_key: input.objectKey }) });
+      if (!response.ok) {
+        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: input.submissionId, attempt: input.attempt, status: "error", errorCode: `OCR_HTTP_${response.status}`, createdAt: now() });
+        if (input.attempt >= 3) await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now() }).where(eq(submissions.id, input.submissionId));
+        throw new Error("OCR_RETRYABLE");
+      }
+      const result = await response.json() as { data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; player?: string | null }; fields?: unknown };
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
+      const data = result.data ?? {};
+      const match = { map: normalized(data.map_name) === normalized(row.mapName), difficulty: normalized(data.difficulty) === normalized(row.difficulty), completed: data.challenge_completed === true, player: normalized(data.player).split("#")[0] === normalized(row.playerName).split("#")[0] };
+      const matched = Object.values(match).every(Boolean);
+      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify(match), createdAt: now() });
+      await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, row.id));
+    },
+
     async listQqGroupAccess() {
       const groups = await db.select().from(qqGroupAccess).orderBy(desc(qqGroupAccess.updatedAt));
       return groups.map((group) => ({ contractVersion: "1" as const, groupOpenId: group.groupOpenId, environment: group.environment as "production" | "test", enabled: group.enabled === 1, updatedAt: group.updatedAt }));
@@ -143,7 +254,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         bindingCount: playerBindings.length,
         updatedAt: account.updatedAt,
         bindings: playerBindings.map((binding) => ({ bindingId: binding.id, provider: "qq" as const, groupOpenId: binding.groupOpenId, memberOpenId: binding.memberOpenId, createdAt: binding.createdAt })),
-        recentSubmissions: recentSubmissions.map((submission) => ({ ...submission, status: submission.status as "received" | "evidence_pending" | "evidence_stored" | "ocr_pending" | "resubmission_required" })),
+        recentSubmissions: recentSubmissions.map((submission) => ({ ...submission, status: submission.status as never })),
       };
     },
 
@@ -240,15 +351,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding) return null;
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
       if (!player || player.status === "banned") return null;
-      const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
+      const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, challengeId: submissions.challengeId, difficulty: submissions.difficulty, reason: submissions.reviewReason, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
         .from(submissions)
         .where(eq(submissions.bindingId, binding.id))
         .orderBy(desc(submissions.createdAt))
         .limit(5);
       return {
         contractVersion: "1" as const,
-        player: { playerId: player.playerId, playerName: player.playerName, bindingStatus: "bound" as const },
-        recentSubmissions: recentSubmissions.map((submission) => ({ ...submission, status: submission.status as "received" | "evidence_pending" | "evidence_stored" | "ocr_pending" | "resubmission_required" })),
+        player: { playerId: player.playerId, playerName: player.playerName, bindingStatus: "bound" as const, isAdmin: player.isAdmin === 1 },
+        recentSubmissions: recentSubmissions.map((submission) => ({ submissionId: submission.submissionId, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reason ?? undefined, createdAt: submission.createdAt, updatedAt: submission.updatedAt })),
       };
     },
 
@@ -258,7 +369,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async listLocalDevAccounts() {
       const accounts = await db.select().from(playerAccounts).where(or(eq(playerAccounts.playerId, "local-player"), eq(playerAccounts.playerId, "local-admin"))).orderBy(playerAccounts.playerId);
-      return accounts.map((account) => ({ accountId: account.id, playerId: account.playerId, playerName: account.playerName, isAdmin: account.playerId === "local-admin" }));
+      return accounts.map((account) => ({ accountId: account.id, playerId: account.playerId, playerName: account.playerName, isAdmin: account.isAdmin === 1 }));
     },
 
     async createLocalDevSession(input) {
@@ -290,7 +401,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (account?.status === "banned") throw new Error("PLAYER_BANNED");
       if (!account) {
         const timestamp = now();
-        account = { id: crypto.randomUUID(), playerId: input.playerId, playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
+        account = { id: crypto.randomUUID(), playerId: input.playerId, playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), isAdmin: 0, status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
         await db.insert(playerAccounts).values(account);
       } else if (account.playerName !== input.playerName) {
         await db.update(playerAccounts).set({ playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), updatedAt: now() }).where(eq(playerAccounts.id, account.id));
@@ -353,7 +464,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async getSubmission(input, _auth) {
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
-      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as "received" | "evidence_pending" | "evidence_stored" | "ocr_pending" | "resubmission_required", mapName: submission.mapName, createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reviewReason ?? undefined, createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
   };
 };

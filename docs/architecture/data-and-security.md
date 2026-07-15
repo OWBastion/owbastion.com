@@ -4,29 +4,29 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | QQ bindings, player accounts, submissions, attachment metadata, idempotency records, audit events, login attempts, and sessions |
+| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, and sessions |
 | R2 | Private submission evidence when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and snapshots | Released game content and version history |
 
-Queues, KV-backed rate limits, OCR artifacts, corrections, decisions, grants,
-drafts, and delivery state are planned platform capabilities, not implemented
-storage surfaces in this repository.
+The OCR Queue carries only an opaque submission ID, private object key, schema
+version, and retry attempt. OCR raw output and review decisions remain in D1;
+no private screenshot is committed to the repository.
 
 ## Implemented service boundary
 
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
 channel:write plus channel:read. Binding, submission, and QQ login verification
 writes require an idempotency key and record an audit event. Administrative
-requests require a Cloudflare Access email header matching the private
-ADMIN_EMAILS allowlist; the Worker validates this independently of Portal UI
+requests require an authenticated platform session whose player account has
+`is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
 and auditable.
 
-When EVIDENCE_BUCKET is bound, the API accepts only HTTPS attachment sources,
-rejects local and link-local targets, requires an image content type, limits
-the downloaded body to 10 MiB, hashes the bytes, and stores them under a
-submission-scoped private R2 key. It does not expose object keys, source URLs,
-or QQ OpenIDs from public status and player endpoints.
+Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
+bind the expected byte size and SHA-256, expire after ten minutes, and store
+the result under a submission-scoped private R2 key. The upload URL cannot be
+reused after completion. It does not expose object keys, source URLs, or QQ
+OpenIDs from public status and player endpoints.
 
 ## Private login and player data
 

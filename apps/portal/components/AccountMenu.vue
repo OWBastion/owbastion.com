@@ -49,6 +49,7 @@ onBeforeUnmount(() => {
       <div class="account-identity"><AppIcon name="user" /><strong>{{ props.player.playerName }}#{{ props.player.playerId }}</strong></div>
       <div class="account-divider" role="separator" />
       <NuxtLink to="/me" class="account-menu-item" role="menuitem" @click="selectItem"><AppIcon name="user" /><span>我的</span></NuxtLink>
+      <NuxtLink v-if="props.player.isAdmin" to="/admin" class="account-menu-item" role="menuitem" @click="selectItem"><AppIcon name="settings" /><span>管理后台</span></NuxtLink>
       <NuxtLink to="/me#appearance" class="account-menu-item" role="menuitem" @click="selectItem"><AppIcon name="settings" /><span>设置</span></NuxtLink>
       <button class="account-menu-item account-menu-logout" type="button" role="menuitem" @click="emit('logout'); close()"><AppIcon name="logout" /><span>退出</span></button>
     </div>

@@ -3,11 +3,16 @@ import type { PlatformServices } from "@owbastion/domain";
 import { createApp, type RuntimeEnv } from "./app";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
-const adminAuth = async (request: Request) => request.headers.get("cf-access-authenticated-user-email") === "admin@example.com"
-  ? { actorType: "user" as const, subject: "admin@example.com", roles: ["maintainer"], provider: "cloudflare-access" }
-  : null;
-
 const services: PlatformServices = {
+  listChallenges: async () => [],
+  createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
+  uploadEvidence: async () => {},
+  completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
+  listAdminSubmissions: async () => ({ contractVersion: "1", items: [], hasMore: false }),
+  getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
+  getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
+  reviewSubmission: async () => {},
+  processOcrJob: async () => {},
   createBinding: async () => ({ contractVersion: "1", bindingId: "00000000-0000-0000-0000-000000000001", identityId: "00000000-0000-0000-0000-000000000002", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }),
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
@@ -22,7 +27,7 @@ const services: PlatformServices = {
   removeAdminBinding: async () => {},
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
-    player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" },
+    player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
   logoutPortalSession: async () => {},
@@ -89,7 +94,7 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       contractVersion: "1",
-      player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" },
+      player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
@@ -109,11 +114,12 @@ describe("API", () => {
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 
-  it("protects administrative player data with the Access identity", async () => {
-    const adminApp = createApp({ authenticate: adminAuth, services: () => services });
+  it("protects administrative player data with the platform session", async () => {
+    const adminServices: PlatformServices = { ...services, getCurrentPlayer: async ({ sessionToken }) => sessionToken === "admin-session" ? { contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: true }, recentSubmissions: [] } : null };
+    const adminApp = createApp({ authenticate: async () => null, services: () => adminServices });
     const denied = await adminApp.request("http://localhost/v1/admin/player-accounts", {}, env);
     expect(denied.status).toBe(401);
-    const allowed = await adminApp.request("http://localhost/v1/admin/player-accounts", { headers: { "cf-access-authenticated-user-email": "admin@example.com" } }, env);
+    const allowed = await adminApp.request("http://localhost/v1/admin/player-accounts", { headers: { cookie: "owb_session=admin-session" } }, env);
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toMatchObject({ contractVersion: "1", items: [], page: 1 });
   });
@@ -123,7 +129,7 @@ describe("API", () => {
       ...services,
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
-      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", bindingStatus: "bound" }, recentSubmissions: [] } : null,
+      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] } : null,
     };
     const localApp = createApp({ authenticate: async () => null, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);

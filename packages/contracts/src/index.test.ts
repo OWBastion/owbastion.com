@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentPlayerResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { adminSubmissionReviewRequestSchema, currentPlayerResponseSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("accepts stable QQ binding metadata", () => {
@@ -19,6 +19,16 @@ describe("v1 platform contracts", () => {
   });
 
   it("accepts a player response without QQ identifiers", () => {
-    expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound" }, recentSubmissions: [] }).success).toBe(true);
+    expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] }).success).toBe(true);
+  });
+
+  it("validates the single-image portal upload contract", () => {
+    expect(playerUploadSessionRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.samoa.hell", contentType: "image/png", byteSize: 1024, sha256: "a".repeat(64) }).success).toBe(true);
+    expect(playerUploadSessionRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.samoa.hell", contentType: "application/pdf", byteSize: 1024, sha256: "a".repeat(64) }).success).toBe(false);
+  });
+
+  it("requires a reason for every review decision", () => {
+    expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", reason: "截图与 OCR 结果一致" }).success).toBe(true);
+    expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected", reason: "" }).success).toBe(false);
   });
 });

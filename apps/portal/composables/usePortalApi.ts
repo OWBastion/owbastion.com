@@ -1,9 +1,9 @@
-export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "ocr_pending" | "resubmission_required";
+export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "upload_pending" | "ocr_pending" | "ready_for_review" | "ocr_review_required" | "approved" | "rejected" | "resubmission_required";
 
 export type CurrentPlayer = {
   contractVersion: "1";
-  player: { playerId: string; playerName: string; bindingStatus: "bound" };
-  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; createdAt: number; updatedAt: number }>;
+  player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean };
+  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; createdAt: number; updatedAt: number }>;
 };
 
 export type PortalApiError = Error & { statusCode?: number; data?: { error?: { code?: string; message?: string } } };

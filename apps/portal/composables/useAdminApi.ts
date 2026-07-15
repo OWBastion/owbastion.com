@@ -13,6 +13,7 @@ export type AdminPlayerDetail = AdminPlayer & {
 };
 
 export type AdminGroup = { groupOpenId: string; environment: "production" | "test"; enabled: boolean; updatedAt: number };
+export type AdminSubmission = { submissionId: string; status: string; challengeId: string; mapName: string; difficulty: string; playerName: string; createdAt: number; updatedAt: number; ocr: Record<string, unknown> | null; evidenceUrl: string | null };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) =>

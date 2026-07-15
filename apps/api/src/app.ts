@@ -6,6 +6,8 @@ import {
   qqLoginVerifyRequestSchema,
   qqGroupAccessRequestSchema,
   adminPlayerStatusRequestSchema,
+  adminSubmissionReviewRequestSchema,
+  playerUploadSessionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
@@ -15,8 +17,10 @@ export type RuntimeEnv = {
   QQBOT_API_TOKEN?: string;
   LOGIN_SESSION_TTL_MS?: string;
   PORTAL_ORIGIN?: string;
-  ADMIN_EMAILS?: string;
   LOCAL_DEV_AUTH?: string;
+  UPLOAD_ORIGIN?: string;
+  OCRKIT_BASE_URL?: string;
+  OCR_QUEUE?: Queue;
 };
 
 type AppDependencies = {
@@ -48,7 +52,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
     c.header("Access-Control-Allow-Origin", localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.com");
     c.header("Access-Control-Allow-Credentials", "true");
-    c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token");
+    c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token, idempotency-key");
     c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   };
 
@@ -67,18 +71,25 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/__local/login", (c) => { allowPortal(c); return c.body(null, 204); });
 
   const requireMaintainer = async (c: any) => {
-    const auth = await dependencies.authenticate(c.req.raw, c.env);
-    if (!auth && c.env.LOCAL_DEV_AUTH === "true") {
+    let auth = await dependencies.authenticate(c.req.raw, c.env);
+    if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      if (sessionToken) {
-        const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
-        if (player?.player.playerId === "local-admin") return { auth: { actorType: "user" as const, subject: "local-admin", roles: ["maintainer"], provider: "local-dev" } };
-        if (player) return { error: errorResponse(c, 403, "FORBIDDEN", "The local account cannot manage administrative data") };
-      }
+      const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+      if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
+      else if (player) return { error: errorResponse(c, 403, "FORBIDDEN", "The player cannot manage administrative data") };
     }
     if (!auth) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     if (!auth.roles.includes("maintainer")) return { error: errorResponse(c, 403, "FORBIDDEN", "The actor cannot manage administrative data") };
     return { auth };
+  };
+
+  const requirePortalPlayer = async (c: any) => {
+    allowPortal(c);
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
+    const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
+    if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
+    return { sessionToken, player };
   };
 
   app.post("/v1/auth/qq/login-attempt", async (c) => {
@@ -160,6 +171,35 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
+  app.get("/v1/challenges", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges() });
+  });
+
+  app.post("/v1/player/uploads/session", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
+    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge is not available"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
+  });
+
+  app.put("/v1/uploads/:uploadId", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
+    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
+  });
+
+  app.post("/v1/player/uploads/:uploadId/complete", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!)); }
+    catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
+  });
+
   app.put("/v1/admin/qq/groups/:groupOpenId", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -172,12 +212,10 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/admin/qq/groups", async (c) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
-    if (!auth && c.env.LOCAL_DEV_AUTH === "true") {
+    if (!auth) {
       const sessionToken = portalSessionToken(c.req.raw);
-      if (sessionToken) {
-        const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
-        if (player?.player.playerId === "local-admin") auth = { actorType: "user" as const, subject: "local-admin", roles: ["maintainer"], provider: "local-dev" };
-      }
+      const player = sessionToken ? await dependencies.services(c.env).getCurrentPlayer({ sessionToken }) : null;
+      if (player?.player.isAdmin) auth = { actorType: "user", subject: player.player.playerId, roles: ["maintainer"], provider: "portal-session" };
     }
     if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     if (!auth.roles.includes("maintainer") && !auth.roles.includes("channel:read")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot read group access");
@@ -219,6 +257,37 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     try { await dependencies.services(c.env).removeAdminBinding({ bindingId: c.req.param("bindingId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_NOT_FOUND") return errorResponse(c, 404, "BINDING_NOT_FOUND", "The binding does not exist"); if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request"); throw error; }
+  });
+
+  app.get("/v1/admin/submissions", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    return c.json(await dependencies.services(c.env).listAdminSubmissions({ status: c.req.query("status") }, access.auth!));
+  });
+
+  app.get("/v1/admin/submissions/:submissionId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    try { return c.json(await dependencies.services(c.env).getAdminSubmission({ submissionId: c.req.param("submissionId") }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
+  });
+
+  app.get("/v1/admin/submissions/:submissionId/evidence", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    try { const evidence = await dependencies.services(c.env).getAdminEvidence({ submissionId: c.req.param("submissionId") }, access.auth!); return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } }); }
+    catch (error) { if (error instanceof Error && error.message === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, "EVIDENCE_NOT_FOUND", "The evidence does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE"].includes(code)) return errorResponse(c, 422, code, "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.post("/v1/qq/bindings", async (c) => {

@@ -6,6 +6,7 @@ workers_dev = true
 [vars]
 PORTAL_ORIGIN = "http://localhost:3000"
 LOCAL_DEV_AUTH = "true"
+UPLOAD_ORIGIN = "http://localhost:8787"
 
 [[d1_databases]]
 binding = "DB"
@@ -16,3 +17,12 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "EVIDENCE_BUCKET"
 bucket_name = "owbastion-codes-evidence"
+
+[[queues.producers]]
+binding = "OCR_QUEUE"
+queue = "owbastion-ocr-local"
+
+[[queues.consumers]]
+queue = "owbastion-ocr-local"
+max_batch_size = 1
+max_retries = 3
