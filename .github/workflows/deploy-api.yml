@@ -115,4 +115,4 @@ jobs:
         run: printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
 
       - name: Publish API URL
-        run: echo "::notice title=Cloudflare Worker deployed::https://api.owbastion.codes"
+        run: echo "::notice title=Cloudflare Worker deployed::https://api.owbastion.com"

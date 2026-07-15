@@ -7,7 +7,7 @@ services:
       HOST: 0.0.0.0
       PORT: 3000
       NODE_ENV: production
-      NUXT_PUBLIC_API_BASE_URL: https://api.owbastion.codes
+      NUXT_PUBLIC_API_BASE_URL: https://api.owbastion.com
     ports:
       - "127.0.0.1:${PORTAL_PORT:-3000}:3000"
     healthcheck:

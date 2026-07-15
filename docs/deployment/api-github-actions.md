@@ -42,7 +42,7 @@ The workflow refuses to deploy while the D1 ID is still the repository's
 placeholder. It does not reset, delete, or roll back D1 data.
 
 The Worker is deployed to the Git-managed Custom Domain
-`https://api.owbastion.codes`. The workflow does not automatically verify the
+`https://api.owbastion.com`. The workflow does not automatically verify the
 public hostname after deployment; production reachability is checked through
 separate operational monitoring.
 
@@ -51,7 +51,7 @@ separate operational monitoring.
 Add these values to the existing QQBot runtime environment:
 
 ```env
-PLATFORM_BASE_URL=https://api.owbastion.codes
+PLATFORM_BASE_URL=https://api.owbastion.com
 PLATFORM_SERVICE_TOKEN=<same-value-as-QQBOT_API_TOKEN>
 PLATFORM_REQUEST_TIMEOUT_MS=10000
 ```
@@ -76,7 +76,7 @@ route.
 The returned submission ID can be checked with:
 
 ```text
-GET https://api.owbastion.codes/v1/submissions/<submission-id>
+GET https://api.owbastion.com/v1/submissions/<submission-id>
 ```
 
 With the R2 binding available, a valid image submission reaches `ocr_pending`;

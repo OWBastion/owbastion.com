@@ -16,11 +16,11 @@ visitor
   → portal container
 ```
 
-The public hostname for the Portal is `owbastion.codes`. The platform API is
-served at `api.owbastion.codes` and is not part of this Compose deployment.
+The public hostname for the Portal is `owbastion.com`. The platform API is
+served at `api.owbastion.com` and is not part of this Compose deployment.
 
-The Portal container sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.codes`.
-The Worker allows credentialed browser requests only from `https://owbastion.codes`.
+The Portal container sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.com`.
+The Worker allows credentialed browser requests only from `https://owbastion.com`.
 For local browser development, run the Worker with `PORTAL_ORIGIN=http://localhost:3000`;
 the Portal defaults to `http://localhost:8787` and the API omits the `Secure`
 cookie attribute for that HTTP origin.
@@ -42,7 +42,7 @@ This repository does not contain:
 - a public origin listener.
 
 The server operator owns the Tunnel installation and injects its configuration
-outside the repository. The Tunnel must route `owbastion.codes` to the Portal's
+outside the repository. The Tunnel must route `owbastion.com` to the Portal's
 server-local HTTP endpoint, normally `http://127.0.0.1:3000`.
 
 ## CI image publishing
@@ -95,7 +95,7 @@ the host, while the container continues to listen on port `3000`.
 Before the first rollout, the server operator must:
 
 1. install and authenticate `cloudflared` outside this repository;
-2. configure the Tunnel hostname `owbastion.codes` to reach the chosen local
+2. configure the Tunnel hostname `owbastion.com` to reach the chosen local
    Portal port;
 3. confirm that no public firewall rule exposes the Portal port directly;
 4. verify the Tunnel's public HTTPS request and the local `/health` response.

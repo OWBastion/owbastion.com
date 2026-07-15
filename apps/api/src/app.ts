@@ -46,7 +46,7 @@ export const createApp = (dependencies: AppDependencies) => {
   const allowPortal = (c: any) => {
     const requestOrigin = c.req.header("origin");
     const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
-    c.header("Access-Control-Allow-Origin", localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.codes");
+    c.header("Access-Control-Allow-Origin", localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.com");
     c.header("Access-Control-Allow-Credentials", "true");
     c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token");
     c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");

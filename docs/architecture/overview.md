@@ -58,7 +58,7 @@ QQ OpenIDs, review notes, or unapproved drafts.
 
 ## Deployment boundary
 
-The Worker API is configured for the api.owbastion.codes custom domain. The
+The Worker API is configured for the api.owbastion.com custom domain. The
 Portal has a separate Docker Compose deployment configuration for HKG, with a
 server-managed Cloudflare Tunnel outside this repository. Deployment
 configuration is not evidence of a live environment; verify operational state

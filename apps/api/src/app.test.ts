@@ -76,9 +76,9 @@ describe("API", () => {
       authenticate: auth,
       services: () => ({ ...services, getQqLoginStatus: async () => ({ contractVersion: "1", status: "verified", environment: "production", sessionToken: "a".repeat(64) }) }),
     });
-    const response = await verifiedApp.request("https://api.owbastion.codes/v1/auth/qq/login-attempt/00000000-0000-0000-0000-000000000005", { headers: { "x-login-attempt-token": "a".repeat(64) } }, env);
+    const response = await verifiedApp.request("https://api.owbastion.com/v1/auth/qq/login-attempt/00000000-0000-0000-0000-000000000005", { headers: { "x-login-attempt-token": "a".repeat(64) } }, env);
     expect(response.headers.get("set-cookie")).toContain("Secure");
-    expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.codes");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.com");
   });
 
   it("requires a valid portal session and returns only player-facing fields", async () => {

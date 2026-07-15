@@ -102,7 +102,7 @@ repository.
 
 The Portal remains a rendering surface. It must not become a second business
 API or a durable data store; the canonical Hono API is independently configured
-for `api.owbastion.codes`.
+for `api.owbastion.com`.
 
 ### Repository organization
 
