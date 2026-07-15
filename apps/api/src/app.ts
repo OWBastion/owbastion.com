@@ -44,7 +44,9 @@ const sessionCookie = (request: Request, value: string, maxAge: number) => `owb_
 export const createApp = (dependencies: AppDependencies) => {
   const app = new Hono<{ Bindings: RuntimeEnv }>();
   const allowPortal = (c: any) => {
-    c.header("Access-Control-Allow-Origin", c.env.PORTAL_ORIGIN ?? "https://owbastion.codes");
+    const requestOrigin = c.req.header("origin");
+    const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
+    c.header("Access-Control-Allow-Origin", localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.codes");
     c.header("Access-Control-Allow-Credentials", "true");
     c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token");
     c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");

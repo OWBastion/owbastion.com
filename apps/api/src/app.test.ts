@@ -129,7 +129,9 @@ describe("API", () => {
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);
 
     const localEnv = { ...env, LOCAL_DEV_AUTH: "true" };
-    expect((await localApp.request("http://localhost/v1/__local/accounts", {}, localEnv)).status).toBe(200);
+    const accounts = await localApp.request("http://localhost/v1/__local/accounts", { headers: { origin: "http://0.0.0.0:3000" } }, localEnv);
+    expect(accounts.status).toBe(200);
+    expect(accounts.headers.get("access-control-allow-origin")).toBe("http://0.0.0.0:3000");
     const login = await localApp.request("http://localhost/v1/__local/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accountId: "local-player-account" }) }, localEnv);
     expect(login.status).toBe(200);
     expect(login.headers.get("set-cookie")).toContain("owb_session=local-session");
