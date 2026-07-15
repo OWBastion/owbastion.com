@@ -37,6 +37,11 @@ onMounted(async () => {
         <div class="identity-status"><p class="field-label">QQ 绑定</p><StatusBadge label="已绑定" tone="success" /></div>
       </section>
 
+      <section id="appearance" class="appearance-section" aria-labelledby="appearance-title">
+        <div class="section-heading"><div><p class="eyebrow">显示</p><h2 id="appearance-title">外观</h2></div></div>
+        <ThemeSettings />
+      </section>
+
       <section class="section-block" aria-labelledby="submissions-title">
         <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><span>5 条</span></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
@@ -76,7 +81,7 @@ onMounted(async () => {
 .intro-status { display: flex; align-items: center; gap: 11px; }
 .intro-status .eyebrow { margin-bottom: .8rem; }
 .intro-status .status-badge { margin-bottom: .8rem; }
-.identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; padding: 22px 25px; background: color-mix(in oklch, var(--surface-raised) 78%, var(--surface)); box-shadow: 0 14px 34px var(--shadow); backdrop-filter: blur(16px); }
+.identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-width: 0; padding: 22px 25px; background: var(--surface); box-shadow: 0 3px 10px -6px var(--shadow); }
 .battletag-identity { display: flex; min-width: 0; align-items: center; gap: 15px; }
 .battletag-mark { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 52%, var(--line)); border-radius: 50%; color: var(--accent); background: var(--accent-surface); font-size: 1.2rem; font-weight: 720; letter-spacing: -.04em; }
 .battletag-copy { min-width: 0; }
@@ -85,7 +90,7 @@ onMounted(async () => {
 .battletag-hash, .battletag-number { color: var(--quiet); }
 .battletag-number { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .identity-status { flex: 0 0 auto; }
-.section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
+.section-block, .appearance-section, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
 .section-heading .eyebrow { margin-bottom: 10px; }
 .section-heading h2 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.35rem); letter-spacing: -.045em; }
