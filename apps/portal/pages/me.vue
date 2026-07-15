@@ -37,11 +37,6 @@ onMounted(async () => {
         <div class="identity-status"><p class="field-label">QQ 绑定</p><StatusBadge label="已绑定" tone="success" /></div>
       </section>
 
-      <section id="appearance" class="appearance-section" aria-labelledby="appearance-title">
-        <div class="section-heading"><div><p class="eyebrow">显示</p><h2 id="appearance-title">外观</h2></div></div>
-        <ThemeSettings />
-      </section>
-
       <section class="section-block" aria-labelledby="submissions-title">
         <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><span>5 条</span></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
@@ -90,7 +85,7 @@ onMounted(async () => {
 .battletag-hash, .battletag-number { color: var(--quiet); }
 .battletag-number { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .identity-status { flex: 0 0 auto; }
-.section-block, .appearance-section, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
+.section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
 .section-heading .eyebrow { margin-bottom: 10px; }
 .section-heading h2 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.35rem); letter-spacing: -.045em; }

@@ -53,6 +53,7 @@ async function signOut() {
       <nav class="main-nav" aria-label="主导航"><NuxtLink to="/#events">事件</NuxtLink><NuxtLink to="/#achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></nav>
       <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-expanded="menuOpen" aria-controls="mobile-nav" @click="toggleMenu"><span>菜单</span><span class="menu-icon" aria-hidden="true">{{ menuOpen ? '×' : '＋' }}</span></button>
       <div class="account-actions">
+        <ThemeMenu />
         <AccountMenu v-if="player" :player="player.player" @logout="signOut" />
         <NuxtLink v-else to="/login" class="login-link">登录 <span aria-hidden="true">↗</span></NuxtLink>
       </div>
