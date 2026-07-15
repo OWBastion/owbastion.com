@@ -7,6 +7,7 @@ export type LocalDevAccount = {
 
 export function useLocalDevAuth() {
   const config = useRuntimeConfig();
+  const api = usePortalApi();
   const accounts = shallowRef<LocalDevAccount[]>([]);
   const selectedAccountId = shallowRef("");
   const loading = shallowRef(false);
@@ -20,7 +21,7 @@ export function useLocalDevAuth() {
     loading.value = true;
     errorMessage.value = "";
     try {
-      const response = await $fetch<{ accounts: LocalDevAccount[] }>(`${config.public.apiBaseUrl}/v1/__local/accounts`, { credentials: "include", retry: 0, timeout: 8_000 });
+      const response = await api<{ accounts: LocalDevAccount[] }>("/v1/__local/accounts");
       accounts.value = response.accounts;
       selectedAccountId.value = response.accounts[0]?.accountId ?? "";
     } catch {
@@ -35,7 +36,7 @@ export function useLocalDevAuth() {
     loading.value = true;
     errorMessage.value = "";
     try {
-      await $fetch(`${config.public.apiBaseUrl}/v1/__local/login`, { method: "POST", body: { accountId: selectedAccountId.value }, credentials: "include", retry: 0, timeout: 8_000 });
+      await api("/v1/__local/login", { method: "POST", body: { accountId: selectedAccountId.value } });
       const account = accounts.value.find((item) => item.accountId === selectedAccountId.value);
       await refresh({ force: true });
       return account ?? null;

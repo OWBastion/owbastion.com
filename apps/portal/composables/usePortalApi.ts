@@ -9,9 +9,8 @@ export type CurrentPlayer = {
 export type PortalApiError = Error & { statusCode?: number; data?: { error?: { code?: string; message?: string } } };
 
 export function usePortalApi() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBaseUrl.replace(/\/$/, "");
+  const requestFetch = import.meta.server ? useRequestFetch() : $fetch;
 
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) =>
-    await $fetch<T>(`${baseUrl}${path}`, { ...options, credentials: "include", retry: 0, timeout: 8_000 });
+    await requestFetch<T>(`/api/portal${path}`, { ...options, credentials: "include", retry: 0, timeout: 8_000 });
 }

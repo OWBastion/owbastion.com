@@ -11,13 +11,12 @@ export function useCurrentPlayer() {
   const api = usePortalApi();
 
   const refresh = async ({ force = false }: RefreshOptions = {}) => {
-    if (import.meta.server) return player.value;
     if (!force && status.value === "authenticated") return player.value;
-    if (refreshPromise) return refreshPromise;
+    if (!import.meta.server && refreshPromise) return refreshPromise;
 
     const previousStatus = status.value;
     status.value = "loading";
-    refreshPromise = api<CurrentPlayer>("/v1/me")
+    const request = api<CurrentPlayer>("/v1/me")
       .then((nextPlayer) => {
         player.value = nextPlayer;
         status.value = "authenticated";
@@ -32,8 +31,10 @@ export function useCurrentPlayer() {
         status.value = previousStatus === "authenticated" ? "authenticated" : "unknown";
         throw error;
       })
-      .finally(() => { refreshPromise = null; });
-    return refreshPromise;
+      .finally(() => { if (!import.meta.server) refreshPromise = null; });
+    if (import.meta.server) return request;
+    refreshPromise = request;
+    return request;
   };
 
   const loaded = computed(() => status.value === "authenticated" || status.value === "anonymous");

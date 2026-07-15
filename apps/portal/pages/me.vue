@@ -1,5 +1,5 @@
 <script setup lang="ts">
-definePageMeta({ middleware: "auth-client" });
+definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
 
 const { player, refresh } = useCurrentPlayer();

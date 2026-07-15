@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdminGroup, AdminPlayer, AdminPlayerDetail, AdminSubmission } from "~/composables/useAdminApi";
 
-definePageMeta({ middleware: ["auth-client", "admin-client"] });
+definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "管理后台 · 躲避堡垒 3" });
 const api = useAdminApi();
 const players = ref<AdminPlayer[]>([]);

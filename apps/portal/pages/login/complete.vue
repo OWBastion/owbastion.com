@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { confirmPortalSession } from "~/utils/confirmPortalSession";
+
 useSeoMeta({ title: "正在登录 · 躲避堡垒 3" });
 
 const route = useRoute();
@@ -8,7 +10,8 @@ const returnTo = typeof route.query.returnTo === "string" && route.query.returnT
 
 onMounted(async () => {
   try {
-    const currentPlayer = await refresh({ force: true });
+    if (!await confirmPortalSession(() => refresh({ force: true }))) throw new Error("session unavailable");
+    const currentPlayer = await refresh();
     if (!currentPlayer) throw new Error("session unavailable");
     const destination = currentPlayer.player.isAdmin
       ? (returnTo === "/me" ? "/admin" : returnTo)

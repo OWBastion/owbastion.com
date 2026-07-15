@@ -25,6 +25,12 @@ For local browser development, run the Worker with `PORTAL_ORIGIN=http://localho
 the Portal defaults to `http://localhost:8787` and the API omits the `Secure`
 cookie attribute for that HTTP origin.
 
+Portal browser requests use the same-origin Nuxt `/api/portal/*` proxy. The
+Nuxt server forwards the incoming session cookie to the Worker and relays the
+Worker's session cookie back to the browser. `NUXT_PUBLIC_API_BASE_URL` is a
+server-side upstream setting; browser authentication must not bypass the
+Portal proxy with direct cross-origin requests.
+
 ## Repository boundary
 
 This repository contains:

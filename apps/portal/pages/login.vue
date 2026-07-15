@@ -2,7 +2,7 @@
 import { hasSafeReturnTo, safeReturnTo as normalizeReturnTo } from "~/utils/safeReturnTo";
 
 useSeoMeta({ title: "登录 · 躲避堡垒 3" });
-definePageMeta({ middleware: "guest-client" });
+definePageMeta({ middleware: "guest" });
 
 const route = useRoute();
 const { state, attempt, secondsLeft, message, start, restore, cancel, copyCode, safeReturnTo } = useLoginAttempt();
