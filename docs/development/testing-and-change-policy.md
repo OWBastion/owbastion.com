@@ -35,9 +35,9 @@ when `LOCAL_DEV_AUTH=true`; the selected account receives a real D1-backed
 Portal session. The local administrator account can use `/admin`, while the
 ordinary local player cannot.
 
-`pnpm dev:portal` remains the hot-reload development server. The one-command
-entry builds the Portal and serves the local production-shaped output so it can
-start reliably together with the Worker; rerun it after Portal source changes.
+`pnpm dev:portal` and `pnpm dev:local` both use the Nuxt hot-reload development
+server. Portal source changes are picked up without rebuilding or restarting the
+production output server.
 
 The local login does not represent QQ authentication and never enables the
 local branch in production. Real `/绑定`, `/验证`, `/成就挑战`, QQ webhook, and
