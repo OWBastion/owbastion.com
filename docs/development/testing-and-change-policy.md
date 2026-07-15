@@ -80,6 +80,12 @@ but the upload session accepts only an enabled `challengeId`; map names and
 difficulty are resolved by the API. Catalog migrations are forward-only and
 must preserve the introduced and retired game-version fields.
 
+The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,
+`CONQUEROR`, and `DOMINATOR` are map-scoped reward slots; all other imported
+titles are global. Historical Bastion holder names remain source snapshots and
+must not be converted into platform accounts without an explicit identity
+workflow.
+
 ## Testing layers
 
 - Unit and contract tests for current API, Portal, and package behavior.

@@ -105,6 +105,22 @@ export const mapSchema = z.object({
 
 export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
 
+export const titleSchema = z.object({
+  titleKey: externalId,
+  label: z.string().trim().min(1).max(256),
+  category: z.string().trim().min(1).max(128),
+  condition: z.string().trim().min(1).max(1024),
+  availability: z.enum(["active", "retired"]),
+  scope: z.enum(["global", "map"]),
+  displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
+  mapId: externalId.optional(),
+  slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(),
+  pioneerPrefixes: z.array(z.string().trim().min(1).max(256)).optional(),
+  gameVersion: z.string().trim().min(1).max(64),
+});
+
+export const titleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) });
+
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
   challengeId: externalId,
@@ -229,6 +245,8 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;
 export type MapListResponse = z.infer<typeof mapListResponseSchema>;
+export type Title = z.infer<typeof titleSchema>;
+export type TitleListResponse = z.infer<typeof titleListResponseSchema>;
 export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;

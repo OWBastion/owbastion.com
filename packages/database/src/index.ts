@@ -1,8 +1,8 @@
 import { desc, eq, and, gt, like, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
-import { achievementChallenges, attachments, auditEvents, bindings, identities, idempotencyKeys, maps, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, uploadSessions } from "./schema";
+import type { Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallenges, attachments, auditEvents, bindings, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, uploadSessions } from "./schema";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -116,6 +116,38 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         difficulty: challenge.difficulty ?? undefined,
         gameVersion: challenge.gameVersion,
       }));
+    },
+
+    async listTitles(input) {
+      const globalRows = await db.select().from(titleCatalog).where(eq(titleCatalog.scope, "global"));
+      const globalTitles: Title[] = globalRows.map((row) => ({
+        titleKey: row.key,
+        label: row.label,
+        category: row.category,
+        condition: row.condition,
+        availability: row.availability as Title["availability"],
+        scope: "global",
+        displayKind: row.displayKind as Title["displayKind"],
+        gameVersion: row.gameVersion,
+      }));
+      if (!input.mapId) return globalTitles;
+      const mapRows = await db.select({ title: titleCatalog, reward: mapTitleRewards })
+        .from(mapTitleRewards)
+        .innerJoin(titleCatalog, eq(mapTitleRewards.titleKey, titleCatalog.key))
+        .where(eq(mapTitleRewards.mapId, input.mapId));
+      return globalTitles.concat(mapRows.map(({ title, reward }): Title => ({
+        titleKey: title.key,
+        label: title.label,
+        category: title.category,
+        condition: title.condition,
+        availability: title.availability as Title["availability"],
+        scope: "map",
+        displayKind: title.displayKind as Title["displayKind"],
+        mapId: input.mapId,
+        slot: reward.slot as Title["slot"],
+        pioneerPrefixes: JSON.parse(reward.pioneerPrefixesJson) as string[],
+        gameVersion: title.gameVersion,
+      })));
     },
 
     async createPlayerUploadSession(input, sessionToken) {

@@ -177,6 +177,12 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges() });
   });
 
+  app.get("/v1/titles", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined }) });
+  });
+
   app.get("/v1/maps", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;

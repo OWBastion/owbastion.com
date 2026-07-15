@@ -4,9 +4,9 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, and sessions |
+| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, map title rewards, and historical title snapshots |
 | R2 | Private submission evidence when the EVIDENCE_BUCKET binding is configured |
-| Bastion Git and snapshots | Released game content and version history |
+| Bastion Git and snapshots | Released game content and version history; the platform stores an imported immutable catalog snapshot |
 
 The OCR Queue carries only an opaque submission ID, private object key, schema
 version, and retry attempt. OCR raw output and review decisions remain in D1;

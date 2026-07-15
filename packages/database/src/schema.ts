@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
@@ -44,6 +44,39 @@ export const maps = sqliteTable("maps", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const titleCatalog = sqliteTable("title_catalog", {
+  key: text("key").primaryKey(),
+  label: text("label").notNull(),
+  category: text("category").notNull(),
+  condition: text("condition").notNull(),
+  availability: text("availability").notNull(),
+  scope: text("scope").notNull(),
+  displayKind: text("display_kind").notNull(),
+  gameVersion: text("game_version").notNull(),
+});
+
+export const mapTitleRewards = sqliteTable("map_title_rewards", {
+  mapId: text("map_id").notNull().references(() => maps.id),
+  slot: text("slot").notNull(),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  pioneerPrefixesJson: text("pioneer_prefixes_json").notNull(),
+}, (table) => ({
+  mapSlot: primaryKey({ columns: [table.mapId, table.slot] }),
+  mapTitle: uniqueIndex("map_title_rewards_map_title_idx").on(table.mapId, table.titleKey),
+}));
+
+export const historicalTitleGrants = sqliteTable("historical_title_grants", {
+  id: text("id").primaryKey(),
+  scope: text("scope").notNull(),
+  mapId: text("map_id").references(() => maps.id),
+  slot: text("slot"),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  holderName: text("holder_name").notNull(),
+  sourceVersion: text("source_version").notNull(),
+}, (table) => ({
+  holder: uniqueIndex("historical_title_grants_holder_idx").on(table.scope, table.mapId, table.slot, table.titleKey, table.holderName),
+}));
 
 export const achievementChallenges = sqliteTable("achievement_challenges", {
   id: text("id").primaryKey(),

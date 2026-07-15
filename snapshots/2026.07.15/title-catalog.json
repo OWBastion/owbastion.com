@@ -1,0 +1,5881 @@
+{
+  "schemaVersion": 1,
+  "sourceLabel": "躲避堡垒3",
+  "sourceVersion": "26.0714.1",
+  "gameVersion": "2026.07.15",
+  "titles": [
+    {
+      "key": "PIONEER",
+      "label": "开拓者",
+      "category": "社区贡献系列",
+      "condition": "在新地图内测/公测中完成对应地图地狱通关（群内审核发放）。",
+      "availability": "active",
+      "displayExpr": "\"{0}{1}\".format(__currentMapPioneerText___ if __currentMapPioneerText___ != null else getCurrentMap(), __currentPioneerText___ if __currentPioneerText___ != null else \"开拓者\")",
+      "colorExpr": "heroColor[12]",
+      "scope": "map",
+      "displayKind": "map_pioneer"
+    },
+    {
+      "key": "TEST_LONG",
+      "label": "这是一个超长的称号测试字段如果到这里还没有被截断说明确实很长你说得对但是广告位招租啊哈大OW是我的家乡",
+      "category": "开发保留",
+      "condition": "测试占位称号，不对外发放。",
+      "availability": "active",
+      "displayExpr": "\"这是一个超长的称号测试字段如果到这里还没有被截断说明确实很长你说得对但是广告位招租啊哈大OW是我的家乡\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "NOT_MY_MAP",
+      "label": "地图不是我做的",
+      "category": "开发保留",
+      "condition": "开发/管理用途，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"地图不是我做的\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "WILD_DEV",
+      "label": "野生开发者",
+      "category": "开发保留",
+      "condition": "开发/管理用途，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"野生开发者\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "ARCHITECT",
+      "label": "堡垒建筑师",
+      "category": "开发保留",
+      "condition": "开发/管理用途，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"堡垒建筑师\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "MAINTAINER",
+      "label": "友善的地图维护者",
+      "category": "开发保留",
+      "condition": "开发/管理用途，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"友善的地图维护者\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "THREE_IN_ONE",
+      "label": "三合一地图作者",
+      "category": "开发保留",
+      "condition": "开发/管理用途，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"三合一地图作者\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "BLACK_SHEEP",
+      "label": "骇人鲸",
+      "category": "开发保留",
+      "condition": "历史/内部称号，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"骇人鲸\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "PURE_HARM",
+      "label": "纯害战士",
+      "category": "开发保留",
+      "condition": "历史/内部称号，文档未提供公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"纯害战士\"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "CONQUEROR",
+      "label": "征服者",
+      "category": "地图精通系列",
+      "condition": "通关对应地图传奇难度。",
+      "availability": "active",
+      "displayExpr": "\"{0}征服者\".format(__currentMapText___ if __currentMapText___ != null else getCurrentMap())",
+      "colorExpr": "heroColor[43]",
+      "scope": "map",
+      "displayKind": "map_name_suffix"
+    },
+    {
+      "key": "DOMINATOR",
+      "label": "主宰",
+      "category": "地图精通系列",
+      "condition": "通关对应地图地狱难度。",
+      "availability": "active",
+      "displayExpr": "\"{0}主宰\".format(__currentMapText___ if __currentMapText___ != null else getCurrentMap())",
+      "colorExpr": "heroColor[44]",
+      "scope": "map",
+      "displayKind": "map_name_suffix"
+    },
+    {
+      "key": "SURVIVOR_EXPERT",
+      "label": "专家幸存者",
+      "category": "难度挑战系列",
+      "condition": "历史称号（当前不再发放）。",
+      "availability": "retired",
+      "displayExpr": "\"专家幸存者\"",
+      "colorExpr": "vect(236, 153, 0)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "CHALLENGER_LEGEND",
+      "label": "传奇挑战者",
+      "category": "难度挑战系列",
+      "condition": "成功通关任意地图传奇难度。",
+      "availability": "active",
+      "displayExpr": "\"传奇挑战者\"",
+      "colorExpr": "vect(200, 0, 19)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "TRAVELER_HELL",
+      "label": "地狱穿梭者",
+      "category": "难度挑战系列",
+      "condition": "成功通关任意地图地狱难度。",
+      "availability": "active",
+      "displayExpr": "\"地狱穿梭者\"",
+      "colorExpr": "vect(161, 73, 197)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "DODGE_ULTIMATE",
+      "label": "终极闪避",
+      "category": "极限操作系列",
+      "condition": "单局阵亡次数 ≤ 15 且成功通关。",
+      "availability": "active",
+      "displayExpr": "\"终极闪避\"",
+      "colorExpr": "heroColor[1]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LIGHT_PACK",
+      "label": "轻装上阵",
+      "category": "极限操作系列",
+      "condition": "文档未提供该称号的公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"轻装上阵\"",
+      "colorExpr": "heroColor[2]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "FLAWLESS",
+      "label": "完美无缺",
+      "category": "极限操作系列",
+      "condition": "单局跳过英雄次数为 0 且通关。",
+      "availability": "active",
+      "displayExpr": "\"完美无缺\"",
+      "colorExpr": "vect(0, 230, 151)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "NEVER_GIVE_UP",
+      "label": "永不言弃",
+      "category": "极限操作系列",
+      "condition": "单局跳过英雄次数为 43 且通关（当前暂停/历史发放）。",
+      "availability": "retired",
+      "displayExpr": "\"永不言弃\"",
+      "colorExpr": "vect(0, 230, 151)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "PERSEVERANCE",
+      "label": "坚韧不拔",
+      "category": "极限操作系列",
+      "condition": "文档未提供该称号的公开挑战条件。",
+      "availability": "active",
+      "displayExpr": "\"坚韧不拔\"",
+      "colorExpr": "vect(255, 255, 255)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "SPEEDRUN",
+      "label": "速通传奇",
+      "category": "极限操作系列",
+      "condition": "传奇及以上难度，通关时间 < 1 小时 30 分钟。",
+      "availability": "active",
+      "displayExpr": "\"速通传奇\"",
+      "colorExpr": "vect(0, 230, 151)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "DODGE_GOD",
+      "label": "闪避の神",
+      "category": "生存与闪避系列",
+      "condition": "地狱难度单局未被任何榴弹命中并通关（历史称号）。",
+      "availability": "retired",
+      "displayExpr": "\"闪避の神\"",
+      "colorExpr": "heroColor[28]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "ZENYATTA",
+      "label": "智瞳开拓者",
+      "category": "活动限定",
+      "condition": "文档未提供该称号的公开挑战条件。",
+      "availability": "retired",
+      "displayExpr": "\"智瞳开拓者\"",
+      "colorExpr": "heroColor[12]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "HARD_TO_KILL",
+      "label": "大难不死",
+      "category": "生存与闪避系列",
+      "condition": "受到榴弹伤害后剩余 1-5 点生命并存活。",
+      "availability": "retired",
+      "displayExpr": "\"大难不死\"",
+      "colorExpr": "heroColor[45]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "WIN_HEAVEN",
+      "label": "胜天半子",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 2.0",
+        "限时挑战"
+      ],
+      "condition": "达成指定组合条件。",
+      "availability": "active",
+      "displayExpr": "\"胜天半子\"",
+      "colorExpr": "breathPalette.orange",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "IDOL",
+      "label": "堡垒の偶像",
+      "category": "倒霉蛋系列",
+      "condition": "历史称号（当前不再发放）。",
+      "availability": "retired",
+      "displayExpr": "\"堡垒の偶像\"",
+      "colorExpr": "vect(200, 0, 19)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EGG_FIRST",
+      "label": "第一颗蛋",
+      "category": "倒霉蛋系列",
+      "condition": "历史称号（当前不再发放）。",
+      "availability": "retired",
+      "displayExpr": "\"第一颗蛋\"",
+      "colorExpr": "vect(200, 0, 19)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EAT_MORE",
+      "label": "我还能吃",
+      "category": "倒霉蛋系列",
+      "condition": "历史称号（当前不再发放）。",
+      "availability": "retired",
+      "displayExpr": "\"我还能吃\"",
+      "colorExpr": "vect(238, 75, 43)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "ALL_IN_ONE",
+      "label": "万象归一",
+      "category": "地图精通系列",
+      "condition": "获得所有地图“征服者”头衔。",
+      "availability": "active",
+      "displayExpr": "\"万象归一\"",
+      "colorExpr": "breathPalette.red",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "TRAVELER",
+      "label": "守望旅行家",
+      "category": "地图精通系列",
+      "condition": "获得所有可用地图的难度挑战头衔。",
+      "availability": "active",
+      "displayExpr": "\"守望旅行家\"",
+      "colorExpr": "heroColor[33]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "SKY",
+      "label": "万域天穹",
+      "category": "地图精通系列",
+      "condition": "获得所有地图“主宰”头衔。",
+      "availability": "active",
+      "displayExpr": "\"万域天穹\"",
+      "colorExpr": "breathPalette.purple",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "FLAME",
+      "label": "狂暴烈焰",
+      "category": "活动限定",
+      "tags": [
+        "狂暴之心",
+        "限时挑战"
+      ],
+      "condition": "低伤害+低阵亡并 25 分钟内通关。",
+      "availability": "active",
+      "displayExpr": "\"狂暴烈焰\"",
+      "colorExpr": "heroColor[28]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "PASS_EGGS",
+      "label": "万蛋丛中过",
+      "category": "活动限定",
+      "tags": [
+        "狂暴之心",
+        "限时挑战"
+      ],
+      "condition": "单局阵亡数 ≤ 5 并通关。",
+      "availability": "active",
+      "displayExpr": "\"万蛋丛中过\"",
+      "colorExpr": "heroColor[28]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "CHOSEN",
+      "label": "天选之子",
+      "category": "随机事件系列",
+      "condition": "单局增益事件数量达到减益事件的 1.5 倍及以上。",
+      "availability": "retired",
+      "displayExpr": "\"天选之子\"",
+      "colorExpr": "heroColor[11]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LUCKY_STAR",
+      "label": "幸运星",
+      "category": "随机事件系列",
+      "condition": "连续 10 次抽到增益事件并通关。",
+      "availability": "retired",
+      "displayExpr": "\"幸运星\"",
+      "colorExpr": "heroColor[3]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "GAMBLE_KING",
+      "label": "赌王",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 3.0",
+        "限时挑战"
+      ],
+      "condition": "赌徒类事件连续 5 次增益。",
+      "availability": "active",
+      "displayExpr": "\"赌王\"",
+      "colorExpr": "breathPalette.gold",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LUCKY_SHINE",
+      "label": "福星高照",
+      "category": "随机事件系列",
+      "condition": "历史称号（当前不再发放）。",
+      "availability": "retired",
+      "displayExpr": "\"福星高照\"",
+      "colorExpr": "heroColor[32]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "UNLUCKY",
+      "label": "倒霉蛋",
+      "category": "随机事件系列",
+      "condition": "单局减益事件数量达到增益事件的 1.5 倍及以上并通关。",
+      "availability": "retired",
+      "displayExpr": "\"倒霉蛋\"",
+      "colorExpr": "heroColor[22]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "MANBA",
+      "label": "What can i say",
+      "category": "随机事件系列",
+      "condition": "连续 10 次抽到减益事件并通关。",
+      "availability": "retired",
+      "displayExpr": "\"What can i say\"",
+      "colorExpr": "heroColor[11]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "MY_FATE",
+      "label": "我命由我",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 1.0",
+        "限时挑战"
+      ],
+      "condition": "达成指定组合条件。",
+      "availability": "active",
+      "displayExpr": "\"我命由我\"",
+      "colorExpr": "breathPalette.blue",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "GOD_GAMBLER",
+      "label": "赌神",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 4.0",
+        "限时挑战"
+      ],
+      "condition": "达成幸运星+钢门并满足赌徒连胜条件。",
+      "availability": "active",
+      "displayExpr": "\"赌神\"",
+      "colorExpr": "breathPalette.gold",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LAO_DA",
+      "label": "牢 大",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 4.0",
+        "限时挑战"
+      ],
+      "condition": "达成 What Can I Say + 倒霉蛋并满足赌徒连败条件。",
+      "availability": "active",
+      "displayExpr": "\" 牢 大 \"",
+      "colorExpr": "null",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "V_50",
+      "label": "V我50",
+      "category": "随机事件系列",
+      "condition": "使用“吸血鬼 ProMax”从队友吸取 5000+ 生命并通关。",
+      "availability": "active",
+      "displayExpr": "\"V我50\"",
+      "colorExpr": "heroColor[37]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "STEEL",
+      "label": "钢门",
+      "category": "随机事件系列",
+      "condition": "心之钢层数达到 800 层并通关。",
+      "availability": "active",
+      "displayExpr": "\"钢门\"",
+      "colorExpr": "heroColor[11]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "HACKING",
+      "label": "开了",
+      "category": "随机事件系列",
+      "condition": "地狱难度单局触发所有作弊事件并通关。",
+      "availability": "retired",
+      "displayExpr": "\"开了\"",
+      "colorExpr": "heroColor[20]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "RED_PACKET",
+      "label": "红包收藏家",
+      "category": "活动限定",
+      "tags": [
+        "鸿运当头",
+        "限时挑战"
+      ],
+      "condition": "单局拾取 88 个红包。",
+      "availability": "active",
+      "displayExpr": "\"红包收藏家\"",
+      "colorExpr": "heroColor[43]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "GOOD_LUCK",
+      "label": "好运来",
+      "category": "活动限定",
+      "tags": [
+        "鸿运当头",
+        "限时挑战"
+      ],
+      "condition": "累计触发 50 次增益事件。",
+      "availability": "active",
+      "displayExpr": "\"好运来\"",
+      "colorExpr": "breathPalette.gold",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LONE_WALKER",
+      "label": "千里独行",
+      "category": "活动限定",
+      "tags": [
+        "鸿运当头",
+        "限时挑战"
+      ],
+      "condition": "累计触发 20 次“一马当先”并在该对局通关。",
+      "availability": "active",
+      "displayExpr": "\"千里独行\"",
+      "colorExpr": "heroColor[33]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "GREEN_MOUNTAIN",
+      "label": "踏遍青山",
+      "category": "活动限定",
+      "tags": [
+        "鸿运当头",
+        "限时挑战"
+      ],
+      "condition": "通关漓江塔夜市/庭院/控制中心。",
+      "availability": "active",
+      "displayExpr": "\"踏遍青山\"",
+      "colorExpr": "vect(0, 200, 50)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "SUAN_BU_LA",
+      "label": "我不会放过你的酸不辣",
+      "category": "活动限定",
+      "tags": [
+        "鸿运当头",
+        "限时挑战"
+      ],
+      "condition": "累计拾取 18 个“红包刺客”。",
+      "availability": "active",
+      "displayExpr": "\"我不会放过你的酸不辣\"",
+      "colorExpr": "heroColor[18]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EVENT5_GAMBLE_SAINT",
+      "label": "赌圣",
+      "category": "活动限定",
+      "tags": [
+        "随机事件 5.0",
+        "限时挑战"
+      ],
+      "condition": "随机事件 5.0 限时挑战，触发并赢下所有「赌徒」系列事件。",
+      "availability": "active",
+      "displayExpr": "\"赌圣\"",
+      "colorExpr": "breathPalette.gold",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EVENT5_BLACK_SHEEP",
+      "label": "害群之马",
+      "category": "赌徒系列",
+      "tags": [
+        "随机事件 5.0",
+        "限时挑战"
+      ],
+      "condition": "在地狱难度中，使用“吸血鬼”击杀 12 名队友，并击杀一名处于“献祭”状态的队友。",
+      "availability": "active",
+      "displayExpr": "\"害群之马\"",
+      "colorExpr": "heroColor[3]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EVENT5_I_WANT_TO_CHECK_CARDS",
+      "label": "我要验牌",
+      "category": "赌徒系列",
+      "tags": [
+        "随机事件 5.0",
+        "限时挑战"
+      ],
+      "condition": "在地狱难度中，累计 8 次抽到并触发“作弊：我要验牌”。",
+      "availability": "active",
+      "displayExpr": "\"我要验牌\"",
+      "colorExpr": "heroColor[3]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "EVENT5_CARDS_ARE_FINE",
+      "label": "牌没有问题",
+      "category": "赌徒系列",
+      "tags": [
+        "随机事件 5.0",
+        "限时挑战"
+      ],
+      "condition": "在地狱难度中，触发 5 次任意赌徒类事件，且全部获得正面结果（无永久损失发生）。",
+      "availability": "active",
+      "displayExpr": "\"牌没有问题\"",
+      "colorExpr": "heroColor[3]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "GREAT_BENEFACTOR",
+      "label": "大舍天下",
+      "category": "随机事件系列",
+      "condition": "在地狱难度中触发 15 次舍己为人并通关。",
+      "availability": "active",
+      "displayExpr": "\"大舍天下\"",
+      "colorExpr": "vect(0, 200, 50)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "BREAK_ATMOSPHERE",
+      "label": "冲出地表",
+      "category": "随机事件系列",
+      "condition": "在地狱难度中触发 20 次登月火箭并通关。",
+      "availability": "active",
+      "displayExpr": "\"冲出地表\"",
+      "colorExpr": "vect(192, 192, 192)",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LIST_THEM",
+      "label": "把他们上市",
+      "category": "随机事件系列",
+      "condition": "赢下 3 次「赌徒：短期投资」与 1 次「赌徒：长期投资」，且心之钢层数达到 300 层。",
+      "availability": "active",
+      "displayExpr": "\"把他们上市\"",
+      "colorExpr": "breathPalette.gold",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "LIFE_GUARDS_LIFE",
+      "label": "生命守护生命",
+      "category": "随机事件系列",
+      "condition": "各触发 2 次「有难同当」、「保持距离」与「电磁脉冲 ProMax」。",
+      "availability": "active",
+      "displayExpr": "\"生命守护生命\"",
+      "colorExpr": "heroColor[28]",
+      "scope": "global",
+      "displayKind": "fixed"
+    },
+    {
+      "key": "PHANTOM_THIEF",
+      "label": "怪盗",
+      "category": "随机事件系列",
+      "condition": "触发 10 次「窃贼」。",
+      "availability": "active",
+      "displayExpr": "\"怪盗\"",
+      "colorExpr": "heroColor[22]",
+      "scope": "global",
+      "displayKind": "fixed"
+    }
+  ],
+  "maps": [
+    {
+      "mapId": "map.blizzard_world",
+      "mapKey": "DATA_BLIZZARD_WORLD",
+      "mapName": "暴雪世界",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "暴雪世界"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "他又",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "Augenstern",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "初一",
+            "云雀",
+            "水濑祈",
+            "好男人从不过夜",
+            "銀狼",
+            "一杯美式",
+            "金泰亨",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "他又",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "Augenstern",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "初一",
+            "云雀",
+            "水濑祈",
+            "好男人从不过夜",
+            "銀狼",
+            "一杯美式",
+            "金泰亨",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.dorado",
+      "mapKey": "DATA_DORADO",
+      "mapName": "多拉多",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "多拉多"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "糯米进脑子",
+            "明月有时",
+            "雨鸢",
+            "岂不六哉",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "小聋瞎",
+            "墙上静止的钟",
+            "Doretta",
+            "天树是只臭猫",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "糯米进脑子",
+            "明月有时",
+            "雨鸢",
+            "岂不六哉",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "小聋瞎",
+            "墙上静止的钟",
+            "Doretta",
+            "天树是只臭猫",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.eichenwalde",
+      "mapKey": "DATA_EICHENWALDE",
+      "mapName": "艾兴瓦尔德",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "艾兴瓦尔德"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "眼镜小宅",
+            "初一",
+            "锦木千束"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "顾北酒笙",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "挽风",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "锦木千束",
+            "她说话有股孩子气",
+            "EruIluvatar",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "顾北酒笙",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "锦木千束",
+            "EruIluvatar",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.watchpoint_gibraltar",
+      "mapKey": "DATA_WATCHPOINT_GIBRALTAR",
+      "mapName": "直布罗陀",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "守望先锋",
+        "黑爪特工"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "卖核弹的小女孩"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "卖核弹的小女孩",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "EruIluvatar",
+            "八月八月八",
+            "豆本豆豆奶",
+            "雨鸢",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "卖核弹的小女孩",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "EruIluvatar",
+            "八月八月八",
+            "豆本豆豆奶",
+            "雨鸢",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.havana",
+      "mapKey": "DATA_HAVANA",
+      "mapName": "哈瓦那",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "哈瓦那"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "他又",
+            "别感冒",
+            "顾北酒笙",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "云雀",
+            "一杯美式",
+            "Boo",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "他又",
+            "别感冒",
+            "顾北酒笙",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "云雀",
+            "一杯美式",
+            "Boo",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.hollywood",
+      "mapKey": "DATA_HOLLYWOOD",
+      "mapName": "好莱坞",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "好莱坞"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "糯米进脑子",
+            "EruIluvatar",
+            "锄禾日当午",
+            "岂不六哉",
+            "云雀",
+            "板鸭",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "天树是只臭猫",
+            "八十万萝莉总教头",
+            "好男人从不过夜",
+            "一杯美式",
+            "Doretta",
+            "勴丶",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "糯米进脑子",
+            "EruIluvatar",
+            "锄禾日当午",
+            "岂不六哉",
+            "云雀",
+            "板鸭",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "天树是只臭猫",
+            "八十万萝莉总教头",
+            "好男人从不过夜",
+            "一杯美式",
+            "Doretta",
+            "勴丶",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.horizon_lunar_colony",
+      "mapKey": "DATA_HORIZON_LUNAR_COLONY",
+      "mapName": "月球基地",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "月球基地"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "烛台与南九",
+            "顾北酒笙",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "云雀",
+            "锄禾日当午",
+            "EruIluvatar",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "天树是只臭猫",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "板鸭",
+            "一杯美式",
+            "Doretta",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "烛台与南九",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "云雀",
+            "锄禾日当午",
+            "EruIluvatar",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "天树是只臭猫",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "板鸭",
+            "一杯美式",
+            "Doretta",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.junkertown",
+      "mapKey": "DATA_JUNKERTOWN",
+      "mapName": "渣客镇",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "渣客镇"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "天树是只臭猫",
+            "训犬大师",
+            "Killy"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "天树是只臭猫",
+            "训犬大师",
+            "Killy"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.kings_row",
+      "mapKey": "DATA_KINGS_ROW",
+      "mapName": "国王大道",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "国王大道"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "一痕沙",
+            "天树是只臭猫",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "一杯美式",
+            "金泰亨",
+            "云雀",
+            "銀狼",
+            "锄禾日当午",
+            "勴丶",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "天树是只臭猫",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "一杯美式",
+            "金泰亨",
+            "云雀",
+            "銀狼",
+            "锄禾日当午",
+            "勴丶",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.midtown",
+      "mapKey": "DATA_MIDTOWN",
+      "mapName": "中城",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "中城"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.numbani",
+      "mapKey": "DATA_NUMBANI",
+      "mapName": "努巴尼",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "努巴尼"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "旅店老板",
+            "板鸭",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Doretta",
+            "一杯美式",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "旅店老板",
+            "板鸭",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Doretta",
+            "一杯美式",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.paraiso",
+      "mapKey": "DATA_PARAISO",
+      "mapName": "帕拉伊苏",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "帕拉伊苏"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "谁能体谅我的雨天",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "纸鸢",
+            "一杯美式",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "纸鸢",
+            "一杯美式",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.paris",
+      "mapKey": "DATA_PARIS",
+      "mapName": "巴黎",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "巴黎"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "她说话有股孩子气",
+            "EruIluvatar",
+            "雨鸢",
+            "云雀",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "一杯美式",
+            "好男人从不过夜",
+            "Doretta",
+            "天树是只臭猫",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "她说话有股孩子气",
+            "EruIluvatar",
+            "雨鸢",
+            "云雀",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "一杯美式",
+            "好男人从不过夜",
+            "Doretta",
+            "天树是只臭猫",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.rialto",
+      "mapKey": "DATA_RIALTO",
+      "mapName": "里阿尔托",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "里阿尔托"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "草艮",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "草艮",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "Doretta",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "草艮",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "糯米进脑子",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "Doretta",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.route66",
+      "mapKey": "DATA_ROUTE66",
+      "mapName": "66号公路",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "66号公路"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "锄禾日当午",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "八十万萝莉总教头",
+            "云雀",
+            "一杯美式",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师",
+            "野良",
+            "Fajacy"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "锄禾日当午",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "八十万萝莉总教头",
+            "云雀",
+            "一杯美式",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "Doretta",
+            "训犬大师",
+            "野良",
+            "Fajacy"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.shambali_monastery",
+      "mapKey": "DATA_SHAMBALI_MONASTERY",
+      "mapName": "香巴里寺院",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "香巴里寺院"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "勴丶",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "勴丶",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.temple_of_anubis",
+      "mapKey": "DATA_TEMPLE_OF_ANUBIS",
+      "mapName": "阿努比斯神殿",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "阿努比斯神殿"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "看啊情"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "銀狼",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "銀狼",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.volskaya",
+      "mapKey": "DATA_VOLSKAYA",
+      "mapName": "沃斯卡娅工业区",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "沃斯卡娅工业区"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "卖核弹的小女孩",
+            "眼镜小宅"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "旅店老板",
+            "EruIluvatar",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "蝎子莱莱",
+            "板鸭",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "旅店老板",
+            "EruIluvatar",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "蝎子莱莱",
+            "板鸭",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.esperanca",
+      "mapKey": "DATA_ESPERANCA",
+      "mapName": "埃斯佩兰萨",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "埃斯佩兰萨"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "眼镜小宅"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "一杯美式",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "艾伦耶格尔",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "云雀",
+            "一杯美式",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "艾伦耶格尔",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.colosseo",
+      "mapKey": "DATA_COLOSSEO",
+      "mapName": "斗兽场",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "斗兽场"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "Cold",
+            "豆本豆豆奶"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "他又",
+            "豆本豆豆奶",
+            "八月八月八",
+            "云雀",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "Doretta",
+            "我踏马真不会打啊",
+            "勴丶",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "他又",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "八月八月八",
+            "云雀",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "Doretta",
+            "我踏马真不会打啊",
+            "勴丶",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.runasapi",
+      "mapKey": "DATA_RUNASAPI",
+      "mapName": "鲁纳塞彼",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "鲁纳塞彼"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "污污污快上车",
+            "Doretta",
+            "一杯美式",
+            "墙上静止的钟",
+            "听风与我叙你",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "污污污快上车",
+            "Doretta",
+            "一杯美式",
+            "墙上静止的钟",
+            "听风与我叙你",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.new_queen_street",
+      "mapKey": "DATA_NEW_QUEEN_STREET",
+      "mapName": "新皇后街",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "新皇后街"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "溪云初起日沉阁",
+            "眼镜小宅"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "EruIluvatar",
+            "锄禾日当午",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "金泰亨",
+            "豆本豆豆奶",
+            "墙上静止的钟",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "EruIluvatar",
+            "锄禾日当午",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "金泰亨",
+            "豆本豆豆奶",
+            "墙上静止的钟",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.circuit_royal",
+      "mapKey": "DATA_CIRCUIT_ROYAL",
+      "mapName": "皇家赛道",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "皇家赛道"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "眼镜小宅",
+            "EruIluvatar",
+            "雨鸢",
+            "锄禾日当午",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "卖核弹的小女孩",
+            "好男人从不过夜",
+            "小聋瞎",
+            "一杯美式",
+            "板鸭",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "眼镜小宅",
+            "EruIluvatar",
+            "雨鸢",
+            "锄禾日当午",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "卖核弹的小女孩",
+            "好男人从不过夜",
+            "小聋瞎",
+            "一杯美式",
+            "板鸭",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.hanamura",
+      "mapKey": "DATA_HANAMURA",
+      "mapName": "花村",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "花村"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "尘风歌者",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "看啊情"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "板鸭",
+            "蝎子莱莱",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "我踏马真不会打啊",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "板鸭",
+            "蝎子莱莱",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "一杯美式",
+            "我踏马真不会打啊",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.ilios",
+      "mapKey": "DATA_ILIOS",
+      "mapName": "伊利奥斯",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "伊利奥斯"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "别打老顾我啊",
+            "眼镜小宅",
+            "初一",
+            "蝎子莱莱",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "好男人从不过夜",
+            "云雀",
+            "一杯美式",
+            "金泰亨",
+            "天树是只臭猫",
+            "污污污快上车",
+            "墙上静止的钟",
+            "板鸭",
+            "勴丶",
+            "老人小孩先吃盾",
+            "拔剑四顾心茫然",
+            "Doretta",
+            "Fajacy",
+            "训犬大师",
+            "自律达人游十三"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "蝎子莱莱",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "好男人从不过夜",
+            "云雀",
+            "一杯美式",
+            "金泰亨",
+            "天树是只臭猫",
+            "污污污快上车",
+            "墙上静止的钟",
+            "板鸭",
+            "勴丶",
+            "老人小孩先吃盾",
+            "拔剑四顾心茫然",
+            "Doretta",
+            "Fajacy",
+            "训犬大师",
+            "自律达人游十三"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.lijiang_tower",
+      "mapKey": "DATA_LIJIANG_TOWER",
+      "mapName": "漓江塔",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "漓江塔"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "草艮",
+            "烛台与南九",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "水濑祈",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "我心飞扬",
+            "EruIluvatar",
+            "雨鸢",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "一杯美式",
+            "好男人从不过夜",
+            "銀狼",
+            "天树是只臭猫",
+            "Doretta",
+            "污污污快上车",
+            "板鸭",
+            "勴丶",
+            "训犬大师",
+            "闭上眼相拥"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "草艮",
+            "烛台与南九",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "水濑祈",
+            "看啊情",
+            "眼镜小宅",
+            "初一",
+            "我心飞扬",
+            "EruIluvatar",
+            "雨鸢",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "一杯美式",
+            "好男人从不过夜",
+            "銀狼",
+            "天树是只臭猫",
+            "Doretta",
+            "污污污快上车",
+            "板鸭",
+            "勴丶",
+            "训犬大师",
+            "闭上眼相拥"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.samoa",
+      "mapKey": "DATA_SAMOA",
+      "mapName": "萨摩亚",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "萨摩亚"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "草艮",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "锄禾日当午",
+            "雨鸢",
+            "天树是只臭猫",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "勴丶",
+            "Doretta",
+            "Fajacy",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "草艮",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "锄禾日当午",
+            "雨鸢",
+            "天树是只臭猫",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "勴丶",
+            "Doretta",
+            "Fajacy",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.busan",
+      "mapKey": "DATA_BUSAN",
+      "mapName": "釜山",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "釜山"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "草艮",
+            "顾北酒笙",
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "草艮",
+            "顾北酒笙",
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "糯米进脑子",
+            "半夜汽笛",
+            "雷个大憨憨",
+            "板鸭",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "一杯美式",
+            "锄禾日当午",
+            "金泰亨",
+            "天树是只臭猫",
+            "我踏马真不会打啊",
+            "Doretta",
+            "Fajacy",
+            "闭上眼相拥",
+            "勴丶",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "糯米进脑子",
+            "半夜汽笛",
+            "雷个大憨憨",
+            "板鸭",
+            "雨鸢",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "好男人从不过夜",
+            "一杯美式",
+            "锄禾日当午",
+            "金泰亨",
+            "天树是只臭猫",
+            "我踏马真不会打啊",
+            "Doretta",
+            "Fajacy",
+            "闭上眼相拥",
+            "勴丶",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.oasis",
+      "mapKey": "DATA_OASIS",
+      "mapName": "绿洲城",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "绿洲城"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "尘风歌者",
+            "豆本豆豆奶"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "八月八月八",
+            "云雀",
+            "一杯美式",
+            "污污污快上车",
+            "墙上静止的钟",
+            "我踏马真不会打啊",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "WildRage",
+            "尘风歌者",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "锄禾日当午",
+            "嘤嘤嘤丶",
+            "好男人从不过夜",
+            "八月八月八",
+            "云雀",
+            "一杯美式",
+            "污污污快上车",
+            "墙上静止的钟",
+            "我踏马真不会打啊",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.new_junk_city",
+      "mapKey": "DATA_NEW_JUNK_CITY",
+      "mapName": "新渣客城",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "新渣客城"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "溪云初起日沉阁",
+            "眼镜小宅"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Doretta",
+            "一杯美式",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "Cold",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Doretta",
+            "一杯美式",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.nepal",
+      "mapKey": "DATA_NEPAL",
+      "mapName": "尼泊尔",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "尼泊尔"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "旅店老板",
+            "云雀",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "天树是只臭猫",
+            "金泰亨",
+            "一杯美式",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "銀狼",
+            "小聋瞎",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "溪云初起日沉阁",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "EruIluvatar",
+            "雨鸢",
+            "旅店老板",
+            "云雀",
+            "八十万萝莉总教头",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "天树是只臭猫",
+            "金泰亨",
+            "一杯美式",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "銀狼",
+            "小聋瞎",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.throne_of_anubis",
+      "mapKey": "DATA_THRONE_OF_ANUBIS",
+      "mapName": "阿努比斯王座",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "阿努比斯王座"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "初一",
+            "Jargon"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "Jargon",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "板鸭",
+            "污污污快上车",
+            "Doretta",
+            "一杯美式",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "Jargon",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "云雀",
+            "好男人从不过夜",
+            "锄禾日当午",
+            "板鸭",
+            "污污污快上车",
+            "Doretta",
+            "一杯美式",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.hanaoka",
+      "mapKey": "DATA_HANAOKA",
+      "mapName": "花冈",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "花冈"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": []
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Jargon",
+            "一杯美式",
+            "墙上静止的钟",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "初一",
+            "雨鸢",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "Jargon",
+            "一杯美式",
+            "墙上静止的钟",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.suravasa",
+      "mapKey": "DATA_SURAVASA",
+      "mapName": "苏拉瓦萨",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "瓦拉纳西"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒",
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "雨鸢",
+            "我想吃烤地瓜"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "雨鸢",
+            "我想吃烤地瓜",
+            "Augenstern",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "我踏马真不会打啊",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "雨鸢",
+            "我想吃烤地瓜",
+            "Augenstern",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "云雀",
+            "锄禾日当午",
+            "好男人从不过夜",
+            "墙上静止的钟",
+            "我踏马真不会打啊",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.ayutthaya",
+      "mapKey": "DATA_AYUTTHAYA",
+      "mapName": "阿育陀耶",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "大城"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "雨鸢",
+            "锄禾日当午",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "天树是只臭猫",
+            "一杯美式",
+            "云雀",
+            "好男人从不过夜",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "寒霜冰湮",
+            "豆本豆豆奶",
+            "卖核弹的小女孩",
+            "眼镜小宅",
+            "EruIluvatar",
+            "嘤嘤嘤丶",
+            "雨鸢",
+            "锄禾日当午",
+            "八十万萝莉总教头",
+            "八月八月八",
+            "天树是只臭猫",
+            "一杯美式",
+            "云雀",
+            "好男人从不过夜",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.aatlis",
+      "mapKey": "DATA_AATLIS",
+      "mapName": "阿特利斯",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "织金"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒",
+            "卖核弹的小女孩"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "卖核弹的小女孩",
+            "EruIluvatar",
+            "吾携秋水揽星河",
+            "初一",
+            "雨鸢",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "板鸭",
+            "銀狼",
+            "豆本豆豆奶",
+            "墙上静止的钟",
+            "Doretta",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "卖核弹的小女孩",
+            "EruIluvatar",
+            "吾携秋水揽星河",
+            "初一",
+            "雨鸢",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "云雀",
+            "好男人从不过夜",
+            "一杯美式",
+            "板鸭",
+            "銀狼",
+            "豆本豆豆奶",
+            "墙上静止的钟",
+            "Doretta",
+            "天树是只臭猫",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.antarctic_peninsula",
+      "mapKey": "DATA_ANTARCTIC_PENINSULA",
+      "mapName": "南极半岛",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "科研先锋"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "吾携秋水揽星河"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "卖核弹的小女孩",
+            "EruIluvatar",
+            "墙上静止的钟",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "吾携秋水揽星河",
+            "八月八月八",
+            "嘤嘤嘤丶",
+            "锄禾日当午",
+            "卖核弹的小女孩",
+            "EruIluvatar",
+            "墙上静止的钟",
+            "一杯美式",
+            "Doretta",
+            "训犬大师"
+          ]
+        }
+      ]
+    },
+    {
+      "mapId": "map.neon_junction",
+      "mapKey": "DATA_NEON_JUNCTION",
+      "mapName": "霓虹枢纽",
+      "gameVersion": "2026.07.15",
+      "status": "active",
+      "pioneerPrefixes": [
+        "桥元御守"
+      ],
+      "rewards": [
+        {
+          "slot": "pioneer",
+          "titleKey": "PIONEER",
+          "holderNames": [
+            "他又",
+            "别感冒",
+            "Killy"
+          ]
+        },
+        {
+          "slot": "conqueror",
+          "titleKey": "CONQUEROR",
+          "holderNames": [
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "Fajacy",
+            "吾携秋水揽星河",
+            "锄禾日当午",
+            "训犬大师",
+            "Killy",
+            "卖核弹的小女孩"
+          ]
+        },
+        {
+          "slot": "dominator",
+          "titleKey": "DOMINATOR",
+          "holderNames": [
+            "嘤嘤嘤丶",
+            "八月八月八",
+            "Fajacy",
+            "吾携秋水揽星河",
+            "锄禾日当午",
+            "训犬大师",
+            "Killy",
+            "卖核弹的小女孩"
+          ]
+        }
+      ]
+    }
+  ],
+  "globalGrants": [
+    {
+      "holderName": "他又",
+      "titleKey": "TEST_LONG",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "NOT_MY_MAP",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "WILD_DEV",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "ARCHITECT",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "MAINTAINER",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "THREE_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "BLACK_SHEEP",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "PURE_HARM",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "SURVIVOR_EXPERT",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "PERSEVERANCE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "DODGE_GOD",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "ZENYATTA",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "WIN_HEAVEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "IDOL",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EAT_MORE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "TRAVELER",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "FLAME",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "PASS_EGGS",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "CHOSEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "GAMBLE_KING",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LUCKY_SHINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "MY_FATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "GOD_GAMBLER",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LAO_DA",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "STEEL",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "RED_PACKET",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "GOOD_LUCK",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LONE_WALKER",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "GREEN_MOUNTAIN",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "SUAN_BU_LA",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EVENT5_GAMBLE_SAINT",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EVENT5_BLACK_SHEEP",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EVENT5_I_WANT_TO_CHECK_CARDS",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "GREAT_BENEFACTOR",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "BREAK_ATMOSPHERE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LIST_THEM",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "LIFE_GUARDS_LIFE",
+      "scope": "global"
+    },
+    {
+      "holderName": "他又",
+      "titleKey": "PHANTOM_THIEF",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "TEST_LONG",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "NOT_MY_MAP",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "WILD_DEV",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "ARCHITECT",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "MAINTAINER",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "THREE_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "BLACK_SHEEP",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "PURE_HARM",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "SURVIVOR_EXPERT",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "PERSEVERANCE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "DODGE_GOD",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "ZENYATTA",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "WIN_HEAVEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "IDOL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EAT_MORE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "TRAVELER",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "FLAME",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "PASS_EGGS",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "CHOSEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "GAMBLE_KING",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LUCKY_SHINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "MY_FATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "GOD_GAMBLER",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LAO_DA",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "STEEL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "RED_PACKET",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "GOOD_LUCK",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LONE_WALKER",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "GREEN_MOUNTAIN",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "SUAN_BU_LA",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EVENT5_GAMBLE_SAINT",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EVENT5_BLACK_SHEEP",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EVENT5_I_WANT_TO_CHECK_CARDS",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "GREAT_BENEFACTOR",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "BREAK_ATMOSPHERE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LIST_THEM",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "LIFE_GUARDS_LIFE",
+      "scope": "global"
+    },
+    {
+      "holderName": "别感冒",
+      "titleKey": "PHANTOM_THIEF",
+      "scope": "global"
+    },
+    {
+      "holderName": "草艮",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "草艮",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "烛台与南九",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "烛台与南九",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "烛台与南九",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "顾北酒笙",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "顾北酒笙",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "顾北酒笙",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "顾北酒笙",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "WildRage",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "WildRage",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "WildRage",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "WildRage",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "PERSEVERANCE",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "尘风歌者",
+      "titleKey": "PASS_EGGS",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "TRAVELER",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "CHOSEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "LUCKY_SHINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "STEEL",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "吾携秋水揽星河",
+      "titleKey": "EVENT5_GAMBLE_SAINT",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "TRAVELER",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "寒霜冰湮",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "PASS_EGGS",
+      "scope": "global"
+    },
+    {
+      "holderName": "Cold",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "GOOD_LUCK",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "豆本豆豆奶",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "神之岛風咲",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "NEVER_GIVE_UP",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "溪云初起日沉阁",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "GOOD_LUCK",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "TRAVELER",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "RED_PACKET",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "GREEN_MOUNTAIN",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "卖核弹的小女孩",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "挽风",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "挽风",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "挽风",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "挽风",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "挽风",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "水濑祈",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "水濑祈",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "水濑祈",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别打老顾我啊",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "别打老顾我啊",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "别打老顾我啊",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "别打老顾我啊",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "别打老顾我啊",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "看啊情",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "看啊情",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "看啊情",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "看啊情",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "LIGHT_PACK",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "眼镜小宅",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "EGG_FIRST",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "PASS_EGGS",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "CHOSEN",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "初一",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "锦木千束",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "锦木千束",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "锦木千束",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "她说话有股孩子气",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "她说话有股孩子气",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "她说话有股孩子气",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "白银之鹰",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "白银之鹰",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "白银之鹰",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "蝎子莱莱",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "蝎子莱莱",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "蝎子莱莱",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "蝎子莱莱",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "蝎子莱莱",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "雨鸢",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "Jargon",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Jargon",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Jargon",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Jargon",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "我心飞扬",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "我心飞扬",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "绿里奇迹",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "绿里奇迹",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "绿里奇迹",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "EruIluvatar",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "糯米进脑子",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "糯米进脑子",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "糯米进脑子",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "糯米进脑子",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "半夜汽笛",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "半夜汽笛",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "半夜汽笛",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "半夜汽笛",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "雷个大憨憨",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "雷个大憨憨",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "一痕沙",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "一痕沙",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Augenstern",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Augenstern",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Augenstern",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Augenstern",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "明月有时",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "明月有时",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "明月有时",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "旅店老板",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "旅店老板",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "旅店老板",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "谁能体谅我的雨天",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "谁能体谅我的雨天",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "HARD_TO_KILL",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "锄禾日当午",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "板鸭",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "八十万萝莉总教头",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "岂不六哉",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "岂不六哉",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "我想吃烤地瓜",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "我想吃烤地瓜",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "云雀",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "STEEL",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "EVENT5_GAMBLE_SAINT",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "EVENT5_I_WANT_TO_CHECK_CARDS",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "EVENT5_BLACK_SHEEP",
+      "scope": "global"
+    },
+    {
+      "holderName": "嘤嘤嘤丶",
+      "titleKey": "GREAT_BENEFACTOR",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "STEEL",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "EVENT5_GAMBLE_SAINT",
+      "scope": "global"
+    },
+    {
+      "holderName": "八月八月八",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "HACKING",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "天树是只臭猫",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "好男人从不过夜",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "金泰亨",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "金泰亨",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "MANBA",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "一杯美式",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "銀狼",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "纸鸢",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "纸鸢",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "墙上静止的钟",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "我踏马真不会打啊",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "我踏马真不会打啊",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "我踏马真不会打啊",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "DODGE_ULTIMATE",
+      "scope": "global"
+    },
+    {
+      "holderName": "Doretta",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "污污污快上车",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "污污污快上车",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "污污污快上车",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "污污污快上车",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "小聋瞎",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "小聋瞎",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "小聋瞎",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "小聋瞎",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "小聋瞎",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "勴丶",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "勴丶",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "勴丶",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "勴丶",
+      "titleKey": "FLAWLESS",
+      "scope": "global"
+    },
+    {
+      "holderName": "勴丶",
+      "titleKey": "SPEEDRUN",
+      "scope": "global"
+    },
+    {
+      "holderName": "老人小孩先吃盾",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "老人小孩先吃盾",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "拔剑四顾心茫然",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "拔剑四顾心茫然",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "Fajacy",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Fajacy",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "艾伦耶格尔",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "艾伦耶格尔",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "听风与我叙你",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "听风与我叙你",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "闭上眼相拥",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "闭上眼相拥",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "闭上眼相拥",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "Boo",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Boo",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "ALL_IN_ONE",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "SKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "LUCKY_STAR",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "UNLUCKY",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "V_50",
+      "scope": "global"
+    },
+    {
+      "holderName": "训犬大师",
+      "titleKey": "EVENT5_CARDS_ARE_FINE",
+      "scope": "global"
+    },
+    {
+      "holderName": "Killy",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "Killy",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "野良",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "野良",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    },
+    {
+      "holderName": "自律达人游十三",
+      "titleKey": "CHALLENGER_LEGEND",
+      "scope": "global"
+    },
+    {
+      "holderName": "自律达人游十三",
+      "titleKey": "TRAVELER_HELL",
+      "scope": "global"
+    }
+  ]
+}

@@ -25,6 +25,9 @@ The current API implements versioned v1 QQ flows:
   bound player and up to five recent submissions after session verification.
 - the Portal can select an imported Bastion challenge, create a single-image
   upload session, upload private evidence, and complete the upload;
+- the platform stores a versioned Bastion title catalog, all released maps,
+  map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
+  holder snapshots without linking source names to platform accounts;
 - a versioned Queue message invokes OCRKit, persists the raw result and match
   evidence, and moves matching submissions to `ready_for_review`;
 - the maintainer Portal can inspect private evidence and OCR output and record
@@ -56,7 +59,11 @@ releases remain outside this slice.
 ## QQBot and login
 
 QQBot is a channel adapter. It sends /绑定, /成就挑战, and /验证 requests to the
-API and does not perform OCR, review, title, or GitHub logic.
+API and does not perform OCR, review, title grant, or GitHub logic.
+
+Map-only titles are scoped to the map that supplied their reward slot. The
+platform does not expose them as global titles, and it preserves Bastion's
+map-specific pioneer display prefixes when returning a map-filtered title catalog.
 
 A Portal login attempt creates a six-character code valid for two minutes.
 The user sends /验证 CODE in an enabled QQ group. The API verifies that the

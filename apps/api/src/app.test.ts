@@ -6,6 +6,7 @@ const auth = async () => ({ actorType: "service" as const, subject: "qqbot", rol
 const services: PlatformServices = {
   listMaps: async () => [],
   listChallenges: async () => [],
+  listTitles: async () => [],
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
@@ -105,17 +106,25 @@ describe("API", () => {
       ...services,
       listMaps: async () => [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }],
       listChallenges: async () => [{ challengeId: "map.samoa.hell", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "2026.07.15" }],
+      listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", gameVersion: "2026.07.15" }],
     };
     const catalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
     expect((await catalogApp.request("http://localhost/v1/maps", {}, env)).status).toBe(401);
+    expect((await catalogApp.request("http://localhost/v1/titles", {}, env)).status).toBe(401);
 
     const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
     const maps = await playerCatalogApp.request("http://localhost/v1/maps", { headers: { cookie: "owb_session=session-token" } }, env);
     const challenges = await playerCatalogApp.request("http://localhost/v1/challenges", { headers: { cookie: "owb_session=session-token" } }, env);
+    const titles = await playerCatalogApp.request("http://localhost/v1/titles", { headers: { cookie: "owb_session=session-token" } }, env);
+    const mapTitles = await playerCatalogApp.request("http://localhost/v1/titles?mapId=map.samoa", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(maps.status).toBe(200);
     expect(challenges.status).toBe(200);
+    expect(titles.status).toBe(200);
+    expect(mapTitles.status).toBe(200);
     expect(await maps.json()).toEqual({ contractVersion: "1", items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }] });
     expect(await challenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "map.samoa.hell", mapId: "map.samoa", kind: "difficulty_completion" }] });
+    expect(await titles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "ALL_IN_ONE", scope: "global" }] });
+    expect(await mapTitles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", scope: "map", mapId: "map.samoa", pioneerPrefixes: ["萨摩亚"] }] });
   });
 
   it("clears the portal session on logout", async () => {
