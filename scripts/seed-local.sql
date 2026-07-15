@@ -2,9 +2,11 @@ INSERT OR IGNORE INTO identities (id, created_at, updated_at) VALUES
   ('00000000-0000-4000-8000-000000000001', 1700000000000, 1700000000000),
   ('00000000-0000-4000-8000-000000000002', 1700000000000, 1700000000000);
 
-INSERT OR IGNORE INTO player_accounts (id, player_id, player_name, normalized_player_name, status, created_at, updated_at) VALUES
-  ('00000000-0000-4000-8000-000000000101', 'local-player', '本地玩家', '本地玩家', 'active', 1700000000000, 1700000000000),
-  ('00000000-0000-4000-8000-000000000102', 'local-admin', '本地管理员', '本地管理员', 'active', 1700000000000, 1700000000000);
+INSERT OR IGNORE INTO player_accounts (id, player_id, player_name, normalized_player_name, status, is_admin, created_at, updated_at) VALUES
+  ('00000000-0000-4000-8000-000000000101', 'local-player', '本地玩家', '本地玩家', 'active', 0, 1700000000000, 1700000000000),
+  ('00000000-0000-4000-8000-000000000102', 'local-admin', '本地管理员', '本地管理员', 'active', 1, 1700000000000, 1700000000000);
+
+UPDATE player_accounts SET is_admin = 1 WHERE player_id = 'local-admin';
 
 INSERT OR IGNORE INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES
   ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000101', 'qq', 'local-test-group', 'local-test-member', 1700000000000),
