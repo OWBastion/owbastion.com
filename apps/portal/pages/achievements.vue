@@ -4,19 +4,12 @@ import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
 
 const api = usePortalApi();
-const { player, refresh } = useCurrentPlayer();
 const challenges = ref<PublicAchievement[]>([]);
 const loading = ref(true);
 const error = ref(false);
 
-const actionTarget = (challengeId: string) => {
-  const returnTo = `/submissions/new?challengeId=${encodeURIComponent(challengeId)}`;
-  return player.value ? returnTo : { path: "/login", query: { returnTo } };
-};
-
 onMounted(async () => {
   await Promise.allSettled([
-    refresh(),
     api<{ items: PublicAchievement[] }>("/v1/public/achievements").then((response) => { challenges.value = response.items; }).catch(() => { error.value = true; }),
   ]);
   loading.value = false;
@@ -29,7 +22,7 @@ onMounted(async () => {
     <section class="achievement-directory surface-card" aria-label="成就列表">
       <p v-if="loading" class="directory-state" role="status">读取中…</p>
       <p v-else-if="error" class="directory-state directory-error" role="alert">无法读取成就目录，请稍后重试。</p>
-      <AchievementCatalog v-else :challenges="challenges" :action-target="actionTarget" />
+      <AchievementCatalog v-else :challenges="challenges" />
     </section>
   </main>
 </template>
