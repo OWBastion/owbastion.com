@@ -125,7 +125,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if pnpm exec wrangler queues list --json | jq -e 'any(.[]; .queue_name == "owbastion-ocr")' >/dev/null; then
+          queues="$(pnpm exec wrangler queues list)"
+          if grep -Fq "owbastion-ocr" <<<"$queues"; then
             echo "OCR queue already exists"
           else
             pnpm exec wrangler queues create owbastion-ocr
