@@ -2,7 +2,7 @@ import type { PortalApiError } from "./usePortalApi";
 
 export type Map = { mapId: string; mapName: string; gameVersion: string };
 export type MapChallenge = { challengeId: string; family: "map"; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion"; name: string; mapId: string; mapName: string; difficulty?: string; gameVersion: string };
-export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "active" };
+export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "active"; submissionMode: "manual" | "automatic" };
 export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -138,6 +138,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
           status: "active",
+          submissionMode: challenge.submissionMode as "manual" | "automatic",
         })));
       }
       return items;
@@ -193,6 +194,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
+      if (titleChallenge?.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_AUTOMATIC");
       const challengeType = mapChallenge?.challenge.type ?? "title_achievement";
       const mapName = mapChallenge?.map.name ?? "成就挑战";
       const difficulty = mapChallenge?.challenge.difficulty ?? null;

@@ -108,6 +108,7 @@ const achievementChallengeSchema = z.object({
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
   status: z.literal("active"),
+  submissionMode: z.enum(["manual", "automatic"]),
 });
 
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);

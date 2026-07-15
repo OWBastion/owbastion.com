@@ -108,7 +108,7 @@ describe("API", () => {
       listMaps: async () => [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }],
       listChallenges: async (input) => {
         requestedFamilies.push(input?.family);
-        if (input?.family === "achievement") return [{ challengeId: "title.challenger_legend", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "CHALLENGER_LEGEND", titleName: "传奇挑战者", category: "难度挑战系列", condition: "成功通关任意地图传奇难度。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active" }];
+        if (input?.family === "achievement") return [{ challengeId: "title.challenger_legend", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "CHALLENGER_LEGEND", titleName: "传奇挑战者", category: "难度挑战系列", condition: "成功通关任意地图传奇难度。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual" }];
         return [{ challengeId: "map.samoa.conqueror", family: "map", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15" }];
       },
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", gameVersion: "2026.07.15" }],
@@ -136,10 +136,24 @@ describe("API", () => {
     expect(await maps.json()).toEqual({ contractVersion: "1", items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }] });
     expect(await challenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "map.samoa.conqueror", mapId: "map.samoa", kind: "difficulty_completion" }] });
     expect(await mapChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ family: "map" }] });
-    expect(await achievementChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.challenger_legend", titleName: "传奇挑战者", family: "achievement" }] });
+    expect(await achievementChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.challenger_legend", titleName: "传奇挑战者", family: "achievement", submissionMode: "manual" }] });
     expect(requestedFamilies).toEqual([undefined, "map", "achievement"]);
     expect(await titles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "ALL_IN_ONE", scope: "global" }] });
     expect(await mapTitles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", scope: "map", mapId: "map.samoa", pioneerPrefixes: ["萨摩亚"] }] });
+  });
+
+  it("rejects screenshot uploads for automatically granted titles", async () => {
+    const automaticApp = createApp({
+      authenticate: async () => null,
+      services: () => ({ ...services, createPlayerUploadSession: async () => { throw new Error("CHALLENGE_AUTOMATIC"); } }),
+    });
+    const response = await automaticApp.request("http://localhost/v1/player/uploads/session", {
+      method: "POST",
+      headers: { cookie: "owb_session=session-token", "content-type": "application/json" },
+      body: JSON.stringify({ contractVersion: "1", challengeId: "title.SKY", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }),
+    }, env);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_AUTOMATIC", message: "该称号由系统自动发放，无需提交截图。" } });
   });
 
   it("clears the portal session on logout", async () => {

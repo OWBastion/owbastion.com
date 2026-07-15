@@ -76,8 +76,10 @@ without an architecture decision record.
 
 Player submission targets are read from the D1 `maps` and
 `achievement_challenges` catalogs. The Portal may browse maps and challenges,
-but the upload session accepts only an enabled `challengeId`; map names and
-difficulty are resolved by the API. Catalog migrations are forward-only and
+but the upload session accepts only an enabled manual-submission `challengeId`;
+map names and difficulty are resolved by the API. System-automatic title
+challenges remain visible in the catalog but cannot receive screenshot uploads.
+Catalog migrations are forward-only and
 must preserve the introduced and retired game-version fields.
 
 The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,

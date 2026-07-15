@@ -97,6 +97,7 @@ export const titleChallenges = sqliteTable("title_challenges", {
   titleKey: text("title_key").notNull().references(() => titleCatalog.key),
   condition: text("condition").notNull(),
   evidenceRule: text("evidence_rule").notNull(),
+  submissionMode: text("submission_mode").notNull(),
   gameVersion: text("game_version").notNull(),
   status: text("status").notNull(),
   introducedVersion: text("introduced_version").notNull(),
