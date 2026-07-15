@@ -106,7 +106,11 @@ describe("API", () => {
     const catalogServices: PlatformServices = {
       ...services,
       listMaps: async () => [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }],
-      listChallenges: async (input) => { requestedFamilies.push(input?.family); return input?.family === "achievement" ? [] : [{ challengeId: "map.samoa.hell", family: "map", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "2026.07.15" }]; },
+      listChallenges: async (input) => {
+        requestedFamilies.push(input?.family);
+        if (input?.family === "achievement") return [{ challengeId: "title.challenger_legend", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "CHALLENGER_LEGEND", titleName: "传奇挑战者", category: "难度挑战系列", condition: "成功通关任意地图传奇难度。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active" }];
+        return [{ challengeId: "map.samoa.conqueror", family: "map", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15" }];
+      },
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", gameVersion: "2026.07.15" }],
     };
     const catalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
@@ -130,9 +134,9 @@ describe("API", () => {
     expect(titles.status).toBe(200);
     expect(mapTitles.status).toBe(200);
     expect(await maps.json()).toEqual({ contractVersion: "1", items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15" }] });
-    expect(await challenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "map.samoa.hell", mapId: "map.samoa", kind: "difficulty_completion" }] });
+    expect(await challenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "map.samoa.conqueror", mapId: "map.samoa", kind: "difficulty_completion" }] });
     expect(await mapChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ family: "map" }] });
-    expect(await achievementChallenges.json()).toEqual({ contractVersion: "1", items: [] });
+    expect(await achievementChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.challenger_legend", titleName: "传奇挑战者", family: "achievement" }] });
     expect(requestedFamilies).toEqual([undefined, "map", "achievement"]);
     expect(await titles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "ALL_IN_ONE", scope: "global" }] });
     expect(await mapTitles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", scope: "map", mapId: "map.samoa", pioneerPrefixes: ["萨摩亚"] }] });
