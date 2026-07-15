@@ -15,6 +15,7 @@ const page = ref(1);
 const hasMore = ref(false);
 
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
+const formatBattleTag = (player: { playerName: string; playerId: string }) => `${player.playerName}#${player.playerId}`;
 const load = async () => {
   loading.value = true;
   errorMessage.value = "";
@@ -34,7 +35,7 @@ const openPlayer = async (player: AdminPlayer) => { selected.value = await api<A
 const setStatus = async (next: "active" | "banned") => {
   if (!selected.value) return;
   const reason = next === "banned" ? window.prompt("请输入封禁原因（可选）") ?? "" : undefined;
-  if (next === "banned" && !window.confirm(`确认封禁玩家“${selected.value.playerName}”？`)) return;
+  if (next === "banned" && !window.confirm(`确认封禁玩家“${formatBattleTag(selected.value)}”？`)) return;
   actionMessage.value = "正在保存…";
   await api(`/v1/player-accounts/${selected.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
   actionMessage.value = next === "banned" ? "玩家已封禁" : "玩家已解封";
@@ -69,9 +70,9 @@ onMounted(() => void load());
     <section class="admin-grid">
       <div class="admin-main-column">
         <div class="section-heading"><div><p class="eyebrow">玩家</p><h2>玩家账号</h2></div><span>{{ loading ? "正在读取…" : `${players.length} 条` }}</span></div>
-        <div class="admin-filters surface-card"><input v-model="query" aria-label="搜索玩家" placeholder="搜索玩家名称、ID 或 QQ 标识" /><select v-model="status" aria-label="筛选玩家状态"><option value="all">全部状态</option><option value="active">正常</option><option value="banned">已封禁</option></select></div>
+        <div class="admin-filters surface-card"><input v-model="query" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><select v-model="status" aria-label="筛选玩家状态"><option value="all">全部状态</option><option value="active">正常</option><option value="banned">已封禁</option></select></div>
         <div class="admin-list" aria-live="polite">
-          <button v-for="player in players" :key="player.playerAccountId" class="admin-row surface-card" type="button" @click="openPlayer(player)"><span><strong>{{ player.playerName }}</strong><small>#{{ player.playerId }} · {{ player.bindingCount }} 条绑定</small></span><StatusBadge :label="player.status === 'banned' ? '已封禁' : '正常'" :tone="player.status === 'banned' ? 'warning' : 'success'" /></button>
+          <button v-for="player in players" :key="player.playerAccountId" class="admin-row surface-card" type="button" @click="openPlayer(player)"><span><strong>{{ formatBattleTag(player) }}</strong><small>{{ player.bindingCount }} 条绑定</small></span><StatusBadge :label="player.status === 'banned' ? '已封禁' : '正常'" :tone="player.status === 'banned' ? 'warning' : 'success'" /></button>
           <p v-if="!loading && !players.length" class="empty-admin surface-card">没有符合条件的玩家。</p>
         </div>
         <div class="pagination"><button class="secondary-button" :disabled="page === 1" type="button" @click="page--; load()">上一页</button><span>第 {{ page }} 页</span><button class="secondary-button" :disabled="!hasMore" type="button" @click="page++; load()">下一页</button></div>
@@ -81,7 +82,7 @@ onMounted(() => void load());
         <div class="group-list"><div v-for="group in groups" :key="group.groupOpenId" class="group-row surface-card"><div><strong>{{ group.groupOpenId }}</strong><small>{{ group.environment === 'production' ? '正式群' : '测试群' }} · 更新于 {{ formatTime(group.updatedAt) }}</small></div><button class="toggle-button" :class="{ enabled: group.enabled }" type="button" :aria-pressed="group.enabled" @click="setGroup(group)"><span aria-hidden="true"></span>{{ group.enabled ? '已开放' : '已关闭' }}</button></div><p v-if="!groups.length" class="empty-admin surface-card">还没有群配置。</p></div>
       </aside>
     </section>
-    <div v-if="selected" class="detail-scrim" role="presentation" @click.self="selected = null"><section class="detail-sheet surface-card" role="dialog" aria-modal="true" aria-labelledby="detail-title"><button class="sheet-close" type="button" aria-label="关闭" @click="selected = null">×</button><p class="eyebrow">玩家详情</p><h2 id="detail-title">{{ selected.playerName }}</h2><p class="detail-meta">#{{ selected.playerId }} · 最近更新 {{ formatTime(selected.updatedAt) }}</p><div class="detail-actions"><button v-if="selected.status === 'active'" class="danger-button" type="button" @click="setStatus('banned')">封禁玩家</button><button v-else class="primary-button" type="button" @click="setStatus('active')">解除封禁</button></div><h3>QQ 绑定</h3><div class="binding-list"><div v-for="binding in selected.bindings" :key="binding.bindingId" class="binding-row"><div><strong>{{ binding.groupOpenId }}</strong><small>{{ binding.memberOpenId }}</small></div><button class="text-button danger-text" type="button" @click="unbind(binding.bindingId)">解绑</button></div><p v-if="!selected.bindings.length" class="quiet-copy">当前没有 QQ 绑定。</p></div><h3>最近提交</h3><div class="submission-mini"><div v-for="submission in selected.recentSubmissions" :key="submission.submissionId"><strong>{{ submission.mapName }}</strong><small>{{ submission.status }} · {{ formatTime(submission.updatedAt) }}</small></div><p v-if="!selected.recentSubmissions.length" class="quiet-copy">没有提交记录。</p></div></section></div>
+    <div v-if="selected" class="detail-scrim" role="presentation" @click.self="selected = null"><section class="detail-sheet surface-card" role="dialog" aria-modal="true" aria-labelledby="detail-title"><button class="sheet-close" type="button" aria-label="关闭" @click="selected = null">×</button><p class="eyebrow">玩家详情</p><h2 id="detail-title">{{ formatBattleTag(selected) }}</h2><p class="detail-meta">最近更新 {{ formatTime(selected.updatedAt) }}</p><div class="detail-actions"><button v-if="selected.status === 'active'" class="danger-button" type="button" @click="setStatus('banned')">封禁玩家</button><button v-else class="primary-button" type="button" @click="setStatus('active')">解除封禁</button></div><h3>QQ 绑定</h3><div class="binding-list"><div v-for="binding in selected.bindings" :key="binding.bindingId" class="binding-row"><div><strong>{{ binding.groupOpenId }}</strong><small>{{ binding.memberOpenId }}</small></div><button class="text-button danger-text" type="button" @click="unbind(binding.bindingId)">解绑</button></div><p v-if="!selected.bindings.length" class="quiet-copy">当前没有 QQ 绑定。</p></div><h3>最近提交</h3><div class="submission-mini"><div v-for="submission in selected.recentSubmissions" :key="submission.submissionId"><strong>{{ submission.mapName }}</strong><small>{{ submission.status }} · {{ formatTime(submission.updatedAt) }}</small></div><p v-if="!selected.recentSubmissions.length" class="quiet-copy">没有提交记录。</p></div></section></div>
   </main>
 </template>
 

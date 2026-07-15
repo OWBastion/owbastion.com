@@ -31,9 +31,11 @@ onMounted(async () => {
       </section>
 
       <section class="identity-card surface-card" aria-label="玩家身份">
-        <div><p class="field-label">玩家名称</p><strong>{{ player.player.playerName }}</strong></div>
-        <div><p class="field-label">玩家 ID</p><strong>{{ player.player.playerId }}</strong></div>
-        <div><p class="field-label">QQ 绑定</p><StatusBadge label="已绑定" tone="success" /></div>
+        <div class="battletag-identity">
+          <span class="battletag-mark" aria-hidden="true">{{ player.player.playerName.slice(0, 1) }}</span>
+          <div class="battletag-copy"><p class="field-label">战网 ID</p><strong class="battletag"><span class="battletag-name">{{ player.player.playerName }}</span><span class="battletag-hash" aria-hidden="true">#</span><span class="battletag-number">{{ player.player.playerId }}</span></strong></div>
+        </div>
+        <div class="identity-status"><p class="field-label">QQ 绑定</p><StatusBadge label="已绑定" tone="success" /></div>
       </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
@@ -76,9 +78,15 @@ onMounted(async () => {
 .intro-status .eyebrow { margin-bottom: .8rem; }
 .intro-status .status-badge { margin-bottom: .8rem; }
 .intro .body-copy { max-width: 52ch; margin: 22px 0 0; }
-.identity-card { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; padding: 25px; }
+.identity-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 25px; background: color-mix(in oklch, var(--surface-raised) 78%, var(--surface)); box-shadow: 0 14px 34px oklch(0% 0 0 / 12%); backdrop-filter: blur(16px); }
+.battletag-identity { display: flex; min-width: 0; align-items: center; gap: 15px; }
+.battletag-mark { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 52%, var(--line)); border-radius: 50%; color: var(--accent); background: var(--accent-surface); font-size: 1.2rem; font-weight: 720; letter-spacing: -.04em; }
+.battletag-copy { min-width: 0; }
 .field-label { margin: 0 0 8px; color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .05em; }
-.identity-card strong { font-size: 1.05rem; letter-spacing: -.02em; }
+.battletag { display: block; max-width: 100%; overflow-wrap: anywhere; font-size: clamp(1.25rem, 2.6vw, 1.75rem); font-weight: 680; letter-spacing: -.045em; line-height: 1.1; }
+.battletag-hash, .battletag-number { color: var(--quiet); }
+.battletag-number { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.identity-status { flex: 0 0 auto; }
 .section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
 .section-heading .eyebrow { margin-bottom: 10px; }
@@ -102,5 +110,6 @@ onMounted(async () => {
 .upcoming-card p:last-child { margin: 12px 0 0; color: var(--quiet); font-size: .82rem; line-height: 1.6; }
 .loading { padding-block: 180px; color: var(--muted); text-align: center; }
 @media (max-width: 760px) { .upcoming-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 220px; }.upcoming-heading { align-items: flex-start; flex-direction: column; }.upcoming-heading > p { text-align: left; } }
-@media (max-width: 620px) { .identity-card { grid-template-columns: 1fr; gap: 18px; }.submission-row { align-items: flex-start; flex-direction: column; gap: 12px; } }
+@media (prefers-reduced-transparency: reduce) { .identity-card { background: var(--surface-raised); backdrop-filter: none; } }
+@media (max-width: 620px) { .identity-card { align-items: flex-start; flex-direction: column; gap: 18px; }.identity-status { width: 100%; padding-top: 17px; border-top: 1px solid var(--line); }.submission-row { align-items: flex-start; flex-direction: column; gap: 12px; } }
 </style>

@@ -5,8 +5,12 @@ const route = useRoute();
 const { state, attempt, secondsLeft, message, start, restore, cancel, copyCode, safeReturnTo } = useLoginAttempt();
 const returnTo = computed(() => safeReturnTo(route.query.returnTo));
 const copied = ref(false);
+const { accounts: localAccounts, selectedAccountId, loading: localLoading, errorMessage: localError, enabled: localEnabled, load: loadLocalAccounts, login: loginLocal } = useLocalDevAuth();
 
-onMounted(() => restore(returnTo.value));
+onMounted(() => {
+  restore(returnTo.value);
+  void loadLocalAccounts();
+});
 
 async function copy() {
   await copyCode();
@@ -39,10 +43,23 @@ async function copy() {
       </div>
 
       <div v-else class="action-panel"><p class="notice">正在确认登录状态……</p></div>
+
+      <section v-if="localEnabled" class="local-dev-panel" aria-labelledby="local-dev-title">
+        <p class="challenge-label" id="local-dev-title">本地开发</p>
+        <p class="local-dev-copy">不连接 QQ，直接使用本地 D1 中的开发账号验证 Portal 页面。</p>
+        <p v-if="localError" class="notice error">{{ localError }}</p>
+        <div v-else-if="localAccounts.length" class="local-dev-actions">
+          <select v-model="selectedAccountId" aria-label="本地开发账号">
+            <option v-for="account in localAccounts" :key="account.accountId" :value="account.accountId">{{ account.playerName }}#{{ account.playerId }}{{ account.isAdmin ? '（管理员）' : '（玩家）' }}</option>
+          </select>
+          <button class="secondary-button" type="button" :disabled="localLoading" @click="loginLocal">{{ localLoading ? '登录中……' : '使用本地账号登录' }}</button>
+        </div>
+        <p v-else class="notice">正在读取本地开发账号……</p>
+      </section>
     </section>
   </main>
 </template>
 
 <style scoped>
-.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(78px, 13vh, 140px) 56px; }.login-card { width: min(100%, 680px); padding: clamp(28px, 6vw, 58px); }.intro { max-width: 43ch; margin: 22px 0 38px; }.action-panel { min-height: 118px; }.notice { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }.warning { color: oklch(82% .12 85); }.error { color: var(--danger); }.challenge-panel { padding: 22px; border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: 15px; background: var(--accent-surface); }.challenge-heading { display: flex; justify-content: space-between; gap: 18px; color: oklch(90% .02 55); }.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }.challenge-label { margin: 0 0 6px; color: var(--accent); font-size: .72rem; font-weight: 720; letter-spacing: .06em; }.challenge-copy { margin: 0; font-size: .88rem; }.login-code { margin: 20px 0; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 720; letter-spacing: .04em; }.challenge-actions { display: flex; align-items: center; gap: 16px; }.text-button { padding: 0; border: 0; color: oklch(87% .016 55); background: transparent; font-size: .85rem; }.hint { margin: 20px 0 0; color: oklch(82% .016 55); font-size: .77rem; line-height: 1.55; }
+.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(78px, 13vh, 140px) 56px; }.login-card { width: min(100%, 680px); padding: clamp(28px, 6vw, 58px); }.intro { max-width: 43ch; margin: 22px 0 38px; }.action-panel { min-height: 118px; }.notice { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }.warning { color: oklch(82% .12 85); }.error { color: var(--danger); }.challenge-panel { padding: 22px; border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: 15px; background: var(--accent-surface); }.challenge-heading { display: flex; justify-content: space-between; gap: 18px; color: oklch(90% .02 55); }.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }.challenge-label { margin: 0 0 6px; color: var(--accent); font-size: .72rem; font-weight: 720; letter-spacing: .06em; }.challenge-copy { margin: 0; font-size: .88rem; }.login-code { margin: 20px 0; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 720; letter-spacing: .04em; }.challenge-actions { display: flex; align-items: center; gap: 16px; }.text-button { padding: 0; border: 0; color: oklch(87% .016 55); background: transparent; font-size: .85rem; }.hint { margin: 20px 0 0; color: oklch(82% .016 55); font-size: .77rem; line-height: 1.55; }.local-dev-panel { margin-top: 34px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 15px; background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }.local-dev-copy { margin: 0 0 16px; color: var(--muted); font-size: .86rem; line-height: 1.55; }.local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }.local-dev-actions select { min-height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: var(--surface-raised); }
 </style>
