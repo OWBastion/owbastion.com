@@ -6,7 +6,8 @@ export default defineEventHandler(async (event) => {
   const headers: Record<string, string> = { accept: "application/json" };
   for (const name of ["cookie", "idempotency-key", "content-type"]) {
     const value = request.headers[name];
-    if (value) headers[name] = Array.isArray(value) ? value[0] : value;
+    const headerValue = Array.isArray(value) ? value[0] : value;
+    if (headerValue) headers[name] = headerValue;
   }
   if (request.headers.cookie) headers.cookie = request.headers.cookie;
   const method = request.method ?? "GET";
