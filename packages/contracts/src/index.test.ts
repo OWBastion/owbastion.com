@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminSubmissionReviewRequestSchema, currentPlayerResponseSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { adminChallengeUpdateRequestSchema, adminSubmissionReviewRequestSchema, currentPlayerResponseSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("accepts stable QQ binding metadata", () => {
@@ -30,5 +30,12 @@ describe("v1 platform contracts", () => {
   it("requires a reason for every review decision", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", reason: "截图与 OCR 结果一致" }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected", reason: "" }).success).toBe(false);
+  });
+
+  it("requires a Bastion version when retiring an achievement", () => {
+    const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "retired" };
+    expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "2026.07.16" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "retired", retiredVersion: "2026.07.16" }).success).toBe(true);
   });
 });

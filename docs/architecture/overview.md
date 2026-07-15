@@ -39,7 +39,8 @@ released game content remains authoritative in OWBastion/Bastion.
 - **API:** health, a public read-only achievement catalog, authenticated QQ binding/submission writes, player upload
   sessions, Queue-backed OCR processing, public submission status, QQ login
   verification, session lookup/logout, and a platform-session-protected
-  administrative API for players, groups, and submissions.
+  administrative API for players, groups, submissions, and achievement catalog
+  management.
 - **Evidence:** private QQ image retrieval and R2 storage during submission
   creation when the Worker R2 binding is configured.
 
@@ -47,6 +48,10 @@ The Portal is a rendering surface and does not own durable business state.
 The Portal proxies administrator requests server-side so the platform session
 cookie is forwarded to the Worker. Public responses do not expose private evidence,
 QQ OpenIDs, review notes, or unapproved drafts.
+
+Achievement catalog management changes platform challenge rules only. It does
+not create titles, alter Bastion's released title or map facts, or issue titles;
+those remain Bastion-release and historical-title-migration responsibilities.
 
 ## Design principles
 

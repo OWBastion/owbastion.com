@@ -9,6 +9,7 @@ import {
   adminSubmissionReviewRequestSchema,
   adminTitleGrantRequestSchema,
   adminTitleGrantRevokeRequestSchema,
+  adminChallengeUpdateRequestSchema,
   playerUploadSessionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
@@ -262,6 +263,29 @@ export const createApp = (dependencies: AppDependencies) => {
     const status = c.req.query("status");
     if (status && status !== "active" && status !== "banned") return errorResponse(c, 422, "INVALID_REQUEST", "The status is invalid");
     return c.json(await dependencies.services(c.env).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, access.auth!));
+  });
+
+  app.get("/v1/admin/achievements", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const type = c.req.query("type");
+    const status = c.req.query("status");
+    const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
+    if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
+    if (status && !["active", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
+    return c.json(await dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!));
+  });
+
+  app.put("/v1/admin/achievements/:challengeId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const body = await parseBody(c.req.raw) as Record<string, unknown> | null;
+    const parsed = adminChallengeUpdateRequestSchema.safeParse({ ...body, family: body?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") });
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).updateAdminChallenge({ ...parsed.data, challengeId: c.req.param("challengeId") }, access.auth!, idempotencyKey)); }
+    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/player-accounts/:playerAccountId", async (c) => {
