@@ -42,7 +42,7 @@ onMounted(async () => {
       </section>
 
       <section class="section-block" aria-labelledby="submissions-title">
-        <div class="section-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><NuxtLink to="/submissions/new" class="secondary-button">提交截图</NuxtLink></div>
+        <div class="section-heading submission-heading"><div><p class="eyebrow">提交记录</p><h2 id="submissions-title">最近提交</h2></div><NuxtLink to="/submissions/new" class="secondary-button submission-action"><AppIcon name="upload" /><span>提交截图</span></NuxtLink></div>
         <div v-if="player.recentSubmissions.length" class="submission-list">
           <NuxtLink v-for="submission in player.recentSubmissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row surface-card">
             <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>
@@ -91,6 +91,8 @@ onMounted(async () => {
 .identity-status { flex: 0 0 auto; }
 .section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.submission-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; text-decoration: none; }
+.submission-action .app-icon { width: 16px; height: 16px; }
 .section-heading .eyebrow { margin-bottom: 10px; }
 .section-heading h2 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.35rem); letter-spacing: -.045em; }
 .section-heading > span { color: var(--quiet); font-size: .78rem; }
@@ -113,4 +115,5 @@ onMounted(async () => {
 @media (max-width: 760px) { .upcoming-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 220px; }.upcoming-heading { align-items: flex-start; flex-direction: column; }.upcoming-heading > p { text-align: left; } }
 @media (prefers-reduced-transparency: reduce) { .identity-card { background: var(--surface-raised); backdrop-filter: none; } }
 @media (max-width: 620px) { .identity-card { align-items: flex-start; flex-direction: column; gap: 18px; padding: 20px; }.identity-status { width: 100%; padding-top: 17px; border-top: 1px solid var(--line); }.submission-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px; } }
+@media (max-width: 620px) { .submission-heading { align-items: flex-start; flex-direction: column; gap: 16px; }.submission-action { align-self: flex-start; } }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{ name: "user" | "settings" | "logout" | "sun" | "moon" | "system" | "check" }>();
+const props = defineProps<{ name: "user" | "settings" | "logout" | "sun" | "moon" | "system" | "check" | "upload" }>();
 </script>
 
 <template>
@@ -10,6 +10,7 @@ const props = defineProps<{ name: "user" | "settings" | "logout" | "sun" | "moon
     <template v-else-if="props.name === 'sun'"><circle cx="12" cy="12" r="3.5" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></template>
     <template v-else-if="props.name === 'moon'"><path d="M19 15.2A7.5 7.5 0 0 1 8.8 5a7.7 7.7 0 1 0 10.2 10.2Z" /></template>
     <template v-else-if="props.name === 'system'"><rect x="4" y="5" width="16" height="11" rx="1.5" /><path d="M9 20h6M12 16v4" /></template>
+    <template v-else-if="props.name === 'upload'"><path d="M12 14V3m0 0L8.5 6.5M12 3l3.5 3.5M5 14v3.5A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></template>
     <path v-else d="m5 12 4 4L19 6" />
   </svg>
 </template>
