@@ -66,7 +66,7 @@ export function useLoginAttempt() {
       pollTimer = setTimeout(() => void poll(returnTo), 2000);
     } catch (error) {
       const apiError = error as PortalApiError;
-      message.value = apiError.data?.error?.message ?? "验证服务暂时不可用，请稍后重试。";
+      message.value = apiError.data?.error?.message ?? "无法连接验证服务，请稍后重试。";
       state.value = "failed";
     }
   };
@@ -84,7 +84,7 @@ export function useLoginAttempt() {
       void poll(returnTo);
     } catch (error) {
       const apiError = error as PortalApiError;
-      message.value = apiError.data?.error?.message ?? "暂时无法创建验证码，请稍后重试。";
+      message.value = apiError.data?.error?.message ?? "无法创建验证码，请稍后重试。";
       state.value = "failed";
     }
   };

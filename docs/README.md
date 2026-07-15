@@ -17,6 +17,7 @@ architecture milestones.
 ## Development
 
 - [Testing and change policy](development/testing-and-change-policy.md) — implementation checklist, testing layers, idempotency, migrations, observability, and staged delivery.
+- [Portal copy guidelines](development/portal-copy-guidelines.md) — concise copy rules, status vocabulary, empty states, errors, and examples for Portal work.
 
 ## Deployment
 

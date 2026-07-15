@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { confirmPortalSession } from "~/utils/confirmPortalSession";
 
-useSeoMeta({ title: "正在登录 · 躲避堡垒 3" });
+useSeoMeta({ title: "登录确认 · 躲避堡垒 3" });
 
 const route = useRoute();
 const { refresh } = useCurrentPlayer();
@@ -24,7 +24,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="complete-page page-shell"><section class="complete-card surface-card" aria-live="polite"><p class="eyebrow">登录确认</p><h1 class="page-title">{{ state === 'checking' ? '正在连接玩家中心' : '无法完成登录' }}</h1><p class="body-copy">{{ state === 'checking' ? '正在安全确认本次浏览器会话。' : '会话没有成功建立，请返回后重新获取验证码。' }}</p><NuxtLink v-if="state === 'failed'" to="/login" class="primary-button">返回登录</NuxtLink></section></main>
+  <main class="complete-page page-shell"><section class="complete-card surface-card" aria-live="polite"><p class="eyebrow">登录确认</p><h1 class="page-title">{{ state === 'checking' ? '登录中…' : '登录失败' }}</h1><p v-if="state === 'failed'" class="body-copy">无法建立会话，请重新登录。</p><NuxtLink v-if="state === 'failed'" to="/login" class="primary-button">返回登录</NuxtLink></section></main>
 </template>
 
 <style scoped>

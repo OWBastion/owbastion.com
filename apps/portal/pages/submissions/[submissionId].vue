@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { submissionStatusText } from "~/utils/submissionStatus";
+
 const route = useRoute();
 const config = useRuntimeConfig();
 const submissionId = String(route.params.submissionId);
@@ -10,13 +12,6 @@ const { data, error } = await useFetch<{
   updatedAt: number;
 }>(`${config.public.apiBaseUrl}/v1/submissions/${encodeURIComponent(submissionId)}`);
 
-const statusText: Record<string, string> = {
-  received: "已收到",
-  evidence_pending: "正在保存截图",
-  evidence_stored: "截图已保存",
-  ocr_pending: "等待识别",
-  resubmission_required: "需要重新提交",
-};
 </script>
 
 <template>
@@ -24,15 +19,15 @@ const statusText: Record<string, string> = {
     <NuxtLink to="/" class="back-link">← 躲避堡垒 3</NuxtLink>
     <p class="eyebrow">提交状态</p>
     <h1>提交进度</h1>
-    <p v-if="error" class="message">暂时无法找到这条提交记录。</p>
+    <p v-if="error" class="message">找不到这条提交记录。</p>
     <section v-else-if="data" class="card" aria-live="polite">
       <dl>
         <div><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
         <div><dt>地图</dt><dd>{{ data.mapName }}</dd></div>
-        <div><dt>状态</dt><dd>{{ statusText[data.status] ?? data.status }}</dd></div>
+        <div><dt>状态</dt><dd>{{ submissionStatusText[data.status] ?? data.status }}</dd></div>
       </dl>
     </section>
-    <p v-else class="message">正在读取提交状态……</p>
+    <p v-else class="message">读取中…</p>
   </main>
 </template>
 

@@ -25,7 +25,7 @@ export function useLocalDevAuth() {
       accounts.value = response.accounts;
       selectedAccountId.value = response.accounts[0]?.accountId ?? "";
     } catch {
-      errorMessage.value = "本地开发账号暂时不可用，请确认 API 已启动。";
+      errorMessage.value = "本地账号不可用，请启动 API 后重试。";
     } finally {
       loading.value = false;
     }
@@ -41,7 +41,7 @@ export function useLocalDevAuth() {
       await refresh({ force: true });
       return account ?? null;
     } catch {
-      errorMessage.value = "本地开发登录失败，请确认本地 API 和 seed 已完成。";
+      errorMessage.value = "本地登录失败，请先启动 API 并完成 seed。";
       return null;
     } finally {
       loading.value = false;

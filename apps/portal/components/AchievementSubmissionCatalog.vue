@@ -30,7 +30,7 @@ const manualGroups = computed(() => {
         <button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', challenge.challengeId)"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span></button>
       </div>
     </section>
-    <p v-if="!automaticChallenges.length && !manualGroups.length" class="empty-state">当前没有可展示的成就挑战。地图通关仍可正常提交。</p>
+    <p v-if="!automaticChallenges.length && !manualGroups.length" class="empty-state">暂无可提交的成就挑战。地图通关仍可提交。</p>
   </section>
 </template>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 useSeoMeta({
   title: "躲避堡垒 3 · 玩家社区",
-  description: "活动、成就记录和社区进度，全部整合在这里。",
+  description: "活动、成就记录与天梯排名。",
 });
 </script>
 
@@ -12,28 +12,28 @@ useSeoMeta({
         <p class="eyebrow">《躲避堡垒 3》社区</p>
         <h1 id="hero-title">躲避堡垒 3</h1>
         <p class="hero-topic">事件 · 成就 · 天梯排名</p>
-        <p class="hero-description">现在活动、成就和社区进度已经整合，在这里了解规则、完成挑战，与社区其他玩家分享你的进度。</p>
+        <p class="hero-description">了解规则，完成挑战，查看公开记录。</p>
       </div>
       <aside class="focus-panel" aria-labelledby="focus-title">
         <p class="panel-eyebrow">本期焦点</p>
-        <h2 id="focus-title">即将到来<br>首个轮换挑战</h2>
-        <p>限时成就目标、参与条件和公开完成记录。活动结束后，不再支持该活动的提交。</p>
+        <h2 id="focus-title">首个轮换挑战<br>即将开放</h2>
+        <p>限时目标、参与条件和公开完成记录。</p>
         <ul><li>限时成就挑战</li><li>限时活动</li><li>公开完成记录</li></ul>
       </aside>
     </section>
 
     <section id="rotation" class="rotation-feature surface-card" aria-labelledby="rotation-title">
-      <div class="feature-copy"><p class="eyebrow">轮换挑战</p><h2 id="rotation-title">每段时间<br>都有值得完成的挑战</h2><p>轮换挑战会在当前开放时间内提供限时成就挑战。</p></div>
-      <div class="feature-detail"><p>首个轮换挑战正在准备。</p><span>开放后，这里会说明限时条件和提交窗口。</span></div>
+      <div class="feature-copy"><p class="eyebrow">轮换挑战</p><h2 id="rotation-title">限时目标<br>按期开放</h2><p>当前轮换挑战：未开放。</p></div>
+      <div class="feature-detail"><p>首个轮换挑战：未开放。</p></div>
     </section>
 
     <section class="content-section" aria-labelledby="content-title">
-      <div class="section-heading"><div><p class="eyebrow">为《躲避堡垒 3》玩家准备的内容</p><h2 id="content-title">每一次游玩<br>都值得留下记录</h2></div><p>仅展示公开内容。玩家数据、审核证据和未发布草稿不会在这里出现。</p></div>
+      <div class="section-heading"><div><p class="eyebrow">社区内容</p><h2 id="content-title">游玩记录</h2></div><p>仅展示公开内容。</p></div>
       <div class="content-grid">
-        <article id="events" class="content-card content-card-wide"><p class="card-label">事件</p><h3>会改变游玩体验的随机事件。</h3><p>随机事件会改变一局《躲避堡垒 3》，这里记录它们在已发布内容中的变化。</p></article>
-        <article id="achievements" class="content-card"><p class="card-label">成就</p><h3>完成过的挑战</h3><p>记录玩家完成的目标与公开进度。</p></article>
-        <article id="rankings" class="content-card content-card-emphasis"><p class="card-label">天梯排名</p><h3>每条公开记录都有上下文</h3><p>挑战、完成时间和玩家位置，构成可理解的竞争记录。</p></article>
-        <article class="content-card"><p class="card-label">版本记录</p><h3>已发布变化都有记录</h3><p>以 released snapshot 为依据，追踪《躲避堡垒 3》的内容与规则演进。</p></article>
+        <article id="events" class="content-card content-card-wide"><p class="card-label">事件</p><h3>随机事件</h3><p>已发布的随机事件与规则变化。</p></article>
+        <article id="achievements" class="content-card"><p class="card-label">成就</p><h3>完成过的挑战</h3><p>玩家完成的目标与公开进度。</p></article>
+        <article id="rankings" class="content-card content-card-emphasis"><p class="card-label">天梯排名</p><h3>公开记录</h3><p>挑战、完成时间与玩家排名。</p></article>
+        <article class="content-card"><p class="card-label">版本记录</p><h3>版本变化</h3><p>已发布的内容与规则变化。</p></article>
       </div>
     </section>
 

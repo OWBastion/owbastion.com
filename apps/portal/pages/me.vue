@@ -1,21 +1,11 @@
 <script setup lang="ts">
+import { submissionStatusText } from "~/utils/submissionStatus";
+
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
 
 const { player, refresh } = useCurrentPlayer();
 const loading = ref(true);
-
-const statusText: Record<string, string> = {
-  received: "已收到",
-  evidence_pending: "正在保存截图",
-  evidence_stored: "截图已保存",
-  ocr_pending: "等待识别",
-  ready_for_review: "等待核对",
-  ocr_review_required: "等待处理",
-  approved: "已通过",
-  rejected: "未通过",
-  resubmission_required: "需要重新提交",
-};
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 
@@ -46,7 +36,7 @@ onMounted(async () => {
         <div v-if="player.recentSubmissions.length" class="submission-list">
           <NuxtLink v-for="submission in player.recentSubmissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row surface-card">
             <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>
-            <StatusBadge :label="statusText[submission.status] ?? submission.status" :tone="submission.status === 'resubmission_required' ? 'warning' : 'default'" />
+            <StatusBadge :label="submissionStatusText[submission.status] ?? submission.status" :tone="submission.status === 'resubmission_required' ? 'warning' : 'default'" />
           </NuxtLink>
         </div>
         <EmptyState v-else title="暂无记录" />

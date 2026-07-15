@@ -27,7 +27,7 @@ export function useSubmissionUpload() {
     if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
     if (mapChallengeResult.status === "fulfilled") mapChallenges.value = mapChallengeResult.value.items;
     if (achievementChallengeResult.status === "fulfilled") achievementChallenges.value = achievementChallengeResult.value.items;
-    if ([mapResult, mapChallengeResult, achievementChallengeResult].some((result) => result.status === "rejected")) error.value = "部分可提交内容暂时无法读取，请稍后重试。";
+    if ([mapResult, mapChallengeResult, achievementChallengeResult].some((result) => result.status === "rejected")) error.value = "挑战目录无法读取，请稍后重试。";
     catalogLoading.value = false;
   };
   const submit = async (challengeId: string, file: File) => {

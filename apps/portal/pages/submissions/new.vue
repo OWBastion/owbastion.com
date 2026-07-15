@@ -7,21 +7,21 @@ const file = ref<File | null>(null);
 const message = ref("");
 const selectedChallenge = computed(() => [...mapChallenges.value, ...achievementChallenges.value].find((challenge) => challenge.challengeId === challengeId.value));
 const onFile = (event: Event) => { file.value = (event.target as HTMLInputElement).files?.[0] ?? null; };
-const send = async () => { if (!file.value || !challengeId.value) return; message.value = "正在上传…"; try { await submit(challengeId.value, file.value); message.value = "已提交，正在识别。"; file.value = null; } catch { message.value = "提交失败，请检查截图后重试。"; } };
+const send = async () => { if (!file.value || !challengeId.value) return; message.value = "提交中…"; try { await submit(challengeId.value, file.value); message.value = "已提交，识别中。"; file.value = null; } catch { message.value = "提交失败，请检查截图后重试。"; } };
 onMounted(() => void loadCatalog());
 </script>
 
 <template>
   <main class="submit-page page-shell">
     <NuxtLink to="/me" class="back-link">← 玩家中心</NuxtLink>
-    <section class="submit-intro"><p class="eyebrow">挑战提交</p><h1 class="page-title">提交完成截图</h1><p class="body-copy">选择一个挑战目标，上传一张完整截图。识别通过后进入人工核对。</p></section>
+    <section class="submit-intro"><p class="eyebrow">挑战提交</p><h1 class="page-title">提交完成截图</h1><p class="body-copy">选择挑战，上传截图。</p></section>
     <div class="submit-layout">
       <section class="catalog-pane surface-card" aria-label="挑战目录">
-        <div v-if="catalogLoading" class="catalog-loading" role="status">正在读取可提交内容…</div>
+        <div v-if="catalogLoading" class="catalog-loading" role="status">读取中…</div>
         <SubmissionCatalog v-else :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="challengeId" @select="challengeId = $event" />
       </section>
       <form class="upload-panel surface-card" @submit.prevent="send">
-        <div><p class="eyebrow">提交面板</p><h2>上传证据</h2></div>
+        <div><p class="eyebrow">提交面板</p><h2>上传截图</h2></div>
         <div class="selected-target" :class="{ empty: !selectedChallenge }"><span>当前目标</span><strong>{{ selectedChallenge?.family === 'achievement' ? selectedChallenge.titleName : selectedChallenge?.name ?? '尚未选择挑战' }}</strong><small v-if="selectedChallenge?.family === 'map'">{{ selectedChallenge.mapName }} · {{ selectedChallenge.difficulty ?? '地图通关' }}</small><small v-else-if="selectedChallenge">{{ selectedChallenge.category }} · {{ selectedChallenge.condition }}</small></div>
         <label class="file-field">截图<input accept="image/jpeg,image/png,image/webp" type="file" required @change="onFile" /><small>仅支持 JPG、PNG、WebP，单张不超过 10 MB。</small></label>
         <p v-if="error" class="form-error" role="alert">{{ error }}</p><p v-if="message" class="form-message" role="status">{{ message }}</p>

@@ -58,6 +58,7 @@ operational changes. Use local fakes for external services in normal tests.
 
 ## Portal 文案约定
 
+- 详细规则、状态词汇和示例见 [`docs/development/portal-copy-guidelines.md`](docs/development/portal-copy-guidelines.md)；修改 Portal 文案前必须先检查该文档。
 - 面向玩家使用简洁、克制、具体的中文，保持与 `apps/portal/pages/index.vue` 和 `apps/portal/pages/me.vue` 一致的编辑化语气。
 - 优先使用短标签、名词短语和直接状态；能用“暂无记录”“未开放”表达时，不写完整解释句。
 - 优先描述玩家能做什么、能看到什么，少使用审核、发放、发布等内部流程和实现术语。

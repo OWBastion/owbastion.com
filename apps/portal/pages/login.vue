@@ -34,7 +34,7 @@ async function handleLocalLogin() {
     <section class="login-card surface-card" aria-live="polite">
       <p class="eyebrow">玩家登录</p>
       <h1 class="page-title">用 QQ 机器人<br>完成登录验证</h1>
-      <p class="body-copy intro">请在已绑定且已开放的 QQ 群中完成验证。</p>
+      <p class="body-copy intro">在已绑定的 QQ 群中完成验证。</p>
 
       <div v-if="state === 'idle' || state === 'cancelled' || state === 'expired' || state === 'failed'" class="action-panel">
         <p v-if="state === 'expired'" class="notice warning">验证码已过期，请重新获取。</p>
@@ -43,20 +43,20 @@ async function handleLocalLogin() {
         <button class="primary-button" type="button" @click="start(returnTo)">{{ state === 'failed' || state === 'expired' ? '重新获取验证码' : '生成登录验证码' }}</button>
       </div>
 
-      <div v-else-if="state === 'creating'" class="action-panel"><p class="notice">正在生成一次性验证码……</p></div>
+      <div v-else-if="state === 'creating'" class="action-panel"><p class="notice">生成验证码中…</p></div>
 
       <div v-else-if="state === 'waiting' && attempt" class="challenge-panel">
         <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中 @机器人发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
         <p class="login-code">/验证 {{ attempt.code }}</p>
         <div class="challenge-actions"><button class="secondary-button" type="button" @click="copy">{{ copied ? '已复制' : '复制指令' }}</button><button class="text-button" type="button" @click="cancel">取消</button></div>
-        <p class="hint">验证成功后会自动进入玩家中心。验证码仅在本浏览器标签页临时保存。</p>
+        <p class="hint">成功后进入玩家中心。验证码仅保存在当前标签页。</p>
       </div>
 
-      <div v-else class="action-panel"><p class="notice">正在确认登录状态……</p></div>
+      <div v-else class="action-panel"><p class="notice">确认登录中…</p></div>
 
       <section v-if="localEnabled" class="local-dev-panel" aria-labelledby="local-dev-title">
         <p class="challenge-label" id="local-dev-title">本地开发</p>
-        <p class="local-dev-copy">不连接 QQ，直接使用本地 D1 中的开发账号验证 Portal 页面。</p>
+        <p class="local-dev-copy">使用本地账号登录 Portal。</p>
         <p v-if="localError" class="notice error">{{ localError }}</p>
         <div v-else-if="localAccounts.length" class="local-dev-actions">
           <select v-model="selectedAccountId" aria-label="本地开发账号">
@@ -64,7 +64,7 @@ async function handleLocalLogin() {
           </select>
           <button class="secondary-button" type="button" :disabled="localLoading" @click="handleLocalLogin">{{ localLoading ? '登录中……' : '使用本地账号登录' }}</button>
         </div>
-        <p v-else class="notice">正在读取本地开发账号……</p>
+        <p v-else class="notice">读取中…</p>
       </section>
     </section>
   </main>
