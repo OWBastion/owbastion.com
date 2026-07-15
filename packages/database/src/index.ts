@@ -1,8 +1,8 @@
 import { desc, eq, and, gt, like, or, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { Challenge, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
-import { attachments, auditEvents, bindings, identities, idempotencyKeys, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, uploadSessions } from "./schema";
+import type { Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest } from "@owbastion/contracts";
+import { achievementChallenges, attachments, auditEvents, bindings, identities, idempotencyKeys, maps, ocrResults, playerAccounts, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, uploadSessions } from "./schema";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -10,14 +10,6 @@ const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const uploadTtlMs = 10 * 60 * 1000;
 const maxUploadBytes = 10 * 1024 * 1024;
-const challenges: Challenge[] = [
-  { challengeId: "map.samoa.hell", type: "map_completion", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "2026.07.15" },
-  { challengeId: "map.lijiang_tower.hell", type: "map_completion", mapName: "漓江塔", difficulty: "地狱", gameVersion: "2026.07.15" },
-  { challengeId: "map.oasis.hell", type: "map_completion", mapName: "绿洲城", difficulty: "地狱", gameVersion: "2026.07.15" },
-  { challengeId: "map.busan.hell", type: "map_completion", mapName: "釜山", difficulty: "地狱", gameVersion: "2026.07.15" },
-  { challengeId: "map.nepal.hell", type: "map_completion", mapName: "尼泊尔", difficulty: "地狱", gameVersion: "2026.07.15" },
-];
-
 const randomToken = (bytes = 32) => {
   const value = new Uint8Array(bytes);
   crypto.getRandomValues(value);
@@ -103,8 +95,27 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const db = drizzle(database);
 
   return {
+    async listMaps() {
+      const rows = await db.select().from(maps).where(eq(maps.status, "active")).orderBy(maps.name);
+      return rows.map((row): Map => ({ mapId: row.id, mapName: row.name, gameVersion: row.gameVersion }));
+    },
+
     async listChallenges() {
-      return challenges;
+      const rows = await db.select({ challenge: achievementChallenges, map: maps })
+        .from(achievementChallenges)
+        .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
+        .where(and(eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
+        .orderBy(maps.name, achievementChallenges.name);
+      return rows.map(({ challenge, map }): Challenge => ({
+        challengeId: challenge.id,
+        type: "map_completion",
+        kind: challenge.type as Challenge["kind"],
+        name: challenge.name,
+        mapId: map.id,
+        mapName: map.name,
+        difficulty: challenge.difficulty ?? undefined,
+        gameVersion: challenge.gameVersion,
+      }));
     },
 
     async createPlayerUploadSession(input, sessionToken) {
@@ -113,14 +124,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, session.groupOpenId), eq(bindings.memberOpenId, session.memberOpenId))).get();
       if (!binding) throw new Error("UNAUTHENTICATED");
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-      const challenge = challenges.find((item) => item.challengeId === input.challengeId);
+      const challenge = await db.select({ challenge: achievementChallenges, map: maps })
+        .from(achievementChallenges)
+        .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
+        .where(and(eq(achievementChallenges.id, input.challengeId), eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
+        .get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (!challenge) throw new Error("CHALLENGE_NOT_FOUND");
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
       const objectKey = `evidence/submissions/${submissionId}/${input.sha256}.upload`;
-      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType: challenge.type, challengeId: challenge.challengeId, mapName: challenge.mapName, difficulty: challenge.difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
+      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType: challenge.challenge.type, challengeId: challenge.challenge.id, mapName: challenge.map.name, difficulty: challenge.challenge.difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
     },

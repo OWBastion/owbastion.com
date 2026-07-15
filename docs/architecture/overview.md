@@ -10,7 +10,7 @@ The repository contains an implemented TypeScript workspace with:
 - apps/portal: a Nuxt player-facing Portal and platform-session-protected `/admin` control surface;
 - packages/contracts, domain, database, and auth;
 - forward-only D1 migrations for bindings, submissions, evidence metadata, and
-  QQ login/session state;
+  QQ login/session state, maps, and achievement challenges;
 - an R2 evidence binding used when EVIDENCE_BUCKET is available.
 
 OCR orchestration, review, Bastion challenge snapshot import, and Queue-backed
@@ -33,7 +33,8 @@ released game content remains authoritative in OWBastion/Bastion.
 ## Current product surfaces
 
 - **Portal:** public landing content, QQ browser login, current-player data,
-  player screenshot upload, recent submission/status views, and review UI.
+  map and achievement challenge catalogs, player screenshot upload, recent
+  submission/status views, and review UI.
 - **API:** health, authenticated QQ binding/submission writes, player upload
   sessions, Queue-backed OCR processing, public submission status, QQ login
   verification, session lookup/logout, and a platform-session-protected

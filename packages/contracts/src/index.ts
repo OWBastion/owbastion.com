@@ -87,12 +87,23 @@ const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_rev
 export const challengeSchema = z.object({
   challengeId: externalId,
   type: z.literal("map_completion"),
+  kind: z.enum(["difficulty_completion", "pioneer", "classic_completion"]),
+  name: z.string().trim().min(1).max(256),
+  mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
-  difficulty: z.string().trim().min(1).max(64),
+  difficulty: z.string().trim().min(1).max(64).optional(),
   gameVersion: z.string().trim().min(1).max(64),
 });
 
 export const challengeListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) });
+
+export const mapSchema = z.object({
+  mapId: externalId,
+  mapName: z.string().trim().min(1).max(256),
+  gameVersion: z.string().trim().min(1).max(64),
+});
+
+export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
 
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
@@ -216,6 +227,8 @@ export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSc
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
+export type Map = z.infer<typeof mapSchema>;
+export type MapListResponse = z.infer<typeof mapListResponseSchema>;
 export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;

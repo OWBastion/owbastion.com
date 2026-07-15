@@ -19,6 +19,7 @@ import type {
   AdminSubmissionListResponse,
   AdminSubmissionReviewRequest,
   Challenge,
+  Map,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
 } from "@owbastion/contracts";
@@ -38,6 +39,7 @@ export type AuthContext = {
 };
 
 export type PlatformServices = {
+  listMaps(): Promise<Map[]>;
   listChallenges(): Promise<Challenge[]>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;

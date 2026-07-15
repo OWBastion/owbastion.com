@@ -34,6 +34,31 @@ export const playerAccounts = sqliteTable("player_accounts", {
   battleTag: uniqueIndex("player_accounts_battletag_idx").on(table.normalizedPlayerName, table.playerId),
 }));
 
+export const maps = sqliteTable("maps", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  gameVersion: text("game_version").notNull(),
+  status: text("status").notNull(),
+  introducedVersion: text("introduced_version").notNull(),
+  retiredVersion: text("retired_version"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const achievementChallenges = sqliteTable("achievement_challenges", {
+  id: text("id").primaryKey(),
+  mapId: text("map_id").notNull(),
+  type: text("type").notNull(),
+  name: text("name").notNull(),
+  difficulty: text("difficulty"),
+  gameVersion: text("game_version").notNull(),
+  status: text("status").notNull(),
+  introducedVersion: text("introduced_version").notNull(),
+  retiredVersion: text("retired_version"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 export const submissions = sqliteTable("submissions", {
   id: text("id").primaryKey(),
   bindingId: text("binding_id").notNull(),

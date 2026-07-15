@@ -13,7 +13,8 @@ image sources to private R2 and advances successful submissions to ocr_pending.
 The Nuxt Portal implements the public landing page, QQ login, player center,
 submission-status view, and platform-session-protected `/admin` player/group management.
 
-The first Portal map-challenge slice includes upload validation, Queue-backed
+The first Portal map-challenge slice includes database-backed map and achievement
+catalogs, upload validation, Queue-backed
 OCR orchestration, and maintainer review. Grants, title issuance, feature
 switches, and Bastion/GitHub orchestration are not implemented.
 
@@ -72,6 +73,12 @@ For a non-trivial change, identify:
 Keep domain logic independent from HTTP and storage adapters. Add migrations,
 tests, and runbooks with operational changes. Avoid broad framework rewrites
 without an architecture decision record.
+
+Player submission targets are read from the D1 `maps` and
+`achievement_challenges` catalogs. The Portal may browse maps and challenges,
+but the upload session accepts only an enabled `challengeId`; map names and
+difficulty are resolved by the API. Catalog migrations are forward-only and
+must preserve the introduced and retired game-version fields.
 
 ## Testing layers
 
