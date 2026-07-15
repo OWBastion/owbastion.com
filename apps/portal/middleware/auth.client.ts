@@ -1,5 +1,5 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const { player, refresh } = useCurrentPlayer();
-  if (!player.value) await refresh();
-  if (!player.value) return navigateTo({ path: "/login", query: { returnTo: to.fullPath } });
+  const { player, status, refresh } = useCurrentPlayer();
+  if (status.value === "unknown" || status.value === "loading") await refresh();
+  if (status.value !== "authenticated" || !player.value) return navigateTo({ path: "/login", query: { returnTo: to.fullPath } });
 });

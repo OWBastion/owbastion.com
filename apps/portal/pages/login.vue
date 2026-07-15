@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { hasSafeReturnTo, safeReturnTo as normalizeReturnTo } from "~/utils/safeReturnTo";
+
 useSeoMeta({ title: "登录 · 躲避堡垒 3" });
+definePageMeta({ middleware: "guest-client" });
 
 const route = useRoute();
 const { state, attempt, secondsLeft, message, start, restore, cancel, copyCode, safeReturnTo } = useLoginAttempt();
 const returnTo = computed(() => safeReturnTo(route.query.returnTo));
 const copied = ref(false);
 const { accounts: localAccounts, selectedAccountId, loading: localLoading, errorMessage: localError, enabled: localEnabled, load: loadLocalAccounts, login: loginLocal } = useLocalDevAuth();
+const localReturnTo = computed(() => hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : undefined);
 
 onMounted(() => {
   restore(returnTo.value);
@@ -16,6 +20,12 @@ async function copy() {
   await copyCode();
   copied.value = true;
   window.setTimeout(() => { copied.value = false; }, 1600);
+}
+
+async function handleLocalLogin() {
+  const account = await loginLocal();
+  if (!account) return;
+  await navigateTo(localReturnTo.value ?? (account.isAdmin ? "/admin" : "/me"), { replace: true });
 }
 </script>
 
@@ -52,7 +62,7 @@ async function copy() {
           <select v-model="selectedAccountId" aria-label="本地开发账号">
             <option v-for="account in localAccounts" :key="account.accountId" :value="account.accountId">{{ account.playerName }}#{{ account.playerId }}{{ account.isAdmin ? '（管理员）' : '（玩家）' }}</option>
           </select>
-          <button class="secondary-button" type="button" :disabled="localLoading" @click="loginLocal">{{ localLoading ? '登录中……' : '使用本地账号登录' }}</button>
+          <button class="secondary-button" type="button" :disabled="localLoading" @click="handleLocalLogin">{{ localLoading ? '登录中……' : '使用本地账号登录' }}</button>
         </div>
         <p v-else class="notice">正在读取本地开发账号……</p>
       </section>

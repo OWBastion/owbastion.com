@@ -11,6 +11,7 @@ export function useLocalDevAuth() {
   const selectedAccountId = shallowRef("");
   const loading = shallowRef(false);
   const errorMessage = shallowRef("");
+  const { refresh } = useCurrentPlayer();
 
   const enabled = computed(() => String(config.public.localDevAuth) === "true");
 
@@ -30,15 +31,17 @@ export function useLocalDevAuth() {
   };
 
   const login = async () => {
-    if (!selectedAccountId.value) return;
+    if (!selectedAccountId.value) return null;
     loading.value = true;
     errorMessage.value = "";
     try {
       await $fetch(`${config.public.apiBaseUrl}/v1/__local/login`, { method: "POST", body: { accountId: selectedAccountId.value }, credentials: "include", retry: 0, timeout: 8_000 });
       const account = accounts.value.find((item) => item.accountId === selectedAccountId.value);
-      await navigateTo(account?.isAdmin ? "/admin" : "/me");
+      await refresh({ force: true });
+      return account ?? null;
     } catch {
       errorMessage.value = "本地开发登录失败，请确认本地 API 和 seed 已完成。";
+      return null;
     } finally {
       loading.value = false;
     }

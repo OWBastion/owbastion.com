@@ -1,11 +1,10 @@
 import type { PortalApiError } from "./usePortalApi";
+import { safeReturnTo } from "~/utils/safeReturnTo";
 
 type LoginState = "idle" | "creating" | "waiting" | "verified" | "session-establishing" | "expired" | "failed" | "cancelled";
 type StoredAttempt = { attemptId: string; attemptToken: string; code: string; expiresAt: number };
 
 const storageKey = "owbastion-login-attempt";
-
-const safeReturnTo = (value: unknown) => typeof value === "string" && value.startsWith("/") && !value.startsWith("//") ? value : "/me";
 
 export function useLoginAttempt() {
   const api = usePortalApi();
