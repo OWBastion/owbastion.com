@@ -10,7 +10,8 @@ const grants = [
 ];
 const players = [{ playerAccountId: "11111111-1111-4111-8111-111111111111", playerName: "吾携秋水揽星河", playerId: "5132" }];
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-  if (path.startsWith("/v1/title-grants?")) return Promise.resolve({ items: grants });
+  if (path === "/v1/title-grants?query=") return Promise.resolve({ items: grants });
+  if (path === "/v1/title-grants?query=Cold") return Promise.resolve({ items: grants.filter((grant) => grant.holderName === "Cold") });
   if (path === "/v1/player-accounts?page=1&pageSize=50") return Promise.resolve({ items: players });
   if (path === "/v1/title-grants/bulk" && options?.method === "POST") return Promise.resolve({ grantedCount: 2 });
   throw new Error(`Unexpected request: ${path}`);
@@ -29,6 +30,16 @@ describe("title migration page", () => {
     const wrapper = await mountPage();
     expect(wrapper.findAll(".holder-group")).toHaveLength(2);
     expect(wrapper.get(".holder-group .primary-button").attributes("disabled")).toBeDefined();
+  });
+
+  it("replaces the list with matching historical holders after searching", async () => {
+    const wrapper = await mountPage();
+    await wrapper.get('input[aria-label="搜索历史称号"]').setValue("Cold");
+    await wrapper.get(".filters .secondary-button").trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll(".holder-group")).toHaveLength(1);
+    expect(wrapper.text()).toContain("Cold");
+    expect(wrapper.text()).not.toContain("Boo");
   });
 
   it("confirms bulk migration and restores focus after completion", async () => {
