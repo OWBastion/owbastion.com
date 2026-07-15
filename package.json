@@ -32,7 +32,7 @@
     "@cloudflare/workers-types": "^4.20250705.0",
     "drizzle-kit": "^0.31.4",
     "happy-dom": "^20.10.6",
-    "typescript": "^5.8.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "wrangler": "^4.20.5"
   }
