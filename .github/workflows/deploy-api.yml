@@ -76,6 +76,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       QQBOT_API_TOKEN: ${{ secrets.QQBOT_API_TOKEN }}
+      ADMIN_PLAYER_ID: ${{ secrets.ADMIN_PLAYER_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -101,11 +102,24 @@ jobs:
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$QQBOT_API_TOKEN"
+          test -n "$ADMIN_PLAYER_ID"
+          [[ "$ADMIN_PLAYER_ID" =~ ^[0-9]+$ ]]
           test "$(grep -c 'database_id = "00000000-0000-0000-0000-000000000000"' wrangler.toml)" -eq 0
           test "$(grep -c 'database_name = "owbastion-codes-prod"' wrangler.toml)" -eq 1
 
       - name: Apply remote D1 migrations
         run: pnpm exec wrangler d1 migrations apply owbastion-codes-prod --remote
+
+      - name: Validate administrator account
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(pnpm exec wrangler d1 execute owbastion-codes-prod --remote --json --command "SELECT COUNT(*) AS count FROM player_accounts WHERE player_id = '$ADMIN_PLAYER_ID'")"
+          test "$(printf '%s' "$result" | jq -r '.[0].results[0].count')" = "1"
+
+      - name: Bootstrap administrator
+        shell: bash
+        run: pnpm exec wrangler d1 execute owbastion-codes-prod --remote --command "UPDATE player_accounts SET is_admin = 1, updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE player_id = '$ADMIN_PLAYER_ID'"
 
       - name: Deploy Worker
         run: pnpm exec wrangler deploy

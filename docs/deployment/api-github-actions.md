@@ -25,9 +25,13 @@ Configure these repository or production-environment secrets:
 | `CLOUDFLARE_API_TOKEN` | Worker, D1 migration, and R2 access |
 | `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account |
 | `QQBOT_API_TOKEN` | Service credential accepted by the API from QQBot |
+| `ADMIN_PLAYER_ID` | Numeric player ID that receives administrator access during deployment |
 
 The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
 Worker as a secret and must be the same value configured on the HKG QQBot.
+`ADMIN_PLAYER_ID` must already exist in `player_accounts`; the deployment
+validates the account and idempotently enables its `is_admin` flag after
+migrations. The Portal container does not receive this value.
 
 ## Workflow behavior
 
@@ -36,7 +40,8 @@ change: `apps/api`, shared packages, D1 migrations, `wrangler.toml`, shared
 pnpm/TypeScript/Vitest build inputs, or the API workflow itself. Pull requests
 run install, tests, typecheck, and build only. A qualifying push to `main` or
 a manual dispatch runs those checks, applies forward-only remote D1 migrations,
-updates the Worker secret, deploys the Worker, and publishes the API URL.
+validates and bootstraps `ADMIN_PLAYER_ID`, updates the Worker secret, deploys
+the Worker, and publishes the API URL.
 
 The workflow refuses to deploy while the D1 ID is still the repository's
 placeholder. It does not reset, delete, or roll back D1 data.
