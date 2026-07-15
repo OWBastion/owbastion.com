@@ -19,21 +19,16 @@ export function useSubmissionUpload() {
   const loadCatalog = async () => {
     catalogLoading.value = true;
     error.value = "";
-    try {
-      const [mapResponse, mapChallengeResponse, achievementChallengeResponse] = await Promise.all([
-        api<{ items: Map[] }>("/v1/maps"),
-        api<{ items: MapChallenge[] }>("/v1/challenges?family=map"),
-        api<{ items: AchievementChallenge[] }>("/v1/challenges?family=achievement"),
-      ]);
-      maps.value = mapResponse.items;
-      mapChallenges.value = mapChallengeResponse.items;
-      achievementChallenges.value = achievementChallengeResponse.items;
-    } catch (cause) {
-      const apiError = cause as PortalApiError;
-      error.value = apiError.data?.error?.message ?? "暂时无法读取可提交内容，请稍后重试。";
-    } finally {
-      catalogLoading.value = false;
-    }
+    const [mapResult, mapChallengeResult, achievementChallengeResult] = await Promise.allSettled([
+      api<{ items: Map[] }>("/v1/maps"),
+      api<{ items: MapChallenge[] }>("/v1/challenges?family=map"),
+      api<{ items: AchievementChallenge[] }>("/v1/challenges?family=achievement"),
+    ]);
+    if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
+    if (mapChallengeResult.status === "fulfilled") mapChallenges.value = mapChallengeResult.value.items;
+    if (achievementChallengeResult.status === "fulfilled") achievementChallenges.value = achievementChallengeResult.value.items;
+    if ([mapResult, mapChallengeResult, achievementChallengeResult].some((result) => result.status === "rejected")) error.value = "部分可提交内容暂时无法读取，请稍后重试。";
+    catalogLoading.value = false;
   };
   const submit = async (challengeId: string, file: File) => {
     loading.value = true;
