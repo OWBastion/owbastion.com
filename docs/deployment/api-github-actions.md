@@ -42,10 +42,13 @@ migrations. The Portal container does not receive this value.
 The workflow runs for pull requests and pushes to `main` only when API inputs
 change: `apps/api`, shared packages, D1 migrations, `wrangler.toml`, shared
 pnpm/TypeScript/Vitest build inputs, or the API workflow itself. Pull requests
-run install, tests, typecheck, and build only. A qualifying push to `main` or
-a manual dispatch runs those checks, applies forward-only remote D1 migrations,
-validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker secret, deploys
-the Worker, and publishes the API URL.
+run install, tests, typecheck, and build only. Typecheck runs `tsc --noEmit`
+for the workspace, while the API build runs Wrangler's local Worker bundling
+and validation with `wrangler deploy --dry-run`; it does not upload or deploy
+the Worker. A qualifying push to `main` or a manual dispatch runs those checks,
+applies forward-only remote D1 migrations, validates and bootstraps
+`ADMIN_BATTLETAG`, updates the Worker secret, deploys the Worker, and publishes
+the API URL.
 
 The workflow refuses to deploy while the D1 ID is still the repository's
 placeholder. It does not reset, delete, or roll back D1 data.

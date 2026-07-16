@@ -4,7 +4,7 @@
   "type": "module",
   "exports": { ".": { "types": "./src/app.ts", "default": "./src/app.ts" } },
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "pnpm exec wrangler deploy --config ../../wrangler.toml --dry-run --outdir .wrangler/build",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
