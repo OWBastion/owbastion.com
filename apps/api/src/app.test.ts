@@ -7,7 +7,7 @@ const services: PlatformServices = {
   listMaps: async () => [],
   listChallenges: async () => [],
   listTitles: async () => [],
-  listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
+  listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
   listHistoricalTitleGrants: async () => [],
   createAdminTitleGrant: async () => {},
   createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0 }),
@@ -112,7 +112,7 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/me/titles", {}, env)).status).toBe(401);
     const response = await app.request("http://localhost/v1/me/titles", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚" }] });
+    expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
   });
 
   it("limits historical title migration to maintainers and requires idempotency", async () => {
