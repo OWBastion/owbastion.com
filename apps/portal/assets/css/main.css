@@ -60,6 +60,7 @@ a { color: inherit; }
 [id] { scroll-margin-top: 92px; }
 
 .page-shell { width: min(100% - 28px, 1100px); margin: 0 auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .eyebrow { margin: 0 0 .8rem; color: var(--accent); font-size: .72rem; font-weight: 720; letter-spacing: .06em; }
 .page-title { margin: 0; font-size: clamp(2.45rem, 6vw, 5rem); font-weight: 680; letter-spacing: -.052em; line-height: .98; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }

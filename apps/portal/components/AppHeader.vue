@@ -52,14 +52,14 @@ async function signOut() {
   <header class="app-header-wrap">
     <div class="app-header">
       <NuxtLink to="/" class="brand" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
-      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin">管理后台</NuxtLink><NuxtLink to="/admin/titles">称号迁移</NuxtLink></template><template v-else><NuxtLink to="/#events">事件</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></template></nav>
+      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin">概览</NuxtLink><NuxtLink to="/admin/players">玩家</NuxtLink><NuxtLink to="/admin/reviews">审核</NuxtLink><NuxtLink to="/admin/channels">渠道</NuxtLink><NuxtLink to="/admin/achievements">成就</NuxtLink></template><template v-else><NuxtLink to="/#events">事件</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></template></nav>
       <div class="account-actions">
         <ThemeMenu />
         <AccountMenu v-if="player" :player="player.player" @logout="signOut" />
         <NuxtLink v-else to="/login" class="login-link">登录</NuxtLink>
       </div>
       <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" aria-controls="mobile-nav" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
-      <nav v-show="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin" @click="closeMenu()">管理后台</NuxtLink><NuxtLink to="/admin/titles" @click="closeMenu()">称号迁移</NuxtLink></template><template v-else><NuxtLink to="/#events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" @click="closeMenu()">轮换挑战</NuxtLink></template></nav>
+      <nav v-show="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin" @click="closeMenu()">概览</NuxtLink><NuxtLink to="/admin/players" @click="closeMenu()">玩家</NuxtLink><NuxtLink to="/admin/reviews" @click="closeMenu()">审核</NuxtLink><NuxtLink to="/admin/channels" @click="closeMenu()">渠道</NuxtLink><NuxtLink to="/admin/achievements" @click="closeMenu()">成就</NuxtLink></template><template v-else><NuxtLink to="/#events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" @click="closeMenu()">轮换挑战</NuxtLink></template></nav>
     </div>
   </header>
 </template>
@@ -72,7 +72,7 @@ async function signOut() {
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
 .main-nav { display: flex; flex: 1; justify-content: flex-start; gap: clamp(16px, 2.6vw, 34px); color: var(--muted); font-size: .78rem; }
 .main-nav a { text-decoration: none; transition: color 160ms ease; }
-.main-nav a:hover { color: var(--text); }
+.main-nav a:hover, .main-nav a.router-link-exact-active { color: var(--text); }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
 .login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; transition: transform 100ms ease-out, background 160ms ease; }
 .login-link:active { transform: scale(.97); }
@@ -85,7 +85,7 @@ async function signOut() {
   .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
   .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--menu-surface); box-shadow: 0 8px 18px -8px var(--shadow); }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; }
-  .mobile-nav a:hover, .mobile-nav a:focus-visible { color: var(--text); background: var(--surface); }
+  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active { color: var(--text); background: var(--surface); }
 }
 @media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; } }
 </style>
