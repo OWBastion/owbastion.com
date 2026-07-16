@@ -78,6 +78,18 @@ export const historicalTitleGrants = sqliteTable("historical_title_grants", {
   holder: uniqueIndex("historical_title_grants_holder_idx").on(table.scope, table.mapId, table.slot, table.titleKey, table.holderName),
 }));
 
+export const catalogImports = sqliteTable("catalog_imports", {
+  id: text("id").primaryKey(),
+  sourceVersion: text("source_version").notNull(),
+  snapshotHash: text("snapshot_hash").notNull(),
+  status: text("status").notNull(),
+  rowCountsJson: text("row_counts_json").notNull(),
+  importedAt: integer("imported_at").notNull(),
+}, (table) => ({
+  sourceVersion: uniqueIndex("catalog_imports_source_version_idx").on(table.sourceVersion),
+  snapshotHash: uniqueIndex("catalog_imports_snapshot_hash_idx").on(table.snapshotHash),
+}));
+
 export const achievementChallenges = sqliteTable("achievement_challenges", {
   id: text("id").primaryKey(),
   mapId: text("map_id").notNull(),

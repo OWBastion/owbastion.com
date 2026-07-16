@@ -17,6 +17,7 @@ architecture milestones.
 ## Development
 
 - [Testing and change policy](development/testing-and-change-policy.md) — implementation checklist, testing layers, idempotency, migrations, observability, and staged delivery.
+- [Database migrations and seeds](development/database-migrations-and-seeds.md) — schema, local fixtures, catalog imports, and migration data-write guardrails.
 - [Feature status matrix](development/feature-status.md) — the single source of truth for capability implementation and verification status.
 - [Portal copy guidelines](development/portal-copy-guidelines.md) — concise copy rules, status vocabulary, empty states, errors, and examples for Portal work.
 

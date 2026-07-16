@@ -48,6 +48,16 @@ private/public separation, and group-scoped QQ identity semantics. Do not add
 business rules to HTTP or Portal adapters, expose credentials or private
 identifiers, or make browser clients access D1, R2, OCRKit, or Bastion directly.
 
+Database change boundaries are strict: migrations contain schema changes and
+necessary data repairs only. Do not add bulk seed data, catalog snapshots,
+historical holder records, local accounts, or demo submissions to new
+migrations. Use `pnpm db:seed:local` for local-only fixtures and
+`pnpm db:import:catalog --snapshot <path>` for an explicit versioned Bastion
+catalog import. Catalog imports are append/update operations, record their
+snapshot hash, and never run against a remote database unless `--remote` is
+passed explicitly. Run `pnpm check:migrations` for migration data-write
+exceptions; existing historical data migrations must be listed there.
+
 Assume committed files are public. Never commit secrets, tokens, signed URLs,
 private screenshots, QQ identifiers, internal risk signals, personal data,
 production logs, or copied private payloads.

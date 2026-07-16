@@ -1,0 +1,8 @@
+# Historical migrations that contain data changes required to create or repair existing state.
+0002_submission_evidence.sql
+0003_group_scoped_player_bindings.sql
+0008_battletag_identity.sql
+0009_submission_catalog.sql
+0010_title_catalog.sql
+0012_seed_submission_challenges.sql
+0016_challenge_sunsetting.sql
