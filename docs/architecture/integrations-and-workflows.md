@@ -49,6 +49,9 @@ The current API implements versioned v1 QQ flows:
 - maintainers may schedule a title challenge with a start and end timestamp;
   scheduled challenges remain visible as `未开放`, become submittable during
   the window, and stop accepting new submissions after it without a cron job.
+- the Portal can publicly browse the active map catalog and map challenge
+  directory; player authentication remains required for submissions, titles,
+  and player-specific data.
 
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a

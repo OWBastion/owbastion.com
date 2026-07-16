@@ -85,9 +85,10 @@ tests, and runbooks with operational changes. Avoid broad framework rewrites
 without an architecture decision record.
 
 The public achievement directory reads active global achievement challenges and
-does not expose player data. Player submission targets are read from the D1 `maps` and
-`achievement_challenges` catalogs. The Portal may browse maps and challenges,
-but the upload session accepts only an enabled manual-submission `challengeId`;
+does not expose player data. The public map directory reads active rows from the
+D1 `maps` and `achievement_challenges` catalogs without exposing player data.
+Player submission targets use the same catalogs, but the upload session accepts
+only an enabled manual-submission `challengeId`;
 map names and difficulty are resolved by the API. System-automatic title
 challenges remain visible in the catalog but cannot receive screenshot uploads.
 Catalog migrations are forward-only and

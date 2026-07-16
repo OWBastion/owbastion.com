@@ -213,7 +213,7 @@ describe("API", () => {
     expect(catalogUpdates).toMatchObject([{ titleKey: "INTERNAL", status: "retired" }]);
   });
 
-  it("protects the player submission catalog", async () => {
+  it("publishes map catalogs while protecting player-only catalogs", async () => {
     const requestedFamilies: Array<string | undefined> = [];
     const catalogServices: PlatformServices = {
       ...services,
@@ -226,8 +226,8 @@ describe("API", () => {
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", gameVersion: "2026.07.15" }],
     };
     const catalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
-    expect((await catalogApp.request("http://localhost/v1/maps", {}, env)).status).toBe(401);
-    expect((await catalogApp.request("http://localhost/v1/challenges?family=map", {}, env)).status).toBe(401);
+    expect((await catalogApp.request("http://localhost/v1/maps", {}, env)).status).toBe(200);
+    expect((await catalogApp.request("http://localhost/v1/challenges?family=map", {}, env)).status).toBe(200);
     expect((await catalogApp.request("http://localhost/v1/titles", {}, env)).status).toBe(401);
 
     const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
@@ -249,7 +249,7 @@ describe("API", () => {
     expect(await challenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "map.samoa.conqueror", mapId: "map.samoa", kind: "difficulty_completion" }] });
     expect(await mapChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ family: "map" }] });
     expect(await achievementChallenges.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.flawless", titleName: "完美无缺", family: "achievement", submissionMode: "manual" }] });
-    expect(requestedFamilies).toEqual([undefined, "map", "achievement"]);
+    expect(requestedFamilies).toEqual(["map", undefined, "map", "achievement"]);
     expect(await titles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "ALL_IN_ONE", scope: "global" }] });
     expect(await mapTitles.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", scope: "map", mapId: "map.samoa", pioneerPrefixes: ["萨摩亚"] }] });
   });
