@@ -37,13 +37,14 @@ describe("v1 platform contracts", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected", reason: "" }).success).toBe(false);
   });
 
-  it("requires a current-format Bastion version when sunsetting or retiring an achievement", () => {
+  it("requires a current-format Bastion version only when sunsetting an achievement", () => {
     const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "retired" };
-    expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "26.0713.1" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting" }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0713.2" }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "2026.07.16" }).success).toBe(false);
-    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "retired", retiredVersion: "26.0713.1" }).success).toBe(true);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "retired" }).success).toBe(true);
   });
 
   it("keeps historical retirement version records readable", () => {

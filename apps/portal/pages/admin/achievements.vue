@@ -36,9 +36,9 @@ const api = useAdminApi();
 const items = ref<AdminAchievement[]>([]);
 const status = ref<"all" | AchievementStatus>("all");
 const editingId = ref<string | null>(null);
+const planningId = ref<string | null>(null);
 const retirementVersions = reactive<Record<string, string>>({});
 const endTarget = ref<AdminAchievement | null>(null);
-const endVersion = ref("");
 const endTrigger = ref<HTMLElement | null>(null);
 const loading = ref(true);
 const savingId = ref<string | null>(null);
@@ -92,14 +92,14 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
     submissionMode: item.submissionMode,
     categoryOverride: item.categoryOverride?.trim() || null,
     status,
-    ...(status !== "active" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}),
+    ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}),
   };
 }
 
 function updatePayload(item: AdminAchievement, status: AchievementStatus, retiredVersion?: string) {
   return isTitle(item)
     ? titleUpdate(item, status, retiredVersion)
-    : { family: "map", status, ...(status !== "active" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}) };
+    : { family: "map", status, ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}) };
 }
 
 async function save(item: AdminAchievement, body: Record<string, unknown>, message: string) {
@@ -128,16 +128,10 @@ async function saveTitle(item: TitleAchievement) {
   if (await save(item, titleUpdate(item), "成就规则已保存")) editingId.value = null;
 }
 
-async function startSunsetting(item: AdminAchievement) {
+async function planSunsetting(item: AdminAchievement) {
   const version = retirementVersions[item.challengeId]?.trim();
   if (!version) return;
-  await save(item, updatePayload(item, "sunsetting", version), "挑战已设为即将结束");
-}
-
-async function updateSunsetting(item: AdminAchievement) {
-  const version = retirementVersions[item.challengeId]?.trim();
-  if (!version) return;
-  await save(item, updatePayload(item, "sunsetting", version), "计划下线版本已保存");
+  if (await save(item, updatePayload(item, "sunsetting", version), item.status === "active" ? "挑战已计划下线" : "计划下线版本已保存")) planningId.value = null;
 }
 
 async function reopen(item: AdminAchievement) {
@@ -146,23 +140,20 @@ async function reopen(item: AdminAchievement) {
 
 function openEnd(item: AdminAchievement, trigger: EventTarget | null) {
   endTarget.value = item;
-  endVersion.value = retirementVersions[item.challengeId] ?? item.retiredVersion ?? "";
   endTrigger.value = trigger instanceof HTMLElement ? trigger : null;
 }
 
 function closeEnd() {
   const trigger = endTrigger.value;
   endTarget.value = null;
-  endVersion.value = "";
   endTrigger.value = null;
   void nextTick(() => trigger?.isConnected && trigger.focus());
 }
 
 async function endChallenge() {
   const item = endTarget.value;
-  const version = endVersion.value.trim();
-  if (!item || !version) return;
-  if (await save(item, updatePayload(item, "retired", version), "挑战已下线")) closeEnd();
+  if (!item) return;
+  if (await save(item, updatePayload(item, "retired"), "挑战已下线")) closeEnd();
 }
 
 watch(status, () => { void load(); });
@@ -188,8 +179,7 @@ onMounted(() => void load());
               <div class="group-heading"><h4 :id="`series-${group.category}`">{{ group.category }}</h4><span>{{ group.challenges.length }} 项</span></div>
               <article v-for="item in group.challenges" :key="item.challengeId" class="achievement-card surface-card" :class="{ editing: editingId === item.challengeId }">
                 <div class="card-summary"><div class="card-copy"><strong>{{ item.titleName }}</strong><span>{{ item.condition }}</span><small>引入版本 {{ item.introducedVersion }} · {{ item.status === 'active' ? `当前 ${item.gameVersion}` : `${statusText(item.status)} ｜ ${item.retiredVersion}` }}</small></div><StatusBadge :label="statusText(item.status)" :tone="statusTone(item.status)" /></div>
-                <div class="card-actions"><PortalButton tone="secondary" type="button" :disabled="isSaving(item)" :aria-expanded="editingId === item.challengeId" @click="editingId = editingId === item.challengeId ? null : item.challengeId">{{ editingId === item.challengeId ? '收起编辑' : '编辑规则' }}</PortalButton><template v-if="item.status === 'active'"><PortalButton tone="secondary" type="button" :disabled="isSaving(item) || !retirementVersions[item.challengeId]?.trim()" @click="startSunsetting(item)">预告结束</PortalButton><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">结束挑战</PortalButton></template><template v-else-if="item.status === 'sunsetting'"><PortalButton tone="secondary" type="button" :disabled="isSaving(item) || !retirementVersions[item.challengeId]?.trim()" @click="updateSunsetting(item)">保存版本</PortalButton><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">立即结束</PortalButton><PortalButton tone="text" type="button" :disabled="isSaving(item)" @click="reopen(item)">恢复开放</PortalButton></template><PortalButton v-else tone="secondary" type="button" :disabled="isSaving(item)" @click="reopen(item)">重新开放</PortalButton></div>
-                <div v-if="item.status !== 'retired'" class="retirement-field"><PortalField label="计划下线版本" hint="例如 26.0713.1"><PortalInput v-model="retirementVersions[item.challengeId]" :disabled="isSaving(item)" placeholder="例如 26.0713.1" /></PortalField></div>
+                <div class="card-actions"><PortalButton tone="secondary" type="button" :disabled="isSaving(item)" :aria-expanded="editingId === item.challengeId" @click="editingId = editingId === item.challengeId ? null : item.challengeId">{{ editingId === item.challengeId ? '收起编辑' : '编辑规则' }}</PortalButton><template v-if="item.status !== 'retired'"><UPopover :open="planningId === item.challengeId" @update:open="(open) => { planningId = open ? item.challengeId : null; }"><PortalButton tone="secondary" type="button" :disabled="isSaving(item)">{{ item.status === 'active' ? '计划下线' : '更新计划' }}</PortalButton><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(item)"><PortalField label="计划下线版本" required><PortalInput v-model="retirementVersions[item.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(item)" /></PortalField><PortalButton type="submit" :loading="isSaving(item)" :disabled="!retirementVersions[item.challengeId]?.trim()">{{ item.status === 'active' ? '确认计划' : '保存计划' }}</PortalButton></form></UCard></template></UPopover><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">{{ item.status === 'active' ? '结束挑战' : '立即结束' }}</PortalButton><PortalButton v-if="item.status === 'sunsetting'" tone="text" type="button" :disabled="isSaving(item)" @click="reopen(item)">恢复开放</PortalButton></template><PortalButton v-else tone="secondary" type="button" :disabled="isSaving(item)" @click="reopen(item)">重新开放</PortalButton></div>
                 <form v-if="editingId === item.challengeId" class="editor" @submit.prevent="saveTitle(item)"><PortalField label="完成条件" required><PortalTextarea v-model="item.condition" required maxlength="1024" :disabled="isSaving(item)" /></PortalField><PortalField label="截图规则" required><PortalTextarea v-model="item.evidenceRule" required maxlength="2048" :disabled="isSaving(item)" /></PortalField><PortalField label="提交方式"><PortalSelect v-model="item.submissionMode" :disabled="isSaving(item)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></PortalField><PortalField label="展示分类" :hint="`留空则使用 Bastion 系列“${item.category}”`"><PortalInput v-model="item.categoryOverride" :disabled="isSaving(item)" :placeholder="item.category" maxlength="128" /></PortalField><div class="editor-actions"><PortalButton tone="secondary" type="button" :disabled="isSaving(item)" @click="editingId = null">取消</PortalButton><PortalButton :loading="isSaving(item)" type="submit">保存规则</PortalButton></div></form>
               </article>
             </section>
@@ -202,7 +192,7 @@ onMounted(() => void load());
           <div v-if="mapGroups.length" class="series-groups">
             <section v-for="group in mapGroups" :key="group.mapName" class="series-group" :aria-labelledby="`map-${group.mapName}`">
               <div class="group-heading"><h4 :id="`map-${group.mapName}`">{{ group.mapName }}</h4><span>{{ group.challenges.length }} 项</span></div>
-              <article v-for="item in group.challenges" :key="item.challengeId" class="achievement-card surface-card"><div class="card-summary"><div class="card-copy"><strong>{{ item.name }}</strong><span>{{ item.difficulty ?? '地图通关' }}</span><small>引入版本 {{ item.introducedVersion }} · 地图、难度和版本由 Bastion 发布快照维护。</small></div><StatusBadge :label="statusText(item.status)" :tone="statusTone(item.status)" /></div><div class="card-actions"><template v-if="item.status === 'active'"><PortalButton tone="secondary" type="button" :disabled="isSaving(item) || !retirementVersions[item.challengeId]?.trim()" @click="startSunsetting(item)">预告结束</PortalButton><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">结束挑战</PortalButton></template><template v-else-if="item.status === 'sunsetting'"><PortalButton tone="secondary" type="button" :disabled="isSaving(item) || !retirementVersions[item.challengeId]?.trim()" @click="updateSunsetting(item)">保存版本</PortalButton><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">立即结束</PortalButton><PortalButton tone="text" type="button" :disabled="isSaving(item)" @click="reopen(item)">恢复开放</PortalButton></template><PortalButton v-else tone="secondary" type="button" :disabled="isSaving(item)" @click="reopen(item)">重新开放</PortalButton></div><div v-if="item.status !== 'retired'" class="retirement-field"><PortalField label="计划下线版本" hint="例如 26.0713.1"><PortalInput v-model="retirementVersions[item.challengeId]" :disabled="isSaving(item)" placeholder="例如 26.0713.1" /></PortalField></div></article>
+              <article v-for="item in group.challenges" :key="item.challengeId" class="achievement-card surface-card"><div class="card-summary"><div class="card-copy"><strong>{{ item.name }}</strong><span>{{ item.difficulty ?? '地图通关' }}</span><small>引入版本 {{ item.introducedVersion }} · 地图、难度和版本由 Bastion 发布快照维护。</small></div><StatusBadge :label="statusText(item.status)" :tone="statusTone(item.status)" /></div><div class="card-actions"><template v-if="item.status !== 'retired'"><UPopover :open="planningId === item.challengeId" @update:open="(open) => { planningId = open ? item.challengeId : null; }"><PortalButton tone="secondary" type="button" :disabled="isSaving(item)">{{ item.status === 'active' ? '计划下线' : '更新计划' }}</PortalButton><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(item)"><PortalField label="计划下线版本" required><PortalInput v-model="retirementVersions[item.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(item)" /></PortalField><PortalButton type="submit" :loading="isSaving(item)" :disabled="!retirementVersions[item.challengeId]?.trim()">{{ item.status === 'active' ? '确认计划' : '保存计划' }}</PortalButton></form></UCard></template></UPopover><PortalButton tone="danger" type="button" :disabled="isSaving(item)" @click="openEnd(item, $event.currentTarget)">{{ item.status === 'active' ? '结束挑战' : '立即结束' }}</PortalButton><PortalButton v-if="item.status === 'sunsetting'" tone="text" type="button" :disabled="isSaving(item)" @click="reopen(item)">恢复开放</PortalButton></template><PortalButton v-else tone="secondary" type="button" :disabled="isSaving(item)" @click="reopen(item)">重新开放</PortalButton></div></article>
             </section>
           </div>
           <p v-else class="empty surface-card">暂无记录。</p>
@@ -211,12 +201,12 @@ onMounted(() => void load());
       <p v-else-if="!loading" class="empty surface-card">暂无记录。</p>
     </section>
 
-    <UModal :open="endTarget !== null" title="结束挑战" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p><PortalField label="结束版本" required><PortalInput v-model="endVersion" required placeholder="例如 26.0713.1" :disabled="isSaving(endTarget)" /></PortalField><div class="editor-actions"><PortalButton tone="secondary" type="button" :disabled="isSaving(endTarget)" @click="closeEnd">取消</PortalButton><PortalButton tone="danger" type="submit" :loading="isSaving(endTarget)" :disabled="!endVersion.trim()">结束挑战</PortalButton></div></form></template></UModal>
+    <UModal :open="endTarget !== null" title="结束挑战" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p><div class="editor-actions"><PortalButton tone="secondary" type="button" :disabled="isSaving(endTarget)" @click="closeEnd">取消</PortalButton><PortalButton tone="danger" type="submit" :loading="isSaving(endTarget)">结束挑战</PortalButton></div></form></template></UModal>
   </main>
 </template>
 
 <style scoped>
-.achievement-admin { padding-block: clamp(46px, 7vh, 72px); }.catalog { max-width: 920px; }.catalog-heading, .section-heading, .group-heading, .card-summary, .card-actions, .editor-actions { display: flex; align-items: center; gap: 12px; }.catalog-heading { margin-bottom: 14px; }.catalog-heading h2 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -.045em; }.catalog-heading > span, .section-heading > span, .group-heading > span { margin-left: auto; }.migration-link, .catalog-heading > span, .section-heading > span, .group-heading > span, .card-copy small { color: var(--quiet); font-size: .78rem; }.migration-link { text-decoration: none; }.migration-link:hover { color: var(--text); }.filters { padding: 9px; margin-bottom: 18px; }.catalog-groups, .catalog-section, .series-groups, .series-group { display: grid; gap: 14px; }.catalog-section + .catalog-section { margin-top: 52px; }.section-heading { align-items: end; }.section-heading h3 { margin: 3px 0 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.035em; }.section-heading .eyebrow { margin: 0; }.series-group { gap: 9px; }.group-heading h4 { margin: 0; font-size: .92rem; }.achievement-card { display: grid; gap: 14px; padding: 17px 18px; }.achievement-card.editing { border-color: var(--line-strong); }.card-summary { align-items: flex-start; justify-content: space-between; }.card-copy { display: grid; gap: 5px; min-width: 0; }.card-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: 1rem; }.card-copy > span { color: var(--muted); font-size: .84rem; line-height: 1.45; }.card-copy small { line-height: 1.45; }.card-actions { flex-wrap: wrap; }.retirement-field { max-width: 260px; }.editor, .end-dialog { display: grid; gap: 16px; }.editor { padding-top: 18px; border-top: 1px solid var(--line); }.editor-actions { justify-content: flex-end; }.empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }.alert, .feedback { max-width: 920px; margin: 0 0 18px; padding: 12px 14px; border-radius: 11px; font-size: .82rem; }.alert { color: color-mix(in oklch, var(--danger) 82%, var(--text)); background: color-mix(in oklch, var(--danger) 16%, var(--surface)); }.feedback { background: var(--accent-surface); }.end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }.achievement-card, .portal-button { transition: transform 140ms ease, border-color 140ms ease, background 140ms ease; }.achievement-card:focus-within { border-color: var(--line-strong); }.portal-button:active { transform: scale(.97); }
+.achievement-admin { padding-block: clamp(46px, 7vh, 72px); }.catalog { max-width: 920px; }.catalog-heading, .section-heading, .group-heading, .card-summary, .card-actions, .editor-actions { display: flex; align-items: center; gap: 12px; }.catalog-heading { margin-bottom: 14px; }.catalog-heading h2 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -.045em; }.catalog-heading > span, .section-heading > span, .group-heading > span { margin-left: auto; }.migration-link, .catalog-heading > span, .section-heading > span, .group-heading > span, .card-copy small { color: var(--quiet); font-size: .78rem; }.migration-link { text-decoration: none; }.migration-link:hover { color: var(--text); }.filters { padding: 9px; margin-bottom: 18px; }.catalog-groups, .catalog-section, .series-groups, .series-group { display: grid; gap: 14px; }.catalog-section + .catalog-section { margin-top: 52px; }.section-heading { align-items: end; }.section-heading h3 { margin: 3px 0 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.035em; }.section-heading .eyebrow { margin: 0; }.series-group { gap: 9px; }.group-heading h4 { margin: 0; font-size: .92rem; }.achievement-card { display: grid; gap: 14px; padding: 17px 18px; }.achievement-card.editing { border-color: var(--line-strong); }.card-summary { align-items: flex-start; justify-content: space-between; }.card-copy { display: grid; gap: 5px; min-width: 0; }.card-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: 1rem; }.card-copy > span { color: var(--muted); font-size: .84rem; line-height: 1.45; }.card-copy small { line-height: 1.45; }.card-actions { flex-wrap: wrap; }.editor, .end-dialog, .plan-popover { display: grid; gap: 16px; }.editor { padding-top: 18px; border-top: 1px solid var(--line); }.editor-actions { justify-content: flex-end; }.plan-popover-card { width: min(280px, calc(100vw - 32px)); }.empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }.alert, .feedback { max-width: 920px; margin: 0 0 18px; padding: 12px 14px; border-radius: 11px; font-size: .82rem; }.alert { color: color-mix(in oklch, var(--danger) 82%, var(--text)); background: color-mix(in oklch, var(--danger) 16%, var(--surface)); }.feedback { background: var(--accent-surface); }.end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }.achievement-card, .portal-button { transition: transform 140ms ease, border-color 140ms ease, background 140ms ease; }.achievement-card:focus-within { border-color: var(--line-strong); }.portal-button:active { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) { .achievement-card, .portal-button { transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease; }.portal-button:active { transform: none; } }
-@media (max-width: 560px) { .catalog-heading, .section-heading, .group-heading { align-items: flex-start; flex-wrap: wrap; }.catalog-heading > span, .section-heading > span, .group-heading > span { margin-left: 0; }.card-summary { gap: 10px; }.retirement-field { max-width: none; }.editor-actions { justify-content: stretch; }.editor-actions .portal-button { flex: 1; } }
+@media (max-width: 560px) { .catalog-heading, .section-heading, .group-heading { align-items: flex-start; flex-wrap: wrap; }.catalog-heading > span, .section-heading > span, .group-heading > span { margin-left: 0; }.card-summary { gap: 10px; }.editor-actions { justify-content: stretch; }.editor-actions .portal-button { flex: 1; } }
 </style>

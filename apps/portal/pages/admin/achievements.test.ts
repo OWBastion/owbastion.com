@@ -23,6 +23,8 @@ async function mountPage(): Promise<VueWrapper> {
         NuxtLink: { template: "<a><slot /></a>" },
         StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
         UModal: { props: ["open"], emits: ["update:open"], template: '<div v-if="open" role="dialog"><slot name="body" /></div>' },
+        UPopover: { props: ["open"], emits: ["update:open"], template: '<div><slot /><slot name="content" /></div>' },
+        UCard: { template: "<div><slot /></div>" },
         PortalSelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
       },
     },
@@ -55,20 +57,28 @@ describe("achievement admin page", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ condition: "完成更新后的挑战", categoryOverride: null }) }));
   });
 
-  it("ends an active map challenge directly after entering a release version", async () => {
+  it("plans a sunset in a temporary Nuxt UI popover", async () => {
+    const wrapper = await mountPage();
+    const planButton = wrapper.findAll(".portal-button--secondary").find((button) => button.text() === "计划下线")!;
+    await planButton.trigger("click");
+    const form = wrapper.find("form.plan-popover");
+    await form.find('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
+    await form.trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "sunsetting", retiredVersion: "26.0713.1" }) }));
+  });
+
+  it("ends an active map challenge directly without a release version", async () => {
     const wrapper = await mountPage();
     const endButton = wrapper.findAll(".portal-button--danger").at(-1)!;
     await endButton.trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement;
     expect(dialog).not.toBeNull();
-    const version = dialog.querySelector('input[placeholder="例如 26.0713.1"]') as HTMLInputElement;
-    version.value = "26.0713.1";
-    version.dispatchEvent(new Event("input", { bubbles: true }));
-    await flushPromises();
     await (dialog.querySelector("form") as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ family: "map", status: "retired", retiredVersion: "26.0713.1" }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ family: "map", status: "retired" }) }));
+    expect(adminApi.mock.calls.find(([path]) => path === "/v1/achievements/map-1")?.[1]?.body).not.toHaveProperty("retiredVersion");
   });
 
   it("does not write when the end confirmation is cancelled", async () => {

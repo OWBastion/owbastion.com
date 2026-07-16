@@ -91,10 +91,10 @@ must preserve the introduced and retired game-version fields.
 
 Administrator catalog management is limited to existing challenges. Title
 challenges may change their conditions, evidence rules, submission mode, and
-optional Portal display-category override. Challenges move from `active` to
-`sunsetting` with a planned Bastion version in `YY.MMDD.N` format, then an
-administrator manually confirms `retired` after that version is released.
-Sunsetting challenges remain visible and accept new uploads; retired challenges
+optional Portal display-category override. A `sunsetting` challenge requires a
+planned Bastion version in `YY.MMDD.N` format; an administrator may also move a
+challenge directly to `retired` without a planned version. Sunsetting challenges
+remain visible and accept new uploads; retired challenges
 block new uploads without altering in-flight or existing submissions. Map
 challenge facts remain immutable. It never creates or issues a title: title
 identity and game facts remain Bastion-owned, while historical entitlement

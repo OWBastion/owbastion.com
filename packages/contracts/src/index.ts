@@ -178,7 +178,7 @@ const adminMapChallengeUpdateSchema = z.object({
   status: challengeStatus,
   retiredVersion: retirementVersion.optional(),
 }).superRefine((value, ctx) => {
-  if (["sunsetting", "retired"].includes(value.status) && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
+  if (value.status === "sunsetting" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
 });
 const adminAchievementChallengeUpdateSchema = z.object({
@@ -191,7 +191,7 @@ const adminAchievementChallengeUpdateSchema = z.object({
   status: challengeStatus,
   retiredVersion: retirementVersion.optional(),
 }).superRefine((value, ctx) => {
-  if (["sunsetting", "retired"].includes(value.status) && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
+  if (value.status === "sunsetting" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
