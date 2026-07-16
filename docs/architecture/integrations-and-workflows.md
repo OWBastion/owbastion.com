@@ -40,9 +40,9 @@ The current API implements versioned v1 QQ flows:
   an idempotent review decision.
 - maintainers can list achievement challenges and immediately update
   title-challenge rules, including their Portal display category override;
-- maintainers can retire a map challenge only with its Bastion retirement
-  version, or reopen a retired map challenge without changing its introduced
-  version.
+- maintainers set a challenge to `sunsetting` with a planned Bastion version,
+  then manually confirm retirement after that release; sunsetting challenges
+  remain available for submission.
 
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
@@ -80,13 +80,14 @@ conditions, evidence rules, submission mode, and optional Portal display
 category. When no display-category override is set, the Portal uses the
 category from the imported Bastion title catalog. Map challenges retain their
 imported map, difficulty, display name, and introduced version; administrators
-may only keep them enabled, retire them, or reopen them.
+may keep them enabled, mark them as sunsetting, retire them, or reopen them.
 
-Retiring a challenge prevents new upload sessions while preserving submissions
-that already exist. Those submissions continue through OCR and review under
-the ordinary submission lifecycle. Reopening clears only the retirement
-version. Administrator changes require maintainer authorization, an
-idempotency key, and an audit record.
+Sunsetting retains player visibility and new upload sessions while displaying
+the planned release version. Retiring a challenge prevents new upload sessions
+while preserving submissions that already exist. Those submissions continue
+through OCR and review under the ordinary submission lifecycle. Reopening
+clears the retirement version. Administrator changes require maintainer
+authorization, an idempotency key, and an audit record.
 
 ## QQBot and login
 

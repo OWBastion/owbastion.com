@@ -91,13 +91,14 @@ must preserve the introduced and retired game-version fields.
 
 Administrator catalog management is limited to existing challenges. Title
 challenges may change their conditions, evidence rules, submission mode, and
-optional Portal display-category override. Map challenges may only be enabled,
-retired with a Bastion release version, or reopened; their imported map,
-difficulty, names, and introduced version remain immutable. Retiring a
-challenge blocks new uploads but does not alter in-flight or existing
-submissions. It never creates or issues a title: title identity and game facts
-remain Bastion-owned, while historical entitlement remains the separate
-administrator migration flow.
+optional Portal display-category override. Challenges move from `active` to
+`sunsetting` with a planned Bastion version in `YY.MMDD.N` format, then an
+administrator manually confirms `retired` after that version is released.
+Sunsetting challenges remain visible and accept new uploads; retired challenges
+block new uploads without altering in-flight or existing submissions. Map
+challenge facts remain immutable. It never creates or issues a title: title
+identity and game facts remain Bastion-owned, while historical entitlement
+remains the separate administrator migration flow.
 
 The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,
 `CONQUEROR`, and `DOMINATOR` are map-scoped reward slots; all other imported
@@ -115,9 +116,9 @@ player-facing title result.
 - Title-grant tests for account isolation, map and global title scope, empty
   results, duplicate historical-holder associations, revocation, administrator
   authorization, idempotency, and audit records.
-- Achievement-management tests for maintainer authorization, type-specific
+- Achievement-management tests for maintainer authorization, three-state
   validation, idempotency replay and conflicts, audit records, immediate
-  title-rule updates, map retirement version requirements, reopening, and the
+  title-rule updates, planned retirement versions, reopening, and the
   preservation of in-flight submissions after retirement.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.

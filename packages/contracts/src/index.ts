@@ -4,6 +4,10 @@ export const contractVersion = z.literal("1");
 
 const externalId = z.string().trim().min(1).max(256);
 const playerId = z.string().regex(/^\d{1,10}$/);
+const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
+const storedRetirementVersion = z.string().trim().min(1).max(64);
+const challengeStatus = z.enum(["active", "sunsetting", "retired"]);
+const playableChallengeStatus = z.enum(["active", "sunsetting"]);
 
 export const qqBindingRequestSchema = z.object({
   contractVersion,
@@ -94,6 +98,8 @@ const mapChallengeSchema = z.object({
   mapName: z.string().trim().min(1).max(256),
   difficulty: z.string().trim().min(1).max(64).optional(),
   gameVersion: z.string().trim().min(1).max(64),
+  status: playableChallengeStatus,
+  retiredVersion: storedRetirementVersion.optional(),
 });
 
 const achievementChallengeSchema = z.object({
@@ -107,7 +113,8 @@ const achievementChallengeSchema = z.object({
   condition: z.string().trim().min(1).max(1024),
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
-  status: z.literal("active"),
+  status: playableChallengeStatus,
+  retiredVersion: storedRetirementVersion.optional(),
   submissionMode: z.enum(["manual", "automatic"]),
 });
 
@@ -152,15 +159,15 @@ export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, gra
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().min(1).max(256) });
 
 const adminMapChallengeSchema = mapChallengeSchema.extend({
-  status: z.enum(["active", "retired"]),
+  status: challengeStatus,
   introducedVersion: z.string().trim().min(1).max(64),
-  retiredVersion: z.string().trim().min(1).max(64).nullable(),
+  retiredVersion: storedRetirementVersion.nullable(),
 });
 const adminAchievementChallengeSchema = achievementChallengeSchema.extend({
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
-  status: z.enum(["active", "retired"]),
+  status: challengeStatus,
   introducedVersion: z.string().trim().min(1).max(64),
-  retiredVersion: z.string().trim().min(1).max(64).nullable(),
+  retiredVersion: storedRetirementVersion.nullable(),
 });
 export const adminChallengeSchema = z.discriminatedUnion("family", [adminMapChallengeSchema, adminAchievementChallengeSchema]);
 export const adminChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminChallengeSchema) });
@@ -168,10 +175,10 @@ export const adminChallengeListResponseSchema = z.object({ contractVersion, item
 const adminMapChallengeUpdateSchema = z.object({
   contractVersion,
   family: z.literal("map"),
-  status: z.enum(["active", "retired"]),
-  retiredVersion: z.string().trim().min(1).max(64).optional(),
+  status: challengeStatus,
+  retiredVersion: retirementVersion.optional(),
 }).superRefine((value, ctx) => {
-  if (value.status === "retired" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retired version is required" });
+  if (["sunsetting", "retired"].includes(value.status) && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
 });
 const adminAchievementChallengeUpdateSchema = z.object({
@@ -181,10 +188,10 @@ const adminAchievementChallengeUpdateSchema = z.object({
   evidenceRule: z.string().trim().min(1).max(2048),
   submissionMode: z.enum(["manual", "automatic"]),
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
-  status: z.enum(["active", "retired"]),
-  retiredVersion: z.string().trim().min(1).max(64).optional(),
+  status: challengeStatus,
+  retiredVersion: retirementVersion.optional(),
 }).superRefine((value, ctx) => {
-  if (value.status === "retired" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retired version is required" });
+  if (["sunsetting", "retired"].includes(value.status) && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);

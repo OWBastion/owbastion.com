@@ -46,15 +46,15 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).toContain("守望先锋");
   });
 
-  it("retires a map challenge with its release version", async () => {
+  it("sets a map challenge to sunsetting with its planned release version", async () => {
     const wrapper = await mountPage();
     await wrapper.findAll(".achievement-row")[1].trigger("click");
-    await wrapper.get('input[placeholder="例如 3.2.0"]').setValue("3.2.0");
-    await wrapper.get(".danger-button").trigger("click");
+    await wrapper.get('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
+    await wrapper.get(".status-action .secondary-button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({
       method: "PUT",
-      body: expect.objectContaining({ family: "map", status: "retired", retiredVersion: "3.2.0" }),
+      body: expect.objectContaining({ family: "map", status: "sunsetting", retiredVersion: "26.0713.1" }),
     }));
   });
 });

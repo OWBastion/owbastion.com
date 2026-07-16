@@ -108,7 +108,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .where(and(eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
+          .where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active")))
           .orderBy(maps.name, achievementChallenges.name);
         items.push(...rows.map(({ challenge, map }): Challenge => ({
           challengeId: challenge.id,
@@ -120,13 +120,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           mapName: map.name,
           difficulty: challenge.difficulty ?? undefined,
           gameVersion: challenge.gameVersion,
+          status: challenge.status as "active" | "sunsetting",
+          retiredVersion: challenge.retiredVersion ?? undefined,
         })));
       }
       if (!input?.family || input.family === "achievement") {
         const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
           .from(titleChallenges)
           .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-          .where(and(eq(titleChallenges.status, "active"), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
+          .where(and(inArray(titleChallenges.status, ["active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
           .orderBy(titleCatalog.category, titleCatalog.label);
         items.push(...rows.map(({ challenge, title }): Challenge => ({
           challengeId: challenge.id,
@@ -139,7 +141,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           condition: challenge.condition,
           evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
-          status: "active",
+          status: challenge.status as "active" | "sunsetting",
+          retiredVersion: challenge.retiredVersion ?? undefined,
           submissionMode: challenge.submissionMode as "manual" | "automatic",
         })));
       }
@@ -152,7 +155,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .where(input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : "active") : undefined)
+          .where(input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : input.status) : undefined)
           .orderBy(maps.name, achievementChallenges.name);
         items.push(...rows.map(({ challenge, map }): AdminChallenge => ({
           challengeId: challenge.id,
@@ -164,7 +167,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           mapName: map.name,
           difficulty: challenge.difficulty ?? undefined,
           gameVersion: challenge.gameVersion,
-          status: challenge.status === "active" ? "active" : "retired",
+          status: challenge.status === "inactive" ? "retired" : challenge.status as "active" | "sunsetting",
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
         })));
@@ -187,7 +190,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           condition: challenge.condition,
           evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
-          status: challenge.status as "active" | "retired",
+          status: challenge.status as "active" | "sunsetting" | "retired",
           submissionMode: challenge.submissionMode as "manual" | "automatic",
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
@@ -202,8 +205,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (input.family === "map") {
         const row = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(eq(achievementChallenges.id, input.challengeId)).get();
         if (!row) throw new Error("CHALLENGE_NOT_FOUND");
-        await db.update(achievementChallenges).set({ status: input.status === "retired" ? "inactive" : "active", retiredVersion: input.status === "retired" ? input.retiredVersion! : null, updatedAt: timestamp }).where(eq(achievementChallenges.id, row.challenge.id));
-        const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: row.challenge.name, mapId: row.map.id, mapName: row.map.name, difficulty: row.challenge.difficulty ?? undefined, gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "retired" ? input.retiredVersion! : null };
+        await db.update(achievementChallenges).set({ status: input.status === "retired" ? "inactive" : input.status, retiredVersion: input.status === "active" ? null : input.retiredVersion!, updatedAt: timestamp }).where(eq(achievementChallenges.id, row.challenge.id));
+        const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: row.challenge.name, mapId: row.map.id, mapName: row.map.name, difficulty: row.challenge.difficulty ?? undefined, gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "active" ? null : input.retiredVersion! };
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         return response;
@@ -216,10 +219,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           submissionMode: input.submissionMode,
           categoryOverride: input.categoryOverride,
           status: input.status,
-          retiredVersion: input.status === "retired" ? input.retiredVersion! : null,
+          retiredVersion: input.status === "active" ? null : input.retiredVersion!,
           updatedAt: timestamp,
         }).where(eq(titleChallenges.id, row.challenge.id));
-        const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: row.challenge.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "retired" ? input.retiredVersion! : null };
+        const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: row.challenge.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "active" ? null : input.retiredVersion! };
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         return response;
@@ -326,12 +329,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps })
         .from(achievementChallenges)
         .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-        .where(and(eq(achievementChallenges.id, input.challengeId), eq(achievementChallenges.status, "active"), eq(maps.status, "active")))
+        .where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active")))
         .get();
       const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog })
         .from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-        .where(and(eq(titleChallenges.id, input.challengeId), eq(titleChallenges.status, "active"), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
+        .where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
         .get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
