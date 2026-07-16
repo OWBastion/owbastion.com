@@ -27,7 +27,7 @@ async function mountPage(): Promise<VueWrapper> {
         UModal: { props: ["open"], emits: ["update:open"], template: '<div v-if="open" role="dialog"><slot name="body" /></div>' },
         UPopover: { props: ["open"], emits: ["update:open"], template: '<div><slot /><slot name="content" /></div>' },
         UCard: { template: "<div><slot /></div>" },
-        PortalSelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
+        USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
       },
     },
   });
@@ -50,7 +50,7 @@ describe("achievement admin page", () => {
 
   it("saves expanded title rules and clears the category override", async () => {
     const wrapper = await mountPage();
-    await wrapper.findAll(".portal-button--text").find((button) => button.text() === "编辑规则")!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "编辑规则")!.trigger("click");
     await flushPromises();
     const textareas = wrapper.findAll("textarea");
     await textareas[0].setValue("完成更新后的挑战");
@@ -63,7 +63,7 @@ describe("achievement admin page", () => {
 
   it("plans a sunset in a temporary Nuxt UI popover", async () => {
     const wrapper = await mountPage();
-    const planButton = wrapper.findAll(".portal-button--text").find((button) => button.text() === "计划下线")!;
+    const planButton = wrapper.findAll("button").find((button) => button.text() === "计划下线")!;
     await planButton.trigger("click");
     const form = wrapper.find("form.plan-popover");
     await form.find('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
@@ -74,7 +74,7 @@ describe("achievement admin page", () => {
 
   it("ends an active map challenge directly without a release version", async () => {
     const wrapper = await mountPage();
-    const endButton = wrapper.findAll(".portal-button--danger").at(-1)!;
+    const endButton = wrapper.findAll("button").filter((button) => button.text() === "结束挑战").at(-1)!;
     await endButton.trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement;
@@ -87,10 +87,10 @@ describe("achievement admin page", () => {
 
   it("does not write when the end confirmation is cancelled", async () => {
     const wrapper = await mountPage();
-    await wrapper.find(".portal-button--danger").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "结束挑战")!.trigger("click");
     await flushPromises();
     const requestsBeforeCancel = adminApi.mock.calls.length;
-    await wrapper.get(".end-dialog .portal-button--secondary").trigger("click");
+    await wrapper.find(".end-dialog button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledTimes(requestsBeforeCancel);
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
@@ -98,7 +98,7 @@ describe("achievement admin page", () => {
 
   it("updates catalog-only title availability without creating a challenge", async () => {
     const wrapper = await mountPage();
-    const endButton = wrapper.findAll(".portal-button--danger").find((button) => button.text() === "下线称号")!;
+    const endButton = wrapper.findAll("button").find((button) => button.text() === "下线称号")!;
     await endButton.trigger("click");
     await flushPromises();
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));

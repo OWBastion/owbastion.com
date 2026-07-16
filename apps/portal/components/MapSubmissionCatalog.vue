@@ -8,15 +8,12 @@ const selectedMapId = shallowRef("");
 const selectedMap = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value));
 const selectedMapChallenges = computed(() => props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value));
 
-const onMapChange = (event: Event) => {
-  selectedMapId.value = (event.target as HTMLSelectElement).value;
-};
 </script>
 
 <template>
   <section class="catalog-section" aria-labelledby="map-catalog-title">
     <div class="catalog-heading"><p class="eyebrow">始终可提交</p><h2 id="map-catalog-title">选择地图挑战</h2></div>
-    <label class="filter-field">选择地图<select :value="selectedMapId" aria-label="选择地图" @change="onMapChange"><option disabled value="">选择地图</option><option v-for="map in maps" :key="map.mapId" :value="map.mapId">{{ map.mapName }}</option></select></label>
+    <UFormField label="选择地图"><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /></UFormField>
     <div v-if="selectedMap" class="map-selection">
       <div class="selection-heading"><span>地图挑战</span><strong>{{ selectedMap.mapName }}</strong></div>
       <div v-if="selectedMapChallenges.length" class="map-objectives">

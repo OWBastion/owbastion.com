@@ -9,7 +9,6 @@ const submissions = ref<AdminSubmission[]>([]);
 const selected = ref<AdminSubmission | null>(null);
 const loading = ref(true);
 const errorMessage = ref("");
-const trigger = ref<HTMLElement | null>(null);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
@@ -32,7 +31,7 @@ async function load() {
   catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法读取待核对截图，请确认当前账号有管理员权限。"; }
   finally { loading.value = false; }
 }
-async function open(submission: AdminSubmission, event: EventTarget | null) { trigger.value = event instanceof HTMLElement ? event : null; selected.value = await api<AdminSubmission>(`/v1/submissions/${submission.submissionId}`); }
+async function open(submission: AdminSubmission) { selected.value = await api<AdminSubmission>(`/v1/submissions/${submission.submissionId}`); }
 async function review(decision: "approved" | "rejected" | "resubmission_required") {
   if (!selected.value) return;
   const reason = window.prompt("请输入处理说明")?.trim();
@@ -46,15 +45,15 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${submissions.length} 条`">
-    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="待核对截图"><UTable :data="submissions" :columns="columns" :loading="loading" empty="暂无待核对截图。" class="admin-table">
       <template #challenge-cell="{ row }"><strong>{{ row.original.mapName }} · {{ row.original.difficulty }}</strong></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="row.original.status === 'ocr_review_required' ? 'warning' : 'success'" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
-      <template #actions-cell="{ row }"><PortalButton tone="text" type="button" @click="open(row.original, $event.currentTarget)">查看</PortalButton></template>
+      <template #actions-cell="{ row }"><UButton label="查看" color="neutral" variant="link" @click="open(row.original)" /></template>
     </UTable></section>
-    <PortalSidePanel v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''" :return-focus="trigger"><section v-if="selected" class="admin-detail review-detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><p class="admin-detail__meta">{{ selected.playerName }} · {{ formatStatus(selected.status) }}</p><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><pre v-if="selected.ocr" class="ocr">{{ JSON.stringify(selected.ocr, null, 2) }}</pre><div class="actions"><PortalButton type="button" @click="review('approved')">通过</PortalButton><PortalButton tone="secondary" type="button" @click="review('resubmission_required')">要求重传</PortalButton><PortalButton tone="danger" type="button" @click="review('rejected')">驳回</PortalButton></div></section></PortalSidePanel>
+    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''"><template #body><section v-if="selected" class="admin-detail review-detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><p class="admin-detail__meta">{{ selected.playerName }} · {{ formatStatus(selected.status) }}</p><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><pre v-if="selected.ocr" class="ocr">{{ JSON.stringify(selected.ocr, null, 2) }}</pre><div class="actions"><UButton label="通过" @click="review('approved')" /><UButton label="要求重传" color="neutral" variant="outline" @click="review('resubmission_required')" /><UButton label="驳回" color="error" @click="review('rejected')" /></div></section></template></USlideover>
   </AdminWorkspace>
 </template>
 

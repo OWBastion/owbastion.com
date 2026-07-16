@@ -17,7 +17,7 @@ describe("admin reviews page", () => {
     const wrapper = await mountSuspended(ReviewsPage, { attachTo: document.body });
     await flushPromises();
     expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(2);
-    await wrapper.get(".admin-table .text-button").trigger("click");
+    await wrapper.findAll(".admin-table button").find((button) => button.text() === "查看")!.trigger("click");
     await flushPromises();
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
   });

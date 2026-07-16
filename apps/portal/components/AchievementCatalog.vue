@@ -34,7 +34,7 @@ const groups = computed(() => {
       </div>
     </section>
   </div>
-  <EmptyState v-else title="暂无记录" />
+  <UEmpty v-else title="暂无记录" variant="naked" />
 </template>
 
 <style scoped>

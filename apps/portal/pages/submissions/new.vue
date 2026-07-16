@@ -6,7 +6,6 @@ const challengeId = ref("");
 const file = ref<File | null>(null);
 const message = ref("");
 const selectedChallenge = computed(() => [...mapChallenges.value, ...achievementChallenges.value].find((challenge) => challenge.challengeId === challengeId.value));
-const onFile = (event: Event) => { file.value = (event.target as HTMLInputElement).files?.[0] ?? null; };
 const send = async () => { if (!file.value || !challengeId.value) return; message.value = "提交中…"; try { await submit(challengeId.value, file.value); message.value = "已提交，识别中。"; file.value = null; } catch { message.value = "提交失败，请检查截图后重试。"; } };
 onMounted(() => void loadCatalog());
 </script>
@@ -20,13 +19,13 @@ onMounted(() => void loadCatalog());
         <div v-if="catalogLoading" class="catalog-loading" role="status">读取中…</div>
         <SubmissionCatalog v-else :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="challengeId" @select="challengeId = $event" />
       </section>
-      <form class="upload-panel surface-card" @submit.prevent="send">
+      <UCard class="upload-panel" variant="subtle" as="form" @submit.prevent="send">
         <div><h2>上传截图</h2></div>
         <div class="selected-target" :class="{ empty: !selectedChallenge }"><span>当前目标</span><strong>{{ selectedChallenge?.family === 'achievement' ? selectedChallenge.titleName : selectedChallenge?.name ?? '尚未选择挑战' }}</strong><small v-if="selectedChallenge?.family === 'map'">{{ selectedChallenge.mapName }} · {{ selectedChallenge.difficulty ?? '地图通关' }}</small><small v-else-if="selectedChallenge">{{ selectedChallenge.category }} · {{ selectedChallenge.condition }}</small></div>
-        <label class="file-field">截图<input accept="image/jpeg,image/png,image/webp" type="file" required @change="onFile" /><small>仅支持 JPG、PNG、WebP，单张不超过 10 MB。</small></label>
-        <p v-if="error" class="form-error" role="alert">{{ error }}</p><p v-if="message" class="form-message" role="status">{{ message }}</p>
-        <button class="primary-button" :disabled="loading || catalogLoading || !file || !challengeId" type="submit">{{ loading ? "上传中…" : "提交截图" }}</button>
-      </form>
+        <UFormField label="截图" hint="仅支持 JPG、PNG、WebP，单张不超过 10 MB。"><UFileUpload v-model="file" accept="image/jpeg,image/png,image/webp" :multiple="false" /></UFormField>
+        <UAlert v-if="error" color="error" variant="subtle" :description="error" /><UAlert v-if="message" color="primary" variant="subtle" :description="message" />
+        <UButton :label="loading ? '上传中…' : '提交截图'" :loading="loading" :disabled="catalogLoading || !file || !challengeId" type="submit" block />
+      </UCard>
     </div>
   </main>
 </template>

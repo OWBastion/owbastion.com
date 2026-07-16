@@ -15,10 +15,10 @@ describe("admin channels page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(ChannelsPage);
     await flushPromises();
-    const toggle = wrapper.get(".toggle");
+    const toggle = wrapper.get('[role="switch"]');
     await toggle.trigger("click");
     await flushPromises();
-    expect(toggle.attributes("aria-pressed")).toBe("true");
+    expect(toggle.attributes("aria-checked")).toBe("true");
     expect(adminApi).toHaveBeenCalledWith("/v1/qq/groups/group-1", expect.objectContaining({ method: "PUT" }));
   });
 });

@@ -16,7 +16,6 @@ const errorMessage = ref("");
 const loading = ref(false);
 const saving = ref(false);
 const selectedHolder = ref<HolderGroup | null>(null);
-const selectedTrigger = ref<HTMLElement | null>(null);
 const panelOpen = computed({ get: () => selectedHolder.value !== null && selectedPlayer.value !== undefined, set: (value) => { if (!value) selectedHolder.value = null; } });
 
 const selectedPlayer = computed(() => players.value.find((player) => player.playerAccountId === selectedPlayerId.value));
@@ -74,10 +73,9 @@ async function revoke(row: Grant) {
   }
 }
 
-function openBulk(group: HolderGroup, trigger: EventTarget | null) {
+function openBulk(group: HolderGroup) {
   if (!selectedPlayer.value || !group.unclaimedCount) return;
   selectedHolder.value = group;
-  selectedTrigger.value = trigger instanceof HTMLElement ? trigger : null;
 }
 
 function closeBulk() {
@@ -111,18 +109,18 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${holderGroups.length} 位持有者`">
-    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p><p v-if="message" class="admin-feedback" role="status">{{ message }}</p></template>
-    <template #toolbar><div class="admin-toolbar"><PortalInput v-model="query" placeholder="搜索持有者或称号" aria-label="搜索历史称号" @change="load" /><PortalSelect v-model="selectedPlayerId" aria-label="选择玩家" placeholder="选择玩家帐号" :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))" /><PortalButton tone="secondary" type="button" @click="load">搜索</PortalButton></div></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="message" color="primary" variant="subtle" :description="message" /></template>
+    <template #toolbar><div class="admin-toolbar"><UInput v-model="query" placeholder="搜索持有者或称号" aria-label="搜索历史称号" @change="load" /><USelect v-model="selectedPlayerId" aria-label="选择玩家" placeholder="选择玩家帐号" :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))" /><UButton label="搜索" color="neutral" variant="outline" @click="load" /></div></template>
 
     <div class="holder-list" aria-live="polite">
       <section v-for="group in holderGroups" :key="group.holderName" class="holder-group">
-        <div class="holder-heading"><div><p class="eyebrow">历史持有者</p><h2>{{ group.holderName }}</h2><small>{{ group.unclaimedCount ? `${group.unclaimedCount} 项未关联` : "暂无未关联称号" }}</small></div><PortalButton :data-holder-name="group.holderName" :disabled="!selectedPlayer || !group.unclaimedCount || saving" type="button" @click="openBulk(group, $event.currentTarget)">关联全部未关联项</PortalButton></div>
-        <div class="grant-list"><article v-for="row in group.grants" :key="row.grantId" class="grant-row surface-card"><div><p>{{ row.category }}</p><h3>{{ row.label }}<span v-if="row.mapName"> · {{ row.mapName }}</span></h3><small>{{ row.status === "unclaimed" ? "未关联" : row.status === "active" ? `已关联至 ${row.playerName}#${row.playerId}` : "已撤销" }}</small></div><PortalButton v-if="row.status === 'unclaimed'" tone="secondary" :disabled="!selectedPlayer || saving" type="button" @click="grant(row)">关联</PortalButton><PortalButton v-else-if="row.status === 'active'" tone="text" :disabled="saving" type="button" @click="revoke(row)">撤销</PortalButton></article></div>
+        <div class="holder-heading"><div><p class="eyebrow">历史持有者</p><h2>{{ group.holderName }}</h2><small>{{ group.unclaimedCount ? `${group.unclaimedCount} 项未关联` : "暂无未关联称号" }}</small></div><UButton :data-holder-name="group.holderName" label="关联全部未关联项" :disabled="!selectedPlayer || !group.unclaimedCount || saving" @click="openBulk(group)" /></div>
+        <div class="grant-list"><UCard v-for="row in group.grants" :key="row.grantId" class="grant-row" variant="subtle"><template #default><div><p>{{ row.category }}</p><h3>{{ row.label }}<span v-if="row.mapName"> · {{ row.mapName }}</span></h3><small>{{ row.status === "unclaimed" ? "未关联" : row.status === "active" ? `已关联至 ${row.playerName}#${row.playerId}` : "已撤销" }}</small></div><UButton v-if="row.status === 'unclaimed'" label="关联" color="neutral" variant="outline" :disabled="!selectedPlayer || saving" @click="grant(row)" /><UButton v-else-if="row.status === 'active'" label="撤销" color="neutral" variant="link" :disabled="saving" @click="revoke(row)" /></template></UCard></div>
       </section>
       <p v-if="!loading && !holderGroups.length" class="empty surface-card">暂无匹配记录。</p>
     </div>
 
-    <PortalSidePanel v-model:open="panelOpen" title="确认称号迁移" :return-focus="selectedTrigger"><section v-if="selectedHolder && selectedPlayer" class="sheet"><p class="eyebrow">批量关联</p><h2 id="bulk-migration-title">确认称号迁移</h2><div class="migration-facts"><p><span>历史持有者</span><strong>{{ selectedHolder.holderName }}</strong></p><p><span>关联至</span><strong>{{ selectedPlayer.playerName }}#{{ selectedPlayer.playerId }}</strong></p><p><span>范围</span><strong>全部未关联称号</strong></p></div><p class="sheet-copy">已关联和已撤销记录保持不变。</p><div class="sheet-actions"><PortalButton tone="secondary" :disabled="saving" type="button" @click="closeBulk">取消</PortalButton><PortalButton :loading="saving" type="button" @click="grantAll">确认关联</PortalButton></div></section></PortalSidePanel>
+    <USlideover v-model:open="panelOpen" title="确认称号迁移"><template #body><section v-if="selectedHolder && selectedPlayer" class="sheet"><p class="eyebrow">批量关联</p><h2 id="bulk-migration-title">确认称号迁移</h2><div class="migration-facts"><p><span>历史持有者</span><strong>{{ selectedHolder.holderName }}</strong></p><p><span>关联至</span><strong><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></strong></p><p><span>范围</span><strong>全部未关联称号</strong></p></div><p class="sheet-copy">已关联和已撤销记录保持不变。</p><div class="sheet-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" /><UButton label="确认关联" :loading="saving" @click="grantAll" /></div></section></template></USlideover>
   </AdminWorkspace>
 </template>
 
