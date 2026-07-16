@@ -1,4 +1,4 @@
-import { desc, eq, and, gt, like, or, inArray, isNull } from "drizzle-orm";
+import { count, desc, eq, and, gt, like, or, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
@@ -429,8 +429,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listAdminSubmissions(input) {
-      const rows = await db.select().from(submissions).where(input.status ? eq(submissions.status, input.status) : undefined).orderBy(desc(submissions.updatedAt)).limit(51);
-      return { contractVersion: "1" as const, items: rows.slice(0, 50).map((row) => ({ submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` })), hasMore: rows.length > 50 };
+      const condition = input.statuses?.length ? inArray(submissions.status, input.statuses) : undefined;
+      const [rows, [{ total }]] = await Promise.all([
+        db.select().from(submissions).where(condition).orderBy(desc(submissions.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
+        db.select({ total: count() }).from(submissions).where(condition),
+      ]);
+      return { contractVersion: "1" as const, items: rows.slice(0, input.pageSize).map((row) => ({ submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` })), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
     },
 
     async getAdminSubmission(input) {
@@ -536,7 +540,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const matchingBindings = await db.select({ playerAccountId: bindings.playerAccountId }).from(bindings).where(or(like(bindings.groupOpenId, query), like(bindings.memberOpenId, query)));
         conditions.push(or(like(playerAccounts.playerId, query), like(playerAccounts.playerName, query), like(playerAccounts.normalizedPlayerName, query), ...(matchingBindings.length ? [inArray(playerAccounts.id, matchingBindings.map((binding) => binding.playerAccountId))] : []))!);
       }
-      const accounts = await db.select().from(playerAccounts).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(playerAccounts.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize);
+      const condition = conditions.length ? and(...conditions) : undefined;
+      const [accounts, [{ total }]] = await Promise.all([
+        db.select().from(playerAccounts).where(condition).orderBy(desc(playerAccounts.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
+        db.select({ total: count() }).from(playerAccounts).where(condition),
+      ]);
       const hasMore = accounts.length > input.pageSize;
       const items = accounts.slice(0, input.pageSize);
       return {
@@ -551,6 +559,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }))),
         page: input.page,
         pageSize: input.pageSize,
+        total,
         hasMore,
       };
     },

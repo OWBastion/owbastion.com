@@ -125,7 +125,7 @@ const titleColumns: TableColumn<TitleAchievement | CatalogTitle>[] = [
   { accessorKey: "titleName", header: "称号" },
   { accessorKey: "condition", header: "完成条件" },
   { accessorKey: "status", header: "状态" },
-  { id: "actions", header: "操作" },
+  { id: "actions", header: "操作", enableHiding: false },
 ];
 const mapColumns: TableColumn<MapAchievement>[] = [
   {
@@ -139,7 +139,7 @@ const mapColumns: TableColumn<MapAchievement>[] = [
   { accessorKey: "name", header: "挑战" },
   { accessorKey: "difficulty", header: "难度" },
   { accessorKey: "status", header: "状态" },
-  { id: "actions", header: "操作" },
+  { id: "actions", header: "操作", enableHiding: false },
 ];
 async function load() {
   loading.value = true;
@@ -284,13 +284,13 @@ onMounted(() => void load());
         <template #generic>
         <section class="catalog-section" aria-labelledby="title-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleItems.length }} 项</span></div>
-          <UTable :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" class="admin-table achievement-table">
+          <AdminDataTable :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
             <template #category-cell="{ row }"><span class="table-meta">{{ row.original.category }}</span></template>
             <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `引入版本 ${row.original.introducedVersion}` : row.original.scope === 'map' ? '地图称号' : '目录称号' }}</small></template>
             <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
             <template #status-cell="{ row }"><StatusBadge :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" /></template>
             <template #actions-cell="{ row }"><div class="table-actions"><template v-if="isChallengeTitle(row.original)"><button class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template><template v-else><button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template></div></template>
-          </UTable>
+          </AdminDataTable>
           <UModal v-model:open="editorOpen" title="编辑规则" :description="editingItem?.titleName" scrollable :ui="{ content: 'max-w-2xl', body: 'p-0 sm:p-0' }">
             <template #body>
               <form v-if="editingItem" id="achievement-editor" class="editor" @submit.prevent="saveTitle(editingItem)">
@@ -311,13 +311,13 @@ onMounted(() => void load());
         <template #map>
         <section class="catalog-section" aria-labelledby="map-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">地图挑战</p><h3 id="map-achievements-title">按地图管理</h3></div><span>{{ mapItems.length }} 项</span></div>
-          <UTable :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" class="admin-table achievement-table">
+          <AdminDataTable :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
             <template #mapName-cell="{ row }"><span class="table-meta">{{ row.original.mapName }}</span></template>
             <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
             <template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template>
             <template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template>
             <template #actions-cell="{ row }"><div class="table-actions"><template v-if="row.original.status !== 'retired'"><UPopover :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button></template><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></div></template>
-          </UTable>
+          </AdminDataTable>
         </section>
         </template>
       </UTabs>

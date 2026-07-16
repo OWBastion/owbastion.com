@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import ReviewsPage from "./reviews.vue";
 
 const adminApi = vi.fn((path: string) => {
-  if (path === "/v1/submissions?status=ready_for_review") return Promise.resolve({ items: [{ submissionId: "submission-1", mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", status: "ready_for_review" }] });
-  if (path === "/v1/submissions?status=ocr_review_required") return Promise.resolve({ items: [{ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "ocr_review_required" }] });
+  if (path === "/v1/submissions?status=ready_for_review,ocr_review_required&page=1&pageSize=20") return Promise.resolve({ items: [{ submissionId: "submission-1", mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", status: "ready_for_review" }, { submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "ocr_review_required" }], total: 2 });
   if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", status: "ready_for_review" });
   throw new Error(`Unexpected request: ${path}`);
 });

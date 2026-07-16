@@ -18,7 +18,7 @@ const services: PlatformServices = {
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
-  listAdminSubmissions: async () => ({ contractVersion: "1", items: [], hasMore: false }),
+  listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
@@ -34,7 +34,7 @@ const services: PlatformServices = {
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   upsertQqGroupAccess: async () => {},
   listQqGroupAccess: async () => [],
-  listAdminPlayers: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 25, hasMore: false }),
+  listAdminPlayers: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 25, total: 0, hasMore: false }),
   getAdminPlayer: async () => { throw new Error("PLAYER_NOT_FOUND"); },
   setAdminPlayerStatus: async () => {},
   removeAdminBinding: async () => {},
@@ -342,6 +342,26 @@ describe("API", () => {
     const allowed = await adminApp.request("http://localhost/v1/admin/player-accounts", { headers: { cookie: "owb_session=admin-session" } }, env);
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toMatchObject({ contractVersion: "1", items: [], page: 1 });
+  });
+
+  it("pages administrative lists and accepts a comma-separated submission status filter", async () => {
+    const requests: Array<{ statuses?: string[]; page: number; pageSize: number }> = [];
+    const adminServices: PlatformServices = {
+      ...services,
+      listAdminSubmissions: async (input) => {
+        requests.push(input);
+        return { contractVersion: "1", items: [], page: input.page, pageSize: input.pageSize, total: 27, hasMore: true };
+      },
+    };
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => adminServices,
+    });
+    const paged = await adminApp.request("http://localhost/v1/admin/submissions?status=ready_for_review,ocr_review_required&page=2&pageSize=20", {}, env);
+    expect(paged.status).toBe(200);
+    expect(await paged.json()).toMatchObject({ page: 2, pageSize: 20, total: 27, hasMore: true });
+    expect(requests).toEqual([{ statuses: ["ready_for_review", "ocr_review_required"], page: 2, pageSize: 20 }]);
+    expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
   });
 
   it("keeps local development login disabled unless explicitly enabled", async () => {

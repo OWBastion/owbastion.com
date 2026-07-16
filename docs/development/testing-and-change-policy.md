@@ -63,6 +63,10 @@ The local login does not represent QQ authentication and never enables the
 local branch in production. Real `/绑定`, `/验证`, `/成就挑战`, QQ webhook, and
 QQ gateway tests still require a test QQ application and real QQ credentials.
 
+Administrator player and review queues use server-side pagination. Their list
+responses include `page`, `pageSize`, `total`, and `hasMore`; the submissions
+endpoint accepts one or more comma-separated status values in `status`.
+
 Migrations are forward-only. Add a corrective migration instead of rewriting
 an applied migration, and verify it against a restored local database.
 

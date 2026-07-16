@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import PlayersPage from "./players.vue";
 
 const adminApi = vi.fn((path: string) => {
-  if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerName: "他又", playerId: "51705", bindingCount: 1, status: "active" }], hasMore: false });
+  if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerName: "他又", playerId: "51705", bindingCount: 1, status: "active" }], total: 1, hasMore: false });
   if (path === "/v1/player-accounts/player-1") return Promise.resolve({ playerAccountId: "player-1", playerName: "他又", playerId: "51705", status: "active", updatedAt: 0, bindings: [], recentSubmissions: [] });
   throw new Error(`Unexpected request: ${path}`);
 });

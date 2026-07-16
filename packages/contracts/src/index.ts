@@ -75,7 +75,7 @@ export const adminPlayerSummarySchema = z.object({
   bindingCount: z.number().int().nonnegative(),
   updatedAt: z.number().int(),
 });
-export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), hasMore: z.boolean() });
+export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
 
 const attachmentSchema = z.object({
@@ -244,7 +244,7 @@ export const adminSubmissionSchema = z.object({
   evidenceUrl: z.string().url().nullable(),
 });
 
-export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), hasMore: z.boolean() });
+export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
 export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),

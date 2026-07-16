@@ -58,7 +58,7 @@ export type PlatformServices = {
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
-  listAdminSubmissions(input: { status?: string }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
+  listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
   processOcrJob(input: { submissionId: string; objectKey: string; attempt: number }): Promise<void>;
