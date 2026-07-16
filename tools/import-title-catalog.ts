@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { readTitleCatalogSnapshot, renderCatalogImportSql, snapshotHash } from "./title-catalog.ts";
+import { classifyCatalogImport, parseCatalogImportQueryOutput, readTitleCatalogSnapshot, renderCatalogImportSql, snapshotHash } from "./title-catalog.ts";
 
 const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
@@ -44,14 +44,19 @@ const main = async () => {
     return;
   }
 
-  const query = `SELECT source_version, snapshot_hash FROM catalog_imports WHERE source_version = ${quoteSql(snapshot.sourceVersion)} OR snapshot_hash = ${quoteSql(hash)} LIMIT 1`;
-  let queryOutput: string;
+  const query = `SELECT source_version, snapshot_hash FROM catalog_imports WHERE source_version = ${quoteSql(snapshot.sourceVersion)} OR snapshot_hash = ${quoteSql(hash)}`;
+  const readImport = async () => {
+    const queryOutput = (await wrangler(["--command", query, "--json"])).stdout;
+    return parseCatalogImportQueryOutput(queryOutput);
+  };
+  let decision: "import" | "skip";
   try {
-    queryOutput = (await wrangler(["--command", query, "--json"])).stdout;
+    decision = classifyCatalogImport(await readImport(), snapshot.sourceVersion, hash);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("CATALOG_IMPORT_CONFLICT:")) throw error;
     throw new Error(`无法读取 catalog_imports，请先执行 D1 migrations：${error instanceof Error ? error.message : String(error)}`);
   }
-  if (queryOutput.includes(snapshot.sourceVersion) || queryOutput.includes(hash)) {
+  if (decision === "skip") {
     console.log(`Catalog snapshot ${snapshot.sourceVersion} 已导入，跳过。`);
     return;
   }
@@ -61,6 +66,12 @@ const main = async () => {
   try {
     await fs.writeFile(sqlPath, renderCatalogImportSql(snapshot, hash, Date.now()));
     await wrangler(["--file", sqlPath]);
+    try {
+      const finalDecision = classifyCatalogImport(await readImport(), snapshot.sourceVersion, hash);
+      if (finalDecision !== "skip") throw new Error("CATALOG_IMPORT_RECORD_MISSING");
+    } catch (error) {
+      throw new Error(`CATALOG_IMPORT_RECONCILIATION_REQUIRED: ${error instanceof Error ? error.message : String(error)}`);
+    }
     console.log(`Catalog snapshot ${snapshot.sourceVersion} 导入完成：${JSON.stringify(counts)}`);
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });

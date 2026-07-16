@@ -8,6 +8,8 @@ const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
 const storedRetirementVersion = z.string().trim().min(1).max(64);
 const challengeStatus = z.enum(["active", "sunsetting", "retired"]);
 const playableChallengeStatus = z.enum(["active", "sunsetting"]);
+const titleChallengeStatus = z.enum(["scheduled", "active", "sunsetting", "retired"]);
+const scheduleTimestamp = z.number().int().nonnegative();
 
 export const qqBindingRequestSchema = z.object({
   contractVersion,
@@ -113,7 +115,9 @@ const achievementChallengeSchema = z.object({
   condition: z.string().trim().min(1).max(1024),
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
-  status: playableChallengeStatus,
+  status: z.enum(["scheduled", "active", "sunsetting"]),
+  startsAt: scheduleTimestamp.optional(),
+  endsAt: scheduleTimestamp.optional(),
   retiredVersion: storedRetirementVersion.optional(),
   submissionMode: z.enum(["manual", "automatic"]),
 });
@@ -165,9 +169,11 @@ const adminMapChallengeSchema = mapChallengeSchema.extend({
 });
 const adminAchievementChallengeSchema = achievementChallengeSchema.extend({
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
-  status: challengeStatus,
+  status: titleChallengeStatus,
   introducedVersion: z.string().trim().min(1).max(64),
   retiredVersion: storedRetirementVersion.nullable(),
+  startsAt: scheduleTimestamp.nullable(),
+  endsAt: scheduleTimestamp.nullable(),
 });
 const adminCatalogTitleSchema = z.object({
   challengeId: externalId,
@@ -203,11 +209,17 @@ const adminAchievementChallengeUpdateSchema = z.object({
   evidenceRule: z.string().trim().min(1).max(2048),
   submissionMode: z.enum(["manual", "automatic"]),
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
-  status: challengeStatus,
+  status: titleChallengeStatus,
   retiredVersion: retirementVersion.optional(),
+  startsAt: scheduleTimestamp.optional(),
+  endsAt: scheduleTimestamp.optional(),
 }).superRefine((value, ctx) => {
   if (value.status === "sunsetting" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
+  if (value.status === "scheduled" && value.startsAt === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "A scheduled challenge requires a start time" });
+  if (value.status === "scheduled" && value.endsAt === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "A scheduled challenge requires an end time" });
+  if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
+  if (value.status !== "scheduled" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Only scheduled challenges may have a time window" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
 export const adminCatalogTitleUpdateRequestSchema = z.object({ contractVersion, status: z.enum(["active", "retired"]) });

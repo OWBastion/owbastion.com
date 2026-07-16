@@ -47,7 +47,9 @@ pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json
 Catalog import 面向已经完成 migrations 的数据库，使用 Bastion 提供的版本化
 snapshot。称号、地图和奖励使用 upsert；历史持有人只追加，不自动删除，也不
 自动关联平台账号。每个 snapshot 的 source version 和 SHA-256 hash 会写入
-`catalog_imports`，重复导入会直接跳过。
+`catalog_imports`。只有 `source_version` 与 `snapshot_hash` 同时匹配时，重复导入
+才会直接跳过；同版本不同 hash、同 hash 不同版本或记录不一致都会失败并要求
+人工 reconciliation。
 
 默认只写本地 D1。生产导入必须显式使用：
 

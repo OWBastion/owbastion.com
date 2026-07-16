@@ -30,6 +30,45 @@ export const readTitleCatalogSnapshot = (value: unknown): TitleCatalogSnapshot =
 export const snapshotHash = (content: string) => createHash("sha256").update(content).digest("hex");
 export const stableImportId = (sourceVersion: string) => `catalog:${sourceVersion}`;
 
+export type CatalogImportRecord = {
+  sourceVersion: string;
+  snapshotHash: string;
+};
+
+export type CatalogImportDecision = "import" | "skip";
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const extractRows = (value: unknown): unknown[] => {
+  if (Array.isArray(value)) {
+    if (value.length === 1 && isRecord(value[0]) && Array.isArray(value[0].results)) return value[0].results;
+    return value;
+  }
+  if (isRecord(value) && Array.isArray(value.results)) return value.results;
+  throw new Error("CATALOG_IMPORT_QUERY_INVALID");
+};
+
+export const parseCatalogImportQueryOutput = (output: string): CatalogImportRecord[] => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output);
+  } catch {
+    throw new Error("CATALOG_IMPORT_QUERY_INVALID");
+  }
+  return extractRows(parsed).map((row) => {
+    if (!isRecord(row) || typeof row.source_version !== "string" || typeof row.snapshot_hash !== "string") {
+      throw new Error("CATALOG_IMPORT_QUERY_INVALID");
+    }
+    return { sourceVersion: row.source_version, snapshotHash: row.snapshot_hash };
+  });
+};
+
+export const classifyCatalogImport = (records: CatalogImportRecord[], sourceVersion: string, hash: string): CatalogImportDecision => {
+  if (records.length === 0) return "import";
+  if (records.length === 1 && records[0].sourceVersion === sourceVersion && records[0].snapshotHash === hash) return "skip";
+  throw new Error(`CATALOG_IMPORT_CONFLICT: sourceVersion=${sourceVersion}, snapshotHash=${hash}`);
+};
+
 const sql = (value: string | number | null) => value == null ? "NULL" : typeof value === "number" ? String(value) : `'${value.replaceAll("'", "''")}'`;
 const id = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 32);
 
