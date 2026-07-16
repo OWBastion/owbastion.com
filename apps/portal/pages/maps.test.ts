@@ -26,7 +26,7 @@ describe("maps page", () => {
     expect(portalApi).toHaveBeenCalledWith("/v1/challenges?family=map");
   });
 
-  it("opens a centered detail modal for the selected map", async () => {
+  it("opens the mobile detail drawer for the selected map", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();

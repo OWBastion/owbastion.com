@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { createReusableTemplate, useMediaQuery } from "@vueuse/core";
 import type { Map, MapChallenge } from "../../composables/useSubmissionUpload";
 
 const props = defineProps<{
@@ -12,24 +13,36 @@ const difficultyRank: Record<string, number> = { 普通: 1, 困难: 2, 专家: 3
 const mapChallenges = computed(() => props.map ? props.challenges.filter((challenge) => challenge.mapId === props.map?.mapId) : []);
 const difficulty = computed(() => Math.max(0, ...mapChallenges.value.map((challenge) => difficultyRank[challenge.difficulty ?? ""] ?? 0)));
 const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
+const isDesktop = useMediaQuery("(min-width: 768px)");
+const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
 </script>
 
 <template>
-  <UModal v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
+  <DefineDetailContent>
+    <UCard v-if="map" class="detail-card" variant="subtle">
+      <template #header>
+        <div class="detail-heading"><div><p class="eyebrow">地图详情</p><h2>{{ map.mapName }}</h2></div><UBadge :label="`版本 ${map.gameVersion}`" color="neutral" variant="subtle" /></div>
+      </template>
+      <div class="detail-content">
+        <section class="detail-section" aria-labelledby="map-overview-title"><div class="section-title"><h3 id="map-overview-title">地图概览</h3><span>{{ mapChallenges.length }} 项挑战</span></div><dl class="detail-facts"><div><dt>难度</dt><dd class="difficulty-pips"><UIcon v-for="index in 5" :key="index" name="i-lucide-flame" :class="{ active: index <= difficulty }" aria-hidden="true" /></dd></div><div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div><div><dt>通关难度</dt><dd class="muted">{{ authenticated ? "未开放" : "登录后查看" }}</dd></div></dl><div class="progress-row"><div><span>挑战进度</span><strong>{{ authenticated ? "未开放" : "登录后查看" }}</strong></div><UProgress :model-value="0" aria-label="挑战进度" /></div></section>
+        <section class="detail-section split-section" aria-labelledby="fastest-title"><div class="section-title"><h3 id="fastest-title">最快通关</h3><UBadge label="暂无记录" color="neutral" variant="subtle" /></div><div class="empty-stat-grid"><div><span>传奇最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div><div><span>地狱最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div></div></section>
+        <section class="detail-section" aria-labelledby="mechanics-title"><div class="section-title"><h3 id="mechanics-title">特殊机制</h3><UBadge label="未开放" color="neutral" variant="subtle" /></div><p class="muted-copy">暂无机制记录。</p></section>
+        <section class="detail-section" aria-labelledby="rating-title"><div class="section-title"><h3 id="rating-title">玩家评分</h3><UBadge label="未开放" color="neutral" variant="subtle" /></div><div class="rating-empty"><UIcon name="i-lucide-star" aria-hidden="true" /><span>暂无评分</span></div></section>
+      </div>
+    </UCard>
+  </DefineDetailContent>
+
+  <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
     <template #body>
-      <UCard v-if="map" class="detail-card" variant="subtle">
-        <template #header>
-          <div class="detail-heading"><div><p class="eyebrow">地图详情</p><h2>{{ map.mapName }}</h2></div><UBadge :label="`版本 ${map.gameVersion}`" color="neutral" variant="subtle" /></div>
-        </template>
-        <div class="detail-content">
-          <section class="detail-section" aria-labelledby="map-overview-title"><div class="section-title"><h3 id="map-overview-title">地图概览</h3><span>{{ mapChallenges.length }} 项挑战</span></div><dl class="detail-facts"><div><dt>难度</dt><dd class="difficulty-pips"><UIcon v-for="index in 5" :key="index" name="i-lucide-flame" :class="{ active: index <= difficulty }" aria-hidden="true" /></dd></div><div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div><div><dt>通关难度</dt><dd class="muted">{{ authenticated ? "未开放" : "登录后查看" }}</dd></div></dl><div class="progress-row"><div><span>挑战进度</span><strong>{{ authenticated ? "未开放" : "登录后查看" }}</strong></div><UProgress :model-value="0" aria-label="挑战进度" /></div></section>
-          <section class="detail-section split-section" aria-labelledby="fastest-title"><div class="section-title"><h3 id="fastest-title">最快通关</h3><UBadge label="暂无记录" color="neutral" variant="subtle" /></div><div class="empty-stat-grid"><div><span>传奇最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div><div><span>地狱最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div></div></section>
-          <section class="detail-section" aria-labelledby="mechanics-title"><div class="section-title"><h3 id="mechanics-title">特殊机制</h3><UBadge label="未开放" color="neutral" variant="subtle" /></div><p class="muted-copy">暂无机制记录。</p></section>
-          <section class="detail-section" aria-labelledby="rating-title"><div class="section-title"><h3 id="rating-title">玩家评分</h3><UBadge label="未开放" color="neutral" variant="subtle" /></div><div class="rating-empty"><UIcon name="i-lucide-star" aria-hidden="true" /><span>暂无评分</span></div></section>
-        </div>
-      </UCard>
+      <ReuseDetailContent />
     </template>
   </UModal>
+
+  <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale fixed :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
+    <template #body>
+      <ReuseDetailContent />
+    </template>
+  </UDrawer>
 </template>
 
 <style scoped>
