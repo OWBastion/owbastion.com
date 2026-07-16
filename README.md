@@ -1,8 +1,8 @@
 # OWBastion Web Platform
 
-`OWBastion/owbastion.codes` 是 Bastion 生态的 Web Platform 与 operational control plane。
+`OWBastion/owbastion.codes` 是 Bastion 生态的 Web 平台与控制平面。
 
-本仓库用于承载面向玩家和开发者的公共能力，以及审核、业务数据和跨仓库变更编排。当前代码包含 Cloudflare Worker API、私有 R2 证据保存、QQ 网页登录、公共 Portal，以及首条地图挑战的 Queue、OCR 和审核链路；称号发放和跨仓库变更编排仍按分阶段计划建设。各项能力的唯一状态见[功能状态矩阵](docs/development/feature-status.md)。
+本仓库承载面向玩家和开发者的 Web 能力，负责平台业务数据、私有证据保存以及跨项目协作。当前代码包含 Cloudflare Worker API、公共 Portal、QQ 网页登录，以及首条地图挑战的 Queue、OCR 和审核链路；称号发放和跨仓库变更编排仍按分阶段计划建设。各项能力的唯一状态见[功能状态矩阵](docs/development/feature-status.md)。
 
 ## 生态定位
 
@@ -25,7 +25,6 @@
 - [数据与安全边界](docs/architecture/data-and-security.md)：数据分类、授权和公开项目中的安全约束。
 - [开发、测试与变更](docs/development/testing-and-change-policy.md)：测试分层、幂等、迁移和发布要求。
 - [功能状态矩阵](docs/development/feature-status.md)：按能力链路维护的唯一实现状态和验证证据。
-- [HKG Portal 部署](docs/deployment/portal-hkg.md)：公共 Portal 的 Docker Compose 与服务器侧 Cloudflare Tunnel 边界。
 - [AI agent 路由](AGENTS.md)：AI agent 执行任务前必须读取的英文指引。
 
 ## 公开项目约定
@@ -37,4 +36,4 @@
 
 ## 当前状态
 
-仓库提供 HKG Portal 的 Docker Compose 配置和 Worker API 的 GitHub Actions 部署工作流；运行中的生产状态需单独验证。D1、R2 证据保存、QQ 登录、玩家中心、Queue、OCR 和审核的首条地图挑战链路已在代码中实现；称号发放和发布编排仍按分阶段计划推进。详见[功能状态矩阵](docs/development/feature-status.md)。
+仓库包含 Portal、Cloudflare Worker API、D1/R2 数据能力以及相关自动化工作流；运行中的部署状态需单独验证。D1、R2 证据保存、QQ 登录、玩家中心、Queue、OCR 和审核的首条地图挑战链路已在代码中实现；称号发放和发布编排仍按分阶段计划推进。详见[功能状态矩阵](docs/development/feature-status.md)。
