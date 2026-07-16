@@ -5,6 +5,7 @@ workers_dev = false
 
 [vars]
 PORTAL_ORIGIN = "https://owbastion.com"
+OCRKIT_EVIDENCE_BUCKET = "owbastion-codes-evidence"
 
 [[routes]]
 pattern = "api.owbastion.com"

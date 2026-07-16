@@ -15,6 +15,10 @@ deployment job:
 - the real D1 `database_id` written to `wrangler.toml`.
 
 Do not reuse the QQBot channel-state D1 or OCRKit's model/evidence bucket.
+When OCRKit orchestration is enabled, set the Worker variable
+`OCRKIT_EVIDENCE_BUCKET` to `owbastion-codes-evidence`. The Worker passes this
+bucket explicitly with every object-mode OCR request; it does not use OCRKit's
+default bucket.
 
 ## GitHub configuration
 

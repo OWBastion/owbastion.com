@@ -92,7 +92,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrQueue?: Queue): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string): PlatformServices => {
   const db = drizzle(database);
 
   return {
@@ -409,8 +409,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async processOcrJob(input) {
-      if (!evidenceBucket || !ocrkitBaseUrl) throw new Error("OCR_NOT_CONFIGURED");
-      const response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ object_key: input.objectKey }) });
+      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitEvidenceBucket) throw new Error("OCR_NOT_CONFIGURED");
+      const response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
       if (!response.ok) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: input.submissionId, attempt: input.attempt, status: "error", errorCode: `OCR_HTTP_${response.status}`, createdAt: now() });
         if (input.attempt >= 3) await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now() }).where(eq(submissions.id, input.submissionId));

@@ -24,6 +24,7 @@ export type RuntimeEnv = {
   LOCAL_DEV_AUTH?: string;
   UPLOAD_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
+  OCRKIT_EVIDENCE_BUCKET?: string;
   OCR_QUEUE?: Queue;
 };
 
