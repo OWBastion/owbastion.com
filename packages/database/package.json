@@ -13,6 +13,6 @@
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250705.0"
+    "@cloudflare/workers-types": "^5.20260715.1"
   }
 }
