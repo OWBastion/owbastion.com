@@ -86,7 +86,7 @@ jobs:
         with:
           images: ghcr.io/owbastion/owbastion.codes-portal
           tags: |
-            type=sha,prefix=sha-
+            type=sha,prefix=sha-,format=long
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Portal image
