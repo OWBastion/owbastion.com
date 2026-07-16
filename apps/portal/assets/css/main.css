@@ -69,8 +69,6 @@ html[data-theme="dark"] {
 html { min-width: 320px; background: var(--page); scroll-padding-top: 92px; }
 body { min-width: 320px; margin: 0; overflow-x: hidden; color: var(--text); background: var(--page); font-family: var(--font-ui); font-synthesis: none; font-optical-sizing: auto; }
 button { cursor: pointer; }
-a { color: inherit; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 [id] { scroll-margin-top: 92px; }
 
 .page-shell { width: min(100% - 28px, 1100px); margin: 0 auto; }
@@ -85,9 +83,6 @@ a { color: inherit; }
 .primary-button:active, .secondary-button:active { transform: scale(.97); }
 .primary-button:disabled, .secondary-button:disabled { cursor: default; opacity: .58; }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
-}
 @media (prefers-reduced-transparency: reduce) { .app-header { background: var(--surface) !important; backdrop-filter: none !important; } }
 @media (prefers-contrast: more) { .surface-card, .app-header { border-color: var(--text) !important; } }
 @media (max-width: 430px) { .page-shell { width: min(100% - 24px, 1100px); } }
