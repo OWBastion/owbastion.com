@@ -370,7 +370,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!authSession) throw new Error("UNAUTHENTICATED");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, attempt: 1 });
+      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
 

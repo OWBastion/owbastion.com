@@ -8,9 +8,10 @@
 | R2 | Private submission evidence when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and snapshots | Released game content and version history; the platform stores an imported immutable catalog snapshot |
 
-The OCR Queue carries only an opaque submission ID, private object key, schema
-version, and retry attempt. OCR raw output and review decisions remain in D1;
-no private screenshot is committed to the repository.
+The OCR Queue carries only an opaque submission ID, private object key, and
+schema version. The consumer receives the delivery attempt count from Queue
+metadata and records it with OCR results. OCR raw output and review decisions
+remain in D1; no private screenshot is committed to the repository.
 
 ## Implemented service boundary
 
