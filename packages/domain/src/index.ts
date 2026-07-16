@@ -24,6 +24,7 @@ import type {
   Title,
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest,
+  AdminCatalogTitleUpdateRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
 } from "@owbastion/contracts";
@@ -53,6 +54,7 @@ export type PlatformServices = {
   revokeAdminTitleGrant(input: { grantId: string; reason: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
+  updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;

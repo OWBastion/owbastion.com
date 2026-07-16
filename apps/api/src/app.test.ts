@@ -14,6 +14,7 @@ const services: PlatformServices = {
   revokeAdminTitleGrant: async () => {},
   listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
   updateAdminChallenge: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
+  updateAdminCatalogTitle: async () => {},
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
@@ -183,12 +184,14 @@ describe("API", () => {
 
   it("limits achievement management to maintainers and validates lifecycle updates", async () => {
     const updates: unknown[] = [];
+    const catalogUpdates: unknown[] = [];
     const adminApp = createApp({
       authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
       services: () => ({
         ...services,
-        listAdminChallenges: async ({ family, status }) => ({ contractVersion: "1", items: family === "achievement" && status === "active" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", category: "极限操作系列", categoryOverride: null, condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual", introducedVersion: "2026.07.15", retiredVersion: null }] : [] }),
+        listAdminChallenges: async ({ family, status }) => ({ contractVersion: "1", items: family === "achievement" && status === "active" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", category: "极限操作系列", categoryOverride: null, condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual", introducedVersion: "2026.07.15", retiredVersion: null }] : family === undefined ? [{ challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", category: "开发保留", condition: "开发/管理用途。", availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "2026.07.15", hasChallenge: false }] : [] }),
         updateAdminChallenge: async (input) => { if (input.family !== "achievement") throw new Error("CHALLENGE_NOT_FOUND"); updates.push(input); return { challengeId: input.challengeId, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", category: input.categoryOverride ?? "极限操作系列", categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: "2026.07.15", status: input.status, submissionMode: input.submissionMode, introducedVersion: "2026.07.15", retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null } as const; },
+        updateAdminCatalogTitle: async (input) => { catalogUpdates.push(input); },
       }),
     });
     expect((await app.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(403);
@@ -203,6 +206,11 @@ describe("API", () => {
     expect(updated.status).toBe(200);
     expect(await updated.json()).toMatchObject({ challengeId: "title.flawless", family: "achievement", status: "retired", retiredVersion: null });
     expect(updates).toMatchObject([{ challengeId: "title.flawless", status: "retired" }]);
+    const catalog = await adminApp.request("http://localhost/v1/admin/achievements", {}, env);
+    expect(await catalog.json()).toMatchObject({ items: [{ family: "title_catalog", titleKey: "INTERNAL", hasChallenge: false }] });
+    const titleStatus = await adminApp.request("http://localhost/v1/admin/titles/INTERNAL", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "title-catalog-1" }, body: JSON.stringify({ contractVersion: "1", status: "retired" }) }, env);
+    expect(titleStatus.status).toBe(204);
+    expect(catalogUpdates).toMatchObject([{ titleKey: "INTERNAL", status: "retired" }]);
   });
 
   it("protects the player submission catalog", async () => {

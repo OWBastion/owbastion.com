@@ -1,7 +1,7 @@
 import { desc, eq, and, gt, like, or, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminChallenge, AdminChallengeUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindings, historicalTitleGrants, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -209,6 +209,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           retiredVersion: challenge.retiredVersion,
         })));
       }
+      if (!input.family) {
+        if (input.status === "sunsetting") return { contractVersion: "1" as const, items };
+        const rows = await db.select({ title: titleCatalog, challenge: titleChallenges })
+          .from(titleCatalog)
+          .leftJoin(titleChallenges, eq(titleChallenges.titleKey, titleCatalog.key))
+          .where(input.status && input.status !== "sunsetting" ? eq(titleCatalog.availability, input.status) : undefined);
+        items.push(...rows.filter(({ challenge }) => !challenge).map(({ title }): AdminChallenge => ({
+          challengeId: `title.${title.key}`,
+          family: "title_catalog",
+          type: "title_catalog",
+          titleKey: title.key,
+          titleName: title.label,
+          category: title.category,
+          condition: title.condition,
+          availability: title.availability as "active" | "retired",
+          scope: title.scope as "global" | "map",
+          displayKind: title.displayKind as "fixed" | "map_pioneer" | "map_name_suffix",
+          status: title.availability as "active" | "retired",
+          gameVersion: title.gameVersion,
+          hasChallenge: false,
+        })));
+      }
       return { contractVersion: "1" as const, items };
     },
 
@@ -240,6 +262,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         return response;
       }
+    },
+
+    async updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth, idempotencyKey) {
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input); if (replay) return;
+      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
+      if (!title) throw new Error("TITLE_NOT_FOUND");
+      const challenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.titleKey, input.titleKey)).get();
+      if (challenge) throw new Error("TITLE_HAS_CHALLENGE");
+      await db.update(titleCatalog).set({ availability: input.status }).where(eq(titleCatalog.key, input.titleKey));
+      await recordIdempotency(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input, {});
+      await recordAudit(db, auth, "admin.title.catalog.update", "title_catalog", input.titleKey, { status: input.status });
     },
 
     async listTitles(input) {

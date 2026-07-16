@@ -11,6 +11,7 @@ import {
   adminTitleGrantBulkRequestSchema,
   adminTitleGrantRevokeRequestSchema,
   adminChallengeUpdateRequestSchema,
+  adminCatalogTitleUpdateRequestSchema,
   playerUploadSessionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
@@ -301,6 +302,25 @@ export const createApp = (dependencies: AppDependencies) => {
     if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
     if (status && !["active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
     return c.json(await dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!));
+  });
+
+  app.put("/v1/admin/titles/:titleKey", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminCatalogTitleUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      await dependencies.services(c.env).updateAdminCatalogTitle({ ...parsed.data, titleKey: c.req.param("titleKey") }, access.auth!, idempotencyKey);
+      return c.body(null, 204);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "TITLE_UPDATE_FAILED";
+      if (code === "TITLE_NOT_FOUND") return errorResponse(c, 404, code, "The title does not exist");
+      if (code === "TITLE_HAS_CHALLENGE") return errorResponse(c, 409, code, "The title has a challenge record");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.put("/v1/admin/achievements/:challengeId", async (c) => {
