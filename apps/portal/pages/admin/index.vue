@@ -11,14 +11,14 @@ const submissions = ref<AdminSubmission[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
 const enabledGroups = computed(() => groups.value.filter((group) => group.enabled).length);
-const disabledGroups = computed(() => groups.value.length - enabledGroups.value);
+const totalPlayers = ref(0);
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const metrics = computed(() => {
   const value = (count: number) => loading.value ? "读取中…" : `${count}`;
   return [
     { label: "待核对", value: value(submissions.value.length), detail: "截图提交", tone: "accent" as const },
     { label: "已开放群组", value: value(enabledGroups.value), detail: "可接收提交", tone: "accent" as const },
-    { label: "已关闭群组", value: value(disabledGroups.value), detail: "当前不接收", tone: "quiet" as const },
+	    { label: "玩家总数", value: value(totalPlayers.value), detail: "已登记账号", tone: "quiet" as const },
     { label: "群组总数", value: value(groups.value.length), detail: "已登记渠道", tone: "quiet" as const },
   ];
 });
@@ -33,12 +33,14 @@ const reviewQueue = computed(() => submissions.value.map((submission) => ({
 
 onMounted(async () => {
   try {
-    const [groupResponse, submissionResponse] = await Promise.all([
-      api<{ items: AdminGroup[] }>("/v1/qq/groups"),
-      api<{ items: AdminSubmission[] }>("/v1/submissions?status=ready_for_review"),
-    ]);
-    groups.value = groupResponse.items;
-    submissions.value = submissionResponse.items;
+	    const [groupResponse, submissionResponse, playerResponse] = await Promise.all([
+	      api<{ items: AdminGroup[] }>("/v1/qq/groups"),
+	      api<{ items: AdminSubmission[] }>("/v1/submissions?status=ready_for_review"),
+	      api<{ total: number }>("/v1/admin/player-accounts?page=1&pageSize=1"),
+	    ]);
+	    groups.value = groupResponse.items;
+	    submissions.value = submissionResponse.items;
+	    totalPlayers.value = playerResponse.total;
   } catch (error: any) {
     errorMessage.value = error?.data?.error?.message ?? "无法读取管理概览，请确认当前账号有管理员权限。";
   } finally {
