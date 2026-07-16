@@ -111,8 +111,11 @@ later refresh fails and fails closed before the first successful snapshot.
 
 ## OCR integration
 
-OCRKit remains the recognition-only service. The platform compares its
-structured `map_name`, `difficulty`, `challenge_completed`, and `player` fields
-with the selected Bastion challenge and bound player. OCRKit does not decide
-eligibility or approval. Bastion changes must remain reviewable, idempotent,
-and reconciled through its own CI and release process.
+OCRKit remains the recognition-only service. For map challenges, the platform
+compares its structured `map_name`, `difficulty`, `challenge_completed`, and
+`player` fields with the selected Bastion challenge and bound player. For manual
+title challenges, the platform ignores the synthetic submission map name and
+null difficulty, using only `challenge_completed` and `player` as OCR prechecks
+before human review. OCRKit does not decide eligibility or approval. Bastion
+changes must remain reviewable, idempotent, and reconciled through its own CI
+and release process.

@@ -4,6 +4,7 @@ import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindings, historicalTitleGrants, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
+import { matchOcrResult } from "./ocr-match";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -419,11 +420,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const result = await response.json() as { data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; player?: string | null }; fields?: unknown };
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
       const data = result.data ?? {};
-      const match = { map: normalized(data.map_name) === normalized(row.mapName), difficulty: normalized(data.difficulty) === normalized(row.difficulty), completed: data.challenge_completed === true, player: normalized(data.player).split("#")[0] === normalized(row.playerName).split("#")[0] };
+      const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.player });
       const matched = Object.values(match).every(Boolean);
-      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify(match), createdAt: now() });
+      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped }), createdAt: now() });
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, row.id));
     },
 
