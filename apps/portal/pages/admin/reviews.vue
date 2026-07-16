@@ -12,6 +12,14 @@ const errorMessage = ref("");
 const trigger = ref<HTMLElement | null>(null);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
+const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
+const columns = [
+  { accessorKey: "challenge", header: "挑战" },
+  { accessorKey: "playerName", header: "玩家" },
+  { accessorKey: "status", header: "状态" },
+  { accessorKey: "updatedAt", header: "最近更新" },
+  { id: "actions", header: "" },
+];
 async function load() {
   loading.value = true; errorMessage.value = "";
   try {
@@ -37,15 +45,19 @@ onMounted(() => { void load(); });
 </script>
 
 <template>
-  <main class="admin-page page-shell"><h1 class="sr-only">审核管理</h1>
-    <p v-if="errorMessage" class="alert" role="alert">{{ errorMessage }}</p>
-    <section aria-labelledby="reviews-title"><div class="heading"><h2 id="reviews-title">待核对</h2><span>{{ loading ? "读取中…" : `${submissions.length} 条` }}</span></div>
-      <div class="list" aria-live="polite"><button v-for="submission in submissions" :key="submission.submissionId" class="row surface-card" type="button" @click="open(submission, $event.currentTarget)"><strong>{{ submission.mapName }} · {{ submission.difficulty }}</strong><small>{{ submission.playerName }} · {{ formatStatus(submission.status) }}</small></button><p v-if="!loading && !submissions.length" class="empty surface-card">暂无待核对截图。</p></div>
-    </section>
-    <PortalSidePanel v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''" :return-focus="trigger"><section v-if="selected" class="detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><pre v-if="selected.ocr" class="ocr">{{ JSON.stringify(selected.ocr, null, 2) }}</pre><div class="actions"><PortalButton type="button" @click="review('approved')">通过</PortalButton><PortalButton tone="secondary" type="button" @click="review('resubmission_required')">要求重传</PortalButton><PortalButton tone="danger" type="button" @click="review('rejected')">驳回</PortalButton></div></section></PortalSidePanel>
-  </main>
+  <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${submissions.length} 条`">
+    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p></template>
+    <section aria-label="待核对截图"><UTable :data="submissions" :columns="columns" :loading="loading" empty="暂无待核对截图。" class="admin-table">
+      <template #challenge-cell="{ row }"><strong>{{ row.original.mapName }} · {{ row.original.difficulty }}</strong></template>
+      <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
+      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="row.original.status === 'ocr_review_required' ? 'warning' : 'success'" /></template>
+      <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
+      <template #actions-cell="{ row }"><PortalButton tone="text" type="button" @click="open(row.original, $event.currentTarget)">查看</PortalButton></template>
+    </UTable></section>
+    <PortalSidePanel v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''" :return-focus="trigger"><section v-if="selected" class="admin-detail review-detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><p class="admin-detail__meta">{{ selected.playerName }} · {{ formatStatus(selected.status) }}</p><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><pre v-if="selected.ocr" class="ocr">{{ JSON.stringify(selected.ocr, null, 2) }}</pre><div class="actions"><PortalButton type="button" @click="review('approved')">通过</PortalButton><PortalButton tone="secondary" type="button" @click="review('resubmission_required')">要求重传</PortalButton><PortalButton tone="danger" type="button" @click="review('rejected')">驳回</PortalButton></div></section></PortalSidePanel>
+  </AdminWorkspace>
 </template>
 
 <style scoped>
-.admin-page { padding-block:clamp(46px,7vh,72px); max-width:920px; }.heading { display:flex; align-items:end; justify-content:space-between; gap:20px; margin-bottom:14px; }.heading h2 { margin:0; font-size:clamp(1.5rem,3vw,2.1rem); letter-spacing:-.045em; }.heading span,.row small { color:var(--quiet); font-size:.78rem; }.list { display:grid; gap:9px; }.row { display:block; width:100%; padding:17px 18px; color:var(--text); text-align:left; transition:transform 160ms ease,border-color 160ms ease; }.row:hover,.row:focus-visible { transform:translateY(-1px); border-color:var(--line-strong); }.row strong,.row small { display:block; }.row small { margin-top:5px; }.empty { margin:0; padding:28px; color:var(--quiet); text-align:center; }.alert { margin:0 0 18px; padding:12px 14px; border-radius:11px; color:color-mix(in oklch,var(--danger) 82%,var(--text)); background:color-mix(in oklch,var(--danger) 16%,var(--surface)); font-size:.82rem; }.detail h2 { margin:0; font-size:2.25rem; letter-spacing:-.05em; overflow-wrap:anywhere; }.evidence { display:block; width:100%; margin:22px 0; border:1px solid var(--line); border-radius:10px; }.ocr { max-height:240px; overflow:auto; padding:12px; color:var(--muted); background:var(--surface); font-size:.72rem; white-space:pre-wrap; }.actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
+.table-meta { color:var(--quiet); font-size:.78rem; }.evidence { display:block; width:100%; margin:22px 0; border:1px solid var(--line); border-radius:10px; }.ocr { max-height:240px; overflow:auto; padding:12px; color:var(--muted); background:var(--surface); font-size:.72rem; white-space:pre-wrap; }.actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:20px; }
 </style>

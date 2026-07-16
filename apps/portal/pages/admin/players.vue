@@ -16,6 +16,13 @@ const page = ref(1);
 const hasMore = ref(false);
 const trigger = ref<HTMLElement | null>(null);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
+const columns = [
+  { accessorKey: "battleTag", header: "玩家" },
+  { accessorKey: "status", header: "状态" },
+  { accessorKey: "bindingCount", header: "QQ 绑定" },
+  { accessorKey: "updatedAt", header: "最近更新" },
+  { id: "actions", header: "" },
+];
 
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatBattleTag = (player: { playerName: string; playerId: string }) => `${player.playerName}#${player.playerId}`;
@@ -58,17 +65,25 @@ onMounted(() => { void load(); });
 </script>
 
 <template>
-  <main class="admin-page page-shell"><h1 class="sr-only">玩家管理</h1>
-    <p v-if="errorMessage" class="alert" role="alert">{{ errorMessage }}</p><p v-if="actionMessage" class="feedback" role="status">{{ actionMessage }}</p>
-    <section aria-labelledby="players-title"><div class="section-heading"><h2 id="players-title">玩家帐号</h2><span>{{ loading ? "读取中…" : `${players.length} 条` }}</span></div>
-      <div class="filters surface-card"><PortalInput v-model="query" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><PortalSelect v-model="status" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' }]" /></div>
-      <div class="list" aria-live="polite"><button v-for="player in players" :key="player.playerAccountId" class="row surface-card" type="button" @click="openPlayer(player, $event.currentTarget)"><span><strong>{{ formatBattleTag(player) }}</strong><small>{{ player.bindingCount }} 条绑定</small></span><StatusBadge :label="player.status === 'banned' ? '已封禁' : '正常'" :tone="player.status === 'banned' ? 'warning' : 'success'" /></button><p v-if="!loading && !players.length" class="empty surface-card">暂无匹配玩家。</p></div>
+  <AdminWorkspace title="玩家管理" :count="loading ? '读取中…' : `${players.length} 条`">
+    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p><p v-if="actionMessage" class="admin-feedback" role="status">{{ actionMessage }}</p></template>
+    <template #toolbar><div class="admin-toolbar"><PortalInput v-model="query" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><PortalSelect v-model="status" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' }]" /></div></template>
+
+    <section aria-label="玩家帐号">
+      <UTable :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" class="admin-table">
+        <template #battleTag-cell="{ row }"><strong>{{ formatBattleTag(row.original) }}</strong></template>
+        <template #status-cell="{ row }"><StatusBadge :label="row.original.status === 'banned' ? '已封禁' : '正常'" :tone="row.original.status === 'banned' ? 'warning' : 'success'" /></template>
+        <template #bindingCount-cell="{ row }"><span>{{ row.original.bindingCount }} 条</span></template>
+        <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
+        <template #actions-cell="{ row }"><PortalButton tone="text" type="button" @click="openPlayer(row.original, $event.currentTarget)">查看</PortalButton></template>
+      </UTable>
       <div class="pagination"><PortalButton tone="secondary" :disabled="page === 1" type="button" @click="page--; load()">上一页</PortalButton><span>第 {{ page }} 页</span><PortalButton tone="secondary" :disabled="!hasMore" type="button" @click="page++; load()">下一页</PortalButton></div>
     </section>
-    <PortalSidePanel v-model:open="panelOpen" :title="selected ? formatBattleTag(selected) : ''" :return-focus="trigger"><section v-if="selected" class="detail"><h2>{{ formatBattleTag(selected) }}</h2><p class="meta">最近更新 {{ formatTime(selected.updatedAt) }}</p><div class="actions"><PortalButton v-if="selected.status === 'active'" tone="danger" type="button" @click="setStatus('banned')">封禁玩家</PortalButton><PortalButton v-else type="button" @click="setStatus('active')">解除封禁</PortalButton></div><h3>QQ 绑定</h3><div class="binding-list"><div v-for="binding in selected.bindings" :key="binding.bindingId" class="binding"><div><strong>{{ binding.groupOpenId }}</strong><small>{{ binding.memberOpenId }}</small></div><PortalButton tone="text" type="button" @click="unbind(binding.bindingId)">解绑</PortalButton></div><p v-if="!selected.bindings.length" class="quiet">暂无 QQ 绑定。</p></div><h3>最近提交</h3><div class="submission-list"><div v-for="submission in selected.recentSubmissions" :key="submission.submissionId"><strong>{{ submission.mapName }}</strong><small>{{ formatSubmissionStatus(submission.status) }} · {{ formatTime(submission.updatedAt) }}</small></div><p v-if="!selected.recentSubmissions.length" class="quiet">暂无提交记录。</p></div></section></PortalSidePanel>
-  </main>
+
+    <PortalSidePanel v-model:open="panelOpen" :title="selected ? formatBattleTag(selected) : ''" :return-focus="trigger"><section v-if="selected" class="admin-detail player-detail"><h2>{{ formatBattleTag(selected) }}</h2><p class="admin-detail__meta">最近更新 {{ formatTime(selected.updatedAt) }}</p><div class="actions"><PortalButton v-if="selected.status === 'active'" tone="danger" type="button" @click="setStatus('banned')">封禁玩家</PortalButton><PortalButton v-else type="button" @click="setStatus('active')">解除封禁</PortalButton></div><h3>QQ 绑定</h3><div class="binding-list"><div v-for="binding in selected.bindings" :key="binding.bindingId" class="binding"><div><strong>{{ binding.groupOpenId }}</strong><small>{{ binding.memberOpenId }}</small></div><PortalButton tone="text" type="button" @click="unbind(binding.bindingId)">解绑</PortalButton></div><p v-if="!selected.bindings.length" class="quiet">暂无 QQ 绑定。</p></div><h3>最近提交</h3><div class="submission-list"><div v-for="submission in selected.recentSubmissions" :key="submission.submissionId"><strong>{{ submission.mapName }}</strong><small>{{ formatSubmissionStatus(submission.status) }} · {{ formatTime(submission.updatedAt) }}</small></div><p v-if="!selected.recentSubmissions.length" class="quiet">暂无提交记录。</p></div></section></PortalSidePanel>
+  </AdminWorkspace>
 </template>
 
 <style scoped>
-.admin-page { padding-block: clamp(46px, 7vh, 72px); max-width: 920px; }.section-heading { display:flex; align-items:end; justify-content:space-between; gap:20px; margin-bottom:14px; }.section-heading h2 { margin:0; font-size:clamp(1.5rem,3vw,2.1rem); letter-spacing:-.045em; }.section-heading span,.row small,.binding small,.submission-list small { color:var(--quiet); font-size:.78rem; }.filters { display:flex; gap:8px; padding:9px; margin-bottom:10px; }.filters > * { min-width:0; flex:1; }.list,.binding-list,.submission-list { display:grid; gap:9px; }.row { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; padding:16px 18px; color:var(--text); text-align:left; transition:transform 160ms ease,border-color 160ms ease; }.row:hover,.row:focus-visible { transform:translateY(-1px); border-color:var(--line-strong); }.row strong,.row small,.binding strong,.binding small,.submission-list strong,.submission-list small { display:block; }.row small,.binding small,.submission-list small { margin-top:5px; }.empty { margin:0; padding:24px; color:var(--quiet); text-align:center; }.pagination { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:16px; color:var(--muted); font-size:.78rem; }.alert,.feedback { margin:0 0 18px; padding:12px 14px; border-radius:11px; font-size:.82rem; }.alert { color:color-mix(in oklch,var(--danger) 82%,var(--text)); background:color-mix(in oklch,var(--danger) 16%,var(--surface)); }.feedback { background:var(--accent-surface); }.detail h2 { margin:0; font-size:2.25rem; letter-spacing:-.05em; overflow-wrap:anywhere; }.meta { margin:9px 0 22px; color:var(--quiet); font-size:.8rem; }.actions { margin-bottom:32px; }.detail h3 { margin:26px 0 10px; font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; }.binding,.submission-list > div { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--line); border-radius:10px; }.submission-list > div { display:block; }.quiet { color:var(--quiet); font-size:.8rem; }@media (max-width:560px){.filters{flex-direction:column}.row{align-items:flex-start}.binding{align-items:flex-start;flex-direction:column}}
+.table-meta,.binding small,.submission-list small { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:16px; color:var(--muted); font-size:.78rem; }.actions { margin-bottom:32px; }.player-detail h3 { margin:26px 0 10px; font-size:.8rem; letter-spacing:.04em; text-transform:uppercase; }.binding-list,.submission-list { display:grid; gap:9px; }.binding,.submission-list > div { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid var(--line); border-radius:10px; }.submission-list > div { display:block; }.binding strong,.binding small,.submission-list strong,.submission-list small { display:block; }.binding small,.submission-list small { margin-top:5px; }.quiet { color:var(--quiet); font-size:.8rem; }@media (max-width:560px){.binding{align-items:flex-start;flex-direction:column}}
 </style>

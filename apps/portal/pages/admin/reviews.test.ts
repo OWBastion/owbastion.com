@@ -16,8 +16,8 @@ describe("admin reviews page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(ReviewsPage, { attachTo: document.body });
     await flushPromises();
-    expect(wrapper.findAll(".row")).toHaveLength(2);
-    await wrapper.get(".row").trigger("click");
+    expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(2);
+    await wrapper.get(".admin-table .text-button").trigger("click");
     await flushPromises();
     expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
   });

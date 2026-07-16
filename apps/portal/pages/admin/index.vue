@@ -48,15 +48,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="admin-dashboard page-shell">
-    <h1 class="sr-only">管理后台概览</h1>
-    <p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p>
+  <AdminWorkspace title="管理概览">
+    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p></template>
     <AdminDashboardMetrics :metrics="metrics" />
     <AdminReviewQueue class="dashboard-queue" :loading="loading" :reviews="reviewQueue" />
     <AdminManagementLinks class="dashboard-tools" />
-  </main>
+  </AdminWorkspace>
 </template>
 
 <style scoped>
-.admin-dashboard { display:grid; gap:clamp(24px,4vw,38px); padding-block:clamp(46px,7vh,72px); max-width:1100px; }.dashboard-tools { margin-top:clamp(12px,2vw,24px); }.admin-alert { margin:0; padding:12px 14px; border-radius:11px; color:color-mix(in oklch,var(--danger) 82%,var(--text)); background:color-mix(in oklch,var(--danger) 16%,var(--surface)); font-size:.82rem; }
+.dashboard-tools { margin-top:clamp(12px,2vw,24px); }
 </style>

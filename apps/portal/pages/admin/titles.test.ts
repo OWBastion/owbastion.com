@@ -35,7 +35,7 @@ describe("title migration page", () => {
   it("replaces the list with matching historical holders after searching", async () => {
     const wrapper = await mountPage();
     await wrapper.get('input[aria-label="搜索历史称号"]').setValue("Cold");
-    await wrapper.get(".filters .secondary-button").trigger("click");
+    await wrapper.get(".admin-toolbar .secondary-button").trigger("click");
     await flushPromises();
     expect(wrapper.findAll(".holder-group")).toHaveLength(1);
     expect(wrapper.text()).toContain("Cold");

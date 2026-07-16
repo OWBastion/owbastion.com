@@ -15,7 +15,7 @@ describe("admin players page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(PlayersPage, { attachTo: document.body, global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" } } } });
     await flushPromises();
-    const trigger = wrapper.get(".row");
+    const trigger = wrapper.get(".admin-table .text-button");
     (trigger.element as HTMLButtonElement).focus();
     await trigger.trigger("click");
     await flushPromises();
