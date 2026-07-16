@@ -301,8 +301,8 @@ onMounted(() => void load());
               </form>
             </template>
             <template #footer>
-              <UButton label="取消" color="neutral" variant="outline" size="sm" :disabled="editingItem ? isSaving(editingItem) : false" @click="closeEditing" />
-              <UButton label="保存规则" size="sm" form="achievement-editor" :loading="editingItem ? isSaving(editingItem) : false" type="submit" />
+              <UButton label="取消" color="neutral" variant="outline" size="xs" :ui="{ base: 'min-h-7 px-2 py-1 text-[11px] gap-1' }" :disabled="editingItem ? isSaving(editingItem) : false" @click="closeEditing" />
+              <UButton label="保存规则" size="xs" :ui="{ base: 'min-h-7 px-2 py-1 text-[11px] gap-1' }" form="achievement-editor" :loading="editingItem ? isSaving(editingItem) : false" type="submit" />
             </template>
           </UModal>
         </section>
