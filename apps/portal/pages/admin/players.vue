@@ -14,6 +14,13 @@ const actionMessage = ref("");
 const page = ref(1);
 const total = ref(0);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
+const statusColumnFilters = computed({
+  get: () => status.value === "all" ? [] : [{ id: "status", value: status.value }],
+  set: (filters: Array<{ id: string; value: unknown }>) => {
+    const value = filters.find((filter) => filter.id === "status")?.value;
+    status.value = value === "active" || value === "banned" ? value : "all";
+  },
+});
 const columns = [
   { accessorKey: "battleTag", header: "玩家" },
   { accessorKey: "status", header: "状态" },
@@ -61,10 +68,9 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="玩家管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
-    <template #toolbar><div class="admin-toolbar"><UInput v-model="query" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><USelect v-model="status" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' }]" /></div></template>
-
     <section aria-label="玩家帐号">
-      <AdminDataTable v-model:global-filter="query" :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" table-key="players" manual-filtering scroll-height="32rem" :reset-scroll-key="page" class="admin-table">
+      <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:global-filter="query" :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" table-key="players" manual-filtering scroll-height="32rem" :reset-scroll-key="page" class="admin-table">
+        <template #filters><UInput v-model="query" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><USelect v-model="status" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' }]" /></template>
         <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
         <template #status-cell="{ row }"><StatusBadge :label="row.original.status === 'banned' ? '已封禁' : '正常'" :tone="row.original.status === 'banned' ? 'warning' : 'success'" /></template>
         <template #bindingCount-cell="{ row }"><span>{{ row.original.bindingCount }} 条</span></template>

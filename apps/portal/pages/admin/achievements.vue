@@ -78,6 +78,13 @@ const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : it
 const statusText = (value: AchievementStatus) => value === "active" ? "已开放" : value === "sunsetting" ? "即将结束" : "已下线";
 const statusTone = (value: AchievementStatus) => value === "active" ? "success" : "warning";
 const isSaving = (item: AdminAchievement) => savingId.value === item.challengeId;
+const statusColumnFilters = computed({
+  get: () => status.value === "all" ? [] : [{ id: "status", value: status.value }],
+  set: (filters: Array<{ id: string; value: unknown }>) => {
+    const value = filters.find((filter) => filter.id === "status")?.value;
+    status.value = value === "active" || value === "sunsetting" || value === "retired" ? value : "all";
+  },
+});
 const titleItems = computed(() => items.value.filter(isTitle));
 const mapItems = computed(() => items.value.filter(isMap));
 const editingItem = computed(() => {
@@ -145,9 +152,7 @@ async function load() {
   loading.value = true;
   errorMessage.value = "";
   try {
-    const query = new URLSearchParams();
-    if (status.value !== "all") query.set("status", status.value);
-    const response = await api<{ items: AdminAchievement[] }>(`/v1/achievements${query.size ? `?${query}` : ""}`);
+    const response = await api<{ items: AdminAchievement[] }>("/v1/achievements");
     items.value = response.items;
     for (const item of items.value) if (isChallengeTitle(item) || isMap(item)) retirementVersions[item.challengeId] ??= item.retiredVersion ?? "";
     if (editingId.value && !items.value.some((item) => item.challengeId === editingId.value)) editingId.value = null;
@@ -268,7 +273,6 @@ async function endChallenge() {
   if (await save(item, updatePayload(item, "retired"), "挑战已下线")) closeEnd();
 }
 
-watch(status, () => { void load(); });
 onMounted(() => void load());
 </script>
 
@@ -276,15 +280,14 @@ onMounted(() => void load());
   <AdminWorkspace title="成就管理" :count="loading ? '读取中…' : `${items.length} 项`">
     <template #actions><NuxtLink class="migration-link" to="/admin/titles">称号迁移</NuxtLink></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
-    <template #toolbar><div class="admin-toolbar"><USelect v-model="status" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></div></template>
-
     <section class="catalog" aria-labelledby="catalog-title">
       <div class="catalog-heading"><h2 id="catalog-title">已登记成就</h2></div>
       <UTabs v-model="activeTab" :items="achievementTabs" aria-label="成就类型" class="catalog-tabs">
         <template #generic>
         <section class="catalog-section" aria-labelledby="title-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleItems.length }} 项</span></div>
-          <AdminDataTable :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
+          <AdminDataTable v-model:column-filters="statusColumnFilters" :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
+            <template #filters><USelect v-model="status" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #category-cell="{ row }"><span class="table-meta">{{ row.original.category }}</span></template>
             <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `引入版本 ${row.original.introducedVersion}` : row.original.scope === 'map' ? '地图称号' : '目录称号' }}</small></template>
             <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
@@ -311,7 +314,8 @@ onMounted(() => void load());
         <template #map>
         <section class="catalog-section" aria-labelledby="map-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">地图挑战</p><h3 id="map-achievements-title">按地图管理</h3></div><span>{{ mapItems.length }} 项</span></div>
-          <AdminDataTable :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
+          <AdminDataTable v-model:column-filters="statusColumnFilters" :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
+            <template #filters><USelect v-model="status" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #mapName-cell="{ row }"><span class="table-meta">{{ row.original.mapName }}</span></template>
             <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
             <template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template>

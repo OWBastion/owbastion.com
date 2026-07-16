@@ -15,6 +15,8 @@ describe("admin players page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(PlayersPage, { attachTo: document.body, global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" } } } });
     await flushPromises();
+    expect(wrapper.find(".admin-table [aria-label='搜索玩家']").exists()).toBe(true);
+    expect(wrapper.find(".admin-workspace__toolbar").exists()).toBe(false);
     const trigger = wrapper.findAll(".admin-table button").find((button) => button.text() === "查看")!;
     await trigger.trigger("click");
     await flushPromises();

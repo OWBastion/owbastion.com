@@ -45,6 +45,8 @@ describe("achievement admin page", () => {
   it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("通用成就");
+    expect(wrapper.find(".admin-table [aria-label='筛选成就状态']").exists()).toBe(true);
+    expect(wrapper.find(".admin-workspace__toolbar").exists()).toBe(false);
     expect(wrapper.text()).toContain("战绩");
     expect(wrapper.text()).toContain("内部称号");
     expect(wrapper.text()).toContain("未开放");
