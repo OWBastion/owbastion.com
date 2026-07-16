@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindings, historicalTitleGrants, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { userEvidenceObjectKey } from "./object-key";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -85,7 +86,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   if (bytes.byteLength === 0 || bytes.byteLength > 10 * 1024 * 1024) throw new Error("ATTACHMENT_SIZE_INVALID");
   const sha256 = await digestHex(bytes);
   const extension = responseType === "image/jpeg" ? "jpg" : responseType.split("/")[1] ?? "bin";
-  const objectKey = `evidence/submissions/${submissionId}/${sha256}.${extension}`;
+  const objectKey = userEvidenceObjectKey(submissionId, sha256, extension);
   await bucket.put(objectKey, bytes, { httpMetadata: { contentType: responseType } });
   await db.update(attachments).set({ objectKey, sha256, byteSize: bytes.byteLength, uploadStatus: "stored" }).where(eq(attachments.id, attachmentId));
   return objectKey;
@@ -340,7 +341,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
-      const objectKey = `evidence/submissions/${submissionId}/${input.sha256}.upload`;
+      const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
       await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };

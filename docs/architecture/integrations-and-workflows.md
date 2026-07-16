@@ -44,7 +44,9 @@ The current API implements versioned v1 QQ flows:
 
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
-public object URL.
+public object URL. User screenshot objects use the shared `uploads/` namespace,
+with platform-generated keys under `uploads/submissions/<submissionId>/`; the
+same object key is stored in D1 and sent to OCRKit.
 
 ## Submission lifecycle
 
