@@ -195,6 +195,7 @@ function closeEnd() {
 
 function toggleEditing(id: string) {
   editingId.value = editingId.value === id ? null : id;
+  if (editingId.value) void nextTick(() => document.querySelector<HTMLElement>(".editor")?.scrollIntoView?.({ behavior: "smooth", block: "start" }));
 }
 
 function closeEditing() {
@@ -290,6 +291,7 @@ onMounted(() => void load());
 .editor-heading h4 { margin: 0; font-size: 1.2rem; letter-spacing: -.03em; }
 .editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
+.plan-popover :deep(.portal-button), .end-dialog :deep(.portal-button) { min-height: 28px; padding-inline: 8px; font-size: .76rem; }
 .end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
 .portal-button { transition: transform 140ms ease, border-color 140ms ease, background 140ms ease; }
 .portal-button:active { transform: scale(.97); }
