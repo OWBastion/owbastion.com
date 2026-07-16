@@ -79,6 +79,10 @@ const editingItem = computed(() => {
   const item = titleItems.value.find((candidate) => candidate.challengeId === editingId.value);
   return item && isChallengeTitle(item) ? item : null;
 });
+const editorOpen = computed({
+  get: () => editingItem.value !== null,
+  set: (open: boolean) => { if (!open) closeEditing(); },
+});
 const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : item.status === "active" ? "未开放" : "已下线";
 const achievementStatusTone = (item: AdminAchievement) => isChallengeTitle(item) ? statusTone(item.status) : "warning";
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
@@ -281,9 +285,20 @@ onMounted(() => void load());
             <template #status-cell="{ row }"><StatusBadge :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" /></template>
             <template #actions-cell="{ row }"><div class="table-actions"><template v-if="isChallengeTitle(row.original)"><button class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template><template v-else><button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template></div></template>
           </UTable>
-          <UModal :open="editingItem !== null" title="编辑规则" @update:open="(open) => { if (!open) closeEditing(); }"><template #body>
-          <form v-if="editingItem" class="editor surface-card" @submit.prevent="saveTitle(editingItem)"><div class="editor-heading"><div><p class="eyebrow">编辑规则</p><h4>{{ editingItem.titleName }}</h4></div><UButton label="收起" color="neutral" variant="link" :disabled="isSaving(editingItem)" @click="closeEditing" /></div><UFormField label="完成条件" required><UTextarea v-model="editingItem.condition" required maxlength="1024" :disabled="isSaving(editingItem)" /></UFormField><UFormField label="截图规则" required><UTextarea v-model="editingItem.evidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" /></UFormField><UFormField label="提交方式"><USelect v-model="editingItem.submissionMode" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField><UFormField label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField><div class="editor-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(editingItem)" @click="closeEditing" /><UButton label="保存规则" :loading="isSaving(editingItem)" type="submit" /></div></form>
-          </template></UModal>
+          <UModal v-model:open="editorOpen" title="编辑规则" :description="editingItem?.titleName" scrollable :ui="{ content: 'max-w-2xl', body: 'p-0 sm:p-0' }">
+            <template #body>
+              <form v-if="editingItem" id="achievement-editor" class="editor" @submit.prevent="saveTitle(editingItem)">
+                <UFormField class="editor-field" label="完成条件" required><UTextarea class="editor-control" v-model="editingItem.condition" required maxlength="1024" :disabled="isSaving(editingItem)" /></UFormField>
+                <UFormField class="editor-field" label="截图规则" required><UTextarea class="editor-control" v-model="editingItem.evidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" /></UFormField>
+                <UFormField class="editor-field" label="提交方式"><USelect class="editor-control" v-model="editingItem.submissionMode" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" /></UFormField>
+                <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput class="editor-control" :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField>
+              </form>
+            </template>
+            <template #footer>
+              <UButton label="取消" color="neutral" variant="outline" size="sm" :disabled="editingItem ? isSaving(editingItem) : false" @click="closeEditing" />
+              <UButton label="保存规则" size="sm" form="achievement-editor" :loading="editingItem ? isSaving(editingItem) : false" type="submit" />
+            </template>
+          </UModal>
         </section>
 
         <section class="catalog-section" aria-labelledby="map-achievements-title">
@@ -329,10 +344,9 @@ onMounted(() => void load());
 .table-action-danger { color: var(--error); }
 .table-action-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
 .editor, .end-dialog, .plan-popover { display: grid; gap: 16px; }
-.editor { padding: 20px; }
-.editor-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
-.editor-heading .eyebrow { margin-bottom: 5px; }
-.editor-heading h4 { margin: 0; font-size: 1.2rem; letter-spacing: -.03em; }
+.editor { padding: 24px; gap: 20px; }
+.editor-field, .editor-control { width: 100%; }
+.editor :deep(textarea) { min-height: 104px; }
 .editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .plan-popover :deep(.portal-button), .end-dialog :deep(.portal-button) { min-height: 28px; padding-inline: 8px; font-size: .76rem; }
