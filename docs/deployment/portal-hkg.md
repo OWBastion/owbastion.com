@@ -64,12 +64,29 @@ ghcr.io/owbastion/owbastion.codes-portal
 ```
 
 Each commit receives an immutable `sha-<commit>` tag. The `latest` tag is also
-updated for convenience, but production rollouts should use the commit tag.
+updated for convenience; automatic production deployments use the immutable
+commit tag, while manual deployments may select either tag.
 The package must be set to public in the repository's GitHub Packages settings;
 the HKG server then needs no GHCR pull credential.
 
-The workflow publishes the image only. It does not log in to HKG or change the
-server's Docker Compose state.
+After the image workflow succeeds on `main`, the Portal deployment workflow
+connects to HKG over SSH and updates the `portal` Compose service to the
+matching immutable `sha-<commit>` tag. The deployment uses the GitHub
+`production` environment and these secrets:
+
+- `SSH_HOST`
+- `SSH_PORT`
+- `SSH_USER`
+- `SSH_PRIVATE_KEY`
+- `SSH_KNOWN_HOSTS`
+- `DEPLOY_PATH` (normally `/opt/owbastion-portal`)
+
+The server operator must provide the SSH key's matching public key on the
+server and keep the `SSH_KNOWN_HOSTS` value current. The workflow does not use
+`ssh-keyscan` or change Tunnel credentials and DNS settings.
+
+The deployment workflow also supports manual execution. Its `image_tag` input
+defaults to `latest` and can be set to any already-published `sha-<commit>` tag.
 
 ## Image verification
 
@@ -112,7 +129,7 @@ Portal service, and verify `/health`:
 ```bash
 export PORTAL_IMAGE_TAG=sha-<commit>
 rtk docker compose pull portal
-rtk docker compose up -d portal
+rtk docker compose up -d --wait portal
 rtk docker compose ps
 rtk curl http://127.0.0.1:3000/health
 ```
@@ -123,7 +140,7 @@ known-good commit tag:
 ```bash
 export PORTAL_IMAGE_TAG=sha-<previous-commit>
 rtk docker compose pull portal
-rtk docker compose up -d portal
+rtk docker compose up -d --wait portal
 rtk curl http://127.0.0.1:3000/health
 ```
 

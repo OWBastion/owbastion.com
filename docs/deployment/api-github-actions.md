@@ -15,6 +15,10 @@ deployment job:
 - the real D1 `database_id` written to `wrangler.toml`.
 
 Do not reuse the QQBot channel-state D1 or OCRKit's model/evidence bucket.
+For the coded OCRKit orchestration, set the Worker variable
+`OCRKIT_EVIDENCE_BUCKET` to `owbastion-codes-evidence`. The Worker passes this
+bucket explicitly with every object-mode OCR request; it does not use OCRKit's
+default bucket.
 
 ## GitHub configuration
 
@@ -86,8 +90,9 @@ GET https://api.owbastion.com/v1/submissions/<submission-id>
 
 With the R2 binding available, a valid image submission reaches `ocr_pending`;
 an unavailable or invalid source image reaches `resubmission_required`.
-OCRKit orchestration, review, title grants, and Bastion changes are not part of
-this deployment.
+OCRKit orchestration, review, and title grants are coded platform capabilities
+but are not production-verified by this deployment workflow. Bastion changes
+remain planned. See the [feature status matrix](../development/feature-status.md).
 
 ## Rollback
 

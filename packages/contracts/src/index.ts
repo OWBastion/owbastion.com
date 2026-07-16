@@ -147,7 +147,47 @@ export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId: z.string().uuid() });
+export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
+export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative() });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().min(1).max(256) });
+
+const adminMapChallengeSchema = mapChallengeSchema.extend({
+  status: z.enum(["active", "retired"]),
+  introducedVersion: z.string().trim().min(1).max(64),
+  retiredVersion: z.string().trim().min(1).max(64).nullable(),
+});
+const adminAchievementChallengeSchema = achievementChallengeSchema.extend({
+  categoryOverride: z.string().trim().min(1).max(128).nullable(),
+  status: z.enum(["active", "retired"]),
+  introducedVersion: z.string().trim().min(1).max(64),
+  retiredVersion: z.string().trim().min(1).max(64).nullable(),
+});
+export const adminChallengeSchema = z.discriminatedUnion("family", [adminMapChallengeSchema, adminAchievementChallengeSchema]);
+export const adminChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminChallengeSchema) });
+
+const adminMapChallengeUpdateSchema = z.object({
+  contractVersion,
+  family: z.literal("map"),
+  status: z.enum(["active", "retired"]),
+  retiredVersion: z.string().trim().min(1).max(64).optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === "retired" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retired version is required" });
+  if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
+});
+const adminAchievementChallengeUpdateSchema = z.object({
+  contractVersion,
+  family: z.literal("achievement"),
+  condition: z.string().trim().min(1).max(1024),
+  evidenceRule: z.string().trim().min(1).max(2048),
+  submissionMode: z.enum(["manual", "automatic"]),
+  categoryOverride: z.string().trim().min(1).max(128).nullable(),
+  status: z.enum(["active", "retired"]),
+  retiredVersion: z.string().trim().min(1).max(64).optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === "retired" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retired version is required" });
+  if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
+});
+export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
 
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
@@ -280,7 +320,12 @@ export type OwnedTitleListResponse = z.infer<typeof ownedTitleListResponseSchema
 export type HistoricalTitleGrant = z.infer<typeof historicalTitleGrantSchema>;
 export type HistoricalTitleGrantListResponse = z.infer<typeof historicalTitleGrantListResponseSchema>;
 export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema>;
+export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
+export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
 export type AdminTitleGrantRevokeRequest = z.infer<typeof adminTitleGrantRevokeRequestSchema>;
+export type AdminChallenge = z.infer<typeof adminChallengeSchema>;
+export type AdminChallengeListResponse = z.infer<typeof adminChallengeListResponseSchema>;
+export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateRequestSchema>;
 export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;

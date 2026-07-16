@@ -4,13 +4,16 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, map title rewards, historical title snapshots, and auditable player title grants |
+| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map title rewards, historical title snapshots, and auditable player title grants |
 | R2 | Private submission evidence when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and snapshots | Released game content and version history; the platform stores an imported immutable catalog snapshot |
 
-The OCR Queue carries only an opaque submission ID, private object key, schema
-version, and retry attempt. OCR raw output and review decisions remain in D1;
-no private screenshot is committed to the repository.
+The OCR Queue carries only an opaque submission ID, private object key, and
+schema version. The consumer resolves the platform evidence bucket from the
+Worker configuration and passes it explicitly to OCRKit; OCRKit's default
+bucket is not used for platform evidence. The consumer receives the delivery attempt count from Queue
+metadata and records it with OCR results. OCR raw output and review decisions
+remain in D1; no private screenshot is committed to the repository.
 
 ## Implemented service boundary
 
@@ -20,7 +23,9 @@ writes require an idempotency key and record an audit event. Administrative
 requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
-and auditable.
+and auditable. Achievement-catalog changes use the same authorization,
+idempotency, and audit boundary; they do not permit administrators to modify
+the immutable imported Bastion title or map facts.
 
 Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
 bind the expected byte size and SHA-256, expire after ten minutes, and store

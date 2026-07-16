@@ -9,7 +9,8 @@ export default defineEventHandler(async (event) => {
 
   for (const name of ["cookie", "idempotency-key", "content-type", "x-login-attempt-token"]) {
     const value = request.headers[name];
-    if (value) headers[name] = Array.isArray(value) ? value[0] : value;
+    const headerValue = Array.isArray(value) ? value[0] : value;
+    if (headerValue) headers[name] = headerValue;
   }
 
   const method = request.method ?? "GET";

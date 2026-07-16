@@ -10,7 +10,10 @@ const services: PlatformServices = {
   listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", category: "社区贡献系列", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
   listHistoricalTitleGrants: async () => [],
   createAdminTitleGrant: async () => {},
+  createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0 }),
   revokeAdminTitleGrant: async () => {},
+  listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
+  updateAdminChallenge: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
@@ -120,6 +123,63 @@ describe("API", () => {
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "title-grant-1" }, body }, env)).status).toBe(204);
   });
 
+  it("bulk-links every unclaimed title held by one exact historical player name", async () => {
+    const requests: Array<{ holderName: string; playerAccountId: string; idempotencyKey: string }> = [];
+    const responses = new Map<string, { contractVersion: "1"; grantedCount: number }>();
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, createAdminTitleGrantBulk: async (input, _auth, idempotencyKey) => {
+        const existing = responses.get(idempotencyKey);
+        if (existing) {
+          const request = requests.find((value) => value.idempotencyKey === idempotencyKey)!;
+          if (request.holderName !== input.holderName || request.playerAccountId !== input.playerAccountId) throw new Error("IDEMPOTENCY_CONFLICT");
+          return existing;
+        }
+        requests.push({ ...input, idempotencyKey });
+        const response = { contractVersion: "1" as const, grantedCount: input.holderName === "Cold" ? 42 : 0 };
+        responses.set(idempotencyKey, response);
+        return response;
+      } }),
+    });
+    const body = JSON.stringify({ contractVersion: "1", holderName: "Cold", playerAccountId: "11111111-1111-4111-8111-111111111111" });
+    expect((await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
+    expect((await app.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env)).status).toBe(403);
+    const first = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ contractVersion: "1", grantedCount: 42 });
+    const replay = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env);
+    expect(await replay.json()).toEqual({ contractVersion: "1", grantedCount: 42 });
+    const conflict = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body: JSON.stringify({ contractVersion: "1", holderName: "Boo", playerAccountId: "11111111-1111-4111-8111-111111111111" }) }, env);
+    expect(conflict.status).toBe(409);
+    expect(requests).toEqual([{ contractVersion: "1", holderName: "Cold", playerAccountId: "11111111-1111-4111-8111-111111111111", idempotencyKey: "bulk-1" }]);
+  });
+
+  it("limits achievement management to maintainers and validates lifecycle updates", async () => {
+    const updates: unknown[] = [];
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        listAdminChallenges: async ({ family, status }) => ({ contractVersion: "1", items: family === "achievement" && status === "active" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", category: "极限操作系列", categoryOverride: null, condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual", introducedVersion: "2026.07.15", retiredVersion: null }] : [] }),
+        updateAdminChallenge: async (input) => { if (input.family !== "achievement") throw new Error("CHALLENGE_NOT_FOUND"); updates.push(input); return { challengeId: input.challengeId, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", category: input.categoryOverride ?? "极限操作系列", categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: "2026.07.15", status: input.status, submissionMode: input.submissionMode, introducedVersion: "2026.07.15", retiredVersion: input.status === "retired" ? input.retiredVersion! : null } as const; },
+      }),
+    });
+    expect((await app.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(403);
+    const anonymousApp = createApp({ authenticate: async () => null, services: () => services });
+    expect((await anonymousApp.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(401);
+    const listed = await adminApp.request("http://localhost/v1/admin/achievements?type=title_achievement&status=active", {}, env);
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toMatchObject({ items: [{ family: "achievement", categoryOverride: null }] });
+    const retirement = { contractVersion: "1", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: "极限操作系列", status: "retired", retiredVersion: "2026.07.16" };
+    expect((await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(retirement) }, env)).status).toBe(422);
+    const updated = await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "achievement-1" }, body: JSON.stringify(retirement) }, env);
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject({ challengeId: "title.flawless", family: "achievement", status: "retired", retiredVersion: "2026.07.16" });
+    expect(updates).toMatchObject([{ challengeId: "title.flawless", status: "retired", retiredVersion: "2026.07.16" }]);
+    const invalidRetirement = { ...retirement, retiredVersion: undefined };
+    expect((await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "achievement-2" }, body: JSON.stringify(invalidRetirement) }, env)).status).toBe(422);
+  });
+
   it("protects the player submission catalog", async () => {
     const requestedFamilies: Array<string | undefined> = [];
     const catalogServices: PlatformServices = {
@@ -200,6 +260,30 @@ describe("API", () => {
     }, env);
     expect(response.status).toBe(422);
     expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_NOT_FOUND" } });
+  });
+
+  it("maps upload ownership failures to an invalid upload session", async () => {
+    const ownershipApp = createApp({
+      authenticate: async () => null,
+      services: () => ({
+        ...services,
+        uploadEvidence: async () => { throw new Error("UPLOAD_SESSION_INVALID"); },
+        completePlayerUpload: async () => { throw new Error("UPLOAD_SESSION_INVALID"); },
+      }),
+    });
+    const upload = await ownershipApp.request("http://localhost/v1/uploads/00000000-0000-0000-0000-000000000004", {
+      method: "PUT",
+      headers: { cookie: "owb_session=session-token", "content-type": "image/png" },
+      body: "evidence",
+    }, env);
+    const complete = await ownershipApp.request("http://localhost/v1/player/uploads/00000000-0000-0000-0000-000000000004/complete", {
+      method: "POST",
+      headers: { cookie: "owb_session=session-token" },
+    }, env);
+    expect(upload.status).toBe(422);
+    expect(complete.status).toBe(422);
+    expect((await upload.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
+    expect((await complete.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
   });
 
   it("clears the portal session on logout", async () => {

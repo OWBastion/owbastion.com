@@ -1,8 +1,10 @@
-import { desc, eq, and, gt, like, or, inArray } from "drizzle-orm";
+import { desc, eq, and, gt, like, or, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindings, historicalTitleGrants, identities, idempotencyKeys, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqLoginAttempts, qqSessions, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { userEvidenceObjectKey } from "./object-key";
+import { matchOcrResult } from "./ocr-match";
 
 const now = () => Date.now();
 const loginTtlMs = 2 * 60 * 1000;
@@ -85,13 +87,13 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   if (bytes.byteLength === 0 || bytes.byteLength > 10 * 1024 * 1024) throw new Error("ATTACHMENT_SIZE_INVALID");
   const sha256 = await digestHex(bytes);
   const extension = responseType === "image/jpeg" ? "jpg" : responseType.split("/")[1] ?? "bin";
-  const objectKey = `evidence/submissions/${submissionId}/${sha256}.${extension}`;
+  const objectKey = userEvidenceObjectKey(submissionId, sha256, extension);
   await bucket.put(objectKey, bytes, { httpMetadata: { contentType: responseType } });
   await db.update(attachments).set({ objectKey, sha256, byteSize: bytes.byteLength, uploadStatus: "stored" }).where(eq(attachments.id, attachmentId));
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrQueue?: Queue): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string): PlatformServices => {
   const db = drizzle(database);
 
   return {
@@ -133,7 +135,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           kind: "title_achievement",
           titleKey: title.key,
           titleName: title.label,
-          category: title.category,
+          category: challenge.categoryOverride ?? title.category,
           condition: challenge.condition,
           evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
@@ -142,6 +144,86 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         })));
       }
       return items;
+    },
+
+    async listAdminChallenges(input) {
+      const items: AdminChallenge[] = [];
+      if (!input.family || input.family === "map") {
+        const rows = await db.select({ challenge: achievementChallenges, map: maps })
+          .from(achievementChallenges)
+          .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
+          .where(input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : "active") : undefined)
+          .orderBy(maps.name, achievementChallenges.name);
+        items.push(...rows.map(({ challenge, map }): AdminChallenge => ({
+          challengeId: challenge.id,
+          family: "map",
+          type: "map_completion",
+          kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion",
+          name: challenge.name,
+          mapId: map.id,
+          mapName: map.name,
+          difficulty: challenge.difficulty ?? undefined,
+          gameVersion: challenge.gameVersion,
+          status: challenge.status === "active" ? "active" : "retired",
+          introducedVersion: challenge.introducedVersion,
+          retiredVersion: challenge.retiredVersion,
+        })));
+      }
+      if (!input.family || input.family === "achievement") {
+        const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
+          .from(titleChallenges)
+          .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+          .where(input.status ? eq(titleChallenges.status, input.status) : undefined)
+          .orderBy(titleCatalog.category, titleCatalog.label);
+        items.push(...rows.map(({ challenge, title }): AdminChallenge => ({
+          challengeId: challenge.id,
+          family: "achievement",
+          type: "title_achievement",
+          kind: "title_achievement",
+          titleKey: title.key,
+          titleName: title.label,
+          category: challenge.categoryOverride ?? title.category,
+          categoryOverride: challenge.categoryOverride,
+          condition: challenge.condition,
+          evidenceRule: challenge.evidenceRule,
+          gameVersion: challenge.gameVersion,
+          status: challenge.status as "active" | "retired",
+          submissionMode: challenge.submissionMode as "manual" | "automatic",
+          introducedVersion: challenge.introducedVersion,
+          retiredVersion: challenge.retiredVersion,
+        })));
+      }
+      return { contractVersion: "1" as const, items };
+    },
+
+    async updateAdminChallenge(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<AdminChallenge>(db, auth.subject, "admin.achievement.update", idempotencyKey, input); if (replay) return replay;
+      const timestamp = now();
+      if (input.family === "map") {
+        const row = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(eq(achievementChallenges.id, input.challengeId)).get();
+        if (!row) throw new Error("CHALLENGE_NOT_FOUND");
+        await db.update(achievementChallenges).set({ status: input.status === "retired" ? "inactive" : "active", retiredVersion: input.status === "retired" ? input.retiredVersion! : null, updatedAt: timestamp }).where(eq(achievementChallenges.id, row.challenge.id));
+        const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: row.challenge.name, mapId: row.map.id, mapName: row.map.name, difficulty: row.challenge.difficulty ?? undefined, gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "retired" ? input.retiredVersion! : null };
+        await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
+        await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
+        return response;
+      } else {
+        const row = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
+        if (!row) throw new Error("CHALLENGE_NOT_FOUND");
+        await db.update(titleChallenges).set({
+          condition: input.condition,
+          evidenceRule: input.evidenceRule,
+          submissionMode: input.submissionMode,
+          categoryOverride: input.categoryOverride,
+          status: input.status,
+          retiredVersion: input.status === "retired" ? input.retiredVersion! : null,
+          updatedAt: timestamp,
+        }).where(eq(titleChallenges.id, row.challenge.id));
+        const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: row.challenge.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "retired" ? input.retiredVersion! : null };
+        await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
+        await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
+        return response;
+      }
     },
 
     async listTitles(input) {
@@ -208,6 +290,26 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id });
     },
 
+    async createAdminTitleGrantBulk(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<{ contractVersion: "1"; grantedCount: number }>(db, auth.subject, "admin.title.grant.bulk", idempotencyKey, input);
+      if (replay) return replay;
+      const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
+      if (!player) throw new Error("PLAYER_NOT_FOUND");
+      const historical = await db.select({ id: historicalTitleGrants.id }).from(historicalTitleGrants)
+        .leftJoin(playerTitleGrants, eq(playerTitleGrants.historicalTitleGrantId, historicalTitleGrants.id))
+        .where(and(eq(historicalTitleGrants.holderName, input.holderName), isNull(playerTitleGrants.id)));
+      const timestamp = now();
+      const grants = historical.map(({ id }) => ({ id: crypto.randomUUID(), historicalTitleGrantId: id }));
+      const response = { contractVersion: "1" as const, grantedCount: grants.length };
+      const statements = [
+        ...grants.map((grant) => db.insert(playerTitleGrants).values({ id: grant.id, playerAccountId: player.id, historicalTitleGrantId: grant.historicalTitleGrantId, status: "active", grantedBy: auth.subject, grantedAt: timestamp })),
+        ...grants.map((grant) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: grant.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: grant.historicalTitleGrantId, holderName: input.holderName }), createdAt: timestamp })),
+        db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.title.grant.bulk:${idempotencyKey}`, actorId: auth.subject, operation: "admin.title.grant.bulk", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
+      ];
+      await db.batch(statements as [typeof statements[number], ...typeof statements]);
+      return response;
+    },
+
     async revokeAdminTitleGrant(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.revoke", idempotencyKey, input); if (replay) return;
       const grant = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.id, input.grantId)).get(); if (!grant) throw new Error("TITLE_GRANT_NOT_FOUND");
@@ -240,7 +342,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
-      const objectKey = `evidence/submissions/${submissionId}/${input.sha256}.upload`;
+      const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
       await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
@@ -252,6 +354,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!session || session.expiresAt <= now() || session.status !== "pending") throw new Error("UPLOAD_SESSION_INVALID");
       const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
       if (!authSession) throw new Error("UNAUTHENTICATED");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, authSession.groupOpenId), eq(bindings.memberOpenId, authSession.memberOpenId))).get();
+      if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, session.playerAccountId)).get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (input.contentType !== session.contentType || input.body.byteLength !== session.byteSize || input.body.byteLength > maxUploadBytes) throw new Error("UPLOAD_METADATA_MISMATCH");
@@ -267,9 +371,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!session || session.expiresAt <= now() || session.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
       const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
       if (!authSession) throw new Error("UNAUTHENTICATED");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, authSession.groupOpenId), eq(bindings.memberOpenId, authSession.memberOpenId))).get();
+      if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, attempt: 1 });
+      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
 
@@ -308,8 +414,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async processOcrJob(input) {
-      if (!evidenceBucket || !ocrkitBaseUrl) throw new Error("OCR_NOT_CONFIGURED");
-      const response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ object_key: input.objectKey }) });
+      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitEvidenceBucket) throw new Error("OCR_NOT_CONFIGURED");
+      const response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
       if (!response.ok) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: input.submissionId, attempt: input.attempt, status: "error", errorCode: `OCR_HTTP_${response.status}`, createdAt: now() });
         if (input.attempt >= 3) await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now() }).where(eq(submissions.id, input.submissionId));
@@ -318,11 +424,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const result = await response.json() as { data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; player?: string | null }; fields?: unknown };
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
       const data = result.data ?? {};
-      const match = { map: normalized(data.map_name) === normalized(row.mapName), difficulty: normalized(data.difficulty) === normalized(row.difficulty), completed: data.challenge_completed === true, player: normalized(data.player).split("#")[0] === normalized(row.playerName).split("#")[0] };
+      const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.player });
       const matched = Object.values(match).every(Boolean);
-      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify(match), createdAt: now() });
+      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped }), createdAt: now() });
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, row.id));
     },
 

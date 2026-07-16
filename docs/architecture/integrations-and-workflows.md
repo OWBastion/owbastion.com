@@ -4,6 +4,8 @@ This document describes public contracts and current implementation boundaries.
 It intentionally omits credentials, private endpoints, deployment configuration,
 and private operational data.
 
+Capability status is maintained only in the [feature status matrix](../development/feature-status.md).
+
 ## Implemented platform slice
 
 The current API implements versioned v1 QQ flows:
@@ -28,18 +30,27 @@ The current API implements versioned v1 QQ flows:
 - the platform stores a versioned Bastion title catalog, all released maps,
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
   holder snapshots without linking source names to platform accounts;
-- maintainers can explicitly migrate a historical holder snapshot to a player
-  account as an auditable title grant, and can revoke that grant with a
-  recorded reason; historical holder names are never matched or claimed
-  automatically;
+- maintainers can explicitly migrate one historical holder snapshot or all of
+  its unclaimed title records to a player account as auditable title grants,
+  and can revoke an individual grant with a recorded reason; historical holder
+  names are never matched or claimed automatically;
 - a versioned Queue message invokes OCRKit, persists the raw result and match
   evidence, and moves matching submissions to `ready_for_review`;
 - the maintainer Portal can inspect private evidence and OCR output and record
   an idempotent review decision.
+- maintainers can list achievement challenges and immediately update
+  title-challenge rules, including their Portal display category override;
+- maintainers can retire a map challenge only with its Bastion retirement
+  version, or reopen a retired map challenge without changing its introduced
+  version.
 
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
-public object URL.
+public object URL. User screenshot objects use the shared `uploads/` namespace,
+with platform-generated keys under `uploads/submissions/<submissionId>/`; the
+same object key and the explicit platform evidence bucket are sent to OCRKit.
+The platform must not rely on OCRKit's default bucket, which is reserved for
+OCRKit's own configured storage and model artifacts.
 
 ## Submission lifecycle
 
@@ -60,6 +71,22 @@ become `resubmission_required`; repeated OCR service failures become
 Approval records the human decision only. Player title migration records a
 maintainer-confirmed historical entitlement; it does not issue a new Bastion
 title. Pull requests and releases remain outside this slice.
+
+## Achievement catalog management
+
+The administrator achievement surface manages existing platform challenges;
+it does not create challenges or titles. Title challenges may update their
+conditions, evidence rules, submission mode, and optional Portal display
+category. When no display-category override is set, the Portal uses the
+category from the imported Bastion title catalog. Map challenges retain their
+imported map, difficulty, display name, and introduced version; administrators
+may only keep them enabled, retire them, or reopen them.
+
+Retiring a challenge prevents new upload sessions while preserving submissions
+that already exist. Those submissions continue through OCR and review under
+the ordinary submission lifecycle. Reopening clears only the retirement
+version. Administrator changes require maintainer authorization, an
+idempotency key, and an audit record.
 
 ## QQBot and login
 
@@ -86,8 +113,11 @@ later refresh fails and fails closed before the first successful snapshot.
 
 ## OCR integration
 
-OCRKit remains the recognition-only service. The platform compares its
-structured `map_name`, `difficulty`, `challenge_completed`, and `player` fields
-with the selected Bastion challenge and bound player. OCRKit does not decide
-eligibility or approval. Bastion changes must remain reviewable, idempotent,
-and reconciled through its own CI and release process.
+OCRKit remains the recognition-only service. For map challenges, the platform
+compares its structured `map_name`, `difficulty`, `challenge_completed`, and
+`player` fields with the selected Bastion challenge and bound player. For manual
+title challenges, the platform ignores the synthetic submission map name and
+null difficulty, using only `challenge_completed` and `player` as OCR prechecks
+before human review. OCRKit does not decide eligibility or approval. Bastion
+changes must remain reviewable, idempotent, and reconciled through its own CI
+and release process.

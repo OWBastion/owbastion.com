@@ -7,7 +7,7 @@ architecture milestones.
 ## Architecture
 
 - [Overview](architecture/overview.md) — system mission, ownership boundaries, implemented repository shape, and design principles.
-- [Integrations and workflows](architecture/integrations-and-workflows.md) — QQBot, submissions, evidence, login, and future OCR/Bastion flows.
+- [Integrations and workflows](architecture/integrations-and-workflows.md) — QQBot, submissions, evidence, login, and the coded OCR/review boundary.
 - [Data and security](architecture/data-and-security.md) — data classes, storage responsibilities, authorization, and public-repository safety.
 
 ## Architecture decisions
@@ -17,6 +17,7 @@ architecture milestones.
 ## Development
 
 - [Testing and change policy](development/testing-and-change-policy.md) — implementation checklist, testing layers, idempotency, migrations, observability, and staged delivery.
+- [Feature status matrix](development/feature-status.md) — the single source of truth for capability implementation and verification status.
 - [Portal copy guidelines](development/portal-copy-guidelines.md) — concise copy rules, status vocabulary, empty states, errors, and examples for Portal work.
 
 ## Deployment

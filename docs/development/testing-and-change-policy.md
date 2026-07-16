@@ -2,6 +2,9 @@
 
 ## Current implementation status
 
+The [feature status matrix](feature-status.md) is the single source of truth
+for capability status and verification evidence.
+
 The repository contains a runnable pnpm TypeScript workspace. The Hono
 Cloudflare Worker API implements health, authenticated v1 QQ binding and
 submission creation, public submission status, QQ browser-login attempts and
@@ -11,12 +14,14 @@ group-access route. D1 migrations back the current business state.
 When EVIDENCE_BUCKET is configured, submission creation persists validated QQ
 image sources to private R2 and advances successful submissions to ocr_pending.
 The Nuxt Portal implements the public landing page, QQ login, player center,
-submission-status view, and platform-session-protected `/admin` player/group management.
+submission-status view, and platform-session-protected `/admin` player/group
+and achievement-catalog management.
 
 The first Portal map-challenge slice includes database-backed map and achievement
 catalogs, a public read-only achievement directory, upload validation, Queue-backed
 OCR orchestration, maintainer review, and the administrator-confirmed migration
-of historical titles to player accounts are implemented. New title issuance,
+of historical titles to player accounts. The matrix records these capabilities
+as coded until complete integration evidence is available. New title issuance,
 feature switches, and Bastion/GitHub orchestration are not implemented.
 
 Apply local migrations with:
@@ -84,6 +89,16 @@ challenges remain visible in the catalog but cannot receive screenshot uploads.
 Catalog migrations are forward-only and
 must preserve the introduced and retired game-version fields.
 
+Administrator catalog management is limited to existing challenges. Title
+challenges may change their conditions, evidence rules, submission mode, and
+optional Portal display-category override. Map challenges may only be enabled,
+retired with a Bastion release version, or reopened; their imported map,
+difficulty, names, and introduced version remain immutable. Retiring a
+challenge blocks new uploads but does not alter in-flight or existing
+submissions. It never creates or issues a title: title identity and game facts
+remain Bastion-owned, while historical entitlement remains the separate
+administrator migration flow.
+
 The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,
 `CONQUEROR`, and `DOMINATOR` are map-scoped reward slots; all other imported
 titles are global. Historical Bastion holder names remain source snapshots and
@@ -100,6 +115,10 @@ player-facing title result.
 - Title-grant tests for account isolation, map and global title scope, empty
   results, duplicate historical-holder associations, revocation, administrator
   authorization, idempotency, and audit records.
+- Achievement-management tests for maintainer authorization, type-specific
+  validation, idempotency replay and conflicts, audit records, immediate
+  title-rule updates, map retirement version requirements, reopening, and the
+  preservation of in-flight submissions after retirement.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.
 - Queue redelivery, review, grant, and end-to-end tests when those workflows
