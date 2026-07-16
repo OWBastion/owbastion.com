@@ -34,7 +34,7 @@ onMounted(async () => {
 
       <section class="section-block titles-section" aria-labelledby="titles-title">
         <div class="section-heading"><div><p class="eyebrow">个人收藏</p><h2 id="titles-title">已有称号</h2></div></div>
-        <div v-if="titles.length" class="title-grid"><article v-for="title in titles" :key="title.grantId" class="title-card surface-card"><p>{{ title.category }}</p><h3>{{ title.label }}</h3><span>{{ title.scope === "map" ? title.mapName : "通用称号" }}</span></article></div>
+        <TitleCollection v-if="titles.length" :titles="titles" />
         <EmptyState v-else title="暂无称号" />
       </section>
 
@@ -90,7 +90,7 @@ onMounted(async () => {
 .section-heading h2 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.35rem); letter-spacing: -.045em; }
 .section-heading > span { color: var(--quiet); font-size: .78rem; }
 .submission-list { display: grid; gap: 10px; }
-.titles-section { margin-top: clamp(52px, 8vw, 86px); }.title-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }.title-card { min-height: 150px; padding: 20px; background: color-mix(in oklch, var(--surface-raised) 82%, var(--surface)); }.title-card p, .title-card span { margin: 0; color: var(--quiet); font-size: .74rem; }.title-card h3 { margin: 22px 0 8px; font-size: clamp(1.2rem, 2.3vw, 1.52rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
+.titles-section { margin-top: clamp(52px, 8vw, 86px); }
 .submission-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; min-width: 0; padding: 18px 20px; color: inherit; text-decoration: none; transition: transform 160ms ease, border-color 160ms ease; }.submission-row > div { min-width: 0; }.submission-row strong { overflow-wrap: anywhere; }
 .submission-row:hover { transform: translateY(-1px); border-color: var(--line-strong); }
 .submission-row strong { display: block; letter-spacing: -.02em; }
@@ -106,7 +106,7 @@ onMounted(async () => {
 .upcoming-card h3 { margin: 0; color: color-mix(in oklch, var(--text) 84%, var(--muted)); font-size: clamp(1.22rem, 2.3vw, 1.55rem); letter-spacing: -.035em; }
 .upcoming-card p:last-child { margin: 12px 0 0; color: var(--quiet); font-size: .82rem; line-height: 1.6; }
 .loading { padding-block: 180px; color: var(--muted); text-align: center; }
-@media (max-width: 760px) { .upcoming-grid, .title-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 220px; }.upcoming-heading { align-items: flex-start; flex-direction: column; }.upcoming-heading > p { text-align: left; } }
+@media (max-width: 760px) { .upcoming-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 220px; }.upcoming-heading { align-items: flex-start; flex-direction: column; }.upcoming-heading > p { text-align: left; } }
 @media (prefers-reduced-transparency: reduce) { .identity-card { background: var(--surface-raised); backdrop-filter: none; } }
 @media (max-width: 620px) { .identity-card { align-items: flex-start; flex-direction: column; gap: 18px; padding: 20px; }.identity-status { width: 100%; padding-top: 17px; border-top: 1px solid var(--line); }.submission-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px; } }
 @media (max-width: 620px) { .submission-heading { align-items: flex-start; flex-direction: column; gap: 16px; }.submission-action { align-self: flex-start; } }

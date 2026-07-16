@@ -1,4 +1,6 @@
-export type OwnedTitle = { grantId: string; titleKey: string; label: string; category: string; scope: "global" | "map"; mapName?: string; slot?: "pioneer" | "conqueror" | "dominator"; grantedAt: number };
+import type { OwnedTitle } from "~/types/title";
+
+export type { OwnedTitle } from "~/types/title";
 
 export function usePlayerTitles() {
   const items = useState<OwnedTitle[]>("player-titles", () => []);
