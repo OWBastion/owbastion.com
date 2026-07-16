@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { TableColumn } from "@nuxt/ui";
+import type { TableColumn, TabsItem } from "@nuxt/ui";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "成就管理 · 躲避堡垒 3" });
@@ -65,6 +65,11 @@ const loading = ref(true);
 const savingId = ref<string | null>(null);
 const errorMessage = ref("");
 const actionMessage = ref("");
+const activeTab = ref("generic");
+const achievementTabs = [
+  { label: "通用成就", value: "generic", slot: "generic" as const },
+  { label: "地图挑战", value: "map", slot: "map" as const },
+] satisfies TabsItem[];
 
 const isTitle = (item: AdminAchievement): item is TitleAchievement | CatalogTitle => item.family === "achievement" || item.family === "title_catalog";
 const isChallengeTitle = (item: AdminAchievement): item is TitleAchievement => item.family === "achievement";
@@ -275,7 +280,8 @@ onMounted(() => void load());
 
     <section class="catalog" aria-labelledby="catalog-title">
       <div class="catalog-heading"><h2 id="catalog-title">已登记成就</h2></div>
-      <div class="catalog-groups">
+      <UTabs v-model="activeTab" :items="achievementTabs" aria-label="成就类型" class="catalog-tabs">
+        <template #generic>
         <section class="catalog-section" aria-labelledby="title-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleItems.length }} 项</span></div>
           <UTable :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" class="admin-table achievement-table">
@@ -300,7 +306,9 @@ onMounted(() => void load());
             </template>
           </UModal>
         </section>
+        </template>
 
+        <template #map>
         <section class="catalog-section" aria-labelledby="map-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">地图挑战</p><h3 id="map-achievements-title">按地图管理</h3></div><span>{{ mapItems.length }} 项</span></div>
           <UTable :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" class="admin-table achievement-table">
@@ -311,7 +319,8 @@ onMounted(() => void load());
             <template #actions-cell="{ row }"><div class="table-actions"><template v-if="row.original.status !== 'retired'"><UPopover :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button></template><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></div></template>
           </UTable>
         </section>
-      </div>
+        </template>
+      </UTabs>
     </section>
 
     <UModal :open="endTarget !== null" title="结束挑战" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p><div class="editor-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" /><UButton label="结束挑战" color="error" type="submit" :loading="isSaving(endTarget)" /></div></form></template></UModal>
@@ -320,7 +329,7 @@ onMounted(() => void load());
 
 <style scoped>
 .catalog { max-width: none; }
-.catalog-groups { display: grid; gap: 38px; }
+.catalog-tabs { display: grid; gap: 24px; }
 .catalog-section { display: grid; gap: 12px; }
 .catalog-heading { margin-bottom: 2px; }
 .catalog-heading h2 { margin: 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.04em; }

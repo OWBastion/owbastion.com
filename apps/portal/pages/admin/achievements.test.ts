@@ -28,6 +28,11 @@ async function mountPage(): Promise<VueWrapper> {
         UModal: { props: ["open"], emits: ["update:open"], template: '<div v-if="open" role="dialog"><slot name="body" /></div>' },
         UPopover: { props: ["open"], emits: ["update:open"], template: '<div><slot /><slot name="content" /></div>' },
         UCard: { template: "<div><slot /></div>" },
+        UTabs: {
+          props: ["modelValue", "items"],
+          emits: ["update:modelValue"],
+          template: '<div><button v-for="item in items" :key="item.value" type="button" :aria-label="item.label" @click="$emit(\'update:modelValue\', item.value)">{{ item.label }}</button><slot :name="modelValue" /></div>',
+        },
         USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
       },
     },
@@ -37,25 +42,33 @@ async function mountPage(): Promise<VueWrapper> {
 }
 
 describe("achievement admin page", () => {
-  it("renders generic and map achievements in grouped data tables with merged group cells", async () => {
+  it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("通用成就");
     expect(wrapper.text()).toContain("战绩");
     expect(wrapper.text()).toContain("内部称号");
     expect(wrapper.text()).toContain("未开放");
-    expect(wrapper.text()).toContain("地图挑战");
-    expect(wrapper.text()).toContain("国王大道");
+    expect(wrapper.text()).not.toContain("国王大道");
     expect(wrapper.find(".portal-side-panel").exists()).toBe(false);
     expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(2);
-    expect(wrapper.findAll('button[aria-label="计划下线"]')).toHaveLength(4);
-    expect(wrapper.findAll('button[aria-label="结束挑战"]')).toHaveLength(4);
+    expect(wrapper.findAll('button[aria-label="计划下线"]')).toHaveLength(2);
+    expect(wrapper.findAll('button[aria-label="结束挑战"]')).toHaveLength(2);
     expect(wrapper.findAll("button").some((button) => button.text() === "管理")).toBe(false);
 
-    const mergedCategories = wrapper.findAll('td[rowspan="2"]');
-    expect(mergedCategories).toHaveLength(2);
-    expect(mergedCategories.map((cell) => cell.text())).toEqual(expect.arrayContaining(["战绩", "国王大道"]));
-    expect(wrapper.findAll("td.hidden")).toHaveLength(2);
+    expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);
+    expect(wrapper.find('td[rowspan="2"]').text()).toBe("战绩");
+    expect(wrapper.findAll("td.hidden")).toHaveLength(1);
     expect(wrapper.findAll('td[rowspan="1"]:not(.hidden)')).toHaveLength(1);
+
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("国王大道");
+    expect(wrapper.text()).not.toContain("内部称号");
+    expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(0);
+    expect(wrapper.findAll('button[aria-label="计划下线"]')).toHaveLength(2);
+    expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);
+    expect(wrapper.find('td[rowspan="2"]').text()).toBe("国王大道");
+    expect(wrapper.findAll("td.hidden")).toHaveLength(1);
   });
 
   it("saves expanded title rules and clears the category override", async () => {
@@ -84,7 +97,9 @@ describe("achievement admin page", () => {
 
   it("ends an active map challenge directly without a release version", async () => {
     const wrapper = await mountPage();
-    const endButton = wrapper.findAll('button[aria-label="结束挑战"]').at(-2)!;
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await flushPromises();
+    const endButton = wrapper.get('button[aria-label="结束挑战"]');
     await endButton.trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement;
