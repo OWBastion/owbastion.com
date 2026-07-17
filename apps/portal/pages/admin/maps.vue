@@ -18,6 +18,8 @@ const query = ref("");
 const ratingFilter = ref<"all" | Exclude<Rating, null>>("all");
 const draftRating = ref<Rating>(null);
 const draftMechanics = ref<string[]>([]);
+const draftCoverUrl = ref("");
+const draftBackgroundUrl = ref("");
 const newMechanic = ref("");
 const loading = ref(true);
 const saving = ref(false);
@@ -70,6 +72,8 @@ function openMap(map: Map) {
   selectedMap.value = map;
   draftRating.value = map.difficultyRating;
   draftMechanics.value = [...map.mechanics];
+  draftCoverUrl.value = map.coverUrl ?? "";
+  draftBackgroundUrl.value = map.backgroundUrl ?? "";
   newMechanic.value = "";
 }
 
@@ -93,7 +97,7 @@ async function saveMetadata() {
     const updated = await api<Map>(`/v1/maps/${encodeURIComponent(selectedMap.value.mapId)}/metadata`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: { contractVersion: "1", difficultyRating: draftRating.value, mechanics: draftMechanics.value },
+      body: { contractVersion: "1", difficultyRating: draftRating.value, mechanics: draftMechanics.value, coverUrl: draftCoverUrl.value.trim() || null, backgroundUrl: draftBackgroundUrl.value.trim() || null },
     });
     maps.value = maps.value.map((map) => map.mapId === updated.mapId ? updated : map);
     selectedMap.value = updated;
@@ -153,6 +157,7 @@ onMounted(() => void load());
         <section v-if="selectedMap" class="map-detail">
           <div class="detail-heading"><div><p class="eyebrow">地图属性</p><h2>{{ selectedMap.mapName }}</h2><p class="table-meta">{{ selectedMap.mapId }} · {{ selectedMap.gameVersion }}</p></div></div>
           <form class="editor" @submit.prevent="saveMetadata">
+            <div class="visual-editor"><div class="visual-preview" :style="{ backgroundImage: draftBackgroundUrl.trim() ? `url(${draftBackgroundUrl.trim()})` : undefined }"><img v-if="draftCoverUrl.trim()" :src="draftCoverUrl.trim()" alt="" /><span v-else>{{ selectedMap.mapName }}</span></div><div class="visual-fields"><UFormField label="地图封面地址" hint="显示在前台地图卡片的主视觉中。"><UInput v-model="draftCoverUrl" type="url" placeholder="https://…" :disabled="saving" /><template #hint><div class="field-hint">显示在前台地图卡片的主视觉中。<button v-if="draftCoverUrl" type="button" class="clear-field" @click="draftCoverUrl = ''">清除</button></div></template></UFormField><UFormField label="地图背景地址" hint="作为前台地图卡片的背景图。"><UInput v-model="draftBackgroundUrl" type="url" placeholder="https://…" :disabled="saving" /><template #hint><div class="field-hint">作为前台地图卡片的背景图。<button v-if="draftBackgroundUrl" type="button" class="clear-field" @click="draftBackgroundUrl = ''">清除</button></div></template></UFormField></div></div>
             <UFormField label="地图难度评级" hint="这是地图综合评级，不等同于挑战难度。"><USelect v-model="draftRating" :items="[{ label: '暂无评级', value: null }, ...ratings.map((rating) => ({ label: rating, value: rating }))]" :disabled="saving" /></UFormField>
             <UFormField label="特殊机制" hint="最多 16 个标签，每个标签不超过 64 个字符。"><div class="tag-editor"><div class="tags"><UBadge v-for="mechanic in draftMechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle"><template #trailing><button type="button" class="tag-remove" :aria-label="`删除${mechanic}`" @click="removeMechanic(mechanic)">×</button></template></UBadge></div><div class="tag-input"><UInput v-model="newMechanic" aria-label="新增特殊机制" placeholder="输入机制标签" maxlength="64" @keyup.enter="addMechanic" /><UButton type="button" label="添加" color="neutral" variant="outline" :disabled="!newMechanic.trim() || draftMechanics.length >= 16" @click="addMechanic" /></div></div></UFormField>
             <div class="editor-actions"><UButton type="submit" label="保存属性" :loading="saving" /></div>
@@ -165,7 +170,8 @@ onMounted(() => void load());
 </template>
 
 <style scoped>
-.table-meta { display: block; color: var(--quiet); font-size: .76rem; }.map-detail { display: grid; gap: 26px; }.detail-heading h2 { margin: 0; font-size: 2rem; letter-spacing: -.05em; }.detail-heading p { margin: 7px 0 0; }.editor { display: grid; gap: 20px; padding: 18px 0; border-block: 1px solid var(--line); }.tag-editor { display: grid; gap: 10px; }.tags { display: flex; flex-wrap: wrap; gap: 6px; }.tag-remove { margin-left: 4px; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; }.tag-input { display: flex; gap: 8px; }.tag-input > :first-child { flex: 1; }.editor-actions { display: flex; justify-content: flex-end; }.challenge-section { display: grid; gap: 12px; }.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 3px 0 0; font-size: 1.25rem; letter-spacing: -.035em; }.section-heading > span { color: var(--quiet); font-size: .78rem; }.table-actions { display: flex; flex-wrap: wrap; gap: 2px; }.nested-table :deep(table[data-slot="base"]) { min-width: 540px; }
+.table-meta { display: block; color: var(--quiet); font-size: .76rem; }.map-detail { display: grid; gap: 26px; }.detail-heading h2 { margin: 0; font-size: 2rem; letter-spacing: -.05em; }.detail-heading p { margin: 7px 0 0; }.editor { display: grid; gap: 20px; padding: 18px 0; border-block: 1px solid var(--line); }.visual-editor { display: grid; gap: 16px; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); }.visual-preview { position: relative; display: grid; min-height: 150px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: var(--accent); background-position: center; background-size: cover; }.visual-preview::before { position: absolute; inset: 0; background: color-mix(in oklch, var(--surface) 58%, transparent); content: ""; }.visual-preview img { position: relative; z-index: 1; max-width: 82%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 8px 14px color-mix(in oklch, var(--shadow) 42%, transparent)); }.visual-preview span { position: relative; z-index: 1; font-weight: 700; }.visual-fields { display: grid; align-content: start; gap: 14px; }.field-hint { display: flex; justify-content: space-between; gap: 8px; }.clear-field { padding: 0; border: 0; color: var(--accent); background: transparent; cursor: pointer; font: inherit; }.tag-editor { display: grid; gap: 10px; }.tags { display: flex; flex-wrap: wrap; gap: 6px; }.tag-remove { margin-left: 4px; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; }.tag-input { display: flex; gap: 8px; }.tag-input > :first-child { flex: 1; }.editor-actions { display: flex; justify-content: flex-end; }.challenge-section { display: grid; gap: 12px; }.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 3px 0 0; font-size: 1.25rem; letter-spacing: -.035em; }.section-heading > span { color: var(--quiet); font-size: .78rem; }.table-actions { display: flex; flex-wrap: wrap; gap: 2px; }.nested-table :deep(table[data-slot="base"]) { min-width: 540px; }
 @media (prefers-reduced-motion: reduce) { .tag-remove { transition: none; } }
 @media (max-width: 520px) { .tag-input { align-items: stretch; flex-direction: column; }.editor-actions .portal-button { width: 100%; }.detail-heading h2 { font-size: 1.7rem; } }
+@media (max-width: 520px) { .visual-editor { grid-template-columns: 1fr; }.visual-preview { min-height: 120px; } }
 </style>

@@ -126,6 +126,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           gameVersion: map.gameVersion,
           difficultyRating: (metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
           mechanics: metadata?.mechanicsJson ? JSON.parse(metadata.mechanicsJson) as string[] : [],
+          coverUrl: metadata?.coverUrl ?? null,
+          backgroundUrl: metadata?.backgroundUrl ?? null,
         }));
       });
     },
@@ -137,10 +139,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!map) throw new Error("MAP_NOT_FOUND");
       const mechanics = [...new Set(input.mechanics.map((value) => value.trim()).filter(Boolean))];
       const timestamp = now();
-      await db.insert(mapMetadata).values({ mapId: input.mapId, difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), updatedAt: timestamp, updatedBy: auth.subject }).onConflictDoUpdate({ target: mapMetadata.mapId, set: { difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), updatedAt: timestamp, updatedBy: auth.subject } });
-      const response: Map = { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: input.difficultyRating, mechanics };
+      await db.insert(mapMetadata).values({ mapId: input.mapId, difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject }).onConflictDoUpdate({ target: mapMetadata.mapId, set: { difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject } });
+      const response: Map = { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
       await recordIdempotency(db, auth.subject, "admin.map.metadata.update", idempotencyKey, input, response);
-      await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { difficultyRating: input.difficultyRating, mechanics });
+      await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
       await clearCatalogCache(cache);
       return response;
     },

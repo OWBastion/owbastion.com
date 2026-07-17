@@ -132,6 +132,8 @@ export const mapSchema = z.object({
   gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
+  coverUrl: z.string().trim().url().max(2048).nullable(),
+  backgroundUrl: z.string().trim().url().max(2048).nullable(),
 });
 
 export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
@@ -140,6 +142,8 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
+  coverUrl: z.string().trim().url().max(2048).nullable(),
+  backgroundUrl: z.string().trim().url().max(2048).nullable(),
 });
 
 export const titleSchema = z.object({

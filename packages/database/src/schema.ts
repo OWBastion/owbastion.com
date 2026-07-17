@@ -49,6 +49,8 @@ export const mapMetadata = sqliteTable("map_metadata", {
   mapId: text("map_id").primaryKey().references(() => maps.id),
   difficultyRating: text("difficulty_rating"),
   mechanicsJson: text("mechanics_json").notNull().default("[]"),
+  coverUrl: text("cover_url"),
+  backgroundUrl: text("background_url"),
   updatedAt: integer("updated_at").notNull(),
   updatedBy: text("updated_by").notNull(),
 });
