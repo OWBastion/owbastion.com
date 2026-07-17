@@ -33,7 +33,7 @@ database_id = "40fb80aa-f17e-467d-9d4d-b8b3100b141d"
 migrations_dir = "migrations"
 
 [[kv_namespaces]]
-binding = "owbastion-kv"
+binding = "CACHE"
 id = "884487bfaf264bfeb4465ad4015128a6"
 
 [[r2_buckets]]
