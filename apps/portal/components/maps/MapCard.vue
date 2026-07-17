@@ -10,6 +10,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [] }>();
 
 const mapChallenges = computed(() => props.challenges.filter((challenge) => challenge.mapId === props.map.mapId));
+const mechanics = computed(() => props.map.mechanics ?? []);
 const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).toUpperCase() ?? "地图");
 </script>
 
@@ -23,7 +24,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
         <div><dt>通关难度</dt><dd :class="{ muted: !authenticated }">{{ authenticated ? "未开放" : "登录后查看" }}</dd></div>
         <div><dt>挑战进度</dt><dd class="progress-value">{{ mapChallenges.length ? `${mapChallenges.length} 项挑战` : "暂无记录" }}</dd></div>
       </dl>
-      <div class="map-card-footer"><UBadge v-if="mapChallenges.length" label="挑战目录" color="primary" variant="subtle" /><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /><UBadge v-if="!map.mechanics.length" label="暂无机制" color="neutral" variant="subtle" /></div>
+      <div class="map-card-footer"><UBadge v-if="mapChallenges.length" label="挑战目录" color="primary" variant="subtle" /><UBadge v-for="mechanic in mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /><UBadge v-if="!mechanics.length" label="暂无机制" color="neutral" variant="subtle" /></div>
     </div>
   </button>
 </template>

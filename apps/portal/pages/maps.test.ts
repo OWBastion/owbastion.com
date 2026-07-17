@@ -34,6 +34,15 @@ describe("maps page", () => {
     expect(document.querySelector('[data-vaul-overlay][data-state="open"]')).toBeNull();
   });
 
+  it("does not fail when a legacy map response omits metadata", async () => {
+    portalApi.mockImplementationOnce(async () => ({ items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1" }] }));
+    currentPlayer.value = null;
+    const wrapper = await mountSuspended(MapsPage);
+    await flushPromises();
+    expect(wrapper.text()).toContain("萨摩亚");
+    expect(wrapper.text()).toContain("暂无机制");
+  });
+
   it("opens the mobile detail drawer for the selected map", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);

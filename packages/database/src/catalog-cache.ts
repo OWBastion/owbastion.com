@@ -1,4 +1,4 @@
-const catalogCachePrefix = "catalog:v1:";
+const catalogCachePrefix = "catalog:v2:";
 export const catalogCacheTtlSeconds = 24 * 60 * 60;
 
 export const catalogCacheKey = (suffix: string) => `${catalogCachePrefix}${suffix}`;
