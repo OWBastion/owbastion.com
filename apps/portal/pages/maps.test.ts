@@ -26,6 +26,14 @@ describe("maps page", () => {
     expect(portalApi).toHaveBeenCalledWith("/v1/challenges?family=map");
   });
 
+  it("keeps the page interactive before a map is selected", async () => {
+    currentPlayer.value = null;
+    const wrapper = await mountSuspended(MapsPage);
+    await flushPromises();
+    expect(wrapper.find("main.maps-page").exists()).toBe(true);
+    expect(document.querySelector('[data-vaul-overlay][data-state="open"]')).toBeNull();
+  });
+
   it("opens the mobile detail drawer for the selected map", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);

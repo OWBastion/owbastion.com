@@ -36,7 +36,7 @@ const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
     </template>
   </UModal>
 
-  <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale fixed :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
+  <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
     <template #body>
       <ReuseDetailContent />
     </template>
