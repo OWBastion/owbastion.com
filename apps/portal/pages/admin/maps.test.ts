@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import MapsAdminPage from "./maps.vue";
 
 const adminApi = vi.fn(async (path: string) => {
-  if (path === "/v1/admin/maps") return { items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1", difficultyRating: "T3", mechanics: ["动态掩体"] }] };
-  if (path === "/v1/admin/achievements?type=map") return { items: [{ challengeId: "map.samoa.hell", family: "map", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "26.0713.1", status: "active", introducedVersion: "26.0713.1", retiredVersion: null }] };
+  if (path === "/v1/maps") return { items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1", difficultyRating: "T3", mechanics: ["动态掩体"] }] };
+  if (path === "/v1/achievements?type=map") return { items: [{ challengeId: "map.samoa.hell", family: "map", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "26.0713.1", status: "active", introducedVersion: "26.0713.1", retiredVersion: null }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 

@@ -53,8 +53,8 @@ async function load() {
   errorMessage.value = "";
   try {
     const [mapResponse, challengeResponse] = await Promise.all([
-      api<{ items: Map[] }>("/v1/admin/maps"),
-      api<{ items: MapChallenge[] }>("/v1/admin/achievements?type=map"),
+      api<{ items: Map[] }>("/v1/maps"),
+      api<{ items: MapChallenge[] }>("/v1/achievements?type=map"),
     ]);
     maps.value = mapResponse.items;
     challenges.value = challengeResponse.items;
@@ -90,7 +90,7 @@ async function saveMetadata() {
   errorMessage.value = "";
   actionMessage.value = "保存中…";
   try {
-    const updated = await api<Map>(`/v1/admin/maps/${encodeURIComponent(selectedMap.value.mapId)}/metadata`, {
+    const updated = await api<Map>(`/v1/maps/${encodeURIComponent(selectedMap.value.mapId)}/metadata`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", difficultyRating: draftRating.value, mechanics: draftMechanics.value },
@@ -114,7 +114,7 @@ async function updateChallenge(challenge: MapChallenge, status: MapChallenge["st
   errorMessage.value = "";
   actionMessage.value = "保存中…";
   try {
-    await api(`/v1/admin/achievements/${encodeURIComponent(challenge.challengeId)}`, {
+    await api(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion } : {}) },

@@ -9,7 +9,7 @@ const adminApi = vi.fn((path: string) => {
     { submissionId: "submission-1", mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", status: "ready_for_review", updatedAt: 0 },
     { submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "阿澈", status: "ready_for_review", updatedAt: 0 },
   ] });
-  if (path === "/v1/admin/player-accounts?page=1&pageSize=1") return Promise.resolve({ total: 42 });
+  if (path === "/v1/player-accounts?page=1&pageSize=1") return Promise.resolve({ total: 42 });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);

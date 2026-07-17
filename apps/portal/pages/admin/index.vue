@@ -36,7 +36,7 @@ onMounted(async () => {
 	    const [groupResponse, submissionResponse, playerResponse] = await Promise.all([
 	      api<{ items: AdminGroup[] }>("/v1/qq/groups"),
 	      api<{ items: AdminSubmission[] }>("/v1/submissions?status=ready_for_review"),
-	      api<{ total: number }>("/v1/admin/player-accounts?page=1&pageSize=1"),
+	      api<{ total: number }>("/v1/player-accounts?page=1&pageSize=1"),
 	    ]);
 	    groups.value = groupResponse.items;
 	    submissions.value = submissionResponse.items;
