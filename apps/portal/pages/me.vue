@@ -52,8 +52,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.me-page { padding-block: clamp(88px, 13vh, 145px) 72px; }
-.intro { max-width: 690px; margin-bottom: 42px; }
+.me-page { padding-block: clamp(64px, 9vh, 104px) 72px; }
+.intro { max-width: 690px; margin-bottom: 32px; }
 .intro-status { display: flex; align-items: center; gap: 11px; }
 .intro-status .eyebrow { margin-bottom: .8rem; }
 .intro-status .status-badge { margin-bottom: .8rem; }

@@ -34,5 +34,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.achievements-page { padding-block: clamp(88px, 13vh, 145px) 72px; }.page-intro { max-width: 690px; margin-bottom: 42px; }.achievement-directory { padding: clamp(22px, 4vw, 36px); }.directory-state { margin: 0; padding: 100px 0; color: var(--muted); text-align: center; }.directory-error { color: var(--danger); }
+.achievements-page { padding-block: clamp(64px, 9vh, 104px) 72px; }.page-intro { max-width: 690px; margin-bottom: 32px; }.achievement-directory { padding: clamp(22px, 4vw, 36px); }.directory-state { margin: 0; padding: 100px 0; color: var(--muted); text-align: center; }.directory-error { color: var(--danger); }
+@media (max-width: 620px) { .achievements-page { padding-block: 48px 48px; }.page-intro { margin-bottom: 20px; } }
 </style>
