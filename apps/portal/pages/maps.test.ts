@@ -59,6 +59,6 @@ describe("maps page", () => {
     currentPlayer.value = null;
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
-    expect(wrapper.text()).toContain("无法读取地图目录");
+    expect(wrapper.text()).toContain("无法读取地图");
   });
 });

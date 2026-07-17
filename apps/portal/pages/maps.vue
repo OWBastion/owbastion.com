@@ -2,7 +2,7 @@
 import type { Map, MapChallenge } from "../composables/useSubmissionUpload";
 import MapDirectory from "../components/maps/MapDirectory.vue";
 
-useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持的地图与挑战记录。" });
+useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持的地图与挑战。" });
 
 const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
@@ -27,10 +27,10 @@ onMounted(async () => {
 
 <template>
   <main class="maps-page page-shell">
-    <section class="page-intro" aria-labelledby="maps-title"><p class="eyebrow">挑战目录</p><h1 id="maps-title" class="page-title">地图</h1><p class="body-copy">查看当前支持的地图与挑战记录。</p></section>
-    <section class="map-directory-panel surface-card" aria-label="地图目录">
+    <section class="page-intro" aria-labelledby="maps-title"><p class="eyebrow">支持地图</p><h1 id="maps-title" class="page-title">地图</h1><p class="body-copy">查看当前支持的地图与挑战记录。</p></section>
+    <section class="map-directory-panel surface-card" aria-label="地图列表">
       <p v-if="loading" class="directory-state" role="status">读取中…</p>
-      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图目录" description="请稍后重试。" />
+      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" description="请稍后重试。" />
       <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" />
     </section>
   </main>
