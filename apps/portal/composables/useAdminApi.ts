@@ -17,5 +17,5 @@ export type AdminSubmission = { submissionId: string; status: string; challengeI
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) =>
-    await $fetch<T>(`/api/admin${path}`, { ...options, credentials: "same-origin", retry: 0, timeout: 8_000 });
+    await $fetch<T>(`/api/admin${path}`, { ...options, credentials: "include", retry: 0, timeout: 8_000 });
 }
