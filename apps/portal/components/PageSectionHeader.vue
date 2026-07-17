@@ -18,7 +18,7 @@ defineProps<{
 </template>
 
 <style scoped>
-.section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+.section-header { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
 .section-header .eyebrow { margin-bottom: 5px; }
 .section-header__title { margin: 0; font-size: clamp(1.3rem, 3vw, 2.1rem); letter-spacing: -.04em; }
 .section-header__meta { display: flex; align-items: center; gap: 12px; color: var(--quiet); font-size: .78rem; white-space: nowrap; }
