@@ -282,7 +282,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }));
       }
       return items;
-      }, 60);
+      });
     },
 
     async listAdminChallenges(input) {
