@@ -29,6 +29,7 @@ const form = reactive({ name: "", category: "", rarity: "", description: "", dur
 const selectedLinks = computed(() => new Set(form.links.map((link) => `${link.family}:${link.challengeId}`)));
 const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "已实装" : status === "removed" ? "已移除" : "开发中";
 const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "success" : status === "removed" ? "default" : "warning";
+const categoryColor = (category: string) => category === "减益" ? "error" : category === "增益" ? "success" : category === "机制" ? "info" : "neutral";
 const probabilityText = (value: number | null) => value === null ? "—" : `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value * 100)}%`;
 const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "name", header: "事件名称" },
@@ -81,6 +82,7 @@ onMounted(() => void load());
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
         <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span>{{ row.original.description }}</span></template>
+        <template #category-cell="{ row }"><UBadge :label="row.original.category" :color="categoryColor(row.original.category)" variant="subtle" /></template>
         <template #cooldownSeconds-cell="{ row }"><span>{{ row.original.cooldownSeconds ?? "—" }}</span></template>
         <template #durationSeconds-cell="{ row }"><span>{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
         <template #weight-cell="{ row }"><span>{{ row.original.weight ?? "—" }}</span></template>
