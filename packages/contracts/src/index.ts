@@ -242,6 +242,7 @@ const adminAchievementChallengeUpdateSchema = z.object({
   evidenceRule: z.string().trim().min(1).max(2048),
   submissionMode: z.enum(["manual", "automatic"]),
   categoryOverride: z.string().trim().min(1).max(128).nullable(),
+  iconUrl: z.string().trim().url().max(2048).nullable().optional(),
   status: titleChallengeStatus,
   retiredVersion: retirementVersion.optional(),
   startsAt: scheduleTimestamp.optional(),

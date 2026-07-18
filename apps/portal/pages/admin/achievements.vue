@@ -180,6 +180,7 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
     evidenceRule: item.evidenceRule,
     submissionMode: item.submissionMode,
     categoryOverride: item.categoryOverride?.trim() || null,
+    iconUrl: item.iconUrl?.trim() || null,
     status,
     ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}),
     ...(status === "scheduled" ? { startsAt: item.startsAt ?? 0, endsAt: item.endsAt ?? 0 } : {}),
@@ -298,6 +299,10 @@ function setCategoryOverride(value: string) {
   if (editingItem.value) editingItem.value.categoryOverride = value || null;
 }
 
+function setIconUrl(value: string) {
+  if (editingItem.value) editingItem.value.iconUrl = value || null;
+}
+
 async function endChallenge() {
   const item = endTarget.value;
   if (!item) return;
@@ -336,7 +341,7 @@ onMounted(() => void load());
                 <UFormField class="editor-field" label="截图规则" required><UTextarea class="editor-control" v-model="editingItem.evidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" /></UFormField>
                 <UFormField class="editor-field" label="提交方式"><USelect class="editor-control" v-model="editingItem.submissionMode" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" /></UFormField>
                 <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="[{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :ui="{ base: 'w-full' }" /></UFormField>
-                <UFormField class="editor-field" label="自定义图标" hint="PNG、JPG 或 WebP，最大 512 KB；未上传时使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></UFormField>
+                <UFormField class="editor-field" label="自定义图标" hint="留空使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UInput class="editor-control" type="url" :model-value="editingItem.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setIconUrl" /><details class="icon-upload-option"><summary>上传图标</summary><div class="icon-upload-content"><p>PNG、JPG 或 WebP，最大 512 KB。</p><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></details></div></UFormField>
                 <template v-if="editingItem.status === 'scheduled'"><UFormField class="editor-field" label="开始时间" required><UInput class="editor-control" type="datetime-local" :model-value="toDateTimeLocal(editingItem.startsAt)" required :disabled="isSaving(editingItem)" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间" required><UInput class="editor-control" type="datetime-local" :model-value="toDateTimeLocal(editingItem.endsAt)" required :disabled="isSaving(editingItem)" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
                 <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput class="editor-control" :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField>
               </form>
@@ -396,6 +401,10 @@ onMounted(() => void load());
 .table-action-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
 .editor, .end-dialog, .plan-popover { display: grid; gap: 16px; }
 .icon-upload { display: grid; gap: 10px; }
+.icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }
+.icon-upload-option summary { padding-top: 10px; cursor: pointer; }
+.icon-upload-content { display: grid; gap: 10px; padding-top: 10px; }
+.icon-upload-content p { margin: 0; color: var(--quiet); font-size: .78rem; }
 .icon-preview { display: grid; width: 64px; height: 64px; place-items: center; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
 .icon-preview img { width: 42px; height: 42px; object-fit: contain; }
 .editor { padding: 24px; gap: 20px; }

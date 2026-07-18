@@ -86,6 +86,18 @@ describe("achievement admin page", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ condition: "完成更新后的挑战", categoryOverride: null }) }));
   });
 
+  it("saves a CDN icon URL and keeps file upload collapsed", async () => {
+    const wrapper = await mountPage();
+    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+    await flushPromises();
+    const iconUrl = wrapper.get('input[placeholder="https://cdn.example.com/icon.webp"]');
+    await iconUrl.setValue("https://cdn.example.com/flawless.webp");
+    expect(wrapper.get("details.icon-upload-option").attributes("open")).toBeUndefined();
+    await wrapper.get("form.editor").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ iconUrl: "https://cdn.example.com/flawless.webp" }) }));
+  });
+
   it("plans a sunset in a temporary Nuxt UI popover", async () => {
     const wrapper = await mountPage();
     const planButton = wrapper.get('button[aria-label="计划下线"]');
