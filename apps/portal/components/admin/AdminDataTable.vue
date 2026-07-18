@@ -3,6 +3,7 @@ import type { TableColumn } from "@nuxt/ui";
 import type { ColumnPinningState, GroupingOptions, GroupingState, SortingState } from "@tanstack/vue-table";
 
 type TableControlOption = { id: string; label: string };
+const defaultSelection = "__default__";
 type TableVirtualizeOptions = {
   estimateSize?: number | ((index: number) => number);
   overscan?: number;
@@ -50,29 +51,29 @@ const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => name !== "filters"));
 
 const sortingItems = computed(() => [
-  { label: "默认顺序", value: "" },
+  { label: "默认顺序", value: defaultSelection },
   ...props.sortingOptions.flatMap((option) => [
     { label: `${option.label}：升序`, value: `${option.id}:asc` },
     { label: `${option.label}：降序`, value: `${option.id}:desc` },
   ]),
 ]);
 const groupingItems = computed(() => [
-  { label: "不分组", value: "" },
+  { label: "不分组", value: defaultSelection },
   ...props.groupingOptions.map((option) => ({ label: `按${option.label}分组`, value: option.id })),
 ]);
 const sortingSelection = computed({
   get: () => {
     const primary = sorting.value[0];
-    return primary ? `${primary.id}:${primary.desc ? "desc" : "asc"}` : "";
+    return primary ? `${primary.id}:${primary.desc ? "desc" : "asc"}` : defaultSelection;
   },
   set: (value: string) => {
-    const [id, direction] = value.split(":");
-    sorting.value = id ? [{ id, desc: direction === "desc" }] : [];
+    const [id = "", direction] = value.split(":");
+    sorting.value = value === defaultSelection || !id ? [] : [{ id, desc: direction === "desc" }];
   },
 });
 const groupingSelection = computed({
-  get: () => grouping.value[0] ?? "",
-  set: (value: string) => { grouping.value = value ? [value] : []; },
+  get: () => grouping.value[0] ?? defaultSelection,
+  set: (value: string) => { grouping.value = value === defaultSelection ? [] : [value]; },
 });
 
 const columnMenuItems = computed(() => props.columns
