@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
-import { getGroupedRowModel, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
+import { getGroupedRowModel, type ColumnPinningState, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
 import type { RandomEvent } from "~/types/random-event";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
@@ -16,6 +16,7 @@ const query = shallowRef("");
 const showArchived = shallowRef(false);
 const sorting = shallowRef<SortingState>([]);
 const grouping = shallowRef<GroupingState>([]);
+const columnPinning = shallowRef<ColumnPinningState>({ left: ["name"], right: ["actions"] });
 const editorOpen = shallowRef(false);
 const probabilityOpen = shallowRef(false);
 const importOpen = shallowRef(false);
@@ -56,7 +57,7 @@ const tableGroupingOptions: GroupingOptions = {
 };
 const groupLabel = (columnId: string, value: unknown) => columnId === "releaseStatus" ? releaseStatusText(value as RandomEvent["releaseStatus"]) : String(value ?? "未设置");
 const eventColumns: TableColumn<RandomEvent>[] = [
-  { accessorKey: "name", header: "事件名称", meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
+  { accessorKey: "name", header: "事件名称", size: 128, meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
   { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
   { accessorKey: "category", header: "事件类别", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
   { accessorKey: "rarity", header: "稀有度级别", meta: { class: { th: "w-24", td: "!whitespace-nowrap" } } },
@@ -67,7 +68,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "gameVersion", header: "版本", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
   { accessorKey: "effectTags", header: "效果类型", meta: { class: { th: "w-44", td: "align-top" } } },
   { accessorKey: "releaseStatus", header: "状态", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
-  { id: "actions", header: "操作", enableHiding: false },
+  { id: "actions", header: "操作", size: 80, enableHiding: false },
 ];
 
 function number(value: string) { return value === "" ? null : Number(value); }
@@ -96,7 +97,7 @@ onMounted(() => void load());
     </UCollapsible>
 
     <section aria-label="事件目录">
-      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" :data="events" :columns="eventColumns" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :table-grouping-options="tableGroupingOptions" sticky="header" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" v-model:column-pinning="columnPinning" :data="events" :columns="eventColumns" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :table-grouping-options="tableGroupingOptions" sticky="header" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
         <template #name-cell="{ row }"><div v-if="row.getIsGrouped()" class="flex items-center gap-2"><UButton size="xs" color="neutral" variant="ghost" :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" :aria-label="row.getIsExpanded() ? '收起分组' : '展开分组'" @click="row.toggleExpanded()" /><strong>{{ groupLabel(row.groupingColumnId ?? "", row.getValue(row.groupingColumnId ?? "")) }}</strong><span class="text-sm text-muted">{{ row.subRows.length }} 条</span></div><strong v-else class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>

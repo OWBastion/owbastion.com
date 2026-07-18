@@ -1,6 +1,6 @@
 <script setup lang="ts" generic="TData extends Record<string, unknown>">
 import type { TableColumn } from "@nuxt/ui";
-import type { GroupingOptions, GroupingState, SortingState } from "@tanstack/vue-table";
+import type { ColumnPinningState, GroupingOptions, GroupingState, SortingState } from "@tanstack/vue-table";
 
 type TableControlOption = { id: string; label: string };
 type TableVirtualizeOptions = {
@@ -43,6 +43,7 @@ const globalFilter = defineModel<string>("globalFilter", { default: "" });
 const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("columnFilters", { default: () => [] });
 const sorting = defineModel<SortingState>("sorting", { default: () => [] });
 const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
+const columnPinning = defineModel<ColumnPinningState>("columnPinning", { default: () => ({ left: [], right: [] }) });
 const columnVisibility = useTableColumnVisibility(props.tableKey);
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
@@ -115,6 +116,7 @@ watch(() => props.resetScrollKey, () => {
         v-model:global-filter="globalFilter"
         v-model:sorting="sorting"
         v-model:grouping="grouping"
+        v-model:column-pinning="columnPinning"
         :columns="columns"
         :data="data"
         :empty="empty"
