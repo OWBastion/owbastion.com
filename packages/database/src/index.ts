@@ -14,11 +14,15 @@ const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const uploadTtlMs = 10 * 60 * 1000;
 const maxUploadBytes = 10 * 1024 * 1024;
-const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number) => {
+export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number) => {
   if (status !== "scheduled") return status === "active" || status === "sunsetting" ? status : null;
   if (startsAt === null || timestamp < startsAt) return "scheduled";
   if (endsAt !== null && timestamp >= endsAt) return null;
   return "active";
+};
+export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number) => {
+  const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp);
+  return publicStatus === "active" || publicStatus === "sunsetting";
 };
 const randomToken = (bytes = 32) => {
   const value = new Uint8Array(bytes);
@@ -434,7 +438,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .get();
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
       if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
-      if (titleChallenge && !publicTitleChallengeStatus(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now())) throw new Error("CHALLENGE_NOT_FOUND");
+      if (titleChallenge && !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now())) throw new Error("CHALLENGE_NOT_FOUND");
       if (titleChallenge?.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_AUTOMATIC");
       const challengeType = mapChallenge?.challenge.type ?? "title_achievement";
       const mapName = mapChallenge?.map.name ?? "成就挑战";
