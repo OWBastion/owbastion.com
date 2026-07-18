@@ -65,7 +65,7 @@ const env = {} as RuntimeEnv;
 
 describe("API", () => {
   it("lists public random events without development records", async () => {
-    const eventApp = createApp({ authenticate: auth, services: () => ({ ...services, listRandomEvents: async () => [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: null, weight: 1, appearanceProbability: .1, gameVersion: "5.0", effectTags: ["护盾"], releaseStatus: "implemented", archived: false, challenges: [] }] }) });
+    const eventApp = createApp({ authenticate: auth, services: () => ({ ...services, listRandomEvents: async () => [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: null, weight: 1, appearanceProbability: .1, categoryProbability: .4, groupTotalWeight: 1, groupSize: 1, failureProbability: null, guaranteeProbability: null, globalAppearanceProbability: .1, gameVersion: "5.0", effectTags: ["护盾"], releaseStatus: "implemented", archived: false, challenges: [] }] }) });
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
