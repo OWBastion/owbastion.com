@@ -17,6 +17,7 @@ future milestones.
 | Architecture, ownership, or repository shape | docs/architecture/overview.md |
 | QQBot, OCRKit, Bastion, submissions, or state transitions | docs/architecture/integrations-and-workflows.md |
 | Authentication, privacy, storage, or security | docs/architecture/data-and-security.md |
+| Portal UI, components, layout, or visual changes | docs/development/portal-ui-guidelines.md, docs/development/portal-copy-guidelines.md |
 | Tests, migrations, queues, release, or implementation changes | docs/development/testing-and-change-policy.md |
 
 ## Implemented boundary
