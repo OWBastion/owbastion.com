@@ -25,7 +25,7 @@ defineProps<{
 </template>
 
 <style>
-.admin-workspace { display: grid; gap: clamp(16px, 2.4vw, 24px); padding-block: clamp(38px, 6vh, 66px); }
+.admin-workspace { display: grid; width: min(100% - 40px, 1440px); gap: clamp(16px, 2.4vw, 24px); padding-block: clamp(38px, 6vh, 66px); }
 .admin-workspace__header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .admin-workspace__header .eyebrow { margin-bottom: 7px; }
 .admin-workspace__header h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
@@ -44,5 +44,5 @@ defineProps<{
 .admin-empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }
 .admin-detail h2 { margin: 0; font-size: 2.25rem; letter-spacing: -.05em; overflow-wrap: anywhere; }
 .admin-detail__meta { margin: 9px 0 22px; color: var(--quiet); font-size: .8rem; }
-@media (max-width: 620px) { .admin-workspace__header { align-items: start; flex-direction: column; }.admin-workspace__meta { width: 100%; justify-content: space-between; }.admin-toolbar { align-items: stretch; flex-direction: column; }.admin-toolbar > :first-child, .admin-toolbar > :not(:first-child) { flex: 1 1 auto; max-width: none; } }
+@media (max-width: 620px) { .admin-workspace { width: min(100% - 24px, 1440px); }.admin-workspace__header { align-items: start; flex-direction: column; }.admin-workspace__meta { width: 100%; justify-content: space-between; }.admin-toolbar { align-items: stretch; flex-direction: column; }.admin-toolbar > :first-child, .admin-toolbar > :not(:first-child) { flex: 1 1 auto; max-width: none; } }
 </style>

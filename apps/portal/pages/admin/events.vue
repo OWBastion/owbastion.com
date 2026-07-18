@@ -79,7 +79,7 @@ onMounted(() => void load());
     </UCollapsible>
 
     <section class="mt-4" aria-label="事件目录">
-      <AdminDataTable v-model:global-filter="query" :data="events" :columns="eventColumns" :loading="loading" empty="暂无事件记录。" table-key="events" scroll-height="36rem" table-min-width="1720px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" :data="events" :columns="eventColumns" :loading="loading" empty="暂无事件记录。" table-key="events" scroll-height="36rem" table-min-width="1180px" class="admin-table">
         <template #filters><UInput v-model="query" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /></template>
         <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span>{{ row.original.description }}</span></template>
