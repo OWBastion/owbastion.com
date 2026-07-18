@@ -18,6 +18,7 @@ describe("admin maps page", () => {
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("T3");
     expect(wrapper.text()).toContain("动态掩体");
+    expect(wrapper.find("table").text()).not.toContain("map.samoa");
     const viewButton = wrapper.findAll("button").find((button) => button.text() === "查看");
     expect(viewButton).toBeDefined();
     await viewButton!.trigger("click");
