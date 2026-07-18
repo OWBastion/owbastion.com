@@ -111,7 +111,7 @@ onMounted(() => void load());
             <h3 class="text-base font-semibold">概率信息</h3>
             <UFormField label="最终出现概率"><UInput v-model="form.appearanceProbability" type="number" readonly /></UFormField>
             <UCollapsible v-model:open="probabilityOpen" class="grid gap-3">
-              <UButton type="button" label="5 个隐藏字段" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" class="justify-start px-0" />
+              <UButton type="button" label="展开更多概率字段" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" class="justify-start px-0" />
               <template #content>
                 <div class="grid gap-4 border-l border-default pl-4 sm:grid-cols-2">
                   <UFormField label="组内总权重"><UInput v-model="form.groupTotalWeight" type="number" readonly /></UFormField>
