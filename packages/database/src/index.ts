@@ -150,9 +150,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   return {
     async listRandomEvents(input) {
-      const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
-      const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
-      return Promise.all(rows.map(asRandomEvent));
+      const cacheKey = catalogCacheKey(`events:${encodeURIComponent(JSON.stringify({
+        query: input.query ?? null,
+        category: input.category ?? null,
+        rarity: input.rarity ?? null,
+        status: input.status ?? null,
+        includeArchived: input.includeArchived ?? null,
+      }))}`);
+      return withCatalogCache(cache, cacheKey, async () => {
+        const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
+        const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
+        return Promise.all(rows.map(asRandomEvent));
+      });
     },
     async getRandomEvent(input) {
       const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();

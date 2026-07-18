@@ -24,6 +24,15 @@ const createCache = () => {
 };
 
 describe("catalog cache", () => {
+  it("uses a seven-day default TTL for invalidated catalog data", async () => {
+    const { cache } = createCache();
+    const put = vi.spyOn(cache, "put");
+
+    await withCatalogCache(cache, catalogCacheKey("events:all"), async () => ["event"]);
+
+    expect(put).toHaveBeenCalledWith(catalogCacheKey("events:all"), JSON.stringify(["event"]), { expirationTtl: 7 * 24 * 60 * 60 });
+  });
+
   it("returns a cached value without loading D1", async () => {
     const { cache } = createCache();
     const load = vi.fn(async () => ["d1"]);
