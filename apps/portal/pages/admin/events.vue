@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
+import { getGroupedRowModel, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
 import type { RandomEvent } from "~/types/random-event";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
@@ -13,6 +14,8 @@ const events = ref<RandomEvent[]>([]);
 const selectedEvent = shallowRef<RandomEvent | null>(null);
 const query = shallowRef("");
 const showArchived = shallowRef(false);
+const sorting = shallowRef<SortingState>([]);
+const grouping = shallowRef<GroupingState>([]);
 const editorOpen = shallowRef(false);
 const probabilityOpen = shallowRef(false);
 const importOpen = shallowRef(false);
@@ -30,6 +33,28 @@ const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "
 const categoryColor = (category: string) => category === "减益" ? "error" : category === "增益" ? "success" : category === "机制" ? "info" : "neutral";
 const probabilityText = (value: number | null) => value === null ? "—" : `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value * 100)}%`;
 const challengeLabel = (challenge: RandomEvent["challenges"][number]) => challenge.family === "map" ? challenge.name : challenge.titleName;
+const eventSortingOptions = [
+  { id: "name", label: "事件名称" },
+  { id: "category", label: "事件类别" },
+  { id: "rarity", label: "稀有度级别" },
+  { id: "cooldownSeconds", label: "内置冷却" },
+  { id: "durationSeconds", label: "持续时间" },
+  { id: "weight", label: "权重" },
+  { id: "appearanceProbability", label: "最终出现概率" },
+  { id: "gameVersion", label: "版本" },
+  { id: "releaseStatus", label: "状态" },
+];
+const eventGroupingOptions = [
+  { id: "category", label: "事件类别" },
+  { id: "rarity", label: "稀有度级别" },
+  { id: "gameVersion", label: "版本" },
+  { id: "releaseStatus", label: "状态" },
+];
+const tableGroupingOptions: GroupingOptions = {
+  groupedColumnMode: false,
+  getGroupedRowModel: getGroupedRowModel(),
+};
+const groupLabel = (columnId: string, value: unknown) => columnId === "releaseStatus" ? releaseStatusText(value as RandomEvent["releaseStatus"]) : String(value ?? "未设置");
 const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "name", header: "事件名称", meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
   { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
@@ -71,18 +96,18 @@ onMounted(() => void load());
     </UCollapsible>
 
     <section aria-label="事件目录">
-      <AdminDataTable v-model:global-filter="query" :data="events" :columns="eventColumns" :loading="loading" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" :data="events" :columns="eventColumns" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :table-grouping-options="tableGroupingOptions" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
-        <template #name-cell="{ row }"><strong class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
-        <template #description-cell="{ row }"><span class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>
-        <template #category-cell="{ row }"><UBadge :label="row.original.category" :color="categoryColor(row.original.category)" variant="subtle" /></template>
-        <template #cooldownSeconds-cell="{ row }"><span>{{ row.original.cooldownSeconds ?? "—" }}</span></template>
-        <template #durationSeconds-cell="{ row }"><span>{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
-        <template #weight-cell="{ row }"><span>{{ row.original.weight ?? "—" }}</span></template>
-        <template #appearanceProbability-cell="{ row }"><span>{{ probabilityText(row.original.appearanceProbability) }}</span></template>
-        <template #effectTags-cell="{ row }"><span class="line-clamp-2 block" :title="row.original.effectTags.join('、')">{{ row.original.effectTags.join("、") || "—" }}</span></template>
-        <template #releaseStatus-cell="{ row }"><StatusBadge :label="releaseStatusText(row.original.releaseStatus)" :tone="releaseStatusTone(row.original.releaseStatus)" /></template>
-        <template #actions-cell="{ row }"><UButton label="编辑" color="neutral" variant="link" @click="openEvent(row.original)" /></template>
+        <template #name-cell="{ row }"><div v-if="row.getIsGrouped()" class="flex items-center gap-2"><UButton size="xs" color="neutral" variant="ghost" :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" :aria-label="row.getIsExpanded() ? '收起分组' : '展开分组'" @click="row.toggleExpanded()" /><strong>{{ groupLabel(row.groupingColumnId ?? "", row.getValue(row.groupingColumnId ?? "")) }}</strong><span class="text-sm text-muted">{{ row.subRows.length }} 条</span></div><strong v-else class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
+        <template #description-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>
+        <template #category-cell="{ row }"><UBadge v-if="!row.getIsGrouped()" :label="row.original.category" :color="categoryColor(row.original.category)" variant="subtle" /></template>
+        <template #cooldownSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.cooldownSeconds ?? "—" }}</span></template>
+        <template #durationSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
+        <template #weight-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.weight ?? "—" }}</span></template>
+        <template #appearanceProbability-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ probabilityText(row.original.appearanceProbability) }}</span></template>
+        <template #effectTags-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.effectTags.join('、')">{{ row.original.effectTags.join("、") || "—" }}</span></template>
+        <template #releaseStatus-cell="{ row }"><StatusBadge v-if="!row.getIsGrouped()" :label="releaseStatusText(row.original.releaseStatus)" :tone="releaseStatusTone(row.original.releaseStatus)" /></template>
+        <template #actions-cell="{ row }"><UButton v-if="!row.getIsGrouped()" label="编辑" color="neutral" variant="link" @click="openEvent(row.original)" /></template>
       </AdminDataTable>
     </section>
 
@@ -108,7 +133,7 @@ onMounted(() => void load());
             <h3 class="text-base font-semibold">概率信息</h3>
             <UFormField label="最终出现概率"><UInput v-model="form.appearanceProbability" type="number" readonly /></UFormField>
             <UCollapsible v-model:open="probabilityOpen" class="grid gap-3">
-              <UButton type="button" label="展开更多概率字段" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" class="justify-start px-0" />
+              <UButton type="button" label="5 个隐藏字段" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" class="justify-start px-0" />
               <template #content>
                 <div class="grid gap-4 border-l border-default pl-4 sm:grid-cols-2">
                   <UFormField label="组内总权重"><UInput v-model="form.groupTotalWeight" type="number" readonly /></UFormField>

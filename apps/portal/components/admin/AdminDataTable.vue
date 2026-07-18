@@ -1,5 +1,8 @@
 <script setup lang="ts" generic="TData extends Record<string, unknown>">
 import type { TableColumn } from "@nuxt/ui";
+import type { GroupingOptions, GroupingState, SortingState } from "@tanstack/vue-table";
+
+type TableControlOption = { id: string; label: string };
 
 type Props = {
   columns: TableColumn<TData>[];
@@ -7,6 +10,9 @@ type Props = {
   empty: string;
   loading?: boolean;
   manualFiltering?: boolean;
+  sortingOptions?: TableControlOption[];
+  groupingOptions?: TableControlOption[];
+  tableGroupingOptions?: GroupingOptions;
   scrollHeight?: string;
   tableMinWidth?: string;
   tableKey: string;
@@ -16,6 +22,9 @@ type Props = {
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   manualFiltering: false,
+  sortingOptions: () => [],
+  groupingOptions: () => [],
+  tableGroupingOptions: undefined,
   scrollHeight: undefined,
   tableMinWidth: undefined,
   resetScrollKey: undefined,
@@ -23,10 +32,38 @@ const props = withDefaults(defineProps<Props>(), {
 
 const globalFilter = defineModel<string>("globalFilter", { default: "" });
 const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("columnFilters", { default: () => [] });
+const sorting = defineModel<SortingState>("sorting", { default: () => [] });
+const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
 const columnVisibility = useTableColumnVisibility(props.tableKey);
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => name !== "filters"));
+
+const sortingItems = computed(() => [
+  { label: "默认顺序", value: "" },
+  ...props.sortingOptions.flatMap((option) => [
+    { label: `${option.label}：升序`, value: `${option.id}:asc` },
+    { label: `${option.label}：降序`, value: `${option.id}:desc` },
+  ]),
+]);
+const groupingItems = computed(() => [
+  { label: "不分组", value: "" },
+  ...props.groupingOptions.map((option) => ({ label: `按${option.label}分组`, value: option.id })),
+]);
+const sortingSelection = computed({
+  get: () => {
+    const primary = sorting.value[0];
+    return primary ? `${primary.id}:${primary.desc ? "desc" : "asc"}` : "";
+  },
+  set: (value: string) => {
+    const [id, direction] = value.split(":");
+    sorting.value = id ? [{ id, desc: direction === "desc" }] : [];
+  },
+});
+const groupingSelection = computed({
+  get: () => grouping.value[0] ?? "",
+  set: (value: string) => { grouping.value = value ? [value] : []; },
+});
 
 const columnMenuItems = computed(() => props.columns
   .filter((column) => column.enableHiding !== false)
@@ -56,6 +93,8 @@ watch(() => props.resetScrollKey, () => {
   <div class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div class="admin-data-table__controls">
       <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
+      <USelect v-if="props.sortingOptions.length" v-model="sortingSelection" aria-label="排序方式" size="md" :items="sortingItems" />
+      <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
       <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
         <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
       </UDropdownMenu>
@@ -65,11 +104,14 @@ watch(() => props.resetScrollKey, () => {
         v-model:column-visibility="columnVisibility"
         v-model:column-filters="columnFilters"
         v-model:global-filter="globalFilter"
+        v-model:sorting="sorting"
+        v-model:grouping="grouping"
         :columns="columns"
         :data="data"
         :empty="empty"
         :loading="loading"
         :manual-filtering="manualFiltering"
+        :grouping-options="props.tableGroupingOptions"
         sticky
       >
         <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
