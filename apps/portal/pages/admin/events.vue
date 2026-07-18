@@ -6,12 +6,10 @@ definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
 type Link = { family: "map" | "achievement"; challengeId: string };
-type AdminChallenge = { challengeId: string; family: "map" | "achievement"; name?: string; titleName?: string };
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
 
 const api = useAdminApi();
 const events = ref<RandomEvent[]>([]);
-const challenges = ref<AdminChallenge[]>([]);
 const selectedEvent = shallowRef<RandomEvent | null>(null);
 const query = shallowRef("");
 const showArchived = shallowRef(false);
@@ -27,11 +25,11 @@ const error = shallowRef("");
 const message = shallowRef("");
 const form = reactive({ name: "", category: "", rarity: "", description: "", durationSeconds: "", cooldownSeconds: "", weight: "", appearanceProbability: "", categoryProbability: "", groupTotalWeight: "", groupSize: "", failureProbability: "", guaranteeProbability: "", globalAppearanceProbability: "", gameVersion: "", effectTags: "", releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
 
-const selectedLinks = computed(() => new Set(form.links.map((link) => `${link.family}:${link.challengeId}`)));
 const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "已实装" : status === "removed" ? "已移除" : "开发中";
 const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "success" : status === "removed" ? "default" : "warning";
 const categoryColor = (category: string) => category === "减益" ? "error" : category === "增益" ? "success" : category === "机制" ? "info" : "neutral";
 const probabilityText = (value: number | null) => value === null ? "—" : `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value * 100)}%`;
+const challengeLabel = (challenge: RandomEvent["challenges"][number]) => challenge.family === "map" ? challenge.name : challenge.titleName;
 const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "name", header: "事件名称", meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
   { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
@@ -53,8 +51,7 @@ function resetForm(event?: RandomEvent) {
 }
 function openCreate() { selectedEvent.value = null; resetForm(); probabilityOpen.value = false; editorOpen.value = true; }
 function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); probabilityOpen.value = false; editorOpen.value = true; }
-function toggleLink(link: Link) { form.links = selectedLinks.value.has(`${link.family}:${link.challengeId}`) ? form.links.filter((item) => item.family !== link.family || item.challengeId !== link.challengeId) : [...form.links, link]; }
-async function load() { loading.value = true; error.value = ""; try { const [eventResult, challengeResult] = await Promise.all([api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`), api<{ items: AdminChallenge[] }>("/v1/achievements")]); events.value = eventResult.items; challenges.value = challengeResult.items.filter((item) => item.family === "map" || item.family === "achievement"); } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法读取事件目录。"; } finally { loading.value = false; } }
+async function load() { loading.value = true; error.value = ""; try { const eventResult = await api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`); events.value = eventResult.items; } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法读取事件目录。"; } finally { loading.value = false; } }
 async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), appearanceProbability: number(form.appearanceProbability), categoryProbability: number(form.categoryProbability), groupTotalWeight: number(form.groupTotalWeight), groupSize: number(form.groupSize), failureProbability: number(form.failureProbability), guaranteeProbability: number(form.guaranteeProbability), globalAppearanceProbability: number(form.globalAppearanceProbability), gameVersion: form.gameVersion, effectTags: form.effectTags.split(/[、,]/).map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { if (selectedEvent.value) await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); else await api("/v1/events", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); editorOpen.value = false; message.value = "事件已保存"; await load(); } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法保存事件。"; } finally { saving.value = false; } }
 async function archive() { if (!selectedEvent.value || !window.confirm(`归档“${selectedEvent.value.name}”？`)) return; await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } }); editorOpen.value = false; selectedEvent.value = null; await load(); }
 async function previewImport() { if (!importFile.value) return; importing.value = true; error.value = ""; try { importPreview.value = await api<ImportPreview>("/v1/events/imports/preview", { method: "POST", body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法预检文件。"; } finally { importing.value = false; } }
@@ -127,7 +124,14 @@ onMounted(() => void load());
           <section class="grid gap-4">
             <UFormField label="效果标签"><UInput v-model="form.effectTags" placeholder="用顿号或逗号分隔" /></UFormField>
             <UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField>
-            <UFormField label="关联挑战"><div class="grid gap-2"><UCheckbox v-for="challenge in challenges" :key="`${challenge.family}-${challenge.challengeId}`" :model-value="selectedLinks.has(`${challenge.family}:${challenge.challengeId}`)" :label="challenge.name ?? challenge.titleName" @update:model-value="toggleLink({ family: challenge.family, challengeId: challenge.challengeId })" /></div></UFormField>
+            <UFormField label="关联挑战">
+              <div v-if="selectedEvent?.challenges.length" class="grid gap-2">
+                <div v-for="challenge in selectedEvent.challenges" :key="`${challenge.family}-${challenge.challengeId}`" class="rounded-md border border-default px-3 py-2 text-sm">
+                  {{ challengeLabel(challenge) }}
+                </div>
+              </div>
+              <p v-else class="text-sm text-muted">暂无关联挑战</p>
+            </UFormField>
           </section>
 
           <div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="archive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div>
