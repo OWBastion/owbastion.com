@@ -1,0 +1,2 @@
+export type EventChallenge = { challengeId: string; family: "map"; name: string } | { challengeId: string; family: "achievement"; titleName: string };
+export type RandomEvent = { eventId: string; name: string; category: string; rarity: string; description: string; durationSeconds: number | null; cooldownSeconds: number | null; weight: number | null; appearanceProbability: number | null; gameVersion: string; effectTags: string[]; releaseStatus: "development" | "implemented" | "removed"; archived: boolean; challenges: EventChallenge[] };

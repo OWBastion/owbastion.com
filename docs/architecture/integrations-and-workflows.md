@@ -112,6 +112,14 @@ through OCR and review under the ordinary submission lifecycle. Reopening
 clears the retirement version. Administrator changes require maintainer
 authorization, an idempotency key, and an audit record.
 
+## Random-event directory
+
+The public Portal lists implemented and removed random events, their released
+metadata, and linked challenges that are currently open. Maintainers create,
+edit, archive, and link events in the Portal. The same Portal/API path accepts
+a CSV preview and confirmed import; it validates every row before an atomic
+write, records the source hash and audit event, and never stores the CSV.
+
 ## QQBot and login
 
 QQBot is a channel adapter. It sends /绑定, /成就挑战, and /验证 requests to the

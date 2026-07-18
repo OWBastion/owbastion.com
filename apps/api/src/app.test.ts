@@ -4,6 +4,13 @@ import { createApp, type RuntimeEnv } from "./app";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  listRandomEvents: async () => [],
+  getRandomEvent: async () => null,
+  createAdminRandomEvent: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
+  updateAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
+  archiveAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
+  previewAdminRandomEventImport: async () => ({ sourceHash: "hash", validRowCount: 0, errors: [], rows: [] }),
+  importAdminRandomEvents: async () => ({ importedCount: 0 }),
   listMaps: async () => [],
   updateAdminMapMetadata: async () => { throw new Error("MAP_NOT_FOUND"); },
   listChallenges: async () => [],
@@ -57,6 +64,19 @@ const app = createApp({
 const env = {} as RuntimeEnv;
 
 describe("API", () => {
+  it("lists public random events without development records", async () => {
+    const eventApp = createApp({ authenticate: auth, services: () => ({ ...services, listRandomEvents: async () => [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: null, weight: 1, appearanceProbability: .1, gameVersion: "5.0", effectTags: ["护盾"], releaseStatus: "implemented", archived: false, challenges: [] }] }) });
+    const response = await eventApp.request("http://localhost/v1/events", {}, env);
+    expect(response.status).toBe(200);
+    expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
+  });
+
+  it("requires a maintainer and an idempotency key for event imports", async () => {
+    const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
+    expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);
+    const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
+    expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
+  });
   it("reports health without external services", async () => {
     const response = await app.request("http://localhost/health", {}, env);
     expect(response.status).toBe(200);

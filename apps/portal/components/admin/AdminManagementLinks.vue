@@ -6,6 +6,7 @@
       <NuxtLink class="management-link" to="/admin/channels"><strong>QQ 渠道</strong><span>群组开放状态</span><i aria-hidden="true">→</i></NuxtLink>
       <NuxtLink class="management-link" to="/admin/achievements"><strong>成就</strong><span>挑战目录与规则</span><i aria-hidden="true">→</i></NuxtLink>
       <NuxtLink class="management-link" to="/admin/maps"><strong>地图</strong><span>评级、机制与挑战</span><i aria-hidden="true">→</i></NuxtLink>
+      <NuxtLink class="management-link" to="/admin/events"><strong>事件</strong><span>目录、挑战与导入</span><i aria-hidden="true">→</i></NuxtLink>
       <NuxtLink class="management-link" to="/admin/titles"><strong>称号迁移</strong><span>历史称号关联</span><i aria-hidden="true">→</i></NuxtLink>
     </div>
   </section>

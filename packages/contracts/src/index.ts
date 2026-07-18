@@ -138,6 +138,20 @@ export const mapSchema = z.object({
 
 export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
 
+const randomEventStatus = z.enum(["development", "implemented", "removed"]);
+const randomEventLinkSchema = z.object({ family: z.enum(["map", "achievement"]), challengeId: externalId });
+export const randomEventSchema = z.object({
+  eventId: externalId, name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().min(1).max(32), description: z.string().trim().min(1).max(4096),
+  durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().int().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), appearanceProbability: z.number().min(0).max(1).nullable(),
+  gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
+});
+export const randomEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
+const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().min(1).max(32), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().int().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), appearanceProbability: z.number().min(0).max(1).nullable(), gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) });
+export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
+export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
+export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) });
+export const adminRandomEventImportPreviewSchema = z.object({ sourceHash: z.string(), validRowCount: z.number().int().nonnegative(), errors: z.array(z.object({ row: z.number().int().positive(), message: z.string() })), rows: z.array(z.object({ name: z.string(), category: z.string(), releaseStatus: randomEventStatus })).max(20) });
+
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
@@ -372,6 +386,11 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;
 export type MapListResponse = z.infer<typeof mapListResponseSchema>;
+export type RandomEvent = z.infer<typeof randomEventSchema>;
+export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
+export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
+export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
 export type Title = z.infer<typeof titleSchema>;
 export type TitleListResponse = z.infer<typeof titleListResponseSchema>;

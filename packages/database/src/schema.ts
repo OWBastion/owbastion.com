@@ -55,6 +55,16 @@ export const mapMetadata = sqliteTable("map_metadata", {
   updatedBy: text("updated_by").notNull(),
 });
 
+export const randomEvents = sqliteTable("random_events", {
+  id: text("id").primaryKey(), name: text("name").notNull(), category: text("category").notNull(), rarity: text("rarity").notNull(),
+  description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: integer("cooldown_seconds"), weight: integer("weight", { mode: "number" }),
+  appearanceProbability: integer("appearance_probability", { mode: "number" }), gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
+  releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
+});
+export const randomEventMapChallenges = sqliteTable("random_event_map_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => achievementChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
+export const randomEventTitleChallenges = sqliteTable("random_event_title_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => titleChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
+export const randomEventImports = sqliteTable("random_event_imports", { id: text("id").primaryKey(), sourceHash: text("source_hash").notNull(), fileName: text("file_name").notNull(), rowCount: integer("row_count").notNull(), importedBy: text("imported_by").notNull(), importedAt: integer("imported_at").notNull() });
+
 export const titleCatalog = sqliteTable("title_catalog", {
   key: text("key").primaryKey(),
   label: text("label").notNull(),

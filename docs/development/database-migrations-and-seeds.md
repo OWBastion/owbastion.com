@@ -42,6 +42,11 @@ pnpm db:seed:local
 
 ## Catalog import
 
+Random-event data is intentionally not imported by a CLI or a local seed. Use
+the maintainer Portal's event-management CSV preview and confirmation flow so
+local and production environments share the same authorization, validation,
+audit, and database-write path.
+
 ```bash
 pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json --dry-run
 pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json

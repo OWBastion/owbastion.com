@@ -38,7 +38,7 @@ released game content remains authoritative in OWBastion/Bastion.
 ## Current product surfaces
 
 - **Portal:** public landing content, QQ browser login, current-player data,
-  map, achievement challenge, and title catalogs, player screenshot upload, recent
+  map, random-event, achievement challenge, and title catalogs, player screenshot upload, recent
   submission/status views, and review UI.
 - **API:** health, a public read-only achievement catalog, authenticated QQ binding/submission writes, player upload
   sessions, Queue-backed OCR processing, public submission status, QQ login
@@ -56,6 +56,10 @@ QQ OpenIDs, review notes, or unapproved drafts.
 Achievement catalog management changes platform challenge rules only. It does
 not create titles, alter Bastion's released title or map facts, or issue titles;
 those remain Bastion-release and historical-title-migration responsibilities.
+
+Random events are platform-owned directory records. Their labels and balancing
+metadata are maintained through the administrator Portal and may link to
+existing platform challenges, but do not modify Bastion's released scripts.
 
 ## Design principles
 
