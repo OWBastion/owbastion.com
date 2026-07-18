@@ -3,6 +3,11 @@ import type { TableColumn } from "@nuxt/ui";
 import type { GroupingOptions, GroupingState, SortingState } from "@tanstack/vue-table";
 
 type TableControlOption = { id: string; label: string };
+type TableVirtualizeOptions = {
+  estimateSize?: number | ((index: number) => number);
+  overscan?: number;
+  [key: string]: unknown;
+};
 
 type Props = {
   columns: TableColumn<TData>[];
@@ -17,6 +22,8 @@ type Props = {
   tableMinWidth?: string;
   tableKey: string;
   resetScrollKey?: string | number;
+  sticky?: boolean | "header" | "footer";
+  virtualize?: boolean | TableVirtualizeOptions;
 };
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,6 +35,8 @@ const props = withDefaults(defineProps<Props>(), {
   scrollHeight: undefined,
   tableMinWidth: undefined,
   resetScrollKey: undefined,
+  sticky: "header",
+  virtualize: false,
 });
 
 const globalFilter = defineModel<string>("globalFilter", { default: "" });
@@ -112,7 +121,8 @@ watch(() => props.resetScrollKey, () => {
         :loading="loading"
         :manual-filtering="manualFiltering"
         :grouping-options="props.tableGroupingOptions"
-        sticky
+        :sticky="props.sticky"
+        :virtualize="props.virtualize"
       >
         <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
           <slot :name="name" v-bind="slotProps" />
