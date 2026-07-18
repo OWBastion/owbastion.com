@@ -2,7 +2,7 @@
   <UApp>
     <div class="app-root" data-vaul-drawer-wrapper>
       <NuxtLayout>
-        <NuxtPage />
+        <NuxtPage :page-key="(route) => route.fullPath" />
       </NuxtLayout>
     </div>
   </UApp>
