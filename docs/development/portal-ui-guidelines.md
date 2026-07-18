@@ -69,6 +69,12 @@ Use this pattern for `/admin`:
 3. Add page-scoped CSS only when the existing primitives cannot express page-specific layout.
 4. New components must have a clear domain responsibility. Do not create a wrapper around one HTML element or a generic abstraction used once.
 
+### File selection and upload
+
+- All Portal file selection and upload UI must use Nuxt UI's `UFileUpload` component. See the [FileUpload documentation](https://ui.nuxt.com/docs/components/file-upload).
+- Do not add native `<input type="file">`, custom dropzones, or another file-picker component for new or changed Portal flows.
+- Keep file validation and submission behavior in the existing feature composable/API boundary; `UFileUpload` owns the selection interaction and exposes the selected `File` through `v-model`.
+
 Button rules: use the default/primary button for the primary action; use `color="neutral"` with `outline` or `soft` for secondary actions; use `color="error"` for dangerous actions; prefer `variant="link"` or a compact button with an explicit `aria-label` for table-row view/edit actions. Use `NuxtLink` or `UButton to` for navigation; do not simulate navigation with click handlers.
 
 ## Visual tokens and layout
