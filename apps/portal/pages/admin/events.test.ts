@@ -43,5 +43,11 @@ describe("admin events page", () => {
     expect(wrapper.get('[aria-label="分组方式"]')).toBeTruthy();
     expect(wrapper.text()).toContain("默认顺序");
     expect(wrapper.text()).toContain("不分组");
+    expect(
+      wrapper.findComponent({ name: "AdminDataTable" }).props("sorting"),
+    ).toEqual([
+      { id: "gameVersion", desc: true },
+      { id: "name", desc: false },
+    ]);
   });
 });

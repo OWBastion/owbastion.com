@@ -4,6 +4,13 @@ import type { ColumnPinningState, GroupingOptions, GroupingState, SortingState }
 
 type TableControlOption = { id: string; label: string };
 const defaultSelection = "__default__";
+
+function hasSameSorting(left: SortingState, right: SortingState) {
+  return left.length === right.length && left.every(
+    (sort, index) => sort.id === right[index]?.id && sort.desc === right[index]?.desc,
+  );
+}
+
 type TableVirtualizeOptions = {
   estimateSize?: number | ((index: number) => number);
   overscan?: number;
@@ -18,6 +25,7 @@ type Props = {
   manualFiltering?: boolean;
   sortingOptions?: TableControlOption[];
   groupingOptions?: TableControlOption[];
+  defaultSorting?: SortingState;
   tableGroupingOptions?: GroupingOptions;
   scrollHeight?: string;
   tableMinWidth?: string;
@@ -32,6 +40,7 @@ const props = withDefaults(defineProps<Props>(), {
   manualFiltering: false,
   sortingOptions: () => [],
   groupingOptions: () => [],
+  defaultSorting: () => [],
   tableGroupingOptions: undefined,
   scrollHeight: undefined,
   tableMinWidth: undefined,
@@ -63,12 +72,14 @@ const groupingItems = computed(() => [
 ]);
 const sortingSelection = computed({
   get: () => {
+    if (hasSameSorting(sorting.value, props.defaultSorting)) return defaultSelection;
+
     const primary = sorting.value[0];
     return primary ? `${primary.id}:${primary.desc ? "desc" : "asc"}` : defaultSelection;
   },
   set: (value: string) => {
     const [id = "", direction] = value.split(":");
-    sorting.value = value === defaultSelection || !id ? [] : [{ id, desc: direction === "desc" }];
+    sorting.value = value === defaultSelection || !id ? [...props.defaultSorting] : [{ id, desc: direction === "desc" }];
   },
 });
 const groupingSelection = computed({

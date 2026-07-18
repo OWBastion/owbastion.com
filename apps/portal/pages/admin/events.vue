@@ -8,13 +8,17 @@ useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
 type Link = { family: "map" | "achievement"; challengeId: string };
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
+const defaultEventSorting: SortingState = [
+  { id: "gameVersion", desc: true },
+  { id: "name", desc: false },
+];
 
 const api = useAdminApi();
 const events = ref<RandomEvent[]>([]);
 const selectedEvent = shallowRef<RandomEvent | null>(null);
 const query = shallowRef("");
 const showArchived = shallowRef(false);
-const sorting = shallowRef<SortingState>([]);
+const sorting = shallowRef<SortingState>([...defaultEventSorting]);
 const grouping = shallowRef<GroupingState>([]);
 const columnPinning = shallowRef<ColumnPinningState>({ left: ["name"], right: ["actions"] });
 const editorOpen = shallowRef(false);
@@ -97,7 +101,7 @@ onMounted(() => void load());
     </UCollapsible>
 
     <section aria-label="事件目录">
-      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" v-model:column-pinning="columnPinning" :data="events" :columns="eventColumns" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :table-grouping-options="tableGroupingOptions" sticky="header" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" v-model:sorting="sorting" v-model:grouping="grouping" v-model:column-pinning="columnPinning" :data="events" :columns="eventColumns" :loading="loading" :sorting-options="eventSortingOptions" :grouping-options="eventGroupingOptions" :default-sorting="defaultEventSorting" :table-grouping-options="tableGroupingOptions" sticky="header" :virtualize="{ estimateSize: 65, overscan: 8 }" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
         <template #name-cell="{ row }"><div v-if="row.getIsGrouped()" class="flex items-center gap-2"><UButton size="xs" color="neutral" variant="ghost" :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" :aria-label="row.getIsExpanded() ? '收起分组' : '展开分组'" @click="row.toggleExpanded()" /><strong>{{ groupLabel(row.groupingColumnId ?? "", row.getValue(row.groupingColumnId ?? "")) }}</strong><span class="text-sm text-muted">{{ row.subRows.length }} 条</span></div><strong v-else class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>
