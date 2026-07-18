@@ -16,6 +16,7 @@ const selectedEvent = shallowRef<RandomEvent | null>(null);
 const query = shallowRef("");
 const showArchived = shallowRef(false);
 const editorOpen = shallowRef(false);
+const probabilityOpen = shallowRef(false);
 const importOpen = shallowRef(false);
 const importFile = shallowRef<File | null>(null);
 const importPreview = ref<ImportPreview | null>(null);
@@ -32,22 +33,17 @@ const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "
 const categoryColor = (category: string) => category === "减益" ? "error" : category === "增益" ? "success" : category === "机制" ? "info" : "neutral";
 const probabilityText = (value: number | null) => value === null ? "—" : `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value * 100)}%`;
 const eventColumns: TableColumn<RandomEvent>[] = [
-  { accessorKey: "name", header: "事件名称" },
-  { accessorKey: "description", header: "事件效果" },
-  { accessorKey: "category", header: "事件类别" },
-  { accessorKey: "rarity", header: "稀有度级别" },
-  { accessorKey: "cooldownSeconds", header: "内置冷却" },
-  { accessorKey: "durationSeconds", header: "持续时间（秒）" },
-  { accessorKey: "weight", header: "权重" },
-  { accessorKey: "groupTotalWeight", header: "组内总权重" },
-  { accessorKey: "groupSize", header: "组内个数" },
-  { accessorKey: "failureProbability", header: "单次失败率" },
-  { accessorKey: "guaranteeProbability", header: "保底触发率" },
-  { accessorKey: "appearanceProbability", header: "最终出现概率" },
-  { accessorKey: "globalAppearanceProbability", header: "全局出现概率" },
-  { accessorKey: "gameVersion", header: "版本" },
-  { accessorKey: "effectTags", header: "效果类型" },
-  { accessorKey: "releaseStatus", header: "状态" },
+  { accessorKey: "name", header: "事件名称", meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
+  { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
+  { accessorKey: "category", header: "事件类别", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
+  { accessorKey: "rarity", header: "稀有度级别", meta: { class: { th: "w-24", td: "!whitespace-nowrap" } } },
+  { accessorKey: "cooldownSeconds", header: "内置冷却", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
+  { accessorKey: "durationSeconds", header: "持续时间（秒）", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
+  { accessorKey: "weight", header: "权重", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
+  { accessorKey: "appearanceProbability", header: "最终出现概率", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
+  { accessorKey: "gameVersion", header: "版本", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
+  { accessorKey: "effectTags", header: "效果类型", meta: { class: { th: "w-44", td: "align-top" } } },
+  { accessorKey: "releaseStatus", header: "状态", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
   { id: "actions", header: "操作", enableHiding: false },
 ];
 
@@ -55,8 +51,8 @@ function number(value: string) { return value === "" ? null : Number(value); }
 function resetForm(event?: RandomEvent) {
   Object.assign(form, event ? { name: event.name, category: event.category, rarity: event.rarity, description: event.description, durationSeconds: event.durationSeconds ?? "", cooldownSeconds: event.cooldownSeconds ?? "", weight: event.weight ?? "", appearanceProbability: event.appearanceProbability ?? "", categoryProbability: event.categoryProbability ?? "", groupTotalWeight: event.groupTotalWeight ?? "", groupSize: event.groupSize ?? "", failureProbability: event.failureProbability ?? "", guaranteeProbability: event.guaranteeProbability ?? "", globalAppearanceProbability: event.globalAppearanceProbability ?? "", gameVersion: event.gameVersion, effectTags: event.effectTags.join("、"), releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", rarity: "", description: "", durationSeconds: "", cooldownSeconds: "", weight: "", appearanceProbability: "", categoryProbability: "", groupTotalWeight: "", groupSize: "", failureProbability: "", guaranteeProbability: "", globalAppearanceProbability: "", gameVersion: "", effectTags: "", releaseStatus: "development", links: [] });
 }
-function openCreate() { selectedEvent.value = null; resetForm(); editorOpen.value = true; }
-function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); editorOpen.value = true; }
+function openCreate() { selectedEvent.value = null; resetForm(); probabilityOpen.value = false; editorOpen.value = true; }
+function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); probabilityOpen.value = false; editorOpen.value = true; }
 function toggleLink(link: Link) { form.links = selectedLinks.value.has(`${link.family}:${link.challengeId}`) ? form.links.filter((item) => item.family !== link.family || item.challengeId !== link.challengeId) : [...form.links, link]; }
 async function load() { loading.value = true; error.value = ""; try { const [eventResult, challengeResult] = await Promise.all([api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`), api<{ items: AdminChallenge[] }>("/v1/achievements")]); events.value = eventResult.items; challenges.value = challengeResult.items.filter((item) => item.family === "map" || item.family === "achievement"); } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法读取事件目录。"; } finally { loading.value = false; } }
 async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), appearanceProbability: number(form.appearanceProbability), categoryProbability: number(form.categoryProbability), groupTotalWeight: number(form.groupTotalWeight), groupSize: number(form.groupSize), failureProbability: number(form.failureProbability), guaranteeProbability: number(form.guaranteeProbability), globalAppearanceProbability: number(form.globalAppearanceProbability), gameVersion: form.gameVersion, effectTags: form.effectTags.split(/[、,]/).map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { if (selectedEvent.value) await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); else await api("/v1/events", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); editorOpen.value = false; message.value = "事件已保存"; await load(); } catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法保存事件。"; } finally { saving.value = false; } }
@@ -78,7 +74,7 @@ onMounted(() => void load());
     </UCollapsible>
 
     <section aria-label="事件目录">
-      <AdminDataTable v-model:global-filter="query" :data="events" :columns="eventColumns" :loading="loading" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1640px" class="admin-table">
+      <AdminDataTable v-model:global-filter="query" :data="events" :columns="eventColumns" :loading="loading" empty="暂无事件记录。" table-key="events" scroll-height="clamp(18rem, calc(100dvh - 18rem), 42rem)" table-min-width="1180px" class="admin-table">
         <template #filters><div class="flex flex-1 flex-wrap items-center gap-2"><UInput v-model="query" class="min-w-56 flex-1" size="md" aria-label="搜索事件" placeholder="搜索名称、类别或稀有度" icon="i-lucide-search" /><UCheckbox v-model="showArchived" label="包含已归档" /><UButton label="新建事件" icon="i-lucide-plus" @click="openCreate" /><UButton label="导入 CSV" color="neutral" variant="outline" icon="i-lucide-upload" @click="importOpen = !importOpen" /></div></template>
         <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span>{{ row.original.description }}</span></template>
@@ -86,18 +82,57 @@ onMounted(() => void load());
         <template #cooldownSeconds-cell="{ row }"><span>{{ row.original.cooldownSeconds ?? "—" }}</span></template>
         <template #durationSeconds-cell="{ row }"><span>{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
         <template #weight-cell="{ row }"><span>{{ row.original.weight ?? "—" }}</span></template>
-        <template #groupTotalWeight-cell="{ row }"><span>{{ row.original.groupTotalWeight ?? "—" }}</span></template>
-        <template #groupSize-cell="{ row }"><span>{{ row.original.groupSize ?? "—" }}</span></template>
-        <template #failureProbability-cell="{ row }"><span>{{ probabilityText(row.original.failureProbability) }}</span></template>
-        <template #guaranteeProbability-cell="{ row }"><span>{{ probabilityText(row.original.guaranteeProbability) }}</span></template>
         <template #appearanceProbability-cell="{ row }"><span>{{ probabilityText(row.original.appearanceProbability) }}</span></template>
-        <template #globalAppearanceProbability-cell="{ row }"><span>{{ probabilityText(row.original.globalAppearanceProbability) }}</span></template>
         <template #effectTags-cell="{ row }"><span>{{ row.original.effectTags.join("、") || "—" }}</span></template>
         <template #releaseStatus-cell="{ row }"><StatusBadge :label="releaseStatusText(row.original.releaseStatus)" :tone="releaseStatusTone(row.original.releaseStatus)" /></template>
         <template #actions-cell="{ row }"><UButton label="编辑" color="neutral" variant="link" @click="openEvent(row.original)" /></template>
       </AdminDataTable>
     </section>
 
-    <USlideover v-model:open="editorOpen" :title="selectedEvent ? `编辑：${selectedEvent.name}` : '新建事件'" :ui="{ content: 'sm:max-w-2xl' }"><template #body><form class="grid gap-4" @submit.prevent="save"><div class="grid gap-4 sm:grid-cols-2"><UFormField label="名称"><UInput v-model="form.name" required /></UFormField><UFormField label="类别"><UInput v-model="form.category" required /></UFormField><UFormField label="稀有度"><UInput v-model="form.rarity" required /></UFormField><UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField><UFormField label="类别概率"><UInput v-model="form.categoryProbability" type="number" min="0" max="1" step="any" /></UFormField><UFormField label="内置冷却（秒）"><UInput v-model="form.cooldownSeconds" type="number" min="0" /></UFormField><UFormField label="持续时间（秒）"><UInput v-model="form.durationSeconds" type="number" min="0" /></UFormField><UFormField label="权重"><UInput v-model="form.weight" type="number" min="0" step="any" /></UFormField><UFormField label="组内总权重" description="系统按公式计算"><UInput v-model="form.groupTotalWeight" type="number" readonly /></UFormField><UFormField label="组内个数" description="系统按公式计算"><UInput v-model="form.groupSize" type="number" readonly /></UFormField><UFormField label="单次失败率" description="系统按公式计算"><UInput v-model="form.failureProbability" type="number" readonly /></UFormField><UFormField label="保底触发率" description="系统按公式计算"><UInput v-model="form.guaranteeProbability" type="number" readonly /></UFormField><UFormField label="最终出现概率" description="系统按公式计算"><UInput v-model="form.appearanceProbability" type="number" readonly /></UFormField><UFormField label="全局出现概率" description="系统按公式计算"><UInput v-model="form.globalAppearanceProbability" type="number" readonly /></UFormField></div><UFormField label="内容说明"><UTextarea v-model="form.description" required :rows="4" /></UFormField><UFormField label="效果标签"><UInput v-model="form.effectTags" placeholder="用顿号或逗号分隔" /></UFormField><UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField><UFormField label="关联挑战"><div class="grid gap-2"><UCheckbox v-for="challenge in challenges" :key="`${challenge.family}-${challenge.challengeId}`" :model-value="selectedLinks.has(`${challenge.family}:${challenge.challengeId}`)" :label="challenge.name ?? challenge.titleName" @update:model-value="toggleLink({ family: challenge.family, challengeId: challenge.challengeId })" /></div></UFormField><div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="archive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div></form></template></USlideover>
+    <USlideover v-model:open="editorOpen" :title="selectedEvent ? `编辑：${selectedEvent.name}` : '新建事件'" :ui="{ content: 'sm:max-w-2xl' }">
+      <template #body>
+        <form class="grid gap-6" @submit.prevent="save">
+          <section class="grid gap-4">
+            <h3 class="text-base font-semibold">基本信息</h3>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <UFormField label="名称"><UInput v-model="form.name" required /></UFormField>
+              <UFormField label="类别"><UInput v-model="form.category" required /></UFormField>
+              <UFormField label="稀有度"><UInput v-model="form.rarity" required /></UFormField>
+              <UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField>
+              <UFormField label="类别概率"><UInput v-model="form.categoryProbability" type="number" min="0" max="1" step="any" /></UFormField>
+              <UFormField label="权重"><UInput v-model="form.weight" type="number" min="0" step="any" /></UFormField>
+              <UFormField label="内置冷却（秒）"><UInput v-model="form.cooldownSeconds" type="number" min="0" /></UFormField>
+              <UFormField label="持续时间（秒）"><UInput v-model="form.durationSeconds" type="number" min="0" /></UFormField>
+            </div>
+            <UFormField label="内容说明"><UTextarea v-model="form.description" required :rows="4" /></UFormField>
+          </section>
+
+          <section class="grid gap-4">
+            <h3 class="text-base font-semibold">概率信息</h3>
+            <UFormField label="最终出现概率"><UInput v-model="form.appearanceProbability" type="number" readonly /></UFormField>
+            <UCollapsible v-model:open="probabilityOpen" class="grid gap-3">
+              <UButton type="button" label="5 个隐藏字段" color="neutral" variant="ghost" trailing-icon="i-lucide-chevron-down" class="justify-start px-0" />
+              <template #content>
+                <div class="grid gap-4 border-l border-default pl-4 sm:grid-cols-2">
+                  <UFormField label="组内总权重"><UInput v-model="form.groupTotalWeight" type="number" readonly /></UFormField>
+                  <UFormField label="组内个数"><UInput v-model="form.groupSize" type="number" readonly /></UFormField>
+                  <UFormField label="单次失败率"><UInput v-model="form.failureProbability" type="number" readonly /></UFormField>
+                  <UFormField label="保底触发率"><UInput v-model="form.guaranteeProbability" type="number" readonly /></UFormField>
+                  <UFormField label="全局出现概率"><UInput v-model="form.globalAppearanceProbability" type="number" readonly /></UFormField>
+                </div>
+              </template>
+            </UCollapsible>
+          </section>
+
+          <section class="grid gap-4">
+            <UFormField label="效果标签"><UInput v-model="form.effectTags" placeholder="用顿号或逗号分隔" /></UFormField>
+            <UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField>
+            <UFormField label="关联挑战"><div class="grid gap-2"><UCheckbox v-for="challenge in challenges" :key="`${challenge.family}-${challenge.challengeId}`" :model-value="selectedLinks.has(`${challenge.family}:${challenge.challengeId}`)" :label="challenge.name ?? challenge.titleName" @update:model-value="toggleLink({ family: challenge.family, challengeId: challenge.challengeId })" /></div></UFormField>
+          </section>
+
+          <div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="archive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div>
+        </form>
+      </template>
+    </USlideover>
   </AdminWorkspace>
 </template>
