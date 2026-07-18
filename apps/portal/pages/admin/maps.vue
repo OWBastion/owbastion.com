@@ -152,7 +152,7 @@ onMounted(() => void load());
       </AdminDataTable>
     </section>
 
-    <USlideover v-model:open="panelOpen" :title="selectedMap ? `${selectedMap.mapName} · 地图属性` : ''" :ui="{ content: 'sm:max-w-xl' }">
+    <USlideover v-model:open="panelOpen" :title="selectedMap ? `${selectedMap.mapName} · 地图属性` : ''" :ui="{ overlay: 'z-0', content: 'z-20 sm:max-w-xl' }">
       <template #body>
         <section v-if="selectedMap" class="map-detail">
           <div class="detail-heading"><div><p class="eyebrow">地图属性</p><h2>{{ selectedMap.mapName }}</h2><p class="table-meta">{{ selectedMap.mapId }} · {{ selectedMap.gameVersion }}</p></div></div>
