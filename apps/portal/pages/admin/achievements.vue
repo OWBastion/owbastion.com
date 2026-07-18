@@ -10,6 +10,7 @@ type TitleAchievement = {
   family: "achievement";
   type: "title_achievement";
   titleName: string;
+  icon: string;
   category: string;
   categoryOverride: string | null;
   condition: string;

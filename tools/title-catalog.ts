@@ -4,7 +4,7 @@ export type TitleCatalogSnapshot = {
   schemaVersion: number;
   sourceVersion: string;
   gameVersion: string;
-  titles: Array<{ key: string; label: string; category: string; condition: string; availability: string; scope: string; displayKind: string }>;
+  titles: Array<{ key: string; label: string; category: string; condition: string; availability: string; scope: string; displayKind: string; icon?: string }>;
   maps: Array<{ mapId: string; mapName: string; gameVersion: string; status: string; pioneerPrefixes: string[]; rewards: Array<{ slot: string; titleKey: string; holderNames: string[] }> }>;
   globalGrants: Array<{ holderName: string; titleKey: string; scope: "global" }>;
 };
@@ -29,6 +29,17 @@ export const readTitleCatalogSnapshot = (value: unknown): TitleCatalogSnapshot =
 
 export const snapshotHash = (content: string) => createHash("sha256").update(content).digest("hex");
 export const stableImportId = (sourceVersion: string) => `catalog:${sourceVersion}`;
+
+const titleIcon = (title: TitleCatalogSnapshot["titles"][number]) => title.icon ?? (
+  ["PIONEER", "CONQUEROR", "DOMINATOR", "ALL_IN_ONE", "TRAVELER", "SKY"].includes(title.key) ? "trophy" :
+  title.category === "难度挑战系列" ? "shield-check" :
+  title.category === "极限操作系列" ? "zap" :
+  title.category === "生存与闪避系列" ? "heart-pulse" :
+  title.category === "随机事件系列" || title.category === "赌徒系列" ? "dices" :
+  title.category === "活动限定" ? "sparkles" :
+  title.category === "社区贡献系列" ? "users" :
+  title.category === "开发保留" ? "wrench" : "award"
+);
 
 export type CatalogImportRecord = {
   sourceVersion: string;
@@ -74,7 +85,7 @@ const id = (value: string) => createHash("sha256").update(value).digest("hex").s
 
 export const renderCatalogImportSql = (snapshot: TitleCatalogSnapshot, hash: string, importedAt: number) => {
   const lines: string[] = [];
-  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, category, condition, availability, scope, display_kind, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(snapshot.gameVersion)}) ON CONFLICT(key) DO UPDATE SET label = excluded.label, category = excluded.category, condition = excluded.condition, availability = excluded.availability, scope = excluded.scope, display_kind = excluded.display_kind, game_version = excluded.game_version;`);
+  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(titleIcon(title))}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(snapshot.gameVersion)}) ON CONFLICT(key) DO UPDATE SET label = excluded.label, icon = excluded.icon, category = excluded.category, condition = excluded.condition, availability = excluded.availability, scope = excluded.scope, display_kind = excluded.display_kind, game_version = excluded.game_version;`);
   for (const map of snapshot.maps) lines.push(`INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (${sql(map.mapId)}, ${sql(map.mapName)}, ${sql(map.gameVersion)}, ${sql(map.status)}, ${sql(snapshot.gameVersion)}, ${importedAt}, ${importedAt}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, game_version = excluded.game_version, status = excluded.status, updated_at = excluded.updated_at;`);
   for (const map of snapshot.maps) for (const reward of map.rewards) {
     lines.push(`INSERT INTO map_title_rewards (map_id, slot, title_key, pioneer_prefixes_json) VALUES (${sql(map.mapId)}, ${sql(reward.slot)}, ${sql(reward.titleKey)}, ${sql(JSON.stringify(reward.slot === "pioneer" ? map.pioneerPrefixes : []))}) ON CONFLICT(map_id, slot) DO UPDATE SET title_key = excluded.title_key, pioneer_prefixes_json = excluded.pioneer_prefixes_json;`);

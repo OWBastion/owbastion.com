@@ -8,6 +8,7 @@ export type PublicAchievement = {
   kind: "title_achievement";
   titleKey: string;
   titleName: string;
+  icon: string;
   category: string;
   condition: string;
   evidenceRule: string;
@@ -35,7 +36,7 @@ const groups = computed(() => {
       <div class="group-heading"><div><p class="card-kicker">个人记录</p><h2 id="earned-achievements-title">已获得成就</h2></div><span>{{ ownedOnlyTitles.length }} 项</span></div>
       <div class="achievement-grid">
         <article v-for="title in ownedOnlyTitles" :key="title.grantId" class="achievement-card earned">
-          <div class="achievement-icon" aria-hidden="true">✓</div>
+          <div class="achievement-icon" aria-hidden="true"><UIcon :name="`i-lucide-${title.icon}`" /></div>
           <div class="achievement-card-copy"><span class="card-kicker">{{ title.category }}</span><strong>{{ title.label }}</strong><span>{{ title.condition }}</span><span class="earned-status">已获得</span></div>
         </article>
       </div>
@@ -44,7 +45,7 @@ const groups = computed(() => {
       <div class="group-heading"><div><h2 :id="`category-${group.category}`">{{ group.category }}</h2></div><span>{{ group.challenges.length }} 项</span></div>
       <div class="achievement-grid">
         <article v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card">
-          <div class="achievement-icon" :class="{ earned: ownedTitleKeys.has(challenge.titleKey) }" aria-hidden="true">{{ ownedTitleKeys.has(challenge.titleKey) ? "✓" : "·" }}</div>
+          <div class="achievement-icon" :class="{ earned: ownedTitleKeys.has(challenge.titleKey) }" aria-hidden="true"><UIcon :name="`i-lucide-${challenge.icon}`" /></div>
           <div class="achievement-card-copy"><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><span v-if="ownedTitleKeys.has(challenge.titleKey)" class="earned-status">已获得</span><span v-else-if="challenge.status === 'scheduled'" class="scheduled">未开放</span><span v-else-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></div>
         </article>
       </div>

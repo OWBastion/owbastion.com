@@ -10,6 +10,7 @@ const challengeStatus = z.enum(["active", "sunsetting", "retired"]);
 const playableChallengeStatus = z.enum(["active", "sunsetting"]);
 const titleChallengeStatus = z.enum(["scheduled", "active", "sunsetting", "retired"]);
 const scheduleTimestamp = z.number().int().positive();
+const achievementIcon = z.string().trim().regex(/^[a-z0-9-]+$/).max(64);
 
 export const qqBindingRequestSchema = z.object({
   contractVersion,
@@ -111,6 +112,7 @@ const achievementChallengeSchema = z.object({
   kind: z.literal("title_achievement"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
+  icon: achievementIcon,
   category: z.string().trim().min(1).max(128),
   condition: z.string().trim().min(1).max(1024),
   evidenceRule: z.string().trim().min(1).max(2048),
@@ -163,6 +165,7 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
 export const titleSchema = z.object({
   titleKey: externalId,
   label: z.string().trim().min(1).max(256),
+  icon: achievementIcon,
   category: z.string().trim().min(1).max(128),
   condition: z.string().trim().min(1).max(1024),
   availability: z.enum(["active", "retired"]),
@@ -177,7 +180,7 @@ export const titleSchema = z.object({
 export const titleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) });
 
 export const ownedTitleSchema = z.object({
-  grantId: z.string().uuid(), titleKey: externalId, label: z.string(), category: z.string(),
+  grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, category: z.string(),
   condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
 });
 export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema) });
@@ -207,6 +210,7 @@ const adminCatalogTitleSchema = z.object({
   type: z.literal("title_catalog"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
+  icon: achievementIcon,
   category: z.string().trim().min(1).max(128),
   condition: z.string().trim().min(1).max(1024),
   availability: z.enum(["active", "retired"]),

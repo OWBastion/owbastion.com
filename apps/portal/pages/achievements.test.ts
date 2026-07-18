@@ -9,7 +9,7 @@ const ownedTitles = ref<any[]>([]);
 const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const refreshTitles = vi.fn(async () => ownedTitles.value);
 const portalApi = vi.fn(async (path: string) => {
-  if (path === "/v1/public/achievements") return { items: [{ challengeId: "title-1", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "TEST", titleName: "测试称号", category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" }] };
+  if (path === "/v1/public/achievements") return { items: [{ challengeId: "title-1", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "TEST", titleName: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 
@@ -29,7 +29,7 @@ describe("achievements page", () => {
 
   it("marks the signed-in player's achievement and keeps historical titles", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
-    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }, { grantId: "grant-2", titleKey: "OLD", label: "历史称号", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1 }];
+    ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }, { grantId: "grant-2", titleKey: "OLD", label: "历史称号", icon: "scroll", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1 }];
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
     expect(wrapper.findAll(".earned-status")).toHaveLength(2);

@@ -68,6 +68,7 @@ export const randomEventImports = sqliteTable("random_event_imports", { id: text
 export const titleCatalog = sqliteTable("title_catalog", {
   key: text("key").primaryKey(),
   label: text("label").notNull(),
+  icon: text("icon").notNull().default("award"),
   category: text("category").notNull(),
   condition: text("condition").notNull(),
   availability: text("availability").notNull(),
