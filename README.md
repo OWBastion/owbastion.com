@@ -1,39 +1,81 @@
 # OWBastion Web Platform
 
-`OWBastion/owbastion.codes` 是 Bastion 生态的 Web 平台与控制平面。
+`owbastion.codes` 是一个基于 Cloudflare Workers 的 pnpm TypeScript workspace，提供 Bastion 生态的 Web Portal、HTTP API、业务数据存储和外部服务集成。
 
-本仓库承载面向玩家和开发者的 Web 能力，负责平台业务数据、私有证据保存以及跨项目协作。当前代码包含 Cloudflare Worker API、公共 Portal、QQ 网页登录，以及首条地图挑战的 Queue、OCR 和审核链路；称号发放和跨仓库变更编排仍按分阶段计划建设。各项能力的唯一状态见[功能状态矩阵](docs/development/feature-status.md)。
+## 技术栈
 
-## 生态定位
+- **API**：Hono、Cloudflare Workers、Wrangler
+- **Portal**：Nuxt、Vue、Nuxt UI
+- **数据层**：Cloudflare D1、Drizzle、R2
+- **工程化**：pnpm workspace、TypeScript、Vitest
 
-| 项目 | 主要职责 |
-| --- | --- |
-| [`OWBastion/Bastion`](https://github.com/OWBastion/Bastion) | 游戏源代码、内容定义、构建、发布和公开快照 |
-| `OWBastion/owbastion.codes` | 平台业务数据、Web 应用、审核和变更编排 |
-| [`OWBastion/qqbot`](https://github.com/OWBastion/qqbot) | QQ 渠道接入和用户通知 |
-| [`OWBastion/ocrkit`](https://github.com/OWBastion/ocrkit) | 截图识别和模型生命周期 |
+## 目录结构
 
-已发布的游戏内容以 Bastion 仓库和版本化快照为准。平台不会绕过验证、CI、人工审核或发布流程直接改变已发布内容。
+```text
+apps/
+  api/       Hono Worker API
+  portal/    Nuxt Portal 与服务端代理
+packages/
+  auth/      身份与会话相关能力
+  contracts/ API 与跨包契约
+  database/  Drizzle schema、仓储和持久化逻辑
+  domain/    领域模型与业务规则
+migrations/  D1 forward-only migrations
+tools/       本地开发、数据导入和部署辅助脚本
+docs/        架构、开发、部署和 API 文档
+```
 
-## 文档导航
+Portal 通过服务端 API 访问平台数据；业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 用于私有证据文件，外部 QQ、OCR 和发布系统通过明确的集成边界接入。
 
-这里保留项目定位和公开边界；架构与工程细节请按需阅读：
+## 开始开发
 
-- [文档索引](docs/README.md)：按主题选择架构、集成、安全和开发文档。
-- [架构概览](docs/architecture/overview.md)：已实现目录、系统边界和数据所有权。
-- [外部集成与业务流程](docs/architecture/integrations-and-workflows.md)：QQBot、登录、证据保存和后续状态流转。
-- [数据与安全边界](docs/architecture/data-and-security.md)：数据分类、授权和公开项目中的安全约束。
-- [开发、测试与变更](docs/development/testing-and-change-policy.md)：测试分层、幂等、迁移和发布要求。
-- [功能状态矩阵](docs/development/feature-status.md)：按能力链路维护的唯一实现状态和验证证据。
-- [AI agent 路由](AGENTS.md)：AI agent 执行任务前必须读取的英文指引。
+环境要求：Node.js `>=26`、pnpm `11.11.0`。
 
-## 公开项目约定
+```bash
+pnpm install
+pnpm dev:local
+```
 
-- 功能状态统一维护在[功能状态矩阵](docs/development/feature-status.md)；其他文档只解释边界、契约和操作要求。
-- 不在仓库中提交密钥、签名 URL、私有用户标识、截图或其他运行数据。
-- 涉及平台业务、外部集成或安全边界的改动，应同步更新对应的详细文档。
-- 详细工程约束和 AI agent 的工作路由以 [`AGENTS.md`](AGENTS.md) 为准。
+`pnpm dev:local` 会应用本地 D1 migrations、生成确定性的本地测试数据，并启动：
 
-## 当前状态
+- Worker API：<http://localhost:8787>
+- Portal：<http://localhost:3000>
 
-仓库包含 Portal、Cloudflare Worker API、D1/R2 数据能力以及相关自动化工作流；运行中的部署状态需单独验证。D1、R2 证据保存、QQ 登录、玩家中心、Queue、OCR 和审核的首条地图挑战链路已在代码中实现；称号发放和发布编排仍按分阶段计划推进。详见[功能状态矩阵](docs/development/feature-status.md)。
+仅在本地调试登录流程时设置 `LOCAL_DEV_AUTH=true`；该模式不代表生产环境的 QQ 身份认证。
+
+也可以分别启动服务：
+
+```bash
+pnpm dev:api:local
+pnpm dev:portal:local
+```
+
+## 常用命令
+
+```bash
+pnpm test          # 单元、契约和 Portal UI 测试
+pnpm typecheck     # 全 workspace 类型检查
+pnpm build         # 构建 API 与 Portal
+pnpm check         # test + typecheck + build
+
+pnpm check:migrations
+pnpm db:seed:local
+pnpm db:import:catalog --snapshot <path>
+```
+
+数据库 migrations 只能前向追加；本地 fixture 使用 `db:seed:local`，版本化 Bastion catalog 使用显式的 `db:import:catalog` 导入。
+
+## 文档
+
+- [文档索引](docs/README.md)
+- [架构概览](docs/architecture/overview.md)
+- [外部集成与业务流程](docs/architecture/integrations-and-workflows.md)
+- [数据与安全](docs/architecture/data-and-security.md)
+- [测试与变更策略](docs/development/testing-and-change-policy.md)
+- [数据库 migrations 与本地数据](docs/development/database-migrations-and-seeds.md)
+- [功能状态矩阵](docs/development/feature-status.md)
+- [API OpenAPI 文档](docs/api/openapi.json)
+- [API 部署](docs/deployment/api-github-actions.md)
+- [Portal 部署](docs/deployment/portal-hkg.md)
+
+涉及 API、Portal、数据模型、认证、外部集成或部署边界的改动，应同时更新对应技术文档和测试。
