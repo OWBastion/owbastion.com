@@ -7,7 +7,7 @@ const challenges = [
 ];
 
 describe("MyAchievementOverview", () => {
-  it("computes the completion rate and groups historical titles by series and map", async () => {
+  it("keeps retired titles in their series and groups map titles by map", async () => {
     const wrapper = await mountSuspended(MyAchievementOverview, {
       props: {
         challenges,
@@ -23,13 +23,15 @@ describe("MyAchievementOverview", () => {
 
     expect(wrapper.text()).toContain("1 / 1");
     expect(wrapper.text()).toContain("100%");
-    expect(wrapper.text()).toContain("历史成就");
+    expect(wrapper.text()).not.toContain("历史成就");
     expect(wrapper.text()).toContain("旧记录");
+    expect(wrapper.text()).toContain("不再发放");
     expect(wrapper.text()).toContain("地图称号");
     expect(wrapper.text()).toContain("哈瓦那");
     expect(wrapper.text()).toContain("国王大道");
-    expect(wrapper.findAll(".historical-map")).toHaveLength(2);
-    expect(wrapper.find(".historical-map").findAll(".achievement-card")).toHaveLength(1);
+    expect(wrapper.findAll(".map-title-group")).toHaveLength(2);
+    expect(wrapper.find(".map-title-collection").text()).not.toContain("不再发放");
+    expect(wrapper.findAll(".retired-status")).toHaveLength(1);
     expect(wrapper.find(".progress-ring").attributes("aria-label")).toBe("成就完成率 100%");
     expect(wrapper.find(".achievement-icon.has-image").exists()).toBe(true);
     expect(wrapper.find(".earned-status-icon").text()).toBe("");
