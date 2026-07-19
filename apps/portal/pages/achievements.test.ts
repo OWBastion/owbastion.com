@@ -37,7 +37,7 @@ describe("achievements page", () => {
     expect(wrapper.text()).toContain("完成率");
     expect(wrapper.text()).toContain("100%");
     expect(wrapper.text()).toContain("最近获得");
-    expect(wrapper.findAll(".earned-status")).toHaveLength(2);
+    expect(wrapper.findAll(".earned-status-icon")).toHaveLength(2);
     expect(wrapper.text()).toContain("历史称号");
     expect(refreshTitles).toHaveBeenCalled();
   });
