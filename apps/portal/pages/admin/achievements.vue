@@ -105,9 +105,9 @@ const editorOpen = computed({
   get: () => editingItem.value !== null,
   set: (open: boolean) => { if (!open) closeEditing(); },
 });
-const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : isTitle(item) && isDeveloperOnly(item) ? item.status === "active" ? "开发保留" : "已下线" : item.status === "active" ? "未开放" : "已下线";
+const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : isTitle(item) && isDeveloperOnly(item) ? item.status === "active" ? "开发保留" : "已下线" : item.status === "active" ? "已开放" : "已下线";
 const achievementStatusTone = (item: AdminAchievement) => isChallengeTitle(item) ? statusTone(item.status) : "warning";
-const catalogStatusItems = (item: CatalogTitle) => [{ label: isDeveloperOnly(item) ? "开发保留" : "未开放", value: "active" }, { label: "已下线", value: "retired" }];
+const catalogStatusItems = (item: CatalogTitle) => [{ label: isDeveloperOnly(item) ? "开发保留" : "已开放", value: "active" }, { label: "已下线", value: "retired" }];
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);

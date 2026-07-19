@@ -408,6 +408,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const challenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.titleKey, input.titleKey)).get();
       if (challenge) throw new Error("TITLE_HAS_CHALLENGE");
       await db.update(titleCatalog).set({ availability: input.status }).where(eq(titleCatalog.key, input.titleKey));
+      if (input.status === "active" && title.category !== "开发保留") {
+        const timestamp = now();
+        await db.insert(titleChallenges).values({
+          id: `title.${title.key}`,
+          titleKey: title.key,
+          condition: title.condition,
+          evidenceRule: "上传包含结算画面、称号条件与玩家信息的完整截图。",
+          submissionMode: "manual",
+          gameVersion: title.gameVersion,
+          status: "active",
+          introducedVersion: title.gameVersion,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+      }
       await recordIdempotency(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input, {});
       await recordAudit(db, auth, "admin.title.catalog.update", "title_catalog", input.titleKey, { status: input.status });
       await clearCatalogCache(cache);
