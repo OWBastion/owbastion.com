@@ -407,18 +407,25 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!title) throw new Error("TITLE_NOT_FOUND");
       const challenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.titleKey, input.titleKey)).get();
       if (challenge) throw new Error("TITLE_HAS_CHALLENGE");
-      await db.update(titleCatalog).set({ availability: input.status }).where(eq(titleCatalog.key, input.titleKey));
-      if (input.status === "active" && title.category !== "开发保留") {
+      await db.update(titleCatalog).set({ availability: input.status === "retired" ? "retired" : "active" }).where(eq(titleCatalog.key, input.titleKey));
+      if (input.iconUrl !== undefined) await db.update(titleCatalog).set({ iconUrl: input.iconUrl, iconObjectKey: input.iconUrl === title.iconUrl ? title.iconObjectKey : null }).where(eq(titleCatalog.key, title.key));
+      if (input.status !== "active" && input.status !== "retired" && title.category === "开发保留") throw new Error("DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE");
+      const hasChallengeFields = input.condition !== undefined || input.evidenceRule !== undefined || input.submissionMode !== undefined || input.categoryOverride !== undefined || input.iconUrl !== undefined || input.startsAt !== undefined || input.endsAt !== undefined || input.retiredVersion !== undefined;
+      if (hasChallengeFields && title.category !== "开发保留") {
         const timestamp = now();
         await db.insert(titleChallenges).values({
           id: `title.${title.key}`,
           titleKey: title.key,
-          condition: title.condition,
-          evidenceRule: "上传包含结算画面、称号条件与玩家信息的完整截图。",
-          submissionMode: "manual",
+          categoryOverride: input.categoryOverride ?? null,
+          condition: input.condition ?? title.condition,
+          evidenceRule: input.evidenceRule ?? "上传包含结算画面、称号条件与玩家信息的完整截图。",
+          submissionMode: input.submissionMode ?? "manual",
           gameVersion: title.gameVersion,
-          status: "active",
+          status: input.status,
           introducedVersion: title.gameVersion,
+          retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null,
+          startsAt: input.status === "scheduled" ? input.startsAt! : null,
+          endsAt: input.status === "scheduled" ? input.endsAt! : null,
           createdAt: timestamp,
           updatedAt: timestamp,
         });

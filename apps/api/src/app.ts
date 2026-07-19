@@ -369,6 +369,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "TITLE_UPDATE_FAILED";
       if (code === "TITLE_NOT_FOUND") return errorResponse(c, 404, code, "The title does not exist");
       if (code === "TITLE_HAS_CHALLENGE") return errorResponse(c, 409, code, "The title has a challenge record");
+      if (code === "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE") return errorResponse(c, 422, code, "A developer-retained title cannot become a player challenge");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

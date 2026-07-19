@@ -98,12 +98,13 @@ condition. Title challenges may update
 their conditions, evidence rules, submission mode, and optional Portal display
 category. A title challenge may also be `scheduled` with an explicit start and
 end timestamp; the platform derives its public availability from the current
-time and rejects upload-session creation outside that window. Catalog-only titles can be marked active or retired and are shown as
-not open until a challenge record exists. Activating a catalog-only title with
-a public condition creates its default manual challenge record. Developer-
-retained catalog titles are a separate case: they are reserved for developer
-use and are not player challenges. When no display-category override is set, the Portal uses the
-category from the imported Bastion title catalog. Map
+time and rejects upload-session creation outside that window. Catalog-only
+titles use the same administrator editor; saving a non-developer catalog title
+creates its challenge record with the edited rules and selected lifecycle
+status. Developer-retained catalog titles are a separate case: they are
+reserved for developer use and are not player challenges. When no
+display-category override is set, the Portal uses the category from the
+imported Bastion title catalog. Map
 challenges retain their imported map, difficulty, display name, and introduced
 version; administrators may keep them enabled, mark them as sunsetting, retire
 them, or reopen them.

@@ -81,9 +81,23 @@ describe("achievement admin page", () => {
     await flushPromises();
     expect(wrapper.find("form.editor").exists()).toBe(true);
     expect(wrapper.find("form.editor").text()).toContain("开发保留");
+    expect(wrapper.findAll("textarea")).toHaveLength(2);
+    expect(wrapper.findAll('input[type="datetime-local"]')).toHaveLength(2);
     await wrapper.get("form.editor").trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active" }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", condition: "开发/管理用途。", evidenceRule: expect.any(String), submissionMode: "manual" }) }));
+  });
+
+  it("keeps the complete editor visible while scheduling an achievement", async () => {
+    const wrapper = await mountPage();
+    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+    const form = wrapper.get("form.editor");
+    await form.findAll("select")[1]!.setValue("scheduled");
+    await form.find('input[type="datetime-local"]').setValue("2030-01-01T00:00");
+    await form.findAll('input[type="datetime-local"]')[1]!.setValue("2030-01-02T00:00");
+    await form.trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "scheduled", condition: "完成挑战", evidenceRule: "完整截图", startsAt: expect.any(Number), endsAt: expect.any(Number) }) }));
   });
 
   it("saves expanded title rules and clears the category override", async () => {

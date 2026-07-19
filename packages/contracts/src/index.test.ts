@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminChallengeSchema, adminChallengeUpdateRequestSchema, adminSubmissionReviewRequestSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminSubmissionReviewRequestSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("accepts stable QQ binding metadata", () => {
@@ -54,6 +54,13 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, endsAt: undefined }).success).toBe(false);
+  });
+
+  it("validates complete catalog-title challenge edits", () => {
+    const input = { contractVersion: "1", status: "scheduled", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 };
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
+    expect(adminCatalogTitleUpdateRequestSchema.safeParse({ contractVersion: "1", status: "active", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 }).success).toBe(false);
   });
 
   it("keeps historical retirement version records readable", () => {

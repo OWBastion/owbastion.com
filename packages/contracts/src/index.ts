@@ -256,7 +256,24 @@ const adminAchievementChallengeUpdateSchema = z.object({
   if (value.status !== "scheduled" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Only scheduled challenges may have a time window" });
 });
 export const adminChallengeUpdateRequestSchema = z.union([adminMapChallengeUpdateSchema, adminAchievementChallengeUpdateSchema]);
-export const adminCatalogTitleUpdateRequestSchema = z.object({ contractVersion, status: z.enum(["active", "retired"]) });
+export const adminCatalogTitleUpdateRequestSchema = z.object({
+  contractVersion,
+  status: titleChallengeStatus,
+  condition: z.string().trim().min(1).max(1024).optional(),
+  evidenceRule: z.string().trim().min(1).max(2048).optional(),
+  submissionMode: z.enum(["manual", "automatic"]).optional(),
+  categoryOverride: z.string().trim().min(1).max(128).nullable().optional(),
+  iconUrl: z.string().trim().url().max(2048).nullable().optional(),
+  retiredVersion: retirementVersion.optional(),
+  startsAt: scheduleTimestamp.optional(),
+  endsAt: scheduleTimestamp.optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === "sunsetting" && !value.retiredVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "A retirement version is required" });
+  if (value.status === "scheduled" && value.startsAt === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "A scheduled challenge requires a start time" });
+  if (value.status === "scheduled" && value.endsAt === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "A scheduled challenge requires an end time" });
+  if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
+  if (value.status !== "scheduled" && (value.startsAt !== undefined || value.endsAt !== undefined)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startsAt"], message: "Only scheduled challenges may have a time window" });
+});
 
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
