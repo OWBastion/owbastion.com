@@ -84,6 +84,7 @@ const achievementTabs = [
 const isTitle = (item: AdminAchievement): item is TitleAchievement | CatalogTitle => item.family === "achievement" || item.family === "title_catalog";
 const isChallengeTitle = (item: AdminAchievement): item is TitleAchievement => item.family === "achievement";
 const isMap = (item: AdminAchievement): item is MapAchievement => item.family === "map";
+const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发保留";
 const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
 const statusText = (value: AchievementStatus) => value === "scheduled" ? "未开放" : value === "active" ? "已开放" : value === "sunsetting" ? "即将结束" : "已下线";
 const statusTone = (value: AchievementStatus) => value === "active" ? "success" : "warning";
@@ -104,8 +105,9 @@ const editorOpen = computed({
   get: () => editingItem.value !== null,
   set: (open: boolean) => { if (!open) closeEditing(); },
 });
-const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : item.status === "active" ? "未开放" : "已下线";
+const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : isTitle(item) && isDeveloperOnly(item) ? item.status === "active" ? "开发保留" : "已下线" : item.status === "active" ? "未开放" : "已下线";
 const achievementStatusTone = (item: AdminAchievement) => isChallengeTitle(item) ? statusTone(item.status) : "warning";
+const catalogStatusItems = (item: CatalogTitle) => [{ label: isDeveloperOnly(item) ? "开发保留" : "未开放", value: "active" }, { label: "已下线", value: "retired" }];
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);
@@ -351,7 +353,7 @@ onMounted(() => void load());
                 <UFormField class="editor-field" label="截图规则" required><UTextarea class="editor-control" v-model="editingItem.evidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" /></UFormField>
                 <UFormField class="editor-field" label="提交方式"><USelect class="editor-control" v-model="editingItem.submissionMode" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" /></UFormField>
                 </template>
-                <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="isChallengeTitle(editingItem) ? [{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }] : [{ label: '未开放', value: 'active' }, { label: '已下线', value: 'retired' }]" :ui="{ base: 'w-full' }" /></UFormField>
+                <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="isChallengeTitle(editingItem) ? [{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }] : catalogStatusItems(editingItem)" :ui="{ base: 'w-full' }" /></UFormField>
                 <template v-if="isChallengeTitle(editingItem)">
                 <UFormField class="editor-field" label="自定义图标" hint="留空使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UInput class="editor-control" type="url" :model-value="editingItem.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setIconUrl" /><details class="icon-upload-option"><summary>上传图标</summary><div class="icon-upload-content"><p>PNG、JPG 或 WebP，最大 512 KB。</p><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></details></div></UFormField>
                 <template v-if="editingItem.status === 'scheduled'"><UFormField class="editor-field" label="开始时间" required><UInput class="editor-control" type="datetime-local" :model-value="toDateTimeLocal(editingItem.startsAt)" required :disabled="isSaving(editingItem)" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间" required><UInput class="editor-control" type="datetime-local" :model-value="toDateTimeLocal(editingItem.endsAt)" required :disabled="isSaving(editingItem)" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>

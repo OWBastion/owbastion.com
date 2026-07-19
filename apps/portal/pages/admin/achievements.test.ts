@@ -50,6 +50,7 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).toContain("战绩");
     expect(wrapper.text()).toContain("内部称号");
     expect(wrapper.text()).toContain("未开放");
+    expect(wrapper.text()).toContain("开发保留");
     expect(wrapper.text()).not.toContain("国王大道");
     expect(wrapper.find(".portal-side-panel").exists()).toBe(false);
     expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(2);
@@ -79,6 +80,7 @@ describe("achievement admin page", () => {
     await wrapper.get('button[aria-label="编辑状态"]').trigger("click");
     await flushPromises();
     expect(wrapper.find("form.editor").exists()).toBe(true);
+    expect(wrapper.find("form.editor").text()).toContain("开发保留");
     await wrapper.get("form.editor").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active" }) }));
