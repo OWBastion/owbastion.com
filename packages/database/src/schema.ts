@@ -246,6 +246,7 @@ export const qqGroupAccess = sqliteTable("qq_group_access", {
   status: text("status").notNull().default("pending"),
   bindEnabled: integer("bind_enabled").notNull().default(0),
   verifyEnabled: integer("verify_enabled").notNull().default(0),
+  lifecycleOccurredAt: integer("lifecycle_occurred_at").notNull().default(0),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });

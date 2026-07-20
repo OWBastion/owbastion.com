@@ -19,7 +19,7 @@ const columns = [
   { id: "actions", header: "", enableHiding: false },
 ];
 async function load() { loading.value = true; errorMessage.value = ""; try { groups.value = (await api<{ items: AdminGroup[] }>("/v1/qq/groups")).items; } catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法读取群配置，请确认当前账号有管理员权限。"; } finally { loading.value = false; } }
-async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", body: { contractVersion: "1", groupOpenId: next.groupOpenId, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); actionMessage.value = next.status === "active" ? "已设为当前活动群" : "群配置已更新"; } catch (error) { throw error; } }
+async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); actionMessage.value = next.status === "active" ? "已设为当前活动群" : "群配置已更新"; } catch (error) { throw error; } }
 onMounted(() => { void load(); });
 </script>
 

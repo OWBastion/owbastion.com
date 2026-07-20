@@ -1,4 +1,4 @@
-import { count, desc, eq, and, gt, like, or, inArray, isNull } from "drizzle-orm";
+import { count, desc, eq, and, gt, like, or, inArray, isNull, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
@@ -803,25 +803,37 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordAudit(db, auth, "admin.binding.remove", "binding", input.bindingId, { playerAccountId: binding.playerAccountId });
     },
 
-    async upsertQqGroupAccess(input: QqGroupAccessRequest, auth) {
+    async upsertQqGroupAccess(input: QqGroupAccessRequest, auth, idempotencyKey) {
+      const replay = await replayOrConflict<void>(db, auth.subject, "qq.group_access.update", idempotencyKey, input);
+      if (replay !== null) return;
       const timestamp = now();
       if (input.status === "active") {
-        await db.update(qqGroupAccess).set({ status: "legacy", bindEnabled: 0, verifyEnabled: 0, updatedAt: timestamp }).where(eq(qqGroupAccess.status, "active"));
-      }
-      const existing = await db.select().from(qqGroupAccess).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)).get();
-      if (existing) {
-        await db.update(qqGroupAccess).set({ environment: input.environment, status: input.status, bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId));
+        await db.batch([
+          db.update(qqGroupAccess).set({ status: "legacy", bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: timestamp, updatedAt: timestamp }).where(and(eq(qqGroupAccess.status, "active"), ne(qqGroupAccess.groupOpenId, input.groupOpenId))),
+          db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, environment: input.environment, status: "active", bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, lifecycleOccurredAt: timestamp, createdAt: timestamp, updatedAt: timestamp }).onConflictDoUpdate({ target: qqGroupAccess.groupOpenId, set: { environment: input.environment, status: "active", bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, lifecycleOccurredAt: timestamp, updatedAt: timestamp } }),
+        ]);
       } else {
-        await db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, environment: input.environment, status: input.status, bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, createdAt: timestamp, updatedAt: timestamp });
+        await db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, environment: input.environment, status: input.status, bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, lifecycleOccurredAt: timestamp, createdAt: timestamp, updatedAt: timestamp }).onConflictDoUpdate({ target: qqGroupAccess.groupOpenId, set: { environment: input.environment, status: input.status, bindEnabled: input.bindEnabled ? 1 : 0, verifyEnabled: input.verifyEnabled ? 1 : 0, lifecycleOccurredAt: timestamp, updatedAt: timestamp } });
       }
+      await recordIdempotency(db, auth.subject, "qq.group_access.update", idempotencyKey, input, {});
       await recordAudit(db, auth, "qq.group_access.update", "qq_group_access", input.groupOpenId, { environment: input.environment, status: input.status, bindEnabled: input.bindEnabled, verifyEnabled: input.verifyEnabled });
     },
 
-    async registerQqGroup(input, auth) {
+    async registerQqGroup(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<void>(db, auth.subject, "qq.group.register", idempotencyKey, input);
+      if (replay !== null) return;
       const timestamp = now();
       const existing = await db.select().from(qqGroupAccess).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)).get();
-      if (existing) await db.update(qqGroupAccess).set({ status: input.status, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId));
-      else await db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, environment: "production", status: input.status, bindEnabled: 0, verifyEnabled: 0, createdAt: timestamp, updatedAt: timestamp });
+      if (!existing) {
+        await db.insert(qqGroupAccess).values({ groupOpenId: input.groupOpenId, environment: "production", status: input.status, bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: input.occurredAt, createdAt: timestamp, updatedAt: timestamp });
+      } else if (input.occurredAt > existing.lifecycleOccurredAt) {
+        if (input.status === "disconnected") {
+          await db.update(qqGroupAccess).set({ status: "disconnected", bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId));
+        } else if (existing.status === "disconnected") {
+          await db.update(qqGroupAccess).set({ status: "pending", lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId));
+        }
+      }
+      await recordIdempotency(db, auth.subject, "qq.group.register", idempotencyKey, input, {});
       await recordAudit(db, auth, "qq.group.register", "qq_group_access", input.groupOpenId, { status: input.status });
     },
 

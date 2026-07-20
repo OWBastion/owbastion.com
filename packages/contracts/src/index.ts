@@ -65,7 +65,7 @@ export const qqLoginVerifyResponseSchema = z.object({
 const qqGroupStatus = z.enum(["pending", "active", "legacy", "disconnected"]);
 export const qqGroupAccessRequestSchema = z.object({ contractVersion, groupOpenId: externalId, environment: z.enum(["production", "test"]), status: qqGroupStatus, bindEnabled: z.boolean(), verifyEnabled: z.boolean() });
 export const qqGroupAccessResponseSchema = qqGroupAccessRequestSchema.extend({ updatedAt: z.number().int() });
-export const qqGroupRegistrationRequestSchema = z.object({ contractVersion, groupOpenId: externalId, status: z.enum(["pending", "disconnected"]) });
+export const qqGroupRegistrationRequestSchema = z.object({ contractVersion, groupOpenId: externalId, status: z.enum(["pending", "disconnected"]), occurredAt: z.number().int().nonnegative() });
 export const qqGroupIdentityVerificationResponseSchema = qqLoginAttemptResponseSchema.extend({ targetGroupStatus: z.literal("active") });
 
 const adminPlayerStatus = z.enum(["active", "banned"]);

@@ -19,5 +19,6 @@ describe("admin channels page", () => {
     await button.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/qq/groups/group-1", expect.objectContaining({ method: "PUT" }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/qq/groups/group-1", expect.objectContaining({ headers: expect.objectContaining({ "Idempotency-Key": expect.any(String) }) }));
   });
 });

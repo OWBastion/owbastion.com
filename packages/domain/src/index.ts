@@ -86,8 +86,8 @@ export type PlatformServices = {
   createQqGroupIdentityVerification(input: { sessionToken: string }): Promise<QqGroupIdentityVerificationResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
-  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext): Promise<void>;
-  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext): Promise<void>;
+  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
   listAdminPlayers(input: { query?: string; status?: "active" | "banned"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerListResponse>;
   getAdminPlayer(input: { playerAccountId: string }, auth: AuthContext): Promise<AdminPlayerDetail>;

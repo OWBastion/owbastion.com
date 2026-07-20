@@ -144,7 +144,9 @@ Group access is managed through the platform-session-protected `/admin` Portal.
 The Worker accepts maintainer requests only for player accounts with `is_admin`
 enabled.
 QQBot registers `GROUP_ADD_ROBOT` groups as `pending` and marks
-`GROUP_DEL_ROBOT` groups `disconnected`. A maintainer promotes exactly one
+`GROUP_DEL_ROBOT` groups `disconnected`, using the source event timestamp and
+a stable idempotency key so delayed or repeated lifecycle events cannot
+overwrite a newer platform state. A maintainer promotes exactly one
 pending group to `active`; this atomically makes the previous active group
 `legacy` and closes its `/绑定` and `/验证` policies. QQBot reads the
 platform-owned group and command-policy snapshot at startup and on the

@@ -180,10 +180,17 @@ export const createApp = (dependencies: AppDependencies) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);
     if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = qqGroupRegistrationRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    await dependencies.services(c.env).registerQqGroup(parsed.data, auth);
-    return c.body(null, 204);
+    try {
+      await dependencies.services(c.env).registerQqGroup(parsed.data, auth, idempotencyKey);
+      return c.body(null, 204);
+    } catch (error) {
+      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/me", async (c) => {
@@ -306,10 +313,17 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
     const auth = access.auth!;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = qqGroupAccessRequestSchema.safeParse({ ...(await parseBody(c.req.raw) as object), groupOpenId: c.req.param("groupOpenId") });
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    await dependencies.services(c.env).upsertQqGroupAccess(parsed.data, auth);
-    return c.body(null, 204);
+    try {
+      await dependencies.services(c.env).upsertQqGroupAccess(parsed.data, auth, idempotencyKey);
+      return c.body(null, 204);
+    } catch (error) {
+      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/admin/qq/groups", async (c) => {
