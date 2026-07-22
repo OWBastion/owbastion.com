@@ -2,6 +2,7 @@ import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import AchievementAdminPage from "./achievements.vue";
+import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue";
 
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
 const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋" };
@@ -82,7 +83,7 @@ describe("achievement admin page", () => {
     expect(wrapper.find("form.editor").exists()).toBe(true);
     expect(wrapper.find("form.editor").text()).toContain("开发保留");
     expect(wrapper.findAll("textarea")).toHaveLength(2);
-    expect(wrapper.findAll('input[type="datetime-local"]')).toHaveLength(2);
+    expect(wrapper.findAllComponents(AdminDateTimePicker)).toHaveLength(2);
     await wrapper.get("form.editor").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "active", condition: "开发/管理用途。", evidenceRule: expect.any(String), submissionMode: "manual" }) }));
@@ -93,8 +94,9 @@ describe("achievement admin page", () => {
     await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
     const form = wrapper.get("form.editor");
     await form.findAll("select")[1]!.setValue("scheduled");
-    await form.find('input[type="datetime-local"]').setValue("2030-01-01T00:00");
-    await form.findAll('input[type="datetime-local"]')[1]!.setValue("2030-01-02T00:00");
+    const pickers = wrapper.findAllComponents(AdminDateTimePicker);
+    await pickers[0]!.vm.$emit("update:modelValue", new Date("2030-01-01T00:00:00").getTime());
+    await pickers[1]!.vm.$emit("update:modelValue", new Date("2030-01-02T00:00:00").getTime());
     await form.trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ status: "scheduled", condition: "完成挑战", evidenceRule: "完整截图", startsAt: expect.any(Number), endsAt: expect.any(Number) }) }));
