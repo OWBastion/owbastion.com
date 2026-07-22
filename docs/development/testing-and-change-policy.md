@@ -146,8 +146,9 @@ player-facing title result.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
 
-Normal unit tests must not depend on live external services. Run pnpm test,
-pnpm run typecheck, and pnpm run build for repository changes.
+Normal unit tests must not depend on live external services. Run pnpm check
+(which executes pnpm run check:migrations, pnpm test, pnpm run typecheck, and
+pnpm run build) for repository changes.
 
 ## Definition of done
 

@@ -56,7 +56,7 @@ pnpm dev:portal:local
 pnpm test          # 单元、契约和 Portal UI 测试
 pnpm typecheck     # 全 workspace 类型检查
 pnpm build         # 构建 API 与 Portal
-pnpm check         # test + typecheck + build
+pnpm check         # check:migrations + test + typecheck + build
 
 pnpm check:migrations
 pnpm db:seed:local
