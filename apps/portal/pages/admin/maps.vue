@@ -17,13 +17,13 @@ const selectedMap = ref<Map | null>(null);
 const query = ref("");
 const ratingFilter = ref<"all" | Exclude<Rating, null>>("all");
 const draftRating = ref<Rating>(null);
+const toast = useToast();
 const draftMechanics = ref<string[]>([]);
 const draftCoverUrl = ref("");
 const draftBackgroundUrl = ref("");
 const loading = ref(true);
 const saving = ref(false);
 const errorMessage = ref("");
-const actionMessage = ref("");
 const globalFilter = ref("");
 const panelOpen = computed({ get: () => selectedMap.value !== null, set: (open) => { if (!open) selectedMap.value = null; } });
 
@@ -79,7 +79,6 @@ async function saveMetadata() {
   if (!selectedMap.value) return;
   saving.value = true;
   errorMessage.value = "";
-  actionMessage.value = "保存中…";
   try {
     const updated = await api<Map>(`/v1/maps/${encodeURIComponent(selectedMap.value.mapId)}/metadata`, {
       method: "PUT",
@@ -88,9 +87,8 @@ async function saveMetadata() {
     });
     maps.value = maps.value.map((map) => map.mapId === updated.mapId ? updated : map);
     selectedMap.value = updated;
-    actionMessage.value = "地图属性已保存";
+    toast.add({ title: "地图属性已保存", color: "success" });
   } catch (error: any) {
-    actionMessage.value = "";
     errorMessage.value = error?.data?.error?.message ?? "无法保存地图属性，请稍后重试。";
   } finally {
     saving.value = false;
@@ -103,18 +101,16 @@ async function updateChallenge(challenge: MapChallenge, status: MapChallenge["st
   if (status === "retired" && !window.confirm(`确认结束“${challenge.name}”？`)) return;
   saving.value = true;
   errorMessage.value = "";
-  actionMessage.value = "保存中…";
   try {
     await api(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion } : {}) },
     });
-    actionMessage.value = status === "active" ? "挑战已重新开放" : status === "sunsetting" ? "挑战已计划下线" : "挑战已下线";
+    toast.add({ title: status === "active" ? "挑战已重新开放" : status === "sunsetting" ? "挑战已计划下线" : "挑战已下线", color: "success" });
     await load();
   } catch (error: any) {
     errorMessage.value = error?.data?.error?.message ?? "无法保存挑战状态，请稍后重试。";
-    actionMessage.value = "";
   } finally {
     saving.value = false;
   }
@@ -126,7 +122,7 @@ onMounted(() => void load());
 
 <template>
   <AdminWorkspace title="地图管理" :count="loading ? '读取中…' : `${maps.length} 张`">
-    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="地图目录">
       <AdminDataTable v-model:global-filter="globalFilter" :data="mapRows" :columns="columns" :loading="loading" empty="暂无地图记录。" table-key="maps" scroll-height="36rem" class="admin-table">
         <template #filters><UInput v-model="query" size="md" aria-label="搜索地图" placeholder="搜索地图名称或 ID" /><USelect v-model="ratingFilter" size="md" aria-label="筛选地图评级" :items="[{ label: '全部评级', value: 'all' }, ...ratings.map((rating) => ({ label: rating, value: rating }))]" /></template>

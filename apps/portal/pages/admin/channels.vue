@@ -4,11 +4,11 @@ import { reactive, shallowRef } from "vue";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "渠道管理 · 躲避堡垒 3" });
+const toast = useToast();
 const api = useAdminApi();
 const groups = ref<AdminGroup[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
-const actionMessage = ref("");
 const editorOpen = shallowRef(false);
 const editingGroup = shallowRef<AdminGroup | null>(null);
 const editor = reactive({ displayName: "", environment: "test" as AdminGroup["environment"] });
@@ -24,7 +24,7 @@ const columns = [
   { id: "actions", header: "", enableHiding: false },
 ];
 async function load() { loading.value = true; errorMessage.value = ""; try { groups.value = (await api<{ items: AdminGroup[] }>("/v1/qq/groups")).items; } catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法读取群配置，请确认当前账号有管理员权限。"; } finally { loading.value = false; } }
-async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, displayName: next.displayName, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); actionMessage.value = next.status === "active" ? "已设为当前活动群" : "群配置已更新"; } catch (error) { throw error; } }
+async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, displayName: next.displayName, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); toast.add({ title: next.status === "active" ? "已设为当前活动群" : "群配置已更新", color: "success" }); } catch (error) { throw error; } }
 function openEditor(group: AdminGroup) { editingGroup.value = group; editor.displayName = group.displayName; editor.environment = group.environment; editorOpen.value = true; }
 function closeEditor() { if (!savingGroup.value) { editorOpen.value = false; editingGroup.value = null; } }
 async function saveEditor() { if (!editingGroup.value || !editor.displayName.trim()) return; savingGroup.value = true; try { await save(editingGroup.value, { displayName: editor.displayName.trim(), environment: editor.environment }); editorOpen.value = false; editingGroup.value = null; } catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法保存群配置，请稍后重试。"; } finally { savingGroup.value = false; } }
@@ -33,7 +33,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="渠道管理" :count="loading ? '读取中…' : `${groups.length} 个`">
-    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="群配置"><AdminDataTable :data="groups" :columns="columns" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
       <template #groupOpenId-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>
       <template #environment-cell="{ row }"><span>{{ row.original.environment === 'production' ? '正式群' : '测试群' }}</span></template>

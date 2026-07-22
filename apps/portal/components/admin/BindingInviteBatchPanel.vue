@@ -48,6 +48,7 @@ const parsed = computed(() => {
   return { invitations, errors };
 });
 
+const toast = useToast();
 const canSubmit = computed(() => parsed.value.invitations.length > 0 && !parsed.value.errors.length && !submitting.value);
 const countLabel = computed(() => parsed.value.invitations.length ? `${parsed.value.invitations.length} 位玩家` : "每行一位玩家");
 
@@ -66,6 +67,7 @@ async function createInvitations() {
     });
     invitations.value = response.items;
     input.value = "";
+    toast.add({ title: `已生成 ${response.items.length} 个邀请码`, color: "success" });
     emit("created");
   } catch {
     errorMessage.value = "无法生成邀请码，请稍后重试。";
@@ -83,6 +85,7 @@ async function copyInvitation(invitation: Invitation) {
   try {
     await navigator.clipboard.writeText(copyText(invitation));
     copiedInviteId.value = invitation.inviteId;
+    toast.add({ title: "已复制绑定口令", color: "success" });
     window.setTimeout(() => {
       if (copiedInviteId.value === invitation.inviteId) copiedInviteId.value = null;
     }, 1_800);

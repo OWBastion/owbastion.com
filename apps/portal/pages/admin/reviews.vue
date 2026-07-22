@@ -48,6 +48,8 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   const reason = window.prompt("请输入处理说明")?.trim();
   if (!reason) return;
   await api(`/v1/submissions/${selected.value.submissionId}/review`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", decision, reason } });
+  const toast = useToast();
+  toast.add({ title: decision === "approved" ? "审核已批准" : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
   close(); await load();
 }
 function close() { selected.value = null; }

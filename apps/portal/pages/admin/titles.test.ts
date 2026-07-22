@@ -16,10 +16,13 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/title-grants/bulk" && options?.method === "POST") return Promise.resolve({ grantedCount: 2 });
   throw new Error(`Unexpected request: ${path}`);
 });
+const toastAdd = vi.fn();
+mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 async function mountPage(): Promise<VueWrapper> {
   adminApi.mockClear();
+  toastAdd.mockClear();
   const wrapper = await mountSuspended(TitleMigrationPage, { attachTo: document.body, global: { stubs: { NuxtLink: { template: "<a><slot /></a>" }, USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select aria-label="选择玩家" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' } } } });
   await flushPromises();
   return wrapper;
@@ -54,6 +57,6 @@ describe("title migration page", () => {
     (document.body.querySelector(".sheet-actions button:last-child") as HTMLButtonElement).click();
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/bulk", expect.objectContaining({ method: "POST", body: expect.objectContaining({ holderName: "Cold", playerAccountId: players[0].playerAccountId }) }));
-    expect(wrapper.text()).toContain("已关联 2 项");
+    expect(toastAdd).toHaveBeenCalledWith({ title: "已关联 2 项", color: "success" });
   });
 });

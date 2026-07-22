@@ -79,8 +79,8 @@ const loading = ref(true);
 const savingId = ref<string | null>(null);
 const iconFile = shallowRef<File | null>(null);
 const iconUploading = shallowRef(false);
+const toast = useToast();
 const errorMessage = ref("");
-const actionMessage = ref("");
 const activeTab = ref("generic");
 const achievementTabs = [
   { label: "通用成就", value: "generic", slot: "generic" as const },
@@ -211,7 +211,6 @@ function updatePayload(item: AdminAchievement, status: AchievementStatus, retire
 async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, includeChallengeFields = true) {
   savingId.value = item.challengeId;
   errorMessage.value = "";
-  actionMessage.value = "保存中…";
   try {
     await api<void>(`/v1/titles/${encodeURIComponent(item.titleKey)}`, {
       method: "PUT",
@@ -233,11 +232,10 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
         } : {}),
       },
     });
-    actionMessage.value = status === "active" ? "称号已重新开放" : "称号已下线";
+    toast.add({ title: status === "active" ? "称号已重新开放" : "称号已下线", color: "success" });
     await load();
     return true;
   } catch (error: any) {
-    actionMessage.value = "";
     errorMessage.value = error?.data?.error?.message ?? "无法保存称号状态，请稍后重试。";
     return false;
   } finally {
@@ -248,18 +246,16 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
 async function save(item: AdminAchievement, body: Record<string, unknown>, message: string) {
   savingId.value = item.challengeId;
   errorMessage.value = "";
-  actionMessage.value = "保存中…";
   try {
     await api<void>(`/v1/achievements/${encodeURIComponent(item.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", ...body },
     });
-    actionMessage.value = message;
+    toast.add({ title: message, color: "success" });
     await load();
     return true;
   } catch (error: any) {
-    actionMessage.value = "";
     errorMessage.value = error?.data?.error?.message ?? "无法保存成就规则，请稍后重试。";
     return false;
   } finally {
@@ -324,7 +320,7 @@ async function uploadIcon() {
     const response = await api<{ iconUrl: string }>(`/v1/titles/${encodeURIComponent(item.titleKey)}/icon`, { method: "POST", body });
     item.iconUrl = response.iconUrl;
     iconFile.value = null;
-    actionMessage.value = "成就图标已上传";
+    toast.add({ title: "成就图标已上传", color: "success" });
   } catch (error: any) {
     errorMessage.value = error?.data?.error?.message ?? "无法上传成就图标，请稍后重试。";
   } finally {
@@ -369,7 +365,7 @@ onMounted(() => void load());
 <template>
   <AdminWorkspace title="成就管理" :count="loading ? '读取中…' : `${items.length} 项`">
     <template #actions><NuxtLink class="migration-link" to="/admin/titles">称号迁移</NuxtLink></template>
-    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section class="catalog" aria-labelledby="catalog-title">
       <UTabs v-model="activeTab" :items="achievementTabs" aria-label="成就类型" class="catalog-tabs">
         <template #generic>

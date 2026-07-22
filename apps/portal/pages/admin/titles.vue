@@ -6,12 +6,12 @@ type Grant = { grantId: string; titleKey: string; label: string; category: strin
 type Player = { playerAccountId: string; playerName: string; playerId: string };
 type HolderGroup = { holderName: string; grants: Grant[]; unclaimedCount: number };
 
+const toast = useToast();
 const api = useAdminApi();
 const query = ref("");
 const grants = ref<Grant[]>([]);
 const players = ref<Player[]>([]);
 const selectedPlayerId = ref("");
-const message = ref("");
 const errorMessage = ref("");
 const loading = ref(false);
 const saving = ref(false);
@@ -48,7 +48,7 @@ async function grant(row: Grant) {
   errorMessage.value = "";
   try {
     await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", playerAccountId: selectedPlayerId.value, historicalTitleGrantId: row.grantId } });
-    message.value = "已关联";
+    toast.add({ title: "已关联", color: "success" });
     await load();
   } catch (error: any) {
     errorMessage.value = error?.data?.error?.message ?? "无法关联称号，请稍后重试。";
@@ -64,7 +64,7 @@ async function revoke(row: Grant) {
   errorMessage.value = "";
   try {
     await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", reason } });
-    message.value = "已撤销";
+    toast.add({ title: "已撤销", color: "success" });
     await load();
   } catch (error: any) {
     errorMessage.value = error?.data?.error?.message ?? "无法撤销称号，请稍后重试。";
@@ -86,18 +86,16 @@ async function grantAll() {
   if (!selectedHolder.value || !selectedPlayer.value) return;
   saving.value = true;
   errorMessage.value = "";
-  message.value = "关联中…";
   try {
     const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", {
       method: "POST",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", holderName: selectedHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId },
     });
-    message.value = result.grantedCount ? `已关联 ${result.grantedCount} 项` : "暂无可关联称号";
+    toast.add({ title: result.grantedCount ? `已关联 ${result.grantedCount} 项` : "暂无可关联称号", color: "success" });
     await load();
     closeBulk();
   } catch (error: any) {
-    message.value = "";
     errorMessage.value = error?.data?.error?.message ?? "无法关联称号，请稍后重试。";
   } finally {
     saving.value = false;
@@ -109,7 +107,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${holderGroups.length} 位持有者`">
-    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="message" color="primary" variant="subtle" :description="message" /></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <template #toolbar><div class="admin-toolbar"><UInput v-model="query" placeholder="搜索持有者或称号" aria-label="搜索历史称号" @change="load" /><USelect v-model="selectedPlayerId" aria-label="选择玩家" placeholder="选择玩家帐号" :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))" /><UButton label="搜索" color="neutral" variant="outline" @click="load" /></div></template>
 
     <div class="holder-list" aria-live="polite">

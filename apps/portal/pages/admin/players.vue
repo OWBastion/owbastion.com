@@ -3,6 +3,7 @@ import type { AdminPlayer, AdminPlayerDetail } from "~/composables/useAdminApi";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "玩家管理 · 躲避堡垒 3" });
+const toast = useToast();
 const api = useAdminApi();
 const players = ref<AdminPlayer[]>([]);
 const selected = ref<AdminPlayerDetail | null>(null);
@@ -10,7 +11,7 @@ const query = ref("");
 const status = ref<"all" | "active" | "banned">("all");
 const loading = ref(true);
 const errorMessage = ref("");
-const actionMessage = ref("");
+const actionLoading = ref(false);
 const page = ref(1);
 const total = ref(0);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
@@ -47,19 +48,23 @@ async function setStatus(next: "active" | "banned") {
   if (!selected.value) return;
   const reason = next === "banned" ? window.prompt("请输入封禁原因（可选）") ?? "" : undefined;
   if (next === "banned" && !window.confirm(`确认封禁玩家“${selected.value.playerName}#${selected.value.playerId}”？`)) return;
-  actionMessage.value = "保存中…";
-  await api(`/v1/player-accounts/${selected.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
-  actionMessage.value = next === "banned" ? "玩家已封禁" : "玩家已解封";
-  selected.value.status = next;
-  await load();
+  actionLoading.value = true;
+  try {
+    await api(`/v1/player-accounts/${selected.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
+    toast.add({ title: next === "banned" ? "玩家已封禁" : "玩家已解封", color: "success" });
+    selected.value.status = next;
+    await load();
+  } finally { actionLoading.value = false; }
 }
 async function unbind(bindingId: string) {
   if (!window.confirm("解除这条 QQ 绑定？历史提交会保留。")) return;
-  actionMessage.value = "解除绑定中…";
-  await api(`/v1/bindings/${bindingId}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } });
-  actionMessage.value = "QQ 绑定已解除";
-  if (selected.value) selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${selected.value.playerAccountId}`);
-  await load();
+  actionLoading.value = true;
+  try {
+    await api(`/v1/bindings/${bindingId}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } });
+    toast.add({ title: "QQ 绑定已解除", color: "success" });
+    if (selected.value) selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${selected.value.playerAccountId}`);
+    await load();
+  } finally { actionLoading.value = false; }
 }
 watch([query, status], () => { page.value = 1; void load(); });
 onMounted(() => { void load(); });
@@ -67,7 +72,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="玩家管理" :count="loading ? '读取中…' : `${total} 条`">
-    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><UAlert v-if="actionMessage" color="primary" variant="subtle" :description="actionMessage" /></template>
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="玩家帐号">
       <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:global-filter="query" :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" table-key="players" manual-filtering scroll-height="32rem" :reset-scroll-key="page" class="admin-table">
         <template #filters><UInput v-model="query" size="md" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><USelect v-model="status" size="md" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' }]" /></template>
@@ -80,7 +85,7 @@ onMounted(() => { void load(); });
       <UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
     </section>
 
-    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionMessage === '保存中…' || actionMessage === '解除绑定中…'" @set-status="setStatus" @unbind="unbind" /></template></USlideover>
+    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionLoading" @set-status="setStatus" @unbind="unbind" /></template></USlideover>
   </AdminWorkspace>
 </template>
 
