@@ -34,6 +34,17 @@ export const qqBindingResponseSchema = z.object({
   playerId,
 });
 
+const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
+const inviteClaimCode = z.string().trim().regex(/^[A-Z2-9]{6}$/);
+export const adminBindingInviteRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64), playerId });
+export const adminBindingInviteResponseSchema = z.object({ contractVersion, inviteId: z.string().uuid(), code: inviteCode, playerName: z.string(), playerId, expiresAt: z.number().int() });
+export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode, playerName: z.string().trim().min(1).max(64), playerId });
+export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, expiresAt: z.number().int() });
+export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
+export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().min(1).max(256) });
+export const adminBindingClaimSchema = z.object({ claimId: z.string().uuid(), playerName: z.string(), playerId, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), createdAt: z.number().int(), memberOpenId: externalId.optional(), groupOpenId: externalId.optional(), invitedBy: z.string(), affectedPlayerAccountId: z.string().uuid().optional() });
+export const adminBindingClaimListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingClaimSchema) });
+
 export const qqLoginAttemptRequestSchema = z.object({ contractVersion, provider: z.literal("qq") });
 export const qqLoginAttemptResponseSchema = z.object({
   contractVersion,
@@ -153,6 +164,8 @@ export const randomEventSchema = z.object({
   gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
 });
 export const randomEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
+export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), eventCount: z.number().int().positive() });
+export const randomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) });
 const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().min(1).max(32), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().int().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), appearanceProbability: z.number().min(-1).max(1).nullable(), categoryProbability: z.number().min(0).max(1).nullable(), groupTotalWeight: z.number().nonnegative().nullable(), groupSize: z.number().int().nonnegative().nullable(), failureProbability: z.number().min(0).max(1).nullable(), guaranteeProbability: z.number().min(0).max(1).nullable(), globalAppearanceProbability: z.number().min(-1).max(1).nullable(), gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) });
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
@@ -388,6 +401,12 @@ export const errorResponseSchema = z.object({
 
 export type QqBindingRequest = z.infer<typeof qqBindingRequestSchema>;
 export type QqBindingResponse = z.infer<typeof qqBindingResponseSchema>;
+export type AdminBindingInviteRequest = z.infer<typeof adminBindingInviteRequestSchema>;
+export type AdminBindingInviteResponse = z.infer<typeof adminBindingInviteResponseSchema>;
+export type BindingInviteRedeemRequest = z.infer<typeof bindingInviteRedeemRequestSchema>;
+export type BindingInviteRedeemResponse = z.infer<typeof bindingInviteRedeemResponseSchema>;
+export type QqBindingClaimVerifyRequest = z.infer<typeof qqBindingClaimVerifyRequestSchema>;
+export type AdminBindingClaimDecisionRequest = z.infer<typeof adminBindingClaimDecisionRequestSchema>;
 export type QqLoginAttemptRequest = z.infer<typeof qqLoginAttemptRequestSchema>;
 export type QqLoginAttemptResponse = z.infer<typeof qqLoginAttemptResponseSchema>;
 export type QqLoginStatusResponse = z.infer<typeof qqLoginStatusResponseSchema>;
@@ -411,6 +430,8 @@ export type Map = z.infer<typeof mapSchema>;
 export type MapListResponse = z.infer<typeof mapListResponseSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type RandomEventVersion = z.infer<typeof randomEventVersionSchema>;
+export type RandomEventVersionListResponse = z.infer<typeof randomEventVersionListResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;

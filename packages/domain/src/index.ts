@@ -1,6 +1,7 @@
 import type {
   QqBindingRequest,
   QqBindingResponse,
+  AdminBindingInviteRequest, AdminBindingInviteResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, QqBindingClaimVerifyRequest, AdminBindingClaimDecisionRequest,
   SubmissionRequest,
   SubmissionResponse,
   SubmissionStatusResponse,
@@ -26,7 +27,7 @@ import type {
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminMapMetadataUpdateRequest,
   AdminCatalogTitleUpdateRequest,
-  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
+  RandomEvent, RandomEventListResponse, RandomEventVersion, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
 } from "@owbastion/contracts";
@@ -46,7 +47,8 @@ export type AuthContext = {
 };
 
 export type PlatformServices = {
-  listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
+  listRandomEvents(input: { query?: string; category?: string; rarity?: string; gameVersion?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
+  listRandomEventVersions(): Promise<RandomEventVersion[]>;
   getRandomEvent(input: { eventId: string; includeArchived?: boolean }): Promise<RandomEvent | null>;
   createAdminRandomEvent(input: AdminRandomEventCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   updateAdminRandomEvent(input: AdminRandomEventUpdateRequest & { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
@@ -77,6 +79,11 @@ export type PlatformServices = {
   markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string }): Promise<void>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
+  createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
+  redeemBindingInvite(input: BindingInviteRedeemRequest): Promise<BindingInviteRedeemResponse>;
+  verifyBindingClaim(input: QqBindingClaimVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
+  listAdminBindingClaims(auth: AuthContext): Promise<{ contractVersion: "1"; items: Array<{ claimId: string; playerName: string; playerId: string; status: "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired"; createdAt: number; memberOpenId?: string; groupOpenId?: string; invitedBy: string; affectedPlayerAccountId?: string }> }>;
+  decideAdminBindingClaim(input: { claimId: string } & AdminBindingClaimDecisionRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createSubmission(input: SubmissionRequest, auth: AuthContext, idempotencyKey: string): Promise<SubmissionResponse>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;

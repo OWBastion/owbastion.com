@@ -10,8 +10,8 @@ Capability status is maintained only in the [feature status matrix](../developme
 
 The current API implements versioned v1 QQ flows:
 
-- authenticated QQBot calls create or update a player binding from a stable QQ
-  member OpenID, mutable player name, and stable numeric player ID;
+- authenticated QQBot confirms invitation-bound binding claims from a stable QQ
+  member OpenID; it never creates or merges player accounts directly;
 - authenticated QQBot calls create a map-completion submission using stable QQ
   group/member and source-message metadata;
 - writes require an idempotency key; equal retries replay the original response
@@ -126,8 +126,10 @@ write, records the source hash and audit event, and never stores the CSV.
 
 ## QQBot and login
 
-QQBot is a channel adapter. It sends /绑定, /成就挑战, and /验证 requests to the
-API and does not perform OCR, review, title grant, or GitHub logic.
+QQBot is a channel adapter. Binding starts from a Portal invitation page. The
+player sends the existing `/验证 CODE` command in an enabled group; QQBot forwards only the stable
+group/member identity and code. A maintainer must approve or reject the claim.
+Unapproved claims cannot log in, submit, or read player data.
 
 Map-only titles are scoped to the map that supplied their reward slot. The
 platform does not expose them as global titles, and it preserves Bastion's
@@ -160,8 +162,9 @@ interface, maintainers may store a platform-owned display name/label and the
 group environment in the Portal. The stable QQ group OpenID remains the
 integration identifier.
 
-For one QQ robot, member OpenIDs are stable across groups. The platform binds
-each `(provider, memberOpenId)` once; group OpenIDs remain command-policy,
+For one QQ robot, member OpenIDs are stable across groups. The platform permits
+one active binding for each `(provider, memberOpenId)` and player account;
+revoked bindings remain auditable. Group OpenIDs remain command-policy,
 message-source, session-environment, and audit context rather than identity
 components.
 

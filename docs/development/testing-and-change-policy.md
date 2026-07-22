@@ -60,7 +60,7 @@ server. Portal source changes are picked up without rebuilding or restarting the
 production output server.
 
 The local login does not represent QQ authentication and never enables the
-local branch in production. Real `/绑定`, `/验证`, `/成就挑战`, QQ webhook, and
+local branch in production. Real invitation confirmation through `/验证`, `/成就挑战`, QQ webhook, and
 QQ gateway tests still require a test QQ application and real QQ credentials.
 
 Administrator player and review queues use server-side pagination. Their list
@@ -69,6 +69,17 @@ endpoint accepts one or more comma-separated status values in `status`.
 
 Migrations are forward-only. Add a corrective migration instead of rewriting
 an applied migration, and verify it against a restored local database.
+
+Before applying the invitation-binding migration, run this read-only D1 query
+and resolve each result through the administrator binding UI; do not let the
+partial unique index choose which QQ identity is retained:
+
+~~~sql
+SELECT player_account_id, COUNT(*) AS binding_count
+FROM bindings
+GROUP BY player_account_id
+HAVING COUNT(*) > 1;
+~~~
 
 ## Before implementation
 

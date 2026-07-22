@@ -13,10 +13,21 @@ export const bindings = sqliteTable("bindings", {
   provider: text("provider").notNull(),
   groupOpenId: text("group_open_id").notNull(),
   memberOpenId: text("member_open_id").notNull(),
+  status: text("status").notNull().default("active"),
+  revokedAt: integer("revoked_at"),
+  revokedBy: text("revoked_by"),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
   providerExternalUser: uniqueIndex("bindings_provider_member_idx").on(table.provider, table.memberOpenId),
 }));
+
+export const bindingInvites = sqliteTable("binding_invites", {
+  id: text("id").primaryKey(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), createdBy: text("created_by").notNull(), createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), redeemedAt: integer("redeemed_at"), revokedAt: integer("revoked_at"), revokedBy: text("revoked_by"),
+}, (table) => ({ code: uniqueIndex("binding_invites_code_idx").on(table.codeHash) }));
+
+export const bindingClaims = sqliteTable("binding_claims", {
+  id: text("id").primaryKey(), inviteId: text("invite_id").notNull().references(() => bindingInvites.id), tokenHash: text("token_hash").notNull(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), status: text("status").notNull(), memberOpenId: text("member_open_id"), groupOpenId: text("group_open_id"), messageId: text("message_id"), expiresAt: integer("expires_at").notNull(), createdAt: integer("created_at").notNull(), verifiedAt: integer("verified_at"), decidedAt: integer("decided_at"), decidedBy: text("decided_by"), decisionReason: text("decision_reason"),
+}, (table) => ({ code: uniqueIndex("binding_claims_code_idx").on(table.codeHash) }));
 
 export const playerAccounts = sqliteTable("player_accounts", {
   id: text("id").primaryKey(),

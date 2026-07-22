@@ -16,6 +16,7 @@ import {
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
+  adminBindingInviteRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
@@ -78,6 +79,7 @@ export const createApp = (dependencies: AppDependencies) => {
   );
 
   app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/binding-invites/redeem", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -109,6 +111,30 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
   };
+
+  app.post("/v1/public/binding-invites/redeem", async (c) => {
+    allowPortal(c);
+    const parsed = bindingInviteRedeemRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).redeemBindingInvite(parsed.data), 201); }
+    catch (error) { if (error instanceof Error && error.message === "INVITE_INVALID") return errorResponse(c, 422, "INVITE_INVALID", "The invitation cannot be used"); throw error; }
+  });
+
+  app.post("/v1/admin/binding-invites", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminBindingInviteRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    return c.json(await dependencies.services(c.env).createAdminBindingInvite(parsed.data, access.auth!, idempotencyKey), 201);
+  });
+
+  app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await dependencies.services(c.env).listAdminBindingClaims(access.auth!)); });
+  app.post("/v1/admin/binding-claims/:claimId/decision", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminBindingClaimDecisionRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { await dependencies.services(c.env).decideAdminBindingClaim({ ...parsed.data, claimId: c.req.param("claimId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    catch (error) { if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_REVIEWABLE") return errorResponse(c, 422, "BINDING_CLAIM_NOT_REVIEWABLE", "The claim cannot be reviewed"); throw error; }
+  });
 
   app.post("/v1/auth/qq/login-attempt", async (c) => {
     allowPortal(c);
@@ -166,6 +192,15 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
+      if (code === "LOGIN_CODE_INVALID") {
+        try { return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
+        catch (claimError) {
+          const claimCode = claimError instanceof Error ? claimError.message : "LOGIN_FAILED";
+          if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(claimCode)) return errorResponse(c, 422, claimCode, "The verification code cannot be used");
+          if (claimCode === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, claimCode, "The idempotency key was used with a different request");
+          throw claimError;
+        }
+      }
       if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED", "LOGIN_BINDING_REQUIRED", "BINDING_CONFLICT", "PLAYER_BANNED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
@@ -278,8 +313,9 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
     if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined }) });
+    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, gameVersion: c.req.query("version")?.trim() || undefined, status: status as "implemented" | "removed" | undefined }) });
   });
+  app.get("/v1/events/versions", async (c) => { allowPortal(c); return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEventVersions() }); });
   app.get("/v1/events/:eventId", async (c) => { allowPortal(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
 
   app.post("/v1/player/uploads/session", async (c) => {
@@ -545,16 +581,10 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = qqBindingRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
 
-    try {
-      return c.json(await dependencies.services(c.env).createBinding(parsed.data, auth, idempotencyKey), 201);
-    } catch (error) {
-      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
-      if (error instanceof Error && error.message === "BINDING_CONFLICT") return errorResponse(c, 409, "BINDING_CONFLICT", "The QQ identity is already bound to another player");
-      if (error instanceof Error && error.message === "BINDING_GROUP_NOT_ALLOWED") return errorResponse(c, 422, "BINDING_GROUP_NOT_ALLOWED", "The QQ group does not allow bindings");
-      if (error instanceof Error && error.message === "PLAYER_BANNED") return errorResponse(c, 403, "PLAYER_BANNED", "The player account is banned");
-      throw error;
-    }
+    void parsed; void auth; void idempotencyKey;
+    return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
+
 
   app.post("/v1/submissions", async (c) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);

@@ -5,6 +5,7 @@ import { createApp, type RuntimeEnv } from "./app";
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
   listRandomEvents: async () => [],
+  listRandomEventVersions: async () => [],
   getRandomEvent: async () => null,
   createAdminRandomEvent: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
   updateAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
@@ -36,7 +37,12 @@ const services: PlatformServices = {
   reviewSubmission: async () => {},
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
-  createBinding: async () => ({ contractVersion: "1", bindingId: "00000000-0000-0000-0000-000000000001", identityId: "00000000-0000-0000-0000-000000000002", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }),
+  createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
+  createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
+  redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
+  verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
+  listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
+  decideAdminBindingClaim: async () => {},
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
@@ -75,6 +81,12 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
   });
+  it("lists public random-event versions before loading an individual version", async () => {
+    const eventApp = createApp({ authenticate: auth, services: () => ({ ...services, listRandomEventVersions: async () => [{ gameVersion: "26.0722.1", eventCount: 10 }] }) });
+    const response = await eventApp.request("http://localhost/v1/events/versions", {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ items: [{ gameVersion: "26.0722.1", eventCount: 10 }] });
+  });
 
   it("requires a maintainer and an idempotency key for event imports", async () => {
     const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
@@ -88,10 +100,33 @@ describe("API", () => {
     expect(await response.json()).toEqual({ service: "api", status: "ok" });
   });
 
-  it("validates and authenticates binding creation", async () => {
+  it("rejects the legacy binding endpoint in favor of invitations", async () => {
     const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
+    expect(response.status).toBe(422);
+    expect((await response.json() as { error: { code: string } }).error.code).toBe("INVITE_REQUIRED");
+  });
+
+  it("creates a public invitation claim without a player session", async () => {
+    const response = await app.request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234" }) }, env);
     expect(response.status).toBe(201);
-    expect((await response.json() as { provider: string }).provider).toBe("qq");
+    expect(await response.json()).toMatchObject({ claimId: "00000000-0000-0000-0000-000000000008", code: "ABC234" });
+  });
+
+  it("limits invitation creation and claim decisions to maintainers", async () => {
+    const body = JSON.stringify({ contractVersion: "1", playerName: "Player", playerId: "1234" });
+    expect((await app.request("http://localhost/v1/admin/binding-invites", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "invite-1" }, body }, env)).status).toBe(403);
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
+    expect((await adminApp.request("http://localhost/v1/admin/binding-invites", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "invite-1" }, body }, env)).status).toBe(201);
+    expect((await adminApp.request("http://localhost/v1/admin/binding-claims/00000000-0000-0000-0000-000000000008/decision", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved", reason: "已核验" }) }, env)).status).toBe(204);
+  });
+
+  it("reuses the existing QQ verification endpoint for invitation confirmation", async () => {
+    const body = JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" });
+    const claimApp = createApp({ authenticate: auth, services: () => ({ ...services, verifyQqLogin: async () => { throw new Error("LOGIN_CODE_INVALID"); } }) });
+    expect((await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
+    const response = await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: "verified", environment: "test" });
   });
 
   it("rejects requests without an idempotency key", async () => {
@@ -100,11 +135,11 @@ describe("API", () => {
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 
-  it("reports when the current group does not allow bindings", async () => {
+  it("does not let an older QQBot bypass invitations through group policy", async () => {
     const restrictedApp = createApp({ authenticate: auth, services: () => ({ ...services, createBinding: async () => { throw new Error("BINDING_GROUP_NOT_ALLOWED"); } }) });
     const response = await restrictedApp.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
     expect(response.status).toBe(422);
-    expect((await response.json() as { error: { code: string } }).error.code).toBe("BINDING_GROUP_NOT_ALLOWED");
+    expect((await response.json() as { error: { code: string } }).error.code).toBe("INVITE_REQUIRED");
   });
 
   it("requires idempotency for QQ group lifecycle registration", async () => {
