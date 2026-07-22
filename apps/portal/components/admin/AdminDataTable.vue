@@ -13,6 +13,7 @@ function hasSameSorting(left: SortingState, right: SortingState) {
 
 type TableVirtualizeOptions = {
   estimateSize?: number | ((index: number) => number);
+  getScrollElement?: () => HTMLElement | null;
   overscan?: number;
   [key: string]: unknown;
 };
@@ -48,6 +49,8 @@ const props = withDefaults(defineProps<Props>(), {
   sticky: "header",
   virtualize: false,
 });
+const defaultScrollHeight = "clamp(14rem, calc(100dvh - 18rem), 42rem)";
+const tableScrollHeight = computed(() => props.scrollHeight ?? defaultScrollHeight);
 
 const globalFilter = defineModel<string>("globalFilter", { default: "" });
 const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("columnFilters", { default: () => [] });
@@ -55,9 +58,20 @@ const sorting = defineModel<SortingState>("sorting", { default: () => [] });
 const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
 const columnPinning = defineModel<ColumnPinningState>("columnPinning", { default: () => ({ left: [], right: [] }) });
 const columnVisibility = useTableColumnVisibility(props.tableKey);
+const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => name !== "filters"));
+const tableUi = computed(() => ({
+  caption: "not-sr-only",
+  root: "overflow-visible",
+}));
+const tableVirtualize = computed<boolean | TableVirtualizeOptions>(() => {
+  if (!props.virtualize) return false;
+  const options = typeof props.virtualize === "object" ? props.virtualize : {};
+  return { ...options, getScrollElement: () => scrollContainer.value };
+});
+let controlsResizeObserver: ResizeObserver | undefined;
 
 const sortingItems = computed(() => [
   { label: "默认顺序", value: defaultSelection },
@@ -109,19 +123,23 @@ const columnMenuItems = computed(() => props.columns
 watch(() => props.resetScrollKey, () => {
   scrollContainer.value?.scrollTo({ top: 0, left: 0 });
 });
+
+onMounted(() => {
+  if (!controls.value || !scrollContainer.value) return;
+  const updateControlsHeight = () => {
+    scrollContainer.value?.style.setProperty("--admin-table-controls-height", `${controls.value?.offsetHeight ?? 0}px`);
+  };
+  controlsResizeObserver = new ResizeObserver(updateControlsHeight);
+  controlsResizeObserver.observe(controls.value);
+  updateControlsHeight();
+});
+
+onBeforeUnmount(() => controlsResizeObserver?.disconnect());
 </script>
 
 <template>
   <div class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
-    <div class="admin-data-table__controls">
-      <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
-      <USelect v-if="props.sortingOptions.length" v-model="sortingSelection" aria-label="排序方式" size="md" :items="sortingItems" />
-      <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
-      <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-        <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
-      </UDropdownMenu>
-    </div>
-    <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': scrollHeight }" :style="scrollHeight ? { maxHeight: scrollHeight } : undefined">
+    <div ref="scrollContainer" class="admin-data-table__scroll admin-data-table__scroll--bounded" :style="{ height: tableScrollHeight }">
       <UTable
         v-model:column-visibility="columnVisibility"
         v-model:column-filters="columnFilters"
@@ -135,9 +153,20 @@ watch(() => props.resetScrollKey, () => {
         :loading="loading"
         :manual-filtering="manualFiltering"
         :grouping-options="props.tableGroupingOptions"
+        :ui="tableUi"
         :sticky="props.sticky"
-        :virtualize="props.virtualize"
+        :virtualize="tableVirtualize"
       >
+        <template #caption>
+          <div ref="controls" class="admin-data-table__controls">
+            <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
+            <USelect v-if="props.sortingOptions.length" v-model="sortingSelection" aria-label="排序方式" size="md" :items="sortingItems" />
+            <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
+            <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
+              <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
+            </UDropdownMenu>
+          </div>
+        </template>
         <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
           <slot :name="name" v-bind="slotProps" />
         </template>
@@ -147,12 +176,14 @@ watch(() => props.resetScrollKey, () => {
 </template>
 
 <style scoped>
-.admin-data-table { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.admin-data-table :deep([data-slot="caption"]) { position: sticky; z-index: 2; top: 0; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; white-space: normal; background: var(--surface); }
 .admin-data-table__controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
-.admin-data-table__scroll { overflow: auto; }
-.admin-data-table__scroll--bounded { overscroll-behavior: contain; }
+.admin-data-table__scroll { overflow: visible; }
+.admin-data-table__scroll--bounded { overflow: auto; overscroll-behavior: contain; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
+.admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }
 .admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }

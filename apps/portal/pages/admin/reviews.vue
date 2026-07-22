@@ -59,7 +59,7 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="待核对截图"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无待核对截图。" table-key="reviews" scroll-height="32rem" :reset-scroll-key="page" class="admin-table">
+    <section aria-label="待核对截图"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无待核对截图。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #challenge-cell="{ row }"><strong>{{ row.original.mapName }} · {{ row.original.difficulty }}</strong></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="row.original.status === 'ocr_review_required' ? 'warning' : 'success'" /></template>

@@ -27,14 +27,14 @@ onMounted(load);
     <template #toolbar><BindingInviteBatchPanel @created="load" /></template>
     <section class="binding-section" aria-label="已生成的邀请码">
       <PageSectionHeader title="已生成的邀请码"><template #actions><span class="table-meta">仅显示状态与有效期</span></template></PageSectionHeader>
-      <AdminDataTable :data="invitations" :columns="invitationColumns" :loading="loading" empty="暂无邀请码。" table-key="binding-invites" scroll-height="24rem">
+      <AdminDataTable :data="invitations" :columns="invitationColumns" :loading="loading" empty="暂无邀请码。" table-key="binding-invites">
         <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
         <template #status-cell="{ row }"><StatusBadge :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
         <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
         <template #actions-cell="{ row }"><UButton v-if="row.original.status === 'active'" label="撤销" color="error" variant="soft" size="xs" @click="openRevoke(row.original)" /></template>
       </AdminDataTable>
     </section>
-    <AdminDataTable :data="claims" :columns="columns" :loading="loading" empty="暂无绑定申请。" table-key="binding-claims" scroll-height="32rem">
+    <AdminDataTable :data="claims" :columns="columns" :loading="loading" empty="暂无绑定申请。" table-key="binding-claims">
       <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
       <template #status-cell="{ row }"><StatusBadge :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
       <template #createdAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.createdAt) }}</span></template>
