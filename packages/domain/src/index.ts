@@ -87,6 +87,8 @@ export type PlatformServices = {
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
+  dispatchPendingQqGroupPolicyEvents(): Promise<void>;
+  markQqGroupPolicyEventDelivered(input: { eventId: string }): Promise<void>;
   listAdminPlayers(input: { query?: string; status?: "active" | "banned"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerListResponse>;
   getAdminPlayer(input: { playerAccountId: string }, auth: AuthContext): Promise<AdminPlayerDetail>;
   setAdminPlayerStatus(input: { playerAccountId: string; status: "active" | "banned"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;

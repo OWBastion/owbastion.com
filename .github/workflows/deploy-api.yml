@@ -83,6 +83,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       QQBOT_API_TOKEN: ${{ secrets.QQBOT_API_TOKEN }}
+      QQBOT_POLICY_WEBHOOK_URL: ${{ secrets.QQBOT_POLICY_WEBHOOK_URL }}
+      QQBOT_POLICY_WEBHOOK_SECRET: ${{ secrets.QQBOT_POLICY_WEBHOOK_SECRET }}
       ADMIN_BATTLETAG: ${{ secrets.ADMIN_BATTLETAG }}
     steps:
       - name: Check out repository
@@ -110,6 +112,8 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_ZONE_ID"
           test -n "$QQBOT_API_TOKEN"
+          test -n "$QQBOT_POLICY_WEBHOOK_URL"
+          test -n "$QQBOT_POLICY_WEBHOOK_SECRET"
           test -n "$ADMIN_BATTLETAG"
           if [[ "$ADMIN_BATTLETAG" =~ ^(.+)#([0-9]{1,10})$ ]]; then
             admin_player_name="${BASH_REMATCH[1]}"
@@ -131,16 +135,14 @@ jobs:
           test "$(grep -c 'binding = "CACHE"' wrangler.toml)" -eq 1
           test "$(grep -c 'id = "00000000-0000-0000-0000-000000000000"' wrangler.toml)" -eq 0
 
-      - name: Ensure OCR queue exists
+      - name: Ensure Queue resources exist
         shell: bash
         run: |
           set -euo pipefail
           queues="$(pnpm exec wrangler queues list)"
-          if grep -Fq "owbastion-ocr" <<<"$queues"; then
-            echo "OCR queue already exists"
-          else
-            pnpm exec wrangler queues create owbastion-ocr
-          fi
+          for queue in owbastion-ocr owbastion-qq-policy owbastion-qq-policy-dlq; do
+            if grep -Fq "$queue" <<<"$queues"; then echo "$queue already exists"; else pnpm exec wrangler queues create "$queue"; fi
+          done
 
       - name: Apply remote D1 migrations
         run: pnpm exec wrangler d1 migrations apply owbastion-codes-prod --remote
@@ -156,15 +158,18 @@ jobs:
         shell: bash
         run: pnpm exec wrangler d1 execute owbastion-codes-prod --remote --command "UPDATE player_accounts SET is_admin = 1, updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE normalized_player_name = '$ADMIN_PLAYER_NAME_NORMALIZED_SQL' AND player_id = '$ADMIN_PLAYER_ID'"
 
+      - name: Update Worker service secrets
+        shell: bash
+        run: |
+          printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
+          printf '%s' "$QQBOT_POLICY_WEBHOOK_URL" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_URL
+          printf '%s' "$QQBOT_POLICY_WEBHOOK_SECRET" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_SECRET
+
       - name: Deploy Worker
         run: pnpm exec wrangler deploy
 
       - name: Deploy API Shield endpoint operations
         run: pnpm deploy:api-endpoints
-
-      - name: Update Worker service secret
-        shell: bash
-        run: printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
 
       - name: Publish API URL
         run: echo "::notice title=Cloudflare Worker deployed::https://api.owbastion.com"

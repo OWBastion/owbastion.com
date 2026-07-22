@@ -44,10 +44,23 @@ bucket_name = "owbastion-codes-evidence"
 binding = "OCR_QUEUE"
 queue = "owbastion-ocr"
 
+[[queues.producers]]
+binding = "QQ_POLICY_QUEUE"
+queue = "owbastion-qq-policy"
+
 [[queues.consumers]]
 queue = "owbastion-ocr"
 max_batch_size = 1
 max_retries = 3
+
+[[queues.consumers]]
+queue = "owbastion-qq-policy"
+max_batch_size = 1
+max_retries = 3
+dead_letter_queue = "owbastion-qq-policy-dlq"
+
+[triggers]
+crons = ["*/5 * * * *"]
 
 [placement]
 mode = "smart"

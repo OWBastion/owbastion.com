@@ -149,9 +149,12 @@ a stable idempotency key so delayed or repeated lifecycle events cannot
 overwrite a newer platform state. A maintainer promotes exactly one
 pending group to `active`; this atomically makes the previous active group
 `legacy` and closes its `/绑定` and `/验证` policies. QQBot reads the
-platform-owned group and command-policy snapshot at startup and on the
-configured refresh interval; it keeps the last successful snapshot when a
-later refresh fails and fails closed before the first successful snapshot.
+platform-owned group and command-policy snapshot at startup, then only after a
+signed platform policy event. Group-policy changes are recorded in a D1
+outbox, delivered through a dedicated Queue, and retried by a five-minute
+Worker repair trigger until QQBot acknowledges the refresh. QQBot keeps the
+last successful snapshot when an event refresh fails and fails closed before
+the first successful snapshot; it does not poll the platform.
 Because QQ does not provide a reliable group name through the channel
 interface, maintainers may store a platform-owned display name/label and the
 group environment in the Portal. The stable QQ group OpenID remains the

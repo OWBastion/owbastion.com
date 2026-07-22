@@ -31,6 +31,9 @@ export type RuntimeEnv = {
   OCRKIT_BASE_URL?: string;
   OCRKIT_EVIDENCE_BUCKET?: string;
   OCR_QUEUE?: Queue;
+  QQ_POLICY_QUEUE?: Queue;
+  QQBOT_POLICY_WEBHOOK_URL?: string;
+  QQBOT_POLICY_WEBHOOK_SECRET?: string;
 };
 
 type AppDependencies = {

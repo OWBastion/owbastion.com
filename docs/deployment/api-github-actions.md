@@ -13,6 +13,8 @@ deployment job:
 - D1 database named `owbastion-codes-prod`;
 - R2 bucket named `owbastion-codes-evidence`;
 - KV namespace for derived catalog caches, bound as `CACHE`;
+- Queue `owbastion-qq-policy` and dead-letter queue
+  `owbastion-qq-policy-dlq` for QQ group-policy events;
 - the real D1 `database_id` written to `wrangler.toml`.
 
 Create the KV namespace with Wrangler, then replace the `CACHE` placeholder ID
@@ -44,6 +46,8 @@ Configure these repository or production-environment secrets:
 | `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account |
 | `CLOUDFLARE_ZONE_ID` | Zone where API Shield Endpoint Management is configured |
 | `QQBOT_API_TOKEN` | Service credential accepted by the API from QQBot |
+| `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
+| `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
 | `ADMIN_BATTLETAG` | Full BattleTag, such as `TestPlayer#1234`, that receives administrator access during deployment |
 
 The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
@@ -92,6 +96,7 @@ Add these values to the existing QQBot runtime environment:
 PLATFORM_BASE_URL=https://api.owbastion.com
 PLATFORM_SERVICE_TOKEN=<same-value-as-QQBOT_API_TOKEN>
 PLATFORM_REQUEST_TIMEOUT_MS=10000
+PLATFORM_POLICY_WEBHOOK_SECRET=<same-value-as-QQBOT_POLICY_WEBHOOK_SECRET>
 ```
 
 Restart only the QQBot container. Then test in a dedicated QQ group:
@@ -109,6 +114,13 @@ The Portal login flow additionally requires an enabled group-access record and
 an existing binding for the same QQ member OpenID. The current API contains the
 maintainer-protected group-access route, but a maintainer authentication flow
 must be available before it can be configured through that route.
+
+The QQBot reverse proxy must forward
+`/internal/v1/qq/group-policy-events` to the existing QQBot service. This path
+is not a public API: the Worker signs every request with
+`QQBOT_POLICY_WEBHOOK_SECRET`; QQBot rejects stale or invalid signatures. The
+Worker's dedicated Queue and five-minute outbox repair trigger retry delivery,
+so QQBot does not poll `GET /v1/admin/qq/groups` after startup.
 
 The returned submission ID can be checked with:
 

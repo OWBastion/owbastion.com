@@ -27,7 +27,20 @@ bucket_name = "owbastion-codes-evidence"
 binding = "OCR_QUEUE"
 queue = "owbastion-ocr-local"
 
+[[queues.producers]]
+binding = "QQ_POLICY_QUEUE"
+queue = "owbastion-qq-policy-local"
+
 [[queues.consumers]]
 queue = "owbastion-ocr-local"
 max_batch_size = 1
 max_retries = 3
+
+[[queues.consumers]]
+queue = "owbastion-qq-policy-local"
+max_batch_size = 1
+max_retries = 3
+dead_letter_queue = "owbastion-qq-policy-local-dlq"
+
+[triggers]
+crons = ["*/5 * * * *"]
