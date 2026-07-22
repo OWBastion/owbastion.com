@@ -143,11 +143,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
   };
 
+  // Fetch all currently public challenges in two parallel queries.
+  // Used by both publicEventChallenges (single-event path) and the batch list path.
+  const fetchAllPublicChallenges = async (): Promise<Challenge[]> => {
+    const [mapRows, titleRows] = await Promise.all([
+      db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))),
+      db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"))),
+    ]);
+    const timestamp = now();
+    const items: Challenge[] = [];
+    items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })));
+    items.push(...titleRows.flatMap(({ challenge, title }) => { const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp); return status === "active" || status === "sunsetting" ? [{ challengeId: challenge.id, family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const, titleKey: title.key, titleName: title.label, icon: title.icon, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule, gameVersion: challenge.gameVersion, status: status as "active" | "sunsetting", startsAt: challenge.startsAt ?? undefined, endsAt: challenge.endsAt ?? undefined, retiredVersion: challenge.retiredVersion ?? undefined, submissionMode: challenge.submissionMode as "manual" | "automatic" }] : []; }));
+    return items;
+  };
+
+  // Single-event path: used by getRandomEvent and admin mutation responses.
+  // Keeps its own two link queries because it is not on the N-multiplied list path.
   const publicEventChallenges = async (eventId: string) => {
     const [mapLinks, titleLinks, challenges] = await Promise.all([
-      db.select().from(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)), db.select().from(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)),
-      (async (): Promise<Challenge[]> => { const items: Challenge[] = []; const mapRows = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))); items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined }))); const titleRows = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"))); const timestamp = now(); items.push(...titleRows.flatMap(({ challenge, title }) => { const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp); return status === "active" || status === "sunsetting" ? [{ challengeId: challenge.id, family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const, titleKey: title.key, titleName: title.label, icon: title.icon, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule, gameVersion: challenge.gameVersion, status: status as "active" | "sunsetting", startsAt: challenge.startsAt ?? undefined, endsAt: challenge.endsAt ?? undefined, retiredVersion: challenge.retiredVersion ?? undefined, submissionMode: challenge.submissionMode as "manual" | "automatic" }] : []; })); return items; })(),
-    ]); const ids = new Set([...mapLinks.map((link) => link.challengeId), ...titleLinks.map((link) => link.challengeId)]); return challenges.filter((challenge) => ids.has(challenge.challengeId));
+      db.select().from(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)),
+      db.select().from(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)),
+      fetchAllPublicChallenges(),
+    ]);
+    const ids = new Set([...mapLinks.map((link) => link.challengeId), ...titleLinks.map((link) => link.challengeId)]);
+    return challenges.filter((challenge) => ids.has(challenge.challengeId));
   };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => ({ eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, appearanceProbability: row.appearanceProbability, categoryProbability: row.categoryProbability, groupTotalWeight: row.groupTotalWeight, groupSize: row.groupSize, failureProbability: row.failureProbability, guaranteeProbability: row.guaranteeProbability, globalAppearanceProbability: row.globalAppearanceProbability, gameVersion: row.gameVersion, effectTags: JSON.parse(row.effectTagsJson) as string[], releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) });
   const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => { for (const link of links) { const table = link.family === "map" ? achievementChallenges : titleChallenges; const found = await db.select({ id: table.id }).from(table).where(eq(table.id, link.challengeId)).get(); if (!found) throw new Error("CHALLENGE_NOT_FOUND"); } };
@@ -177,7 +196,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return withCatalogCache(cache, cacheKey, async () => {
         const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
         const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
-        return Promise.all(rows.map(asRandomEvent));
+        if (!rows.length) return [];
+        // Batch path: 3 parallel queries regardless of event count, then in-memory assembly.
+        // Cold-cache cost: O(1) queries instead of O(4N).
+        const eventIds = rows.map((row) => row.id);
+        const [mapLinks, titleLinks, allChallenges] = await Promise.all([
+          db.select().from(randomEventMapChallenges).where(inArray(randomEventMapChallenges.eventId, eventIds)),
+          db.select().from(randomEventTitleChallenges).where(inArray(randomEventTitleChallenges.eventId, eventIds)),
+          fetchAllPublicChallenges(),
+        ]);
+        const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
+        const challengesByEvent = new Map<string, Challenge[]>(eventIds.map((id) => [id, []]));
+        for (const link of mapLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
+        for (const link of titleLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
+        return rows.map((row): RandomEvent => ({ eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, appearanceProbability: row.appearanceProbability, categoryProbability: row.categoryProbability, groupTotalWeight: row.groupTotalWeight, groupSize: row.groupSize, failureProbability: row.failureProbability, guaranteeProbability: row.guaranteeProbability, globalAppearanceProbability: row.globalAppearanceProbability, gameVersion: row.gameVersion, effectTags: JSON.parse(row.effectTagsJson) as string[], releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: challengesByEvent.get(row.id) ?? [] }));
       });
     },
     async getRandomEvent(input) {
