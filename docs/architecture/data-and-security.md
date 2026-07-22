@@ -44,7 +44,9 @@ completion values; raw OCR output and internal match details remain private.
 QQ login codes, attempt tokens, session tokens, group OpenIDs, and member
 OpenIDs are private. The database stores hashes of the short-lived attempt
 token and code. Invitation codes are hashed, single-use, target one BattleTag,
-and expire after seven days. Invitation confirmation codes expire after two
+and expire after seven days. A maintainer can revoke only an unused, unexpired invitation;
+the reason is retained in the audit record and revocation takes effect
+immediately. Invitation confirmation codes expire after two
 minutes; only a maintainer approval activates a binding. Login attempts expire
 after two minutes; a verified browser
 session expires after 30 days. The Portal receives a session cookie only after

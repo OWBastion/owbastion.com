@@ -40,6 +40,7 @@ const services: PlatformServices = {
   createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
   listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, createdAt: 1, expiresAt: 2 }] }),
+  revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
@@ -120,6 +121,16 @@ describe("API", () => {
     const response = await adminApp.request("http://localhost/v1/admin/binding-invites", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ items: [{ playerName: "Player", status: "active" }] });
+  });
+
+  it("revokes unused invitations only for maintainers", async () => {
+    const body = JSON.stringify({ contractVersion: "1", reason: "发送错误" });
+    const path = "http://localhost/v1/admin/binding-invites/00000000-0000-0000-0000-000000000007/revoke";
+    expect((await app.request(path, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "revoke-1" }, body }, env)).status).toBe(403);
+    const revoked: Array<{ inviteId: string; reason: string }> = [];
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, revokeAdminBindingInvite: async (input) => { revoked.push(input); } }) });
+    expect((await adminApp.request(path, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "revoke-1" }, body }, env)).status).toBe(204);
+    expect(revoked).toEqual([{ inviteId: "00000000-0000-0000-0000-000000000007", contractVersion: "1", reason: "发送错误" }]);
   });
 
   it("creates a batch of binding invitations for maintainers", async () => {

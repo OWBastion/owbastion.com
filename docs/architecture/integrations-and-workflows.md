@@ -135,7 +135,9 @@ idempotent batch. Each plaintext code is returned only in that response, so
 the Portal presents a per-player copy action for the binding link, code, and
 player instructions.
 The administrator list retains each invitation's BattleTag, issuance time,
-expiry, and lifecycle status, but never its plaintext code.
+expiry, and lifecycle status, but never its plaintext code. A maintainer may
+revoke only an unused, unexpired invitation with an auditable reason; revocation
+makes the invitation unusable immediately.
 
 Map-only titles are scoped to the map that supplied their reward slot. The
 platform does not expose them as global titles, and it preserves Bastion's

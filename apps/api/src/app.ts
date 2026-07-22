@@ -16,7 +16,7 @@ import {
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
-  adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
+  adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
@@ -137,6 +137,14 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     return c.json(await dependencies.services(c.env).listAdminBindingInvites(access.auth!));
+  });
+
+  app.post("/v1/admin/binding-invites/:inviteId/revoke", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminBindingInviteRevokeRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { await dependencies.services(c.env).revokeAdminBindingInvite({ ...parsed.data, inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_NOT_REVOCABLE") return errorResponse(c, 422, "BINDING_INVITE_NOT_REVOCABLE", "The invitation cannot be revoked"); throw error; }
   });
 
   app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await dependencies.services(c.env).listAdminBindingClaims(access.auth!)); });

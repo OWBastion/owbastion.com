@@ -1066,6 +1066,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       };
     },
 
+    async revokeAdminBindingInvite(input, auth, idempotencyKey) {
+      const operation = "admin.binding_invite.revoke";
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return;
+      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
+      if (!invite || invite.revokedAt || invite.redeemedAt || invite.expiresAt <= now()) throw new Error("BINDING_INVITE_NOT_REVOCABLE");
+      const timestamp = now();
+      await db.update(bindingInvites).set({ revokedAt: timestamp, revokedBy: auth.subject }).where(eq(bindingInvites.id, invite.id));
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
+      await recordAudit(db, auth, operation, "binding_invite", invite.id, { reason: input.reason });
+    },
+
     async redeemBindingInvite(input) {
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code))).get();
       const normalized = normalizePlayerName(input.playerName);
