@@ -39,6 +39,7 @@ const services: PlatformServices = {
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
   createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
+  listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, createdAt: 1, expiresAt: 2 }] }),
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
@@ -111,6 +112,14 @@ describe("API", () => {
     const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
     expect((await adminApp.request("http://localhost/v1/admin/binding-invites", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "invite-1" }, body }, env)).status).toBe(201);
     expect((await adminApp.request("http://localhost/v1/admin/binding-claims/00000000-0000-0000-0000-000000000008/decision", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved", reason: "已核验" }) }, env)).status).toBe(204);
+  });
+
+  it("lists issued invitation status only for maintainers", async () => {
+    expect((await app.request("http://localhost/v1/admin/binding-invites", {}, env)).status).toBe(403);
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
+    const response = await adminApp.request("http://localhost/v1/admin/binding-invites", {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ items: [{ playerName: "Player", status: "active" }] });
   });
 
   it("creates a batch of binding invitations for maintainers", async () => {

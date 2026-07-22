@@ -1049,6 +1049,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return response;
     },
 
+    async listAdminBindingInvites() {
+      const timestamp = now();
+      const rows = await db.select().from(bindingInvites).orderBy(desc(bindingInvites.createdAt)).limit(100);
+      return {
+        contractVersion: "1" as const,
+        items: rows.map((invite) => ({
+          inviteId: invite.id,
+          playerName: invite.playerName,
+          playerId: invite.playerId,
+          status: (invite.revokedAt ? "revoked" : invite.redeemedAt ? "redeemed" : invite.expiresAt <= timestamp ? "expired" : "active") as "active" | "redeemed" | "expired" | "revoked",
+          createdAt: invite.createdAt,
+          expiresAt: invite.expiresAt,
+          ...(invite.redeemedAt ? { redeemedAt: invite.redeemedAt } : {}),
+        })),
+      };
+    },
+
     async redeemBindingInvite(input) {
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code))).get();
       const normalized = normalizePlayerName(input.playerName);

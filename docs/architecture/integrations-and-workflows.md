@@ -134,6 +134,8 @@ Maintainers may issue up to 100 BattleTag-targeted invitations in one
 idempotent batch. Each plaintext code is returned only in that response, so
 the Portal presents a per-player copy action for the binding link, code, and
 player instructions.
+The administrator list retains each invitation's BattleTag, issuance time,
+expiry, and lifecycle status, but never its plaintext code.
 
 Map-only titles are scoped to the map that supplied their reward slot. The
 platform does not expose them as global titles, and it preserves Bastion's

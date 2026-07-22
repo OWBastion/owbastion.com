@@ -134,6 +134,11 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json(await dependencies.services(c.env).createAdminBindingInviteBatch(parsed.data, access.auth!, idempotencyKey), 201);
   });
 
+  app.get("/v1/admin/binding-invites", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    return c.json(await dependencies.services(c.env).listAdminBindingInvites(access.auth!));
+  });
+
   app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await dependencies.services(c.env).listAdminBindingClaims(access.auth!)); });
   app.post("/v1/admin/binding-claims/:claimId/decision", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;

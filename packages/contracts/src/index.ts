@@ -47,6 +47,9 @@ export const adminBindingInviteBatchRequestSchema = z.object({ contractVersion, 
   });
 });
 export const adminBindingInviteBatchResponseSchema = z.object({ contractVersion, items: z.array(adminBindingInviteResponseSchema).min(1).max(100) });
+export const adminBindingInviteStatusSchema = z.enum(["active", "redeemed", "expired", "revoked"]);
+export const adminBindingInviteListItemSchema = z.object({ inviteId: z.string().uuid(), playerName: z.string(), playerId, status: adminBindingInviteStatusSchema, createdAt: z.number().int(), expiresAt: z.number().int(), redeemedAt: z.number().int().optional() });
+export const adminBindingInviteListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingInviteListItemSchema) });
 export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode, playerName: z.string().trim().min(1).max(64), playerId });
 export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, expiresAt: z.number().int() });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
@@ -412,6 +415,7 @@ export type AdminBindingInviteRequest = z.infer<typeof adminBindingInviteRequest
 export type AdminBindingInviteResponse = z.infer<typeof adminBindingInviteResponseSchema>;
 export type AdminBindingInviteBatchRequest = z.infer<typeof adminBindingInviteBatchRequestSchema>;
 export type AdminBindingInviteBatchResponse = z.infer<typeof adminBindingInviteBatchResponseSchema>;
+export type AdminBindingInviteListResponse = z.infer<typeof adminBindingInviteListResponseSchema>;
 export type BindingInviteRedeemRequest = z.infer<typeof bindingInviteRedeemRequestSchema>;
 export type BindingInviteRedeemResponse = z.infer<typeof bindingInviteRedeemResponseSchema>;
 export type QqBindingClaimVerifyRequest = z.infer<typeof qqBindingClaimVerifyRequestSchema>;
