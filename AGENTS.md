@@ -45,7 +45,7 @@ milestones.
 - OWBastion/ocrkit owns stateless screenshot recognition and model lifecycle.
 
 Keep one authoritative owner for each fact. Preserve idempotency, audit records,
-private/public separation, and group-scoped QQ identity semantics. Do not add
+private/public separation, and QQ member-identity semantics. Do not add
 business rules to HTTP or Portal adapters, expose credentials or private
 identifiers, or make browser clients access D1, R2, OCRKit, or Bastion directly.
 

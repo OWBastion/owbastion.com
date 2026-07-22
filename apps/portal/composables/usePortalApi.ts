@@ -3,7 +3,6 @@ export type SubmissionStatus = "received" | "evidence_pending" | "evidence_store
 export type CurrentPlayer = {
   contractVersion: "1";
   player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean };
-  groupIdentityStatus?: "active" | "verification_required" | "no_active_group";
   recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; createdAt: number; updatedAt: number }>;
 };
 

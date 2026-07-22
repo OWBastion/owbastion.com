@@ -101,15 +101,14 @@ Restart only the QQBot container. Then test in a dedicated QQ group:
 /成就挑战 Test Map + image attachment
 ```
 
-The binding test must be sent from the dedicated test group. QQ member OpenIDs
-are group-scoped, so the same QQ user in another group is a separate platform
-binding by design.
+The binding test must be sent from the dedicated test group. For one QQ robot,
+the same QQ member OpenID is reused across groups and maps to one platform
+binding.
 
 The Portal login flow additionally requires an enabled group-access record and
-an existing binding for the same group-scoped QQ identity. The current API
-contains the maintainer-protected group-access route, but a maintainer
-authentication flow must be available before it can be configured through that
-route.
+an existing binding for the same QQ member OpenID. The current API contains the
+maintainer-protected group-access route, but a maintainer authentication flow
+must be available before it can be configured through that route.
 
 The returned submission ID can be checked with:
 

@@ -10,8 +10,8 @@ Capability status is maintained only in the [feature status matrix](../developme
 
 The current API implements versioned v1 QQ flows:
 
-- authenticated QQBot calls create or update a group-scoped player binding from
-  a mutable player name and stable numeric player ID;
+- authenticated QQBot calls create or update a player binding from a stable QQ
+  member OpenID, mutable player name, and stable numeric player ID;
 - authenticated QQBot calls create a map-completion submission using stable QQ
   group/member and source-message metadata;
 - writes require an idempotency key; equal retries replay the original response
@@ -135,9 +135,9 @@ map-specific pioneer display prefixes when returning a map-filtered title catalo
 
 A Portal login attempt creates a six-character code valid for two minutes.
 The user sends /验证 CODE in an enabled QQ group. The API verifies that the
-same group-scoped QQ identity has an existing binding before consuming the
-code, records the group environment, and issues a 30-day browser session when
-the Portal later polls the verified attempt. QQBot replies and recalls the code
+same QQ member OpenID has an existing binding before consuming the code,
+records the group environment, and issues a 30-day browser session when the
+Portal later polls the verified attempt. QQBot replies and recalls the code
 message only after a successful verification.
 
 Group access is managed through the platform-session-protected `/admin` Portal.
@@ -157,11 +157,10 @@ interface, maintainers may store a platform-owned display name/label and the
 group environment in the Portal. The stable QQ group OpenID remains the
 integration identifier.
 
-An authenticated player whose session belongs to a legacy group can generate a
-short-lived `/验证` code in the Portal. The code is target-bound to the active
-group. On success the platform appends that group-scoped QQ identity to the
-same player account; it never migrates player data or deletes the legacy
-binding.
+For one QQ robot, member OpenIDs are stable across groups. The platform binds
+each `(provider, memberOpenId)` once; group OpenIDs remain command-policy,
+message-source, session-environment, and audit context rather than identity
+components.
 
 ## OCR integration
 

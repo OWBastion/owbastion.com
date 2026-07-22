@@ -15,7 +15,7 @@ export const bindings = sqliteTable("bindings", {
   memberOpenId: text("member_open_id").notNull(),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
-  providerExternalUser: uniqueIndex("bindings_provider_group_member_idx").on(table.provider, table.groupOpenId, table.memberOpenId),
+  providerExternalUser: uniqueIndex("bindings_provider_member_idx").on(table.provider, table.memberOpenId),
 }));
 
 export const playerAccounts = sqliteTable("player_accounts", {

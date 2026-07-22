@@ -13,7 +13,6 @@ import type {
   QqGroupAccessRequest,
   QqGroupAccessResponse,
   QqGroupRegistrationRequest,
-  QqGroupIdentityVerificationResponse,
   AdminPlayerDetail,
   AdminPlayerListResponse,
   AdminPlayerStatusRequest,
@@ -83,7 +82,6 @@ export type PlatformServices = {
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   getPlayerEvidence(input: { submissionId: string }, sessionToken: string): Promise<{ body: ArrayBuffer; contentType: string }>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
-  createQqGroupIdentityVerification(input: { sessionToken: string }): Promise<QqGroupIdentityVerificationResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;

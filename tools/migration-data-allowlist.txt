@@ -7,3 +7,4 @@
 0012_seed_submission_challenges.sql
 0016_challenge_sunsetting.sql
 0018_title_challenge_schedule.sql
+0029_global_qq_member_open_id.sql

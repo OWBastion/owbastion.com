@@ -5,17 +5,6 @@ useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
 const { player, refresh } = useCurrentPlayer();
 const { items: titles, refresh: refreshTitles } = usePlayerTitles();
 const loading = ref(true);
-const verificationCode = ref("");
-const verificationError = ref("");
-const creatingVerification = ref(false);
-const portalApi = usePortalApi();
-
-async function createGroupVerification() {
-  creatingVerification.value = true; verificationError.value = "";
-  try { verificationCode.value = (await portalApi<{ code: string }>("/v1/me/qq/identity-verifications", { method: "POST" })).code; }
-  catch { verificationError.value = "暂时无法生成验证码。"; }
-  finally { creatingVerification.value = false; }
-}
 
 onMounted(async () => {
   await Promise.all([refresh(), refreshTitles()]);
@@ -32,12 +21,6 @@ onMounted(async () => {
       </section>
 
       <PlayerIdentityCard :player-name="player.player.playerName" :player-id="player.player.playerId" aria-label="玩家身份" />
-
-      <UAlert v-if="player.groupIdentityStatus === 'verification_required'" color="warning" variant="subtle" title="群聊身份需要更新" description="请在当前活动群发送验证码，原有称号、提交和进度不会受影响。" class="identity-alert">
-        <template #actions><UButton :loading="creatingVerification" size="sm" color="neutral" variant="outline" label="生成验证命令" @click="createGroupVerification" /></template>
-        <template v-if="verificationCode" #description>请在当前活动群发送：<code>/验证 {{ verificationCode }}</code></template>
-      </UAlert>
-      <UAlert v-if="verificationError" color="error" variant="subtle" :description="verificationError" class="identity-alert" />
 
       <section class="section-block titles-section" aria-labelledby="titles-title">
         <PageSectionHeader title="最近获得的称号"><template #actions><UButton to="/achievements" label="查看全部成就" color="neutral" variant="outline" /></template></PageSectionHeader>
@@ -76,7 +59,6 @@ onMounted(async () => {
 .intro-status .status-badge { margin-bottom: .8rem; }
 .section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .titles-section { margin-top: clamp(52px, 8vw, 86px); }
-.identity-alert { margin-top: 20px; }
 .upcoming-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .upcoming-card { position: relative; display: flex; min-height: 272px; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 22px; background: color-mix(in oklch, var(--surface-raised) 72%, var(--surface)); }
 .upcoming-card::after { position: absolute; inset: auto -16% -36% auto; width: 165px; height: 165px; border-radius: 50%; background: oklch(54% .045 55 / 16%); filter: blur(18px); content: ""; }

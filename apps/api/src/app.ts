@@ -77,7 +77,6 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/me/qq/identity-verifications", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -167,13 +166,6 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
-  });
-
-  app.post("/v1/me/qq/identity-verifications", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).createQqGroupIdentityVerification({ sessionToken: access.sessionToken! }), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "IDENTITY_VERIFICATION_FAILED"; if (["SESSION_NOT_FOUND", "ACTIVE_GROUP_UNAVAILABLE"].includes(code)) return errorResponse(c, 422, code, "The group identity verification is unavailable"); throw error; }
   });
 
   app.post("/v1/qq/groups", async (c) => {
@@ -554,6 +546,7 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) {
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request");
       if (error instanceof Error && error.message === "BINDING_CONFLICT") return errorResponse(c, 409, "BINDING_CONFLICT", "The QQ identity is already bound to another player");
+      if (error instanceof Error && error.message === "BINDING_GROUP_NOT_ALLOWED") return errorResponse(c, 422, "BINDING_GROUP_NOT_ALLOWED", "The QQ group does not allow bindings");
       if (error instanceof Error && error.message === "PLAYER_BANNED") return errorResponse(c, 403, "PLAYER_BANNED", "The player account is banned");
       throw error;
     }

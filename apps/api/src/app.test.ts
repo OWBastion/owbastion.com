@@ -40,9 +40,8 @@ const services: PlatformServices = {
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
-  createQqGroupIdentityVerification: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1, targetGroupStatus: "active" }),
   getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
-verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test", purpose: "login" }),
+  verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   upsertQqGroupAccess: async () => {},
   registerQqGroup: async () => {},
   listQqGroupAccess: async () => [],
@@ -53,7 +52,6 @@ verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environm
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
     player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
-    groupIdentityStatus: "active",
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
   logoutPortalSession: async () => {},
@@ -98,6 +96,13 @@ describe("API", () => {
     const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
     expect(response.status).toBe(422);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+  });
+
+  it("reports when the current group does not allow bindings", async () => {
+    const restrictedApp = createApp({ authenticate: auth, services: () => ({ ...services, createBinding: async () => { throw new Error("BINDING_GROUP_NOT_ALLOWED"); } }) });
+    const response = await restrictedApp.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
+    expect(response.status).toBe(422);
+    expect((await response.json() as { error: { code: string } }).error.code).toBe("BINDING_GROUP_NOT_ALLOWED");
   });
 
   it("requires idempotency for QQ group lifecycle registration", async () => {
@@ -152,7 +157,6 @@ describe("API", () => {
     expect(await response.json()).toEqual({
       contractVersion: "1",
       player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
-      groupIdentityStatus: "active",
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
