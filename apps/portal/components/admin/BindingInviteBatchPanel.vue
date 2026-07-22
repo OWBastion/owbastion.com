@@ -76,7 +76,7 @@ async function createInvitations() {
 
 function copyText(invitation: Invitation) {
   const link = new URL("/bind", window.location.origin).toString();
-  return `【躲避堡垒 3 · QQ 绑定】\n\n绑定链接：${link}\n邀请码：${invitation.code}\n战网 ID：${invitation.playerName}#${invitation.playerId}\n\n请打开链接，输入邀请码和完全相同的战网 ID；随后在已开放的 QQ 群发送页面提供的 /验证 CODE。邀请码 7 天有效、仅限一次，请勿转发。`;
+  return `【躲避堡垒 3 · QQ 绑定】\n\n绑定链接：${link}\n邀请码：${invitation.code}\n\n打开链接后按提示完成 QQ 验证。邀请码 7 天有效，请勿转发。`;
 }
 
 async function copyInvitation(invitation: Invitation) {
