@@ -53,6 +53,9 @@ importers:
 
   apps/portal:
     dependencies:
+      '@internationalized/date':
+        specifier: ^3.12.2
+        version: 3.12.2
       '@nuxt/ui':
         specifier: ^4.10.0
         version: 4.10.0(f81dabd48782d990166a38ea6b458330)
