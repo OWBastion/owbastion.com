@@ -47,7 +47,7 @@ onMounted(async () => {
         </div>
       </section>
     </template>
-    <p v-else-if="loading" class="loading">读取中…</p>
+    <ThinkingOrbLoader v-else-if="loading" state="listening" />
   </main>
 </template>
 
@@ -66,6 +66,5 @@ onMounted(async () => {
 .upcoming-kicker { margin: 0 0 9px; color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .05em; }
 .upcoming-card h3 { margin: 0; color: color-mix(in oklch, var(--text) 84%, var(--muted)); font-size: clamp(1.22rem, 2.3vw, 1.55rem); letter-spacing: -.035em; }
 .upcoming-card p:last-child { margin: 12px 0 0; color: var(--quiet); font-size: .82rem; line-height: 1.6; }
-.loading { padding-block: 180px; color: var(--muted); text-align: center; }
 @media (max-width: 760px) { .upcoming-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 220px; } }
 </style>

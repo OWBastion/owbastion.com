@@ -11,3 +11,4 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - '@nuxt/ui'
+  - thinking-orbs@0.1.1
