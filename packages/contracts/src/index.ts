@@ -337,13 +337,20 @@ export const playerUploadCompleteRequestSchema = z.object({ contractVersion, upl
 
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
-  status: submissionStatus,
+  status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
+  challenge: z.union([
+    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string() }),
+    z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
+  ]).nullable().optional(),
   mapName: z.string(),
   difficulty: z.string(),
   playerName: z.string(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
+  ocrStatus: z.enum(["not_started", "pending", "completed", "failed"]).optional(),
+  ocrAttempt: z.number().int().nullable().optional(),
+  ocrErrorCode: z.string().nullable().optional(),
   ocr: z.record(z.string(), z.unknown()).nullable(),
   evidenceUrl: z.string().url().nullable(),
 });

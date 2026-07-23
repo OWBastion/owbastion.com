@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
@@ -27,7 +28,10 @@ export const bindingInvites = sqliteTable("binding_invites", {
 
 export const bindingClaims = sqliteTable("binding_claims", {
   id: text("id").primaryKey(), inviteId: text("invite_id").notNull().references(() => bindingInvites.id), tokenHash: text("token_hash").notNull(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), status: text("status").notNull(), memberOpenId: text("member_open_id"), groupOpenId: text("group_open_id"), messageId: text("message_id"), expiresAt: integer("expires_at").notNull(), createdAt: integer("created_at").notNull(), verifiedAt: integer("verified_at"), decidedAt: integer("decided_at"), decidedBy: text("decided_by"), decisionReason: text("decision_reason"),
-}, (table) => ({ code: uniqueIndex("binding_claims_code_idx").on(table.codeHash) }));
+}, (table) => ({
+  code: uniqueIndex("binding_claims_code_idx").on(table.codeHash),
+  activeInvite: uniqueIndex("binding_claims_active_invite_idx").on(table.inviteId).where(sql`status = 'pending_confirmation'`),
+}));
 
 export const playerAccounts = sqliteTable("player_accounts", {
   id: text("id").primaryKey(),
