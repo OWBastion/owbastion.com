@@ -168,7 +168,7 @@ onMounted(() => void load());
     </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="challengeAction !== null" :title="challengeAction?.status === 'sunsetting' ? '计划下线' : '结束挑战'" :description="challengeAction?.challenge.name" size="sm" :dismissible="!saving" @update:open="(open) => { if (!open) closeChallengeAction(); }">
       <template #body><form v-if="challengeAction" id="map-challenge-action" class="challenge-action" @submit.prevent="confirmChallengeAction"><UFormField v-if="challengeAction.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="retiredVersion" required placeholder="例如 26.0713.1" :disabled="saving" /></UFormField><p v-else>结束后不再接受新的截图提交。</p></form></template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeChallengeAction" /><UButton :label="challengeAction?.status === 'sunsetting' ? '确认计划' : '结束挑战'" :color="challengeAction?.status === 'sunsetting' ? 'primary' : 'error'" type="submit" form="map-challenge-action" :loading="saving" /></template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeChallengeAction()" /><UButton :label="challengeAction?.status === 'sunsetting' ? '确认计划' : '结束挑战'" :color="challengeAction?.status === 'sunsetting' ? 'primary' : 'error'" type="submit" form="map-challenge-action" :loading="saving" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
