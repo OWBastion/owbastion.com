@@ -21,6 +21,9 @@ const ocrLabels: Record<string, string> = { map_name: "地图", difficulty: "难
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
+const visibleStatuses = "received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required,approved,rejected,resubmission_required";
+const isDecisionComplete = (status: string) => ["approved", "rejected", "resubmission_required"].includes(status);
+const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const columns = [
   { accessorKey: "challenge", header: "挑战" },
   { accessorKey: "playerName", header: "玩家" },
@@ -31,7 +34,7 @@ const columns = [
 async function load() {
   loading.value = true; errorMessage.value = "";
   try {
-    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?status=ready_for_review,ocr_review_required&page=${page.value}&pageSize=20`);
+    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?status=${visibleStatuses}&page=${page.value}&pageSize=20`);
     submissions.value = response.items;
     total.value = response.total;
     if (page.value > 1 && !submissions.value.length && total.value) {
@@ -57,14 +60,14 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="待核对截图"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无待核对截图。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
+    <section aria-label="提交记录"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #challenge-cell="{ row }"><strong>{{ row.original.mapName }} · {{ row.original.difficulty }}</strong></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
-      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="row.original.status === 'ocr_review_required' ? 'warning' : 'success'" /></template>
+      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><UButton label="查看" color="neutral" variant="link" @click="open(row.original)" /></template>
     </AdminDataTable><UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" /></section>
-    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''"><template #body><section v-if="selected" class="admin-detail review-detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><p class="admin-detail__meta">{{ selected.playerName }} · {{ formatStatus(selected.status) }}</p><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><section v-if="ocrPayload" class="ocr-summary" aria-label="OCR 识别结果"><h3>识别结果</h3><dl><div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd>{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }} <small>{{ ocrConfidence(field.confidence) }} · {{ field.status ?? 'unknown' }}</small></dd></div></dl><p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="ocr-warnings">告警：{{ ocrPayload.warnings.join('、') }}</p><p class="ocr-meta">模型 {{ ocrPayload.model_version ?? '未知' }} · 请求 {{ ocrPayload.request_id ?? '未知' }}</p><details><summary>查看原始 OCR 响应</summary><pre class="ocr">{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details></section><div class="actions"><UButton label="通过" @click="review('approved')" /><UButton label="要求重传" color="neutral" variant="outline" @click="review('resubmission_required')" /><UButton label="驳回" color="error" @click="review('rejected')" /></div></section></template></USlideover>
+    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.mapName} · ${selected.difficulty}` : ''"><template #body><section v-if="selected" class="admin-detail review-detail"><h2>{{ selected.mapName }} · {{ selected.difficulty }}</h2><p class="admin-detail__meta">{{ selected.playerName }} · {{ formatStatus(selected.status) }}</p><img class="evidence" :src="`/api/admin/evidence/${selected.submissionId}`" alt="玩家提交的挑战截图" /><section v-if="ocrPayload" class="ocr-summary" aria-label="OCR 识别结果"><h3>识别结果</h3><dl><div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd>{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }} <small>{{ ocrConfidence(field.confidence) }} · {{ field.status ?? 'unknown' }}</small></dd></div></dl><p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="ocr-warnings">告警：{{ ocrPayload.warnings.join('、') }}</p><p class="ocr-meta">模型 {{ ocrPayload.model_version ?? '未知' }} · 请求 {{ ocrPayload.request_id ?? '未知' }}</p><details><summary>查看原始 OCR 响应</summary><pre class="ocr">{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details></section><div v-if="!isDecisionComplete(selected.status)" class="actions"><UButton label="通过" @click="review('approved')" /><UButton label="要求重传" color="neutral" variant="outline" @click="review('resubmission_required')" /><UButton label="驳回" color="error" @click="review('rejected')" /></div></section></template></USlideover>
   </AdminWorkspace>
 </template>
 

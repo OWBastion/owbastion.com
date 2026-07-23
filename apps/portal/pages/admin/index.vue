@@ -35,7 +35,7 @@ const reviewQueue = computed(() => submissions.value.map((submission) => ({
 onMounted(async () => {
   try {
     const [reviewResponse, processingResponse, playerResponse, mapResponse] = await Promise.all([
-      api<{ items: AdminSubmission[]; total: number }>("/v1/submissions?status=ready_for_review,ocr_review_required&page=1&pageSize=5"),
+      api<{ items: AdminSubmission[]; total: number }>("/v1/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5"),
 	      api<{ total: number }>("/v1/submissions?status=upload_pending,ocr_pending&page=1&pageSize=1"),
 	      api<{ total: number }>("/v1/player-accounts?status=active&page=1&pageSize=1"),
 	      api<{ items: Array<{ mapId: string }> }>("/v1/maps"),

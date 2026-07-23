@@ -61,6 +61,14 @@ same object key and the explicit platform evidence bucket are sent to OCRKit.
 The platform must not rely on OCRKit's default bucket, which is reserved for
 OCRKit's own configured storage and model artifacts.
 
+Administrative submission views are intentionally broader than player views.
+Maintainers can inspect historical and in-progress submission states, evidence,
+and recognition output, including records that predate the current lifecycle.
+The platform does not silently discard those records from the administrative
+queue; final approval, rejection, or resubmission decisions remain explicit
+maintainer actions. Player endpoints remain ownership-scoped and expose only
+the player's own submission status, evidence, and constrained OCR summary.
+
 Player screenshot reads are authenticated and ownership-scoped to the current
 player account. The Portal proxies the private object without issuing an object
 URL; it returns only the recognized map, difficulty, player, and completion

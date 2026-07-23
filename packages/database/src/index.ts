@@ -918,7 +918,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return;
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (!["ready_for_review", "ocr_review_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+      if (["approved", "rejected", "resubmission_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       const timestamp = now();
       await db.update(submissions).set({ status: input.decision, reviewReason: input.reason ?? null, updatedAt: timestamp }).where(eq(submissions.id, row.id));
       await db.insert(submissionReviews).values({ id: crypto.randomUUID(), submissionId: row.id, decision: input.decision, reason: input.reason ?? null, reviewer: auth.subject, createdAt: timestamp });

@@ -205,6 +205,7 @@ const attachmentSchema = z.object({
 });
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
+const adminSubmissionStatus = z.union([z.enum(["received", "evidence_pending", "evidence_stored"]), submissionStatus]);
 
 export const mapChallengeSchema = z.object({
   challengeId: externalId,
@@ -419,7 +420,7 @@ export const playerUploadCompleteRequestSchema = z.object({ contractVersion, upl
 
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
-  status: submissionStatus,
+  status: adminSubmissionStatus,
   challengeId: externalId,
   mapName: z.string(),
   difficulty: z.string(),

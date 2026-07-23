@@ -587,6 +587,9 @@ describe("API", () => {
     expect(await paged.json()).toMatchObject({ page: 2, pageSize: 20, total: 27, hasMore: true });
     expect(requests).toEqual([{ statuses: ["ready_for_review", "ocr_review_required"], page: 2, pageSize: 20 }]);
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
+    const legacy = await adminApp.request("http://localhost/v1/admin/submissions?status=received,evidence_stored", {}, env);
+    expect(legacy.status).toBe(200);
+    expect(requests.at(-1)).toEqual({ statuses: ["received", "evidence_stored"], page: 1, pageSize: 50 });
   });
 
   it("keeps local development login disabled unless explicitly enabled", async () => {
