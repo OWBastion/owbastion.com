@@ -122,10 +122,21 @@ jobs:
           test -n "$QQBOT_POLICY_WEBHOOK_SECRET"
           test -n "$OCRKIT_API_TOKEN"
           test -n "$BINDING_INVITE_CODE_ENCRYPTION_KEY"
-          test -n "$BASTION_BUILD_TOKEN"
-          test -n "$BASTION_BUILD_DISPATCH_URL"
-          test -n "$BASTION_BUILD_DISPATCH_TOKEN"
           test -n "$ADMIN_BATTLETAG"
+          bastion_secret_count=0
+          for value in "$BASTION_BUILD_TOKEN" "$BASTION_BUILD_DISPATCH_URL" "$BASTION_BUILD_DISPATCH_TOKEN"; do
+            if [[ -n "$value" ]]; then bastion_secret_count=$((bastion_secret_count + 1)); fi
+          done
+          if [[ "$bastion_secret_count" -ne 0 && "$bastion_secret_count" -ne 3 ]]; then
+            echo "BASTION_BUILD_TOKEN, BASTION_BUILD_DISPATCH_URL, and BASTION_BUILD_DISPATCH_TOKEN must be configured together" >&2
+            exit 1
+          fi
+          if [[ "$bastion_secret_count" -eq 3 ]]; then
+            echo "BASTION_BUILD_CONFIGURED=true" >> "$GITHUB_ENV"
+          else
+            echo "BASTION_BUILD_CONFIGURED=false" >> "$GITHUB_ENV"
+            echo "Bastion build dispatch is not configured; deploying the platform API without source-build orchestration"
+          fi
           if [[ "$ADMIN_BATTLETAG" =~ ^(.+)#([0-9]{1,10})$ ]]; then
             admin_player_name="${BASH_REMATCH[1]}"
             admin_player_id="${BASH_REMATCH[2]}"
@@ -178,9 +189,13 @@ jobs:
           printf '%s' "$QQBOT_POLICY_WEBHOOK_SECRET" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_SECRET
           printf '%s' "$OCRKIT_API_TOKEN" | pnpm exec wrangler secret put OCRKIT_API_TOKEN
           printf '%s' "$BINDING_INVITE_CODE_ENCRYPTION_KEY" | pnpm exec wrangler secret put BINDING_INVITE_CODE_ENCRYPTION_KEY
-          printf '%s' "$BASTION_BUILD_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_TOKEN
-          printf '%s' "$BASTION_BUILD_DISPATCH_URL" | pnpm exec wrangler secret put BASTION_BUILD_DISPATCH_URL
-          printf '%s' "$BASTION_BUILD_DISPATCH_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_DISPATCH_TOKEN
+          if [[ "$BASTION_BUILD_CONFIGURED" == "true" ]]; then
+            printf '%s' "$BASTION_BUILD_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_TOKEN
+            printf '%s' "$BASTION_BUILD_DISPATCH_URL" | pnpm exec wrangler secret put BASTION_BUILD_DISPATCH_URL
+            printf '%s' "$BASTION_BUILD_DISPATCH_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_DISPATCH_TOKEN
+          else
+            echo "Bastion build secrets are not configured; preserving the existing Worker secret state"
+          fi
 
       - name: Deploy Worker
         run: pnpm exec wrangler deploy

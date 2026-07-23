@@ -49,13 +49,15 @@ Configure these repository or production-environment secrets:
 | `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
 | `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
 | `OCRKIT_API_TOKEN` | Bearer credential shared only with OCRKit |
-| `BASTION_BUILD_TOKEN` | Service credential used by Bastion to fetch Candidates and report build results |
-| `BASTION_BUILD_DISPATCH_TOKEN` | GitHub token used by the Worker to dispatch the Bastion Candidate workflow |
-| `BASTION_BUILD_DISPATCH_URL` | Bastion repository workflow-dispatch endpoint used by the Worker |
+| `BASTION_BUILD_TOKEN` | Optional service credential used by Bastion to fetch Candidates and report build results |
+| `BASTION_BUILD_DISPATCH_TOKEN` | Optional GitHub token used by the Worker to dispatch the Bastion Candidate workflow |
+| `BASTION_BUILD_DISPATCH_URL` | Optional Bastion repository workflow-dispatch endpoint used by the Worker |
 | `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key material for re-copyable invitation codes; generate with `openssl rand -base64 32` and retain it while invitations remain active |
 | `ADMIN_BATTLETAG` | Full BattleTag, such as `TestPlayer#1234`, that receives administrator access during deployment |
 
-The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
+The workflow never prints secret values. The three Bastion build secrets may be
+omitted when source-build orchestration is not enabled; if any one is set, all
+three must be set together. `QQBOT_API_TOKEN` is sent to the
 Worker as a secret and must be the same value configured on the HKG QQBot.
 `ADMIN_BATTLETAG` must already exist in `player_accounts`; the deployment
 validates the full BattleTag and idempotently enables its `is_admin` flag after
@@ -76,6 +78,11 @@ API URL, and submits the OpenAPI endpoint inventory to Cloudflare API Shield
 Endpoint Management. The API token must also have `Account API Gateway` or
 `Domain API Gateway` write permission. Endpoint deployment is additive and
 idempotent; it does not delete operations already managed in Cloudflare.
+
+When the Bastion build secrets are absent, the workflow deploys the platform
+API without source-build orchestration and preserves any existing Bastion
+secrets on the Worker. Configure all three secrets together before enabling
+Candidate dispatch.
 
 The source inventory is [`docs/api/openapi.json`](../api/openapi.json). To run
 the same deployment locally:
