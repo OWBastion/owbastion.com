@@ -31,6 +31,7 @@ import type {
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot,
+  AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
 } from "@owbastion/contracts";
 
 export type LocalDevAccount = {
@@ -47,7 +48,23 @@ export type AuthContext = {
   provider: string;
 };
 
+export type AgentPageInput = { page: number; pageSize: number };
+export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string };
+export type AgentMapQuery = AgentPageInput & { query?: string; mechanic?: string };
+export type AgentAchievementQuery = AgentPageInput & { query?: string; status?: "active" | "sunsetting"; mapId?: string };
+export type AgentTitleQuery = AgentPageInput & { query?: string; category?: string; scope?: "global" | "map"; mapId?: string };
+export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
+
 export type PlatformServices = {
+  listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
+  getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
+  listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
+  getAgentMap(input: { mapId: string }): Promise<Map | null>;
+  listAgentAchievements(input: AgentAchievementQuery): Promise<AgentAchievementListResponse>;
+  getAgentAchievement(input: { challengeId: string }): Promise<Challenge | null>;
+  listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
+  getAgentTitle(input: { titleKey: string }): Promise<Title | null>;
+  searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
   createReleaseDraft(input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number }>;
   putReleaseDraftItem(input: ReleaseDraftItemRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; itemId: string; draftId: string; contentType: string; contentId: string; operation: string }>;
   createReleaseChangeSet(input: ReleaseChangeSetCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;

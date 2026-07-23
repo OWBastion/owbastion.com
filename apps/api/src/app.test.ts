@@ -12,6 +12,15 @@ const services: PlatformServices = {
   startReleaseBuild: async () => ({ contractVersion: "1", buildId: "00000000-0000-0000-0000-000000000014", candidateId: "00000000-0000-0000-0000-000000000013", releaseId: "00000000-0000-0000-0000-000000000015", status: "queued" }),
   receiveReleaseBuildResult: async (input) => ({ contractVersion: "1", buildId: input.buildId, candidateId: input.candidateId, releaseId: "00000000-0000-0000-0000-000000000015", status: input.status }),
   getReleaseOverview: async () => ({ contractVersion: "1", current: null, next: null, drafts: [], releases: [] }),
+  listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentEvent: async () => null,
+  listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentMap: async () => null,
+  listAgentAchievements: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentAchievement: async () => null,
+  listAgentTitles: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentTitle: async () => null,
+  searchAgentContent: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   listRandomEvents: async () => [],
   getRandomEvent: async () => null,
   createAdminRandomEvent: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
@@ -105,6 +114,22 @@ describe("API", () => {
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
+  });
+  it("exposes public agent projections without authentication", async () => {
+    const agentApp = createApp({ authenticate: async () => null, services: () => ({
+      ...services,
+      listAgentEvents: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+      searchAgentContent: async ({ query }) => ({ contractVersion: "1" as const, items: [{ kind: "event" as const, id: "event.test", name: "稳住", summary: `命中：${query}` }], page: 1, pageSize: 20, total: 1, hasMore: false }),
+    }) });
+    const events = await agentApp.request("http://localhost/v1/agents/events", {}, env);
+    expect(events.status).toBe(200);
+    expect(events.headers.get("cache-control")).toContain("public");
+    expect((await events.json() as { page: number }).page).toBe(1);
+    const search = await agentApp.request("http://localhost/v1/agents/search?q=心之钢", {}, env);
+    expect(search.status).toBe(200);
+    expect((await search.json() as { items: Array<{ kind: string }> }).items[0]?.kind).toBe("event");
+    expect((await agentApp.request("http://localhost/v1/agents/search", {}, env)).status).toBe(422);
+    expect((await agentApp.request("http://localhost/v1/agents/maps?pageSize=101", {}, env)).status).toBe(422);
   });
   it("requires a maintainer and an idempotency key for event imports", async () => {
     const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };

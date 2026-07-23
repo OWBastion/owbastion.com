@@ -206,7 +206,7 @@ const attachmentSchema = z.object({
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 
-const mapChallengeSchema = z.object({
+export const mapChallengeSchema = z.object({
   challengeId: externalId,
   family: z.literal("map"),
   type: z.literal("map_completion"),
@@ -220,7 +220,7 @@ const mapChallengeSchema = z.object({
   retiredVersion: storedRetirementVersion.optional(),
 });
 
-const achievementChallengeSchema = z.object({
+export const achievementChallengeSchema = z.object({
   challengeId: externalId,
   family: z.literal("achievement"),
   type: z.literal("title_achievement"),
@@ -295,6 +295,21 @@ export const titleSchema = z.object({
 });
 
 export const titleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) });
+
+const agentPage = z.object({
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(100),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+const agentPageQuery = z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().positive().max(100).default(20) });
+export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
+export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) }).merge(agentPage);
+export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(achievementChallengeSchema) }).merge(agentPage);
+export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) }).merge(agentPage);
+export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
+export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);
+export const agentPageQuerySchema = agentPageQuery;
 
 export const ownedTitleSchema = z.object({
   grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().max(2048).nullable().optional(), category: z.string(),
@@ -543,6 +558,12 @@ export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImpor
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
 export type Title = z.infer<typeof titleSchema>;
 export type TitleListResponse = z.infer<typeof titleListResponseSchema>;
+export type AgentEventListResponse = z.infer<typeof agentEventListResponseSchema>;
+export type AgentMapListResponse = z.infer<typeof agentMapListResponseSchema>;
+export type AgentAchievementListResponse = z.infer<typeof agentAchievementListResponseSchema>;
+export type AgentTitleListResponse = z.infer<typeof agentTitleListResponseSchema>;
+export type AgentSearchResult = z.infer<typeof agentSearchResultSchema>;
+export type AgentSearchResponse = z.infer<typeof agentSearchResponseSchema>;
 export type OwnedTitle = z.infer<typeof ownedTitleSchema>;
 export type OwnedTitleListResponse = z.infer<typeof ownedTitleListResponseSchema>;
 export type HistoricalTitleGrant = z.infer<typeof historicalTitleGrantSchema>;

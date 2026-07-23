@@ -124,6 +124,15 @@ edit, archive, and link events in the Portal. The same Portal/API path accepts
 a CSV preview and confirmed import; it validates every row before an atomic
 write, records the source hash and audit event, and never stores the CSV.
 
+## Agents content API
+
+The public `/v1/agents/*` API is a read-only knowledge projection over the same
+published D1/release-snapshot content consumed by the Portal and Bastion
+integration. It provides paginated event, map, achievement, and title queries,
+resource details, and bounded cross-content search. It does not expose drafts,
+player progress, runtime analytics, administrative fields, or private evidence;
+it also does not write content or replace Bastion's released-source authority.
+
 ## QQBot and login
 
 QQBot is a channel adapter. Binding starts from a Portal invitation page. The

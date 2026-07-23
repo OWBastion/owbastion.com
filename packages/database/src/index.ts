@@ -1,8 +1,8 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { AuthContext, PlatformServices } from "@owbastion/domain";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import { challengeSchema, mapSchema, randomEventSchema, titleSchema } from "@owbastion/contracts";
-import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -11,6 +11,13 @@ import { catalogCacheKey, clearCatalogCache, withCatalogCache } from "./catalog-
 import { createReleasePlaneServices } from "./release-plane";
 
 const now = () => Date.now();
+const paginate = <T>(items: T[], page: number, pageSize: number) => ({
+  items: items.slice((page - 1) * pageSize, page * pageSize),
+  page,
+  pageSize,
+  total: items.length,
+  hasMore: page * pageSize < items.length,
+});
 const loginTtlMs = 2 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
@@ -286,6 +293,60 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   return {
     ...releasePlane,
+    async listAgentEvents(input: AgentEventQuery) {
+      const events = await this.listRandomEvents({ category: input.category, rarity: input.rarity });
+      const query = input.query?.toLocaleLowerCase();
+      const filtered = query ? events.filter((event) => [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : events;
+      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+    },
+    async getAgentEvent(input) {
+      return this.getRandomEvent({ eventId: input.eventId });
+    },
+    async listAgentMaps(input: AgentMapQuery) {
+      const maps = await this.listMaps();
+      const query = input.query?.toLocaleLowerCase();
+      const mechanic = input.mechanic?.toLocaleLowerCase();
+      const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
+      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+    },
+    async getAgentMap(input) {
+      return (await this.listMaps()).find((map) => map.mapId === input.mapId) ?? null;
+    },
+    async listAgentAchievements(input: AgentAchievementQuery) {
+      const challenges = (await this.listChallenges({ family: "achievement" })).filter((challenge) => challenge.family === "achievement");
+      const query = input.query?.toLocaleLowerCase();
+      const filtered = challenges.filter((challenge) => (!query || [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.status || challenge.status === input.status));
+      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+    },
+    async getAgentAchievement(input) {
+      return (await this.listChallenges({ family: "achievement" })).find((challenge) => challenge.family === "achievement" && challenge.challengeId === input.challengeId) ?? null;
+    },
+    async listAgentTitles(input: AgentTitleQuery) {
+      const titles = (await this.listTitles({ mapId: input.mapId })).filter((title) => title.availability === "active");
+      const query = input.query?.toLocaleLowerCase();
+      const filtered = titles.filter((title) => (!query || [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.category || title.category === input.category) && (!input.scope || title.scope === input.scope) && (!input.mapId || title.scope === "global" || title.mapId === input.mapId));
+      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+    },
+    async getAgentTitle(input) {
+      const maps = await this.listMaps();
+      const candidates = [...await this.listTitles({}), ...(await Promise.all(maps.map((map) => this.listTitles({ mapId: map.mapId })))).flat()];
+      return candidates.find((title) => title.availability === "active" && title.titleKey === input.titleKey) ?? null;
+    },
+    async searchAgentContent(input: AgentSearchQuery) {
+      const query = input.query.toLocaleLowerCase();
+      const [events, maps, achievements, titles] = await Promise.all([
+        this.listRandomEvents({}),
+        this.listMaps(),
+        this.listChallenges({ family: "achievement" }),
+        this.listTitles({}),
+      ]);
+      const results: AgentSearchResult[] = [];
+      if (!input.kind || input.kind === "event") results.push(...events.filter((event) => [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
+      if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
+      if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
+      if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => title.availability === "active" && [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
+      return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
+    },
     async listRandomEvents(input) {
       const revision = await getCatalogRevision();
       const cacheKey = catalogCacheKey(`events:${encodeURIComponent(JSON.stringify({

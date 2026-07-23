@@ -44,7 +44,9 @@ released game content remains authoritative in OWBastion/Bastion.
   sessions, Queue-backed OCR processing, public submission status, QQ login
   verification, session lookup/logout, and a platform-session-protected
   administrative API for players, groups, submissions, and achievement catalog
-  management.
+  management. The public read-only `/v1/agents/*` projection exposes published
+  events, maps, achievements, titles, and bounded cross-content search without
+  player, draft, or administrative data.
 - **Evidence:** private QQ image retrieval and R2 storage during submission
   creation when the Worker R2 binding is configured.
 
