@@ -444,7 +444,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
-    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); if (code === "EVIDENCE_BUCKET_UNAVAILABLE") return errorResponse(c, 503, code, "Screenshot storage is unavailable"); return errorResponse(c, 500, code, "The screenshot upload failed"); }
   });
 
   app.post("/v1/player/uploads/:uploadId/complete", async (c) => {

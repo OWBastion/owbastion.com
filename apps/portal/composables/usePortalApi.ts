@@ -6,7 +6,7 @@ export type CurrentPlayer = {
   recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; createdAt: number; updatedAt: number }>;
 };
 
-export type PortalApiError = Error & { statusCode?: number; data?: { error?: { code?: string; message?: string } } };
+export type PortalApiError = Error & { statusCode?: number; data?: { error?: { code?: string; message?: string; requestId?: string } } };
 
 export function usePortalApi() {
   const requestFetch = import.meta.server ? useRequestFetch() : $fetch;
