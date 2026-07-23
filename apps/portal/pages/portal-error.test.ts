@@ -5,7 +5,7 @@ import { portalErrorDetails } from "~/utils/portal-error";
 describe("portal error presentation", () => {
   it("prefers the request id in the API error envelope", () => {
     const details = portalErrorDetails({ data: { error: { code: "FAILED", message: "保存失败", requestId: "api-123" } }, response: { status: 500, headers: new Headers({ "x-request-id": "header-123" }) } });
-    expect(details).toMatchObject({ code: "FAILED", requestId: "api-123", description: "保存失败 请求编号：api-123", isServerError: true });
+    expect(details).toMatchObject({ code: "FAILED", requestId: "api-123", description: "保存失败 Request-ID：api-123", isServerError: true });
   });
 
   it("falls back to the response header", () => {

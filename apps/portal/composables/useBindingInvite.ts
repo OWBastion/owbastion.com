@@ -47,7 +47,7 @@ export function useBindingInvite() {
       const response = await api<{ code: string; claimId: string; claimToken: string; expiresAt: number }>("/v1/public/binding-invites/redeem", { method: "POST", body: { contractVersion: "1", code: code.value.trim().toUpperCase(), playerName: playerName.value.trim(), playerId: playerId.value.trim() } });
       confirmationCode.value = response.code; claimStatus.value = "pending_confirmation"; claim.value = { claimId: response.claimId, claimToken: response.claimToken, code: response.code, expiresAt: response.expiresAt }; state.value = "waiting";
       if (import.meta.client) sessionStorage.setItem(storageKey, JSON.stringify(claim.value));
-    } catch (error) { const details = portalErrorDetails(error, "无法提交绑定申请，请稍后重试。"); errorMessage.value = details.code === "INVITE_INVALID" ? `邀请码不可用。${details.requestId ? ` 请求编号：${details.requestId}` : ""}` : details.description; state.value = "failed"; }
+    } catch (error) { const details = portalErrorDetails(error, "无法提交绑定申请，请稍后重试。"); errorMessage.value = details.code === "INVITE_INVALID" ? `邀请码不可用。${details.requestId ? ` Request-ID：${details.requestId}` : ""}` : details.description; state.value = "failed"; }
   }
   return { state, code, playerName, playerId, confirmationCode, claimStatus, errorMessage, refreshing, refreshStatus, submit };
 }

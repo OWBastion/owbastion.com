@@ -50,7 +50,7 @@ export const portalErrorDetails = (error: unknown, fallback = "请求失败，�
   const message = typeof data?.message === "string" && data.message ? data.message : typeof cause?.message === "string" && cause.message ? cause.message : fallback;
   const code = typeof data?.code === "string" ? data.code : undefined;
   const isServerError = Boolean(data || statusCode || requestId);
-  return { message, code, requestId, statusCode, isServerError, description: requestId ? `${message} 请求编号：${requestId}` : message };
+  return { message, code, requestId, statusCode, isServerError, description: requestId ? `${message} Request-ID：${requestId}` : message };
 };
 
 export const recordPortalError = (error: unknown, context: { operation: string; phase?: string; requestId?: string } & Record<string, unknown>, fallback?: string) => {
