@@ -1,7 +1,10 @@
 const catalogCachePrefix = "catalog:v2:";
 export const catalogCacheTtlSeconds = 7 * 24 * 60 * 60;
 
-export const catalogCacheKey = (suffix: string) => `${catalogCachePrefix}${suffix}`;
+export const catalogCacheKey = (suffix: string, revision?: string) => {
+  const revSegment = revision ? `${revision}:` : "";
+  return `${catalogCachePrefix}${revSegment}${suffix}`;
+};
 
 export const withCatalogCache = async <T>(cache: KVNamespace | undefined, key: string, load: () => Promise<T>, expirationTtl = catalogCacheTtlSeconds): Promise<T> => {
   if (cache) {

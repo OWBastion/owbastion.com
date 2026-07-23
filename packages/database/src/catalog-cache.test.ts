@@ -53,12 +53,19 @@ describe("catalog cache", () => {
     expect(await withCatalogCache(brokenCache, catalogCacheKey("maps"), mapLoad)).toEqual(["map"]);
   });
 
-  it("clears all catalog keys while preserving unrelated keys", async () => {
+  it("includes revision namespace in cache key when provided", () => {
+    expect(catalogCacheKey("maps", "26.0714.1:hash123")).toBe("catalog:v2:26.0714.1:hash123:maps");
+    expect(catalogCacheKey("maps")).toBe("catalog:v2:maps");
+  });
+
+  it("clears all catalog keys including revisioned keys while preserving unrelated keys", async () => {
     const { cache, values } = createCache();
     values.set(catalogCacheKey("maps"), JSON.stringify(["map"]));
+    values.set(catalogCacheKey("maps", "v1:hash123"), JSON.stringify(["map_v1"]));
     values.set("other:key", JSON.stringify(["other"]));
     await clearCatalogCache(cache);
     expect(values.has(catalogCacheKey("maps"))).toBe(false);
+    expect(values.has(catalogCacheKey("maps", "v1:hash123"))).toBe(false);
     expect(values.has("other:key")).toBe(true);
   });
 });
