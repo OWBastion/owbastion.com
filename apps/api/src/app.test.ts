@@ -7,7 +7,6 @@ const services: PlatformServices = {
   createReleaseDraft: async () => ({ contractVersion: "1", draftId: "00000000-0000-0000-0000-000000000010", name: "test", status: "open", createdAt: 1, updatedAt: 1 }),
   createReleaseDraftFromCatalog: async () => ({ contractVersion: "1", draftId: "00000000-0000-0000-0000-000000000010", name: "test", status: "open", createdAt: 1, updatedAt: 1 }),
   getReleaseDraft: async () => ({ contractVersion: "1", draftId: "00000000-0000-0000-0000-000000000010", name: "test", status: "open", createdAt: 1, updatedAt: 1, items: [], diff: [] }),
-  confirmReleaseDraft: async ({ draftId, target }) => ({ contractVersion: "1", draftId, target, changeSetId: "00000000-0000-0000-0000-000000000012", candidateId: "00000000-0000-0000-0000-000000000013", snapshotHash: "a".repeat(64), status: target === "next" ? "candidate" as const : "queued" as const, buildId: target === "next" ? null : "00000000-0000-0000-0000-000000000014", releaseId: target === "next" ? null : "00000000-0000-0000-0000-000000000015" }),
   putReleaseDraftItem: async () => ({ contractVersion: "1", itemId: "00000000-0000-0000-0000-000000000011", draftId: "00000000-0000-0000-0000-000000000010", contentType: "event", contentId: "event.test", operation: "upsert" }),
   createReleaseChangeSet: async () => ({ contractVersion: "1", changeSetId: "00000000-0000-0000-0000-000000000012", draftId: "00000000-0000-0000-0000-000000000010", name: "test", itemCount: 1, status: "open" }),
   createReleaseChangeSetFromDraft: async () => ({ contractVersion: "1", changeSetId: "00000000-0000-0000-0000-000000000012", draftId: "00000000-0000-0000-0000-000000000010", name: "test", itemCount: 1, status: "open" }),
@@ -110,17 +109,6 @@ describe("API", () => {
     }, { ...env, BASTION_BUILD_TOKEN: "bastion-token" });
     expect(response.status).toBe(200);
     expect((await response.json() as { status: string }).status).toBe("succeeded");
-  });
-
-  it("reduces maintainer confirmation to a Next or Release decision", async () => {
-    const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
-    const response = await adminApp.request("http://localhost/v1/admin/releases/drafts/draft-1/confirm", {
-      method: "POST",
-      headers: { "content-type": "application/json", "idempotency-key": "confirm-1" },
-      body: JSON.stringify({ contractVersion: "1", target: "next" }),
-    }, env);
-    expect(response.status).toBe(201);
-    expect((await response.json() as { target: string; status: string }).target).toBe("next");
   });
 
   it("lists public random events without development records", async () => {

@@ -67,7 +67,6 @@
     "/v1/admin/releases/drafts": { "post": { "operationId": "createReleaseDraft", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/releases/drafts/from-catalog": { "post": { "operationId": "createReleaseDraftFromCatalog", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/releases/drafts/{draftId}": { "get": { "operationId": "getReleaseDraft", "parameters": [{ "$ref": "#/components/parameters/draftId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/drafts/{draftId}/confirm": { "post": { "operationId": "confirmReleaseDraft", "parameters": [{ "$ref": "#/components/parameters/draftId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/releases/drafts/{draftId}/items": { "put": { "operationId": "putReleaseDraftItem", "parameters": [{ "$ref": "#/components/parameters/draftId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/releases/drafts/{draftId}/change-set": { "post": { "operationId": "createReleaseChangeSetFromDraft", "parameters": [{ "$ref": "#/components/parameters/draftId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/releases/change-sets": { "post": { "operationId": "createReleaseChangeSet", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
