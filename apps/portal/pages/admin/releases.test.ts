@@ -23,9 +23,7 @@ describe("admin releases page", () => {
     expect(wrapper.text()).toContain("Current");
     expect(wrapper.text()).toContain("26.0713.1");
     expect(wrapper.text()).toContain("queued");
-    expect(wrapper.text()).toContain("从工作目录生成下一次构建");
+    expect(wrapper.text()).toContain("准备下一次构建");
     expect(wrapper.find('input[aria-label="草稿名称"]').exists()).toBe(true);
-    expect(wrapper.find('input[aria-label="Draft ID"]').exists()).toBe(false);
-    expect(wrapper.find('textarea[aria-label="内容 JSON"]').exists()).toBe(false);
   });
 });

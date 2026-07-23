@@ -3,14 +3,11 @@ import type {
   ReleaseBuildResultRequest,
   ReleaseContentItem,
   ReleaseDraftCreateRequest,
-  ReleaseDraftDetailResponse,
-  ReleaseDiffChange,
   ReleaseDraftItemRequest,
   ReleaseSnapshot,
 } from "@owbastion/contracts";
 
 type ReleaseDispatch = (payload: { buildId: string; candidateId: string; releaseId: string; snapshotHash: string; codeRef: string }) => Promise<void>;
-type ReleaseCatalogProvider = () => Promise<ReleaseContentItem[]>;
 type Db = D1Database;
 type DraftResponse = { contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number };
 type DraftItemResponse = { contractVersion: "1"; itemId: string; draftId: string; contentType: string; contentId: string; operation: string };
@@ -62,22 +59,8 @@ const asItem = (row: { content_type: string; content_id: string; operation: stri
 });
 
 const snapshotForHash = (snapshot: Omit<ReleaseSnapshot, "snapshotHash">) => ({ ...snapshot, snapshotHash: undefined });
-const itemKey = (item: Pick<ReleaseContentItem, "contentType" | "contentId">) => `${item.contentType}:${item.contentId}`;
-const releaseDiff = (beforeItems: ReleaseContentItem[], afterItems: ReleaseContentItem[]): ReleaseDiffChange[] => {
-  const before = new Map(beforeItems.map((item) => [itemKey(item), item]));
-  const after = new Map(afterItems.map((item) => [itemKey(item), item]));
-  const changes: ReleaseDiffChange[] = [];
-  for (const key of [...new Set([...before.keys(), ...after.keys()])].sort()) {
-    const previous = before.get(key);
-    const next = after.get(key);
-    if (!previous && next) changes.push({ contentType: next.contentType, contentId: next.contentId, change: "added", beforeOperation: null, afterOperation: next.operation, before: null, after: next.data });
-    else if (previous && !next) changes.push({ contentType: previous.contentType, contentId: previous.contentId, change: "removed", beforeOperation: previous.operation, afterOperation: null, before: previous.data, after: null });
-    else if (previous && next && JSON.stringify(stableValue([previous.operation, previous.data])) !== JSON.stringify(stableValue([next.operation, next.data]))) changes.push({ contentType: next.contentType, contentId: next.contentId, change: "modified", beforeOperation: previous.operation, afterOperation: next.operation, before: previous.data, after: next.data });
-  }
-  return changes;
-};
 
-export const createReleasePlaneServices = (database: Db, dispatchBuild?: ReleaseDispatch, catalogProvider?: ReleaseCatalogProvider) => {
+export const createReleasePlaneServices = (database: Db, dispatchBuild?: ReleaseDispatch) => {
   const createDraft = async (input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<DraftResponse> => {
     const replay = await replayOrConflict<DraftResponse>(database, auth.subject, "release.draft.create", idempotencyKey, input);
     if (replay) return replay;
@@ -89,26 +72,6 @@ export const createReleasePlaneServices = (database: Db, dispatchBuild?: Release
       await idempotencyStatement(database, auth.subject, "release.draft.create", idempotencyKey, input, response),
       auditStatement(database, auth, "release.draft.create", "content_draft", draftId, { name: input.name }),
     ]);
-    return response;
-  };
-
-  const createDraftFromCatalog = async (input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<DraftResponse> => {
-    const replay = await replayOrConflict<DraftResponse>(database, auth.subject, "release.draft.create-from-catalog", idempotencyKey, input);
-    if (replay) return replay;
-    if (!catalogProvider) throw new Error("RELEASE_CATALOG_PROVIDER_UNAVAILABLE");
-    const items = await catalogProvider();
-    const draftId = crypto.randomUUID();
-    const timestamp = now();
-    const response = { contractVersion, draftId, name: input.name, status: "open" as const, createdAt: timestamp, updatedAt: timestamp };
-    const statements: D1PreparedStatement[] = [database.prepare("INSERT INTO content_drafts (id, name, status, created_by, created_at, updated_at) VALUES (?1, ?2, 'open', ?3, ?4, ?4)").bind(draftId, input.name, auth.subject, timestamp)];
-    if (items.length) {
-      const values = items.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(",");
-      const bindings = items.flatMap((item) => [crypto.randomUUID(), draftId, item.contentType, item.contentId, item.operation, json(item.data), timestamp, timestamp]);
-      statements.push(database.prepare(`INSERT INTO content_draft_items (id, draft_id, content_type, content_id, operation, data_json, created_at, updated_at) VALUES ${values}`).bind(...bindings));
-    }
-    statements.push(await idempotencyStatement(database, auth.subject, "release.draft.create-from-catalog", idempotencyKey, input, response));
-    statements.push(auditStatement(database, auth, "release.draft.create-from-catalog", "content_draft", draftId, { name: input.name, itemCount: items.length }));
-    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
     return response;
   };
 
@@ -148,42 +111,6 @@ export const createReleasePlaneServices = (database: Db, dispatchBuild?: Release
     const response: ChangeSetResponse = { contractVersion, changeSetId, draftId: input.draftId, name: input.name, itemCount: items.results.length, status: "open" };
     statements.push(await idempotencyStatement(database, auth.subject, "release.change-set.create", idempotencyKey, input, response));
     statements.push(auditStatement(database, auth, "release.change-set.create", "content_change_set", changeSetId, { draftId: input.draftId, itemCount: items.results.length }));
-    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-    return response;
-  };
-
-  const currentItems = async (): Promise<ReleaseContentItem[]> => {
-    const state = await database.prepare("SELECT current_release_id FROM content_release_state WHERE id = 'singleton'").first<{ current_release_id: string | null }>();
-    if (!state?.current_release_id) return [];
-    const release = await database.prepare("SELECT candidate_id FROM content_releases WHERE id = ?1 AND status = 'active'").bind(state.current_release_id).first<{ candidate_id: string }>();
-    if (!release) return [];
-    const candidate = await database.prepare("SELECT snapshot_json FROM content_candidates WHERE id = ?1").bind(release.candidate_id).first<{ snapshot_json: string }>();
-    return candidate ? parseJson<ReleaseSnapshot>(candidate.snapshot_json).items : [];
-  };
-
-  const getDraft = async (draftId: string): Promise<ReleaseDraftDetailResponse> => {
-    const draft = await database.prepare("SELECT id, name, status, created_at, updated_at FROM content_drafts WHERE id = ?1").bind(draftId).first<{ id: string; name: string; status: string; created_at: number; updated_at: number }>();
-    if (!draft || draft.status !== "open") throw new Error("DRAFT_NOT_FOUND");
-    const items = await database.prepare("SELECT content_type, content_id, operation, data_json FROM content_draft_items WHERE draft_id = ?1 ORDER BY content_type, content_id").bind(draftId).all<{ content_type: string; content_id: string; operation: string; data_json: string }>();
-    const releaseItems = items.results.map(asItem);
-    return { contractVersion, draftId: draft.id, name: draft.name, status: "open", createdAt: draft.created_at, updatedAt: draft.updated_at, items: releaseItems, diff: releaseDiff(await currentItems(), releaseItems) };
-  };
-
-  const createChangeSetFromDraft = async (input: { draftId: string; name: string }, auth: AuthContext, idempotencyKey: string): Promise<ChangeSetResponse> => {
-    const replay = await replayOrConflict<ChangeSetResponse>(database, auth.subject, "release.change-set.create-from-draft", idempotencyKey, input);
-    if (replay) return replay;
-    const draft = await getDraft(input.draftId);
-    if (!draft.diff.length) throw new Error("DRAFT_NO_CHANGES");
-    const draftByKey = new Map(draft.items.map((item) => [itemKey(item), item]));
-    const currentByKey = new Map((await currentItems()).map((item) => [itemKey(item), item]));
-    const changes: ReleaseContentItem[] = draft.diff.map((change) => draftByKey.get(`${change.contentType}:${change.contentId}`) ?? ({ contentType: change.contentType, contentId: change.contentId, operation: "delete", data: {} }));
-    const changeSetId = crypto.randomUUID();
-    const timestamp = now();
-    const statements: D1PreparedStatement[] = [database.prepare("INSERT INTO content_change_sets (id, draft_id, name, status, created_by, created_at, updated_at) VALUES (?1, ?2, ?3, 'open', ?4, ?5, ?5)").bind(changeSetId, input.draftId, input.name, auth.subject, timestamp)];
-    for (const item of changes) statements.push(database.prepare("INSERT INTO content_change_set_items (id, change_set_id, content_type, content_id, operation, data_json, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)").bind(crypto.randomUUID(), changeSetId, item.contentType, item.contentId, item.operation, json(item.data), timestamp));
-    const response: ChangeSetResponse = { contractVersion, changeSetId, draftId: input.draftId, name: input.name, itemCount: changes.length, status: "open" };
-    statements.push(await idempotencyStatement(database, auth.subject, "release.change-set.create-from-draft", idempotencyKey, input, response));
-    statements.push(auditStatement(database, auth, "release.change-set.create-from-draft", "content_change_set", changeSetId, { draftId: input.draftId, itemCount: changes.length, removedCount: [...currentByKey.keys()].filter((key) => !draftByKey.has(key)).length }));
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
     return response;
   };
@@ -315,5 +242,5 @@ export const createReleasePlaneServices = (database: Db, dispatchBuild?: Release
     return candidate ? parseJson<ReleaseSnapshot>(candidate.snapshot_json) : null;
   };
 
-  return { createReleaseDraft: createDraft, createReleaseDraftFromCatalog: createDraftFromCatalog, getReleaseDraft: (input: { draftId: string }) => getDraft(input.draftId), putReleaseDraftItem: putDraftItem, createReleaseChangeSet: createChangeSet, createReleaseChangeSetFromDraft: createChangeSetFromDraft, createReleaseCandidate: createCandidate, getReleaseCandidate: (input: { candidateId: string }) => getCandidate(input.candidateId), startReleaseBuild: startBuild, receiveReleaseBuildResult: receiveBuildResult, getReleaseOverview: overview, getCurrentReleaseSnapshot };
+  return { createReleaseDraft: createDraft, putReleaseDraftItem: putDraftItem, createReleaseChangeSet: createChangeSet, createReleaseCandidate: createCandidate, getReleaseCandidate: (input: { candidateId: string }) => getCandidate(input.candidateId), startReleaseBuild: startBuild, receiveReleaseBuildResult: receiveBuildResult, getReleaseOverview: overview, getCurrentReleaseSnapshot };
 };

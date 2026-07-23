@@ -30,7 +30,7 @@ import type {
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
-  ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseChangeSetFromDraftRequest, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot, ReleaseDraftResponse, ReleaseDraftDetailResponse,
+  ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot,
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
 } from "@owbastion/contracts";
 
@@ -66,24 +66,21 @@ export type PlatformServices = {
   getAgentTitle(input: { titleKey: string }): Promise<Title | null>;
   searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
   createReleaseDraft(input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number }>;
-  createReleaseDraftFromCatalog(input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<ReleaseDraftResponse>;
-  getReleaseDraft(input: { draftId: string }): Promise<ReleaseDraftDetailResponse>;
   putReleaseDraftItem(input: ReleaseDraftItemRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; itemId: string; draftId: string; contentType: string; contentId: string; operation: string }>;
   createReleaseChangeSet(input: ReleaseChangeSetCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;
-  createReleaseChangeSetFromDraft(input: ReleaseChangeSetFromDraftRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;
   createReleaseCandidate(input: { changeSetId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: "candidate"; createdAt: number }>;
   getReleaseCandidate(input: { candidateId: string }): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: string; createdAt: number; snapshot: ReleaseSnapshot }>;
   startReleaseBuild(input: { candidateId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; buildId: string; candidateId: string; releaseId: string; status: "queued" }>;
   receiveReleaseBuildResult(input: ReleaseBuildResultRequest): Promise<{ contractVersion: "1"; buildId: string; candidateId: string; releaseId: string; status: "succeeded" | "failed" }>;
   getReleaseOverview(): Promise<ReleaseOverviewResponse>;
-  listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean; source?: "current" | "working" }): Promise<RandomEvent[]>;
+  listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
   getRandomEvent(input: { eventId: string; includeArchived?: boolean }): Promise<RandomEvent | null>;
   createAdminRandomEvent(input: AdminRandomEventCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   updateAdminRandomEvent(input: AdminRandomEventUpdateRequest & { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   archiveAdminRandomEvent(input: { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   previewAdminRandomEventImport(input: AdminRandomEventImportRequest, auth: AuthContext): Promise<{ sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: "development" | "implemented" | "removed" }> }>;
   importAdminRandomEvents(input: AdminRandomEventImportRequest, auth: AuthContext, idempotencyKey: string): Promise<{ importedCount: number }>;
-  listMaps(input?: { source?: "current" | "working" }): Promise<Map[]>;
+  listMaps(): Promise<Map[]>;
   updateAdminMapMetadata(input: AdminMapMetadataUpdateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   listChallenges(input?: { family?: "map" | "achievement" }): Promise<Challenge[]>;
   listTitles(input: { mapId?: string }): Promise<Title[]>;

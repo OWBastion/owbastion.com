@@ -27,35 +27,6 @@ export const releaseDraftCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(128),
 });
 
-export const releaseDiffChangeSchema = z.object({
-  contentType: releaseContentTypeSchema,
-  contentId: externalId,
-  change: z.enum(["added", "modified", "removed"]),
-  beforeOperation: releaseOperationSchema.nullable(),
-  afterOperation: releaseOperationSchema.nullable(),
-  before: z.record(z.string(), z.unknown()).nullable(),
-  after: z.record(z.string(), z.unknown()).nullable(),
-});
-
-export const releaseDraftResponseSchema = z.object({
-  contractVersion,
-  draftId: externalId,
-  name: z.string(),
-  status: z.literal("open"),
-  createdAt: z.number().int(),
-  updatedAt: z.number().int(),
-});
-
-export const releaseDraftDetailResponseSchema = releaseDraftResponseSchema.extend({
-  items: z.array(releaseContentItemSchema).max(10000),
-  diff: z.array(releaseDiffChangeSchema).max(10000),
-});
-
-export const releaseChangeSetFromDraftRequestSchema = z.object({
-  contractVersion,
-  name: z.string().trim().min(1).max(128),
-});
-
 export const releaseDraftItemRequestSchema = z.object({
   contractVersion,
   contentType: releaseContentTypeSchema,
@@ -625,12 +596,8 @@ export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewR
 export type ReleaseContentItem = z.infer<typeof releaseContentItemSchema>;
 export type ReleaseSnapshot = z.infer<typeof releaseSnapshotSchema>;
 export type ReleaseDraftCreateRequest = z.infer<typeof releaseDraftCreateRequestSchema>;
-export type ReleaseDraftResponse = z.infer<typeof releaseDraftResponseSchema>;
-export type ReleaseDraftDetailResponse = z.infer<typeof releaseDraftDetailResponseSchema>;
-export type ReleaseDiffChange = z.infer<typeof releaseDiffChangeSchema>;
 export type ReleaseDraftItemRequest = z.infer<typeof releaseDraftItemRequestSchema>;
 export type ReleaseChangeSetCreateRequest = z.infer<typeof releaseChangeSetCreateRequestSchema>;
-export type ReleaseChangeSetFromDraftRequest = z.infer<typeof releaseChangeSetFromDraftRequestSchema>;
 export type ReleaseBuildResultRequest = z.infer<typeof releaseBuildResultRequestSchema>;
 export type ReleaseBuildResponse = z.infer<typeof releaseBuildResponseSchema>;
 export type ReleaseOverviewResponse = z.infer<typeof releaseOverviewResponseSchema>;

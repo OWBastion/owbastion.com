@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import { challengeSchema, mapSchema, randomEventSchema, titleSchema } from "@owbastion/contracts";
-import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmission, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, ReleaseContentItem, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmission, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -167,8 +167,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
 
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, dispatchBuild?: (payload: { buildId: string; candidateId: string; releaseId: string; snapshotHash: string; codeRef: string }) => Promise<void>): PlatformServices => {
   const db = drizzle(database);
-  let workingReleaseItems: () => Promise<ReleaseContentItem[]> = async () => [];
-  const releasePlane = createReleasePlaneServices(database, dispatchBuild, () => workingReleaseItems());
+  const releasePlane = createReleasePlaneServices(database, dispatchBuild);
 
   const getCurrentSnapshot = async () => {
     try {
@@ -277,45 +276,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return challenges.filter((challenge) => ids.has(challenge.challengeId));
   };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => ({ eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, appearanceProbability: row.appearanceProbability, categoryProbability: row.categoryProbability, groupTotalWeight: row.groupTotalWeight, groupSize: row.groupSize, failureProbability: row.failureProbability, guaranteeProbability: row.guaranteeProbability, globalAppearanceProbability: row.globalAppearanceProbability, gameVersion: row.gameVersion, effectTags: JSON.parse(row.effectTagsJson) as string[], releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) });
-  const workingChallenges = async (): Promise<Challenge[]> => {
-    const [mapRows, titleRows] = await Promise.all([
-      db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))),
-      db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"))),
-    ]);
-    const timestamp = now();
-    return [
-      ...mapRows.map(({ challenge, map }): Challenge => ({ challengeId: challenge.id, family: "map", type: "map_completion", kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })),
-      ...titleRows.flatMap(({ challenge, title }): Challenge[] => {
-        const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp);
-        return status === "active" || status === "sunsetting" ? [{ challengeId: challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: title.key, titleName: title.label, icon: title.icon, iconUrl: title.iconUrl, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule, gameVersion: challenge.gameVersion, status, startsAt: challenge.startsAt ?? undefined, endsAt: challenge.endsAt ?? undefined, retiredVersion: challenge.retiredVersion ?? undefined, submissionMode: challenge.submissionMode as "manual" | "automatic" }] : [];
-      }),
-    ];
-  };
-  workingReleaseItems = async () => {
-    const [eventRows, mapRows, challenges, globalTitleRows, mapTitleRows, eventMapLinks, eventTitleLinks] = await Promise.all([
-      db.select().from(randomEvents),
-      db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.status, "active")),
-      workingChallenges(),
-      db.select().from(titleCatalog).where(eq(titleCatalog.availability, "active")),
-      db.select({ title: titleCatalog, reward: mapTitleRewards }).from(mapTitleRewards).innerJoin(titleCatalog, eq(mapTitleRewards.titleKey, titleCatalog.key)).where(eq(titleCatalog.availability, "active")),
-      db.select().from(randomEventMapChallenges),
-      db.select().from(randomEventTitleChallenges),
-    ]);
-    const item = (contentType: ReleaseContentItem["contentType"], contentId: string, data: unknown, operation: ReleaseContentItem["operation"] = "upsert"): ReleaseContentItem => ({ contentType, contentId, operation, data: data as Record<string, unknown> });
-    const challengeById = new Map(challenges.map((challenge) => [challenge.challengeId, challenge]));
-    const events = eventRows.map((row) => {
-      const linkedIds = [...eventMapLinks.filter((link) => link.eventId === row.id).map((link) => link.challengeId), ...eventTitleLinks.filter((link) => link.eventId === row.id).map((link) => link.challengeId)];
-      const event: RandomEvent = { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, appearanceProbability: row.appearanceProbability, categoryProbability: row.categoryProbability, groupTotalWeight: row.groupTotalWeight, groupSize: row.groupSize, failureProbability: row.failureProbability, guaranteeProbability: row.guaranteeProbability, globalAppearanceProbability: row.globalAppearanceProbability, gameVersion: row.gameVersion, effectTags: JSON.parse(row.effectTagsJson) as string[], releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: linkedIds.flatMap((id) => { const challenge = challengeById.get(id); return challenge ? [challenge] : []; }) };
-      return item("event", event.eventId, event, event.archived ? "delete" : "upsert");
-    });
-    const mapsItems = mapRows.map(({ map, metadata }) => item("map", map.id, { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: metadata?.difficultyRating ?? null, mechanics: metadata?.mechanicsJson ? JSON.parse(metadata.mechanicsJson) : [], coverUrl: metadata?.coverUrl ?? null, backgroundUrl: metadata?.backgroundUrl ?? null }));
-    const challengeItems = challenges.map((challenge) => item("challenge", challenge.challengeId, challenge));
-    const titleById = new Map<string, Record<string, unknown>>();
-    for (const row of globalTitleRows) titleById.set(row.key, { titleKey: row.key, label: row.label, icon: row.icon, iconUrl: row.iconUrl, category: row.category, condition: row.condition, availability: row.availability, scope: row.scope, displayKind: row.displayKind, gameVersion: row.gameVersion });
-    for (const { title, reward } of mapTitleRows) titleById.set(title.key, { titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, availability: title.availability, scope: title.scope, displayKind: title.displayKind, mapId: reward.mapId, slot: reward.slot, pioneerPrefixes: JSON.parse(reward.pioneerPrefixesJson), gameVersion: title.gameVersion });
-    const titleItems = [...titleById.values()].map((title) => item("title", `title.${String(title.titleKey)}`, title));
-    return [...events, ...mapsItems, ...titleItems, ...challengeItems];
-  };
   const validateEventLinks = async (links: EventImportRow["challengeLinks"]) => { for (const link of links) { const table = link.family === "map" ? achievementChallenges : titleChallenges; const found = await db.select({ id: table.id }).from(table).where(eq(table.id, link.challengeId)).get(); if (!found) throw new Error("CHALLENGE_NOT_FOUND"); } };
   const replaceEventLinks = async (eventId: string, links: EventImportRow["challengeLinks"]) => { await db.delete(randomEventMapChallenges).where(eq(randomEventMapChallenges.eventId, eventId)); await db.delete(randomEventTitleChallenges).where(eq(randomEventTitleChallenges.eventId, eventId)); const mapsLinks = links.filter((link) => link.family === "map"); const titleLinks = links.filter((link) => link.family === "achievement"); if (mapsLinks.length) await db.insert(randomEventMapChallenges).values(mapsLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); if (titleLinks.length) await db.insert(randomEventTitleChallenges).values(titleLinks.map((link) => ({ eventId, challengeId: link.challengeId }))); };
 
@@ -422,18 +382,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
     },
     async listRandomEvents(input) {
-      const useCurrent = input.source !== "working";
-      const revision = useCurrent ? await getCatalogRevision() : undefined;
+      const revision = await getCatalogRevision();
       const cacheKey = catalogCacheKey(`events:${encodeURIComponent(JSON.stringify({
         query: input.query ?? null,
         category: input.category ?? null,
         rarity: input.rarity ?? null,
         status: input.status ?? null,
         includeArchived: input.includeArchived ?? null,
-        source: input.source ?? "current",
       }))}`, revision);
       return withCatalogCache(cache, cacheKey, async () => {
-        const snapshotItems = useCurrent ? await releaseItems("event") : null;
+        const snapshotItems = await releaseItems("event");
         if (snapshotItems?.length) {
           return snapshotItems.flatMap((item) => {
             const event = parseReleaseEvent(item);
@@ -501,11 +459,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
       await database.batch(statements); await clearCatalogCache(cache); return response;
     },
-    async listMaps(input) {
-      const useCurrent = input?.source !== "working";
-      const revision = useCurrent ? await getCatalogRevision() : undefined;
-      return withCatalogCache(cache, catalogCacheKey(`maps:${input?.source ?? "current"}`, revision), async () => {
-        const snapshotItems = useCurrent ? await releaseItems("map") : null;
+    async listMaps() {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey("maps", revision), async () => {
+        const snapshotItems = await releaseItems("map");
         if (snapshotItems?.length) return snapshotItems.flatMap((item) => { const map = parseReleaseMap(item); return map ? [map] : []; }).sort((left, right) => left.mapName.localeCompare(right.mapName));
         const rows = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.status, "active")).orderBy(maps.name);
         return rows.map(({ map, metadata }): Map => ({

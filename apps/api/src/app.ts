@@ -17,7 +17,7 @@ import {
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
-  releaseDraftCreateRequestSchema, releaseDraftItemRequestSchema, releaseChangeSetCreateRequestSchema, releaseChangeSetFromDraftRequestSchema, releaseBuildResultRequestSchema,
+  releaseDraftCreateRequestSchema, releaseDraftItemRequestSchema, releaseChangeSetCreateRequestSchema, releaseBuildResultRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
@@ -196,20 +196,6 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json(await services(c).createReleaseDraft(parsed.data, access.auth!, idempotencyKey), 201);
   });
 
-  app.post("/v1/admin/releases/drafts/from-catalog", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = releaseDraftCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await services(c).createReleaseDraftFromCatalog(parsed.data, access.auth!, idempotencyKey), 201); }
-    catch (error) { if (error instanceof Error && error.message === "RELEASE_CATALOG_PROVIDER_UNAVAILABLE") return errorResponse(c, 503, "RELEASE_CATALOG_PROVIDER_UNAVAILABLE", "The working catalog is unavailable"); throw error; }
-  });
-
-  app.get("/v1/admin/releases/drafts/:draftId", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    try { return c.json(await services(c).getReleaseDraft({ draftId: c.req.param("draftId") })); }
-    catch (error) { if (error instanceof Error && error.message === "DRAFT_NOT_FOUND") return errorResponse(c, 404, "DRAFT_NOT_FOUND", "The draft does not exist"); throw error; }
-  });
-
   app.put("/v1/admin/releases/drafts/:draftId/items", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
@@ -224,14 +210,6 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = releaseChangeSetCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await services(c).createReleaseChangeSet(parsed.data, access.auth!, idempotencyKey), 201); }
     catch (error) { const code = error instanceof Error ? error.message : "CHANGE_SET_FAILED"; if (["DRAFT_NOT_FOUND", "DRAFT_ITEMS_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The draft items are invalid"); throw error; }
-  });
-
-  app.post("/v1/admin/releases/drafts/:draftId/change-set", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = releaseChangeSetFromDraftRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await services(c).createReleaseChangeSetFromDraft({ ...parsed.data, draftId: c.req.param("draftId") }, access.auth!, idempotencyKey), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "CHANGE_SET_FAILED"; if (code === "DRAFT_NOT_FOUND") return errorResponse(c, 404, code, "The draft does not exist"); if (code === "DRAFT_NO_CHANGES") return errorResponse(c, 409, code, "The working catalog has no changes compared with Current"); throw error; }
   });
 
   app.post("/v1/admin/releases/change-sets/:changeSetId/candidate", async (c) => {
@@ -595,10 +573,10 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/maps", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await services(c).listMaps({ source: "working" }) });
+    return c.json({ contractVersion: "1", items: await services(c).listMaps() });
   });
 
-  app.get("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json({ contractVersion: "1", items: await services(c).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, includeArchived: c.req.query("archived") === "true", source: "working" }) }); });
+  app.get("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json({ contractVersion: "1", items: await services(c).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, includeArchived: c.req.query("archived") === "true" }) }); });
   app.post("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await services(c).createAdminRandomEvent(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_CREATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.put("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventUpdateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await services(c).updateAdminRandomEvent({ ...parsed.data, eventId: c.req.param("eventId") }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_UPDATE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.delete("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); try { await services(c).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, access.auth!, key); return c.body(null, 204); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_ARCHIVE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
