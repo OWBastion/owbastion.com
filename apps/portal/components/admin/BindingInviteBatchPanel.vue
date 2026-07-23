@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { bindingInviteCopyText } from "~/utils/binding-invite";
+
 type Invitation = {
   inviteId: string;
   code: string;
@@ -77,8 +79,7 @@ async function createInvitations() {
 }
 
 function copyText(invitation: Invitation) {
-  const link = new URL("/bind", window.location.origin).toString();
-  return `【躲避堡垒 3 · QQ 绑定】\n\n绑定链接：${link}\n邀请码：${invitation.code}\n\n打开链接后按提示完成 QQ 验证。邀请码 7 天有效，请勿转发。`;
+  return bindingInviteCopyText(invitation.code, window.location.origin);
 }
 
 async function copyInvitation(invitation: Invitation) {

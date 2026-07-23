@@ -50,6 +50,33 @@ const hashRequest = async (value: unknown) => {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
+const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+const hexToBytes = (value: string) => {
+  if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
+  return Uint8Array.from(value.match(/.{2}/g)!, (pair) => Number.parseInt(pair, 16));
+};
+const bindingInviteCodeKey = async (secret?: string) => {
+  if (!secret) throw new Error("BINDING_INVITE_CODE_ENCRYPTION_NOT_CONFIGURED");
+  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+};
+const encryptBindingInviteCode = async (code: string, secret?: string) => {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await bindingInviteCodeKey(secret), new TextEncoder().encode(code));
+  return `${bytesToHex(iv)}.${bytesToHex(new Uint8Array(ciphertext))}`;
+};
+const decryptBindingInviteCode = async (value: string, secret?: string) => {
+  const [iv, ciphertext, ...extra] = value.split(".");
+  if (!iv || !ciphertext || extra.length) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
+  try {
+    const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: hexToBytes(iv) }, await bindingInviteCodeKey(secret), hexToBytes(ciphertext));
+    return new TextDecoder().decode(plaintext);
+  } catch (error) {
+    if (error instanceof Error && error.message === "BINDING_INVITE_CODE_ENCRYPTION_NOT_CONFIGURED") throw error;
+    throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
+  }
+};
+
 const replayOrConflict = async <T>(db: ReturnType<typeof drizzle>, actorId: string, operation: string, key: string, input: unknown) => {
   const existing = await db.select().from(idempotencyKeys).where(and(eq(idempotencyKeys.id, `${actorId}:${operation}:${key}`))).get();
   if (!existing) return null;
@@ -129,7 +156,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string): PlatformServices => {
   const db = drizzle(database);
 
   const dispatchPendingQqGroupPolicyEvents = async () => {
@@ -1019,7 +1046,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const timestamp = now(); const code = randomInviteCode(); const inviteId = crypto.randomUUID();
       const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs };
-      await db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt });
+      await db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt });
       await recordIdempotency(db, auth.subject, "admin.binding_invite.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "admin.binding_invite.create", "binding_invite", inviteId, { playerId: input.playerId });
       return response;
@@ -1036,7 +1063,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const code = [...codes][index]!;
         const inviteId = crypto.randomUUID();
         return {
-          invite: { id: inviteId, codeHash: await hashRequest(code), playerName: invitation.playerName, normalizedPlayerName: normalizePlayerName(invitation.playerName), playerId: invitation.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: timestamp + inviteTtlMs },
+          invite: { id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: invitation.playerName, normalizedPlayerName: normalizePlayerName(invitation.playerName), playerId: invitation.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: timestamp + inviteTtlMs },
           response: { contractVersion: "1" as const, inviteId, code, playerName: invitation.playerName, playerId: invitation.playerId, expiresAt: timestamp + inviteTtlMs },
         };
       }));
@@ -1059,11 +1086,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           playerName: invite.playerName,
           playerId: invite.playerId,
           status: (invite.revokedAt ? "revoked" : invite.redeemedAt ? "redeemed" : invite.expiresAt <= timestamp ? "expired" : "active") as "active" | "redeemed" | "expired" | "revoked",
+          codeAvailable: Boolean(invite.codeCiphertext),
           createdAt: invite.createdAt,
           expiresAt: invite.expiresAt,
           ...(invite.redeemedAt ? { redeemedAt: invite.redeemedAt } : {}),
         })),
       };
+    },
+
+    async getAdminBindingInviteCode(input, auth) {
+      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
+      if (!invite || !invite.codeCiphertext || invite.revokedAt || invite.redeemedAt || invite.expiresAt <= now()) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
+      const code = await decryptBindingInviteCode(invite.codeCiphertext, bindingInviteCodeEncryptionKey);
+      await recordAudit(db, auth, "admin.binding_invite.reveal", "binding_invite", invite.id, {});
+      return { contractVersion: "1" as const, inviteId: invite.id, code };
     },
 
     async revokeAdminBindingInvite(input, auth, idempotencyKey) {

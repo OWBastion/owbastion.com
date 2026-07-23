@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import type { TabsItem } from "@nuxt/ui";
 import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
+import { bindingInviteCopyText } from "~/utils/binding-invite";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 type Claim = { claimId: string; playerName: string; playerId: string; status: "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired"; createdAt: number; invitedBy: string; affectedPlayerAccountId?: string };
-type Invitation = { inviteId: string; playerName: string; playerId: string; status: "active" | "redeemed" | "expired" | "revoked"; createdAt: number; expiresAt: number; redeemedAt?: number };
+type Invitation = { inviteId: string; playerName: string; playerId: string; status: "active" | "redeemed" | "expired" | "revoked"; codeAvailable: boolean; createdAt: number; expiresAt: number; redeemedAt?: number };
 const toast = useToast();
 const api = useAdminApi();
 const claims = ref<Claim[]>([]); const invitations = ref<Invitation[]>([]); const loading = ref(true); const errorMessage = ref("");
 const revokeTarget = ref<Invitation | null>(null); const revokeReason = ref(""); const revoking = ref(false);
+const codeTarget = shallowRef<Invitation | null>(null); const invitationCode = shallowRef(""); const revealingCode = shallowRef(false);
 const activeTab = shallowRef("claims");
 const bindingTabs = [
   { label: "绑定申请", value: "claims", slot: "claims" as const },
@@ -25,6 +27,9 @@ async function decide(claim: Claim, decision: "approved" | "rejected") { const a
 function openRevoke(invitation: Invitation) { revokeTarget.value = invitation; revokeReason.value = ""; }
 function closeRevoke() { if (revoking.value) return; revokeTarget.value = null; revokeReason.value = ""; }
 async function revokeInvitation() { if (!revokeTarget.value || !revokeReason.value.trim()) return; revoking.value = true; try { await api(`/v1/binding-invites/${revokeTarget.value.inviteId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", reason: revokeReason.value.trim() } }); revokeTarget.value = null; revokeReason.value = ""; toast.add({ title: "邀请码已撤销", color: "success" }); await load(); } catch { toast.add({ title: "无法撤销邀请码", color: "error" }); } finally { revoking.value = false; } }
+function closeCode() { if (revealingCode.value) return; codeTarget.value = null; invitationCode.value = ""; }
+async function revealCode(invitation: Invitation) { codeTarget.value = invitation; invitationCode.value = ""; revealingCode.value = true; try { const response = await api<{ code: string }>(`/v1/binding-invites/${invitation.inviteId}/code`); invitationCode.value = response.code; } catch { codeTarget.value = null; toast.add({ title: "无法读取邀请码", color: "error" }); } finally { revealingCode.value = false; } }
+async function copyInvitationCode() { if (!invitationCode.value) return; try { await navigator.clipboard.writeText(bindingInviteCopyText(invitationCode.value, window.location.origin)); toast.add({ title: "已复制绑定口令", color: "success" }); } catch { toast.add({ title: "无法复制口令", color: "error" }); } }
 onMounted(load);
 </script>
 
@@ -46,7 +51,7 @@ onMounted(load);
             <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
-            <template #actions-cell="{ row }"><UButton v-if="row.original.status === 'active'" label="撤销" color="error" variant="soft" size="xs" @click="openRevoke(row.original)" /></template>
+            <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="xs" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="xs" @click="openRevoke(row.original)" /></div></template>
           </AdminDataTable>
         </template>
         <template #batch>
@@ -58,7 +63,11 @@ onMounted(load);
       <template #body><form v-if="revokeTarget" id="invite-revoke" class="revoke-form" @submit.prevent="revokeInvitation"><p class="revoke-note">撤销后无法恢复。</p><UFormField label="撤销原因" required><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：发送对象有误" :disabled="revoking" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke" /><UButton label="确认撤销" color="error" type="submit" form="invite-revoke" :loading="revoking" :disabled="!revokeReason.trim()" /></template>
     </UModal>
+    <UModal :open="codeTarget !== null" title="邀请码" :description="codeTarget ? `${codeTarget.playerName}#${codeTarget.playerId}` : undefined" @update:open="(open) => { if (!open) closeCode(); }">
+      <template #body><div class="invite-code"><span v-if="revealingCode" class="table-meta">读取中…</span><code v-else>{{ invitationCode }}</code></div></template>
+      <template #footer><UButton label="关闭" color="neutral" variant="outline" :disabled="revealingCode" @click="closeCode" /><UButton label="复制口令" :disabled="!invitationCode" @click="copyInvitationCode" /></template>
+    </UModal>
   </AdminWorkspace>
 </template>
 
-<style scoped>.binding-section,.binding-tabs { display:grid; gap:12px; }.claim-actions { display:flex; gap:8px; }.table-meta,.revoke-note { color:var(--quiet); font-size:.78rem; }.revoke-form { display:grid; gap:16px; }</style>
+<style scoped>.binding-section,.binding-tabs { display:grid; gap:12px; }.claim-actions,.invite-actions { display:flex; gap:8px; }.table-meta,.revoke-note { color:var(--quiet); font-size:.78rem; }.revoke-form { display:grid; gap:16px; }.invite-code { display:grid; min-height:56px; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--surface-raised); }.invite-code code { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:1.1rem; font-weight:700; letter-spacing:.12em; }</style>

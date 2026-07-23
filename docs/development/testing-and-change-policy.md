@@ -59,6 +59,10 @@ ordinary local player cannot.
 server. Portal source changes are picked up without rebuilding or restarting the
 production output server.
 
+Before generating invitations locally, add a non-production
+`BINDING_INVITE_CODE_ENCRYPTION_KEY` to the ignored `.dev.vars` file. It must
+remain unchanged while local invitations need to be copied again.
+
 The local login does not represent QQ authentication and never enables the
 local branch in production. Real invitation confirmation through `/验证`, `/成就挑战`, QQ webhook, and
 QQ gateway tests still require a test QQ application and real QQ credentials.

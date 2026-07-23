@@ -39,6 +39,7 @@
     "/v1/admin/bindings/{bindingId}": { "delete": { "operationId": "removeAdminBinding", "parameters": [{ "$ref": "#/components/parameters/bindingId" }], "responses": { "204": { "description": "Removed" } } } },
     "/v1/admin/binding-invites": { "get": { "operationId": "listBindingInvites", "responses": { "200": { "$ref": "#/components/responses/Json" } } }, "post": { "operationId": "createBindingInvite", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/binding-invites/batch": { "post": { "operationId": "createBindingInvitesBatch", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
+    "/v1/admin/binding-invites/{inviteId}/code": { "get": { "operationId": "getBindingInviteCode", "parameters": [{ "$ref": "#/components/parameters/inviteId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/binding-invites/{inviteId}/revoke": { "post": { "operationId": "revokeBindingInvite", "parameters": [{ "$ref": "#/components/parameters/inviteId" }], "responses": { "204": { "description": "Revoked" } } } },
     "/v1/admin/binding-claims": { "get": { "operationId": "listBindingClaims", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/binding-claims/{claimId}/decision": { "post": { "operationId": "decideBindingClaim", "parameters": [{ "$ref": "#/components/parameters/claimId" }], "responses": { "204": { "description": "Decided" } } } },

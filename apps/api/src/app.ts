@@ -36,6 +36,7 @@ export type RuntimeEnv = {
   QQ_POLICY_QUEUE?: Queue;
   QQBOT_POLICY_WEBHOOK_URL?: string;
   QQBOT_POLICY_WEBHOOK_SECRET?: string;
+  BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
 };
 
 type AppDependencies = {
@@ -137,6 +138,12 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     return c.json(await dependencies.services(c.env).listAdminBindingInvites(access.auth!));
+  });
+
+  app.get("/v1/admin/binding-invites/:inviteId/code", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    try { return c.json(await dependencies.services(c.env).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId") }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_CODE_UNAVAILABLE") return errorResponse(c, 422, "BINDING_INVITE_CODE_UNAVAILABLE", "The invitation code cannot be retrieved"); throw error; }
   });
 
   app.post("/v1/admin/binding-invites/:inviteId/revoke", async (c) => {

@@ -87,6 +87,7 @@ jobs:
       QQBOT_POLICY_WEBHOOK_URL: ${{ secrets.QQBOT_POLICY_WEBHOOK_URL }}
       QQBOT_POLICY_WEBHOOK_SECRET: ${{ secrets.QQBOT_POLICY_WEBHOOK_SECRET }}
       OCRKIT_API_TOKEN: ${{ secrets.OCRKIT_API_TOKEN }}
+      BINDING_INVITE_CODE_ENCRYPTION_KEY: ${{ secrets.BINDING_INVITE_CODE_ENCRYPTION_KEY }}
       ADMIN_BATTLETAG: ${{ secrets.ADMIN_BATTLETAG }}
     steps:
       - name: Check out repository
@@ -117,6 +118,7 @@ jobs:
           test -n "$QQBOT_POLICY_WEBHOOK_URL"
           test -n "$QQBOT_POLICY_WEBHOOK_SECRET"
           test -n "$OCRKIT_API_TOKEN"
+          test -n "$BINDING_INVITE_CODE_ENCRYPTION_KEY"
           test -n "$ADMIN_BATTLETAG"
           if [[ "$ADMIN_BATTLETAG" =~ ^(.+)#([0-9]{1,10})$ ]]; then
             admin_player_name="${BASH_REMATCH[1]}"
@@ -169,6 +171,7 @@ jobs:
           printf '%s' "$QQBOT_POLICY_WEBHOOK_URL" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_URL
           printf '%s' "$QQBOT_POLICY_WEBHOOK_SECRET" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_SECRET
           printf '%s' "$OCRKIT_API_TOKEN" | pnpm exec wrangler secret put OCRKIT_API_TOKEN
+          printf '%s' "$BINDING_INVITE_CODE_ENCRYPTION_KEY" | pnpm exec wrangler secret put BINDING_INVITE_CODE_ENCRYPTION_KEY
 
       - name: Deploy Worker
         run: pnpm exec wrangler deploy

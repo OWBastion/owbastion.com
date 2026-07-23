@@ -22,7 +22,7 @@ export const bindings = sqliteTable("bindings", {
 }));
 
 export const bindingInvites = sqliteTable("binding_invites", {
-  id: text("id").primaryKey(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), createdBy: text("created_by").notNull(), createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), redeemedAt: integer("redeemed_at"), revokedAt: integer("revoked_at"), revokedBy: text("revoked_by"),
+  id: text("id").primaryKey(), codeHash: text("code_hash").notNull(), codeCiphertext: text("code_ciphertext"), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), createdBy: text("created_by").notNull(), createdAt: integer("created_at").notNull(), expiresAt: integer("expires_at").notNull(), redeemedAt: integer("redeemed_at"), revokedAt: integer("revoked_at"), revokedBy: text("revoked_by"),
 }, (table) => ({ code: uniqueIndex("binding_invites_code_idx").on(table.codeHash) }));
 
 export const bindingClaims = sqliteTable("binding_claims", {

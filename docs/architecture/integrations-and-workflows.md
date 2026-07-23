@@ -131,9 +131,10 @@ player sends the existing `/验证 CODE` command in an enabled group; QQBot forw
 group/member identity and code. A maintainer must approve or reject the claim.
 Unapproved claims cannot log in, submit, or read player data.
 Maintainers may issue up to 100 BattleTag-targeted invitations in one
-idempotent batch. Each plaintext code is returned only in that response, so
-the Portal presents a per-player copy action for the binding link, code, and
-player instructions.
+idempotent batch. The Portal presents a per-player copy action for the binding
+link, code, and player instructions. New invitation codes are encrypted at
+rest and can be retrieved individually by a maintainer while still active, so
+they can be copied again without exposing them in the invitation list.
 The administrator list retains each invitation's BattleTag, issuance time,
 expiry, and lifecycle status, but never its plaintext code. A maintainer may
 revoke only an unused, unexpired invitation with an auditable reason; revocation

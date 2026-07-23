@@ -39,7 +39,8 @@ const services: PlatformServices = {
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
   createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
-  listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, createdAt: 1, expiresAt: 2 }] }),
+  listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, codeAvailable: true, createdAt: 1, expiresAt: 2 }] }),
+  getAdminBindingInviteCode: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL" }),
   revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
@@ -121,6 +122,15 @@ describe("API", () => {
     const response = await adminApp.request("http://localhost/v1/admin/binding-invites", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ items: [{ playerName: "Player", status: "active" }] });
+  });
+
+  it("returns an active invitation code only to maintainers", async () => {
+    const path = "http://localhost/v1/admin/binding-invites/00000000-0000-0000-0000-000000000007/code";
+    expect((await app.request(path, {}, env)).status).toBe(403);
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
+    const response = await adminApp.request(path, {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ code: "ABCDEFGHIJKL" });
   });
 
   it("revokes unused invitations only for maintainers", async () => {
