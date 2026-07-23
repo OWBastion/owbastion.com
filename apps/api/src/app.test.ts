@@ -549,6 +549,9 @@ describe("API", () => {
     expect(paged.status).toBe(200);
     expect(await paged.json()).toMatchObject({ page: 2, pageSize: 20, total: 27, hasMore: true });
     expect(requests).toEqual([{ statuses: ["ready_for_review", "ocr_review_required"], page: 2, pageSize: 20 }]);
+    const dashboard = await adminApp.request("http://localhost/v1/admin/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5", {}, env);
+    expect(dashboard.status).toBe(200);
+    expect(requests[1]).toEqual({ statuses: ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required"], page: 1, pageSize: 5 });
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
   });
 
