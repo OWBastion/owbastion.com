@@ -1,5 +1,9 @@
 # OWBastion Web Platform
 
+[![Deploy API](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-api.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-api.yml)
+[![Publish Portal image](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml)
+[![Deploy Portal](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml)
+
 OWBastion 平台是一个基于 Cloudflare Workers 的 pnpm TypeScript workspace，提供 Bastion 生态的 Web Portal、HTTP API、业务数据存储和外部服务集成。本仓库 `owbastion.codes` 保存平台代码。
 
 ## 技术栈
