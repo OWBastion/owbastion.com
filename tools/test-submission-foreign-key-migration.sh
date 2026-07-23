@@ -33,6 +33,18 @@ INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, m
 VALUES ('submission-upload-1', 'binding-1', 'upload_pending', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'portal', 'portal', 'upload-1', 2, 2);
 SQL
 
+for status in evidence_pending evidence_stored ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
+  sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" "
+    INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
+    VALUES ('submission-status-${status}', 'binding-1', '${status}', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'portal', 'portal', 'message-${status}', 3, 3);
+  "
+done
+
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" <<'SQL'
+INSERT INTO submission_reviews VALUES ('review-rejected-1', 'submission-status-rejected', 'rejected', '', 'admin-1', 3);
+INSERT INTO submission_reviews VALUES ('review-resubmission-1', 'submission-status-resubmission_required', 'resubmission_required', NULL, 'admin-1', 3);
+SQL
+
 for table in attachments ocr_results upload_sessions submission_reviews; do
   [[ "$(sqlite3 "$database" "SELECT \"table\" FROM pragma_foreign_key_list('$table') WHERE \"from\" = 'submission_id';")" == "submissions" ]]
 done
@@ -41,7 +53,11 @@ done
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM ocr_results WHERE id = 'ocr-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM upload_sessions WHERE id = 'upload-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id = 'review-1';")" == "1" ]]
+[[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id IN ('review-rejected-1', 'review-resubmission-1');")" == "2" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submissions WHERE id = 'submission-upload-1' AND status = 'upload_pending';")" == "1" ]]
+for status in received evidence_pending evidence_stored upload_pending ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
+  [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submissions WHERE status = '${status}';")" -ge "1" ]]
+done
 [[ -z "$(sqlite3 "$database" 'PRAGMA foreign_key_check;')" ]]
 
 echo "Submission foreign-key migration scenario passed."
