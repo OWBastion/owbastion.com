@@ -57,6 +57,13 @@ const parseBody = async (request: Request) => {
   }
 };
 
+const agentPage = (c: any) => {
+  const page = Number(c.req.query("page") ?? "1");
+  const pageSize = Number(c.req.query("pageSize") ?? "20");
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) return null;
+  return { page, pageSize };
+};
+
 const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
 
 const sessionCookie = (request: Request, value: string, maxAge: number) => `owb_session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
@@ -71,6 +78,7 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token, x-claim-token, idempotency-key");
     c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   };
+  const allowAgents = (c: any) => c.header("Cache-Control", "public, max-age=60, s-maxage=60");
 
   app.get("/health", (c) =>
     c.json({
@@ -358,6 +366,31 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined }) });
   });
   app.get("/v1/events/:eventId", async (c) => { allowPortal(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+
+  app.get("/v1/agents/events", async (c) => {
+    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    return c.json({ ...await dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined }) });
+  });
+  app.get("/v1/agents/events/:eventId", async (c) => { allowAgents(c); const event = await dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+  app.get("/v1/agents/maps", async (c) => {
+    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    return c.json(await dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }));
+  });
+  app.get("/v1/agents/maps/:mapId", async (c) => { allowAgents(c); const map = await dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }); return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); });
+  app.get("/v1/agents/achievements", async (c) => {
+    allowAgents(c); const page = agentPage(c); const status = c.req.query("status"); if (!page || (status && status !== "active" && status !== "sunsetting")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
+    return c.json(await dependencies.services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined }));
+  });
+  app.get("/v1/agents/achievements/:achievementId", async (c) => { allowAgents(c); const achievement = await dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId") }); return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist"); });
+  app.get("/v1/agents/titles", async (c) => {
+    allowAgents(c); const page = agentPage(c); const scope = c.req.query("scope"); if (!page || (scope && scope !== "global" && scope !== "map")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
+    return c.json(await dependencies.services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined }));
+  });
+  app.get("/v1/agents/titles/:titleKey", async (c) => { allowAgents(c); const title = await dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }); return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); });
+  app.get("/v1/agents/search", async (c) => {
+    allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
+    return c.json(await dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined }));
+  });
 
   app.post("/v1/player/uploads/session", async (c) => {
     const access = await requirePortalPlayer(c);

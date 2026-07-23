@@ -4,6 +4,15 @@ import { createApp, type RuntimeEnv } from "./app";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentEvent: async () => null,
+  listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentMap: async () => null,
+  listAgentAchievements: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentAchievement: async () => null,
+  listAgentTitles: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
+  getAgentTitle: async () => null,
+  searchAgentContent: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   listRandomEvents: async () => [],
   getRandomEvent: async () => null,
   createAdminRandomEvent: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
