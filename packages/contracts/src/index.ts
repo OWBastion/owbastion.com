@@ -50,12 +50,12 @@ export const adminBindingInviteBatchResponseSchema = z.object({ contractVersion,
 export const adminBindingInviteStatusSchema = z.enum(["active", "redeemed", "expired", "revoked"]);
 export const adminBindingInviteListItemSchema = z.object({ inviteId: z.string().uuid(), playerName: z.string(), playerId, status: adminBindingInviteStatusSchema, codeAvailable: z.boolean(), createdAt: z.number().int(), expiresAt: z.number().int(), redeemedAt: z.number().int().optional() });
 export const adminBindingInviteListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingInviteListItemSchema) });
-export const adminBindingInviteRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().min(1).max(256) });
+export const adminBindingInviteRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
 export const adminBindingInviteCodeResponseSchema = z.object({ contractVersion, inviteId: z.string().uuid(), code: inviteCode });
 export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode, playerName: z.string().trim().min(1).max(64), playerId });
 export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, expiresAt: z.number().int() });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
-export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().min(1).max(256) });
+export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(256).optional() });
 export const adminBindingClaimSchema = z.object({ claimId: z.string().uuid(), playerName: z.string(), playerId, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), createdAt: z.number().int(), memberOpenId: externalId.optional(), groupOpenId: externalId.optional(), invitedBy: z.string(), affectedPlayerAccountId: z.string().uuid().optional() });
 export const adminBindingClaimListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingClaimSchema) });
 
@@ -220,7 +220,7 @@ export const historicalTitleGrantListResponseSchema = z.object({ contractVersion
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId: z.string().uuid() });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative() });
-export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().min(1).max(256) });
+export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
 
 const adminMapChallengeSchema = mapChallengeSchema.extend({
   status: challengeStatus,
@@ -333,7 +333,7 @@ export const adminSubmissionListResponseSchema = z.object({ contractVersion, ite
 export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
-  reason: z.string().trim().min(1).max(512),
+  reason: z.string().trim().max(512).optional(),
 });
 
 export const submissionRequestSchema = z.object({

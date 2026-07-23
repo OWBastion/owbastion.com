@@ -8,3 +8,4 @@
 0016_challenge_sunsetting.sql
 0018_title_challenge_schedule.sql
 0029_global_qq_member_open_id.sql
+0033_optional_admin_decision_reasons.sql

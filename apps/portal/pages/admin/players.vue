@@ -46,7 +46,7 @@ async function openPlayer(player: AdminPlayer) {
 }
 async function setStatus(next: "active" | "banned") {
   if (!selected.value) return;
-  const reason = next === "banned" ? window.prompt("请输入封禁原因（可选）") ?? "" : undefined;
+  const reason = next === "banned" ? window.prompt("请输入封禁原因") ?? "" : undefined;
   if (next === "banned" && !window.confirm(`确认封禁玩家“${selected.value.playerName}#${selected.value.playerId}”？`)) return;
   actionLoading.value = true;
   try {

@@ -58,12 +58,10 @@ async function grant(row: Grant) {
 }
 
 async function revoke(row: Grant) {
-  const reason = window.prompt("请输入撤销原因")?.trim();
-  if (!reason) return;
   saving.value = true;
   errorMessage.value = "";
   try {
-    await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", reason } });
+    await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
     toast.add({ title: "已撤销", color: "success" });
     await load();
   } catch (error: any) {

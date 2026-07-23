@@ -49,6 +49,11 @@ private/public separation, and QQ member-identity semantics. Do not add
 business rules to HTTP or Portal adapters, expose credentials or private
 identifiers, or make browser clients access D1, R2, OCRKit, or Bastion directly.
 
+## Admin decision constraints
+
+- Authorized administrative decisions (approvals, rejections, revocations, etc.) must not require entering reasons, notes, or any other additional input as a prerequisite.
+- Audit fields such as reasons may be provided, but must remain optional; missing inputs should be recorded as null/empty values and must not block administrators from completing decisions.
+
 Database change boundaries are strict: migrations contain schema changes and
 necessary data repairs only. Do not add bulk seed data, catalog snapshots,
 historical holder records, local accounts, or demo submissions to new
@@ -67,15 +72,15 @@ Before handoff, run applicable tests, typechecks, and builds; update the
 relevant documentation for contract, data-owner, security-boundary, or
 operational changes. Use local fakes for external services in normal tests.
 
-## Portal 文案约定
+## Portal copy guidelines
 
-- 详细规则、状态词汇和示例见 [`docs/development/portal-copy-guidelines.md`](docs/development/portal-copy-guidelines.md)；修改 Portal 文案前必须先检查该文档。
-- 面向玩家使用简洁、克制、具体的中文，保持与 `apps/portal/pages/index.vue` 和 `apps/portal/pages/me.vue` 一致的编辑化语气。
-- 优先使用短标签、名词短语和直接状态；能用“暂无记录”“未开放”表达时，不写完整解释句。
-- 优先描述玩家能做什么、能看到什么，少使用审核、发放、发布等内部流程和实现术语。
-- 空状态默认只说明当前状态；只有存在明确且可执行的下一步时才提供引导。
-- 明确区分已开放、处理中、未开放和未来规划，不把未来功能写成当前能力。
-- 让标题承担叙事，说明文字补充范围、条件或状态，避免标题与说明重复表达同一件事。
-- 状态文案使用事实描述，不使用夸张承诺、模糊营销语或未确认的时间承诺。
-- 避免“这里……会……”“开放后会在这里显示”“留下每一次……”等泛化句式，不重复解释页面已经表达清楚的信息。
-- 新增或修改 Portal 文案时，先参考首页和玩家中心的现有语气，再保持同一套用词和状态边界。
+- For detailed rules, status terminology, and examples, see [`docs/development/portal-copy-guidelines.md`](docs/development/portal-copy-guidelines.md); check this document before modifying Portal copy.
+- Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
+- Prefer short labels, noun phrases, and direct statuses; avoid full explanatory sentences when phrases like "暂无记录" (No records) or "未开放" (Not available) suffice.
+- Focus on describing what players can do and see rather than internal process or implementation terms like review, distribution, or publishing.
+- Empty states should default to stating current status; provide guidance only when a clear, actionable next step exists.
+- Clearly distinguish active, in-progress, unavailable, and future planned features—never describe future features as current capabilities.
+- Let headings carry the narrative while body copy adds scope, conditions, or status, avoiding duplicate messaging between heading and body text.
+- Use factual descriptions for status copy; avoid exaggerated promises, vague marketing language, or unconfirmed timeline commitments.
+- Avoid generic patterns like "Here... will...", "Will be displayed here once available...", or "Record every...", and do not repeat information already clear on the page.
+- When adding or modifying Portal copy, reference the existing tone of the home and player center pages to maintain consistent terminology and status boundaries.

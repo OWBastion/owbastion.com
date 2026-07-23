@@ -212,7 +212,7 @@ export const submissionReviews = sqliteTable("submission_reviews", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),
   decision: text("decision").notNull(),
-  reason: text("reason").notNull(),
+  reason: text("reason"),
   reviewer: text("reviewer").notNull(),
   createdAt: integer("created_at").notNull(),
 });
