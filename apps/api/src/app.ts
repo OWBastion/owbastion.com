@@ -470,7 +470,14 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号由系统自动发放，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED";
+      if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge is not available");
+      if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号由系统自动发放，无需提交截图。");
+      if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned");
+      console.error("[player upload session] failed", { requestId: requestId(c.req.raw), error: error instanceof Error ? error.stack ?? error.message : String(error) });
+      return errorResponse(c, 500, "UPLOAD_SESSION_FAILED", "The screenshot upload session could not be created");
+    }
   });
 
   app.put("/v1/uploads/:uploadId", async (c) => {
@@ -484,7 +491,11 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!)); }
-    catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
+    catch (error) {
+      if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired");
+      console.error("[player upload complete] failed", { uploadId: c.req.param("uploadId"), requestId: requestId(c.req.raw), error: error instanceof Error ? error.stack ?? error.message : String(error) });
+      return errorResponse(c, 500, "UPLOAD_COMPLETE_FAILED", "The screenshot submission could not be completed");
+    }
   });
 
   app.put("/v1/admin/qq/groups/:groupOpenId", async (c) => {

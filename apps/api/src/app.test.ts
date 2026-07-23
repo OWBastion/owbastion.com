@@ -606,6 +606,31 @@ describe("API", () => {
     expect(await response.json()).toEqual({ contractVersion: "1", error: { code: "REVIEW_FAILED", message: "The review could not be completed", requestId: "request-review-1" } });
   });
 
+  it("returns traceable errors for unexpected player upload failures", async () => {
+    const uploadApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "player", roles: [], provider: "test" }),
+      services: () => ({
+        ...services,
+        createPlayerUploadSession: async () => { throw new Error("D1_SESSION_WRITE_FAILED"); },
+        completePlayerUpload: async () => { throw new Error("D1_COMPLETE_WRITE_FAILED"); },
+      }),
+    });
+    const session = await uploadApp.request("http://localhost/v1/player/uploads/session", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: "owb_session=session-token", "x-request-id": "request-upload-session-1" },
+      body: JSON.stringify({ contractVersion: "1", challengeId: "challenge-1", contentType: "image/png", byteSize: 3, sha256: "a".repeat(64) }),
+    }, env);
+    const complete = await uploadApp.request("http://localhost/v1/player/uploads/upload-1/complete", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: "owb_session=session-token", "x-request-id": "request-upload-complete-1" },
+      body: JSON.stringify({ contractVersion: "1", uploadId: "upload-1" }),
+    }, env);
+    expect(session.status).toBe(500);
+    expect(await session.json()).toEqual({ contractVersion: "1", error: { code: "UPLOAD_SESSION_FAILED", message: "The screenshot upload session could not be created", requestId: "request-upload-session-1" } });
+    expect(complete.status).toBe(500);
+    expect(await complete.json()).toEqual({ contractVersion: "1", error: { code: "UPLOAD_COMPLETE_FAILED", message: "The screenshot submission could not be completed", requestId: "request-upload-complete-1" } });
+  });
+
   it("keeps local development login disabled unless explicitly enabled", async () => {
     const localServices: PlatformServices = {
       ...services,

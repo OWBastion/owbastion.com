@@ -15,7 +15,7 @@ const send = async () => {
     toast.add({ title: "已收到，正在识别。", color: "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch {
-    toast.add({ title: "提交失败，请检查截图后重试。", color: "error" });
+    toast.add({ title: "截图提交失败", description: error.value || "请检查截图后重试。", color: "error" });
   }
 };
 
