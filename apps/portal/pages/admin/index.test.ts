@@ -21,9 +21,9 @@ describe("admin dashboard", () => {
     const wrapper = await mountSuspended(AdminDashboard, { global: { stubs: { NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" } } } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("待核对");
-    expect(wrapper.text()).toContain("识别处理中");
-    expect(wrapper.text()).toContain("正常玩家");
+    expect(wrapper.text()).toContain("待审核");
+    expect(wrapper.text()).toContain("OCR 队列");
+    expect(wrapper.text()).toContain("活跃玩家");
     expect(wrapper.text()).toContain("地图目录");
     expect(wrapper.text()).toContain("3");
     expect(wrapper.text()).toContain("2");
@@ -33,6 +33,7 @@ describe("admin dashboard", () => {
     expect(wrapper.text()).toContain("等待核对");
     expect(wrapper.find('input[aria-label="搜索玩家"]').exists()).toBe(false);
     expect(wrapper.find('a[href="/admin/reviews"]').exists()).toBe(true);
+    expect(wrapper.findAll('a[href="/admin/reviews"]').length).toBeGreaterThanOrEqual(2);
     expect(wrapper.find('a[href="/admin/players"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/admin/channels"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/admin/achievements"]').exists()).toBe(true);

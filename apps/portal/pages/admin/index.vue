@@ -17,10 +17,10 @@ const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateSty
 const metrics = computed(() => {
   const value = (count: number) => loading.value ? "读取中…" : `${count}`;
   return [
-    { label: "待核对", value: value(reviewTotal.value), detail: "等待人工处理", tone: "accent" as const },
-    { label: "识别处理中", value: value(processingTotal.value), detail: "等待识别结果", tone: "accent" as const },
-    { label: "正常玩家", value: value(activePlayerTotal.value), detail: "账号状态正常", tone: "quiet" as const },
-    { label: "地图目录", value: value(mapTotal.value), detail: "已登记地图", tone: "quiet" as const },
+    { label: "待审核", value: value(reviewTotal.value), detail: "人工审核队列", to: "/admin/reviews", tone: "accent" as const },
+    { label: "OCR 队列", value: value(processingTotal.value), detail: "识别处理中", to: "/admin/reviews", tone: "accent" as const },
+    { label: "活跃玩家", value: value(activePlayerTotal.value), detail: "账号状态正常", to: "/admin/players", tone: "quiet" as const },
+    { label: "地图目录", value: value(mapTotal.value), detail: "已登记地图", to: "/admin/maps", tone: "quiet" as const },
   ];
 });
 const reviewQueue = computed(() => submissions.value.map((submission) => ({
