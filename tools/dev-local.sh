@@ -11,12 +11,12 @@ export PORTAL_ORIGIN="http://localhost:3000"
 export LOCAL_DEV_AUTH=true
 export NUXT_PUBLIC_LOCAL_DEV_AUTH=true
 
-rtk pnpm exec wrangler d1 migrations apply DB --local
-rtk pnpm run db:seed:local
+pnpm exec wrangler d1 migrations apply DB --local
+pnpm run db:seed:local
 
-rtk pnpm run dev:api:local &
+pnpm run dev:api:local &
 api_pid=$!
-rtk pnpm run dev:portal:local &
+pnpm run dev:portal:local &
 portal_pid=$!
 
 cleanup() {

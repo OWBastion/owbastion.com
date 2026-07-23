@@ -93,9 +93,9 @@ defaults to `latest` and can be set to any already-published `sha-<commit>` tag.
 Build the image locally from the repository root when validating the Dockerfile:
 
 ```bash
-rtk docker build -f apps/portal/Dockerfile -t owbastion-portal:local .
-rtk docker run -d --name portal-local -p 127.0.0.1:3000:3000 owbastion-portal:local
-rtk curl http://127.0.0.1:3000/health
+docker build -f apps/portal/Dockerfile -t owbastion-portal:local .
+docker run -d --name portal-local -p 127.0.0.1:3000:3000 owbastion-portal:local
+curl http://127.0.0.1:3000/health
 ```
 
 The expected health response is:
@@ -107,7 +107,7 @@ The expected health response is:
 Stop it with:
 
 ```bash
-rtk docker rm -f portal-local
+docker rm -f portal-local
 ```
 
 The `PORTAL_PORT` environment variable may change the loopback port used by
@@ -128,10 +128,10 @@ Portal service, and verify `/health`:
 
 ```bash
 export PORTAL_IMAGE_TAG=sha-<commit>
-rtk docker compose pull portal
-rtk docker compose up -d --wait portal
-rtk docker compose ps
-rtk curl http://127.0.0.1:3000/health
+docker compose pull portal
+docker compose up -d --wait portal
+docker compose ps
+curl http://127.0.0.1:3000/health
 ```
 
 If the health check fails, inspect the container logs and restore the previous
@@ -139,9 +139,9 @@ known-good commit tag:
 
 ```bash
 export PORTAL_IMAGE_TAG=sha-<previous-commit>
-rtk docker compose pull portal
-rtk docker compose up -d --wait portal
-rtk curl http://127.0.0.1:3000/health
+docker compose pull portal
+docker compose up -d --wait portal
+curl http://127.0.0.1:3000/health
 ```
 
 Tunnel credentials and DNS changes are not part of either operation.
