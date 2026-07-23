@@ -19,5 +19,11 @@ export default defineEventHandler(async (event) => {
   const responseContentType = response.headers.get("content-type");
   if (responseContentType) setResponseHeader(event, "content-type", responseContentType);
   if (response.status === 204) return null;
-  return await response.json();
+  const responseText = await response.text();
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    setResponseHeader(event, "content-type", "application/json");
+    return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: responseText.trim() || "上游 API 返回了无效响应。" } };
+  }
 });

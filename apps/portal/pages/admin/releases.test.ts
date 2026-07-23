@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import ReleasesAdminPage from "./releases.vue";
 
 const adminApi = vi.fn(async (path: string) => {
-  if (path === "/v1/admin/releases/overview") return {
+  if (path === "/v1/releases/overview") return {
     contractVersion: "1" as const,
     current: { releaseId: "release-1", candidateId: "candidate-1", sourceVersion: "26.0713.1", bastionCommitSha: "abc123", activatedAt: 1 },
     next: { candidateId: "candidate-2", sourceVersion: "next", snapshotHash: "a".repeat(64), status: "queued" as const },

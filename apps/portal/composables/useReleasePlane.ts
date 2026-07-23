@@ -4,8 +4,8 @@ export type ReleaseOverview = {
   contractVersion: "1";
   current: { releaseId: string; candidateId: string; sourceVersion: string; bastionCommitSha: string | null; activatedAt: number | null } | null;
   next: { candidateId: string; sourceVersion: string; snapshotHash: string; status: "candidate" | "queued" | "running" | "succeeded" | "failed" } | null;
-  drafts: Array<{ draftId: string; name: string; status: string; updatedAt: number }>;
-  releases: Array<{ releaseId: string; candidateId: string; sourceVersion: string; status: string; bastionCommitSha: string | null; activatedAt: number | null; createdAt: number }>;
+  drafts: ReadonlyArray<{ draftId: string; name: string; status: string; updatedAt: number }>;
+  releases: ReadonlyArray<{ releaseId: string; candidateId: string; sourceVersion: string; status: string; bastionCommitSha: string | null; activatedAt: number | null; createdAt: number }>;
 };
 
 export function useReleasePlane() {
@@ -17,16 +17,16 @@ export function useReleasePlane() {
   const refresh = async () => {
     loading.value = true;
     error.value = "";
-    try { overview.value = await api<ReleaseOverview>("/v1/admin/releases/overview"); }
+    try { overview.value = await api<ReleaseOverview>("/v1/releases/overview"); }
     catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法读取发布状态。"; }
     finally { loading.value = false; }
   };
 
-  const createDraft = (name: string) => api<{ draftId: string }>("/v1/admin/releases/drafts", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", name } });
-  const putDraftItem = (draftId: string, item: { contentType: string; contentId: string; operation: string; data: Record<string, unknown> }) => api<{ itemId: string }>(`/v1/admin/releases/drafts/${encodeURIComponent(draftId)}/items`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", ...item } });
-  const createChangeSet = (draftId: string, name: string, itemIds: string[]) => api<{ changeSetId: string }>("/v1/admin/releases/change-sets", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", draftId, name, itemIds } });
-  const createCandidate = (changeSetId: string) => api<{ candidateId: string }>(`/v1/admin/releases/change-sets/${encodeURIComponent(changeSetId)}/candidate`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
-  const startBuild = (candidateId: string) => api<{ buildId: string }>(`/v1/admin/releases/candidates/${encodeURIComponent(candidateId)}/build`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
+  const createDraft = (name: string) => api<{ draftId: string }>("/v1/releases/drafts", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", name } });
+  const putDraftItem = (draftId: string, item: { contentType: string; contentId: string; operation: string; data: Record<string, unknown> }) => api<{ itemId: string }>(`/v1/releases/drafts/${encodeURIComponent(draftId)}/items`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", ...item } });
+  const createChangeSet = (draftId: string, name: string, itemIds: string[]) => api<{ changeSetId: string }>("/v1/releases/change-sets", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", draftId, name, itemIds } });
+  const createCandidate = (changeSetId: string) => api<{ candidateId: string }>(`/v1/releases/change-sets/${encodeURIComponent(changeSetId)}/candidate`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
+  const startBuild = (candidateId: string) => api<{ buildId: string }>(`/v1/releases/candidates/${encodeURIComponent(candidateId)}/build`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
 
   return { overview: readonly(overview), loading: readonly(loading), error: readonly(error), refresh, createDraft, putDraftItem, createChangeSet, createCandidate, startBuild };
 }
