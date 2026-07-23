@@ -47,7 +47,7 @@ onMounted(async () => {
         </div>
       </section>
     </template>
-    <ThinkingOrbLoader v-else-if="loading" state="listening" />
+    <p v-else-if="loading" class="state" role="status">读取中…</p>
   </main>
 </template>
 
