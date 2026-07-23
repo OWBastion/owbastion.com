@@ -36,7 +36,7 @@ mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin events page", () => {
   it("renders sorting and grouping controls without an SSR error", async () => {
-    const wrapper = await mountSuspended(EventsAdminPage);
+    const wrapper = await mountSuspended(EventsAdminPage, { attachTo: document.body });
     await flushPromises();
 
     expect(wrapper.get('[aria-label="排序方式"]')).toBeTruthy();
