@@ -9,4 +9,5 @@
 0018_title_challenge_schedule.sql
 0029_global_qq_member_open_id.sql
 0033_optional_admin_decision_reasons.sql
+0037_repair_submission_foreign_keys.sql
 0036_submission_review_statuses.sql
