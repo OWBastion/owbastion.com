@@ -1181,10 +1181,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (shouldNotify) await dispatchPendingQqGroupPolicyEvents();
     },
 
-    async dispatchPendingQqGroupPolicyEvents() {
-      await dispatchPendingQqGroupPolicyEvents();
-    },
-
     async markQqGroupPolicyEventDelivered(input) {
       await db.update(qqGroupPolicyOutbox).set({ deliveredAt: now() }).where(eq(qqGroupPolicyOutbox.id, input.eventId));
     },
