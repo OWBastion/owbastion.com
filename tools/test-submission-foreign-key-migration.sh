@@ -13,6 +13,9 @@ for migration in "$root_dir"/migrations/*.sql; do
 done
 
 sqlite3 "$database" <<'SQL'
+INSERT INTO identities VALUES ('identity-1', 1, 1);
+INSERT INTO player_accounts VALUES ('player-1', '1234', 'Player', 'player', 0, 'active', NULL, NULL, NULL, 1, 1);
+INSERT INTO bindings VALUES ('binding-1', 'identity-1', 'player-1', 'qq', 'group-1', 'member-1', 1, 'active', NULL, NULL);
 INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
 VALUES ('submission-1', 'binding-1', 'received', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'qq', 'group-1', 'message-1', 1, 1);
 INSERT INTO attachments VALUES ('attachment-1', 'submission-1', 'qq', 'attachment-1', 'image/png', 1, NULL, NULL, 'pending', 1);
@@ -21,8 +24,8 @@ INSERT INTO upload_sessions VALUES ('upload-1', 'submission-1', 'player-1', 'ima
 INSERT INTO submission_reviews VALUES ('review-1', 'submission-1', 'approved', NULL, 'admin-1', 1);
 SQL
 
-sqlite3 -bail "$database" < "$root_dir/migrations/0036_submission_review_statuses.sql"
-sqlite3 -bail "$database" < "$root_dir/migrations/0037_repair_submission_foreign_keys.sql"
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0036_submission_review_statuses.sql"
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0037_repair_submission_foreign_keys.sql"
 
 for table in attachments ocr_results upload_sessions submission_reviews; do
   [[ "$(sqlite3 "$database" "SELECT \"table\" FROM pragma_foreign_key_list('$table') WHERE \"from\" = 'submission_id';")" == "submissions" ]]
@@ -32,5 +35,6 @@ done
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM ocr_results WHERE id = 'ocr-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM upload_sessions WHERE id = 'upload-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id = 'review-1';")" == "1" ]]
+[[ -z "$(sqlite3 "$database" 'PRAGMA foreign_key_check;')" ]]
 
 echo "Submission foreign-key migration scenario passed."
