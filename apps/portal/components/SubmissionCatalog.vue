@@ -14,7 +14,7 @@ const familyItems = [
 
 <template>
   <div class="catalog">
-    <UTabs v-model="family" :items="familyItems" aria-label="挑战类型" />
+    <UTabs v-model="family" :items="familyItems" variant="link" aria-label="挑战类型" />
     <MapSubmissionCatalog v-if="family === 'map'" :maps="maps" :challenges="mapChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', $event)" />
     <AchievementSubmissionCatalog v-else :challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', $event)" />
   </div>
