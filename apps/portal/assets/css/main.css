@@ -71,10 +71,10 @@ body { min-width: 320px; margin: 0; overflow-x: hidden; color: var(--text); back
 button { cursor: pointer; }
 [id] { scroll-margin-top: 92px; }
 
-.page-shell { width: min(100% - 28px, 1100px); margin: 0 auto; }
+.page-shell { width: min(100% - 40px, 1440px); margin: 0 auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .eyebrow { margin: 0 0 .45rem; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: normal; }
-.page-title { margin: 0; font-size: clamp(2.45rem, 6vw, 5rem); font-weight: 680; letter-spacing: -.052em; line-height: .98; }
+.page-title { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
 .surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .primary-button, .secondary-button { min-height: 44px; padding: 0 15px; border-radius: 11px; font-size: .88rem; font-weight: 680; transition: transform 100ms ease-out, background 180ms ease, border-color 180ms ease; }
@@ -85,5 +85,5 @@ button { cursor: pointer; }
 
 @media (prefers-reduced-transparency: reduce) { .app-header { background: var(--surface) !important; backdrop-filter: none !important; } }
 @media (prefers-contrast: more) { .surface-card, .app-header { border-color: var(--text) !important; } }
-@media (max-width: 430px) { .page-shell { width: min(100% - 24px, 1100px); } }
+@media (max-width: 620px) { .page-shell { width: min(100% - 24px, 1440px); } }
 @media (prefers-reduced-transparency: reduce) { .mobile-nav { background: var(--surface-raised) !important; backdrop-filter: none !important; } }
