@@ -33,7 +33,7 @@
   "devDependencies": {
     "@nuxt/test-utils": "^4.0.3",
     "@vue/test-utils": "^2.4.6",
-    "@cloudflare/workers-types": "^5.20260715.1",
+    "@cloudflare/workers-types": "^5.20260723.1",
     "drizzle-kit": "^0.31.4",
     "happy-dom": "^20.11.0",
     "typescript": "^5.8.3",
