@@ -19,6 +19,7 @@ export type ReleaseDiff = {
   after: Record<string, unknown> | null;
 };
 export type ReleaseDraftDetail = { contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number; items: readonly { contentType: ReleaseDiff["contentType"]; contentId: string; operation: "upsert" | "retire" | "delete"; data: Record<string, unknown> }[]; diff: readonly ReleaseDiff[] };
+export type ReleaseDraftConfirmation = { contractVersion: "1"; draftId: string; target: "next" | "release"; changeSetId: string; candidateId: string; snapshotHash: string; status: "candidate" | "queued"; buildId: string | null; releaseId: string | null };
 
 export function useReleasePlane() {
   const api = useAdminApi();
@@ -37,11 +38,12 @@ export function useReleasePlane() {
   const createDraft = (name: string) => api<{ draftId: string }>("/v1/releases/drafts", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", name } });
   const createDraftFromCatalog = (name: string) => api<{ contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number }>("/v1/releases/drafts/from-catalog", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", name } });
   const getDraft = (draftId: string) => api<ReleaseDraftDetail>(`/v1/releases/drafts/${encodeURIComponent(draftId)}`);
+  const confirmDraft = (draftId: string, target: "next" | "release") => api<ReleaseDraftConfirmation>(`/v1/releases/drafts/${encodeURIComponent(draftId)}/confirm`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", target } });
   const putDraftItem = (draftId: string, item: { contentType: string; contentId: string; operation: string; data: Record<string, unknown> }) => api<{ itemId: string }>(`/v1/releases/drafts/${encodeURIComponent(draftId)}/items`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", ...item } });
   const createChangeSet = (draftId: string, name: string, itemIds: string[]) => api<{ changeSetId: string }>("/v1/releases/change-sets", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", draftId, name, itemIds } });
   const createChangeSetFromDraft = (draftId: string, name: string) => api<{ changeSetId: string }>(`/v1/releases/drafts/${encodeURIComponent(draftId)}/change-set`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", name } });
   const createCandidate = (changeSetId: string) => api<{ candidateId: string }>(`/v1/releases/change-sets/${encodeURIComponent(changeSetId)}/candidate`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
   const startBuild = (candidateId: string) => api<{ buildId: string }>(`/v1/releases/candidates/${encodeURIComponent(candidateId)}/build`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
 
-  return { overview: readonly(overview), loading: readonly(loading), error: readonly(error), refresh, createDraft, createDraftFromCatalog, getDraft, putDraftItem, createChangeSet, createChangeSetFromDraft, createCandidate, startBuild };
+  return { overview: readonly(overview), loading: readonly(loading), error: readonly(error), refresh, createDraft, createDraftFromCatalog, getDraft, confirmDraft, putDraftItem, createChangeSet, createChangeSetFromDraft, createCandidate, startBuild };
 }

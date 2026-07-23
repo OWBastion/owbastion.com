@@ -30,7 +30,7 @@ import type {
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
-  ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseChangeSetFromDraftRequest, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot, ReleaseDraftResponse, ReleaseDraftDetailResponse,
+  ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseChangeSetFromDraftRequest, ReleaseDraftConfirmationRequest, ReleaseDraftConfirmationResponse, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot, ReleaseDraftResponse, ReleaseDraftDetailResponse,
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
 } from "@owbastion/contracts";
 
@@ -71,6 +71,7 @@ export type PlatformServices = {
   putReleaseDraftItem(input: ReleaseDraftItemRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; itemId: string; draftId: string; contentType: string; contentId: string; operation: string }>;
   createReleaseChangeSet(input: ReleaseChangeSetCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;
   createReleaseChangeSetFromDraft(input: ReleaseChangeSetFromDraftRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;
+  confirmReleaseDraft(input: ReleaseDraftConfirmationRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<ReleaseDraftConfirmationResponse>;
   createReleaseCandidate(input: { changeSetId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: "candidate"; createdAt: number }>;
   getReleaseCandidate(input: { candidateId: string }): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: string; createdAt: number; snapshot: ReleaseSnapshot }>;
   startReleaseBuild(input: { candidateId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; buildId: string; candidateId: string; releaseId: string; status: "queued" }>;

@@ -71,7 +71,10 @@ callback. A failed Candidate build never advances Current.
 Maintainers edit the platform working catalog once through the existing admin
 surfaces. The release Portal captures that catalog into a Draft, computes an
 automatic stable-ID diff against Current, and creates the Change Set from that
-diff; content IDs and JSON are not manually entered in the release workflow.
+diff. The maintainer then chooses whether to keep the immutable Candidate as
+Next or send it directly to the Bastion Release build. Change Set remains an
+internal audit/idempotency boundary; content IDs and JSON are not manually
+entered in the release workflow.
 
 ## Design principles
 

@@ -17,7 +17,7 @@ import {
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
-  releaseDraftCreateRequestSchema, releaseDraftItemRequestSchema, releaseChangeSetCreateRequestSchema, releaseChangeSetFromDraftRequestSchema, releaseBuildResultRequestSchema,
+  releaseDraftCreateRequestSchema, releaseDraftItemRequestSchema, releaseChangeSetCreateRequestSchema, releaseChangeSetFromDraftRequestSchema, releaseDraftConfirmationRequestSchema, releaseBuildResultRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
@@ -208,6 +208,20 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     try { return c.json(await services(c).getReleaseDraft({ draftId: c.req.param("draftId") })); }
     catch (error) { if (error instanceof Error && error.message === "DRAFT_NOT_FOUND") return errorResponse(c, 404, "DRAFT_NOT_FOUND", "The draft does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/releases/drafts/:draftId/confirm", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = releaseDraftConfirmationRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await services(c).confirmReleaseDraft({ ...parsed.data, draftId: c.req.param("draftId") }, access.auth!, idempotencyKey), 201); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "DRAFT_CONFIRM_FAILED";
+      if (code === "DRAFT_NOT_FOUND") return errorResponse(c, 404, code, "The draft does not exist");
+      if (code === "DRAFT_NO_CHANGES") return errorResponse(c, 409, code, "The working catalog has no changes compared with Current");
+      if (["BUILD_ALREADY_RUNNING", "BUILD_DISPATCH_FAILED"].includes(code)) return errorResponse(c, code === "BUILD_DISPATCH_FAILED" ? 503 : 409, code, "The Release build could not be started");
+      throw error;
+    }
   });
 
   app.put("/v1/admin/releases/drafts/:draftId/items", async (c) => {

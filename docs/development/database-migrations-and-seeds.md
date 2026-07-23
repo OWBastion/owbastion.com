@@ -74,8 +74,9 @@ bootstrap 是幂等的本地/生产操作，发布流程只读取 Current Candid
 日常发布不需要手工录入 Draft Item、稳定 ID、操作类型或 JSON。管理员先在现有的
 事件、地图、成就/称号管理页面维护一次工作目录；Portal 的“从工作目录创建 Draft”
 会把工作表自动采集为不可变草稿。Draft 详情会按稳定 ID 与 Current 快照生成新增、
-修改、移除 diff；确认后由 diff 自动生成 Change Set，再依次冻结 Candidate 和请求
-Bastion 构建。发布页展示 ID 只是审计信息，不是管理员输入项。
+修改、移除 diff；管理员确认后只选择“Next 快照”或“Release”。前者自动冻结候选
+快照并更新 Next 指针，后者在同一操作中自动记录内部变更边界、冻结 Candidate 并
+请求 Bastion 构建。Change Set 仍保留用于审计、幂等和重放，但不再是管理员操作项。
 
 称号目录的 `icon` 保存默认 Lucide 图标 key；维护者可在 Portal 成就管理页填写
 CDN 图标 URL，或上传 PNG、JPG、WebP 自定义图标。上传文件写入 R2 的

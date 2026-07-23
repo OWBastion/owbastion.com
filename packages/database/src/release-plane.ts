@@ -3,6 +3,8 @@ import type {
   ReleaseBuildResultRequest,
   ReleaseContentItem,
   ReleaseDraftCreateRequest,
+  ReleaseDraftConfirmationRequest,
+  ReleaseDraftConfirmationResponse,
   ReleaseDraftDetailResponse,
   ReleaseDiffChange,
   ReleaseDraftItemRequest,
@@ -265,6 +267,32 @@ export const createReleasePlaneServices = (database: Db, dispatchBuild?: Release
     return response;
   };
 
+  const confirmDraft = async (input: ReleaseDraftConfirmationRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<ReleaseDraftConfirmationResponse> => {
+    const replay = await replayOrConflict<ReleaseDraftConfirmationResponse>(database, auth.subject, "release.draft.confirm", idempotencyKey, input);
+    if (replay) return replay;
+    const draft = await getDraft(input.draftId);
+    if (!draft.diff.length) throw new Error("DRAFT_NO_CHANGES");
+    const changeSet = await createChangeSetFromDraft({ draftId: input.draftId, name: `${draft.name} · 自动变更` }, auth, `${idempotencyKey}:change-set`);
+    const candidate = await createCandidate({ changeSetId: changeSet.changeSetId }, auth, `${idempotencyKey}:candidate`);
+    const build = input.target === "release" ? await startBuild({ candidateId: candidate.candidateId }, auth, `${idempotencyKey}:build`) : null;
+    const response: ReleaseDraftConfirmationResponse = {
+      contractVersion,
+      draftId: input.draftId,
+      target: input.target,
+      changeSetId: changeSet.changeSetId,
+      candidateId: candidate.candidateId,
+      snapshotHash: candidate.snapshotHash,
+      status: build ? "queued" : "candidate",
+      buildId: build?.buildId ?? null,
+      releaseId: build?.releaseId ?? null,
+    };
+    await database.batch([
+      await idempotencyStatement(database, auth.subject, "release.draft.confirm", idempotencyKey, input, response),
+      auditStatement(database, auth, "release.draft.confirm", "content_draft", input.draftId, { target: input.target, changeSetId: changeSet.changeSetId, candidateId: candidate.candidateId }),
+    ]);
+    return response;
+  };
+
   const receiveBuildResult = async (input: ReleaseBuildResultRequest) => {
     const resultHash = await hashInput(input);
     const task = await database.prepare("SELECT id, release_id, candidate_id, status, snapshot_hash, result_hash FROM content_build_tasks WHERE id = ?1").bind(input.buildId).first<{ id: string; release_id: string; candidate_id: string; status: string; snapshot_hash: string; result_hash: string | null }>();
@@ -315,5 +343,5 @@ export const createReleasePlaneServices = (database: Db, dispatchBuild?: Release
     return candidate ? parseJson<ReleaseSnapshot>(candidate.snapshot_json) : null;
   };
 
-  return { createReleaseDraft: createDraft, createReleaseDraftFromCatalog: createDraftFromCatalog, getReleaseDraft: (input: { draftId: string }) => getDraft(input.draftId), putReleaseDraftItem: putDraftItem, createReleaseChangeSet: createChangeSet, createReleaseChangeSetFromDraft: createChangeSetFromDraft, createReleaseCandidate: createCandidate, getReleaseCandidate: (input: { candidateId: string }) => getCandidate(input.candidateId), startReleaseBuild: startBuild, receiveReleaseBuildResult: receiveBuildResult, getReleaseOverview: overview, getCurrentReleaseSnapshot };
+  return { createReleaseDraft: createDraft, createReleaseDraftFromCatalog: createDraftFromCatalog, getReleaseDraft: (input: { draftId: string }) => getDraft(input.draftId), putReleaseDraftItem: putDraftItem, createReleaseChangeSet: createChangeSet, createReleaseChangeSetFromDraft: createChangeSetFromDraft, confirmReleaseDraft: confirmDraft, createReleaseCandidate: createCandidate, getReleaseCandidate: (input: { candidateId: string }) => getCandidate(input.candidateId), startReleaseBuild: startBuild, receiveReleaseBuildResult: receiveBuildResult, getReleaseOverview: overview, getCurrentReleaseSnapshot };
 };

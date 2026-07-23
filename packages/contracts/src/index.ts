@@ -56,6 +56,23 @@ export const releaseChangeSetFromDraftRequestSchema = z.object({
   name: z.string().trim().min(1).max(128),
 });
 
+export const releaseDraftConfirmationRequestSchema = z.object({
+  contractVersion,
+  target: z.enum(["next", "release"]),
+});
+
+export const releaseDraftConfirmationResponseSchema = z.object({
+  contractVersion,
+  draftId: externalId,
+  target: z.enum(["next", "release"]),
+  changeSetId: externalId,
+  candidateId: externalId,
+  snapshotHash: z.string().regex(/^[a-f0-9]{64}$/),
+  status: z.enum(["candidate", "queued"]),
+  buildId: externalId.nullable(),
+  releaseId: externalId.nullable(),
+});
+
 export const releaseDraftItemRequestSchema = z.object({
   contractVersion,
   contentType: releaseContentTypeSchema,
@@ -631,6 +648,8 @@ export type ReleaseDiffChange = z.infer<typeof releaseDiffChangeSchema>;
 export type ReleaseDraftItemRequest = z.infer<typeof releaseDraftItemRequestSchema>;
 export type ReleaseChangeSetCreateRequest = z.infer<typeof releaseChangeSetCreateRequestSchema>;
 export type ReleaseChangeSetFromDraftRequest = z.infer<typeof releaseChangeSetFromDraftRequestSchema>;
+export type ReleaseDraftConfirmationRequest = z.infer<typeof releaseDraftConfirmationRequestSchema>;
+export type ReleaseDraftConfirmationResponse = z.infer<typeof releaseDraftConfirmationResponseSchema>;
 export type ReleaseBuildResultRequest = z.infer<typeof releaseBuildResultRequestSchema>;
 export type ReleaseBuildResponse = z.infer<typeof releaseBuildResponseSchema>;
 export type ReleaseOverviewResponse = z.infer<typeof releaseOverviewResponseSchema>;

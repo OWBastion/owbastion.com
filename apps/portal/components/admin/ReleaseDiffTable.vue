@@ -15,6 +15,10 @@ const changeLabels: Record<ReleaseDiff["change"], string> = {
   removed: "移除",
 };
 const formatJson = (value: Record<string, unknown> | null) => value ? JSON.stringify(value, null, 2) : "—";
+const displayName = (change: ReleaseDiff) => {
+  const value = change.after ?? change.before;
+  return String(value?.name ?? value?.mapName ?? value?.label ?? value?.titleName ?? "未命名内容");
+};
 </script>
 
 <template>
@@ -34,7 +38,7 @@ const formatJson = (value: Record<string, unknown> | null) => value ? JSON.strin
         <tbody>
           <tr v-for="change in diff" :key="`${change.contentType}:${change.contentId}`">
             <td>{{ contentLabels[change.contentType] ?? change.contentType }}</td>
-            <td><strong>{{ change.contentId }}</strong></td>
+            <td><strong>{{ displayName(change) }}</strong><small>{{ contentLabels[change.contentType] }}内容</small></td>
             <td><StatusBadge :label="changeLabels[change.change] ?? change.change" :tone="change.change === 'added' ? 'success' : 'warning'" /></td>
             <td><code class="diff-value">{{ formatJson(change.before) }}</code></td>
             <td><code class="diff-value">{{ formatJson(change.after) }}</code></td>
