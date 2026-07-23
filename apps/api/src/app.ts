@@ -91,6 +91,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/login", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/uploads/:uploadId", (c) => { allowPortal(c); return c.body(null, 204); });
 
   const requireMaintainer = async (c: any) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);

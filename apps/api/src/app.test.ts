@@ -483,6 +483,21 @@ describe("API", () => {
     expect((await complete.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
   });
 
+  it("allows the Portal to preflight direct upload URLs", async () => {
+    const response = await app.request("http://localhost/v1/uploads/00000000-0000-0000-0000-000000000004", {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://owbastion.com",
+        "access-control-request-method": "PUT",
+        "access-control-request-headers": "content-type",
+      },
+    }, env);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.com");
+    expect(response.headers.get("access-control-allow-methods")).toContain("PUT");
+    expect(response.headers.get("access-control-allow-headers")).toContain("content-type");
+  });
+
   it("clears the portal session on logout", async () => {
     const loggedOut: string[] = [];
     const logoutApp = createApp({ authenticate: auth, services: () => ({ ...services, logoutPortalSession: async ({ sessionToken }) => { loggedOut.push(sessionToken); } }) });

@@ -37,7 +37,7 @@ export function useSubmissionUpload() {
     try {
       const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
       const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", challengeId, contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
-      await $fetch(session.uploadUrl, { method: "PUT", body: file, headers: { "content-type": file.type }, credentials: "include", retry: 0, timeout: 30_000 });
+      await $fetch(`/api/portal/uploads/${encodeURIComponent(session.uploadId)}`, { method: "PUT", body: file, headers: { "content-type": file.type }, credentials: "include", retry: 0, timeout: 30_000 });
       return await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${session.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: session.uploadId } });
     } catch (cause) {
       const apiError = cause as PortalApiError;
