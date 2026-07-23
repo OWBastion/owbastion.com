@@ -1,4 +1,4 @@
-import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt } from "drizzle-orm";
+import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
@@ -637,8 +637,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async revokeAdminTitleGrant(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.revoke", idempotencyKey, input); if (replay) return;
       const grant = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.id, input.grantId)).get(); if (!grant) throw new Error("TITLE_GRANT_NOT_FOUND");
-      await db.update(playerTitleGrants).set({ status: "revoked", revokedBy: auth.subject, revokedAt: now(), revokeReason: input.reason }).where(eq(playerTitleGrants.id, grant.id));
-      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason });
+      await db.update(playerTitleGrants).set({ status: "revoked", revokedBy: auth.subject, revokedAt: now(), revokeReason: input.reason ?? null }).where(eq(playerTitleGrants.id, grant.id));
+      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null });
     },
 
     async createPlayerUploadSession(input, sessionToken) {
@@ -764,10 +764,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (!["ready_for_review", "ocr_review_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       const timestamp = now();
-      await db.update(submissions).set({ status: input.decision, reviewReason: input.reason, updatedAt: timestamp }).where(eq(submissions.id, row.id));
-      await db.insert(submissionReviews).values({ id: crypto.randomUUID(), submissionId: row.id, decision: input.decision, reason: input.reason, reviewer: auth.subject, createdAt: timestamp });
+      await db.update(submissions).set({ status: input.decision, reviewReason: input.reason ?? null, updatedAt: timestamp }).where(eq(submissions.id, row.id));
+      await db.insert(submissionReviews).values({ id: crypto.randomUUID(), submissionId: row.id, decision: input.decision, reason: input.reason ?? null, reviewer: auth.subject, createdAt: timestamp });
       await recordIdempotency(db, auth.subject, "submission.review", idempotencyKey, input, {});
-      await recordAudit(db, auth, "submission.review", "submission", row.id, { decision: input.decision, reason: input.reason });
+      await recordAudit(db, auth, "submission.review", "submission", row.id, { decision: input.decision, reason: input.reason ?? null });
     },
 
     async processOcrJob(input) {
@@ -1111,7 +1111,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       await db.update(bindingInvites).set({ revokedAt: timestamp, revokedBy: auth.subject }).where(eq(bindingInvites.id, invite.id));
       await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
-      await recordAudit(db, auth, operation, "binding_invite", invite.id, { reason: input.reason });
+      await recordAudit(db, auth, operation, "binding_invite", invite.id, { reason: input.reason ?? null });
     },
 
     async redeemBindingInvite(input) {
@@ -1119,7 +1119,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const normalized = normalizePlayerName(input.playerName);
       if (!invite || invite.expiresAt <= now() || invite.redeemedAt || invite.revokedAt || invite.playerId !== input.playerId || invite.normalizedPlayerName !== normalized) throw new Error("INVITE_INVALID");
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
-      if (pending && pending.expiresAt > now()) throw new Error("INVITE_INVALID");
+      if (pending) {
+        if (pending.expiresAt > now()) throw new Error("INVITE_INVALID");
+        await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, pending.id));
+      }
       const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
       await db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: input.playerName, normalizedPlayerName: normalized, playerId: input.playerId, status: "pending_confirmation", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, claimId, claimToken, code, expiresAt: timestamp + loginTtlMs };
@@ -1128,7 +1131,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async verifyBindingClaim(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyBindingClaim"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.binding_claim.verify", idempotencyKey, input); if (replay) return replay;
       const claim = await db.select().from(bindingClaims).where(and(eq(bindingClaims.codeHash, await hashRequest(input.code)), eq(bindingClaims.status, "pending_confirmation"))).get();
-      if (!claim || claim.expiresAt <= now()) throw new Error("BINDING_CLAIM_CODE_INVALID");
+      if (!claim) throw new Error("BINDING_CLAIM_CODE_INVALID");
+      if (claim.expiresAt <= now()) {
+        await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
+        throw new Error("BINDING_CLAIM_CODE_INVALID");
+      }
       const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"), eq(qqGroupAccess.verifyEnabled, 1))).get();
       if (!group) throw new Error("LOGIN_GROUP_NOT_ALLOWED");
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
@@ -1143,8 +1150,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listAdminBindingClaims() {
+      const timestamp = now();
       const rows = await db.select({ claim: bindingClaims, invite: bindingInvites, account: playerAccounts }).from(bindingClaims).innerJoin(bindingInvites, eq(bindingClaims.inviteId, bindingInvites.id)).leftJoin(playerAccounts, and(eq(playerAccounts.normalizedPlayerName, bindingClaims.normalizedPlayerName), eq(playerAccounts.playerId, bindingClaims.playerId))).orderBy(desc(bindingClaims.createdAt));
-      return { contractVersion: "1" as const, items: rows.map(({ claim, invite, account }) => ({ claimId: claim.id, playerName: claim.playerName, playerId: claim.playerId, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", createdAt: claim.createdAt, ...(claim.memberOpenId ? { memberOpenId: claim.memberOpenId } : {}), ...(claim.groupOpenId ? { groupOpenId: claim.groupOpenId } : {}), invitedBy: invite.createdBy, ...(account ? { affectedPlayerAccountId: account.id } : {}) })) };
+      const expiredIds = rows.filter(({ claim }) => claim.status === "pending_confirmation" && claim.expiresAt <= timestamp).map(({ claim }) => claim.id);
+      if (expiredIds.length > 0) {
+        await db.update(bindingClaims).set({ status: "expired" }).where(and(eq(bindingClaims.status, "pending_confirmation"), lte(bindingClaims.expiresAt, timestamp)));
+      }
+      return { contractVersion: "1" as const, items: rows.map(({ claim, invite, account }) => ({ claimId: claim.id, playerName: claim.playerName, playerId: claim.playerId, status: (claim.status === "pending_confirmation" && claim.expiresAt <= timestamp ? "expired" : claim.status) as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", createdAt: claim.createdAt, ...(claim.memberOpenId ? { memberOpenId: claim.memberOpenId } : {}), ...(claim.groupOpenId ? { groupOpenId: claim.groupOpenId } : {}), invitedBy: invite.createdBy, ...(account ? { affectedPlayerAccountId: account.id } : {}) })) };
     },
 
     async decideAdminBindingClaim(input, auth, idempotencyKey) {
@@ -1152,7 +1164,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
       if (!claim || claim.status !== "pending_review" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_REVIEWABLE");
       const timestamp = now();
-      if (input.decision === "rejected") { await db.update(bindingClaims).set({ status: "rejected", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason }).where(eq(bindingClaims.id, claim.id)); }
+      if (input.decision === "rejected") { await db.update(bindingClaims).set({ status: "rejected", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(eq(bindingClaims.id, claim.id)); }
       else {
         let account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
         if (!account) { account = { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp }; await db.insert(playerAccounts).values(account); }
@@ -1161,10 +1173,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const identityId = crypto.randomUUID(); const bindingId = crypto.randomUUID();
         await db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp });
         await db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: "qq", groupOpenId: claim.groupOpenId, memberOpenId: claim.memberOpenId, status: "active", createdAt: timestamp });
-        await db.update(bindingClaims).set({ status: "approved", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason }).where(eq(bindingClaims.id, claim.id));
+        await db.update(bindingClaims).set({ status: "approved", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(eq(bindingClaims.id, claim.id));
       }
       await recordIdempotency(db, auth.subject, "admin.binding_claim.decide", idempotencyKey, input, {});
-      await recordAudit(db, auth, `admin.binding_claim.${input.decision}`, "binding_claim", claim.id, { reason: input.reason });
+      await recordAudit(db, auth, `admin.binding_claim.${input.decision}`, "binding_claim", claim.id, { reason: input.reason ?? null });
     },
 
     async createBinding(input: QqBindingRequest, auth, idempotencyKey) {
