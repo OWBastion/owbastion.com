@@ -28,7 +28,7 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps legacy submission states visible in the admin contract", () => {
-    expect(adminSubmissionSchema.safeParse({ submissionId: "00000000-0000-4000-8000-000000000003", status: "evidence_stored", challengeId: "map.test", mapName: "测试地图", difficulty: "困难", playerName: "Player", createdAt: 1, updatedAt: 2, ocr: null, evidenceUrl: "https://api.example.com/evidence" }).success).toBe(true);
+    expect(adminSubmissionSchema.safeParse({ submissionId: "00000000-0000-4000-8000-000000000003", status: "evidence_stored", challengeId: "map.test", challenge: null, mapName: "测试地图", difficulty: "困难", playerName: "Player", createdAt: 1, updatedAt: 2, ocrStatus: "not_started", ocrAttempt: null, ocrErrorCode: null, ocr: null, evidenceUrl: "https://api.example.com/evidence" }).success).toBe(true);
   });
 
   it("validates the single-image portal upload contract", () => {

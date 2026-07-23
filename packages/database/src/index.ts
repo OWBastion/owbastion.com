@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import { challengeSchema, mapSchema, randomEventSchema, titleSchema } from "@owbastion/contracts";
-import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmission, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -290,6 +290,40 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!submissionBinding || submissionBinding.playerAccountId !== currentBinding.playerAccountId) throw new Error("SUBMISSION_NOT_FOUND");
     return submission;
   };
+
+  const resolveAdminSubmissionDetails = async (submissionRows: Array<typeof submissions.$inferSelect>) => {
+    const mapChallengeIds = submissionRows.filter((row) => row.challengeType === "map_completion" && row.challengeId).map((row) => row.challengeId!);
+    const titleChallengeIds = submissionRows.filter((row) => row.challengeType === "title_achievement" && row.challengeId).map((row) => row.challengeId!);
+    const submissionIds = submissionRows.map((row) => row.id);
+    const [mapRows, titleRows, ocrRows] = await Promise.all([
+      mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
+      titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
+      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
+    ]);
+    const challenges = new Map<string, AdminSubmission["challenge"]>();
+    const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
+    for (const { challenge, map } of mapRows) challenges.set(challenge.id, { family: "map", name: challenge.name, mapName: map.name, difficulty: challenge.difficulty });
+    for (const { challenge, title } of titleRows) challenges.set(challenge.id, { family: "achievement", titleName: title.label, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule });
+    for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
+    return { challenges, latestOcr };
+  };
+
+  const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>, ocr = details.latestOcr.get(row.id)): AdminSubmission => ({
+    submissionId: row.id,
+    status: row.status as AdminSubmission["status"],
+    challengeId: row.challengeId ?? "",
+    challenge: row.challengeId ? details.challenges.get(row.challengeId) ?? null : null,
+    mapName: row.mapName,
+    difficulty: row.difficulty ?? "",
+    playerName: row.playerName ?? "",
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    ocrStatus: (ocr?.status ?? (row.status === "ocr_pending" ? "pending" : "not_started")) as AdminSubmission["ocrStatus"],
+    ocrAttempt: ocr?.attempt ?? null,
+    ocrErrorCode: ocr?.errorCode ?? null,
+    ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
+    evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence`,
+  });
 
   return {
     ...releasePlane,
@@ -866,14 +900,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         db.select().from(submissions).where(condition).orderBy(desc(submissions.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
         db.select({ total: count() }).from(submissions).where(condition),
       ]);
-      return { contractVersion: "1" as const, items: rows.slice(0, input.pageSize).map((row) => ({ submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` })), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
+      const visibleRows = rows.slice(0, input.pageSize);
+      const details = await resolveAdminSubmissionDetails(visibleRows);
+      return { contractVersion: "1" as const, items: visibleRows.map((row) => asAdminSubmission(row, details)), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
     },
 
     async getAdminSubmission(input) {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const ocr = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
-      return { submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+      const details = await resolveAdminSubmissionDetails([row]);
+      return asAdminSubmission(row, details);
     },
 
     async getAdminEvidence(input) {

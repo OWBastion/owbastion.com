@@ -418,15 +418,25 @@ export const playerUploadSessionResponseSchema = z.object({
 
 export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
 
+export const adminSubmissionChallengeSchema = z.discriminatedUnion("family", [
+  z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable() }),
+  z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
+]);
+export const adminOcrStatusSchema = z.enum(["not_started", "pending", "matched", "mismatch", "review_required", "error"]);
+
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   status: adminSubmissionStatus,
   challengeId: externalId,
+  challenge: adminSubmissionChallengeSchema.nullable(),
   mapName: z.string(),
   difficulty: z.string(),
   playerName: z.string(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
+  ocrStatus: adminOcrStatusSchema,
+  ocrAttempt: z.number().int().positive().nullable(),
+  ocrErrorCode: z.string().nullable(),
   ocr: z.record(z.string(), z.unknown()).nullable(),
   evidenceUrl: z.string().url().nullable(),
 });
