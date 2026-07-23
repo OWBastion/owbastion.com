@@ -1200,19 +1200,67 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
       if (!claim || claim.status !== "pending_review" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_REVIEWABLE");
       const timestamp = now();
-      if (input.decision === "rejected") { await db.update(bindingClaims).set({ status: "rejected", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(eq(bindingClaims.id, claim.id)); }
-      else {
+      const requestHash = await hashRequest(input);
+      const idempotencyStatement = db.insert(idempotencyKeys).values({
+        id: `${auth.subject}:admin.binding_claim.decide:${idempotencyKey}`,
+        actorId: auth.subject,
+        operation: "admin.binding_claim.decide",
+        requestHash,
+        responseJson: JSON.stringify({}),
+        createdAt: timestamp,
+      });
+      const auditStatement = db.insert(auditEvents).values({
+        id: crypto.randomUUID(),
+        correlationId: crypto.randomUUID(),
+        actorType: auth.actorType,
+        actorId: auth.subject,
+        operation: `admin.binding_claim.${input.decision}`,
+        entityType: "binding_claim",
+        entityId: claim.id,
+        payloadJson: JSON.stringify({ reason: input.reason ?? null }),
+        createdAt: timestamp,
+      });
+
+      if (input.decision === "rejected") {
+        await db.batch([
+          db.update(bindingClaims).set({ status: "rejected", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_review"))),
+          idempotencyStatement,
+          auditStatement,
+        ]);
+      } else {
         let account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
-        if (!account) { account = { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp }; await db.insert(playerAccounts).values(account); }
+        const accountNeedsInsert = !account;
+        if (!account) {
+          account = { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active", bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
+        }
         const old = await db.select().from(bindings).where(and(eq(bindings.status, "active"), or(eq(bindings.playerAccountId, account.id), eq(bindings.memberOpenId, claim.memberOpenId))));
-        if (old.length) { await db.update(bindings).set({ status: "revoked", revokedAt: timestamp, revokedBy: auth.subject }).where(or(...old.map((binding) => eq(bindings.id, binding.id)))); await db.delete(qqSessions).where(or(...old.map((binding) => eq(qqSessions.memberOpenId, binding.memberOpenId)))); }
-        const identityId = crypto.randomUUID(); const bindingId = crypto.randomUUID();
-        await db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp });
-        await db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: "qq", groupOpenId: claim.groupOpenId, memberOpenId: claim.memberOpenId, status: "active", createdAt: timestamp });
-        await db.update(bindingClaims).set({ status: "approved", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(eq(bindingClaims.id, claim.id));
+        const identityId = crypto.randomUUID();
+        const bindingId = crypto.randomUUID();
+
+        const statements: any[] = [
+          db.update(bindingClaims).set({ status: "approved", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_review"))),
+        ];
+
+        if (old.length > 0) {
+          statements.push(
+            db.update(bindings).set({ status: "revoked", revokedAt: timestamp, revokedBy: auth.subject }).where(or(...old.map((binding) => eq(bindings.id, binding.id)))),
+            db.delete(qqSessions).where(or(...old.map((binding) => eq(qqSessions.memberOpenId, binding.memberOpenId)))),
+          );
+        }
+
+        if (accountNeedsInsert) {
+          statements.push(db.insert(playerAccounts).values(account));
+        }
+
+        statements.push(
+          db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp }),
+          db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: "qq", groupOpenId: claim.groupOpenId, memberOpenId: claim.memberOpenId, status: "active", createdAt: timestamp }),
+          idempotencyStatement,
+          auditStatement,
+        );
+
+        await db.batch(statements as [typeof statements[number], ...typeof statements]);
       }
-      await recordIdempotency(db, auth.subject, "admin.binding_claim.decide", idempotencyKey, input, {});
-      await recordAudit(db, auth, `admin.binding_claim.${input.decision}`, "binding_claim", claim.id, { reason: input.reason ?? null });
     },
 
     async createBinding(input: QqBindingRequest, auth, idempotencyKey) {
