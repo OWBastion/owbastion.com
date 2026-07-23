@@ -14,6 +14,7 @@
     "/v1/auth/logout": { "post": { "operationId": "logout", "responses": { "204": { "description": "Logged out" } } } },
     "/v1/public/achievements": { "get": { "operationId": "listPublicAchievements", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/public/binding-invites/redeem": { "post": { "operationId": "redeemBindingInvite", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
+    "/v1/public/binding-claims/{claimId}": { "get": { "operationId": "getBindingClaimStatus", "parameters": [{ "$ref": "#/components/parameters/claimId" }, { "$ref": "#/components/parameters/claimToken" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/challenges": { "get": { "operationId": "listChallenges", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/titles": { "get": { "operationId": "listTitles", "parameters": [{ "$ref": "#/components/parameters/mapIdQuery" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/maps": { "get": { "operationId": "listMaps", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
@@ -69,6 +70,7 @@
       "bindingId": { "name": "bindingId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "inviteId": { "name": "inviteId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "claimId": { "name": "claimId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "claimToken": { "name": "x-claim-token", "in": "header", "required": true, "schema": { "type": "string", "minLength": 32 } },
       "grantId": { "name": "grantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
     },
     "responses": { "Json": { "description": "JSON response", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } } }

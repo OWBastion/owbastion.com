@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { state, code, playerName, playerId, confirmationCode, errorMessage, submit } = useBindingInvite();
+const { state, code, playerName, playerId, confirmationCode, claimStatus, errorMessage, refreshing, refreshStatus, submit } = useBindingInvite();
 useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
 </script>
 
@@ -31,7 +31,9 @@ useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
         <h2 id="binding-confirmation-title" class="binding-heading">在群内确认</h2>
         <p class="body-copy">在已开放的 QQ 群中发送：</p>
         <p class="binding-code">/验证 {{ confirmationCode }}</p>
-        <p class="binding-note">确认后等待管理员处理。</p>
+        <p class="binding-note">绑定状态：{{ ({ pending_confirmation: "等待 QQ 确认", pending_review: "等待管理员", approved: "已批准", rejected: "已拒绝", expired: "已过期" } as Record<string, string>)[claimStatus] }}</p>
+        <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
+        <UButton class="binding-refresh w-fit" label="刷新状态" color="neutral" variant="outline" :loading="refreshing" :disabled="refreshing || ['approved', 'rejected', 'expired'].includes(claimStatus)" @click="refreshStatus" />
       </section>
     </UCard>
   </main>

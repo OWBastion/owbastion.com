@@ -43,6 +43,7 @@ const services: PlatformServices = {
   getAdminBindingInviteCode: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL" }),
   revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
+  getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1 }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
@@ -169,6 +170,14 @@ describe("API", () => {
     const response = await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: "verified", environment: "test" });
+  });
+
+  it("returns a claim status only with the claim token", async () => {
+    const path = "http://localhost/v1/public/binding-claims/00000000-0000-0000-0000-000000000008";
+    expect((await app.request(path, {}, env)).status).toBe(422);
+    const response = await app.request(path, { headers: { "x-claim-token": "a".repeat(64) } }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1 });
   });
 
   it("rejects requests without an idempotency key", async () => {

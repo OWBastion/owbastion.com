@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
@@ -176,6 +176,27 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
   };
 
+  const getCatalogRevision = async (): Promise<string | undefined> => {
+    try {
+      const record = await db
+        .select({
+          sourceVersion: catalogImports.sourceVersion,
+          snapshotHash: catalogImports.snapshotHash,
+        })
+        .from(catalogImports)
+        .where(eq(catalogImports.status, "completed"))
+        .orderBy(desc(catalogImports.importedAt), desc(catalogImports.id))
+        .limit(1)
+        .get();
+      if (record) {
+        return `${record.sourceVersion}:${record.snapshotHash}`;
+      }
+    } catch {
+      // Table or record may not exist yet
+    }
+    return undefined;
+  };
+
   // Fetch all currently public challenges in two parallel queries.
   // Used by both publicEventChallenges (single-event path) and the batch list path.
   const fetchAllPublicChallenges = async (): Promise<Challenge[]> => {
@@ -219,13 +240,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   return {
     async listRandomEvents(input) {
+      const revision = await getCatalogRevision();
       const cacheKey = catalogCacheKey(`events:${encodeURIComponent(JSON.stringify({
         query: input.query ?? null,
         category: input.category ?? null,
         rarity: input.rarity ?? null,
         status: input.status ?? null,
         includeArchived: input.includeArchived ?? null,
-      }))}`);
+      }))}`, revision);
       return withCatalogCache(cache, cacheKey, async () => {
         const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
         const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
@@ -282,7 +304,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await database.batch(statements); await clearCatalogCache(cache); return response;
     },
     async listMaps() {
-      return withCatalogCache(cache, catalogCacheKey("maps"), async () => {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey("maps", revision), async () => {
         const rows = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.status, "active")).orderBy(maps.name);
         return rows.map(({ map, metadata }): Map => ({
           mapId: map.id,
@@ -312,7 +335,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listChallenges(input) {
-      return withCatalogCache(cache, catalogCacheKey(`challenges:${input?.family ?? "all"}`), async () => {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey(`challenges:${input?.family ?? "all"}`, revision), async () => {
       const items: Challenge[] = [];
       if (!input?.family || input.family === "map") {
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
@@ -545,7 +569,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listTitles(input) {
-      return withCatalogCache(cache, catalogCacheKey(`titles:${input.mapId ? encodeURIComponent(input.mapId) : "global"}`), async () => {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey(`titles:${input.mapId ? encodeURIComponent(input.mapId) : "global"}`, revision), async () => {
       const globalRows = await db.select().from(titleCatalog).where(eq(titleCatalog.scope, "global"));
       const globalTitles: Title[] = globalRows.map((row) => ({
         titleKey: row.key,
@@ -1126,6 +1151,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
       await db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: input.playerName, normalizedPlayerName: normalized, playerId: input.playerId, status: "pending_confirmation", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, claimId, claimToken, code, expiresAt: timestamp + loginTtlMs };
+    },
+
+    async getBindingClaimStatus(input) {
+      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
+      if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
+      if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
+      if (claim.status === "pending_confirmation" && claim.expiresAt <= now()) {
+        await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
+        return { contractVersion: "1" as const, status: "expired" as const, expiresAt: claim.expiresAt };
+      }
+      return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt };
     },
 
     async verifyBindingClaim(input, auth, idempotencyKey) {
