@@ -191,9 +191,9 @@ pending group to `active`; this atomically makes the previous active group
 `legacy` and closes its `/绑定` and `/验证` policies. QQBot reads the
 platform-owned group and command-policy snapshot at startup, then only after a
 signed platform policy event. Group-policy changes are recorded in a D1
-outbox, delivered through a dedicated Queue, and retried by a five-minute
-Worker repair trigger until QQBot acknowledges the refresh. QQBot keeps the
-last successful snapshot when an event refresh fails and fails closed before
+outbox, delivered through a dedicated Queue, and retried by later group-policy
+changes until QQBot acknowledges the refresh. QQBot keeps the last successful
+snapshot when an event refresh fails and fails closed before
 the first successful snapshot; it does not poll the platform.
 Because QQ does not provide a reliable group name through the channel
 interface, maintainers may store a platform-owned display name/label and the

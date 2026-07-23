@@ -111,12 +111,4 @@ describe("OCR Queue consumer", () => {
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
   });
 
-  it("dispatches pending policy events from the five-minute scheduled repair", async () => {
-    const dispatchPendingQqGroupPolicyEvents = vi.fn<PlatformServices["dispatchPendingQqGroupPolicyEvents"]>().mockResolvedValue(undefined);
-    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents });
-
-    await worker.scheduled({} as never, {} as never);
-
-    expect(dispatchPendingQqGroupPolicyEvents).toHaveBeenCalledOnce();
-  });
 });

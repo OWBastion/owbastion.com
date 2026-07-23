@@ -148,8 +148,9 @@ The QQBot reverse proxy must forward
 `/internal/v1/qq/group-policy-events` to the existing QQBot service. This path
 is not a public API: the Worker signs every request with
 `QQBOT_POLICY_WEBHOOK_SECRET`; QQBot rejects stale or invalid signatures. The
-Worker's dedicated Queue and five-minute outbox repair trigger retry delivery,
-so QQBot does not poll `GET /v1/admin/qq/groups` after startup.
+Worker's dedicated Queue retries delivery, and later group-policy changes retry
+any pending outbox events, so QQBot does not poll `GET /v1/admin/qq/groups`
+after startup.
 
 The returned submission ID can be checked with:
 

@@ -216,7 +216,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         await qqPolicyQueue.send({ version: 1 as const, eventId: event.id, ...(event.requestId ? { requestId: event.requestId } : {}) });
         await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(eq(qqGroupPolicyOutbox.id, event.id), isNull(qqGroupPolicyOutbox.deliveredAt)));
       } catch {
-        // The outbox remains pending for the scheduled repair pass.
+        // The outbox remains pending for a later policy change to retry.
       }
     }
   };

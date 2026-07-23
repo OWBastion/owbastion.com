@@ -75,7 +75,6 @@ const services: PlatformServices = {
   upsertQqGroupAccess: async () => {},
   registerQqGroup: async () => {},
   listQqGroupAccess: async () => [],
-  dispatchPendingQqGroupPolicyEvents: async () => {},
   markQqGroupPolicyEventDelivered: async () => {},
   listAdminPlayers: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 25, total: 0, hasMore: false }),
   getAdminPlayer: async () => { throw new Error("PLAYER_NOT_FOUND"); },

@@ -61,7 +61,4 @@ export default {
       }
     }
   },
-  async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.CACHE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, bastionDispatcher(env)).dispatchPendingQqGroupPolicyEvents();
-  },
 };
