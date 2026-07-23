@@ -920,7 +920,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (["approved", "rejected", "resubmission_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       const timestamp = now();
-      const reviewReason = input.reason ?? null;
+      const reviewReason = input.reason?.trim() || "";
       const idempotency = db.insert(idempotencyKeys).values({ id: `${auth.subject}:submission.review:${idempotencyKey}`, actorId: auth.subject, operation: "submission.review", requestHash: await hashRequest(input), responseJson: JSON.stringify({}), createdAt: timestamp });
       const audit = db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "submission.review", entityType: "submission", entityId: row.id, payloadJson: JSON.stringify({ decision: input.decision, reason: reviewReason }), createdAt: timestamp });
       await db.batch([
