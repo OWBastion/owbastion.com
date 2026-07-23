@@ -212,7 +212,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       .limit(25);
     for (const event of events) {
       try {
-        await qqPolicyQueue.send({ version: 1 as const, eventId: event.id });
+        await qqPolicyQueue.send({ version: 1 as const, eventId: event.id, ...(event.requestId ? { requestId: event.requestId } : {}) });
         await db.update(qqGroupPolicyOutbox).set({ enqueuedAt: timestamp }).where(and(eq(qqGroupPolicyOutbox.id, event.id), isNull(qqGroupPolicyOutbox.deliveredAt)));
       } catch {
         // The outbox remains pending for the scheduled repair pass.
@@ -847,7 +847,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await db.insert(attachments).values({ id: crypto.randomUUID(), submissionId: session.submissionId, provider: "portal", externalAttachmentId: session.id, contentType: input.contentType, byteSize: input.body.byteLength, sha256, objectKey: session.objectKey, uploadStatus: "stored", createdAt: now() });
     },
 
-    async completePlayerUpload(input, sessionToken) {
+    async completePlayerUpload(input, sessionToken, requestId) {
       const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
       if (!session || session.expiresAt <= now() || session.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
       const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
@@ -856,7 +856,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
+      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
 
@@ -935,7 +935,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) throw new Error("OCR_NOT_CONFIGURED");
       let response: Response;
       try {
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "x-request-id": crypto.randomUUID() }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+        const ocrRequestId = input.requestId ?? crypto.randomUUID();
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "x-request-id": ocrRequestId }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+        console.log(JSON.stringify({ layer: "api-worker", event: "upstream_request_completed", upstream: "ocrkit", requestId: ocrRequestId, status: response.status }));
       } catch { throw new Error("OCR_NETWORK"); }
       if (!response.ok) throw new Error(`OCR_HTTP_${response.status}`);
       let result: OcrResponse & { data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; viewer_player?: string | null } };
@@ -1048,7 +1050,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordAudit(db, auth, "admin.binding.remove", "binding", input.bindingId, { playerAccountId: binding.playerAccountId });
     },
 
-    async upsertQqGroupAccess(input: QqGroupAccessRequest, auth, idempotencyKey) {
+    async upsertQqGroupAccess(input: QqGroupAccessRequest, auth, idempotencyKey, requestId?: string) {
       const replay = await replayOrConflict<void>(db, auth.subject, "qq.group_access.update", idempotencyKey, input);
       if (replay !== null) return;
       const timestamp = now();
@@ -1056,7 +1058,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const requestHash = await hashRequest(input);
       const idempotency = db.insert(idempotencyKeys).values({ id: `${auth.subject}:qq.group_access.update:${idempotencyKey}`, actorId: auth.subject, operation: "qq.group_access.update", requestHash, responseJson: JSON.stringify({}), createdAt: timestamp });
       const audit = db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.group_access.update", entityType: "qq_group_access", entityId: input.groupOpenId, payloadJson: JSON.stringify({ displayName: input.displayName, environment: input.environment, status: input.status, bindEnabled: input.bindEnabled, verifyEnabled: input.verifyEnabled }), createdAt: timestamp });
-      const outbox = db.insert(qqGroupPolicyOutbox).values({ id: outboxEventId, createdAt: timestamp });
+      const outbox = db.insert(qqGroupPolicyOutbox).values({ id: outboxEventId, ...(requestId ? { requestId } : {}), createdAt: timestamp });
       if (input.status === "active") {
         await db.batch([
           db.update(qqGroupAccess).set({ status: "legacy", bindEnabled: 0, verifyEnabled: 0, lifecycleOccurredAt: timestamp, updatedAt: timestamp }).where(and(eq(qqGroupAccess.status, "active"), ne(qqGroupAccess.groupOpenId, input.groupOpenId))),
@@ -1076,7 +1078,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await dispatchPendingQqGroupPolicyEvents();
     },
 
-    async registerQqGroup(input, auth, idempotencyKey) {
+    async registerQqGroup(input, auth, idempotencyKey, requestId?: string) {
       const replay = await replayOrConflict<void>(db, auth.subject, "qq.group.register", idempotencyKey, input);
       if (replay !== null) return;
       const timestamp = now();
@@ -1095,7 +1097,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           statements.unshift(db.update(qqGroupAccess).set({ status: "pending", lifecycleOccurredAt: input.occurredAt, updatedAt: timestamp }).where(eq(qqGroupAccess.groupOpenId, input.groupOpenId)));
         }
       }
-      if (shouldNotify) statements.push(db.insert(qqGroupPolicyOutbox).values({ id: crypto.randomUUID(), createdAt: timestamp }));
+      if (shouldNotify) statements.push(db.insert(qqGroupPolicyOutbox).values({ id: crypto.randomUUID(), ...(requestId ? { requestId } : {}), createdAt: timestamp }));
       await db.batch(statements);
       if (shouldNotify) await dispatchPendingQqGroupPolicyEvents();
     },

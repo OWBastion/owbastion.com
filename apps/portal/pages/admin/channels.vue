@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminGroup } from "~/composables/useAdminApi";
 import { reactive, shallowRef } from "vue";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "渠道管理 · 躲避堡垒 3" });
@@ -23,11 +24,11 @@ const columns = [
   { accessorKey: "updatedAt", header: "最近更新" },
   { id: "actions", header: "", enableHiding: false },
 ];
-async function load() { loading.value = true; errorMessage.value = ""; try { groups.value = (await api<{ items: AdminGroup[] }>("/v1/qq/groups")).items; } catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法读取群配置，请确认当前账号有管理员权限。"; } finally { loading.value = false; } }
+async function load() { loading.value = true; errorMessage.value = ""; try { groups.value = (await api<{ items: AdminGroup[] }>("/v1/qq/groups")).items; } catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取群配置，请确认当前账号有管理员权限。").description; } finally { loading.value = false; } }
 async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, displayName: next.displayName, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); toast.add({ title: next.status === "active" ? "已设为当前活动群" : "群配置已更新", color: "success" }); } catch (error) { throw error; } }
 function openEditor(group: AdminGroup) { editingGroup.value = group; editor.displayName = group.displayName; editor.environment = group.environment; editorOpen.value = true; }
 function closeEditor() { if (!savingGroup.value) { editorOpen.value = false; editingGroup.value = null; } }
-async function saveEditor() { if (!editingGroup.value || !editor.displayName.trim()) return; savingGroup.value = true; try { await save(editingGroup.value, { displayName: editor.displayName.trim(), environment: editor.environment }); editorOpen.value = false; editingGroup.value = null; } catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法保存群配置，请稍后重试。"; } finally { savingGroup.value = false; } }
+async function saveEditor() { if (!editingGroup.value || !editor.displayName.trim()) return; savingGroup.value = true; try { await save(editingGroup.value, { displayName: editor.displayName.trim(), environment: editor.environment }); editorOpen.value = false; editingGroup.value = null; } catch (error) { errorMessage.value = portalErrorDetails(error, "无法保存群配置，请稍后重试。").description; } finally { savingGroup.value = false; } }
 onMounted(() => { void load(); });
 </script>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { portalErrorDetails } from "~/utils/portal-error";
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交挑战 · 躲避堡垒 3" });
 
@@ -14,8 +15,8 @@ const send = async () => {
     const result = await submit(challengeId.value, file.value);
     toast.add({ title: "已收到，正在识别。", color: "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
-  } catch {
-    toast.add({ title: "截图提交失败", description: error.value || "请检查截图后重试。", color: "error" });
+  } catch (cause) {
+    toast.add({ title: "截图提交失败", description: portalErrorDetails(cause, error.value || "请检查截图后重试。").description, color: "error" });
   }
 };
 

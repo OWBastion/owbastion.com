@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ReleaseOverviewPanel from "~/components/admin/ReleaseOverviewPanel.vue";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "版本发布 · 躲避堡垒 3" });
@@ -18,7 +19,7 @@ const dataJson = shallowRef("{}");
 const actionError = shallowRef("");
 const toast = useToast();
 
-const run = async (action: () => Promise<void>) => { actionError.value = ""; try { await action(); await refresh(); } catch (cause: any) { actionError.value = cause?.data?.error?.message ?? "操作失败。"; } };
+const run = async (action: () => Promise<void>) => { actionError.value = ""; try { await action(); await refresh(); } catch (cause) { actionError.value = portalErrorDetails(cause, "操作失败。").description; } };
 const saveDraft = () => run(async () => { const result = await createDraft(draftName.value || "平台内容草稿"); draftId.value = result.draftId; draftName.value = ""; toast.add({ title: "草稿已创建", color: "success" }); });
 const saveItem = () => run(async () => { if (!draftId.value || !contentId.value) throw new Error("请先选择草稿并填写稳定 ID。"); const result = await putDraftItem(draftId.value, { contentType: contentType.value, contentId: contentId.value, operation: operation.value, data: JSON.parse(dataJson.value) }); itemId.value = result.itemId; toast.add({ title: "草稿内容已保存", color: "success" }); });
 const saveChangeSet = () => run(async () => { if (!draftId.value || !itemId.value) throw new Error("请先保存草稿内容。"); const result = await createChangeSet(draftId.value, changeSetName.value || "下一版本变更", [itemId.value]); changeSetId.value = result.changeSetId; toast.add({ title: "Change Set 已创建", color: "success" }); });

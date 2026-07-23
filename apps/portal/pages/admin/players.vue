@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminPlayer, AdminPlayerDetail } from "~/composables/useAdminApi";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "玩家管理 · 躲避堡垒 3" });
@@ -37,8 +38,8 @@ async function load() {
     const response = await api<{ items: AdminPlayer[]; total: number }>(`/v1/player-accounts?query=${encodeURIComponent(query.value)}&page=${page.value}&pageSize=20${status.value === "all" ? "" : `&status=${status.value}`}`);
     players.value = response.items;
     total.value = response.total;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法读取玩家帐号，请确认当前账号有管理员权限。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取玩家帐号，请确认当前账号有管理员权限。").description;
   } finally { loading.value = false; }
 }
 async function openPlayer(player: AdminPlayer) {
@@ -54,6 +55,8 @@ async function setStatus(next: "active" | "banned") {
     toast.add({ title: next === "banned" ? "玩家已封禁" : "玩家已解封", color: "success" });
     selected.value.status = next;
     await load();
+  } catch (error) {
+    toast.add({ title: "无法更新玩家状态", description: portalErrorDetails(error).description, color: "error" });
   } finally { actionLoading.value = false; }
 }
 async function unbind(bindingId: string) {
@@ -64,6 +67,8 @@ async function unbind(bindingId: string) {
     toast.add({ title: "QQ 绑定已解除", color: "success" });
     if (selected.value) selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${selected.value.playerAccountId}`);
     await load();
+  } catch (error) {
+    toast.add({ title: "无法解除 QQ 绑定", description: portalErrorDetails(error).description, color: "error" });
   } finally { actionLoading.value = false; }
 }
 watch([query, status], () => { page.value = 1; void load(); });

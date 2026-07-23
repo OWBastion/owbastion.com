@@ -631,6 +631,16 @@ describe("API", () => {
     expect(await complete.json()).toEqual({ contractVersion: "1", error: { code: "UPLOAD_COMPLETE_FAILED", message: "The screenshot submission could not be completed", requestId: "request-upload-complete-1" } });
   });
 
+  it("returns the request id on successful and generated responses", async () => {
+    const response = await app.request("http://localhost/v1/maps", { headers: { "x-request-id": "request-map-1" } }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-request-id")).toBe("request-map-1");
+
+    const generated = await app.request("http://localhost/v1/maps", {}, env);
+    expect(generated.status).toBe(200);
+    expect(generated.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it("keeps local development login disabled unless explicitly enabled", async () => {
     const localServices: PlatformServices = {
       ...services,

@@ -2,6 +2,7 @@
 import type { TabsItem } from "@nuxt/ui";
 import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
 import { bindingInviteCopyText } from "~/utils/binding-invite";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 
@@ -102,8 +103,8 @@ async function load() {
     ]);
     claims.value = claimResult.items;
     invitations.value = invitationResult.items;
-  } catch {
-    errorMessage.value = "无法读取绑定记录，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取绑定记录，请稍后重试。").description;
   } finally {
     loading.value = false;
   }
@@ -130,8 +131,8 @@ async function decide(claim: Claim, decision: "approved" | "rejected") {
     conflictTarget.value = null;
     detailTarget.value = null;
     await load();
-  } catch {
-    toast.add({ title: "无法处理申请", color: "error" });
+  } catch (error) {
+    toast.add({ title: "无法处理申请", description: portalErrorDetails(error).description, color: "error" });
   } finally {
     deciding.value = false;
   }
@@ -160,8 +161,8 @@ async function revokeInvitation() {
     revokeReason.value = "";
     toast.add({ title: "邀请码已撤销", color: "success" });
     await load();
-  } catch {
-    toast.add({ title: "无法撤销邀请码", color: "error" });
+  } catch (error) {
+    toast.add({ title: "无法撤销邀请码", description: portalErrorDetails(error).description, color: "error" });
   } finally {
     revoking.value = false;
   }
@@ -179,9 +180,9 @@ async function revealCode(invitation: Invitation) {
   try {
     const response = await api<{ code: string }>(`/v1/binding-invites/${invitation.inviteId}/code`);
     invitationCode.value = response.code;
-  } catch {
+  } catch (error) {
     codeTarget.value = null;
-    toast.add({ title: "无法读取邀请码", color: "error" });
+    toast.add({ title: "无法读取邀请码", description: portalErrorDetails(error).description, color: "error" });
   } finally {
     revealingCode.value = false;
   }

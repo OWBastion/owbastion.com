@@ -6,6 +6,18 @@ and private operational data.
 
 Capability status is maintained only in the [feature status matrix](../development/feature-status.md).
 
+## Request tracing
+
+Every API request receives a validated `X-Request-ID` (or preserves the
+validated incoming value). The API returns it in both successful and error
+responses. Portal proxies forward the same header to the API and surface it in
+error alerts and toasts as `请求编号：...`; local browser validation errors do
+not receive a fabricated ID. Upload Queue messages, OCRKit requests, Bastion
+dispatches, and QQBot policy notifications carry the originating request ID
+when one exists, and emit structured logs with the operation and status. These
+IDs are diagnostic correlation values only and must not contain credentials,
+cookies, stable QQ identifiers, request bodies, or signed URLs.
+
 ## Implemented platform slice
 
 The current API implements versioned v1 QQ flows:

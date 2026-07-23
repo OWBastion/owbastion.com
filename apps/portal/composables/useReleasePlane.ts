@@ -1,4 +1,5 @@
 import { readonly, shallowRef } from "vue";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 export type ReleaseOverview = {
   contractVersion: "1";
@@ -18,7 +19,7 @@ export function useReleasePlane() {
     loading.value = true;
     error.value = "";
     try { overview.value = await api<ReleaseOverview>("/v1/releases/overview"); }
-    catch (cause: any) { error.value = cause?.data?.error?.message ?? "无法读取发布状态。"; }
+    catch (cause) { error.value = portalErrorDetails(cause, "无法读取发布状态。").description; }
     finally { loading.value = false; }
   };
 

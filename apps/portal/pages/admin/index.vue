@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { submissionStatusText } from "~/utils/submissionStatus";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "管理后台 · 躲避堡垒 3" });
@@ -45,8 +46,8 @@ onMounted(async () => {
 	    processingTotal.value = processingResponse.total;
 	    activePlayerTotal.value = playerResponse.total;
 	    mapTotal.value = mapResponse.items.length;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法读取管理概览，请确认当前账号有管理员权限。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取管理概览，请确认当前账号有管理员权限。").description;
   } finally {
     loading.value = false;
   }

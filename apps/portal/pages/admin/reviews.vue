@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { submissionStatusText } from "~/utils/submissionStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "审核管理 · 躲避堡垒 3" });
@@ -43,10 +44,10 @@ async function load() {
       await load();
     }
   }
-  catch (error: any) { errorMessage.value = error?.data?.error?.message ?? "无法读取待核对截图，请确认当前账号有管理员权限。"; }
+  catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; }
   finally { loading.value = false; }
 }
-async function open(submission: AdminSubmission) { reviewError.value = ""; selected.value = await api<AdminSubmission>(`/v1/submissions/${submission.submissionId}`); }
+async function open(submission: AdminSubmission) { reviewError.value = ""; try { selected.value = await api<AdminSubmission>(`/v1/submissions/${submission.submissionId}`); } catch (error) { reviewError.value = portalErrorDetails(error, "无法读取提交详情，请稍后重试。").description; } }
 async function review(decision: "approved" | "rejected" | "resubmission_required") {
   if (!selected.value) return;
   reviewError.value = "";
@@ -56,12 +57,9 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
     const toast = useToast();
     toast.add({ title: decision === "approved" ? "审核已批准" : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
     close(); await load();
-  } catch (error: any) {
-    const detail = error?.data?.error;
-    const code = detail?.code ?? (error?.statusCode ? `HTTP_${error.statusCode}` : "NETWORK_ERROR");
-    const requestId = detail?.requestId;
-    reviewError.value = `审核提交失败（${code}）${requestId ? `，请求编号：${requestId}` : "，请查看服务端日志。"}`;
-    console.error("[admin review] failed", { submissionId, decision, code, requestId, statusCode: error?.statusCode, message: detail?.message ?? error?.message });
+  } catch (error) {
+    const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
+    reviewError.value = details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description;
   }
 }
 function close() { selected.value = null; }

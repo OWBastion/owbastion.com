@@ -95,13 +95,13 @@ export type PlatformServices = {
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
   updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
-  completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
+  completePlayerUpload(input: { uploadId: string }, sessionToken: string, requestId?: string): Promise<{ submissionId: string; status: string }>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
-  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number }): Promise<void>;
-  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string }): Promise<void>;
+  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; requestId?: string }): Promise<void>;
+  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; requestId?: string }): Promise<void>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
@@ -121,8 +121,8 @@ export type PlatformServices = {
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
-  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
-  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<void>;
+  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
   dispatchPendingQqGroupPolicyEvents(): Promise<void>;
   markQqGroupPolicyEventDelivered(input: { eventId: string }): Promise<void>;

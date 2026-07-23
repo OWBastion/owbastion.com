@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn, TabsItem } from "@nuxt/ui";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "成就管理 · 躲避堡垒 3" });
@@ -175,8 +176,8 @@ async function load() {
     items.value = response.items;
     for (const item of items.value) if (isChallengeTitle(item) || isMap(item)) retirementVersions[item.challengeId] ??= item.retiredVersion ?? "";
     if (editingId.value && !items.value.some((item) => item.challengeId === editingId.value)) editingId.value = null;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法读取成就目录，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取成就目录，请稍后重试。").description;
   } finally {
     loading.value = false;
   }
@@ -235,8 +236,8 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
     toast.add({ title: status === "active" ? "称号已重新开放" : "称号已下线", color: "success" });
     await load();
     return true;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法保存称号状态，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法保存称号状态，请稍后重试。").description;
     return false;
   } finally {
     savingId.value = null;
@@ -255,8 +256,8 @@ async function save(item: AdminAchievement, body: Record<string, unknown>, messa
     toast.add({ title: message, color: "success" });
     await load();
     return true;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法保存成就规则，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法保存成就规则，请稍后重试。").description;
     return false;
   } finally {
     savingId.value = null;
@@ -321,8 +322,8 @@ async function uploadIcon() {
     item.iconUrl = response.iconUrl;
     iconFile.value = null;
     toast.add({ title: "成就图标已上传", color: "success" });
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法上传成就图标，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法上传成就图标，请稍后重试。").description;
   } finally {
     iconUploading.value = false;
   }

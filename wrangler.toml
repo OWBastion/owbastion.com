@@ -13,7 +13,7 @@ pattern = "api.owbastion.com"
 custom_domain = true
 
 [observability]
-enabled = false
+enabled = true
 head_sampling_rate = 1
 
 [observability.logs]

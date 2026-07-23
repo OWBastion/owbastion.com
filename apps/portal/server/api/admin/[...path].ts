@@ -1,9 +1,13 @@
+import { proxyUnavailable, requestIdForEvent, setRequestId, upstreamRequestId } from "../../utils/request-tracing";
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const rawPath = event.context.params?.path ?? "";
   const path = rawPath.startsWith("v1/") ? rawPath.slice(3) : rawPath;
   const search = getRequestURL(event).search;
   const request = event.node.req;
+  const requestId = requestIdForEvent(event);
+  setRequestId(event, requestId);
   const headers: Record<string, string> = { accept: "application/json" };
   for (const name of ["cookie", "idempotency-key", "content-type"]) {
     const value = request.headers[name];
@@ -14,7 +18,12 @@ export default defineEventHandler(async (event) => {
   const method = request.method ?? "GET";
   const contentType = request.headers["content-type"];
   const body = method === "GET" || method === "HEAD" || method === "DELETE" ? undefined : typeof contentType === "string" && contentType.startsWith("multipart/form-data") ? await readRawBody(event) : JSON.stringify(await readBody(event));
-  const response = await fetch(new URL(`/v1/admin/${path}${search}`, config.public.apiBaseUrl), { method, headers, body });
+  headers["x-request-id"] = requestId;
+  let response: Response;
+  try { response = await fetch(new URL(`/v1/admin/${path}${search}`, config.public.apiBaseUrl), { method, headers, body }); }
+  catch (error) { return proxyUnavailable(event, requestId, `admin:${method}:${path}`, error); }
+  const responseId = upstreamRequestId(response, requestId);
+  setRequestId(event, responseId);
   setResponseStatus(event, response.status);
   const responseContentType = response.headers.get("content-type");
   if (responseContentType) setResponseHeader(event, "content-type", responseContentType);
@@ -24,6 +33,6 @@ export default defineEventHandler(async (event) => {
     return JSON.parse(responseText);
   } catch {
     setResponseHeader(event, "content-type", "application/json");
-    return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: responseText.trim() || "上游 API 返回了无效响应。" } };
+    return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: responseText.trim() || "上游 API 返回了无效响应。", requestId: responseId } };
   }
 });

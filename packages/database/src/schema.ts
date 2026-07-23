@@ -265,6 +265,7 @@ export const qqGroupAccess = sqliteTable("qq_group_access", {
 
 export const qqGroupPolicyOutbox = sqliteTable("qq_group_policy_outbox", {
   id: text("id").primaryKey(),
+  requestId: text("request_id"),
   createdAt: integer("created_at").notNull(),
   enqueuedAt: integer("enqueued_at"),
   deliveredAt: integer("delivered_at"),

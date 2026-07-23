@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { portalErrorDetails } from "~/utils/portal-error";
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "称号迁移 · 躲避堡垒 3" });
 
@@ -35,8 +36,8 @@ async function load() {
     ]);
     grants.value = grantResponse.items;
     players.value = playerResponse.items;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法读取历史称号，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取历史称号，请稍后重试。").description;
   } finally {
     loading.value = false;
   }
@@ -50,8 +51,8 @@ async function grant(row: Grant) {
     await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", playerAccountId: selectedPlayerId.value, historicalTitleGrantId: row.grantId } });
     toast.add({ title: "已关联", color: "success" });
     await load();
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法关联称号，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
   } finally {
     saving.value = false;
   }
@@ -64,8 +65,8 @@ async function revoke(row: Grant) {
     await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
     toast.add({ title: "已撤销", color: "success" });
     await load();
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法撤销称号，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法撤销称号，请稍后重试。").description;
   } finally {
     saving.value = false;
   }
@@ -93,8 +94,8 @@ async function grantAll() {
     toast.add({ title: result.grantedCount ? `已关联 ${result.grantedCount} 项` : "暂无可关联称号", color: "success" });
     await load();
     closeBulk();
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法关联称号，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
   } finally {
     saving.value = false;
   }

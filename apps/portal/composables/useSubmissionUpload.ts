@@ -1,4 +1,6 @@
 import type { PortalApiError } from "./usePortalApi";
+import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
+import { portalErrorDetails, recordPortalError } from "~/utils/portal-error";
 
 export type Map = { mapId: string; mapName: string; gameVersion: string; difficultyRating: "T0" | "T1" | "T2" | "T3" | "T4" | "T5" | null; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
 export type ChallengeStatus = "active" | "sunsetting";
@@ -29,7 +31,8 @@ export function useSubmissionUpload() {
     if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
     if (mapChallengeResult.status === "fulfilled") mapChallenges.value = mapChallengeResult.value.items;
     if (achievementChallengeResult.status === "fulfilled") achievementChallenges.value = achievementChallengeResult.value.items;
-    if ([mapResult, mapChallengeResult, achievementChallengeResult].some((result) => result.status === "rejected")) error.value = "挑战目录无法读取，请稍后重试。";
+    const failed = [mapResult, mapChallengeResult, achievementChallengeResult].find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "挑战目录无法读取，请稍后重试。").description;
     catalogLoading.value = false;
   };
   const submit = async (challengeId: string, file: File) => {
@@ -41,16 +44,22 @@ export function useSubmissionUpload() {
       phase = "session";
       const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", challengeId, contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
       phase = "upload";
-      await $fetch(`/api/portal/uploads/${encodeURIComponent(session.uploadId)}`, { method: "PUT", body: file, headers: { "content-type": file.type }, credentials: "include", retry: 0, timeout: 30_000 });
+      const uploadRequestId = createRequestId();
+      try {
+        await $fetch(`/api/portal/uploads/${encodeURIComponent(session.uploadId)}`, { method: "PUT", body: file, headers: { "content-type": file.type, [REQUEST_ID_HEADER]: uploadRequestId }, credentials: "include", retry: 0, timeout: 30_000 });
+      } catch (cause) {
+        Object.assign(cause as object, { requestId: uploadRequestId });
+        throw cause;
+      }
       phase = "complete";
       return await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${session.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: session.uploadId } });
     } catch (cause) {
       const apiError = cause as PortalApiError;
       const apiDetails = apiError.data?.error;
       const code = apiDetails?.code ?? (apiError.statusCode ? `HTTP_${apiError.statusCode}` : "NETWORK_ERROR");
-      const requestId = apiDetails?.requestId;
-      error.value = `${phaseLabels[phase]}失败，请稍后重试。错误码：${code}${requestId ? `；请求编号：${requestId}` : ""}`;
-      console.error("[submission upload] failed", { phase, code, requestId, statusCode: apiError.statusCode, message: apiDetails?.message ?? apiError.message });
+      const details = portalErrorDetails(cause, `${phaseLabels[phase]}失败，请稍后重试。`);
+      error.value = `${details.description}${details.code ? ` 错误码：${details.code}` : code !== "NETWORK_ERROR" ? ` 错误码：${code}` : ""}`;
+      if (phase === "upload") recordPortalError(cause, { operation: "submission-upload", phase, requestId: details.requestId });
       throw cause;
     } finally { loading.value = false; }
   };

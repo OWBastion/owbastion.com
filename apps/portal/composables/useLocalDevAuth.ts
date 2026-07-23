@@ -24,8 +24,8 @@ export function useLocalDevAuth() {
       const response = await api<{ accounts: LocalDevAccount[] }>("/v1/__local/accounts");
       accounts.value = response.accounts;
       selectedAccountId.value = response.accounts[0]?.accountId ?? "";
-    } catch {
-      errorMessage.value = "本地账号不可用，请启动 API 后重试。";
+    } catch (error) {
+      errorMessage.value = portalErrorDetails(error, "本地账号不可用，请启动 API 后重试。").description;
     } finally {
       loading.value = false;
     }
@@ -40,8 +40,8 @@ export function useLocalDevAuth() {
       const account = accounts.value.find((item) => item.accountId === selectedAccountId.value);
       await refresh({ force: true });
       return account ?? null;
-    } catch {
-      errorMessage.value = "本地登录失败，请先启动 API 并完成 seed。";
+    } catch (error) {
+      errorMessage.value = portalErrorDetails(error, "本地登录失败，请先启动 API 并完成 seed。").description;
       return null;
     } finally {
       loading.value = false;
@@ -50,3 +50,4 @@ export function useLocalDevAuth() {
 
   return { accounts, selectedAccountId, loading, errorMessage, enabled, load, login };
 }
+import { portalErrorDetails } from "~/utils/portal-error";

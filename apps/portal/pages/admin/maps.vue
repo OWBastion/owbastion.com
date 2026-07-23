@@ -2,6 +2,7 @@
 import type { TableColumn } from "@nuxt/ui";
 import type { Map } from "~/composables/useSubmissionUpload";
 import type { AdminAchievement } from "~/pages/admin/achievements.vue";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "地图管理 · 躲避堡垒 3" });
@@ -60,8 +61,8 @@ async function load() {
     maps.value = mapResponse.items;
     challenges.value = challengeResponse.items;
     if (selectedMap.value) selectedMap.value = maps.value.find((map) => map.mapId === selectedMap.value?.mapId) ?? null;
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法读取地图目录，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取地图目录，请稍后重试。").description;
   } finally {
     loading.value = false;
   }
@@ -88,8 +89,8 @@ async function saveMetadata() {
     maps.value = maps.value.map((map) => map.mapId === updated.mapId ? updated : map);
     selectedMap.value = updated;
     toast.add({ title: "地图属性已保存", color: "success" });
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法保存地图属性，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法保存地图属性，请稍后重试。").description;
   } finally {
     saving.value = false;
   }
@@ -109,8 +110,8 @@ async function updateChallenge(challenge: MapChallenge, status: MapChallenge["st
     });
     toast.add({ title: status === "active" ? "挑战已重新开放" : status === "sunsetting" ? "挑战已计划下线" : "挑战已下线", color: "success" });
     await load();
-  } catch (error: any) {
-    errorMessage.value = error?.data?.error?.message ?? "无法保存挑战状态，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法保存挑战状态，请稍后重试。").description;
   } finally {
     saving.value = false;
   }

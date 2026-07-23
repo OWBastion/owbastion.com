@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { bindingInviteCopyText } from "~/utils/binding-invite";
+import { portalErrorDetails } from "~/utils/portal-error";
 
 type Invitation = {
   inviteId: string;
@@ -71,8 +72,8 @@ async function createInvitations() {
     input.value = "";
     toast.add({ title: `已生成 ${response.items.length} 个邀请码`, color: "success" });
     emit("created");
-  } catch {
-    errorMessage.value = "无法生成邀请码，请稍后重试。";
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法生成邀请码，请稍后重试。").description;
   } finally {
     submitting.value = false;
   }

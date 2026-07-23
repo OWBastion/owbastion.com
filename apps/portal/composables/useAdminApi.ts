@@ -1,3 +1,6 @@
+import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
+import { recordPortalError } from "~/utils/portal-error";
+
 export type AdminPlayer = {
   playerAccountId: string;
   playerId: string;
@@ -16,6 +19,16 @@ export type AdminGroup = { groupOpenId: string; displayName: string; environment
 export type AdminSubmission = { submissionId: string; status: string; challengeId: string; mapName: string; difficulty: string; playerName: string; createdAt: number; updatedAt: number; ocr: Record<string, unknown> | null; evidenceUrl: string | null };
 
 export function useAdminApi() {
-  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) =>
-    await $fetch<T>(`/api/admin${path}`, { ...options, credentials: "include", retry: 0, timeout: 8_000 });
+  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
+    const requestId = createRequestId();
+    const headers = new Headers(options?.headers as HeadersInit | undefined);
+    if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
+    try {
+      return await $fetch<T>(`/api/admin${path}`, { ...options, headers, credentials: "include", retry: 0, timeout: 8_000 });
+    } catch (error) {
+      Object.assign(error as object, { requestId });
+      recordPortalError(error, { operation: path, requestId });
+      throw error;
+    }
+  };
 }

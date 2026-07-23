@@ -6,8 +6,8 @@ const createPlatformServices = vi.hoisted(() => vi.fn());
 
 vi.mock("@owbastion/database", () => ({ createPlatformServices }));
 
-const queueMessage = (attempts: number) => ({
-  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload" },
+const queueMessage = (attempts: number, requestId?: string) => ({
+  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", ...(requestId ? { requestId } : {}) },
   attempts,
   ack: vi.fn(),
   retry: vi.fn(),
@@ -42,6 +42,16 @@ describe("OCR Queue consumer", () => {
     });
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds });
     expect(message.ack).not.toHaveBeenCalled();
+  });
+
+  it("passes the queue request id into OCR processing", async () => {
+    const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockResolvedValue();
+    createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed: vi.fn() });
+    const message = queueMessage(1, "ocr-request-1");
+
+    await worker.queue({ messages: [message] } as never, {} as never);
+
+    expect(processOcrJob).toHaveBeenCalledWith({ version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "ocr-request-1", attempt: 1 });
   });
 
   it("records the final failure before acknowledging the third delivery", async () => {
