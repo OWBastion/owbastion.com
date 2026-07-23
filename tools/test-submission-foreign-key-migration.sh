@@ -7,7 +7,7 @@ trap 'rm -f "$database"' EXIT
 
 for migration in "$root_dir"/migrations/*.sql; do
   case "$(basename "$migration")" in
-    0036_submission_review_statuses.sql|0037_repair_submission_foreign_keys.sql) continue ;;
+    0036_submission_review_statuses.sql|0037_repair_submission_foreign_keys.sql|0038_restore_upload_pending_submission_status.sql) continue ;;
   esac
   sqlite3 -bail "$database" < "$migration"
 done
@@ -26,6 +26,12 @@ SQL
 
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0036_submission_review_statuses.sql"
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0037_repair_submission_foreign_keys.sql"
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0038_restore_upload_pending_submission_status.sql"
+
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" <<'SQL'
+INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
+VALUES ('submission-upload-1', 'binding-1', 'upload_pending', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'portal', 'portal', 'upload-1', 2, 2);
+SQL
 
 for table in attachments ocr_results upload_sessions submission_reviews; do
   [[ "$(sqlite3 "$database" "SELECT \"table\" FROM pragma_foreign_key_list('$table') WHERE \"from\" = 'submission_id';")" == "submissions" ]]
@@ -35,6 +41,7 @@ done
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM ocr_results WHERE id = 'ocr-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM upload_sessions WHERE id = 'upload-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id = 'review-1';")" == "1" ]]
+[[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submissions WHERE id = 'submission-upload-1' AND status = 'upload_pending';")" == "1" ]]
 [[ -z "$(sqlite3 "$database" 'PRAGMA foreign_key_check;')" ]]
 
 echo "Submission foreign-key migration scenario passed."
