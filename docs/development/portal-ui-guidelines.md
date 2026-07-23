@@ -59,13 +59,13 @@ Use this pattern for `/admin`:
 - Do not replace `AdminDataTable` with a raw `UTable`, custom HTML table, or one-off list that is functionally a table. If a table genuinely cannot use `AdminDataTable`, document the reason in the change description before introducing the exception.
 - Server-paginated data must retain pagination controls and current-page state. Do not turn server pagination into infinite scrolling.
 - Use `UAlert` or the `AdminWorkspace` messages area for feedback. Do not communicate success, errors, or dangerous actions through color alone.
-- Use `UModal`, `UPopover`, or `USlideover` for editing and confirmation. Choose by content: short confirmation → Modal; small contextual form → Popover; detail/review workspace → Slideover.
+- Use `AdminResponsiveDialog` for every admin detail, edit, and confirmation overlay: it renders a centered `UModal` at `768px` and above and a bottom `UDrawer` below that breakpoint. `UPopover` is only for a small, contextual form that remains next to its trigger, such as a one-field scheduling action.
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 
 ## Component selection order
 
 1. Reuse domain components first: `PageSectionHeader`, `StatusBadge`, `SubmissionStatusBadge`, `AdminWorkspace`, `AdminDataTable`, and components under `components/<domain>/`.
-2. Then use Nuxt UI primitives: `UButton`, `UCard`, `UAlert`, `UEmpty`, `UFormField`, `UInput`, `USelect`, `UTabs`, `UModal`, `USlideover`, `UPopover`, and `UPagination`.
+2. Then use Nuxt UI primitives: `UButton`, `UCard`, `UAlert`, `UEmpty`, `UFormField`, `UInput`, `USelect`, `UTabs`, `UPopover`, and `UPagination`; use `AdminResponsiveDialog` rather than directly adding a management Modal, Slideover, or Drawer.
 3. Add page-scoped CSS only when the existing primitives cannot express page-specific layout.
 4. New components must have a clear domain responsibility. Do not create a wrapper around one HTML element or a generic abstraction used once.
 

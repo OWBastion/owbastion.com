@@ -117,7 +117,7 @@ onMounted(() => { void load(); });
       <p v-if="!loading && !holderGroups.length" class="empty surface-card">暂无匹配记录。</p>
     </div>
 
-    <USlideover v-model:open="panelOpen" title="确认称号迁移"><template #body><section v-if="selectedHolder && selectedPlayer" class="sheet"><p class="eyebrow">批量关联</p><h2 id="bulk-migration-title">确认称号迁移</h2><div class="migration-facts"><p><span>历史持有者</span><strong>{{ selectedHolder.holderName }}</strong></p><p><span>关联至</span><strong><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></strong></p><p><span>范围</span><strong>全部未关联称号</strong></p></div><p class="sheet-copy">已关联和已撤销记录保持不变。</p><div class="sheet-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" /><UButton label="确认关联" :loading="saving" @click="grantAll" /></div></section></template></USlideover>
+    <AdminResponsiveDialog v-model:open="panelOpen" title="确认称号迁移" size="sm" :dismissible="!saving"><template #body><section v-if="selectedHolder && selectedPlayer" class="sheet"><p class="eyebrow">批量关联</p><h2 id="bulk-migration-title">确认称号迁移</h2><div class="migration-facts"><p><span>历史持有者</span><strong>{{ selectedHolder.holderName }}</strong></p><p><span>关联至</span><strong><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></strong></p><p><span>范围</span><strong>全部未关联称号</strong></p></div><p class="sheet-copy">已关联和已撤销记录保持不变。</p><div class="sheet-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" /><UButton label="确认关联" :loading="saving" @click="grantAll" /></div></section></template></AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 

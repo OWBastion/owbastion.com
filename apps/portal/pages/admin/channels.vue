@@ -44,10 +44,10 @@ onMounted(() => { void load(); });
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑" size="xs" color="neutral" variant="outline" @click="openEditor(row.original)" /><UButton v-if="row.original.status !== 'active' && row.original.status !== 'disconnected'" label="设为活动群" size="xs" color="neutral" variant="outline" @click="save(row.original, { status: 'active', bindEnabled: true, verifyEnabled: true })" /></div></template>
     </AdminDataTable></section>
-    <UModal v-model:open="editorOpen" title="编辑群配置" :description="editingGroup?.groupOpenId" :ui="{ content: 'max-w-lg' }">
+    <AdminResponsiveDialog v-model:open="editorOpen" title="编辑群配置" :description="editingGroup?.groupOpenId" size="sm">
       <template #body><form v-if="editingGroup" id="group-editor" class="editor" @submit.prevent="saveEditor"><UFormField label="群名或标签" hint="QQ 接口不会提供群名，此名称由管理员维护。" required><UInput v-model="editor.displayName" maxlength="128" placeholder="例如：正式服主群" :disabled="savingGroup" /></UFormField><UFormField label="所在环境" required><USelect v-model="editor.environment" :items="[{ label: '正式环境', value: 'production' }, { label: '测试环境', value: 'test' }]" :disabled="savingGroup" :ui="{ base: 'w-full' }" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="savingGroup" @click="closeEditor" /><UButton label="保存配置" type="submit" form="group-editor" :loading="savingGroup" :disabled="!editor.displayName.trim()" /></template>
-    </UModal>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 

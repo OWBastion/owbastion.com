@@ -27,6 +27,8 @@ const saving = ref(false);
 const errorMessage = ref("");
 const globalFilter = ref("");
 const panelOpen = computed({ get: () => selectedMap.value !== null, set: (open) => { if (!open) selectedMap.value = null; } });
+const challengeAction = shallowRef<{ challenge: MapChallenge; status: MapChallenge["status"] } | null>(null);
+const retiredVersion = shallowRef("");
 
 const ratings = ["T0", "T1", "T2", "T3", "T4", "T5"] as const;
 const columns: TableColumn<MapRow>[] = [
@@ -96,25 +98,39 @@ async function saveMetadata() {
   }
 }
 
-async function updateChallenge(challenge: MapChallenge, status: MapChallenge["status"]) {
-  const retiredVersion = status === "sunsetting" ? window.prompt("请输入计划下线版本")?.trim() : undefined;
-  if (status === "sunsetting" && !retiredVersion) return;
-  if (status === "retired" && !window.confirm(`确认结束“${challenge.name}”？`)) return;
+function requestChallengeUpdate(challenge: MapChallenge, status: MapChallenge["status"]) {
+  if (status === "active") return void updateChallenge(challenge, status);
+  retiredVersion.value = challenge.retiredVersion ?? "";
+  challengeAction.value = { challenge, status };
+}
+function closeChallengeAction(force = false) {
+  if (saving.value && !force) return;
+  challengeAction.value = null;
+  retiredVersion.value = "";
+}
+async function updateChallenge(challenge: MapChallenge, status: MapChallenge["status"], plannedRetiredVersion?: string) {
+  const nextRetiredVersion = plannedRetiredVersion?.trim();
+  if (status === "sunsetting" && !nextRetiredVersion) return;
   saving.value = true;
   errorMessage.value = "";
   try {
     await api(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion } : {}) },
+      body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion: nextRetiredVersion } : {}) },
     });
     toast.add({ title: status === "active" ? "挑战已重新开放" : status === "sunsetting" ? "挑战已计划下线" : "挑战已下线", color: "success" });
     await load();
+    closeChallengeAction(true);
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存挑战状态，请稍后重试。").description;
   } finally {
     saving.value = false;
   }
+}
+async function confirmChallengeAction() {
+  if (!challengeAction.value) return;
+  await updateChallenge(challengeAction.value.challenge, challengeAction.value.status, retiredVersion.value);
 }
 
 watch([query, ratingFilter], () => { globalFilter.value = query.value; });
@@ -136,7 +152,7 @@ onMounted(() => void load());
       </AdminDataTable>
     </section>
 
-    <USlideover v-model:open="panelOpen" :title="selectedMap ? `${selectedMap.mapName} · 地图属性` : ''" :ui="{ content: 'sm:max-w-xl' }">
+    <AdminResponsiveDialog v-model:open="panelOpen" :title="selectedMap ? `${selectedMap.mapName} · 地图属性` : ''" size="md">
       <template #body>
         <section v-if="selectedMap" class="map-detail">
           <div class="detail-heading"><div><p class="eyebrow">地图属性</p><h2>{{ selectedMap.mapName }}</h2><p class="table-meta">{{ selectedMap.mapId }} · {{ selectedMap.gameVersion }}</p></div></div>
@@ -146,15 +162,19 @@ onMounted(() => void load());
             <UFormField label="特殊机制" hint="最多 16 个标签，每个标签不超过 64 个字符。"><UInputTags v-model="draftMechanics" placeholder="输入机制标签" :disabled="saving" :max="16" aria-label="特殊机制" /></UFormField>
             <div class="editor-actions"><UButton type="submit" label="保存属性" :loading="saving" /></div>
           </form>
-          <section class="challenge-section" aria-labelledby="map-challenges-title"><div class="section-heading"><div><p class="eyebrow">挑战目录</p><h3 id="map-challenges-title">挑战难度</h3></div><span>{{ selectedChallenges.length }} 项</span></div><AdminDataTable :data="selectedChallenges" :columns="challengeColumns" :loading="loading" empty="暂无挑战记录。" :table-key="`map-challenges-${selectedMap.mapId}`" class="admin-table nested-table"><template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template><template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template><template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template><template #actions-cell="{ row }"><div class="table-actions"><UButton v-if="row.original.status !== 'retired'" label="计划下线" color="neutral" variant="link" :disabled="saving" @click="updateChallenge(row.original, 'sunsetting')" /><UButton v-if="row.original.status !== 'retired'" label="结束" color="error" variant="link" :disabled="saving" @click="updateChallenge(row.original, 'retired')" /><UButton v-else label="重新开放" color="neutral" variant="link" :disabled="saving" @click="updateChallenge(row.original, 'active')" /></div></template></AdminDataTable></section>
+          <section class="challenge-section" aria-labelledby="map-challenges-title"><div class="section-heading"><div><p class="eyebrow">挑战目录</p><h3 id="map-challenges-title">挑战难度</h3></div><span>{{ selectedChallenges.length }} 项</span></div><AdminDataTable :data="selectedChallenges" :columns="challengeColumns" :loading="loading" empty="暂无挑战记录。" :table-key="`map-challenges-${selectedMap.mapId}`" class="admin-table nested-table"><template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template><template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template><template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template><template #actions-cell="{ row }"><div class="table-actions"><UButton v-if="row.original.status !== 'retired'" label="计划下线" color="neutral" variant="link" :disabled="saving" @click="requestChallengeUpdate(row.original, 'sunsetting')" /><UButton v-if="row.original.status !== 'retired'" label="结束" color="error" variant="link" :disabled="saving" @click="requestChallengeUpdate(row.original, 'retired')" /><UButton v-else label="重新开放" color="neutral" variant="link" :disabled="saving" @click="requestChallengeUpdate(row.original, 'active')" /></div></template></AdminDataTable></section>
         </section>
       </template>
-    </USlideover>
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="challengeAction !== null" :title="challengeAction?.status === 'sunsetting' ? '计划下线' : '结束挑战'" :description="challengeAction?.challenge.name" size="sm" :dismissible="!saving" @update:open="(open) => { if (!open) closeChallengeAction(); }">
+      <template #body><form v-if="challengeAction" id="map-challenge-action" class="challenge-action" @submit.prevent="confirmChallengeAction"><UFormField v-if="challengeAction.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="retiredVersion" required placeholder="例如 26.0713.1" :disabled="saving" /></UFormField><p v-else>结束后不再接受新的截图提交。</p></form></template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeChallengeAction" /><UButton :label="challengeAction?.status === 'sunsetting' ? '确认计划' : '结束挑战'" :color="challengeAction?.status === 'sunsetting' ? 'primary' : 'error'" type="submit" form="map-challenge-action" :loading="saving" /></template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.table-meta { display: block; color: var(--quiet); font-size: .76rem; }.map-detail { display: grid; gap: 26px; }.detail-heading h2 { margin: 0; font-size: 2rem; letter-spacing: -.05em; }.detail-heading p { margin: 7px 0 0; }.editor { display: grid; gap: 20px; padding: 18px 0; border-block: 1px solid var(--line); }.visual-editor { display: grid; gap: 16px; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); }.visual-preview { position: relative; display: grid; min-height: 150px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: var(--accent); background-position: center; background-size: cover; }.visual-preview::before { position: absolute; inset: 0; background: color-mix(in oklch, var(--surface) 58%, transparent); content: ""; }.visual-preview img { position: relative; z-index: 1; max-width: 82%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 8px 14px color-mix(in oklch, var(--shadow) 42%, transparent)); }.visual-preview span { position: relative; z-index: 1; font-weight: 700; }.visual-fields { display: grid; align-content: start; gap: 14px; }.field-hint { display: flex; justify-content: space-between; gap: 8px; }.clear-field { padding: 0; border: 0; color: var(--accent); background: transparent; cursor: pointer; font: inherit; }.editor-actions { display: flex; justify-content: flex-end; }.challenge-section { display: grid; gap: 12px; }.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 3px 0 0; font-size: 1.25rem; letter-spacing: -.035em; }.section-heading > span { color: var(--quiet); font-size: .78rem; }.table-actions { display: flex; flex-wrap: wrap; gap: 2px; }.nested-table :deep(table[data-slot="base"]) { min-width: 540px; }
+.table-meta { display: block; color: var(--quiet); font-size: .76rem; }.map-detail { display: grid; gap: 26px; }.detail-heading h2 { margin: 0; font-size: 2rem; letter-spacing: -.05em; }.detail-heading p { margin: 7px 0 0; }.editor { display: grid; gap: 20px; padding: 18px 0; border-block: 1px solid var(--line); }.visual-editor { display: grid; gap: 16px; grid-template-columns: minmax(150px, .8fr) minmax(0, 1.2fr); }.visual-preview { position: relative; display: grid; min-height: 150px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; color: var(--accent); background-position: center; background-size: cover; }.visual-preview::before { position: absolute; inset: 0; background: color-mix(in oklch, var(--surface) 58%, transparent); content: ""; }.visual-preview img { position: relative; z-index: 1; max-width: 82%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 8px 14px color-mix(in oklch, var(--shadow) 42%, transparent)); }.visual-preview span { position: relative; z-index: 1; font-weight: 700; }.visual-fields { display: grid; align-content: start; gap: 14px; }.field-hint { display: flex; justify-content: space-between; gap: 8px; }.clear-field { padding: 0; border: 0; color: var(--accent); background: transparent; cursor: pointer; font: inherit; }.editor-actions { display: flex; justify-content: flex-end; }.challenge-section { display: grid; gap: 12px; }.challenge-action { display: grid; gap: 16px; }.challenge-action p { margin: 0; color: var(--muted); }.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 3px 0 0; font-size: 1.25rem; letter-spacing: -.035em; }.section-heading > span { color: var(--quiet); font-size: .78rem; }.table-actions { display: flex; flex-wrap: wrap; gap: 2px; }.nested-table :deep(table[data-slot="base"]) { min-width: 540px; }
 @media (max-width: 520px) { .editor-actions .portal-button { width: 100%; }.detail-heading h2 { font-size: 1.7rem; } }
 @media (max-width: 520px) { .visual-editor { grid-template-columns: 1fr; }.visual-preview { min-height: 120px; } }
 </style>

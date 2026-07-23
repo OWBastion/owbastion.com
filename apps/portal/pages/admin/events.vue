@@ -32,6 +32,7 @@ const toast = useToast();
 const saving = shallowRef(false);
 const importing = shallowRef(false);
 const error = shallowRef("");
+const archiveOpen = shallowRef(false);
 const form = reactive({ name: "", category: "", rarity: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, appearanceProbability: null as number | null, categoryProbability: null as number | null, groupTotalWeight: null as number | null, groupSize: null as number | null, failureProbability: null as number | null, guaranteeProbability: null as number | null, globalAppearanceProbability: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
 
 const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "已实装" : status === "removed" ? "已移除" : "开发中";
@@ -84,7 +85,8 @@ function openCreate() { selectedEvent.value = null; resetForm(); probabilityOpen
 function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); probabilityOpen.value = false; editorOpen.value = true; }
 async function load() { loading.value = true; error.value = ""; try { const eventResult = await api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`); events.value = eventResult.items; } catch (cause) { error.value = portalErrorDetails(cause, "无法读取事件目录。").description; } finally { loading.value = false; } }
 async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), appearanceProbability: number(form.appearanceProbability), categoryProbability: number(form.categoryProbability), groupTotalWeight: number(form.groupTotalWeight), groupSize: number(form.groupSize), failureProbability: number(form.failureProbability), guaranteeProbability: number(form.guaranteeProbability), globalAppearanceProbability: number(form.globalAppearanceProbability), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { if (selectedEvent.value) await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); else await api("/v1/events", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body }); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); await load(); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
-async function archive() { if (!selectedEvent.value || !window.confirm(`归档“${selectedEvent.value.name}”？`)) return; try { await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } }); editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); await load(); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } }
+function requestArchive() { archiveOpen.value = true; }
+async function archive() { if (!selectedEvent.value) return; saving.value = true; try { await api(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } }); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); await load(); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
 async function previewImport() { if (!importFile.value) return; importing.value = true; error.value = ""; try { importPreview.value = await api<ImportPreview>("/v1/events/imports/preview", { method: "POST", body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); } catch (cause) { error.value = portalErrorDetails(cause, "无法预检文件。").description; } finally { importing.value = false; } }
 async function importEvents() { if (!importFile.value || !importPreview.value || importPreview.value.errors.length) return; importing.value = true; try { const result = await api<{ importedCount: number }>("/v1/events/imports", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); importOpen.value = false; importPreview.value = null; importFile.value = null; toast.add({ title: `已导入 ${result.importedCount} 条事件`, color: "success" }); await load(); } catch (cause) { error.value = portalErrorDetails(cause, "导入失败。").description; } finally { importing.value = false; } }
 
@@ -117,7 +119,7 @@ onMounted(() => void load());
       </AdminDataTable>
     </section>
 
-    <USlideover v-model:open="editorOpen" :title="selectedEvent ? `编辑：${selectedEvent.name}` : '新建事件'" :ui="{ content: 'sm:max-w-2xl' }">
+    <AdminResponsiveDialog v-model:open="editorOpen" :title="selectedEvent ? `编辑：${selectedEvent.name}` : '新建事件'" size="lg">
       <template #body>
         <form class="grid gap-6" @submit.prevent="save">
           <section class="grid gap-4">
@@ -165,9 +167,13 @@ onMounted(() => void load());
             </UFormField>
           </section>
 
-          <div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="archive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div>
+          <div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="requestArchive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div>
         </form>
       </template>
-    </USlideover>
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog v-model:open="archiveOpen" title="归档事件" :description="selectedEvent?.name" size="sm" :dismissible="!saving">
+      <template #body><p class="text-sm text-muted">归档后，事件不会出现在默认目录中。</p></template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="archiveOpen = false" /><UButton label="确认归档" color="error" :loading="saving" @click="archive" /></template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>

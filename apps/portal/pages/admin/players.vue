@@ -13,6 +13,8 @@ const status = ref<"all" | "active" | "banned">("all");
 const loading = ref(true);
 const errorMessage = ref("");
 const actionLoading = ref(false);
+const pendingAction = shallowRef<{ type: "set-status"; status: "active" | "banned" } | { type: "unbind"; bindingId: string } | null>(null);
+const banReason = shallowRef("");
 const page = ref(1);
 const total = ref(0);
 const panelOpen = computed({ get: () => selected.value !== null, set: (value) => { if (!value) selected.value = null; } });
@@ -45,31 +47,50 @@ async function load() {
 async function openPlayer(player: AdminPlayer) {
   selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${player.playerAccountId}`);
 }
+const actionTitle = computed(() => pendingAction.value?.type === "unbind" ? "解除 QQ 绑定" : pendingAction.value?.status === "banned" ? "封禁玩家" : "解除封禁");
+const actionDescription = computed(() => selected.value ? `${selected.value.playerName}#${selected.value.playerId}` : undefined);
+function requestStatus(status: "active" | "banned") {
+  banReason.value = "";
+  pendingAction.value = { type: "set-status", status };
+}
+function requestUnbind(bindingId: string) {
+  pendingAction.value = { type: "unbind", bindingId };
+}
+function closeAction(force = false) {
+  if (actionLoading.value && !force) return;
+  pendingAction.value = null;
+  banReason.value = "";
+}
 async function setStatus(next: "active" | "banned") {
   if (!selected.value) return;
-  const reason = next === "banned" ? window.prompt("请输入封禁原因") ?? "" : undefined;
-  if (next === "banned" && !window.confirm(`确认封禁玩家“${selected.value.playerName}#${selected.value.playerId}”？`)) return;
   actionLoading.value = true;
   try {
+    const reason = banReason.value.trim();
     await api(`/v1/player-accounts/${selected.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
     toast.add({ title: next === "banned" ? "玩家已封禁" : "玩家已解封", color: "success" });
     selected.value.status = next;
+    closeAction(true);
     await load();
   } catch (error) {
     toast.add({ title: "无法更新玩家状态", description: portalErrorDetails(error).description, color: "error" });
   } finally { actionLoading.value = false; }
 }
 async function unbind(bindingId: string) {
-  if (!window.confirm("解除这条 QQ 绑定？历史提交会保留。")) return;
   actionLoading.value = true;
   try {
     await api(`/v1/bindings/${bindingId}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } });
     toast.add({ title: "QQ 绑定已解除", color: "success" });
     if (selected.value) selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${selected.value.playerAccountId}`);
+    closeAction(true);
     await load();
   } catch (error) {
     toast.add({ title: "无法解除 QQ 绑定", description: portalErrorDetails(error).description, color: "error" });
   } finally { actionLoading.value = false; }
+}
+async function confirmAction() {
+  if (!pendingAction.value) return;
+  if (pendingAction.value.type === "unbind") await unbind(pendingAction.value.bindingId);
+  else await setStatus(pendingAction.value.status);
 }
 watch([query, status], () => { page.value = 1; void load(); });
 onMounted(() => { void load(); });
@@ -90,10 +111,22 @@ onMounted(() => { void load(); });
       <UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
     </section>
 
-    <USlideover v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionLoading" @set-status="setStatus" @unbind="unbind" /></template></USlideover>
+    <AdminResponsiveDialog v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''" size="lg"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionLoading" @set-status="requestStatus" @unbind="requestUnbind" /></template></AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="pendingAction !== null" :title="actionTitle" :description="actionDescription" size="sm" :dismissible="!actionLoading" @update:open="(open) => { if (!open) closeAction(); }">
+      <template #body>
+        <form v-if="pendingAction" id="player-action" class="player-action" @submit.prevent="confirmAction">
+          <p v-if="pendingAction.type === 'unbind'">解除后，历史提交会保留。</p>
+          <template v-else>
+            <p>{{ pendingAction.status === 'banned' ? '封禁后，玩家无法继续使用当前帐号。' : '解除后，玩家可以继续使用当前帐号。' }}</p>
+            <UFormField v-if="pendingAction.status === 'banned'" label="封禁原因"><UTextarea v-model="banReason" maxlength="256" placeholder="可选" :disabled="actionLoading" /></UFormField>
+          </template>
+        </form>
+      </template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="actionLoading" @click="closeAction()" /><UButton :label="actionTitle" :color="pendingAction?.type === 'set-status' && pendingAction.status === 'banned' ? 'error' : 'primary'" type="submit" form="player-action" :loading="actionLoading" /></template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.table-meta { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }
+.table-meta { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
 </style>

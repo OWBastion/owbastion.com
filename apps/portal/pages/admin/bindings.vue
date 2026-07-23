@@ -236,8 +236,7 @@ onMounted(load);
       </UTabs>
     </section>
 
-    <!-- Claim Details Modal -->
-    <UModal :open="detailTarget !== null" title="绑定申请详情" :description="detailTarget ? `${detailTarget.playerName}#${detailTarget.playerId}` : undefined" @update:open="(open) => { if (!open) detailTarget = null; }">
+    <AdminResponsiveDialog :open="detailTarget !== null" title="绑定申请详情" :description="detailTarget ? `${detailTarget.playerName}#${detailTarget.playerId}` : undefined" size="md" @update:open="(open) => { if (!open) detailTarget = null; }">
       <template #body>
         <div v-if="detailTarget" class="claim-detail-list">
           <div class="detail-row">
@@ -278,10 +277,9 @@ onMounted(load);
           <UButton label="拒绝" color="error" variant="soft" :disabled="deciding" @click="decide(detailTarget, 'rejected')" />
         </template>
       </template>
-    </UModal>
+    </AdminResponsiveDialog>
 
-    <!-- Secondary Confirmation Modal for Conflicts -->
-    <UModal :open="conflictTarget !== null" title="确认批准冲突申请" :description="conflictTarget ? `${conflictTarget.playerName}#${conflictTarget.playerId}` : undefined" @update:open="(open) => { if (!open && !deciding) conflictTarget = null; }">
+    <AdminResponsiveDialog :open="conflictTarget !== null" title="确认批准冲突申请" :description="conflictTarget ? `${conflictTarget.playerName}#${conflictTarget.playerId}` : undefined" size="md" :dismissible="!deciding" @update:open="(open) => { if (!open && !deciding) conflictTarget = null; }">
       <template #body>
         <div v-if="conflictTarget" class="claim-detail-list">
           <UAlert color="warning" variant="subtle" title="身份冲突提示" description="批准此操作将撤销现有的关联绑定并导致相关 Session 失效。" />
@@ -316,16 +314,16 @@ onMounted(load);
         <UButton label="取消" color="neutral" variant="outline" :disabled="deciding" @click="conflictTarget = null" />
         <UButton label="确认批准" color="error" :loading="deciding" @click="decide(conflictTarget!, 'approved')" />
       </template>
-    </UModal>
+    </AdminResponsiveDialog>
 
-    <UModal :open="revokeTarget !== null" title="撤销邀请码" :description="revokeTarget ? `${revokeTarget.playerName}#${revokeTarget.playerId}` : undefined" @update:open="(open) => { if (!open) closeRevoke(); }">
+    <AdminResponsiveDialog :open="revokeTarget !== null" title="撤销邀请码" :description="revokeTarget ? `${revokeTarget.playerName}#${revokeTarget.playerId}` : undefined" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body><form v-if="revokeTarget" id="invite-revoke" class="revoke-form" @submit.prevent="revokeInvitation"><p class="revoke-note">撤销后无法恢复。</p><UFormField label="撤销原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：发送对象有误" :disabled="revoking" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke" /><UButton label="确认撤销" color="error" type="submit" form="invite-revoke" :loading="revoking" /></template>
-    </UModal>
-    <UModal :open="codeTarget !== null" title="邀请码" :description="codeTarget ? `${codeTarget.playerName}#${codeTarget.playerId}` : undefined" @update:open="(open) => { if (!open) closeCode(); }">
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="codeTarget !== null" title="邀请码" :description="codeTarget ? `${codeTarget.playerName}#${codeTarget.playerId}` : undefined" size="sm" :dismissible="!revealingCode" @update:open="(open) => { if (!open) closeCode(); }">
       <template #body><div class="invite-code"><span v-if="revealingCode" class="table-meta">读取中…</span><code v-else>{{ invitationCode }}</code></div></template>
       <template #footer><UButton label="关闭" color="neutral" variant="outline" :disabled="revealingCode" @click="closeCode" /><UButton label="复制口令" :disabled="!invitationCode" @click="copyInvitationCode" /></template>
-    </UModal>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
