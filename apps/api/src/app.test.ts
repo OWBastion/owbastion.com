@@ -106,6 +106,46 @@ describe("API", () => {
     expect(await response.json()).toEqual({ service: "api", status: "ok" });
   });
 
+  describe("X-Request-ID middleware", () => {
+    it("sets X-Request-ID on successful responses when no header is supplied", async () => {
+      const response = await app.request("http://localhost/health", {}, env);
+      const id = response.headers.get("x-request-id");
+      expect(id).toBeTruthy();
+      expect(/^[0-9a-f-]{36}$/.test(id!)).toBe(true);
+    });
+
+    it("echoes a valid incoming X-Request-ID on successful responses", async () => {
+      const incomingId = "portal-req-abc123";
+      const response = await app.request("http://localhost/health", { headers: { "x-request-id": incomingId } }, env);
+      expect(response.headers.get("x-request-id")).toBe(incomingId);
+    });
+
+    it("generates a new UUID when the incoming X-Request-ID has an invalid format", async () => {
+      const badId = "bad id with spaces!";
+      const response = await app.request("http://localhost/health", { headers: { "x-request-id": badId } }, env);
+      const id = response.headers.get("x-request-id");
+      expect(id).not.toBe(badId);
+      expect(/^[0-9a-f-]{36}$/.test(id!)).toBe(true);
+    });
+
+    it("sets X-Request-ID on error responses", async () => {
+      const response = await app.request("http://localhost/v1/me", {}, env);
+      expect(response.status).toBe(401);
+      const id = response.headers.get("x-request-id");
+      expect(id).toBeTruthy();
+    });
+
+    it("error body requestId matches X-Request-ID response header", async () => {
+      const incomingId = "trace-id-for-error";
+      const response = await app.request("http://localhost/v1/me", { headers: { "x-request-id": incomingId } }, env);
+      expect(response.status).toBe(401);
+      const body = await response.json() as { error: { requestId: string } };
+      expect(body.error.requestId).toBe(incomingId);
+      expect(response.headers.get("x-request-id")).toBe(incomingId);
+    });
+
+  });
+
   it("rejects the legacy binding endpoint in favor of invitations", async () => {
     const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST", headers: { "idempotency-key": "binding-1", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", playerName: "Player", playerId: "1234" }) }, env);
     expect(response.status).toBe(422);

@@ -44,10 +44,16 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
-const requestId = (request: Request) => request.headers.get("x-request-id") ?? crypto.randomUUID();
+type Variables = { requestId: string };
+
+/** Validates an incoming X-Request-ID value, same rules as Portal's normalizeRequestId. */
+const normalizeIncomingId = (value: string | null | undefined): string | undefined => {
+  const normalized = value?.trim();
+  return normalized && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(normalized) ? normalized : undefined;
+};
 
 const errorResponse = (c: any, status: 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503, code: string, message: string) =>
-  c.json({ contractVersion: "1", error: { code, message, requestId: requestId(c.req.raw) } }, status);
+  c.json({ contractVersion: "1", error: { code, message, requestId: c.get("requestId") } }, status);
 
 const parseBody = async (request: Request) => {
   try {
@@ -69,7 +75,31 @@ const portalSessionToken = (request: Request) => request.headers.get("cookie")?.
 const sessionCookie = (request: Request, value: string, maxAge: number) => `owb_session=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${new URL(request.url).protocol === "https:" ? "; Secure" : ""}`;
 
 export const createApp = (dependencies: AppDependencies) => {
-  const app = new Hono<{ Bindings: RuntimeEnv }>();
+  const app = new Hono<{ Bindings: RuntimeEnv; Variables: Variables }>();
+
+  // Middleware 1: bind and echo X-Request-ID on every response.
+  app.use("*", async (c, next) => {
+    const id = normalizeIncomingId(c.req.header("x-request-id")) ?? crypto.randomUUID();
+    c.set("requestId", id);
+    await next();
+    c.header("X-Request-ID", c.get("requestId"));
+  });
+
+  // Middleware 2: structured per-request completion log.
+  app.use("*", async (c, next) => {
+    const start = Date.now();
+    await next();
+    console.log(JSON.stringify({
+      layer: "api",
+      event: "request_complete",
+      method: c.req.method,
+      path: new URL(c.req.url).pathname,
+      status: c.res.status,
+      requestId: c.get("requestId"),
+      durationMs: Date.now() - start,
+    }));
+  });
+
   const allowPortal = (c: any) => {
     const requestOrigin = c.req.header("origin");
     const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
