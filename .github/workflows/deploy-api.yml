@@ -8,6 +8,7 @@ on:
       - 'migrations/**'
       - 'tools/**'
       - 'wrangler.toml'
+      - 'wrangler.staging-d1.toml'
       - 'docs/api/openapi.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -23,6 +24,7 @@ on:
       - 'migrations/**'
       - 'tools/**'
       - 'wrangler.toml'
+      - 'wrangler.staging-d1.toml'
       - 'docs/api/openapi.json'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -140,6 +142,12 @@ jobs:
           test "$(grep -c 'binding = "CACHE"' wrangler.toml)" -eq 1
           test "$(grep -c 'id = "00000000-0000-0000-0000-000000000000"' wrangler.toml)" -eq 0
           test "$(grep -c 'OCRKIT_BASE_URL = "https://ocr.owbastion.com"' wrangler.toml)" -eq 1
+
+      - name: Apply staging D1 migrations
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.staging-d1.toml
+
+      - name: Verify staging D1 submission and review schema
+        run: bash tools/verify-staging-d1.sh
 
       - name: Ensure Queue resources exist
         shell: bash

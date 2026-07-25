@@ -11,11 +11,16 @@ Create these resources in the target Cloudflare account before enabling the
 deployment job:
 
 - D1 database named `owbastion-codes-prod`;
+- isolated D1 database named `owbastion-codes-staging` for remote migration validation;
 - R2 bucket named `owbastion-codes-evidence`;
 - KV namespace for derived catalog caches, bound as `CACHE`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;
 - the real D1 `database_id` written to `wrangler.toml`.
+
+Record the staging database ID in `wrangler.staging-d1.toml`. It is used only
+for migration and schema validation, and must not contain production player,
+binding, evidence, or private submission data.
 
 Create the KV namespace with Wrangler, then replace the `CACHE` placeholder ID
 in `wrangler.toml` with the returned namespace ID. Namespace IDs are account
@@ -67,10 +72,11 @@ run install, tests, typecheck, and build only. Typecheck runs `tsc --noEmit`
 for the workspace, while the API build runs Wrangler's local Worker bundling
 and validation with `wrangler deploy --dry-run`; it does not upload or deploy
 the Worker. A qualifying push to `main` or a manual dispatch runs those checks,
-applies forward-only remote D1 migrations, validates and bootstraps
-`ADMIN_BATTLETAG`, updates the Worker secret, deploys the Worker, publishes the
-API URL, and submits the OpenAPI endpoint inventory to Cloudflare API Shield
-Endpoint Management. The API token must also have `Account API Gateway` or
+first applies migrations to the isolated staging D1 database and verifies the
+submission/review schema there, then applies forward-only production D1
+migrations, validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker
+secret, deploys the Worker, publishes the API URL, and submits the OpenAPI
+endpoint inventory to Cloudflare API Shield Endpoint Management. The API token must also have `Account API Gateway` or
 `Domain API Gateway` write permission. Endpoint deployment is additive and
 idempotent; it does not delete operations already managed in Cloudflare.
 
