@@ -860,25 +860,56 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response: AdminSubmissionReviewResponse = reward
         ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }
         : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
+      const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
       const statements: D1PreparedStatement[] = [];
+      statements.push(
+        database.prepare(
+          "INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required')"
+        ).bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)
+      );
       if (reward) {
         const mapMatch = reward.mapId ? "g.map_id = ?" : "g.map_id IS NULL";
-        const grantInsert = database.prepare(`INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, b.player_account_id, ?, ?, ?, 'active', 'submission', s.id, ?, ? FROM submissions s INNER JOIN bindings b ON b.id = s.binding_id WHERE s.id = ? AND s.status IN ('ready_for_review', 'ocr_review_required')`)
-          .bind(grantId, reward.titleKey, reward.mapId, reward.slot, auth.subject, timestamp, row.id);
+        const grantInsert = database.prepare(
+          "INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, b.player_account_id, ?, ?, ?, 'active', 'submission', s.id, ?, ? FROM submissions s INNER JOIN bindings b ON b.id = s.binding_id WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
+        ).bind(grantId, reward.titleKey, reward.mapId, reward.slot, auth.subject, timestamp, row.id, reviewId);
         statements.push(grantInsert);
-        statements.push(database.prepare(`UPDATE submissions SET status = 'approved', review_reason = ?, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required') AND EXISTS (SELECT 1 FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active')`)
-          .bind(input.reason ?? null, reward.titleKey, ...(reward.mapId ? [reward.mapId] : []), timestamp, row.id, reward.titleKey, ...(reward.mapId ? [reward.mapId] : [])));
+        statements.push(
+          database.prepare(
+            `UPDATE submissions SET status = 'approved', review_reason = ?, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)`
+          ).bind(input.reason ?? null, reward.titleKey, ...(reward.mapId ? [reward.mapId] : []), timestamp, row.id, reviewId)
+        );
       } else {
-        statements.push(database.prepare("UPDATE submissions SET status = ?, review_reason = ?, grant_id = NULL, updated_at = ? WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required')").bind(input.decision, input.reason ?? null, timestamp, row.id));
+        statements.push(
+          database.prepare(
+            "UPDATE submissions SET status = ?, review_reason = ?, grant_id = NULL, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
+          ).bind(input.decision, input.reason ?? null, timestamp, row.id, reviewId)
+        );
       }
-      statements.push(database.prepare(`INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id, input.decision));
-      statements.push(database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(`${auth.subject}:submission.review:${idempotencyKey}`, auth.subject, requestHash, JSON.stringify(response), timestamp, row.id, input.decision));
-      statements.push(database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null }), timestamp, row.id, input.decision));
-      if (reward) statements.push(database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', grant_id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, alreadyOwned }), timestamp, row.id));
+      statements.push(
+        database.prepare(
+          "INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?"
+        ).bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId)
+      );
+      statements.push(
+        database.prepare(
+          "INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?"
+        ).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null }), timestamp, reviewId)
+      );
+      if (reward) {
+        statements.push(
+          database.prepare(
+            "INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', grant_id, ?, ? FROM submissions WHERE id = ? AND grant_id IS NOT NULL AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
+          ).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, alreadyOwned }), timestamp, row.id, reviewId)
+        );
+      }
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      const completed = await db.select({ status: submissions.status, grantId: submissions.grantId }).from(submissions).where(eq(submissions.id, row.id)).get();
-      if (!completed || completed.status !== input.decision || (input.decision === "approved" && !completed.grantId)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-      if (reward && response.decision === "approved") response.grantId = completed.grantId! as typeof response.grantId;
+      const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
+      if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+      if (reward && response.decision === "approved") {
+        const completed = await db.select({ grantId: submissions.grantId }).from(submissions).where(eq(submissions.id, row.id)).get();
+        if (!completed?.grantId) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+        response.grantId = completed.grantId! as typeof response.grantId;
+      }
       return response;
     },
 

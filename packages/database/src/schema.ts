@@ -157,7 +157,9 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   revokedBy: text("revoked_by"),
   revokedAt: integer("revoked_at"),
   revokeReason: text("revoke_reason"),
-});
+}, (table) => ({
+  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId),
+}));
 
 export const titleChallenges = sqliteTable("title_challenges", {
   id: text("id").primaryKey(),
@@ -225,7 +227,9 @@ export const submissionReviews = sqliteTable("submission_reviews", {
   reason: text("reason"),
   reviewer: text("reviewer").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  submissionIdIdx: uniqueIndex("submission_reviews_submission_id_idx").on(table.submissionId),
+}));
 
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),
