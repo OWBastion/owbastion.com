@@ -64,10 +64,13 @@ protected administrator surface may read QQ group/member identifiers to operate
 bindings; these fields are never returned by public or player APIs.
 
 Historical title holder names are immutable source snapshots, not identity
-proof. A player may display a historical title only after a maintainer creates
-an active `player_title_grants` record for that account. Grant creation and
-revocation are idempotent and auditable; revocation preserves the record and
-removes the title from the player-facing result.
+proof. `player_title_grants` is the single entitlement table: each record
+stores the player, stable `title_key`, optional map context, source (`historical`,
+`submission`, `manual`, or `automatic`), source ID, and revocation fields.
+Active uniqueness prevents a player from holding the same title in the same
+scope twice. Grant creation and revocation are idempotent and auditable;
+revocation preserves the record and removes the title from the player-facing
+result.
 
 ## Public-repository policy
 

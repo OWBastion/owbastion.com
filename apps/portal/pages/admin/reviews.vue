@@ -57,13 +57,13 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   reviewError.value = "";
   const submissionId = selected.value.submissionId;
   try {
-    await api(`/v1/submissions/${submissionId}/review`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", decision } });
+    const result = await api<{ decision: typeof decision; titleName?: string; alreadyOwned?: boolean }>(`/v1/submissions/${submissionId}/review`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", decision } });
     const toast = useToast();
-    toast.add({ title: decision === "approved" ? "审核已批准" : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
+    toast.add({ title: decision === "approved" ? result.alreadyOwned ? `审核通过；玩家此前已拥有「${result.titleName ?? "称号"}」，未重复发放` : `审核通过，已发放「${result.titleName ?? "称号"}」` : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
     close(); await load();
   } catch (error) {
     const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
-    reviewError.value = details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description;
+    reviewError.value = details.code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "该挑战尚未配置可发放的称号，无法审核通过。" : details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description;
   }
 }
 function close() { selected.value = null; }

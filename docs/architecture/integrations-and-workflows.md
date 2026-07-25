@@ -52,7 +52,8 @@ The current API implements versioned v1 QQ flows:
 - a versioned Queue message invokes OCRKit, persists the raw result and match
   evidence, and moves matching submissions to `ready_for_review`;
 - the maintainer Portal can inspect private evidence and OCR output and record
-  an idempotent review decision.
+  an idempotent review decision; an approved decision atomically creates or
+  reuses the platform title Grant and links it to the Submission.
 - maintainers can list achievement challenges and immediately update
   title-challenge rules, including their Portal display category override;
 - maintainers set a challenge to `sunsetting` with a planned Bastion version,
@@ -105,9 +106,13 @@ missing or low-confidence fields, and exhausted OCR failures become
 leaving a submission pending or treating uncertain recognition as a player
 error.
 
-Approval records the human decision only. Player title migration records a
-maintainer-confirmed historical entitlement; it does not issue a new Bastion
-title. Pull requests and releases remain outside this slice.
+Approval and title issuance are one D1 batch: `approved` is written only when
+the Submission has an active Grant. Title challenges use their direct
+`titleKey`; map challenges use their explicit `reward_title_key` and retain
+the map context. If the player already owns the same active title in that
+scope, the Submission links to the existing Grant and records that fact in
+the audit event. Pull requests, releases, and Bastion synchronization remain
+outside this slice.
 
 ## Achievement catalog management
 

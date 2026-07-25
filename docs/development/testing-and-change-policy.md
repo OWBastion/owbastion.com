@@ -21,8 +21,9 @@ The first Portal map-challenge slice includes database-backed map and achievemen
 catalogs, a public read-only achievement directory, upload validation, Queue-backed
 OCR orchestration, maintainer review, and the administrator-confirmed migration
 of historical titles to player accounts. The matrix records these capabilities
-as coded until complete integration evidence is available. New title issuance,
-feature switches, and Bastion/GitHub orchestration are not implemented.
+as coded until complete integration evidence is available. Platform-internal
+new title issuance is coded; feature switches and Bastion/GitHub orchestration
+are not implemented.
 
 Apply local migrations with:
 
@@ -145,8 +146,8 @@ player-facing title result.
   challenges must also be tested before, during, and after their time window.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.
-- Queue redelivery, review, grant, and end-to-end tests when those workflows
-  are implemented.
+- Queue redelivery, review, grant, and end-to-end tests for the implemented
+  submission approval flow, including rollback and idempotent replay.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
 

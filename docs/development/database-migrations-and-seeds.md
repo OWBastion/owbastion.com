@@ -24,6 +24,14 @@ pnpm exec wrangler d1 migrations apply DB --local
 `tools/migration-data-allowlist.txt` 登记历史数据修复例外。新数据导入不得通过
 把文件加入 allowlist 来绕过 seed/import 边界。
 
+`0040_generic_title_grants.sql` 将既有 `player_title_grants` 原地重建为通用
+权益记录：保留 Grant ID、玩家、标题、地图、状态、授予时间和撤销信息，并将
+历史来源写为 `source_type = historical`、`source_id = historical_title_grants.id`。
+`0041_challenge_reward_mapping.sql` 为地图 Challenge 写入显式的
+`reward_title_key`；运行时审批只读取该字段，不根据名称、难度或 ID 推断奖励。
+两项迁移均可在空库和已有业务数据的数据库上执行，验证脚本为
+`tools/test-title-grant-migration.sh`。
+
 `pnpm db:generate-title-migration` 仅用于重现既有 `0010_title_catalog.sql` 这类
 历史兼容文件，不用于发布新的目录 snapshot；新的 snapshot 必须使用 catalog
 import。

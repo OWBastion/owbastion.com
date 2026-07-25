@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -657,16 +657,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!session) return null;
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
       if (!binding) return null;
-      const rows = await db.select({ grant: playerTitleGrants, historical: historicalTitleGrants, title: titleCatalog, mapName: maps.name }).from(playerTitleGrants)
-        .innerJoin(historicalTitleGrants, eq(playerTitleGrants.historicalTitleGrantId, historicalTitleGrants.id)).innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id))
+      const rows = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name }).from(playerTitleGrants)
+        .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id))
         .where(and(eq(playerTitleGrants.playerAccountId, binding.playerAccountId), eq(playerTitleGrants.status, "active"))).orderBy(desc(playerTitleGrants.grantedAt));
-      return rows.map(({ grant, historical, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: historical.scope as "global" | "map", mapName: mapName ?? undefined, slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt }));
+      return rows.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt }));
     },
 
     async listHistoricalTitleGrants(input) {
       const query = input.query ? `%${input.query}%` : undefined;
       const rows = await db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
-        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id)).leftJoin(playerTitleGrants, eq(playerTitleGrants.historicalTitleGrantId, historicalTitleGrants.id)).leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
+        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id)).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
         .where(query ? or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)) : undefined).orderBy(historicalTitleGrants.holderName).limit(100);
       return rows.map(({ historical, grant, title, mapName, player }) => ({ grantId: grant?.id ?? historical.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: historical.scope as "global" | "map", mapName: mapName ?? undefined, slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant?.grantedAt ?? 0, holderName: historical.holderName, playerAccountId: grant?.playerAccountId, playerName: player?.playerName, playerId: player?.playerId, status: grant ? grant.status as "active" | "revoked" : "unclaimed", revokeReason: grant?.revokeReason ?? undefined }));
     },
@@ -676,10 +676,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const historical = await db.select().from(historicalTitleGrants).where(eq(historicalTitleGrants.id, input.historicalTitleGrantId)).get();
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!historical) throw new Error("HISTORICAL_TITLE_GRANT_NOT_FOUND"); if (!player) throw new Error("PLAYER_NOT_FOUND");
-      const existing = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.historicalTitleGrantId, historical.id)).get(); if (existing?.status === "active") throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
+      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id))).get(); if (existing?.status === "active") throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
       const timestamp = now(); const id = crypto.randomUUID();
       if (existing) await db.update(playerTitleGrants).set({ playerAccountId: player.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id));
-      else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, historicalTitleGrantId: historical.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp });
+      else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, titleKey: historical.titleKey, mapId: historical.mapId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: auth.subject, grantedAt: timestamp });
       const grantId = existing?.id ?? id;
       await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id });
     },
@@ -689,15 +689,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!player) throw new Error("PLAYER_NOT_FOUND");
-      const historical = await db.select({ id: historicalTitleGrants.id }).from(historicalTitleGrants)
-        .leftJoin(playerTitleGrants, eq(playerTitleGrants.historicalTitleGrantId, historicalTitleGrants.id))
+      const historical = await db.select({ id: historicalTitleGrants.id, titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, slot: historicalTitleGrants.slot }).from(historicalTitleGrants)
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
         .where(and(eq(historicalTitleGrants.holderName, input.holderName), isNull(playerTitleGrants.id)));
       const timestamp = now();
-      const grants = historical.map(({ id }) => ({ id: crypto.randomUUID(), historicalTitleGrantId: id }));
+      const grants = historical.map((item) => ({ id: crypto.randomUUID(), historical: item }));
       const response = { contractVersion: "1" as const, grantedCount: grants.length };
       const statements = [
-        ...grants.map((grant) => db.insert(playerTitleGrants).values({ id: grant.id, playerAccountId: player.id, historicalTitleGrantId: grant.historicalTitleGrantId, status: "active", grantedBy: auth.subject, grantedAt: timestamp })),
-        ...grants.map((grant) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: grant.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: grant.historicalTitleGrantId, holderName: input.holderName }), createdAt: timestamp })),
+        ...grants.map((grant) => db.insert(playerTitleGrants).values({ id: grant.id, playerAccountId: player.id, titleKey: grant.historical.titleKey, mapId: grant.historical.mapId, slot: grant.historical.slot, status: "active", sourceType: "historical", sourceId: grant.historical.id, grantedBy: auth.subject, grantedAt: timestamp })),
+        ...grants.map((grant) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: grant.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: grant.historical.id, holderName: input.holderName }), createdAt: timestamp })),
         db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.title.grant.bulk:${idempotencyKey}`, actorId: auth.subject, operation: "admin.title.grant.bulk", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
       ];
       await db.batch(statements as [typeof statements[number], ...typeof statements]);
@@ -827,17 +827,59 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
     },
 
-    async reviewSubmission(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "submission.review", idempotencyKey, input);
-      if (replay) return;
+    async reviewSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReviewResponse> {
+      const replay = await replayOrConflict<AdminSubmissionReviewResponse>(db, auth.subject, "submission.review", idempotencyKey, input);
+      if (replay) return replay;
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (!["ready_for_review", "ocr_review_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+
+      let reward: { titleKey: string; titleName: string; mapId: string | null; slot: string | null } | null = null;
+      if (input.decision === "approved") {
+        if (!row.challengeId) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+        if (row.challengeType === "title_achievement") {
+          const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get();
+          if (!challenge) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+          reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, slot: null };
+        } else {
+          const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, row.challengeId)).get();
+          if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+          reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, slot: challenge.slot };
+        }
+      }
+
       const timestamp = now();
-      await db.update(submissions).set({ status: input.decision, reviewReason: input.reason ?? null, updatedAt: timestamp }).where(eq(submissions.id, row.id));
-      await db.insert(submissionReviews).values({ id: crypto.randomUUID(), submissionId: row.id, decision: input.decision, reason: input.reason ?? null, reviewer: auth.subject, createdAt: timestamp });
-      await recordIdempotency(db, auth.subject, "submission.review", idempotencyKey, input, {});
-      await recordAudit(db, auth, "submission.review", "submission", row.id, { decision: input.decision, reason: input.reason ?? null });
+      const reviewId = crypto.randomUUID();
+      let alreadyOwned = false;
+      let grantId = crypto.randomUUID();
+      if (reward) {
+        const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, reward.titleKey), eq(playerTitleGrants.status, "active"), reward.mapId ? eq(playerTitleGrants.mapId, reward.mapId) : isNull(playerTitleGrants.mapId))).get();
+        if (existing) { alreadyOwned = true; grantId = existing.id as typeof grantId; }
+      }
+      const requestHash = await hashRequest(input);
+      const response: AdminSubmissionReviewResponse = reward
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }
+        : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
+      const statements: D1PreparedStatement[] = [];
+      if (reward) {
+        const mapMatch = reward.mapId ? "g.map_id = ?" : "g.map_id IS NULL";
+        const grantInsert = database.prepare(`INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, b.player_account_id, ?, ?, ?, 'active', 'submission', s.id, ?, ? FROM submissions s INNER JOIN bindings b ON b.id = s.binding_id WHERE s.id = ? AND s.status IN ('ready_for_review', 'ocr_review_required')`)
+          .bind(grantId, reward.titleKey, reward.mapId, reward.slot, auth.subject, timestamp, row.id);
+        statements.push(grantInsert);
+        statements.push(database.prepare(`UPDATE submissions SET status = 'approved', review_reason = ?, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required') AND EXISTS (SELECT 1 FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active')`)
+          .bind(input.reason ?? null, reward.titleKey, ...(reward.mapId ? [reward.mapId] : []), timestamp, row.id, reward.titleKey, ...(reward.mapId ? [reward.mapId] : [])));
+      } else {
+        statements.push(database.prepare("UPDATE submissions SET status = ?, review_reason = ?, grant_id = NULL, updated_at = ? WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required')").bind(input.decision, input.reason ?? null, timestamp, row.id));
+      }
+      statements.push(database.prepare(`INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id, input.decision));
+      statements.push(database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(`${auth.subject}:submission.review:${idempotencyKey}`, auth.subject, requestHash, JSON.stringify(response), timestamp, row.id, input.decision));
+      statements.push(database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = ?`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null }), timestamp, row.id, input.decision));
+      if (reward) statements.push(database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', grant_id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, alreadyOwned }), timestamp, row.id));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const completed = await db.select({ status: submissions.status, grantId: submissions.grantId }).from(submissions).where(eq(submissions.id, row.id)).get();
+      if (!completed || completed.status !== input.decision || (input.decision === "approved" && !completed.grantId)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+      if (reward && response.decision === "approved") response.grantId = completed.grantId! as typeof response.grantId;
+      return response;
     },
 
     async processOcrJob(input) {

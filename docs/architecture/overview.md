@@ -17,10 +17,11 @@ The repository contains an implemented TypeScript workspace with:
   Bastion title catalog;
 - an R2 evidence binding used when EVIDENCE_BUCKET is available.
 
-OCR orchestration, review, Bastion challenge snapshot import, and Queue-backed
-submission processing are coded for the first map-challenge slice; their
-current status and verification evidence are tracked in the matrix.
-Grants, title issuance, and feature switches remain planned.
+OCR orchestration, review, and Queue-backed submission processing are coded for
+the first map-challenge slice; their current status and verification evidence
+are tracked in the matrix. Platform-internal title Grants are created by the
+approval transaction; Bastion snapshot import and release synchronization are
+separate capabilities.
 
 ## Mission and ownership
 
@@ -31,7 +32,7 @@ released game content remains authoritative in OWBastion/Bastion.
 | Repository | Authoritative responsibility |
 | --- | --- |
 | OWBastion/Bastion | Released game source, content definitions, builds, releases, and public snapshots |
-| OWBastion/owbastion.codes | Platform business data, API, Portal, private evidence, and future review/grant orchestration |
+| OWBastion/owbastion.codes | Platform business data, API, Portal, private evidence, review decisions, and platform title Grants |
 | OWBastion/qqbot | QQ channel ingress, deterministic command UX, and notifications |
 | OWBastion/ocrkit | Stateless screenshot recognition and model lifecycle |
 

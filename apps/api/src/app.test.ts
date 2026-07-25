@@ -42,7 +42,7 @@ const services: PlatformServices = {
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
-  reviewSubmission: async () => {},
+  reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
@@ -560,6 +560,13 @@ describe("API", () => {
     const response = await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { authorization: "Bearer service", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" }) }, env);
     expect(response.status).toBe(422);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+  });
+
+  it("returns the title grant summary from an approved review", async () => {
+    const reviewApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "approved" as const, grantId: "00000000-0000-4000-8000-000000000001", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false }) }) });
+    const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved" }) }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ decision: "approved", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false });
   });
 
   it("protects administrative player data with the platform session", async () => {

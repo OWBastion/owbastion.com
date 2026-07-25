@@ -59,7 +59,7 @@
     "/v1/admin/submissions": { "get": { "operationId": "listAdminSubmissions", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/submissions/{submissionId}": { "get": { "operationId": "getAdminSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/submissions/{submissionId}/evidence": { "get": { "operationId": "getAdminEvidence", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "description": "Private evidence image" } } } },
-    "/v1/admin/submissions/{submissionId}/review": { "post": { "operationId": "reviewSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "204": { "description": "Reviewed" } } } },
+    "/v1/admin/submissions/{submissionId}/review": { "post": { "operationId": "reviewSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" }, "422": { "$ref": "#/components/responses/Json" } } } },
     "/v1/qq/bindings": { "post": { "operationId": "createQqBinding", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/submissions": { "post": { "operationId": "createSubmission", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/submissions/{submissionId}": { "get": { "operationId": "getPublicSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } }

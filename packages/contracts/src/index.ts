@@ -376,6 +376,9 @@ export const adminSubmissionReviewRequestSchema = z.object({
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
 });
+export const adminSubmissionReviewResponseSchema = z.object({
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(),
+}).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 
 export const submissionRequestSchema = z.object({
   contractVersion,
@@ -522,3 +525,4 @@ export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteReq
 export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
+export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
