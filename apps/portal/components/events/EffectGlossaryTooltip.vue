@@ -12,13 +12,13 @@ const show = () => {
 };
 const scheduleClose = () => {
   if (closeTimer) clearTimeout(closeTimer);
-  closeTimer = setTimeout(() => { open.value = false; }, 100);
+  closeTimer = setTimeout(() => { open.value = false; }, 150);
 };
 onBeforeUnmount(() => { if (closeTimer) clearTimeout(closeTimer); });
 </script>
 
 <template>
-  <UPopover :open="open" :dismissible="false" :content="{ side: 'top', align: 'center', sideOffset: 8 }" @update:open="(value) => { if (!value) open = false; }">
+  <UPopover :open="open" :dismissible="false" :content="{ side: 'top', align: 'center', sideOffset: 8 }">
     <span class="effect-glossary-term" tabindex="0" @mouseenter="show" @mouseleave="scheduleClose" @focusin="show" @focusout="scheduleClose">
       <UBadge :label="props.annotation.term.nameZh" color="neutral" variant="subtle" />
     </span>
