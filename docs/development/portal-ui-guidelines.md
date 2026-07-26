@@ -62,6 +62,7 @@ Use this pattern for `/admin`:
 - Use `AdminResponsiveDialog` for every admin detail, edit, and confirmation overlay: it renders a centered `UModal` at `768px` and above and a bottom `UDrawer` below that breakpoint. `UPopover` is only for a small, contextual form that remains next to its trigger, such as a one-field scheduling action.
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
+- Optional admin fields are unmarked by default; do not append “（可选）” to labels. Keep limits such as character counts out of the primary flow unless they prevent an imminent validation error.
 
 ### Form field requiredness
 

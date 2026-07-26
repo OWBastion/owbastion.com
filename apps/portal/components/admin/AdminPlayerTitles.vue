@@ -4,6 +4,7 @@ import { portalErrorDetails } from "~/utils/portal-error";
 
 type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string; slot?: "pioneer" | "conqueror" | "dominator" };
 type TitleOption = Title & { mapName?: string; value: string };
+type TitleMenuItem = { label: string; value: string };
 
 const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDetail["titleGrants"]; loading?: boolean }>();
 const emit = defineEmits<{ granted: [] }>();
@@ -11,14 +12,20 @@ const api = useAdminApi();
 const toast = useToast();
 const maps = shallowRef<Array<{ mapId: string; mapName: string }>>([]);
 const titles = shallowRef<TitleOption[]>([]);
-const selectedTitleValue = shallowRef("");
+const selectedGlobalValues = ref<TitleMenuItem[]>([]);
+const selectedMapValues = ref<TitleMenuItem[]>([]);
 const reason = shallowRef("");
 const grantOpen = shallowRef(false);
 const loadingOptions = shallowRef(true);
 const saving = shallowRef(false);
 const errorMessage = shallowRef("");
-const selectedTitle = computed(() => titles.value.find((title) => title.value === selectedTitleValue.value));
-const titleItems = computed(() => titles.value.map((title) => ({ label: `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}${title.availability === "retired" ? "（不再发放）" : ""}`, value: title.value })));
+const titleLabel = (title: TitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
+const selectedTitleLabel = (title: TitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
+const globalTitleItems = computed(() => titles.value.filter((title) => title.scope === "global").map((title) => ({ label: titleLabel(title), value: title.value })));
+const mapTitleItems = computed(() => titles.value.filter((title) => title.scope === "map").map((title) => ({ label: `${title.mapName ?? "未知地图"} · ${titleLabel(title)}`, value: title.value })));
+const selectedTitleValues = computed(() => new Set([...selectedGlobalValues.value, ...selectedMapValues.value].map((item) => item.value)));
+const selectedTitles = computed(() => titles.value.filter((title) => selectedTitleValues.value.has(title.value)));
+const selectedTitleCount = computed(() => selectedTitles.value.length);
 const sourceLabels = { historical: "历史迁移", submission: "截图审核", manual: "人工发放", automatic: "自动发放" } as const;
 const slotLabels = { pioneer: "先锋", conqueror: "征服者", dominator: "支配者" } as const;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
@@ -43,18 +50,23 @@ async function loadOptions() {
 }
 
 async function grant() {
-  const title = selectedTitle.value;
-  if (!title) return;
+  const selected = selectedTitles.value;
+  if (!selected.length) return;
   saving.value = true;
   errorMessage.value = "";
   try {
-    const result = await api<{ titleName: string; alreadyOwned: boolean }>("/v1/title-grants/manual", {
-      method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: { contractVersion: "1", playerAccountId: props.playerAccountId, titleKey: title.titleKey, ...(title.mapId ? { mapId: title.mapId } : {}), ...(reason.value.trim() ? { reason: reason.value.trim() } : {}) },
-    });
-    toast.add({ title: result.alreadyOwned ? `玩家此前已拥有「${result.titleName}」，未重复发放` : `已发放「${result.titleName}」`, color: "success" });
-    selectedTitleValue.value = "";
+    const results = [];
+    for (const title of selected) {
+      results.push(await api<{ titleName: string; alreadyOwned: boolean }>("/v1/title-grants/manual", {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+        body: { contractVersion: "1", playerAccountId: props.playerAccountId, titleKey: title.titleKey, ...(title.mapId ? { mapId: title.mapId } : {}), ...(reason.value.trim() ? { reason: reason.value.trim() } : {}) },
+      }));
+    }
+    const ownedCount = results.filter((result) => result.alreadyOwned).length;
+    toast.add({ title: ownedCount === results.length ? `玩家已拥有所选 ${results.length} 个称号，未重复发放` : `已处理 ${results.length} 个称号${ownedCount ? `，其中 ${ownedCount} 个未重复发放` : ""}`, color: "success" });
+    selectedGlobalValues.value = [];
+    selectedMapValues.value = [];
     reason.value = "";
     grantOpen.value = false;
     emit("granted");
@@ -82,16 +94,27 @@ onMounted(() => { void loadOptions(); });
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
-          <UFormField label="称号"><USelect v-model="selectedTitleValue" :items="titleItems" placeholder="选择称号" :loading="loadingOptions" :disabled="loadingOptions || saving" /></UFormField>
-          <UFormField label="发放原因" hint="最多 512 字"><UTextarea v-model="reason" :maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
+          <div class="grant-section">
+            <div class="grant-section__heading"><strong>全局称号</strong></div>
+            <UInputMenu v-model="selectedGlobalValues" multiple :items="globalTitleItems" placeholder="选择全局称号" :loading="loadingOptions" :disabled="loadingOptions || saving" />
+          </div>
+          <div class="grant-section">
+            <div class="grant-section__heading"><strong>地图称号</strong></div>
+            <UInputMenu v-model="selectedMapValues" multiple :items="mapTitleItems" placeholder="选择地图称号" :loading="loadingOptions" :disabled="loadingOptions || saving" />
+          </div>
+          <div v-if="selectedTitles.length" class="selected-titles" aria-live="polite">
+            <div class="grant-section__heading"><strong>已选择 {{ selectedTitleCount }} 项</strong></div>
+            <div class="selected-titles__list"><UBadge v-for="title in selectedTitles" :key="title.value" :label="selectedTitleLabel(title)" color="neutral" variant="subtle" /></div>
+          </div>
+          <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
         </form>
       </template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitle" /></template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /></template>
     </AdminResponsiveDialog>
   </section>
 </template>
 
 <style scoped>
-.player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.grant-form { display: grid; gap: 16px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
+.player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
 @media (max-width: 520px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
 </style>
