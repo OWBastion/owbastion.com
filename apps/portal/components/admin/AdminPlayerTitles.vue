@@ -68,7 +68,7 @@ onMounted(() => { void loadOptions(); });
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">成就与称号</h3><p>展示当前有效权益，可从这里补发称号。</p></div><UBadge :label="`${props.titleGrants.length} 项有效称号`" color="neutral" variant="subtle" /></div>
+    <div class="section-heading"><div><p class="card-kicker">Entitlements</p><h3 id="player-titles-title">成就与称号</h3><p>当前有效权益与人工发放。</p></div><UBadge :label="`${props.titleGrants.length} 项有效称号`" color="neutral" variant="subtle" /></div>
     <p v-if="errorMessage" class="title-error" role="alert">{{ errorMessage }}</p>
     <div v-if="props.titleGrants.length" class="title-table-wrap">
       <table class="title-table">
@@ -78,7 +78,8 @@ onMounted(() => { void loadOptions(); });
     </div>
     <UEmpty v-else-if="!props.loading" title="暂无有效称号" description="可在下方选择称号进行人工发放。" variant="naked" />
     <form class="grant-form" @submit.prevent="grant">
-      <UFormField label="直接发放称号" hint="地图称号的地图范围由目录自动确定"><USelect v-model="selectedTitleValue" :items="titleItems" placeholder="选择称号" :loading="loadingOptions" :disabled="loadingOptions || saving" /></UFormField>
+      <div class="grant-form__heading"><p class="card-kicker">Manual grant</p><strong>直接发放称号</strong><span>地图范围由目录确定</span></div>
+      <UFormField label="称号"><USelect v-model="selectedTitleValue" :items="titleItems" placeholder="选择称号" :loading="loadingOptions" :disabled="loadingOptions || saving" /></UFormField>
       <UFormField label="发放原因（可选）" hint="最多 512 字"><UTextarea v-model="reason" :maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
       <div class="form-actions"><UButton type="submit" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitle" /></div>
     </form>
@@ -86,5 +87,7 @@ onMounted(() => { void loadOptions(); });
 </template>
 
 <style scoped>
-.player-titles { display: grid; gap: 14px; margin-top: 28px; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1rem; }.section-heading p { margin: 5px 0 0; color: var(--quiet); font-size: .78rem; }.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 650; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.grant-form { display: grid; gap: 12px; padding-top: 4px; }.form-actions { display: flex; justify-content: flex-end; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
+.player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading p:not(.card-kicker) { margin: 5px 0 0; color: var(--quiet); font-size: .78rem; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.grant-form { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.3fr) minmax(170px, 1fr) auto; align-items: end; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in oklch, var(--surface-raised) 62%, transparent); }.grant-form__heading { display: grid; align-content: center; gap: 4px; min-height: 42px; }.grant-form__heading strong { font-size: .84rem; }.grant-form__heading span { color: var(--quiet); font-size: .72rem; }.form-actions { display: flex; justify-content: flex-end; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
+@media (max-width: 860px) { .grant-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }.grant-form__heading { grid-column: 1 / -1; }.form-actions { justify-content: flex-start; } }
+@media (max-width: 520px) { .grant-form { grid-template-columns: 1fr; }.grant-form__heading { grid-column: auto; } }
 </style>
