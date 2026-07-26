@@ -49,6 +49,11 @@ The current API implements versioned v1 QQ flows:
   its unclaimed title records to a player account as auditable title grants,
   and can revoke an individual grant with a recorded reason; historical holder
   names are never matched or claimed automatically;
+- maintainers can directly create a `manual` title Grant for an existing
+  player and catalog title for leak correction, appeals, or special rewards.
+  Global titles have no map context; map titles require a configured
+  `map_title_rewards` association. Retired catalog titles remain eligible when
+  explicitly selected by a maintainer;
 - a versioned Queue message invokes OCRKit, persists the raw result and match
   evidence, and moves matching submissions to `ready_for_review`;
 - the maintainer Portal can inspect private evidence and OCR output and record

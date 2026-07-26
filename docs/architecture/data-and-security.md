@@ -70,7 +70,9 @@ stores the player, stable `title_key`, optional map context, source (`historical
 Active uniqueness prevents a player from holding the same title in the same
 scope twice. Grant creation and revocation are idempotent and auditable;
 revocation preserves the record and removes the title from the player-facing
-result.
+result. Manual grants use `source_type = manual` and never create a Submission
+or Review record; they may target retired titles when explicitly selected by a
+maintainer.
 
 ## Public-repository policy
 

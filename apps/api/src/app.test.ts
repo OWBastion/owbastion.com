@@ -31,6 +31,7 @@ const services: PlatformServices = {
   createAdminTitleGrant: async () => {},
   createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0 }),
   revokeAdminTitleGrant: async () => {},
+  createAdminManualTitleGrant: async () => ({ contractVersion: "1", grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: false }),
   listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
   updateAdminChallenge: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
   updateAdminCatalogTitle: async () => {},
@@ -335,6 +336,16 @@ describe("API", () => {
     const body = JSON.stringify({ contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", historicalTitleGrantId: "22222222-2222-4222-8222-222222222222" });
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "title-grant-1" }, body }, env)).status).toBe(204);
+  });
+
+  it("exposes manual title grants only to maintainers", async () => {
+    const manualGrant = { contractVersion: "1" as const, grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: true };
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, createAdminManualTitleGrant: async () => manualGrant }) });
+    const body = JSON.stringify({ contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", titleKey: "PIONEER", reason: "申诉纠正" });
+    expect((await app.request("http://localhost/v1/admin/title-grants/manual", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "manual-1" }, body }, env)).status).toBe(403);
+    const response = await adminApp.request("http://localhost/v1/admin/title-grants/manual", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "manual-1" }, body }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(manualGrant);
   });
 
   it("bulk-links every unclaimed title held by one exact historical player name", async () => {

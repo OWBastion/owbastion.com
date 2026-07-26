@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -682,6 +682,36 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, titleKey: historical.titleKey, mapId: historical.mapId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: auth.subject, grantedAt: timestamp });
       const grantId = existing?.id ?? id;
       await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id });
+    },
+
+    async createAdminManualTitleGrant(input, auth, idempotencyKey): Promise<AdminManualTitleGrantResponse> {
+      const replay = await replayOrConflict<AdminManualTitleGrantResponse>(db, auth.subject, "admin.title.grant.manual", idempotencyKey, input);
+      if (replay) return replay;
+      const player = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
+      if (!player) throw new Error("PLAYER_NOT_FOUND");
+      const title = await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
+      if (!title) throw new Error("TITLE_NOT_FOUND");
+      if (title.scope === "global" && input.mapId) throw new Error("GLOBAL_TITLE_CANNOT_HAVE_MAP");
+      if (title.scope === "map" && !input.mapId) throw new Error("MAP_TITLE_REQUIRES_MAP");
+      let slot: string | null = null;
+      if (input.mapId) {
+        const map = await db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get();
+        if (!map) throw new Error("MAP_NOT_FOUND");
+        const reward = await db.select({ slot: mapTitleRewards.slot }).from(mapTitleRewards).where(and(eq(mapTitleRewards.mapId, input.mapId), eq(mapTitleRewards.titleKey, title.key))).get();
+        if (!reward) throw new Error("TITLE_MAP_REWARD_NOT_CONFIGURED");
+        slot = reward.slot;
+      }
+      const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.playerAccountId, player.id), eq(playerTitleGrants.titleKey, title.key), eq(playerTitleGrants.status, "active"), input.mapId ? eq(playerTitleGrants.mapId, input.mapId) : isNull(playerTitleGrants.mapId))).get();
+      const grantId = existing?.id ?? crypto.randomUUID();
+      const response: AdminManualTitleGrantResponse = { contractVersion: "1", grantId, titleKey: title.key, titleName: title.label, mapId: input.mapId ?? null, slot: slot as "pioneer" | "conqueror" | "dominator" | null, alreadyOwned: Boolean(existing) };
+      const timestamp = now();
+      const sourceId = `manual:${auth.subject}:${idempotencyKey}`;
+      await database.batch([
+        database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES (?, ?, ?, ?, ?, 'active', 'manual', ?, ?, ?)").bind(grantId, player.id, title.key, input.mapId ?? null, slot, sourceId, auth.subject, timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'admin.title.grant.manual', ?, ?, ?)").bind(`${auth.subject}:admin.title.grant.manual:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'admin.title.grant.manual', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ playerAccountId: player.id, titleKey: title.key, mapId: input.mapId ?? null, slot, alreadyOwned: Boolean(existing), reason: input.reason ?? null }), timestamp),
+      ]);
+      return response;
     },
 
     async createAdminTitleGrantBulk(input, auth, idempotencyKey) {

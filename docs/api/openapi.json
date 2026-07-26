@@ -55,6 +55,7 @@
     "/v1/admin/binding-claims/{claimId}/decision": { "post": { "operationId": "decideBindingClaim", "parameters": [{ "$ref": "#/components/parameters/claimId" }], "responses": { "204": { "description": "Decided" } } } },
     "/v1/admin/title-grants": { "get": { "operationId": "listHistoricalTitleGrants", "responses": { "200": { "$ref": "#/components/responses/Json" } } }, "post": { "operationId": "createAdminTitleGrant", "responses": { "204": { "description": "Created" } } } },
     "/v1/admin/title-grants/bulk": { "post": { "operationId": "createAdminTitleGrantsBulk", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
+    "/v1/admin/title-grants/manual": { "post": { "operationId": "createAdminManualTitleGrant", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/title-grants/{grantId}/revoke": { "post": { "operationId": "revokeAdminTitleGrant", "parameters": [{ "$ref": "#/components/parameters/grantId" }], "responses": { "204": { "description": "Revoked" } } } },
     "/v1/admin/submissions": { "get": { "operationId": "listAdminSubmissions", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/submissions/{submissionId}": { "get": { "operationId": "getAdminSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
