@@ -83,7 +83,7 @@ onMounted(() => { void loadOptions(); });
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
           <UFormField label="称号"><USelect v-model="selectedTitleValue" :items="titleItems" placeholder="选择称号" :loading="loadingOptions" :disabled="loadingOptions || saving" /></UFormField>
-          <UFormField label="发放原因（可选）" hint="最多 512 字"><UTextarea v-model="reason" :maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
+          <UFormField label="发放原因" hint="最多 512 字"><UTextarea v-model="reason" :maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
         </form>
       </template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitle" /></template>
