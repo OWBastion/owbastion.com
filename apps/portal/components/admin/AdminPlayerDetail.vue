@@ -2,7 +2,7 @@
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
 
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
-const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string] }>();
+const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; grantCompleted: [] }>();
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 </script>
 
@@ -23,6 +23,8 @@ const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateSty
       <div v-for="submission in props.player.recentSubmissions" :key="submission.submissionId"><strong>{{ submission.mapName }}</strong><small>{{ submission.status }} · {{ formatTime(submission.updatedAt) }}</small></div>
     </div>
     <UEmpty v-else title="暂无提交记录" variant="naked" />
+
+    <AdminPlayerTitles :player-account-id="props.player.playerAccountId" :title-grants="props.player.titleGrants" :loading="loading" @granted="emit('grantCompleted')" />
   </section>
 </template>
 

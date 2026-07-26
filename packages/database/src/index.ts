@@ -1021,6 +1021,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ? await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
           .from(submissions).where(or(...playerBindings.map((binding) => eq(submissions.bindingId, binding.id)))).orderBy(desc(submissions.createdAt)).limit(10)
         : [];
+      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name })
+        .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id))
+        .where(and(eq(playerTitleGrants.playerAccountId, account.id), eq(playerTitleGrants.status, "active"))).orderBy(desc(playerTitleGrants.grantedAt));
       return {
         contractVersion: "1" as const,
         playerAccountId: account.id,
@@ -1031,6 +1034,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         updatedAt: account.updatedAt,
         bindings: playerBindings.map((binding) => ({ bindingId: binding.id, provider: "qq" as const, groupOpenId: binding.groupOpenId, memberOpenId: binding.memberOpenId, createdAt: binding.createdAt })),
         recentSubmissions: recentSubmissions.map((submission) => ({ ...submission, status: submission.status as never })),
+        titleGrants: titleGrants.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy })),
       };
     },
 

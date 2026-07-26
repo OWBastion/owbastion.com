@@ -21,7 +21,6 @@ describe("AppHeader", () => {
     expect(items.find((item: { label: string }) => item.label === "成就").children).toEqual([
       expect.objectContaining({ label: "审核", to: "/admin/reviews" }),
       expect.objectContaining({ label: "成就管理", to: "/admin/achievements" }),
-      expect.objectContaining({ label: "称号发放", to: "/admin/grants" }),
     ]);
     expect(wrapper.text()).not.toContain("天梯排名");
   });

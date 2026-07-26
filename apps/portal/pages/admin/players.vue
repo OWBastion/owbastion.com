@@ -47,6 +47,9 @@ async function load() {
 async function openPlayer(player: AdminPlayer) {
   selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${player.playerAccountId}`);
 }
+async function refreshSelectedPlayer() {
+  if (selected.value) selected.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${selected.value.playerAccountId}`);
+}
 const actionTitle = computed(() => pendingAction.value?.type === "unbind" ? "解除 QQ 绑定" : pendingAction.value?.status === "banned" ? "封禁玩家" : "解除封禁");
 const actionDescription = computed(() => selected.value ? `${selected.value.playerName}#${selected.value.playerId}` : undefined);
 function requestStatus(status: "active" | "banned") {
@@ -111,7 +114,7 @@ onMounted(() => { void load(); });
       <UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
     </section>
 
-    <AdminResponsiveDialog v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''" size="lg"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionLoading" @set-status="requestStatus" @unbind="requestUnbind" /></template></AdminResponsiveDialog>
+    <AdminResponsiveDialog v-model:open="panelOpen" :title="selected ? `${selected.playerName}#${selected.playerId}` : ''" size="lg"><template #body><AdminPlayerDetail v-if="selected" :player="selected" :loading="actionLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="refreshSelectedPlayer" /></template></AdminResponsiveDialog>
     <AdminResponsiveDialog :open="pendingAction !== null" :title="actionTitle" :description="actionDescription" size="sm" :dismissible="!actionLoading" @update:open="(open) => { if (!open) closeAction(); }">
       <template #body>
         <form v-if="pendingAction" id="player-action" class="player-action" @submit.prevent="confirmAction">

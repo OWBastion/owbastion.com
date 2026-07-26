@@ -435,6 +435,7 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(10),
+  titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string() })),
 });
 
 export const currentPlayerResponseSchema = z.object({

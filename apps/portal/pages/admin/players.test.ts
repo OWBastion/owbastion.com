@@ -5,7 +5,9 @@ import PlayersPage from "./players.vue";
 
 const adminApi = vi.fn((path: string) => {
   if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerName: "他又", playerId: "51705", bindingCount: 1, status: "active" }], total: 1, hasMore: false });
-  if (path === "/v1/player-accounts/player-1") return Promise.resolve({ playerAccountId: "player-1", playerName: "他又", playerId: "51705", status: "active", updatedAt: 0, bindings: [], recentSubmissions: [] });
+  if (path === "/v1/player-accounts/player-1") return Promise.resolve({ playerAccountId: "player-1", playerName: "他又", playerId: "51705", status: "active", updatedAt: 0, bindings: [], recentSubmissions: [], titleGrants: [] });
+  if (path === "/v1/maps") return Promise.resolve({ items: [] });
+  if (path === "/v1/titles") return Promise.resolve({ items: [] });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
