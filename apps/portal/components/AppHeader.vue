@@ -87,16 +87,16 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; justify-content: flex-start; color: var(--muted); font-size: .78rem; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--muted); font-size: .78rem; }
 .main-nav :deep(ul) { gap: 2px; }
 .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 36px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
-.main-nav a { text-decoration: none; transition: color 160ms ease; }
-.main-nav a:hover, .main-nav a.router-link-exact-active { color: var(--text); }
+.main-nav a { display: inline-flex; min-height: 36px; align-items: center; padding: 0 9px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease; }
+.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
 .login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; transition: transform 100ms ease-out, background 160ms ease; }
 .login-link:active { transform: scale(.97); }
 .mobile-menu-toggle, .mobile-nav { display: none; }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
   .app-header { position: relative; gap: 10px; min-height: 52px; padding: 6px 8px 6px 10px; }
   .main-nav { display: none; }
