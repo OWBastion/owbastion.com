@@ -23,6 +23,7 @@ describe("AdminPlayerTitles", () => {
       },
       global: {
         stubs: {
+          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
           USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
           UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
         },
@@ -30,6 +31,7 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
+    await wrapper.get("[data-testid='open-title-grant']").trigger("click");
     expect(wrapper.findAll("option").some((option) => option.text().includes("旧地图称号 · 萨摩亚（不再发放）"))).toBe(true);
     await wrapper.get("select").setValue("OLD_MAP:map.samoa");
     await wrapper.get("form").trigger("submit");
