@@ -32,6 +32,7 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
     await wrapper.get("[data-testid='open-title-grant']").trigger("click");
+    expect(wrapper.text()).not.toContain("（可选）");
     expect(wrapper.findAll("option").some((option) => option.text().includes("旧地图称号 · 萨摩亚（不再发放）"))).toBe(true);
     await wrapper.get("select").setValue("OLD_MAP:map.samoa");
     await wrapper.get("form").trigger("submit");

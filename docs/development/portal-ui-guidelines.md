@@ -63,6 +63,13 @@ Use this pattern for `/admin`:
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
 
+### Form field requiredness
+
+- Mark a field only when it is required. An unmarked field is optional by default.
+- Never add `（可选）`, `(可选)`, `optional`, or equivalent text to an optional field label or placeholder.
+- Keep requiredness consistent between the UI and behavior: required controls use the component's required indicator and validation; optional controls must not block submission when empty.
+- When generating, writing, or visually testing Portal UI, check that optional fields have no optional marker and that required fields are the only fields presented as required. Do not add extra copy merely to explain the default.
+
 ## Component selection order
 
 1. Reuse domain components first: `PageSectionHeader`, `StatusBadge`, `SubmissionStatusBadge`, `AdminWorkspace`, `AdminDataTable`, and components under `components/<domain>/`.
@@ -126,7 +133,8 @@ Before modifying Portal UI:
 4. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.
 5. For admin tables, verify that `AdminDataTable` is used. Any exception must be explicit and justified.
 6. Check mobile layout, keyboard behavior, ARIA, private fields, and status wording.
-7. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
+7. Check every form label: required fields are explicitly marked; optional fields have no optional marker or explanatory suffix.
+8. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
 
 ## Completion checklist
 
@@ -135,6 +143,7 @@ Before modifying Portal UI:
 - [ ] Admin data tables use `AdminDataTable`, or an explicit documented exception exists.
 - [ ] Loading, failure, empty, permission, and in-progress states have clear UI.
 - [ ] Copy follows the Portal copy guidelines and does not present future capability as current capability.
+- [ ] Form labels mark required fields only; optional fields do not contain `（可选）` or equivalent text.
 - [ ] Mobile, keyboard, focus, ARIA, and non-color state expression were checked.
 - [ ] Private evidence, QQ identifiers, and internal fields are not exposed to unauthorized users.
 - [ ] Affected tests and Portal typecheck were run, and any unavailable validation is recorded.
