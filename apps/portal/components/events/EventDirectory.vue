@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RandomEvent } from "~/types/random-event";
+import EffectGlossaryTooltip from "~/components/events/EffectGlossaryTooltip.vue";
 
 const props = defineProps<{ events: RandomEvent[] }>();
 const query = shallowRef("");
