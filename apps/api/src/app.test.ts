@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
 import { createApp, type RuntimeEnv } from "./app";
 
@@ -635,5 +635,86 @@ describe("API", () => {
     expect(login.headers.get("set-cookie")).toContain("owb_session=local-session");
     const denied = await localApp.request("http://localhost/v1/admin/player-accounts", { headers: { cookie: "owb_session=local-session" } }, localEnv);
     expect(denied.status).toBe(403);
+  });
+
+  it("caches public submission status in KV using key submission:v1:<id> and honors refresh=1", async () => {
+    const getSubmissionMock = vi.fn().mockResolvedValue({
+      contractVersion: "1",
+      submissionId: "00000000-0000-0000-0000-000000000099",
+      status: "ready_for_review",
+      mapName: "Test Map",
+      createdAt: 100,
+      updatedAt: 200,
+    });
+    const subApp = createApp({
+      authenticate: auth,
+      services: () => ({ ...services, getSubmission: getSubmissionMock }),
+    });
+
+    const kvStore = new Map<string, string>();
+    const cacheGet = vi.fn(async (key: string, format?: string) => {
+      const val = kvStore.get(key);
+      if (!val) return null;
+      return format === "json" ? JSON.parse(val) : val;
+    });
+    const cachePut = vi.fn(async (key: string, val: string) => {
+      kvStore.set(key, val);
+    });
+    const mockCache = {
+      get: cacheGet,
+      put: cachePut,
+    } as unknown as KVNamespace;
+
+    const cacheEnv = { ...env, CACHE: mockCache };
+    const url = "http://localhost/v1/submissions/00000000-0000-0000-0000-000000000099";
+
+    const res1 = await subApp.request(url, {}, cacheEnv);
+    expect(res1.status).toBe(200);
+    expect(getSubmissionMock).toHaveBeenCalledTimes(1);
+    expect(cacheGet).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", "json");
+    expect(cachePut).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", expect.any(String), { expirationTtl: 300 });
+
+    getSubmissionMock.mockClear();
+    const res2 = await subApp.request(url, {}, cacheEnv);
+    expect(res2.status).toBe(200);
+    expect(getSubmissionMock).not.toHaveBeenCalled();
+
+    getSubmissionMock.mockResolvedValueOnce({
+      contractVersion: "1",
+      submissionId: "00000000-0000-0000-0000-000000000099",
+      status: "approved",
+      mapName: "Test Map",
+      createdAt: 100,
+      updatedAt: 300,
+    });
+    cacheGet.mockClear();
+    cachePut.mockClear();
+
+    const res3 = await subApp.request(`${url}?refresh=1`, {}, cacheEnv);
+    expect(res3.status).toBe(200);
+    expect(cacheGet).not.toHaveBeenCalled();
+    expect(getSubmissionMock).toHaveBeenCalledTimes(1);
+    expect(cachePut).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", expect.any(String), { expirationTtl: 300 });
+  });
+
+  it("does not cache 404 or error responses in KV for public submission status", async () => {
+    const getSubmissionMock = vi.fn().mockRejectedValue(new Error("SUBMISSION_NOT_FOUND"));
+    const subApp = createApp({
+      authenticate: auth,
+      services: () => ({ ...services, getSubmission: getSubmissionMock }),
+    });
+
+    const cachePut = vi.fn().mockResolvedValue(undefined);
+    const mockCache = {
+      get: vi.fn().mockResolvedValue(null),
+      put: cachePut,
+    } as unknown as KVNamespace;
+
+    const cacheEnv = { ...env, CACHE: mockCache };
+    const url = "http://localhost/v1/submissions/00000000-0000-0000-0000-000000000099";
+
+    const response = await subApp.request(url, {}, cacheEnv);
+    expect(response.status).toBe(404);
+    expect(cachePut).not.toHaveBeenCalled();
   });
 });

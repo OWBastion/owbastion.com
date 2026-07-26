@@ -1,5 +1,6 @@
 const catalogCachePrefix = "catalog:v2:";
 export const catalogCacheTtlSeconds = 7 * 24 * 60 * 60;
+export const catalogRevisionCacheTtlSeconds = 5 * 60;
 
 export const catalogCacheKey = (suffix: string, revision?: string) => {
   const revSegment = revision ? `${revision}:` : "";

@@ -57,6 +57,6 @@ describe("title migration page", () => {
     (document.body.querySelector(".sheet-actions button:last-child") as HTMLButtonElement).click();
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/bulk", expect.objectContaining({ method: "POST", body: expect.objectContaining({ holderName: "Cold", playerAccountId: players[0].playerAccountId }) }));
-    expect(toastAdd).toHaveBeenCalledWith({ title: "已关联 2 项", color: "success" });
+    expect(toastAdd).toHaveBeenCalledWith({ title: "已关联 2 项称号", description: "传奇挑战者、大难不死", color: "success" });
   });
 });

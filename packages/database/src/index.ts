@@ -6,7 +6,8 @@ import { achievementChallenges, attachments, auditEvents, bindingClaims, binding
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
-import { catalogCacheKey, clearCatalogCache, withCatalogCache } from "./catalog-cache";
+import { catalogCacheKey, catalogRevisionCacheTtlSeconds, clearCatalogCache, withCatalogCache } from "./catalog-cache";
+import { invalidateSubmissionCache } from "./submission-cache";
 
 const now = () => Date.now();
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
@@ -178,6 +179,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const getCatalogRevision = async (): Promise<string | undefined> => {
+    const cacheKey = catalogCacheKey("revision");
+    if (cache) {
+      try {
+        const cached = await cache.get(cacheKey, "text");
+        if (cached !== null) return cached === "__none__" ? undefined : cached;
+      } catch {
+        // KV is an optional derived-data optimization; D1 remains authoritative.
+      }
+    }
+    let revision: string | undefined;
     try {
       const record = await db
         .select({
@@ -190,12 +201,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .limit(1)
         .get();
       if (record) {
-        return `${record.sourceVersion}:${record.snapshotHash}`;
+        revision = `${record.sourceVersion}:${record.snapshotHash}`;
       }
     } catch {
       // Table or record may not exist yet
     }
-    return undefined;
+    if (cache) {
+      try {
+        await cache.put(cacheKey, revision ?? "__none__", { expirationTtl: catalogRevisionCacheTtlSeconds });
+      } catch {
+        // Ignore KV write errors
+      }
+    }
+    return revision;
   };
 
   // Fetch all currently public challenges in two parallel queries.
@@ -255,14 +273,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
-    async getAgentMap(input) { return (await this.listMaps()).find((map) => map.mapId === input.mapId) ?? null; },
+    async getAgentMap(input) {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey(`map:${encodeURIComponent(input.mapId)}`, revision), async () => (await this.listMaps()).find((map) => map.mapId === input.mapId) ?? null);
+    },
     async listAgentAchievements(input: AgentAchievementQuery) {
       const challenges = (await this.listChallenges({ family: "achievement" })).filter((challenge) => challenge.family === "achievement");
       const query = input.query?.toLocaleLowerCase();
       const filtered = challenges.filter((challenge) => (!query || [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.status || challenge.status === input.status));
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
-    async getAgentAchievement(input) { return (await this.listChallenges({ family: "achievement" })).find((challenge) => challenge.family === "achievement" && challenge.challengeId === input.challengeId) ?? null; },
+    async getAgentAchievement(input) {
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey(`achievement:${encodeURIComponent(input.challengeId)}`, revision), async () => (await this.listChallenges({ family: "achievement" })).find((challenge) => challenge.family === "achievement" && challenge.challengeId === input.challengeId) ?? null);
+    },
     async listAgentTitles(input: AgentTitleQuery) {
       const titles = (await this.listTitles({ mapId: input.mapId })).filter((title) => title.availability === "active");
       const query = input.query?.toLocaleLowerCase();
@@ -270,9 +294,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async getAgentTitle(input) {
-      const maps = await this.listMaps();
-      const candidates = [...await this.listTitles({}), ...(await Promise.all(maps.map((map) => this.listTitles({ mapId: map.mapId })))).flat()];
-      return candidates.find((title) => title.availability === "active" && title.titleKey === input.titleKey) ?? null;
+      const revision = await getCatalogRevision();
+      return withCatalogCache(cache, catalogCacheKey(`title:${encodeURIComponent(input.titleKey)}`, revision), async () => {
+        const maps = await this.listMaps();
+        const candidates = [...await this.listTitles({}), ...(await Promise.all(maps.map((map) => this.listTitles({ mapId: map.mapId })))).flat()];
+        return candidates.find((title) => title.availability === "active" && title.titleKey === input.titleKey) ?? null;
+      });
     },
     async searchAgentContent(input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
@@ -315,8 +342,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
     },
     async getRandomEvent(input) {
-      const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
-      return row ? asRandomEvent(row) : null;
+      const revision = await getCatalogRevision();
+      const cacheKey = catalogCacheKey(`event:${encodeURIComponent(input.eventId)}:${input.includeArchived ?? false}`, revision);
+      return withCatalogCache(cache, cacheKey, async () => {
+        const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
+        return row ? asRandomEvent(row) : null;
+      });
     },
     async createAdminRandomEvent(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.create", idempotencyKey, input); if (replay) return replay;
@@ -770,6 +801,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
       await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
+      await invalidateSubmissionCache(cache, submissionId);
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
     },
 
@@ -800,6 +832,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
+      await invalidateSubmissionCache(cache, session.submissionId);
       if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
@@ -933,6 +966,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         );
       }
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      await invalidateSubmissionCache(cache, row.id);
       const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
       if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       if (reward && response.decision === "approved") {
@@ -961,12 +995,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!quality.accepted) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
         await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "OCR 结果需要人工核对" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        await invalidateSubmissionCache(cache, row.id);
         return;
       }
       const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
       const matched = Object.values(match).every(Boolean);
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), createdAt: now() });
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      await invalidateSubmissionCache(cache, row.id);
     },
 
     async markOcrJobFailed(input) {
@@ -974,6 +1010,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row || row.status !== "ocr_pending") return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
       await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "OCR 服务异常，需要人工核对" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      await invalidateSubmissionCache(cache, row.id);
     },
 
     async listQqGroupAccess() {
@@ -1595,6 +1632,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response = { contractVersion: "1" as const, submissionId, status, mapName: input.challenge.mapName, attachmentIds };
       await recordIdempotency(db, auth.subject, "submission.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "submission.create", "submission", submissionId, { bindingId: binding.id, attachmentCount: attachmentIds.length, mapName: input.challenge.mapName, status });
+      await invalidateSubmissionCache(cache, submissionId);
       return response;
     },
 
@@ -1607,3 +1645,4 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 };
 
 export * from "./schema";
+export * from "./submission-cache";
