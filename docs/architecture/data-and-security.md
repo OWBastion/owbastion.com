@@ -6,7 +6,7 @@
 | --- | --- |
 | D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, historical title snapshots, and auditable player title grants |
 | R2 | Private submission evidence and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
-| Bastion Git and snapshots | Released game content and version history; the platform stores an imported immutable catalog snapshot |
+| Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
 The OCR Queue carries only an opaque submission ID, private object key, and
 schema version. The consumer resolves the platform evidence bucket from the
@@ -25,7 +25,7 @@ requests require an authenticated platform session whose player account has
 visibility. Administrator status changes and binding removals are idempotent
 and auditable. Achievement-catalog changes use the same authorization,
 idempotency, and audit boundary; they do not permit administrators to modify
-the immutable imported Bastion title or map facts.
+the platform-owned title, map, event, or challenge metadata.
 
 Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
 bind the expected byte size and SHA-256, expire after ten minutes, and store

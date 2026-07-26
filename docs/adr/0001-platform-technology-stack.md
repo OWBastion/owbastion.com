@@ -5,6 +5,13 @@
 - Decision owners: OWBastion maintainers
 - Scope: `OWBastion/owbastion.codes`
 
+> Current architecture amendment (2026-07-26): the platform is the sole source
+> of current event, map, title, and challenge metadata. Bastion owns game
+> implementation, builds, and release artifacts, and reads platform metadata
+> through `/v1/agents/*`. The platform does not consume formal Bastion content
+> snapshots or orchestrate Bastion/GitHub changes. The original snapshot and
+> change-orchestration assumptions below are superseded by this amendment.
+
 ## Context
 
 `owbastion.codes` is the Bastion web platform and operational control plane. It must support three product surfaces:
@@ -13,7 +20,7 @@
 2. a reviewer and administrator application;
 3. developer-oriented analysis, draft, validation, and change-orchestration workflows.
 
-The platform also owns durable business state and orchestrates integrations with QQBot, OCRKit, Bastion snapshots, Cloudflare storage, asynchronous work, and GitHub pull requests.
+The platform also owns durable business state and orchestrates integrations with QQBot, OCRKit, Cloudflare storage, and asynchronous work.
 
 The accepted stack now backs the pnpm workspace, Hono Worker API, Nuxt Portal,
 contracts/domain/database/auth packages, D1 migrations, and private R2 evidence
@@ -71,8 +78,7 @@ apps/
 workers/
   evidence/            attachment retrieval and R2 persistence
   ocr/                 OCRKit orchestration
-  grant/               Bastion grant and pull-request orchestration
-  snapshot-sync/       released Bastion snapshot import and reconciliation
+  grant/               platform title-grant orchestration
   notification/        QQ and future channel delivery jobs
 ```
 
@@ -86,7 +92,7 @@ Use Cloudflare services according to the existing ownership contract:
 | --- | --- | --- |
 | Business state | Cloudflare D1 | identities, submissions, OCR metadata, corrections, decisions, grants, drafts, and delivery state |
 | Private evidence and large artifacts | Cloudflare R2 | screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
-| Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, snapshot synchronization, and notifications |
+| Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, and notifications |
 | Cache and short-lived coordination | Cloudflare KV | caches, rate limits, revocable sessions backed by durable truth, and short-lived derived results |
 | Access control for privileged web surfaces | Platform sessions with account roles | administrator and maintainer authentication boundary |
 
@@ -119,7 +125,6 @@ workers/
   evidence/
   ocr/
   grant/
-  snapshot-sync/
   notification/
 packages/
   contracts/
@@ -153,7 +158,7 @@ Do not create all directories speculatively. Add each application, worker, or pa
 For external producer contracts, the package contains pinned consumer schemas, generated validators, and compatibility adapters:
 
 - OCRKit remains authoritative for OCR response schemas;
-- Bastion remains authoritative for released snapshot schemas;
+- the Agents API is authoritative for current platform metadata schemas;
 - QQ remains authoritative for raw platform event formats.
 
 The platform should generate OpenAPI and a TypeScript client for QQBot. QQBot must not maintain an incompatible hand-written copy of the platform API.
@@ -200,8 +205,8 @@ OCR output is evidence, not an approval decision.
 5. Do not expose D1, R2, KV, Queue, GitHub, or OCR credentials to frontend bundles.
 6. Do not use KV or memory as durable business truth.
 7. Do not create independently deployed services without a demonstrated scaling, isolation, failure-domain, or security requirement.
-8. Do not allow draft platform data to override released Bastion snapshot data in public views.
-9. Version API, event, Queue, OCR compatibility, and Bastion snapshot contracts.
+8. Do not expose draft or administrative platform data through public metadata projections.
+9. Version API, event, Queue, OCR compatibility, and Agents metadata contracts.
 10. Keep side effects idempotent, auditable, retry-safe, and reconcilable.
 
 ## Alternatives considered
@@ -243,7 +248,7 @@ The following foundation work is complete:
 7. integrate the QQBot HTTP client;
 8. add the first Nuxt Portal slice.
 
-OCR orchestration, review UI, grants, snapshot import, administrative surfaces,
+OCR orchestration, review UI, grants, administrative surfaces,
 and balance tooling remain separate validated milestones.
 
 ## Revisit conditions

@@ -1,7 +1,7 @@
 # Database migrations and seeds
 
-本仓库把 D1 数据变更分成三类，避免 schema 演进、测试 fixture 和 Bastion
-目录发布互相混用。
+本仓库把 D1 数据变更分成三类，避免 schema 演进、测试 fixture 和平台目录
+维护互相混用。
 
 ## Migration
 
@@ -48,7 +48,7 @@ pnpm db:seed:local
 本地 seed 会根据当前 `maps` 目录为每张地图创建空的 `map_metadata` 记录，方便
 在管理侧直接填写地图评级和特殊机制；不会覆盖已经填写的属性。
 
-## Catalog import
+## Legacy catalog import
 
 Random-event data is intentionally not imported by a CLI or a local seed. Use
 the maintainer Portal's event-management CSV preview and confirmation flow so
@@ -60,9 +60,10 @@ pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json --dry-
 pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json
 ```
 
-Catalog import 面向已经完成 migrations 的数据库，使用 Bastion 提供的版本化
-snapshot。称号、地图和奖励使用 upsert；历史持有人只追加，不自动删除，也不
-自动关联平台账号。每个 snapshot 的 source version 和 SHA-256 hash 会写入
+该导入工具仅用于历史数据迁移或显式恢复，不是平台与 Bastion 的持续同步机制。
+当前事件、地图、称号和挑战元数据由平台维护，Bastion 在构建时通过 Agents API
+读取。若执行历史导入，称号、地图和奖励使用 upsert；历史持有人只追加，不自动
+删除，也不自动关联平台账号。每个导入文件的 source version 和 SHA-256 hash 会写入
 `catalog_imports`。只有 `source_version` 与 `snapshot_hash` 同时匹配时，重复导入
 才会直接跳过；同版本不同 hash、同 hash 不同版本或记录不一致都会失败并要求
 人工 reconciliation。
@@ -84,7 +85,8 @@ pnpm db:import:catalog --snapshot <path> --remote
 
 ## Ownership and rollback
 
-Bastion owns released game facts and catalog snapshots. This repository owns the
-imported platform catalog and historical migration records. Catalog import 只做
-追加或更新，不回删旧记录；错误目录应通过新的修正 snapshot 或明确的数据
-修复 migration 处理。已有 migration 永远不通过修改文件来回滚。
+This repository owns current platform metadata and historical migration records.
+Bastion owns game implementation, builds, and release artifacts, and reads the
+platform metadata through the Agents API. Legacy catalog import 只做追加或更新，
+不回删旧记录；错误数据应通过平台管理流程或明确的数据修复 migration 处理。
+已有 migration 永远不通过修改文件来回滚。

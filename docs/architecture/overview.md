@@ -13,26 +13,29 @@ The repository contains an implemented TypeScript workspace with:
 - apps/portal: a Nuxt player-facing Portal and platform-session-protected `/admin` control surface;
 - packages/contracts, domain, database, and auth;
 - forward-only D1 migrations for bindings, submissions, evidence metadata, and
-  QQ login/session state, maps, achievement challenges, and the versioned
-  Bastion title catalog;
+  QQ login/session state, platform-owned events, maps, titles, and achievement
+  challenges;
 - an R2 evidence binding used when EVIDENCE_BUCKET is available.
 
 OCR orchestration, review, and Queue-backed submission processing are coded for
 the first map-challenge slice; their current status and verification evidence
 are tracked in the matrix. Platform-internal title Grants are created by the
-approval transaction; Bastion snapshot import and release synchronization are
-separate capabilities.
+approval transaction. Bastion consumes the platform's current metadata through
+the Agents API when building and publishing the game; it does not export a
+formal content snapshot to the platform.
 
 ## Mission and ownership
 
 The platform provides public and player-facing account capabilities and owns
-durable business state for the Bastion ecosystem. It is a control plane:
-released game content remains authoritative in OWBastion/Bastion.
+the current event, map, title, and challenge metadata for the Bastion
+ecosystem, as well as durable business state. Bastion owns the game
+implementation, build, and release artifacts. Bastion reads platform metadata
+through the Agents API; it is not a competing metadata source.
 
 | Repository | Authoritative responsibility |
 | --- | --- |
-| OWBastion/Bastion | Released game source, content definitions, builds, releases, and public snapshots |
-| OWBastion/owbastion.codes | Platform business data, API, Portal, private evidence, review decisions, and platform title Grants |
+| OWBastion/Bastion | Game implementation, builds, releases, and published game artifacts |
+| OWBastion/owbastion.codes | Current event, map, title, and challenge metadata; business data, API, Portal, private evidence, review decisions, and platform title Grants |
 | OWBastion/qqbot | QQ channel ingress, deterministic command UX, and notifications |
 | OWBastion/ocrkit | Stateless screenshot recognition and model lifecycle |
 
@@ -56,18 +59,20 @@ The Portal proxies administrator requests server-side so the platform session
 cookie is forwarded to the Worker. Public responses do not expose private evidence,
 QQ OpenIDs, review notes, or unapproved drafts.
 
-Achievement catalog management changes platform challenge rules only. It does
-not create titles, alter Bastion's released title or map facts, or issue titles;
-those remain Bastion-release and historical-title-migration responsibilities.
+Achievement catalog management changes platform-owned title and challenge
+metadata. It does not edit Bastion's game implementation or build artifacts;
+Bastion consumes the resulting metadata through the Agents API. Title Grants
+remain platform business records.
 
-Random events are platform-owned directory records. Their labels and balancing
-metadata are maintained through the administrator Portal and may link to
-existing platform challenges, but do not modify Bastion's released scripts.
+Random events are platform-owned metadata. Their labels and balancing metadata
+are maintained through the administrator Portal and may link to existing
+platform challenges, while Bastion consumes them as build input and owns the
+corresponding game implementation.
 
 ## Design principles
 
 1. Keep one authoritative owner for each fact.
-2. Keep released content, platform business state, historical snapshots, drafts, and caches distinct.
+2. Keep platform metadata, game implementation, platform business state, and caches distinct.
 3. Make side effects idempotent and auditable.
 4. Enforce public, player-private, reviewer, developer, and maintainer
    boundaries at the API.

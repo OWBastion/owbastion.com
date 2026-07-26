@@ -123,10 +123,11 @@ tags. It never creates or issues a title: title
 identity and game facts remain Bastion-owned, while historical entitlement
 remains the separate administrator migration flow.
 
-The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,
-`CONQUEROR`, and `DOMINATOR` are map-scoped reward slots; all other imported
-titles are global. Historical Bastion holder names remain source snapshots and
-must not be converted into platform accounts automatically. A maintainer may
+The platform owns the current title metadata. Bastion reads that metadata
+through the Agents API when building the game. `PIONEER`, `CONQUEROR`, and
+`DOMINATOR` are map-scoped reward slots; all other titles are global. Historical
+holder names remain historical source records and must not be converted into
+platform accounts automatically. A maintainer may
 create one auditable `player_title_grants` association for a historical holder
 through the administrator migration UI; a mistaken association is revoked with
 a recorded reason rather than deleted. Only active grant records authorize a
