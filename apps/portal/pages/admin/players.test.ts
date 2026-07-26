@@ -13,15 +13,12 @@ const adminApi = vi.fn((path: string) => {
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin players page", () => {
-  it("opens the player detail sheet", async () => {
+  it("links to the full player detail page", async () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(PlayersPage, { attachTo: document.body, global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" } } } });
     await flushPromises();
     expect(wrapper.find(".admin-table [aria-label='搜索玩家']").exists()).toBe(true);
     expect(wrapper.find(".admin-workspace__toolbar").exists()).toBe(false);
-    const trigger = wrapper.findAll(".admin-table button").find((button) => button.text() === "查看")!;
-    await trigger.trigger("click");
-    await flushPromises();
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(wrapper.get('a[href="/admin/players/player-1"]').text()).toBe("查看详情");
   });
 });
