@@ -14,3 +14,4 @@
 0036_submission_review_statuses.sql
 0040_generic_title_grants.sql
 0041_challenge_reward_mapping.sql
+0043_effect_glossary.sql
