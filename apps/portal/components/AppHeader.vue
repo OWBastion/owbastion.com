@@ -16,12 +16,12 @@ const adminNavigationItems = [
     children: [
       { label: "审核", description: "截图审核队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews" },
       { label: "成就管理", description: "挑战目录与规则", icon: "i-lucide-settings-2", to: "/admin/achievements" },
+      { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
     ],
   },
   { label: "地图", icon: "i-lucide-map", to: "/admin/maps" },
   { label: "事件", icon: "i-lucide-zap", to: "/admin/events" },
   { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels" },
-  { label: "历史称号", icon: "i-lucide-history", to: "/admin/titles" },
 ];
 
 onMounted(() => { if (!loaded.value) void refresh(); });
