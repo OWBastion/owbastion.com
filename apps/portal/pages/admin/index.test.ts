@@ -16,7 +16,7 @@ const adminApi = vi.fn((path: string) => {
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin dashboard", () => {
-  it("shows dashboard metrics, review queue, and functional links", async () => {
+  it("shows dashboard metrics and review queue without duplicating the management navigation", async () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AdminDashboard, { global: { stubs: { NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" } } } });
     await flushPromises();
@@ -32,12 +32,6 @@ describe("admin dashboard", () => {
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("等待核对");
     expect(wrapper.find('input[aria-label="搜索玩家"]').exists()).toBe(false);
-    expect(wrapper.find('a[href="/admin/reviews"]').exists()).toBe(true);
-    expect(wrapper.findAll('a[href="/admin/reviews"]').length).toBeGreaterThanOrEqual(2);
-    expect(wrapper.find('a[href="/admin/players"]').exists()).toBe(true);
-    expect(wrapper.find('a[href="/admin/channels"]').exists()).toBe(true);
-    expect(wrapper.find('a[href="/admin/achievements"]').exists()).toBe(true);
-    expect(wrapper.find('a[href="/admin/maps"]').exists()).toBe(true);
-    expect(wrapper.find('a[href="/admin/titles"]').exists()).toBe(true);
+    expect(wrapper.find(".management-links").exists()).toBe(false);
   });
 });

@@ -59,10 +59,5 @@ onMounted(async () => {
     <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p></template>
     <AdminDashboardMetrics :metrics="metrics" />
     <AdminReviewQueue class="dashboard-queue" :loading="loading" :reviews="reviewQueue" />
-    <AdminManagementLinks class="dashboard-tools" />
   </AdminWorkspace>
 </template>
-
-<style scoped>
-.dashboard-tools { margin-top:clamp(12px,2vw,24px); }
-</style>
