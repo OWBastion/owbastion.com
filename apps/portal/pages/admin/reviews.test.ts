@@ -11,18 +11,12 @@ const adminApi = vi.fn((path: string) => {
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin reviews page", () => {
-  it("opens the submission detail sheet", async () => {
+  it("links each submission to its standalone detail page", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(ReviewsPage, { attachTo: document.body });
+    const wrapper = await mountSuspended(ReviewsPage);
     await flushPromises();
     expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(4);
-    await wrapper.findAll(".admin-table button").find((button) => button.text() === "查看")!.trigger("click");
-    await flushPromises();
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(document.body.textContent).toContain("守望先锋");
-    expect(document.body.textContent).toContain("OCRKit");
-    expect(document.body.textContent).toContain("已匹配");
-    expect(document.body.textContent).toContain("识别结果");
-    expect(document.body.textContent).toContain("98%");
+    expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toBe("查看");
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 });
