@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import ReviewsPage from "./reviews.vue";
+import ReviewsPage from "./reviews/index.vue";
 
 const adminApi = vi.fn((path: string) => {
   if (path === "/v1/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required,approved,rejected,resubmission_required&page=1&pageSize=20") return Promise.resolve({ items: [{ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null }, { submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "ocr_review_required", challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null }, { submissionId: "submission-3", mapName: "尼泊尔", difficulty: "地狱", playerName: "他又", status: "evidence_stored", challenge: null, ocrStatus: "not_started", ocrAttempt: null, ocrErrorCode: null }, { submissionId: "submission-4", mapName: "绿洲城", difficulty: "困难", playerName: "他又", status: "approved", challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null }], total: 4 });
