@@ -65,8 +65,8 @@ const sizeClasses: Record<DialogSize, string> = {
   box-shadow: 0 24px 80px color-mix(in oklch, var(--shadow) 86%, transparent), 0 1px 0 color-mix(in oklch, white 45%, transparent) inset;
   backdrop-filter: blur(22px) saturate(1.18);
 }
-.admin-responsive-dialog__modal { border-radius: 20px; }
-.admin-responsive-dialog__drawer { border-bottom: 0; border-radius: 20px 20px 0 0; }
+.admin-responsive-dialog__modal { border-radius: 20px; overflow: hidden; }
+.admin-responsive-dialog__drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
 .admin-responsive-dialog__header, .admin-responsive-dialog__footer {
   background: color-mix(in oklch, var(--surface) 82%, transparent);
   backdrop-filter: blur(18px) saturate(1.12);
