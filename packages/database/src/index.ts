@@ -864,8 +864,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const data = raw?.data ?? {};
       const challengeType = mapChallenge ? "map_completion" : "title_achievement";
       const quality = raw ? assessOcrQuality(challengeType, raw) : { accepted: false, requiredFields: [], reasons: ["missing_ocr_result"] };
-      const { skipped, ...match } = matchOcrResult({ challengeType, targetMapName: mapChallenge?.map.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: titleChallenge?.title.label, achievementTitles: data.achievement_titles });
-      const matched = quality.accepted && Object.values(match).every(Boolean);
+      const { skipped, ...match } = matchOcrResult({ challengeType, targetMapName: mapChallenge?.map.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
+      const titleMatched = !titleChallenge || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === titleChallenge!.title.label.trim().toLocaleLowerCase());
+      const matched = quality.accepted && Object.values(match).every(Boolean) && titleMatched;
       await db.update(submissions).set({ status: matched || !quality.accepted ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, mapName: mapChallenge?.map.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched || !quality.accepted ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, submission.id));
       if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
       await invalidateSubmissionCache(cache, submission.id);

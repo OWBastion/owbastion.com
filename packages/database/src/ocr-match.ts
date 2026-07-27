@@ -16,7 +16,6 @@ export type OcrMatch = {
   difficulty: boolean;
   completed: boolean;
   player: boolean;
-  title: boolean;
   skipped: Array<"map" | "difficulty">;
 };
 
@@ -29,7 +28,6 @@ export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
     difficulty: isTitleChallenge || normalized(input.difficulty) === normalized(input.targetDifficulty),
     completed: input.challengeCompleted === true,
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
-    title: !isTitleChallenge || (input.achievementTitles ?? []).some((title) => normalized(title) === normalized(input.titleName)),
   };
   return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : [] };
 };

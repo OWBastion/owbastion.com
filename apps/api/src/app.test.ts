@@ -38,6 +38,7 @@ const services: PlatformServices = {
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
+  confirmPlayerSubmissionChallenge: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2 }),
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
