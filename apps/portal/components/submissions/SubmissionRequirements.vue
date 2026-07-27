@@ -14,7 +14,7 @@ const requirements = [
       <p class="section-number">2.</p>
       <div>
         <h2 id="requirements-title">截图要求</h2>
-        <p>请确保您的截图包含以下内容</p>
+        <p>请确保截图包含以下内容</p>
       </div>
     </div>
     <div class="requirement-list">
@@ -36,10 +36,10 @@ const requirements = [
 .section-number { margin: 0; color: var(--text); font-size: 1.1rem; font-weight: 760; }
 .section-heading h2 { margin: 0; color: var(--text); font-size: 1.1rem; letter-spacing: -.03em; }
 .section-heading p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .84rem; }
-.requirement-list { display: grid; gap: 10px; }
-.requirement-card { display: flex; align-items: center; gap: 14px; min-height: 65px; padding: 12px 14px; border-color: color-mix(in oklch, var(--accent) 10%, var(--line)); background: color-mix(in oklch, var(--surface) 78%, var(--accent-surface)); box-shadow: none; }
-.requirement-icon { flex: 0 0 auto; width: 22px; height: 22px; color: var(--accent); }
-.requirement-card h3 { margin: 0; color: var(--accent); font-size: .82rem; font-weight: 720; }
-.requirement-card p { margin: 3px 0 0; color: var(--muted); font-size: .76rem; }
-.tip { margin-top: 14px; }
+.requirement-list { display: grid; gap: 8px; }
+.requirement-card { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-color: color-mix(in oklch, var(--accent) 10%, var(--line)); background: color-mix(in oklch, var(--surface) 78%, var(--accent-surface)); box-shadow: none; }
+.requirement-icon { flex: 0 0 auto; width: 20px; height: 20px; color: var(--accent); }
+.requirement-card h3 { margin: 0; color: var(--accent); font-size: .82rem; font-weight: 720; line-height: 1.3; }
+.requirement-card p { margin: 1px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.3; }
+.tip { margin-top: 12px; }
 </style>

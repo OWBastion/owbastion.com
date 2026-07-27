@@ -68,7 +68,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           </div>
           <UForm :state="state" :validate="validate" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
-              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
+              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" :preview="false" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
             </UFormField>
             <UCard v-if="state.screenshot && previewUrl" class="selected-file" variant="subtle">
               <img :src="previewUrl" :alt="`已选择的截图：${state.screenshot.name}`" />
@@ -77,7 +77,17 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
             </UCard>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
             <UButton class="submit-button" :label="loading ? '上传中…' : '上传并识别截图'" icon="i-lucide-sparkles" :loading="loading" :disabled="!state.screenshot" type="submit" block />
-            <p class="privacy-note"><UIcon name="i-lucide-lock-keyhole" aria-hidden="true" /> 截图仅用于挑战核对，我们会严格保护您的隐私</p>
+            <div class="privacy-note">
+              <div class="privacy-header">
+                <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
+                <span>截图仅用于挑战核对与模型训练，你的隐私会得到严格保护</span>
+              </div>
+              <ul class="privacy-details">
+                <li>截图将用于模型训练，以提升该项目的识别能力</li>
+                <li>模型训练在非云端且不经任何第三方介入的情况下完成</li>
+                <li>训练数据不会对外公开访问，训练模型仅用于该项目的截图识别</li>
+              </ul>
+            </div>
           </UForm>
         </section>
         <SubmissionRequirements />
@@ -102,13 +112,16 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .upload-section :deep(form) { display: grid; gap: 14px; }
 .upload-control { width: 100%; }
 .selected-file { display: grid; grid-template-columns: 126px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; padding: 8px; border-color: var(--line); background: var(--surface-raised); box-shadow: none; }
-.selected-file img { display: block; width: 126px; height: 68px; border-radius: 8px; background: var(--text); object-fit: cover; }
+.selected-file img { display: block; width: 126px; height: 68px; border-radius: 8px; background: var(--surface); object-fit: contain; }
 .file-meta { display: grid; min-width: 0; gap: 4px; }
 .file-meta strong { overflow: hidden; color: var(--text); font-size: .8rem; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
 .file-meta span { color: var(--muted); font-size: .75rem; }
 .submit-button { min-height: 44px; }
-.privacy-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: -2px 0 0; color: var(--quiet); font-size: .74rem; }
-.privacy-note > svg { width: 14px; height: 14px; }
+.privacy-note { display: grid; gap: 6px; margin: -2px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: .74rem; line-height: 1.5; }
+.privacy-header { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
+.privacy-header > svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--muted); }
+.privacy-details { margin: 0; padding-left: 18px; display: grid; gap: 3px; color: var(--muted); }
+.privacy-details li::marker { color: var(--quiet); }
 .process-card { margin-top: 22px; }
 @media (max-width: 820px) { .submit-page { padding-bottom: 56px; }.submission-columns { grid-template-columns: 1fr; gap: 34px; } }
 @media (max-width: 430px) {
