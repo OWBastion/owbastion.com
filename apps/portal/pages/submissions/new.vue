@@ -56,22 +56,22 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           </div>
           <UForm :state="state" :validate="validate" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
-              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" :preview="true" :ui="{ files: 'w-full', file: 'w-full aspect-video overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
+              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" position="outside" :preview="true" :ui="{ base: 'aspect-video !flex-none', files: 'w-full', file: 'w-full overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
             </UFormField>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
             <UButton class="submit-button" :label="loading ? '上传中…' : '上传并识别截图'" icon="i-lucide-sparkles" :loading="loading" :disabled="!state.screenshot" type="submit" block />
-            <div class="privacy-note">
-              <div class="privacy-header">
-                <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
-                <span>截图仅用于挑战核对与模型训练，你的隐私会得到严格保护</span>
-              </div>
-              <ul class="privacy-details">
-                <li>截图将用于模型训练，以提升该项目的识别能力</li>
-                <li>模型训练在非云端且不经任何第三方介入的情况下完成</li>
-                <li>训练数据不会对外公开访问，训练模型仅用于该项目的截图识别</li>
-              </ul>
-            </div>
           </UForm>
+          <div class="privacy-note">
+            <div class="privacy-header">
+              <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
+              <span>截图仅用于挑战核对与模型训练，你的隐私会得到严格保护</span>
+            </div>
+            <ul class="privacy-details">
+              <li>截图将用于模型训练，以提升该项目的识别能力</li>
+              <li>模型训练在非云端且不经任何第三方介入的情况下完成</li>
+              <li>训练数据不会对外公开访问，训练模型仅用于该项目的截图识别</li>
+            </ul>
+          </div>
         </section>
         <SubmissionRequirements />
       </div>
