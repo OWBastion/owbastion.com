@@ -11,7 +11,7 @@ type SubmissionDetail = {
   createdAt: number;
   updatedAt: number;
   evidenceUrl?: string | null;
-  ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null };
+  ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
 };
 
 definePageMeta({ middleware: "auth" });
@@ -24,6 +24,9 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
   `player-submission:${submissionId}`,
   () => api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`),
 );
+const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
+const selectedChallengeId = shallowRef("");
+const confirming = shallowRef(false);
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
 const evidenceImageUrl = ref<string | null>(null);
 const evidenceCdnHeader = { "x-owbastion-review": "portal-player" };
@@ -31,6 +34,15 @@ const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const statusTone = (value: string) => value === "approved" ? "success" : value === "resubmission_required" ? "warning" : "default";
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
+const confirmChallenge = async () => {
+  if (!selectedChallengeId.value) return;
+  confirming.value = true;
+  try {
+    await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, { method: "POST", body: { contractVersion: "1", challengeId: selectedChallengeId.value } });
+    await refresh();
+  } finally { confirming.value = false; }
+};
+onMounted(() => { if (data.value && !data.value.challengeId) void loadCatalog(); });
 onMounted(async () => {
   if (!data.value?.evidenceUrl?.startsWith("https://evidence.owbastion.codes/")) return;
   const response = await fetch(data.value.evidenceUrl, { headers: evidenceCdnHeader, credentials: "omit" });
@@ -73,7 +85,19 @@ onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidence
             <div><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
             <div><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
             <div><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
+            <div v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
           </dl>
+        </UCard>
+
+        <UCard v-if="!data.challengeId && ['ocr_review_required', 'ready_for_review'].includes(data.status)" class="confirm-card">
+          <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
+          <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后提交给管理员核对。</p>
+          <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
+          <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
+          <template v-else>
+            <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectedChallengeId = $event" />
+            <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId" @click="confirmChallenge" block />
+          </template>
         </UCard>
       </section>
     </template>
@@ -87,7 +111,7 @@ onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidence
 .back-link:hover { color: var(--text); }
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
 .page-heading .eyebrow { margin-bottom: 10px; }.page-heading .page-title { max-width: 14ch; }
-.detail-grid { display: grid; gap: 16px; max-width: 760px; }.overview-card, .evidence-card, .ocr-card { border-color: var(--line); box-shadow: 0 8px 24px -20px var(--shadow); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }dt { color: var(--quiet); font-size: .8rem; }dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }.evidence-image { display: block; width: 100%; max-height: 80svh; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); object-fit: contain; }.message { margin: 0; color: var(--muted); }
+.detail-grid { display: grid; gap: 16px; max-width: 760px; }.overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--line); box-shadow: 0 8px 24px -20px var(--shadow); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }dt { color: var(--quiet); font-size: .8rem; }dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }.evidence-image { display: block; width: 100%; max-height: 80svh; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); object-fit: contain; }.confirm-copy { margin: 0 0 18px; color: var(--muted); }.confirm-card :deep(.catalog) { margin-bottom: 20px; }.message { margin: 0; color: var(--muted); }
 @media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading { align-items: flex-start; flex-direction: column; gap: 18px; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.page-heading .page-title { max-width: none; } }
-@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card { box-shadow: none; } }
+@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card { box-shadow: none; } }
 </style>

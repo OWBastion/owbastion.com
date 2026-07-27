@@ -35,14 +35,14 @@ export function useSubmissionUpload() {
     if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "挑战目录无法读取，请稍后重试。").description;
     catalogLoading.value = false;
   };
-  const submit = async (challengeId: string, file: File) => {
+  const submit = async (file: File, challengeId?: string) => {
     loading.value = true;
     error.value = "";
     let phase: keyof typeof phaseLabels = "hash";
     try {
       const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
       phase = "session";
-      const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", challengeId, contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
+      const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
       phase = "upload";
       const uploadRequestId = createRequestId();
       try {

@@ -337,11 +337,13 @@ export const adminCatalogTitleUpdateRequestSchema = z.object({
 
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
-  challengeId: externalId,
+  challengeId: externalId.optional(),
   contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   byteSize: z.number().int().positive().max(10 * 1024 * 1024),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
 });
+
+export const playerSubmissionChallengeRequestSchema = z.object({ contractVersion, challengeId: externalId });
 
 export const playerUploadSessionResponseSchema = z.object({
   contractVersion,
@@ -359,7 +361,7 @@ export const adminSubmissionSchema = z.object({
   status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
   challenge: z.union([
-    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string() }),
+    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable() }),
     z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
   ]).nullable().optional(),
   mapName: z.string(),
@@ -428,6 +430,7 @@ export const playerSubmissionOcrSummarySchema = z.object({
   difficulty: z.string().nullable(),
   playerName: z.string().nullable(),
   challengeCompleted: z.boolean().nullable(),
+  achievementTitles: z.array(z.string()).optional(),
 }).strict();
 
 export const playerSubmissionDetailSchema = submissionStatusResponseSchema.extend({
@@ -494,6 +497,7 @@ export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
+export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;

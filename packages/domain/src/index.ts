@@ -31,6 +31,7 @@ import type {
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
+  PlayerSubmissionChallengeRequest,
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
 } from "@owbastion/contracts";
 
@@ -89,6 +90,7 @@ export type PlatformServices = {
   updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
+  confirmPlayerSubmissionChallenge(input: PlayerSubmissionChallengeRequest & { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;

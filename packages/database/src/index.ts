@@ -261,6 +261,47 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return submission;
   };
 
+  type AdminSubmissionChallenge =
+    | { family: "map"; name: string; mapName: string; difficulty: string | null }
+    | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string };
+
+  const resolveAdminSubmissionDetails = async (submissionRows: Array<typeof submissions.$inferSelect>) => {
+    const mapChallengeIds = submissionRows.filter((row) => row.challengeType !== "title_achievement" && row.challengeId).map((row) => row.challengeId!);
+    const titleChallengeIds = submissionRows.filter((row) => row.challengeType === "title_achievement" && row.challengeId).map((row) => row.challengeId!);
+    const submissionIds = submissionRows.map((row) => row.id);
+    const [mapRows, titleRows, ocrRows] = await Promise.all([
+      mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
+      titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
+      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
+    ]);
+    const challenges = new Map<string, AdminSubmissionChallenge>();
+    const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
+    for (const { challenge, map } of mapRows) challenges.set(challenge.id, { family: "map", name: challenge.name, mapName: map.name, difficulty: challenge.difficulty ?? "" });
+    for (const { challenge, title } of titleRows) challenges.set(challenge.id, { family: "achievement", titleName: title.label, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule });
+    for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
+    return { challenges, latestOcr };
+  };
+
+  const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
+    const ocr = details.latestOcr.get(row.id);
+    return {
+      submissionId: row.id,
+      status: row.status as never,
+      challengeId: row.challengeId ?? "",
+      challenge: row.challengeId ? details.challenges.get(row.challengeId) ?? null : null,
+      mapName: row.mapName,
+      difficulty: row.difficulty ?? "",
+      playerName: row.playerName ?? "",
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      ocrStatus: (ocr?.status ?? (row.status === "ocr_pending" ? "pending" : "not_started")) as never,
+      ocrAttempt: ocr?.attempt ?? null,
+      ocrErrorCode: ocr?.errorCode ?? null,
+      ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
+      evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence`,
+    };
+  };
+
   return {
     dispatchPendingQqGroupPolicyEvents,
     async listAgentEvents(input: AgentEventQuery) {
@@ -784,31 +825,51 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
       if (!binding) throw new Error("UNAUTHENTICATED");
       const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-      const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps })
+      const mapChallenge = input.challengeId ? await db.select({ challenge: achievementChallenges, map: maps })
         .from(achievementChallenges)
         .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
         .where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active")))
-        .get();
-      const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog })
+        .get() : null;
+      const titleChallenge = input.challengeId && !mapChallenge ? await db.select({ challenge: titleChallenges, title: titleCatalog })
         .from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
-        .get();
+        .get() : null;
       if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
-      if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
+      if (input.challengeId && !mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
       if (titleChallenge && !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now())) throw new Error("CHALLENGE_NOT_FOUND");
       if (titleChallenge?.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_AUTOMATIC");
-      const challengeType = mapChallenge?.challenge.type ?? "title_achievement";
+      const challengeType = mapChallenge?.challenge.type ?? (titleChallenge ? "title_achievement" : "unknown");
       const mapName = mapChallenge?.map.name ?? "成就挑战";
       const difficulty = mapChallenge?.challenge.difficulty ?? null;
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
       const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
-      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
+      await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId ?? null, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       await invalidateSubmissionCache(cache, submissionId);
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
+    },
+
+    async confirmPlayerSubmissionChallenge(input, sessionToken) {
+      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      if (!['ocr_review_required', 'ready_for_review'].includes(submission.status) || submission.challengeId) throw new Error("SUBMISSION_NOT_CONFIRMABLE");
+      const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))).get();
+      const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"))).get();
+      if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
+      if (titleChallenge && (!titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now()) || titleChallenge.challenge.submissionMode === "automatic")) throw new Error("CHALLENGE_NOT_FOUND");
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
+      const data = raw?.data ?? {};
+      const challengeType = mapChallenge ? "map_completion" : "title_achievement";
+      const quality = raw ? assessOcrQuality(challengeType, raw) : { accepted: false, requiredFields: [], reasons: ["missing_ocr_result"] };
+      const { skipped, ...match } = matchOcrResult({ challengeType, targetMapName: mapChallenge?.map.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: titleChallenge?.title.label, achievementTitles: data.achievement_titles });
+      const matched = quality.accepted && Object.values(match).every(Boolean);
+      await db.update(submissions).set({ status: matched || !quality.accepted ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, mapName: mapChallenge?.map.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched || !quality.accepted ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, submission.id));
+      if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
+      await invalidateSubmissionCache(cache, submission.id);
+      return await this.getPlayerSubmission({ submissionId: submission.id }, sessionToken);
     },
 
     async uploadEvidence(input, sessionToken) {
@@ -849,17 +910,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         db.select().from(submissions).where(condition).orderBy(desc(submissions.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
         db.select({ total: count() }).from(submissions).where(condition),
       ]);
-      return { contractVersion: "1" as const, items: rows.slice(0, input.pageSize).map((row) => ({ submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` })), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
+      const visibleRows = rows.slice(0, input.pageSize);
+      const details = await resolveAdminSubmissionDetails(visibleRows);
+      return { contractVersion: "1" as const, items: visibleRows.map((row) => asAdminSubmission(row, details)), page: input.page, pageSize: input.pageSize, total, hasMore: rows.length > input.pageSize };
     },
 
     async getAdminSubmission(input) {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const [ocr, attachment] = await Promise.all([
-        db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
+      const [details, attachment] = await Promise.all([
+        resolveAdminSubmissionDetails([row]),
         db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
       ]);
-      return { submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null, evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+      return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
     },
 
     async getAdminEvidence(input) {
@@ -877,7 +940,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
         db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, submission.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
       ]);
-      const raw = result?.responseJson ? JSON.parse(result.responseJson) as { data?: { map_name?: string | null; difficulty?: string | null; viewer_player?: string | null; challenge_completed?: boolean | null } } : null;
+      const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
       return {
         contractVersion: "1" as const,
         submissionId: submission.id,
@@ -889,7 +952,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
         evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
-        ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null } } : {}),
+        ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
       };
     },
 
@@ -997,13 +1060,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "x-request-id": crypto.randomUUID() }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
       } catch { throw new Error("OCR_NETWORK"); }
       if (!response.ok) throw new Error(`OCR_HTTP_${response.status}`);
-      let result: OcrResponse & { data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; viewer_player?: string | null } };
+      let result: OcrResponse;
       try { result = await response.json() as typeof result; }
       catch { throw new Error("OCR_INVALID_RESPONSE"); }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (row.status !== "ocr_pending") return;
       const data = result.data ?? {};
+      if (row.challengeType === "unknown") {
+        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: assessOcrQuality("unknown", result) }), createdAt: now() });
+        await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "请确认截图对应的挑战" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        await invalidateSubmissionCache(cache, row.id);
+        return;
+      }
       const quality = assessOcrQuality(row.challengeType, result);
       if (!quality.accepted) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
@@ -1011,7 +1080,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         await invalidateSubmissionCache(cache, row.id);
         return;
       }
-      const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
+      const title = row.challengeType === "title_achievement" && row.challengeId
+        ? await db.select({ label: titleCatalog.label }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
+        : null;
+      const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
       const matched = Object.values(match).every(Boolean);
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), createdAt: now() });
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));

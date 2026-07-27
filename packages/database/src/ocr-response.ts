@@ -12,6 +12,7 @@ export type OcrResponse = {
   warnings?: unknown;
   quality?: { warnings?: unknown };
   fields?: Record<string, OcrFieldEvidence>;
+  data?: { map_name?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; viewer_player?: string | null; achievement_titles?: string[] };
 };
 
 export type OcrQualityGate = {
@@ -23,7 +24,7 @@ export type OcrQualityGate = {
 const minOcrConfidence = 0.85;
 
 export const assessOcrQuality = (challengeType: string, response: OcrResponse): OcrQualityGate => {
-  const requiredFields = challengeType === "title_achievement"
+  const requiredFields = challengeType === "title_achievement" || challengeType === "unknown"
     ? ["challenge_completed", "viewer_player"]
     : ["challenge_completed", "viewer_player", "map_name", "difficulty"];
   const reasons: string[] = [];

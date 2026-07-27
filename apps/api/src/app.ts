@@ -18,6 +18,7 @@ import {
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
+  playerSubmissionChallengeRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
@@ -446,6 +447,19 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!)); }
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
+  });
+
+  app.post("/v1/player/submissions/:submissionId/challenge", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const parsed = playerSubmissionChallengeRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).confirmPlayerSubmissionChallenge({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "SUBMISSION_CHALLENGE_FAILED";
+      if (["CHALLENGE_NOT_FOUND", "SUBMISSION_NOT_CONFIRMABLE"].includes(code)) return errorResponse(c, 422, code, "The submission challenge cannot be confirmed");
+      throw error;
+    }
   });
 
   app.put("/v1/admin/qq/groups/:groupOpenId", async (c) => {
