@@ -56,10 +56,10 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           </div>
           <UForm :state="state" :validate="validate" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
-              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" position="outside" :preview="true" :ui="{ base: 'aspect-video !flex-none', files: 'w-full', file: 'w-full overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
+              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" position="outside" :preview="true" :ui="{ base: 'aspect-video !flex-none', files: 'w-full', file: 'w-full aspect-video overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
             </UFormField>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
-            <UButton class="submit-button" :label="loading ? '上传中…' : '上传并识别截图'" icon="i-lucide-sparkles" :loading="loading" :disabled="!state.screenshot" type="submit" block />
+            <UButton class="submit-button" :label="loading ? '上传中…' : '上传并识别截图'" icon="i-lucide-sparkles" :loading="loading" :disabled="loading || !state.screenshot" type="submit" block />
           </UForm>
           <div class="privacy-note">
             <div class="privacy-header">
@@ -95,7 +95,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .upload-section :deep(form) { display: grid; gap: 14px; }
 .upload-control { width: 100%; }
 .submit-button { min-height: 44px; }
-.privacy-note { display: grid; gap: 6px; margin: -2px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: .74rem; line-height: 1.5; }
+.privacy-note { display: grid; gap: 6px; margin: 8px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: .74rem; line-height: 1.5; }
 .privacy-header { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
 .privacy-header > svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--muted); }
 .privacy-details { margin: 0; padding-left: 18px; display: grid; gap: 3px; color: var(--muted); }

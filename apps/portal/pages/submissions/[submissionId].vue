@@ -53,11 +53,11 @@ onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidence
 
 <template>
   <main class="submission-page page-shell">
-    <NuxtLink to="/me" class="back-link">← 玩家中心</NuxtLink>
+    <UButton to="/me" label="玩家中心" icon="i-lucide-arrow-left" color="neutral" variant="ghost" class="back-link" />
 
     <div class="page-heading">
       <div><p class="eyebrow">提交详情</p><h1 class="page-title">{{ data?.mapName ?? "提交进度" }}</h1></div>
-      <UButton label="刷新状态" icon="i-lucide-refresh-cw" color="neutral" variant="soft" :loading="fetchStatus === 'pending'" @click="refreshSubmission" />
+      <UButton label="刷新状态" icon="i-lucide-refresh-cw" color="neutral" variant="soft" :loading="fetchStatus === 'pending'" :disabled="fetchStatus === 'pending'" @click="refreshSubmission" />
     </div>
 
     <p v-if="error" class="message">找不到这条提交记录。</p>
@@ -107,11 +107,11 @@ onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidence
 
 <style scoped>
 .submission-page { padding-block: clamp(64px, 9vh, 104px) 72px; }
-.back-link { display: inline-flex; margin-bottom: clamp(32px, 5vw, 56px); color: var(--muted); font-size: .88rem; font-weight: 650; text-decoration: none; transition: color 160ms ease; }
-.back-link:hover { color: var(--text); }
+.back-link { margin-bottom: clamp(32px, 5vw, 56px); }
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
 .page-heading .eyebrow { margin-bottom: 10px; }.page-heading .page-title { max-width: 14ch; }
 .detail-grid { display: grid; gap: 16px; max-width: 760px; }.overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--line); box-shadow: 0 8px 24px -20px var(--shadow); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }dt { color: var(--quiet); font-size: .8rem; }dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }.evidence-image { display: block; width: 100%; max-height: 80svh; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); object-fit: contain; }.confirm-copy { margin: 0 0 18px; color: var(--muted); }.confirm-card :deep(.catalog) { margin-bottom: 20px; }.message { margin: 0; color: var(--muted); }
 @media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading { align-items: flex-start; flex-direction: column; gap: 18px; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.page-heading .page-title { max-width: none; } }
 @media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card { box-shadow: none; } }
+@media (prefers-contrast: more) { .overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--text); } }
 </style>
