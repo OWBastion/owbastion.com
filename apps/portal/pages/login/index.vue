@@ -46,8 +46,8 @@ async function handleLocalLogin() {
       <div v-else-if="state === 'creating'" class="action-panel"><p class="notice">生成验证码中…</p></div>
 
       <div v-else-if="state === 'waiting' && attempt" class="challenge-panel">
-        <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中 @机器人发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
-        <p class="login-code">/验证 {{ attempt.code }}</p>
+        <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
+        <p class="login-code">@E54机器人 /验证 {{ attempt.code }}</p>
         <div class="challenge-actions"><button class="secondary-button" type="button" @click="copy">{{ copied ? '已复制' : '复制指令' }}</button><button class="text-button" type="button" @click="cancel">取消</button></div>
         <p class="hint">成功后进入玩家中心。验证码仅保存在当前标签页。</p>
       </div>

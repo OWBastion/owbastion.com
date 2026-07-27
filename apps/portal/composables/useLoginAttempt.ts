@@ -111,7 +111,7 @@ export function useLoginAttempt() {
 
   const copyCode = async () => {
     if (!attempt.value || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(`/验证 ${attempt.value.code}`);
+    await navigator.clipboard.writeText(`@E54机器人 /验证 ${attempt.value.code}`);
   };
 
   onBeforeUnmount(stopTimers);
