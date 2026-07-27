@@ -91,10 +91,8 @@ onBeforeUnmount(() => {
           <UAlert v-if="statusAlert" class="status-alert" :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : 'i-lucide-scan-line'" :color="statusAlert.color" variant="subtle" :title="statusAlert.title" :description="statusAlert.description" aria-live="polite" />
           <UCard class="evidence-card">
             <template #header><div class="card-heading"><h2>提交截图</h2></div></template>
-            <div class="evidence-frame">
-              <img v-if="!evidenceLoadError" :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" @error="evidenceLoadError = true" />
-              <p v-else class="evidence-message" role="status">暂无截图。</p>
-            </div>
+            <img v-if="!evidenceLoadError" :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" @error="evidenceLoadError = true" />
+            <p v-else class="evidence-message" role="status">暂无截图。</p>
           </UCard>
         </div>
 
@@ -160,7 +158,7 @@ onBeforeUnmount(() => {
 .page-heading .eyebrow { margin-bottom: 10px; }
 .page-heading .page-title { max-width: 14ch; }
 .page-description { margin: 12px 0 0; color: var(--muted); font-size: .92rem; }
-.detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr); align-items: start; gap: clamp(18px, 2.4vw, 28px); max-width: 1100px; }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr); align-items: start; gap: clamp(18px, 2.4vw, 28px); width: 100%; }
 .evidence-col { position: sticky; top: 24px; min-width: 0; }
 .status-alert { margin-bottom: 16px; }
 .info-col { display: grid; gap: 16px; min-width: 0; }
@@ -176,9 +174,8 @@ onBeforeUnmount(() => {
 dt { color: var(--quiet); font-size: .8rem; }
 dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
 .overview-actions { display: grid; gap: 8px; margin-top: 22px; }
-.evidence-frame { display: grid; min-height: clamp(300px, 56vh, 720px); place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }
-.evidence-image { display: block; width: 100%; max-height: min(72vh, 820px); border-radius: 13px; object-fit: contain; }
-.evidence-message, .message { margin: 0; color: var(--muted); font-size: .88rem; }
+.evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
+.evidence-message, .message { margin: 0; padding: 96px 0; color: var(--muted); font-size: .88rem; text-align: center; }
 .confirm-copy { margin: 0 0 18px; color: var(--muted); }
 .confirm-card :deep(.catalog) { margin-bottom: 20px; }
 .resubmission-card { display: grid; margin-top: clamp(18px, 2.4vw, 28px); }
@@ -188,8 +185,8 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 .tip-icon > svg { width: 17px; height: 17px; }
 .resubmission-tip strong { display: block; color: var(--text); font-size: .82rem; }
 .resubmission-tip p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
-@media (max-width: 820px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } .evidence-frame { min-height: clamp(240px, 58vw, 520px); } .resubmission-grid { grid-template-columns: 1fr; } }
+@media (max-width: 820px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } .resubmission-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading .page-title { max-width: none; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.breadcrumb { margin-bottom: 30px; } }
-@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; } .evidence-frame, .tip-icon { background: var(--surface); } }
+@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; } .tip-icon { background: var(--surface); } }
 @media (prefers-contrast: more) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--text); } }
 </style>

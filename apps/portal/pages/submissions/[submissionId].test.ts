@@ -20,7 +20,7 @@ describe("submission detail page", () => {
     expect(wrapper.get(".resubmission-card").text()).toContain("重新提交建议");
     expect(wrapper.get(".progress-card").text()).toContain("处理未通过");
     expect(wrapper.findAll(".detail-grid > div").map((column) => column.classes())).toEqual([["evidence-col"], ["info-col"]]);
-    expect(wrapper.get(".evidence-frame").exists()).toBe(true);
+    expect(wrapper.find(".evidence-frame").exists()).toBe(false);
     expect(wrapper.get(".evidence-image").attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
     await wrapper.get(".evidence-image").trigger("error");
     expect(wrapper.text()).toContain("暂无截图。");
