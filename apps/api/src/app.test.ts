@@ -27,7 +27,7 @@ const services: PlatformServices = {
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
   getPublicTitleIcon: async () => null,
   listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
-  listHistoricalTitleGrants: async () => [],
+  listHistoricalTitleGrants: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false, stats: { pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 } }),
   createAdminTitleGrant: async () => {},
   createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0 }),
   revokeAdminTitleGrant: async () => {},
@@ -337,6 +337,16 @@ describe("API", () => {
     const body = JSON.stringify({ contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", historicalTitleGrantId: "22222222-2222-4222-8222-222222222222" });
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "title-grant-1" }, body }, env)).status).toBe(204);
+  });
+
+  it("returns paginated historical title migration data with global stats", async () => {
+    const calls: Array<{ query?: string; page: number; pageSize: number }> = [];
+    const listResponse = { contractVersion: "1" as const, items: [], page: 2, pageSize: 10, total: 25, hasMore: true, stats: { pendingHolderCount: 3, unclaimedGrantCount: 12, migratedGrantCount: 28 } };
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listHistoricalTitleGrants: async (input) => { calls.push(input); return listResponse; } }) });
+    const response = await adminApp.request("http://localhost/v1/admin/title-grants?query=Cold&page=2&pageSize=10", {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(listResponse);
+    expect(calls).toEqual([{ query: "Cold", page: 2, pageSize: 10 }]);
   });
 
   it("exposes manual title grants only to maintainers", async () => {

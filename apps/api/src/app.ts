@@ -627,7 +627,9 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/title-grants", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined }, access.auth!) });
+    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? "20") || 20));
+    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, page, pageSize }, access.auth!));
   });
 
   app.post("/v1/admin/title-grants", async (c) => {

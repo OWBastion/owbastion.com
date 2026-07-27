@@ -1,44 +1,70 @@
 <script setup lang="ts">
-import { h, resolveComponent } from "vue";
-import type { TableColumn } from "@nuxt/ui";
 import { useDebounceFn } from "@vueuse/core";
 import { portalErrorDetails } from "~/utils/portal-error";
+
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "称号迁移 · 躲避堡垒 3" });
 
 type Grant = { grantId: string; titleKey: string; label: string; category: string; scope: "global" | "map"; mapName?: string; holderName: string; playerAccountId?: string; playerName?: string; playerId?: string; status: "unclaimed" | "active" | "revoked"; revokeReason?: string };
 type Player = { playerAccountId: string; playerName: string; playerId: string };
-type HolderGroup = { holderName: string; grants: Grant[]; unclaimedCount: number };
+type HolderGroup = { holderName: string; grants: Grant[]; totalCount: number; unclaimedCount: number };
+type MigrationStats = { pendingHolderCount: number; unclaimedGrantCount: number; migratedGrantCount: number };
+type MigrationResponse = { items: Grant[]; page: number; pageSize: number; total: number; hasMore: boolean; stats: MigrationStats };
 
 const toast = useToast();
 const api = useAdminApi();
-const query = ref("");
-const grants = ref<Grant[]>([]);
-const players = ref<Player[]>([]);
-const selectedPlayerId = ref("");
-const errorMessage = ref("");
-const loading = ref(false);
-const saving = ref(false);
-const selectedHolder = ref<HolderGroup | null>(null);
-const panelOpen = computed({ get: () => selectedHolder.value !== null && selectedPlayer.value !== undefined, set: (value) => { if (!value) selectedHolder.value = null; } });
+const query = shallowRef("");
+const grants = shallowRef<Grant[]>([]);
+const players = shallowRef<Player[]>([]);
+const stats = shallowRef<MigrationStats>({ pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 });
+const selectedPlayerId = shallowRef("");
+const selectedHolderName = shallowRef("");
+const filter = shallowRef<"all" | "pending" | "completed">("all");
+const page = shallowRef(1);
+const pageSize = 20;
+const total = shallowRef(0);
+const errorMessage = shallowRef("");
+const loading = shallowRef(false);
+const saving = shallowRef(false);
+const selectedHolder = shallowRef<HolderGroup | null>(null);
+const bulkHolder = shallowRef<HolderGroup | null>(null);
 
-const selectedPlayer = computed(() => players.value.find((player) => player.playerAccountId === selectedPlayerId.value));
 const holderGroups = computed<HolderGroup[]>(() => {
   const groups = new Map<string, Grant[]>();
   for (const grant of grants.value) groups.set(grant.holderName, [...(groups.get(grant.holderName) ?? []), grant]);
-  return [...groups].map(([holderName, holderGrants]) => ({ holderName, grants: holderGrants, unclaimedCount: holderGrants.filter((grant) => grant.status === "unclaimed").length }));
+  return [...groups].map(([holderName, holderGrants]) => ({ holderName, grants: holderGrants, totalCount: holderGrants.length, unclaimedCount: holderGrants.filter((grant) => grant.status === "unclaimed").length }));
 });
+const selectedPlayer = computed(() => players.value.find((player) => player.playerAccountId === selectedPlayerId.value));
+const metrics = computed(() => [
+  { label: "待处理持有者", value: loading.value ? "读取中…" : `${stats.value.pendingHolderCount}`, detail: "存在未关联称号的历史持有者", icon: "i-lucide-user-round", tone: "accent" as const },
+  { label: "未关联称号", value: loading.value ? "读取中…" : `${stats.value.unclaimedGrantCount}`, detail: "待重新关联的称号数量", icon: "i-lucide-link-2-off", tone: "warning" as const },
+  { label: "已完成迁移", value: loading.value ? "读取中…" : `${stats.value.migratedGrantCount}`, detail: "历史累计完成迁移", icon: "i-lucide-circle-check", tone: "success" as const },
+]);
+const pendingGrants = computed(() => bulkHolder.value?.grants.filter((grant) => grant.status === "unclaimed") ?? []);
+const pendingGrantsPreview = computed(() => pendingGrants.value.slice(0, 8));
+const pendingGrantsOverflow = computed(() => Math.max(0, pendingGrants.value.length - pendingGrantsPreview.value.length));
+const panelOpen = computed({ get: () => Boolean(bulkHolder.value && selectedPlayer.value), set: (open) => { if (!open) bulkHolder.value = null; } });
 
-async function load() {
+function groupFor(name: string) { return holderGroups.value.find((group) => group.holderName === name) ?? null; }
+function selectFirstHolder() { selectedHolderName.value = holderGroups.value[0]?.holderName ?? ""; selectedHolder.value = groupFor(selectedHolderName.value); }
+function selectHolder(holder: { holderName: string }) { const full = groupFor(holder.holderName); if (full) { selectedHolderName.value = full.holderName; selectedHolder.value = full; } }
+
+async function load(options: { resetSelection?: boolean } = {}) {
   loading.value = true;
   errorMessage.value = "";
+  const previousHolderName = options.resetSelection ? "" : selectedHolderName.value;
   try {
     const [grantResponse, playerResponse] = await Promise.all([
-      api<{ items: Grant[] }>(`/v1/title-grants?query=${encodeURIComponent(query.value)}`),
+      api<MigrationResponse>(`/v1/title-grants?query=${encodeURIComponent(query.value)}&page=${page.value}&pageSize=${pageSize}`),
       api<{ items: Player[] }>("/v1/player-accounts?page=1&pageSize=50"),
     ]);
     grants.value = grantResponse.items;
     players.value = playerResponse.items;
+    stats.value = grantResponse.stats;
+    total.value = grantResponse.total;
+    const retained = previousHolderName ? groupFor(previousHolderName) : null;
+    if (retained) selectHolder(retained);
+    else selectFirstHolder();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取历史称号，请稍后重试。").description;
   } finally {
@@ -46,18 +72,20 @@ async function load() {
   }
 }
 
-const debouncedLoad = useDebounceFn(load, 300);
-
-function handleSearchInput() {
-  debouncedLoad();
+const debouncedLoad = useDebounceFn(() => { page.value = 1; void load({ resetSelection: true }); }, 300);
+function handleSearchInput() { debouncedLoad(); }
+function handleSearchSubmit() { page.value = 1; void load({ resetSelection: true }); }
+function updateFilter(value: "all" | "pending" | "completed") {
+  filter.value = value;
+  const first = holderGroups.value.find((holder) => value === "all" || (value === "pending" ? holder.unclaimedCount > 0 : holder.unclaimedCount === 0));
+  if (first) selectHolder(first);
 }
+function updatePage(value: number) { page.value = value; void load({ resetSelection: true }); }
 
-function handleSearchSubmit() {
-  debouncedLoad.cancel();
-  void load();
-}
+function openBulk() { if (selectedHolder.value && selectedPlayer.value && selectedHolder.value.unclaimedCount) bulkHolder.value = selectedHolder.value; }
+function closeBulk() { bulkHolder.value = null; }
 
-async function grant(row: Grant) {
+async function grant(row: { grantId: string }) {
   if (!selectedPlayerId.value) return;
   saving.value = true;
   errorMessage.value = "";
@@ -67,12 +95,10 @@ async function grant(row: Grant) {
     await load();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
-  } finally {
-    saving.value = false;
-  }
+  } finally { saving.value = false; }
 }
 
-async function revoke(row: Grant) {
+async function revoke(row: { grantId: string }) {
   saving.value = true;
   errorMessage.value = "";
   try {
@@ -81,175 +107,50 @@ async function revoke(row: Grant) {
     await load();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法撤销称号，请稍后重试。").description;
-  } finally {
-    saving.value = false;
-  }
+  } finally { saving.value = false; }
 }
-
-function openBulk(group: HolderGroup) {
-  if (!selectedPlayer.value || !group.unclaimedCount) return;
-  selectedHolder.value = group;
-}
-
-function closeBulk() {
-  selectedHolder.value = null;
-}
-
-const TOAST_TITLE_LIMIT = 5;
-const MODAL_TITLE_LIMIT = 8;
-
-const pendingGrants = computed(() => selectedHolder.value?.grants.filter((g) => g.status === "unclaimed") ?? []);
-const pendingGrantsPreview = computed(() => pendingGrants.value.slice(0, MODAL_TITLE_LIMIT));
-const pendingGrantsOverflow = computed(() => Math.max(0, pendingGrants.value.length - MODAL_TITLE_LIMIT));
 
 async function grantAll() {
-  if (!selectedHolder.value || !selectedPlayer.value) return;
+  if (!bulkHolder.value || !selectedPlayer.value) return;
   saving.value = true;
   errorMessage.value = "";
-  const snapshot = pendingGrants.value.map((g) => g.mapName ? `${g.label} · ${g.mapName}` : g.label);
+  const snapshot = pendingGrants.value.map((grant) => grant.mapName ? `${grant.label} · ${grant.mapName}` : grant.label);
   try {
-    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", {
-      method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: { contractVersion: "1", holderName: selectedHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId },
-    });
-    if (result.grantedCount) {
-      const listed = snapshot.slice(0, TOAST_TITLE_LIMIT);
-      const overflow = snapshot.length - listed.length;
-      const description = overflow > 0 ? `${listed.join("、")} 等 +${overflow} 项` : listed.join("、");
-      toast.add({ title: `已关联 ${result.grantedCount} 项称号`, description, color: "success" });
-    } else {
-      toast.add({ title: "暂无可关联称号", color: "success" });
-    }
+    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", holderName: bulkHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId } });
+    const listed = snapshot.slice(0, 5);
+    const overflow = snapshot.length - listed.length;
+    toast.add({ title: result.grantedCount ? `已关联 ${result.grantedCount} 项称号` : "暂无可关联称号", description: result.grantedCount ? `${listed.join("、")}${overflow > 0 ? ` 等 +${overflow} 项` : ""}` : undefined, color: "success" });
     await load();
     closeBulk();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
-  } finally {
-    saving.value = false;
-  }
+  } finally { saving.value = false; }
 }
 
-
-
-const UButton = resolveComponent("UButton");
-const UBadge = resolveComponent("UBadge");
-
-const grantColumns = computed<TableColumn<Grant>[]>(() => [
-  {
-    accessorKey: "category",
-    header: "分类",
-    meta: { class: { th: "w-24", td: "w-24 text-sm" } },
-  },
-  {
-    id: "title",
-    header: "称号",
-    cell: ({ row }) => {
-      const label = row.original.label;
-      const mapName = row.original.mapName;
-      return mapName
-        ? h("span", {}, [label, h("span", { class: "map-hint" }, ` · ${mapName}`)])
-        : label;
-    },
-  },
-  {
-    accessorKey: "status",
-    header: "状态",
-    meta: { class: { th: "w-52", td: "w-52" } },
-    cell: ({ row }) => {
-      const s = row.original.status;
-      if (s === "unclaimed") return h(UBadge, { color: "neutral", variant: "subtle" }, () => "未关联");
-      if (s === "active") return h("span", { class: "status-active" }, `已关联至 ${row.original.playerName}#${row.original.playerId}`);
-      return h(UBadge, { color: "error", variant: "subtle" }, () => "已撤销");
-    },
-  },
-  {
-    id: "actions",
-    meta: { class: { th: "w-20", td: "w-20 text-right" } },
-    cell: ({ row }) => {
-      const r = row.original;
-      if (r.status === "unclaimed") {
-        return h(UButton, { label: "关联", color: "neutral", variant: "outline", size: "sm", disabled: !selectedPlayer.value || saving.value, onClick: () => grant(r) });
-      }
-      if (r.status === "active") {
-        return h(UButton, { label: "撤销", color: "neutral", variant: "link", size: "sm", disabled: saving.value, onClick: () => revoke(r) });
-      }
-      return null;
-    },
-  },
-]);
-
-onMounted(() => { void load(); });
+onMounted(() => { void load({ resetSelection: true }); });
 </script>
 
 <template>
-  <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${holderGroups.length} 位持有者`">
+  <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${total} 位持有者`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <template #toolbar>
-      <div class="admin-toolbar">
-        <form role="search" class="search-form" aria-label="搜索称号记录" aria-controls="title-grant-results" @submit.prevent="handleSearchSubmit">
-          <UInput
-            v-model="query"
-            type="search"
-            placeholder="搜索持有者或称号"
-            aria-label="搜索历史称号"
-            @input="handleSearchInput"
-          />
-          <UButton type="submit" label="搜索" color="neutral" variant="outline" :loading="loading" />
-        </form>
-        <USelect
-          v-model="selectedPlayerId"
-          aria-label="选择操作玩家帐号"
-          placeholder="选择玩家帐号"
-          :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))"
-        />
-      </div>
-    </template>
-
-    <div id="title-grant-results" class="holder-list" aria-live="polite" aria-atomic="false">
-      <section v-for="group in holderGroups" :key="group.holderName" class="holder-group">
-        <div class="holder-heading">
-          <div>
-            <p class="eyebrow">历史持有者</p>
-            <h2>{{ group.holderName }}</h2>
-            <small>{{ group.unclaimedCount ? `${group.unclaimedCount} 项未关联` : "暂无未关联称号" }}</small>
-          </div>
-          <UButton :data-holder-name="group.holderName" label="关联全部未关联项" :disabled="!selectedPlayer || !group.unclaimedCount || saving" @click="openBulk(group)" />
-        </div>
-        <UTable :data="group.grants" :columns="grantColumns" :loading="saving" />
-      </section>
-      <p v-if="!loading && !holderGroups.length" class="empty surface-card">暂无匹配记录。</p>
-    </div>
-
-    <AdminResponsiveDialog v-model:open="panelOpen" title="确认称号迁移" size="sm" :dismissible="!saving"><template #body><section v-if="selectedHolder && selectedPlayer" class="sheet"><p class="eyebrow">批量关联</p><h2 id="bulk-migration-title">确认称号迁移</h2><div class="migration-facts"><p><span>历史持有者</span><strong>{{ selectedHolder.holderName }}</strong></p><p><span>关联至</span><strong><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></strong></p></div><ul class="pending-list" aria-label="待关联称号"><li v-for="grant in pendingGrantsPreview" :key="grant.grantId"><span class="pending-label">{{ grant.label }}</span><span v-if="grant.mapName" class="pending-map">{{ grant.mapName }}</span></li><li v-if="pendingGrantsOverflow" class="pending-overflow">另有 {{ pendingGrantsOverflow }} 项未关联称号</li></ul><p class="sheet-copy">已关联和已撤销记录保持不变。</p><div class="sheet-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" /><UButton label="确认关联" :loading="saving" @click="grantAll" /></div></section></template></AdminResponsiveDialog>
+    <section class="migration-intro" aria-label="称号迁移说明">
+      <p>将历史持有者拥有的称号，重新关联到正确的玩家账号。</p>
+      <UAlert icon="i-lucide-info" color="warning" variant="subtle" title="迁移只会变更称号的持有者关联，不会修改称号本身的定义或属性。" />
+    </section>
+    <AdminTitleMigrationMetrics :metrics="metrics" />
+    <section class="migration-workspace" aria-label="称号迁移工作台">
+      <AdminTitleMigrationHolders :holders="holderGroups" :selected-holder-name="selectedHolderName" :filter="filter" :query="query" :loading="loading" :total="total" :page="page" :page-size="pageSize" @select="selectHolder" @update:filter="updateFilter" @update:page="updatePage" @update:query="query = $event; handleSearchInput()" @search="handleSearchSubmit" />
+      <AdminTitleMigrationDetail :holder="selectedHolder" :players="players" :selected-player-id="selectedPlayerId" :loading="loading" :saving="saving" @update:selected-player-id="selectedPlayerId = $event" @grant="grant" @revoke="revoke" @bulk="openBulk" />
+    </section>
+    <UEmpty v-if="!loading && !total" class="migration-empty" title="暂无匹配记录" description="没有找到符合条件的历史称号。" variant="naked" />
+    <AdminResponsiveDialog v-model:open="panelOpen" title="确认称号迁移" size="sm" :dismissible="!saving">
+      <template #body><section v-if="bulkHolder && selectedPlayer" class="migration-dialog"><p class="eyebrow">批量关联</p><h2>确认称号迁移</h2><dl class="migration-facts"><div><dt>历史持有者</dt><dd>{{ bulkHolder.holderName }}</dd></div><div><dt>关联至</dt><dd><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></dd></div></dl><ul class="pending-list" aria-label="待关联称号"><li v-for="grant in pendingGrantsPreview" :key="grant.grantId"><span>{{ grant.label }}</span><small v-if="grant.mapName">{{ grant.mapName }}</small></li><li v-if="pendingGrantsOverflow" class="pending-overflow">另有 {{ pendingGrantsOverflow }} 项未关联称号</li></ul><div class="dialog-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" /><UButton label="确认关联" :loading="saving" @click="grantAll" /></div></section></template>
+    </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.holder-list { display: grid; gap: 28px; }
-.holder-group { display: grid; gap: 10px; }
-.holder-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
-.holder-heading .eyebrow { margin-bottom: 6px; }
-.holder-heading h2 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.75rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
-.holder-heading small { color: var(--quiet); font-size: .78rem; }
-.search-form { display: contents; }
-.map-hint { color: var(--quiet); font-size: .9em; }
-.status-active { font-size: .85rem; color: var(--quiet); }
-.danger { color: var(--danger); }
-.empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }
-.sheet { position: relative; }
-.sheet h2 { margin: 0; font-size: 2.1rem; letter-spacing: -.05em; }
-.migration-facts { display: grid; gap: 12px; margin: 28px 0 16px; }
-.migration-facts p { display: grid; gap: 5px; margin: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
-.migration-facts span { color: var(--quiet); font-size: .76rem; }
-.migration-facts strong { overflow-wrap: anywhere; font-size: .92rem; }
-.pending-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
-.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 13px; background: var(--surface); font-size: .85rem; overflow-wrap: anywhere; }
-.pending-list li + li { border-top: 1px solid var(--line); }
-.pending-map { color: var(--quiet); font-size: .78rem; flex-shrink: 0; }
-.pending-overflow { color: var(--quiet); font-size: .78rem; font-style: italic; }
-.sheet-copy { color: var(--muted); font-size: .83rem; line-height: 1.5; }
-.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 30px; }
-@media (prefers-reduced-motion: reduce) { .migration-sheet-enter-active, .migration-sheet-leave-active, .migration-sheet-enter-active .sheet, .migration-sheet-leave-active .sheet { transition: opacity 140ms ease; }.migration-sheet-enter-from .sheet, .migration-sheet-leave-to .sheet { transform: none; } }
-@media (max-width: 620px) { .holder-heading { align-items: start; flex-direction: column; }.sheet-actions { flex-direction: column-reverse; }.sheet-actions button { width: 100%; } }
+.migration-intro { display: flex; align-items: end; justify-content: space-between; gap: 28px; }.migration-intro > p { margin: 0; color: var(--muted); }.migration-intro :deep(.alert) { max-width: 560px; }.migration-workspace { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 2fr); gap: 16px; align-items: start; }.migration-empty { grid-column: 1 / -1; padding-block: 30px; }.migration-dialog h2 { margin: 0; font-size: 1.75rem; letter-spacing: -.045em; }.migration-facts { display: grid; gap: 9px; margin: 22px 0 16px; }.migration-facts div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }.migration-facts dt { color: var(--quiet); font-size: .74rem; }.migration-facts dd { margin: 0; font-weight: 680; overflow-wrap: anywhere; }.pending-list { display: grid; gap: 1px; max-height: 280px; margin: 0; padding: 0; overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: 11px; }.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--surface); font-size: .84rem; }.pending-list li + li { border-top: 1px solid var(--line); }.pending-list small, .pending-overflow { color: var(--quiet); font-size: .75rem; }.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 24px; }
+@media (max-width: 760px) { .migration-intro { align-items: stretch; flex-direction: column; gap: 16px; }.migration-workspace { grid-template-columns: 1fr; }.dialog-actions { flex-direction: column-reverse; }.dialog-actions :deep(button) { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .migration-search form :deep(button) { transition: none; } }
 </style>

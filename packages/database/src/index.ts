@@ -11,6 +11,15 @@ import { invalidateSubmissionCache } from "./submission-cache";
 
 const now = () => Date.now();
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
+export const paginateHistoricalHolderNames = (holderNames: string[], page: number, pageSize: number) => {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.min(50, Math.max(1, pageSize));
+  return { holderNames: holderNames.slice((safePage - 1) * safePageSize, safePage * safePageSize), page: safePage, pageSize: safePageSize, total: holderNames.length, hasMore: safePage * safePageSize < holderNames.length };
+};
+export const summarizeHistoricalTitleGrantStatuses = (rows: Array<{ holderName: string; grantId: string | null }>) => {
+  const pendingHolders = new Set(rows.filter(({ grantId }) => !grantId).map(({ holderName }) => holderName));
+  return { pendingHolderCount: pendingHolders.size, unclaimedGrantCount: rows.filter(({ grantId }) => !grantId).length, migratedGrantCount: rows.filter(({ grantId }) => Boolean(grantId)).length };
+};
 const loginTtlMs = 2 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
@@ -743,10 +752,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async listHistoricalTitleGrants(input) {
       const query = input.query ? `%${input.query}%` : undefined;
-      const rows = await db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
+      const match = query ? or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)) : undefined;
+      const matchedHolders = await db.select({ holderName: historicalTitleGrants.holderName }).from(historicalTitleGrants)
+        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).where(match).groupBy(historicalTitleGrants.holderName).orderBy(historicalTitleGrants.holderName);
+      const pagination = paginateHistoricalHolderNames(matchedHolders.map(({ holderName }) => holderName), input.page, input.pageSize);
+      const { holderNames, page, pageSize } = pagination;
+      const rows = holderNames.length ? await db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
         .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id)).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .where(query ? or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)) : undefined).orderBy(historicalTitleGrants.holderName).limit(100);
-      return rows.map(({ historical, grant, title, mapName, player }) => ({ grantId: grant?.id ?? historical.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: historical.scope as "global" | "map", mapName: mapName ?? undefined, slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant?.grantedAt ?? 0, holderName: historical.holderName, playerAccountId: grant?.playerAccountId, playerName: player?.playerName, playerId: player?.playerId, status: grant ? grant.status as "active" | "revoked" : "unclaimed", revokeReason: grant?.revokeReason ?? undefined }));
+        .where(inArray(historicalTitleGrants.holderName, holderNames)).orderBy(historicalTitleGrants.holderName, titleCatalog.category, titleCatalog.label) : [];
+      const allStatuses = await db.select({ holderName: historicalTitleGrants.holderName, grantId: playerTitleGrants.id }).from(historicalTitleGrants)
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)));
+      const stats = summarizeHistoricalTitleGrantStatuses(allStatuses);
+      return { contractVersion: "1" as const, items: rows.map(({ historical, grant, title, mapName, player }) => ({ grantId: grant?.id ?? historical.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: historical.scope as "global" | "map", mapName: mapName ?? undefined, slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant?.grantedAt ?? 0, holderName: historical.holderName, playerAccountId: grant?.playerAccountId, playerName: player?.playerName, playerId: player?.playerId, status: grant ? grant.status as "active" | "revoked" : "unclaimed", revokeReason: grant?.revokeReason ?? undefined })), page, pageSize, total: pagination.total, hasMore: pagination.hasMore, stats };
     },
 
     async createAdminTitleGrant(input, auth, idempotencyKey) {

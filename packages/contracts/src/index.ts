@@ -252,6 +252,8 @@ export const ownedTitleSchema = z.object({
 });
 export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema) });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
+export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
+export const adminTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean(), stats: adminTitleGrantStatsSchema });
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId: z.string().uuid() });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
@@ -521,6 +523,7 @@ export type OwnedTitle = z.infer<typeof ownedTitleSchema>;
 export type OwnedTitleListResponse = z.infer<typeof ownedTitleListResponseSchema>;
 export type HistoricalTitleGrant = z.infer<typeof historicalTitleGrantSchema>;
 export type HistoricalTitleGrantListResponse = z.infer<typeof historicalTitleGrantListResponseSchema>;
+export type AdminTitleGrantListResponse = z.infer<typeof adminTitleGrantListResponseSchema>;
 export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema>;
 export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
