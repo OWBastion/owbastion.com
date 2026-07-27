@@ -28,7 +28,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
   if (!state.screenshot) return;
   try {
     const result = await submit(state.screenshot);
-    const title = result.status === "awaiting_player_confirmation" ? "识别完成，请确认挑战。" : result.status === "ready_for_review" ? "识别通过，已提交管理员核对。" : result.status === "resubmission_required" ? "截图未通过识别，请重新提交。" : "截图已上传，识别仍在进行。";
+    const title = result.status === "awaiting_player_confirmation" ? "识别完成，请确认挑战。" : result.status === "ready_for_review" ? "识别通过，已提交管理员核对。" : result.status === "resubmission_required" ? "截图未通过识别，请重新提交。" : "截图已上传，正在等待 OCR 识别。";
     toast.add({ title, color: result.status === "resubmission_required" ? "warning" : "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch (cause) {

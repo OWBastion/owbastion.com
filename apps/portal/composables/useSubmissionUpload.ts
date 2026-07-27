@@ -10,7 +10,6 @@ export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 const phaseLabels = { hash: "读取截图", session: "创建上传会话", upload: "上传截图", complete: "完成上传" } as const;
-const OCR_WAIT_STATUSES = new Set(["upload_pending", "ocr_pending"]);
 
 export function useSubmissionUpload() {
   const api = usePortalApi();
@@ -53,13 +52,7 @@ export function useSubmissionUpload() {
         throw cause;
       }
       phase = "complete";
-      const completed = await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${session.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: session.uploadId } });
-      let latest = completed;
-      for (let attempt = 0; attempt < 30 && OCR_WAIT_STATUSES.has(latest.status); attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        latest = await api<{ submissionId: string; status: string }>(`/v1/me/submissions/${encodeURIComponent(completed.submissionId)}`);
-      }
-      return latest;
+      return await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${session.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: session.uploadId } });
     } catch (cause) {
       const apiError = cause as PortalApiError;
       const apiDetails = apiError.data?.error;

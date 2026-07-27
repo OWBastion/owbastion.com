@@ -1,4 +1,5 @@
 export const submissionStatusText: Record<string, string> = {
+  upload_pending: "正在上传",
   received: "已收到",
   evidence_pending: "保存截图中",
   evidence_stored: "截图已保存",
