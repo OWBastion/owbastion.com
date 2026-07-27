@@ -34,6 +34,9 @@ type MapAchievement = {
   mapId: string;
   mapName: string;
   difficulty?: string;
+  condition: string;
+  evidenceRule: string;
+  submissionMode: "manual" | "automatic";
   status: AchievementStatus;
   gameVersion: string;
   introducedVersion: string;
@@ -92,8 +95,11 @@ const isTitle = (item: AdminAchievement): item is TitleAchievement | CatalogTitl
 const isChallengeTitle = (item: AdminAchievement): item is TitleAchievement => item.family === "achievement";
 const isMap = (item: AdminAchievement): item is MapAchievement => item.family === "map";
 const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发保留";
-const isDeveloperOnlyCatalog = (item: TitleAchievement | CatalogTitle): item is CatalogTitle => item.family === "title_catalog" && isDeveloperOnly(item);
+const isDeveloperOnlyCatalog = (item: AdminAchievement): item is CatalogTitle => item.family === "title_catalog" && isDeveloperOnly(item);
 const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
+const itemCategory = (item: AdminAchievement) => isTitle(item) ? item.category : "";
+const itemTitleName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
+const itemScope = (item: AdminAchievement) => isTitle(item) && item.family === "title_catalog" ? item.scope : "";
 const statusText = (value: AchievementStatus) => value === "scheduled" ? "未开放" : value === "active" ? "已开放" : value === "sunsetting" ? "即将结束" : "已下线";
 const statusTone = (value: AchievementStatus) => value === "active" ? "success" : "warning";
 const isSaving = (item: AdminAchievement) => savingId.value === item.challengeId;
@@ -106,9 +112,7 @@ const statusColumnFilters = computed({
 });
 const titleItems = computed(() => items.value.filter(isTitle));
 const mapItems = computed(() => items.value.filter(isMap));
-const editingItem = computed(() => {
-  return titleItems.value.find((candidate) => candidate.challengeId === editingId.value) ?? null;
-});
+const editingItem = computed(() => items.value.find((candidate) => candidate.challengeId === editingId.value && (isTitle(candidate) || isMap(candidate))) ?? null);
 const editorOpen = computed({
   get: () => editingItem.value !== null,
   set: (open: boolean) => { if (!open) closeEditing(); },
@@ -140,13 +144,13 @@ function getGroupCellClass<Item>(cell: TableCell<Item>, groupValue: (item: Item)
   return isGroupContinuation(cell, groupValue) ? "hidden" : "align-middle";
 }
 
-const titleColumns: TableColumn<TitleAchievement | CatalogTitle>[] = [
+const titleColumns: TableColumn<AdminAchievement>[] = [
   {
     accessorKey: "category",
     header: "系列",
     meta: {
-      rowspan: { td: (cell) => getGroupRowSpan(cell, (item) => item.category) },
-      class: { td: (cell) => getGroupCellClass(cell, (item) => item.category) },
+      rowspan: { td: (cell) => getGroupRowSpan(cell, itemCategory) },
+      class: { td: (cell) => getGroupCellClass(cell, itemCategory) },
     },
   },
   { accessorKey: "titleName", header: "称号" },
@@ -205,7 +209,7 @@ const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => 
 
 function updatePayload(item: AdminAchievement, status: AchievementStatus, retiredVersion?: string) {
   if (isChallengeTitle(item)) return titleUpdate(item, status, retiredVersion);
-  if (isMap(item)) return { family: "map", status, ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}) };
+  if (isMap(item)) return { family: "map", name: item.name, difficulty: item.difficulty ?? null, condition: item.condition, evidenceRule: item.evidenceRule, submissionMode: item.submissionMode, status, ...(status === "sunsetting" ? { retiredVersion: retiredVersion ?? item.retiredVersion ?? "" } : {}) };
   throw new Error("CATALOG_TITLE_UPDATE_REQUIRES_CATALOG_ENDPOINT");
 }
 
@@ -268,9 +272,17 @@ async function saveTitle(item: TitleAchievement) {
   if (await save(item, titleUpdate(item), "成就规则已保存")) editingId.value = null;
 }
 
-async function saveEditingItem(item: TitleAchievement | CatalogTitle) {
+async function saveMap(item: MapAchievement) {
+  if (await save(item, updatePayload(item, item.status), "地图挑战规则已保存")) editingId.value = null;
+}
+
+async function saveEditingItem(item: AdminAchievement) {
   if (isChallengeTitle(item)) {
     await saveTitle(item);
+    return;
+  }
+  if (isMap(item)) {
+    await saveMap(item);
     return;
   }
   if (await saveCatalogTitle(item, item.status, true)) editingId.value = null;
@@ -338,15 +350,15 @@ function setIconUrl(value: string) {
 }
 
 function setEvidenceRule(value: string) {
-  if (editingItem.value && isTitle(editingItem.value)) editingItem.value.evidenceRule = value;
+  if (editingItem.value && (isTitle(editingItem.value) || isMap(editingItem.value))) editingItem.value.evidenceRule = value;
 }
 
 function setSubmissionMode(value: "manual" | "automatic") {
-  if (editingItem.value && isTitle(editingItem.value)) editingItem.value.submissionMode = value;
+  if (editingItem.value && (isTitle(editingItem.value) || isMap(editingItem.value))) editingItem.value.submissionMode = value;
 }
 
 function setRetiredVersion(value: string) {
-  if (editingItem.value && isTitle(editingItem.value)) editingItem.value.retiredVersion = value || null;
+  if (editingItem.value && (isTitle(editingItem.value) || isMap(editingItem.value))) editingItem.value.retiredVersion = value || null;
 }
 
 async function endChallenge() {
@@ -374,24 +386,24 @@ onMounted(() => void load());
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleItems.length }} 项</span></div>
           <AdminDataTable v-model:column-filters="statusColumnFilters" :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
             <template #filters><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
-            <template #category-cell="{ row }"><span class="table-meta">{{ row.original.category }}</span></template>
-            <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `引入版本 ${row.original.introducedVersion}` : row.original.scope === 'map' ? '地图称号' : '目录称号' }}</small></template>
+            <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
+            <template #titleName-cell="{ row }"><strong>{{ itemTitleName(row.original) }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `引入版本 ${row.original.introducedVersion}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small></template>
             <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
             <template #status-cell="{ row }"><StatusBadge :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" /></template>
-            <template #actions-cell="{ row }"><div class="table-actions"><button v-if="isTitle(row.original)" class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : isChallengeTitle(row.original) ? '编辑规则' : '编辑状态'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><template v-if="isChallengeTitle(row.original)"><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template><template v-else><button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template></div></template>
+            <template #actions-cell="{ row }"><div class="table-actions"><button v-if="isMap(row.original)" class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><template v-if="isTitle(row.original)"><button class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : isChallengeTitle(row.original) ? '编辑规则' : '编辑状态'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><template v-if="isChallengeTitle(row.original)"><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template><template v-else><button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template></template><template v-else><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button></template><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></div></template>
           </AdminDataTable>
-          <AdminResponsiveDialog v-model:open="editorOpen" title="编辑规则" :description="editingItem?.titleName" size="lg">
+          <AdminResponsiveDialog v-model:open="editorOpen" title="编辑规则" :description="editingItem ? itemName(editingItem) : undefined" size="lg">
             <template #body>
               <form v-if="editingItem" id="achievement-editor" class="editor" @submit.prevent="saveEditingItem(editingItem)">
+                <UFormField v-if="isMap(editingItem)" class="editor-field" label="挑战名称" required><UInput class="editor-control" v-model="editingItem.name" required maxlength="256" :disabled="isSaving(editingItem)" /></UFormField>
+                <UFormField v-if="isMap(editingItem)" class="editor-field" label="难度"><UInput class="editor-control" v-model="editingItem.difficulty" maxlength="64" :disabled="isSaving(editingItem)" /></UFormField>
                 <UFormField class="editor-field" label="完成条件" required><UTextarea class="editor-control" v-model="editingItem.condition" required maxlength="1024" :disabled="isSaving(editingItem)" /></UFormField>
                 <UFormField class="editor-field" label="截图规则" required><UTextarea class="editor-control" :model-value="editingItem.evidenceRule ?? defaultEvidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setEvidenceRule" /></UFormField>
                 <UFormField class="editor-field" label="提交方式"><USelect class="editor-control" :model-value="editingItem.submissionMode ?? 'manual'" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" /></UFormField>
-                <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="isDeveloperOnlyCatalog(editingItem) ? catalogStatusItems(editingItem) : [{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :ui="{ base: 'w-full' }" /></UFormField>
-                <UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.startsAt" :disabled="isSaving(editingItem)" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField>
-                <UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.endsAt" :disabled="isSaving(editingItem)" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField>
+                <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="isMap(editingItem) ? [{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }] : isTitle(editingItem) && isDeveloperOnlyCatalog(editingItem) ? catalogStatusItems(editingItem) : [{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :ui="{ base: 'w-full' }" /></UFormField>
+                <template v-if="isTitle(editingItem)"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.startsAt" :disabled="isSaving(editingItem)" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.endsAt" :disabled="isSaving(editingItem)" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
                 <UFormField class="editor-field" label="计划下线版本"><UInput class="editor-control" :model-value="editingItem.retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="isSaving(editingItem)" @update:model-value="setRetiredVersion" /></UFormField>
-                <UFormField class="editor-field" label="自定义图标" hint="留空使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UInput class="editor-control" type="url" :model-value="editingItem.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setIconUrl" /><details class="icon-upload-option"><summary>上传图标</summary><div class="icon-upload-content"><p>PNG、JPG 或 WebP，最大 512 KB。</p><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></details></div></UFormField>
-                <UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput class="editor-control" :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField>
+                <template v-if="isTitle(editingItem)"><UFormField class="editor-field" label="自定义图标" hint="留空使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UInput class="editor-control" type="url" :model-value="editingItem.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setIconUrl" /><details class="icon-upload-option"><summary>上传图标</summary><div class="icon-upload-content"><p>PNG、JPG 或 WebP，最大 512 KB。</p><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></details></div></UFormField><UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput class="editor-control" :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField></template>
               </form>
             </template>
             <template #footer>
@@ -408,7 +420,7 @@ onMounted(() => void load());
           <AdminDataTable v-model:column-filters="statusColumnFilters" :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
             <template #filters><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #mapName-cell="{ row }"><span class="table-meta">{{ row.original.mapName }}</span></template>
-            <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template>
+            <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong><button class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button></template>
             <template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template>
             <template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template>
             <template #actions-cell="{ row }"><div class="table-actions"><template v-if="row.original.status !== 'retired'"><UPopover :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button></template><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></div></template>

@@ -263,6 +263,9 @@ export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, pl
 export const adminManualTitleGrantResponseSchema = z.object({ contractVersion, grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapId: externalId.nullable(), slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), alreadyOwned: z.boolean() });
 
 const adminMapChallengeSchema = mapChallengeSchema.extend({
+  condition: z.string().trim().min(1).max(1024).optional(),
+  evidenceRule: z.string().trim().min(1).max(2048).optional(),
+  submissionMode: z.enum(["manual", "automatic"]).optional(),
   status: challengeStatus,
   introducedVersion: z.string().trim().min(1).max(64),
   retiredVersion: storedRetirementVersion.nullable(),
@@ -298,6 +301,11 @@ export const adminChallengeListResponseSchema = z.object({ contractVersion, item
 const adminMapChallengeUpdateSchema = z.object({
   contractVersion,
   family: z.literal("map"),
+  name: z.string().trim().min(1).max(256).optional(),
+  difficulty: z.string().trim().min(1).max(64).nullable().optional(),
+  condition: z.string().trim().min(1).max(1024).optional(),
+  evidenceRule: z.string().trim().min(1).max(2048).optional(),
+  submissionMode: z.enum(["manual", "automatic"]).optional(),
   status: challengeStatus,
   retiredVersion: optionalRetirementVersion,
 }).superRefine((value, ctx) => {

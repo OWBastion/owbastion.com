@@ -542,6 +542,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           mapId: map.id,
           mapName: map.name,
           difficulty: challenge.difficulty ?? undefined,
+          condition: challenge.condition,
+          evidenceRule: challenge.evidenceRule,
+          submissionMode: challenge.submissionMode as "manual" | "automatic",
           gameVersion: challenge.gameVersion,
           status: challenge.status === "inactive" ? "retired" : challenge.status as "active" | "sunsetting",
           introducedVersion: challenge.introducedVersion,
@@ -609,8 +612,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (input.family === "map") {
         const row = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(eq(achievementChallenges.id, input.challengeId)).get();
         if (!row) throw new Error("CHALLENGE_NOT_FOUND");
-        await db.update(achievementChallenges).set({ status: input.status === "retired" ? "inactive" : input.status, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null, updatedAt: timestamp }).where(eq(achievementChallenges.id, row.challenge.id));
-        const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: row.challenge.name, mapId: row.map.id, mapName: row.map.name, difficulty: row.challenge.difficulty ?? undefined, gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null };
+        const name = input.name ?? row.challenge.name;
+        const difficulty = input.difficulty !== undefined ? input.difficulty : row.challenge.difficulty;
+        const condition = input.condition ?? row.challenge.condition;
+        const evidenceRule = input.evidenceRule ?? row.challenge.evidenceRule;
+        const submissionMode = input.submissionMode ?? row.challenge.submissionMode;
+        await db.update(achievementChallenges).set({ name, difficulty, condition, evidenceRule, submissionMode, status: input.status === "retired" ? "inactive" : input.status, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null, updatedAt: timestamp }).where(eq(achievementChallenges.id, row.challenge.id));
+        const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name, mapId: row.map.id, mapName: row.map.name, difficulty: difficulty ?? undefined, condition, evidenceRule, submissionMode: submissionMode as "manual" | "automatic", gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null };
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         await clearCatalogCache(cache);

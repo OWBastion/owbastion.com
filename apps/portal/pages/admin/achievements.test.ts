@@ -7,7 +7,7 @@ import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue"
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
 const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋" };
 const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
-const map = { challengeId: "map-1", family: "map", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
+const map = { challengeId: "map-1", family: "map", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/achievements") return Promise.resolve({ items: [title, secondTitle, catalogTitle, map, secondMap] });
@@ -69,7 +69,7 @@ describe("achievement admin page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("国王大道");
     expect(wrapper.text()).not.toContain("内部称号");
-    expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(0);
+    expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(2);
     expect(wrapper.findAll('button[aria-label="计划下线"]')).toHaveLength(2);
     expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);
     expect(wrapper.find('td[rowspan="2"]').text()).toBe("国王大道");
@@ -151,6 +151,18 @@ describe("achievement admin page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ family: "map", status: "retired" }) }));
     expect(adminApi.mock.calls.find(([path]) => path === "/v1/achievements/map-1")?.[1]?.body).not.toHaveProperty("retiredVersion");
+  });
+
+  it("saves expanded map challenge rules", async () => {
+    const wrapper = await mountPage();
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+    const form = wrapper.get("form.editor");
+    await form.find('input[maxlength="256"]').setValue("新的地图挑战");
+    await form.findAll("textarea")[0]!.setValue("完成更新后的地图挑战");
+    await form.trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/achievements/map-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ family: "map", name: "新的地图挑战", condition: "完成更新后的地图挑战", evidenceRule: "完整截图", submissionMode: "manual" }) }));
   });
 
   it("does not write when the end confirmation is cancelled", async () => {
