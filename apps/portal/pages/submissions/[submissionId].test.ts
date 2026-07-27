@@ -14,7 +14,11 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("需要重新提交");
     expect(wrapper.text()).toContain("OCR 结果与目标挑战不匹配");
     expect(wrapper.text()).toContain("识别摘要");
+    expect(wrapper.findAll(".detail-grid > div").map((column) => column.classes())).toEqual([["evidence-col"], ["info-col"]]);
+    expect(wrapper.get(".evidence-frame").exists()).toBe(true);
     expect(wrapper.get(".evidence-image").attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
+    await wrapper.get(".evidence-image").trigger("error");
+    expect(wrapper.text()).toContain("暂无截图。");
     const requestCount = api.mock.calls.length;
     await wrapper.get("button").trigger("click");
     await flushPromises();

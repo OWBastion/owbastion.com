@@ -29,7 +29,8 @@ const selectedChallengeId = shallowRef("");
 const confirming = shallowRef(false);
 let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
-const evidenceImageUrl = ref<string | null>(null);
+const evidenceImageUrl = shallowRef<string | null>(null);
+const evidenceLoadError = shallowRef(false);
 const evidenceCdnHeader = { "x-owbastion-review": "portal-player" };
 const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
@@ -82,7 +83,10 @@ onBeforeUnmount(() => {
         <div class="evidence-col">
           <UCard class="evidence-card">
             <template #header><div class="card-heading"><h2>提交截图</h2></div></template>
-            <img :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" />
+            <div class="evidence-frame">
+              <img v-if="!evidenceLoadError" :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" @error="evidenceLoadError = true" />
+              <p v-else class="evidence-message" role="status">暂无截图。</p>
+            </div>
           </UCard>
         </div>
 
@@ -131,9 +135,9 @@ onBeforeUnmount(() => {
 .back-link { margin-bottom: clamp(32px, 5vw, 56px); }
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
 .page-heading .eyebrow { margin-bottom: 10px; }.page-heading .page-title { max-width: 14ch; }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 16px; max-width: 1100px; }.evidence-col { position: sticky; top: 24px; }.info-col { display: grid; gap: 16px; }.overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--line); box-shadow: 0 8px 24px -20px var(--shadow); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }dt { color: var(--quiet); font-size: .8rem; }dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }.evidence-image { display: block; width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); object-fit: contain; }.confirm-copy { margin: 0 0 18px; color: var(--muted); }.confirm-card :deep(.catalog) { margin-bottom: 20px; }.message { margin: 0; color: var(--muted); }
-@media (max-width: 860px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, .9fr); align-items: start; gap: clamp(18px, 2.4vw, 28px); max-width: 1100px; }.evidence-col { position: sticky; top: 24px; min-width: 0; }.info-col { display: grid; gap: 16px; min-width: 0; }.overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--line); box-shadow: 0 12px 32px -24px var(--shadow); }.evidence-card { box-shadow: 0 18px 44px -28px var(--shadow); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }dt { color: var(--quiet); font-size: .8rem; }dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }.evidence-frame { display: grid; min-height: clamp(300px, 56vh, 720px); place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-raised); }.evidence-image { display: block; width: 100%; max-height: min(72vh, 820px); border-radius: 13px; object-fit: contain; }.evidence-message { margin: 0; color: var(--muted); font-size: .88rem; }.confirm-copy { margin: 0 0 18px; color: var(--muted); }.confirm-card :deep(.catalog) { margin-bottom: 20px; }.message { margin: 0; color: var(--muted); }
+@media (max-width: 820px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } .evidence-frame { min-height: clamp(240px, 58vw, 520px); } }
 @media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading { align-items: flex-start; flex-direction: column; gap: 18px; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.page-heading .page-title { max-width: none; } }
-@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card { box-shadow: none; } }
+@media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card { box-shadow: none; } .evidence-frame { background: var(--surface); } }
 @media (prefers-contrast: more) { .overview-card, .evidence-card, .ocr-card, .confirm-card { border-color: var(--text); } }
 </style>
