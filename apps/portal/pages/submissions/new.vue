@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
 import type { FormError, FormSubmitEvent } from "@nuxt/ui";
+import SubmissionProcess from "~/components/submissions/SubmissionProcess.vue";
+import SubmissionRequirements from "~/components/submissions/SubmissionRequirements.vue";
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交挑战 · 躲避堡垒 3" });
 
