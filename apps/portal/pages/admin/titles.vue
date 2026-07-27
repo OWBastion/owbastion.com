@@ -74,7 +74,6 @@ async function load(options: { resetSelection?: boolean } = {}) {
 
 const debouncedLoad = useDebounceFn(() => { page.value = 1; void load({ resetSelection: true }); }, 300);
 function handleSearchInput() { debouncedLoad(); }
-function handleSearchSubmit() { page.value = 1; void load({ resetSelection: true }); }
 function updateFilter(value: "all" | "pending" | "completed") {
   filter.value = value;
   const first = holderGroups.value.find((holder) => value === "all" || (value === "pending" ? holder.unclaimedCount > 0 : holder.unclaimedCount === 0));
@@ -139,7 +138,7 @@ onMounted(() => { void load({ resetSelection: true }); });
     </section>
     <AdminTitleMigrationMetrics :metrics="metrics" />
     <section class="migration-workspace" aria-label="称号迁移工作台">
-      <AdminTitleMigrationHolders :holders="holderGroups" :selected-holder-name="selectedHolderName" :filter="filter" :query="query" :loading="loading" :total="total" :page="page" :page-size="pageSize" @select="selectHolder" @update:filter="updateFilter" @update:page="updatePage" @update:query="query = $event; handleSearchInput()" @search="handleSearchSubmit" />
+      <AdminTitleMigrationHolders :holders="holderGroups" :selected-holder-name="selectedHolderName" :filter="filter" :query="query" :loading="loading" :total="total" :page="page" :page-size="pageSize" @select="selectHolder" @update:filter="updateFilter" @update:page="updatePage" @update:query="query = $event; handleSearchInput()" />
       <AdminTitleMigrationDetail :holder="selectedHolder" :players="players" :selected-player-id="selectedPlayerId" :loading="loading" :saving="saving" @update:selected-player-id="selectedPlayerId = $event" @grant="grant" @revoke="revoke" @bulk="openBulk" />
     </section>
     <UEmpty v-if="!loading && !total" class="migration-empty" title="暂无匹配记录" description="没有找到符合条件的历史称号。" variant="naked" />

@@ -43,7 +43,7 @@ describe("title migration page", () => {
   it("searches and filters historical holders", async () => {
     const wrapper = await mountPage();
     await wrapper.get('input[aria-label="搜索历史称号"]').setValue("Cold");
-    await wrapper.get('form[role="search"] button[type="submit"]').trigger("click");
+    await new Promise((resolve) => setTimeout(resolve, 350));
     await flushPromises();
     expect(wrapper.findAll(".holder-item")).toHaveLength(1);
     expect(wrapper.text()).toContain("Cold");
