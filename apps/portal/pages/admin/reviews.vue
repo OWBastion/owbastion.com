@@ -52,11 +52,11 @@ onMounted(() => { void load(); });
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>
       <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusText[row.original.ocrStatus]" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
-      <template #actions-cell="{ row }"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" color="neutral" variant="link" /></template>
+      <template #actions-cell="{ row }"><NuxtLink class="review-detail-link" :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`">查看</NuxtLink></template>
     </AdminDataTable><UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" /></section>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.table-meta { display:block; color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }
+.table-meta { display:block; color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }.review-detail-link { color:var(--accent); font-size:.8rem; font-weight:650; text-decoration:none; }.review-detail-link:hover, .review-detail-link:focus-visible { text-decoration:underline; }
 </style>

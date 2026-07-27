@@ -16,7 +16,7 @@ describe("admin reviews page", () => {
     const wrapper = await mountSuspended(ReviewsPage);
     await flushPromises();
     expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(4);
-    expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toBe("查看");
+    expect(wrapper.get('a.review-detail-link[href="/admin/reviews/submission-1"]').text()).toBe("查看");
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 });
