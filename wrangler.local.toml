@@ -8,6 +8,7 @@ PORTAL_ORIGIN = "http://localhost:3000"
 LOCAL_DEV_AUTH = "true"
 UPLOAD_ORIGIN = "http://localhost:8787"
 OCRKIT_EVIDENCE_BUCKET = "owbastion-codes-evidence"
+EVIDENCE_PUBLIC_ORIGIN = ""
 
 [[d1_databases]]
 binding = "DB"

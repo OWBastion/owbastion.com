@@ -431,6 +431,7 @@ export const playerSubmissionOcrSummarySchema = z.object({
 }).strict();
 
 export const playerSubmissionDetailSchema = submissionStatusResponseSchema.extend({
+  evidenceUrl: z.string().url().nullable().optional(),
   ocr: playerSubmissionOcrSummarySchema.optional(),
 });
 

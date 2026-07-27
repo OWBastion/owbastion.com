@@ -10,6 +10,7 @@ type SubmissionDetail = {
   reason?: string;
   createdAt: number;
   updatedAt: number;
+  evidenceUrl?: string | null;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null };
 };
 
@@ -24,10 +25,18 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
   () => api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`),
 );
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
+const evidenceImageUrl = ref<string | null>(null);
+const evidenceCdnHeader = { "x-owbastion-review": "portal-player" };
 const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const statusTone = (value: string) => value === "approved" ? "success" : value === "resubmission_required" ? "warning" : "default";
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
+onMounted(async () => {
+  if (!data.value?.evidenceUrl?.startsWith("https://evidence.owbastion.codes/")) return;
+  const response = await fetch(data.value.evidenceUrl, { headers: evidenceCdnHeader, credentials: "omit" });
+  if (response.ok) evidenceImageUrl.value = URL.createObjectURL(await response.blob());
+});
+onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidenceImageUrl.value); });
 </script>
 
 <template>
@@ -54,7 +63,7 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 
         <UCard class="evidence-card">
           <template #header><div class="card-heading"><h2>提交截图</h2></div></template>
-          <img :src="evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" />
+          <img :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" />
         </UCard>
 
         <UCard v-if="data.ocr" class="ocr-card">

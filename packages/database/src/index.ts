@@ -158,8 +158,10 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
+  const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
+  const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
 
   const dispatchPendingQqGroupPolicyEvents = async () => {
     if (!qqPolicyQueue) return;
@@ -853,8 +855,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async getAdminSubmission(input) {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const ocr = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
-      return { submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null, evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+      const [ocr, attachment] = await Promise.all([
+        db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
+        db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
+      ]);
+      return { submissionId: row.id, status: row.status as never, challengeId: row.challengeId ?? "", mapName: row.mapName, difficulty: row.difficulty ?? "", playerName: row.playerName ?? "", createdAt: row.createdAt, updatedAt: row.updatedAt, ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null, evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
     },
 
     async getAdminEvidence(input) {
@@ -868,7 +873,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async getPlayerSubmission(input, sessionToken) {
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
-      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const [result, attachment] = await Promise.all([
+        db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
+        db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, submission.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
+      ]);
       const raw = result?.responseJson ? JSON.parse(result.responseJson) as { data?: { map_name?: string | null; difficulty?: string | null; viewer_player?: string | null; challenge_completed?: boolean | null } } : null;
       return {
         contractVersion: "1" as const,
@@ -880,6 +888,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         reason: submission.reviewReason ?? undefined,
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
+        evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null } } : {}),
       };
     },

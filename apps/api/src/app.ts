@@ -31,6 +31,7 @@ export type RuntimeEnv = {
   PORTAL_ORIGIN?: string;
   LOCAL_DEV_AUTH?: string;
   UPLOAD_ORIGIN?: string;
+  EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
   OCRKIT_EVIDENCE_BUCKET?: string;

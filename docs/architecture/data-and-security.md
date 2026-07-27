@@ -5,7 +5,7 @@
 | Store | Current responsibility |
 | --- | --- |
 | D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, historical title snapshots, and auditable player title grants |
-| R2 | Private submission evidence and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
+| R2 | Submission evidence served through the configured public CDN origin and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
 The OCR Queue carries only an opaque submission ID, private object key, and
@@ -34,8 +34,15 @@ reused after completion. It does not expose object keys, source URLs, or QQ
 OpenIDs from public status and player endpoints.
 
 Player submission detail and evidence reads require the Portal session and
-verify that the submission belongs to the current player account. Evidence is
-proxied with private, no-store caching rather than a public object URL. The
+verify that the submission belongs to the current player account. Player
+evidence URLs are returned only after that check; the image itself is served
+from the configured CDN. Admin review details
+return the R2 object URL under the configured public custom domain; access to
+that URL is bearer-style and depends on the opaque submission UUID and content
+hash in the object key. Player detail responses use the same CDN URL only after
+the API verifies ownership. Both Portal surfaces send the weak
+`x-owbastion-review` source header; WAF validation of that header is not an
+authorization mechanism. The
 player-facing OCR summary contains only recognized map, difficulty, player, and
 completion values; raw OCR output and internal match details remain private.
 

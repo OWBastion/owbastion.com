@@ -13,6 +13,15 @@ deployment job:
 - D1 database named `owbastion-codes-prod`;
 - isolated D1 database named `owbastion-codes-staging` for remote migration validation;
 - R2 bucket named `owbastion-codes-evidence`;
+- R2 custom domain `evidence.owbastion.codes` connected to that bucket, with
+  Cloudflare Cache enabled for the object paths;
+- R2 CORS allowing `GET` from `https://owbastion.com` and the
+  `x-owbastion-review` request header;
+- a WAF custom rule on `evidence.owbastion.codes` that allows `OPTIONS`, and
+  for `GET`/`HEAD` under `/uploads/submissions/` blocks requests whose
+  `x-owbastion-review` header is not exactly `portal-admin` or `portal-player`.
+  This is only a weak source check, not authorization; anyone who learns the
+  header value and object URL can still read the object.
 - KV namespace for derived catalog caches, bound as `CACHE`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;

@@ -35,7 +35,7 @@ through the Agents API; it is not a competing metadata source.
 | Repository | Authoritative responsibility |
 | --- | --- |
 | OWBastion/Bastion | Game implementation, builds, releases, and published game artifacts |
-| OWBastion/owbastion.codes | Current event, map, title, and challenge metadata; business data, API, Portal, private evidence, review decisions, and platform title Grants |
+| OWBastion/owbastion.codes | Current event, map, title, and challenge metadata; business data, API, Portal, evidence delivery, review decisions, and platform title Grants |
 | OWBastion/qqbot | QQ channel ingress, deterministic command UX, and notifications |
 | OWBastion/ocrkit | Stateless screenshot recognition and model lifecycle |
 
