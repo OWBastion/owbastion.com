@@ -1,0 +1,1 @@
+ALTER TABLE submissions ADD COLUMN ocr_fail_count INTEGER NOT NULL DEFAULT 0;

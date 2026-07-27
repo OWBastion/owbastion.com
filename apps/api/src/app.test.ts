@@ -47,6 +47,7 @@ const services: PlatformServices = {
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
+  requestManualReview: async () => {},
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
   createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
@@ -727,5 +728,29 @@ describe("API", () => {
     const response = await subApp.request(url, {}, cacheEnv);
     expect(response.status).toBe(404);
     expect(cachePut).not.toHaveBeenCalled();
+  });
+
+  it("returns 401 for manual review request without session", async () => {
+    const response = await app.request("http://localhost/v1/player/submissions/00000000-0000-4000-8000-000000000001/manual-review", { method: "POST", headers: { origin: "https://owbastion.com" } }, env);
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 404 when submission not found for manual review", async () => {
+    const notFoundApp = createApp({ authenticate: auth, services: () => ({ ...services, requestManualReview: async () => { throw new Error("SUBMISSION_NOT_FOUND"); } }) });
+    const response = await notFoundApp.request("http://localhost/v1/player/submissions/00000000-0000-4000-8000-000000000001/manual-review", { method: "POST", headers: { origin: "https://owbastion.com", cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(404);
+    expect((await response.json() as any).error.code).toBe("SUBMISSION_NOT_FOUND");
+  });
+
+  it("returns 409 when submission is not eligible for manual review", async () => {
+    const ineligibleApp = createApp({ authenticate: auth, services: () => ({ ...services, requestManualReview: async () => { throw new Error("MANUAL_REVIEW_NOT_ELIGIBLE"); } }) });
+    const response = await ineligibleApp.request("http://localhost/v1/player/submissions/00000000-0000-4000-8000-000000000001/manual-review", { method: "POST", headers: { origin: "https://owbastion.com", cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(409);
+    expect((await response.json() as any).error.code).toBe("MANUAL_REVIEW_NOT_ELIGIBLE");
+  });
+
+  it("returns 204 on successful manual review request", async () => {
+    const response = await app.request("http://localhost/v1/player/submissions/00000000-0000-4000-8000-000000000001/manual-review", { method: "POST", headers: { origin: "https://owbastion.com", cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(204);
   });
 });

@@ -195,6 +195,7 @@ export const submissions = sqliteTable("submissions", {
   playerName: text("player_name"),
   reviewReason: text("review_reason"),
   grantId: text("grant_id"),
+  ocrFailCount: integer("ocr_fail_count").notNull().default(0),
   sourceProvider: text("source_provider").notNull(),
   sourceConversationId: text("source_conversation_id").notNull(),
   sourceMessageId: text("source_message_id").notNull(),

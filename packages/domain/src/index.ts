@@ -113,6 +113,7 @@ export type PlatformServices = {
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   getPlayerEvidence(input: { submissionId: string }, sessionToken: string): Promise<{ body: ArrayBuffer; contentType: string }>;
+  requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;

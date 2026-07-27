@@ -41,6 +41,7 @@ export type RuntimeEnv = {
   QQBOT_POLICY_WEBHOOK_URL?: string;
   QQBOT_POLICY_WEBHOOK_SECRET?: string;
   BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
+  OCR_MANUAL_REVIEW_THRESHOLD?: string;
 };
 
 type AppDependencies = {
@@ -130,6 +131,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/login", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -458,6 +460,20 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "SUBMISSION_CHALLENGE_FAILED";
       if (["CHALLENGE_NOT_FOUND", "SUBMISSION_NOT_CONFIRMABLE"].includes(code)) return errorResponse(c, 422, code, "The submission challenge cannot be confirmed");
+      throw error;
+    }
+  });
+
+  app.post("/v1/player/submissions/:submissionId/manual-review", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    try {
+      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
+      return c.body(null, 204);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "MANUAL_REVIEW_FAILED";
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
+      if (code === "MANUAL_REVIEW_NOT_ELIGIBLE") return errorResponse(c, 409, code, "The submission is not eligible for manual review");
       throw error;
     }
   });

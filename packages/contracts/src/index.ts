@@ -446,6 +446,7 @@ export const playerSubmissionOcrSummarySchema = z.object({
 export const playerSubmissionDetailSchema = submissionStatusResponseSchema.extend({
   evidenceUrl: z.string().url().nullable().optional(),
   ocr: playerSubmissionOcrSummarySchema.optional(),
+  ocrFailCount: z.number().int().nonnegative().optional(),
 });
 
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({

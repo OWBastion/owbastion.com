@@ -9,6 +9,7 @@ type SubmissionDetail = {
   createdAt: number;
   updatedAt: number;
   evidenceUrl?: string | null;
+  ocrFailCount?: number;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
 };
 
@@ -25,6 +26,9 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
 const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
 const selectedChallengeId = shallowRef("");
 const confirming = shallowRef(false);
+const requestingManualReview = shallowRef(false);
+const manualReviewRequested = shallowRef(false);
+const OCR_MANUAL_REVIEW_THRESHOLD = 2;
 let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
 const evidenceImageUrl = shallowRef<string | null>(null);
@@ -39,9 +43,10 @@ const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过处理，请查看原因并重新提交。" : "查看截图、识别结果与提交状态。");
+const manualReviewEligible = computed(() => data.value?.status === "resubmission_required" && (data.value?.ocrFailCount ?? 0) >= OCR_MANUAL_REVIEW_THRESHOLD);
 const statusAlert = computed(() => {
   if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别完成后，这里会显示下一步操作。", color: "info" as const };
-  if (data.value?.status === "ocr_review_required") return { title: "识别结果等待处理", description: "当前提交需要进一步处理，请等待状态更新。", color: "warning" as const };
+  if (data.value?.status === "ocr_review_required") return { title: "等待人工审核", description: "已进入审核队列，请等待管理员处理。", color: "warning" as const };
   if (data.value?.status === "resubmission_required") return { title: "需要重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
   return null;
 });
@@ -52,6 +57,14 @@ const confirmChallenge = async () => {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, { method: "POST", body: { contractVersion: "1", challengeId: selectedChallengeId.value } });
     await refresh();
   } finally { confirming.value = false; }
+};
+const handleRequestManualReview = async () => {
+  requestingManualReview.value = true;
+  try {
+    await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/manual-review`, { method: "POST" });
+    manualReviewRequested.value = true;
+    await refresh();
+  } finally { requestingManualReview.value = false; }
 };
 onMounted(() => { if (data.value && !data.value.challengeId) void loadCatalog(); });
 onMounted(() => {
@@ -108,6 +121,8 @@ onBeforeUnmount(() => {
             </dl>
             <div class="overview-actions">
               <UButton v-if="data.status === 'resubmission_required'" to="/submissions/new" label="重新提交截图" icon="i-lucide-upload" color="primary" block />
+              <UButton v-if="manualReviewEligible" label="申请人工处理" icon="i-lucide-user-check" color="neutral" variant="outline" :loading="requestingManualReview" :disabled="requestingManualReview" aria-label="申请人工处理" @click="handleRequestManualReview" block />
+              <UAlert v-if="manualReviewRequested" color="success" variant="subtle" icon="i-lucide-check-circle" title="已提交申请" description="已进入人工审核队列，请等待管理员处理。" />
               <UButton label="刷新状态" icon="i-lucide-refresh-cw" color="neutral" variant="outline" aria-label="刷新状态" :loading="fetchStatus === 'pending'" :disabled="fetchStatus === 'pending'" @click="refreshSubmission" block />
             </div>
           </UCard>

@@ -167,7 +167,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 2): PlatformServices => {
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
@@ -978,8 +978,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
         evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
+        ocrFailCount: submission.ocrFailCount,
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
       };
+    },
+
+    async requestManualReview(input, sessionToken) {
+      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      if (submission.status === "ocr_review_required") return;
+      if (submission.status !== "resubmission_required" || submission.ocrFailCount < ocrManualReviewThreshold) throw new Error("MANUAL_REVIEW_NOT_ELIGIBLE");
+      const timestamp = now();
+      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: "玩家申请人工处理" }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
+      await db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: "user", actorId: submission.id, operation: "submission.manual_review_requested", entityType: "submission", entityId: submission.id, payloadJson: JSON.stringify({ ocrFailCount: submission.ocrFailCount }), createdAt: timestamp });
+      await invalidateSubmissionCache(cache, submission.id);
     },
 
     async getPlayerEvidence(input, sessionToken) {
@@ -1096,14 +1107,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (row.challengeType === "unknown") {
         const quality = assessOcrQuality("unknown", result);
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: quality.accepted ? "matched" : "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-        await db.update(submissions).set({ status: quality.accepted ? "awaiting_player_confirmation" : "resubmission_required", updatedAt: now(), reviewReason: quality.accepted ? null : "截图未满足识别要求，请重新提交" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        if (quality.accepted) {
+          await db.update(submissions).set({ status: "awaiting_player_confirmation", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        } else {
+          await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        }
         await invalidateSubmissionCache(cache, row.id);
         return;
       }
       const quality = assessOcrQuality(row.challengeType, result);
       if (!quality.accepted) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
         await invalidateSubmissionCache(cache, row.id);
         return;
       }
@@ -1113,7 +1128,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const { skipped, ...match } = matchOcrResult({ challengeType: row.challengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
       const matched = Object.values(match).every(Boolean);
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), createdAt: now() });
-      await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", updatedAt: now(), reviewReason: matched ? null : "OCR 结果与目标挑战不匹配" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      if (matched) {
+        await db.update(submissions).set({ status: "ready_for_review", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      } else {
+        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 结果与目标挑战不匹配", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      }
       await invalidateSubmissionCache(cache, row.id);
     },
 
@@ -1121,7 +1140,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row || row.status !== "ocr_pending") return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
-      await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
       await invalidateSubmissionCache(cache, row.id);
     },
 
