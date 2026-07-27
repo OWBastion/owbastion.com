@@ -13,18 +13,6 @@ const toast = useToast();
 const { loading, error, submit } = useSubmissionUpload();
 
 const state = reactive<{ screenshot: File | null }>({ screenshot: null });
-const previewUrl = shallowRef("");
-
-watch(() => state.screenshot, (next) => {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-  previewUrl.value = next ? URL.createObjectURL(next) : "";
-});
-onBeforeUnmount(() => {
-  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value);
-});
-
-const fileSize = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-const clearScreenshot = () => { state.screenshot = null; };
 
 const validate = (s: typeof state): FormError[] => {
   const errs: FormError[] = [];
@@ -68,13 +56,8 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           </div>
           <UForm :state="state" :validate="validate" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
-              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" :preview="false" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
+              <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" :preview="true" :ui="{ files: 'w-full', file: 'w-full aspect-video overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
             </UFormField>
-            <UCard v-if="state.screenshot && previewUrl" class="selected-file" variant="subtle">
-              <img :src="previewUrl" :alt="`已选择的截图：${state.screenshot.name}`" />
-              <div class="file-meta"><strong>{{ state.screenshot.name }}</strong><span>{{ fileSize(state.screenshot.size) }}</span></div>
-              <UButton type="button" icon="i-lucide-x" color="neutral" variant="soft" size="sm" aria-label="移除已选择的截图" @click="clearScreenshot" />
-            </UCard>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
             <UButton class="submit-button" :label="loading ? '上传中…' : '上传并识别截图'" icon="i-lucide-sparkles" :loading="loading" :disabled="!state.screenshot" type="submit" block />
             <div class="privacy-note">
@@ -111,11 +94,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .section-heading p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .84rem; }
 .upload-section :deep(form) { display: grid; gap: 14px; }
 .upload-control { width: 100%; }
-.selected-file { display: grid; grid-template-columns: 126px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; padding: 8px; border-color: var(--line); background: var(--surface-raised); box-shadow: none; }
-.selected-file img { display: block; width: 126px; height: 68px; border-radius: 8px; background: var(--surface); object-fit: contain; }
-.file-meta { display: grid; min-width: 0; gap: 4px; }
-.file-meta strong { overflow: hidden; color: var(--text); font-size: .8rem; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
-.file-meta span { color: var(--muted); font-size: .75rem; }
 .submit-button { min-height: 44px; }
 .privacy-note { display: grid; gap: 6px; margin: -2px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: .74rem; line-height: 1.5; }
 .privacy-header { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
@@ -127,8 +105,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 @media (max-width: 430px) {
   .submit-intro { margin-bottom: 32px; }
   .submission-card { padding: 18px; }
-  .selected-file { grid-template-columns: 88px minmax(0, 1fr) auto; gap: 8px; }
-  .selected-file img { width: 88px; height: 58px; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .submission-card, .process-card { background: var(--surface); }
