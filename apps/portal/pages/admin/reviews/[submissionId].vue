@@ -71,5 +71,5 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 </template>
 
 <style scoped>
-.detail-loading { width:100%; height:120px; }.review-detail { max-width:1100px; }
+.detail-loading { width:100%; height:120px; }.review-detail { width:100%; }
 </style>

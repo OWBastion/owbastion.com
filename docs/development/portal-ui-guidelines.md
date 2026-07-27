@@ -49,6 +49,7 @@ Use this pattern for screenshot uploads, submission status, and result pages:
 - Reuse `SubmissionCatalog`, `MapSubmissionCatalog`, or `AchievementSubmissionCatalog` for challenge selection. Do not copy directory grouping rules into a page.
 - Reuse `SubmissionStatusBadge` for status display. Status wording comes from `docs/development/portal-copy-guidelines.md`.
 - Submission details may be organized as overview → screenshot evidence → recognition result. Private evidence and internal recognition fields may only appear on authorized pages.
+- Screenshot evidence in submission details must use the source image's natural aspect ratio (`width: 100%; height: auto`); do not impose a fixed-height frame or crop the evidence with `object-fit`.
 
 ### Admin panels
 
@@ -63,6 +64,22 @@ Use this pattern for `/admin`:
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
 - Optional admin fields are unmarked by default; do not append “（可选）” to labels. Keep limits such as character counts out of the primary flow unless they prevent an imminent validation error.
+
+### List and detail route files
+
+When a list and a dynamic detail page share a route prefix, keep the list in the
+directory's `index.vue` file:
+
+~~~text
+pages/admin/reviews/index.vue
+pages/admin/reviews/[submissionId].vue
+~~~
+
+Do not place the list in `pages/admin/reviews.vue` beside the detail directory
+unless the parent page deliberately renders `<NuxtPage />`. Nuxt treats that
+file as the parent route for the dynamic child, so the URL can change while the
+parent list remains visible. After adding or moving a detail route, verify both
+the generated route shape and a direct browser load of the detail URL.
 
 ### Form field requiredness
 
