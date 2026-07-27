@@ -132,10 +132,6 @@ onMounted(() => { void load({ resetSelection: true }); });
 <template>
   <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${total} 位持有者`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section class="migration-intro" aria-label="称号迁移说明">
-      <p>将历史持有者拥有的称号，重新关联到正确的玩家账号。</p>
-      <UAlert icon="i-lucide-info" color="warning" variant="subtle" title="迁移只会变更称号的持有者关联，不会修改称号本身的定义或属性。" />
-    </section>
     <AdminTitleMigrationMetrics :metrics="metrics" />
     <section class="migration-workspace" aria-label="称号迁移工作台">
       <AdminTitleMigrationHolders :holders="holderGroups" :selected-holder-name="selectedHolderName" :filter="filter" :query="query" :loading="loading" :total="total" :page="page" :page-size="pageSize" @select="selectHolder" @update:filter="updateFilter" @update:page="updatePage" @update:query="query = $event; handleSearchInput()" />
