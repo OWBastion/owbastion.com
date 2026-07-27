@@ -56,7 +56,7 @@ onMounted(async () => {
 .intro { max-width: 690px; margin-bottom: 32px; }
 .section-block, .upcoming-section { margin-top: clamp(66px, 10vw, 110px); }
 .titles-section { margin-top: clamp(52px, 8vw, 86px); }
-.upcoming-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.upcoming-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .upcoming-card { position: relative; display: flex; min-height: 272px; flex-direction: column; justify-content: space-between; overflow: hidden; padding: 22px; background: color-mix(in oklch, var(--surface-raised) 72%, var(--surface)); }
 .upcoming-card::after { position: absolute; inset: auto -16% -36% auto; width: 165px; height: 165px; border-radius: 50%; background: oklch(54% .045 55 / 16%); filter: blur(18px); content: ""; }
 .upcoming-card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--quiet); font-size: .68rem; font-weight: 720; letter-spacing: .08em; }

@@ -67,8 +67,11 @@ html[data-theme="dark"] {
 
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--page); scroll-padding-top: 92px; }
-body { min-width: 320px; margin: 0; overflow-x: hidden; color: var(--text); background: var(--page); font-family: var(--font-ui); font-synthesis: none; font-optical-sizing: auto; }
+body { min-width: 320px; margin: 0; overflow-x: hidden; color: var(--text); background: var(--page); font-family: var(--font-ui); font-synthesis: none; font-optical-sizing: auto; line-height: 1.5; }
 button { cursor: pointer; }
+button, a { -webkit-tap-highlight-color: transparent; }
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+*:focus:not(:focus-visible) { outline: none; }
 [id] { scroll-margin-top: 92px; }
 
 .page-shell { width: min(100% - 40px, 1440px); margin: 0 auto; }
@@ -76,7 +79,7 @@ button { cursor: pointer; }
 .eyebrow { margin: 0 0 .45rem; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: normal; }
 .page-title { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
-.surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 34px -30px var(--shadow); }
 .primary-button, .secondary-button { min-height: 44px; padding: 0 15px; border-radius: 11px; font-size: .88rem; font-weight: 680; transition: transform 100ms ease-out, background 180ms ease, border-color 180ms ease; }
 .primary-button { border: 1px solid color-mix(in oklch, var(--accent) 75%, var(--on-accent)); color: var(--on-accent); background: var(--accent); }
 .secondary-button { border: 1px solid var(--line-strong); color: var(--text); background: var(--surface-raised); }
@@ -87,3 +90,11 @@ button { cursor: pointer; }
 @media (prefers-contrast: more) { .surface-card, .app-header { border-color: var(--text) !important; } }
 @media (max-width: 620px) { .page-shell { width: min(100% - 24px, 1440px); } }
 @media (prefers-reduced-transparency: reduce) { .mobile-nav { background: var(--surface-raised) !important; backdrop-filter: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 120ms !important; }
+  *:where(:active) { transform: none !important; }
+}
+@media (prefers-contrast: more) {
+  :is(button, a, input, select, textarea):focus-visible { outline-color: var(--text); }
+}

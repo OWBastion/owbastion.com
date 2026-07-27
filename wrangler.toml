@@ -60,8 +60,5 @@ max_batch_size = 1
 max_retries = 3
 dead_letter_queue = "owbastion-qq-policy-dlq"
 
-[triggers]
-crons = ["*/5 * * * *"]
-
 [placement]
 mode = "smart"

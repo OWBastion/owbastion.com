@@ -33,14 +33,14 @@ grants channel:write. The maintainer-protected group-access route exists, but
 no maintainer authentication flow is implemented yet. Do not describe that
 route as currently operable by maintainers.
 
-OCR orchestration, review decisions, grants, released-snapshot import, admin
-applications, queues, and Bastion/GitHub change orchestration remain future
-milestones.
+OCR orchestration, review decisions, grants, admin applications, and queues
+remain future milestones where they are not already implemented. Bastion/GitHub
+change orchestration is not a platform capability or planned milestone.
 
 ## Ownership and working rules
 
-- OWBastion/Bastion owns released game source, content definitions, builds, releases, and public snapshots.
-- This repository owns platform business data, API and Portal behavior, private evidence, and future review/grant orchestration.
+- This repository owns current event, map, title, and challenge metadata, plus platform business data, API and Portal behavior, private evidence, and review/grant orchestration.
+- OWBastion/Bastion owns game implementation, builds, releases, and published game artifacts; Bastion reads platform metadata through the Agents API and does not export a formal content snapshot to this repository.
 - OWBastion/qqbot owns QQ ingress, deterministic command UX, and channel notifications.
 - OWBastion/ocrkit owns stateless screenshot recognition and model lifecycle.
 
@@ -58,11 +58,12 @@ Database change boundaries are strict: migrations contain schema changes and
 necessary data repairs only. Do not add bulk seed data, catalog snapshots,
 historical holder records, local accounts, or demo submissions to new
 migrations. Use `pnpm db:seed:local` for local-only fixtures and
-`pnpm db:import:catalog --snapshot <path>` for an explicit versioned Bastion
-catalog import. Catalog imports are append/update operations, record their
-snapshot hash, and never run against a remote database unless `--remote` is
-passed explicitly. Run `pnpm check:migrations` for migration data-write
-exceptions; existing historical data migrations must be listed there.
+`pnpm db:import:catalog --snapshot <path>` only for explicit legacy catalog
+migration or recovery. It is not a Bastion synchronization path. Such imports
+are append/update operations, record their source hash, and never run against a
+remote database unless `--remote` is passed explicitly. Run
+`pnpm check:migrations` for migration data-write exceptions; existing historical
+data migrations must be listed there.
 
 Assume committed files are public. Never commit secrets, tokens, signed URLs,
 private screenshots, QQ identifiers, internal risk signals, personal data,

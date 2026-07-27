@@ -6,6 +6,23 @@ const menuButton = ref<HTMLButtonElement | null>(null);
 const menuPanel = ref<HTMLElement | null>(null);
 const route = useRoute();
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
+const adminNavigationItems = [
+  { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin" },
+  { label: "玩家", icon: "i-lucide-users", to: "/admin/players" },
+  { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings" },
+  {
+    label: "成就",
+    icon: "i-lucide-trophy",
+    children: [
+      { label: "审核", description: "截图审核队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews" },
+      { label: "成就管理", description: "挑战目录与规则", icon: "i-lucide-settings-2", to: "/admin/achievements" },
+      { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
+    ],
+  },
+  { label: "地图", icon: "i-lucide-map", to: "/admin/maps" },
+  { label: "事件", icon: "i-lucide-zap", to: "/admin/events" },
+  { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels" },
+];
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
@@ -52,41 +69,49 @@ async function signOut() {
   <header class="app-header-wrap">
     <div class="app-header">
       <NuxtLink to="/" class="brand" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
-      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin">概览</NuxtLink><NuxtLink to="/admin/players">玩家</NuxtLink><NuxtLink to="/admin/bindings">绑定</NuxtLink><NuxtLink to="/admin/reviews">审核</NuxtLink><NuxtLink to="/admin/channels">渠道</NuxtLink><NuxtLink to="/admin/achievements">成就</NuxtLink><NuxtLink to="/admin/maps">地图</NuxtLink><NuxtLink to="/admin/events">事件</NuxtLink></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings">天梯排名</NuxtLink><NuxtLink to="/#rotation">轮换挑战</NuxtLink></template></nav>
+      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><UNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" /></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link">轮换挑战</NuxtLink></template></nav>
       <div class="account-actions">
         <ThemeMenu />
         <AccountMenu v-if="player" :player="player.player" @logout="signOut" />
         <NuxtLink v-else to="/login" class="login-link">登录</NuxtLink>
       </div>
       <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" aria-controls="mobile-nav" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
-      <nav v-show="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><NuxtLink to="/admin" @click="closeMenu()">概览</NuxtLink><NuxtLink to="/admin/players" @click="closeMenu()">玩家</NuxtLink><NuxtLink to="/admin/bindings" @click="closeMenu()">绑定</NuxtLink><NuxtLink to="/admin/reviews" @click="closeMenu()">审核</NuxtLink><NuxtLink to="/admin/channels" @click="closeMenu()">渠道</NuxtLink><NuxtLink to="/admin/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/admin/maps" @click="closeMenu()">地图</NuxtLink><NuxtLink to="/admin/events" @click="closeMenu()">事件</NuxtLink></template><template v-else><NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" @click="closeMenu()">轮换挑战</NuxtLink></template></nav>
+      <Transition name="mobile-nav"><nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><UNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template><template v-else><NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link" @click="closeMenu()">轮换挑战</NuxtLink></template></nav></Transition>
     </div>
   </header>
 </template>
 
 <style scoped>
 .app-header-wrap { position: sticky; z-index: 10; top: 14px; width: min(100% - 28px, 1480px); margin: 0 auto; }
-.app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--header-surface); box-shadow: 0 3px 10px -6px var(--shadow); }
+.app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--header-surface); box-shadow: 0 8px 24px -18px var(--shadow); backdrop-filter: blur(20px) saturate(1.12); }
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; justify-content: flex-start; gap: clamp(14px, 2.2vw, 28px); color: var(--muted); font-size: .78rem; }
-.main-nav a { text-decoration: none; transition: color 160ms ease; }
-.main-nav a:hover, .main-nav a.router-link-exact-active { color: var(--text); }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--muted); font-size: .78rem; }
+.main-nav :deep(ul) { gap: 2px; }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 36px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
+.main-nav a { display: inline-flex; min-height: 36px; align-items: center; padding: 0 9px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease; }
+.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
 .login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; transition: transform 100ms ease-out, background 160ms ease; }
 .login-link:active { transform: scale(.97); }
 .mobile-menu-toggle, .mobile-nav { display: none; }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
   .app-header { position: relative; gap: 10px; min-height: 52px; padding: 6px 8px 6px 10px; }
   .main-nav { display: none; }
   .account-actions { margin-left: auto; }
   .mobile-menu-toggle { display: inline-grid; flex: 0 0 40px; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
   .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-  .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--menu-surface); box-shadow: 0 8px 18px -8px var(--shadow); }
+  .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--menu-surface); box-shadow: 0 16px 30px -18px var(--shadow); backdrop-filter: blur(22px) saturate(1.12); transform-origin: top right; }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; }
-  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active { color: var(--text); background: var(--surface); }
+  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: var(--surface); }
+  .mobile-nav :deep(ul) { display: grid; gap: 3px; }
+  .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-nav-enter-active, .mobile-nav-leave-active { transition: opacity 150ms ease, transform 150ms cubic-bezier(.2, .7, .2, 1); }
+  .mobile-nav-enter-from, .mobile-nav-leave-to { opacity: 0; transform: translateY(-5px) scale(.98); }
 }
 @media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; } }
 </style>

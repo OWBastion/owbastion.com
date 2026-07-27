@@ -17,7 +17,6 @@ defineProps<{
         <span v-if="count" class="admin-workspace__count">{{ count }}</span>
       </div>
     </header>
-
     <div v-if="$slots.messages" class="admin-workspace__messages"><slot name="messages" /></div>
     <div v-if="$slots.toolbar" class="admin-workspace__toolbar"><slot name="toolbar" /></div>
     <slot />

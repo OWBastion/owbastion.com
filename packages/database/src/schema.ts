@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
@@ -27,7 +28,10 @@ export const bindingInvites = sqliteTable("binding_invites", {
 
 export const bindingClaims = sqliteTable("binding_claims", {
   id: text("id").primaryKey(), inviteId: text("invite_id").notNull().references(() => bindingInvites.id), tokenHash: text("token_hash").notNull(), codeHash: text("code_hash").notNull(), playerName: text("player_name").notNull(), normalizedPlayerName: text("normalized_player_name").notNull(), playerId: text("player_id").notNull(), status: text("status").notNull(), memberOpenId: text("member_open_id"), groupOpenId: text("group_open_id"), messageId: text("message_id"), expiresAt: integer("expires_at").notNull(), createdAt: integer("created_at").notNull(), verifiedAt: integer("verified_at"), decidedAt: integer("decided_at"), decidedBy: text("decided_by"), decisionReason: text("decision_reason"),
-}, (table) => ({ code: uniqueIndex("binding_claims_code_idx").on(table.codeHash) }));
+}, (table) => ({
+  code: uniqueIndex("binding_claims_code_idx").on(table.codeHash),
+  activeInvite: uniqueIndex("binding_claims_active_invite_idx").on(table.inviteId).where(sql`status = 'pending_confirmation'`),
+}));
 
 export const playerAccounts = sqliteTable("player_accounts", {
   id: text("id").primaryKey(),
@@ -71,6 +75,9 @@ export const randomEvents = sqliteTable("random_events", {
   description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: integer("cooldown_seconds"), weight: integer("weight", { mode: "number" }),
   appearanceProbability: integer("appearance_probability", { mode: "number" }), categoryProbability: integer("category_probability", { mode: "number" }), groupTotalWeight: integer("group_total_weight", { mode: "number" }), groupSize: integer("group_size"), failureProbability: integer("failure_probability", { mode: "number" }), guaranteeProbability: integer("guarantee_probability", { mode: "number" }), globalAppearanceProbability: integer("global_appearance_probability", { mode: "number" }), gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
+});
+export const effectGlossaryTerms = sqliteTable("effect_glossary_terms", {
+  key: text("key").primaryKey(), nameZh: text("name_zh").notNull(), aliasesJson: text("aliases_json").notNull().default("[]"), category: text("category").notNull(), summary: text("summary").notNull(), definition: text("definition").notNull(), rulesJson: text("rules_json").notNull().default("[]"), sourceVersion: text("source_version").notNull(), updatedAt: integer("updated_at").notNull(),
 });
 export const randomEventMapChallenges = sqliteTable("random_event_map_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => achievementChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
 export const randomEventTitleChallenges = sqliteTable("random_event_title_challenges", { eventId: text("event_id").notNull().references(() => randomEvents.id), challengeId: text("challenge_id").notNull().references(() => titleChallenges.id) }, (table) => ({ primary: primaryKey({ columns: [table.eventId, table.challengeId] }) }));
@@ -130,6 +137,7 @@ export const achievementChallenges = sqliteTable("achievement_challenges", {
   type: text("type").notNull(),
   name: text("name").notNull(),
   difficulty: text("difficulty"),
+  rewardTitleKey: text("reward_title_key").references(() => titleCatalog.key),
   gameVersion: text("game_version").notNull(),
   status: text("status").notNull(),
   introducedVersion: text("introduced_version").notNull(),
@@ -141,14 +149,20 @@ export const achievementChallenges = sqliteTable("achievement_challenges", {
 export const playerTitleGrants = sqliteTable("player_title_grants", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
-  historicalTitleGrantId: text("historical_title_grant_id").notNull().references(() => historicalTitleGrants.id),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  mapId: text("map_id").references(() => maps.id),
+  slot: text("slot"),
   status: text("status").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
   grantedBy: text("granted_by").notNull(),
   grantedAt: integer("granted_at").notNull(),
   revokedBy: text("revoked_by"),
   revokedAt: integer("revoked_at"),
   revokeReason: text("revoke_reason"),
-});
+}, (table) => ({
+  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId),
+}));
 
 export const titleChallenges = sqliteTable("title_challenges", {
   id: text("id").primaryKey(),
@@ -177,6 +191,7 @@ export const submissions = sqliteTable("submissions", {
   difficulty: text("difficulty"),
   playerName: text("player_name"),
   reviewReason: text("review_reason"),
+  grantId: text("grant_id"),
   sourceProvider: text("source_provider").notNull(),
   sourceConversationId: text("source_conversation_id").notNull(),
   sourceMessageId: text("source_message_id").notNull(),
@@ -215,7 +230,9 @@ export const submissionReviews = sqliteTable("submission_reviews", {
   reason: text("reason"),
   reviewer: text("reviewer").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  submissionIdIdx: uniqueIndex("submission_reviews_submission_id_idx").on(table.submissionId),
+}));
 
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),

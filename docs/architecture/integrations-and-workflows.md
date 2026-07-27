@@ -13,7 +13,7 @@ validated incoming value). The API returns it in both successful and error
 responses. Portal proxies forward the same header to the API and surface it in
 error alerts and toasts as `Request-ID：...`; local browser validation errors do
 not receive a fabricated ID. Upload Queue messages, OCRKit requests, Bastion
-dispatches, and QQBot policy notifications carry the originating request ID
+metadata reads, and QQBot policy notifications carry the originating request ID
 when one exists, and emit structured logs with the operation and status. These
 IDs are diagnostic correlation values only and must not contain credentials,
 cookies, stable QQ identifiers, request bodies, or signed URLs.
@@ -37,26 +37,32 @@ The current API implements versioned v1 QQ flows:
   timestamps, and status;
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
-- the Portal can select an imported Bastion challenge, create a single-image
+- the Portal can select a platform-owned challenge, create a single-image
   upload session, upload private evidence, and complete the upload;
 - an authenticated player can read only their own submission detail and
   screenshot, plus a constrained OCR summary; public submission status remains
   free of evidence and OCR fields;
-- the platform stores a versioned Bastion title catalog, all released maps,
+- the platform stores the current title and map metadata, and
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
   holder snapshots without linking source names to platform accounts;
 - maintainers can explicitly migrate one historical holder snapshot or all of
   its unclaimed title records to a player account as auditable title grants,
   and can revoke an individual grant with a recorded reason; historical holder
   names are never matched or claimed automatically;
+- maintainers can directly create a `manual` title Grant for an existing
+  player and catalog title for leak correction, appeals, or special rewards.
+  Global titles have no map context; map titles require a configured
+  `map_title_rewards` association. Retired catalog titles remain eligible when
+  explicitly selected by a maintainer;
 - a versioned Queue message invokes OCRKit, persists the raw result and match
   evidence, and moves matching submissions to `ready_for_review`;
 - the maintainer Portal can inspect private evidence and OCR output and record
-  an idempotent review decision.
+  an idempotent review decision; an approved decision atomically creates or
+  reuses the platform title Grant and links it to the Submission.
 - maintainers can list achievement challenges and immediately update
   title-challenge rules, including their Portal display category override;
-- maintainers set a challenge to `sunsetting` with a planned Bastion version,
-  then manually confirm retirement after that release; sunsetting challenges
+- maintainers set a challenge to `sunsetting`, then manually confirm retirement;
+  sunsetting challenges
   remain available for submission.
 - maintainers may schedule a title challenge with a start and end timestamp;
   scheduled challenges remain visible as `未开放`, become submittable during
@@ -105,9 +111,13 @@ missing or low-confidence fields, and exhausted OCR failures become
 leaving a submission pending or treating uncertain recognition as a player
 error.
 
-Approval records the human decision only. Player title migration records a
-maintainer-confirmed historical entitlement; it does not issue a new Bastion
-title. Pull requests and releases remain outside this slice.
+Approval and title issuance are one D1 batch: `approved` is written only when
+the Submission has an active Grant. Title challenges use their direct
+`titleKey`; map challenges use their explicit `reward_title_key` and retain
+the map context. If the player already owns the same active title in that
+scope, the Submission links to the existing Grant and records that fact in
+the audit event. Pull requests and game builds remain outside this slice;
+Bastion reads current metadata independently through the Agents API.
 
 ## Achievement catalog management
 
@@ -124,8 +134,8 @@ creates its challenge record with the edited rules and selected lifecycle
 status. Developer-retained catalog titles are a separate case: they are
 reserved for developer use and are not player challenges. When no
 display-category override is set, the Portal uses the category from the
-imported Bastion title catalog. Map
-challenges retain their imported map, difficulty, display name, and introduced
+platform-owned title metadata. Map
+challenges retain their platform-owned map, difficulty, display name, and introduced
 version; administrators may keep them enabled, mark them as sunsetting, retire
 them, or reopen them.
 
@@ -138,7 +148,7 @@ authorization, an idempotency key, and an audit record.
 
 ## Random-event directory
 
-The public Portal lists implemented and removed random events, their released
+The public Portal lists implemented and removed random events, their public
 metadata, and linked challenges that are currently open. Maintainers create,
 edit, archive, and link events in the Portal. The same Portal/API path accepts
 a CSV preview and confirmed import; it validates every row before an atomic
@@ -146,12 +156,14 @@ write, records the source hash and audit event, and never stores the CSV.
 
 ## Agents content API
 
-The public `/v1/agents/*` API is a read-only knowledge projection over the same
-published D1/release-snapshot content consumed by the Portal and Bastion
-integration. It provides paginated event, map, achievement, and title queries,
-resource details, and bounded cross-content search. It does not expose drafts,
-player progress, runtime analytics, administrative fields, or private evidence;
-it also does not write content or replace Bastion's released-source authority.
+The public `/v1/agents/*` API is a read-only projection of the platform's
+current event, map, title, and achievement metadata. Bastion reads this API
+during its build and release process; the platform does not import or consume a
+formal Bastion content snapshot. The API provides paginated event, map,
+achievement, and title queries, resource details, and bounded cross-content
+search. It does not expose player progress, runtime analytics, administrative
+fields, or private evidence, and it does not provide game implementation or
+build artifacts.
 
 ## QQBot and login
 
@@ -191,9 +203,9 @@ pending group to `active`; this atomically makes the previous active group
 `legacy` and closes its `/绑定` and `/验证` policies. QQBot reads the
 platform-owned group and command-policy snapshot at startup, then only after a
 signed platform policy event. Group-policy changes are recorded in a D1
-outbox, delivered through a dedicated Queue, and retried by a five-minute
-Worker repair trigger until QQBot acknowledges the refresh. QQBot keeps the
-last successful snapshot when an event refresh fails and fails closed before
+outbox, delivered through a dedicated Queue, and retried by later group-policy
+changes until QQBot acknowledges the refresh. QQBot keeps the last successful
+snapshot when an event refresh fails and fails closed before
 the first successful snapshot; it does not poll the platform.
 Because QQ does not provide a reliable group name through the channel
 interface, maintainers may store a platform-owned display name/label and the
@@ -214,5 +226,6 @@ configured confidence gate before value matching. For map challenges, this cover
 `map_name`, `difficulty`, `challenge_completed`, and `player`; for manual title
 challenges, it covers only `challenge_completed` and `player`. Uncertain OCR is
 routed to human review. Title-specific conditions remain human-reviewed;
-OCRKit does not decide eligibility or approval. Bastion changes must remain
-reviewable, idempotent, and reconciled through its own CI and release process.
+OCRKit does not decide eligibility or approval. Bastion implementation and
+build changes remain reviewable, idempotent, and reconciled through Bastion's
+own CI and release process.

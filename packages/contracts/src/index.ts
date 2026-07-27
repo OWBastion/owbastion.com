@@ -1,75 +1,8 @@
 import { z } from "zod";
 
 export const contractVersion = z.literal("1");
+
 const externalId = z.string().trim().min(1).max(256);
-
-const releaseContentTypeSchema = z.enum(["event", "map", "title", "challenge"]);
-const releaseOperationSchema = z.enum(["upsert", "retire", "delete"]);
-const releaseContentItemSchema = z.object({
-  contentType: releaseContentTypeSchema,
-  contentId: externalId,
-  operation: releaseOperationSchema,
-  data: z.record(z.string(), z.unknown()),
-});
-
-export const releaseSnapshotSchema = z.object({
-  schemaVersion: z.literal(1),
-  candidateId: externalId,
-  baseReleaseId: externalId.nullable(),
-  sourceVersion: z.string().trim().min(1).max(64),
-  generatedAt: z.number().int().positive(),
-  items: z.array(releaseContentItemSchema).max(10000),
-  snapshotHash: z.string().regex(/^[a-f0-9]{64}$/),
-});
-
-export const releaseDraftCreateRequestSchema = z.object({
-  contractVersion,
-  name: z.string().trim().min(1).max(128),
-});
-
-export const releaseDraftItemRequestSchema = z.object({
-  contractVersion,
-  contentType: releaseContentTypeSchema,
-  contentId: externalId,
-  operation: releaseOperationSchema,
-  data: z.record(z.string(), z.unknown()),
-});
-
-export const releaseChangeSetCreateRequestSchema = z.object({
-  contractVersion,
-  draftId: externalId,
-  name: z.string().trim().min(1).max(128),
-  itemIds: z.array(externalId).min(1).max(10000),
-});
-
-export const releaseBuildResultRequestSchema = z.object({
-  contractVersion,
-  buildId: externalId,
-  candidateId: externalId,
-  status: z.enum(["succeeded", "failed"]),
-  bastionCommitSha: z.string().trim().min(1).max(128),
-  snapshotHash: z.string().regex(/^[a-f0-9]{64}$/),
-  artifactRefs: z.array(z.string().trim().min(1).max(1024)).max(32),
-  warnings: z.array(z.string().trim().max(2048)).max(100),
-  errors: z.array(z.string().trim().max(2048)).max(100),
-});
-
-export const releaseBuildResponseSchema = z.object({
-  contractVersion,
-  buildId: externalId,
-  candidateId: externalId,
-  releaseId: externalId,
-  status: z.enum(["queued", "running", "succeeded", "failed"]),
-});
-
-export const releaseOverviewResponseSchema = z.object({
-  contractVersion,
-  current: z.object({ releaseId: externalId, candidateId: externalId, sourceVersion: z.string(), bastionCommitSha: z.string().nullable(), activatedAt: z.number().int().nullable() }).nullable(),
-  next: z.object({ candidateId: externalId, sourceVersion: z.string(), snapshotHash: z.string(), status: z.enum(["candidate", "queued", "running", "succeeded", "failed"]) }).nullable(),
-  drafts: z.array(z.object({ draftId: externalId, name: z.string(), status: z.string(), updatedAt: z.number().int() })),
-  releases: z.array(z.object({ releaseId: externalId, candidateId: externalId, sourceVersion: z.string(), status: z.string(), bastionCommitSha: z.string().nullable(), activatedAt: z.number().int().nullable(), createdAt: z.number().int() })),
-});
-
 const playerId = z.string().regex(/^\d{1,10}$/);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
 const storedRetirementVersion = z.string().trim().min(1).max(64);
@@ -205,7 +138,6 @@ const attachmentSchema = z.object({
 });
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
-const adminSubmissionStatus = z.union([z.enum(["received", "evidence_pending", "evidence_stored"]), submissionStatus]);
 
 export const mapChallengeSchema = z.object({
   challengeId: externalId,
@@ -259,10 +191,12 @@ export const mapListResponseSchema = z.object({ contractVersion, items: z.array(
 
 const randomEventStatus = z.enum(["development", "implemented", "removed"]);
 const randomEventLinkSchema = z.object({ family: z.enum(["map", "achievement"]), challengeId: externalId });
+const effectGlossaryTermSchema = z.object({ key: z.string().trim().min(1).max(64), nameZh: z.string().trim().min(1).max(128), aliases: z.array(z.string().trim().min(1).max(128)).max(16), category: z.string().trim().min(1).max(64), summary: z.string().trim().min(1).max(512), definition: z.string().trim().min(1).max(4096), rules: z.array(z.string().trim().min(1).max(512)).max(16), sourceVersion: z.string().trim().min(1).max(64) });
+const randomEventEffectAnnotationSchema = z.object({ tag: z.string().trim().min(1).max(64), term: effectGlossaryTermSchema });
 export const randomEventSchema = z.object({
   eventId: externalId, name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().min(1).max(32), description: z.string().trim().min(1).max(4096),
   durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().int().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), appearanceProbability: z.number().min(-1).max(1).nullable(), categoryProbability: z.number().min(0).max(1).nullable(), groupTotalWeight: z.number().nonnegative().nullable(), groupSize: z.number().int().nonnegative().nullable(), failureProbability: z.number().min(0).max(1).nullable(), guaranteeProbability: z.number().min(0).max(1).nullable(), globalAppearanceProbability: z.number().min(-1).max(1).nullable(),
-  gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
+  gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), effectAnnotations: z.array(randomEventEffectAnnotationSchema).max(16), releaseStatus: randomEventStatus, archived: z.boolean(), challenges: z.array(challengeSchema),
 });
 export const randomEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) });
 const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256), category: z.string().trim().min(1).max(64), rarity: z.string().trim().min(1).max(32), description: z.string().trim().min(1).max(4096), durationSeconds: z.number().int().nonnegative().nullable(), cooldownSeconds: z.number().int().nonnegative().nullable(), weight: z.number().nonnegative().nullable(), appearanceProbability: z.number().min(-1).max(1).nullable(), categoryProbability: z.number().min(0).max(1).nullable(), groupTotalWeight: z.number().nonnegative().nullable(), groupSize: z.number().int().nonnegative().nullable(), failureProbability: z.number().min(0).max(1).nullable(), guaranteeProbability: z.number().min(0).max(1).nullable(), globalAppearanceProbability: z.number().min(-1).max(1).nullable(), gameVersion: z.string().trim().min(1).max(64), effectTags: z.array(z.string().trim().min(1).max(64)).max(16), releaseStatus: randomEventStatus, challengeLinks: z.array(randomEventLinkSchema).max(64) });
@@ -323,6 +257,8 @@ export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAc
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative() });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
+export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), titleKey: externalId, mapId: externalId.optional(), reason: z.string().trim().min(1).max(512).optional() });
+export const adminManualTitleGrantResponseSchema = z.object({ contractVersion, grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapId: externalId.nullable(), slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), alreadyOwned: z.boolean() });
 
 const adminMapChallengeSchema = mapChallengeSchema.extend({
   status: challengeStatus,
@@ -418,25 +354,22 @@ export const playerUploadSessionResponseSchema = z.object({
 
 export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
 
-export const adminSubmissionChallengeSchema = z.discriminatedUnion("family", [
-  z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable() }),
-  z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
-]);
-export const adminOcrStatusSchema = z.enum(["not_started", "pending", "matched", "mismatch", "review_required", "error"]);
-
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
-  status: adminSubmissionStatus,
+  status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
-  challenge: adminSubmissionChallengeSchema.nullable(),
+  challenge: z.union([
+    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string() }),
+    z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
+  ]).nullable().optional(),
   mapName: z.string(),
   difficulty: z.string(),
   playerName: z.string(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
-  ocrStatus: adminOcrStatusSchema,
-  ocrAttempt: z.number().int().positive().nullable(),
-  ocrErrorCode: z.string().nullable(),
+  ocrStatus: z.enum(["not_started", "pending", "completed", "failed"]).optional(),
+  ocrAttempt: z.number().int().nullable().optional(),
+  ocrErrorCode: z.string().nullable().optional(),
   ocr: z.record(z.string(), z.unknown()).nullable(),
   evidenceUrl: z.string().url().nullable(),
 });
@@ -447,6 +380,9 @@ export const adminSubmissionReviewRequestSchema = z.object({
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
 });
+export const adminSubmissionReviewResponseSchema = z.object({
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(),
+}).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 
 export const submissionRequestSchema = z.object({
   contractVersion,
@@ -501,6 +437,7 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(10),
+  titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string() })),
 });
 
 export const currentPlayerResponseSchema = z.object({
@@ -583,6 +520,8 @@ export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema
 export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
 export type AdminTitleGrantRevokeRequest = z.infer<typeof adminTitleGrantRevokeRequestSchema>;
+export type AdminManualTitleGrantRequest = z.infer<typeof adminManualTitleGrantRequestSchema>;
+export type AdminManualTitleGrantResponse = z.infer<typeof adminManualTitleGrantResponseSchema>;
 export type AdminChallenge = z.infer<typeof adminChallengeSchema>;
 export type AdminChallengeListResponse = z.infer<typeof adminChallengeListResponseSchema>;
 export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateRequestSchema>;
@@ -593,11 +532,4 @@ export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteReq
 export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
-export type ReleaseContentItem = z.infer<typeof releaseContentItemSchema>;
-export type ReleaseSnapshot = z.infer<typeof releaseSnapshotSchema>;
-export type ReleaseDraftCreateRequest = z.infer<typeof releaseDraftCreateRequestSchema>;
-export type ReleaseDraftItemRequest = z.infer<typeof releaseDraftItemRequestSchema>;
-export type ReleaseChangeSetCreateRequest = z.infer<typeof releaseChangeSetCreateRequestSchema>;
-export type ReleaseBuildResultRequest = z.infer<typeof releaseBuildResultRequestSchema>;
-export type ReleaseBuildResponse = z.infer<typeof releaseBuildResponseSchema>;
-export type ReleaseOverviewResponse = z.infer<typeof releaseOverviewResponseSchema>;
+export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;

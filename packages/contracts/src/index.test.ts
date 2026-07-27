@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminManualTitleGrantRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("accepts stable QQ binding metadata", () => {
@@ -40,6 +40,12 @@ describe("v1 platform contracts", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", reason: "截图与 OCR 结果一致" }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected", reason: "" }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected" }).success).toBe(true);
+  });
+
+  it("requires a non-empty optional reason for manual title grants", () => {
+    const input = { contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", titleKey: "TITLE" };
+    expect(adminManualTitleGrantRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminManualTitleGrantRequestSchema.safeParse({ ...input, reason: "" }).success).toBe(false);
   });
 
   it("validates achievement update fields without requiring optional lifecycle metadata", () => {

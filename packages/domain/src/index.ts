@@ -21,16 +21,16 @@ import type {
   AdminSubmission,
   AdminSubmissionListResponse,
   AdminSubmissionReviewRequest,
+  AdminSubmissionReviewResponse,
   Challenge,
   Map,
   Title,
-  OwnedTitle, HistoricalTitleGrant, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse,
+  OwnedTitle, HistoricalTitleGrant, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminMapMetadataUpdateRequest,
   AdminCatalogTitleUpdateRequest,
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
-  ReleaseDraftCreateRequest, ReleaseDraftItemRequest, ReleaseChangeSetCreateRequest, ReleaseBuildResultRequest, ReleaseOverviewResponse, ReleaseSnapshot,
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
 } from "@owbastion/contracts";
 
@@ -65,14 +65,6 @@ export type PlatformServices = {
   listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
   getAgentTitle(input: { titleKey: string }): Promise<Title | null>;
   searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
-  createReleaseDraft(input: ReleaseDraftCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; draftId: string; name: string; status: "open"; createdAt: number; updatedAt: number }>;
-  putReleaseDraftItem(input: ReleaseDraftItemRequest & { draftId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; itemId: string; draftId: string; contentType: string; contentId: string; operation: string }>;
-  createReleaseChangeSet(input: ReleaseChangeSetCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; changeSetId: string; draftId: string; name: string; itemCount: number; status: "open" }>;
-  createReleaseCandidate(input: { changeSetId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: "candidate"; createdAt: number }>;
-  getReleaseCandidate(input: { candidateId: string }): Promise<{ contractVersion: "1"; candidateId: string; changeSetId: string; sourceVersion: string; snapshotHash: string; status: string; createdAt: number; snapshot: ReleaseSnapshot }>;
-  startReleaseBuild(input: { candidateId: string }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; buildId: string; candidateId: string; releaseId: string; status: "queued" }>;
-  receiveReleaseBuildResult(input: ReleaseBuildResultRequest): Promise<{ contractVersion: "1"; buildId: string; candidateId: string; releaseId: string; status: "succeeded" | "failed" }>;
-  getReleaseOverview(): Promise<ReleaseOverviewResponse>;
   listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
   getRandomEvent(input: { eventId: string; includeArchived?: boolean }): Promise<RandomEvent | null>;
   createAdminRandomEvent(input: AdminRandomEventCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
@@ -91,18 +83,19 @@ export type PlatformServices = {
   createAdminTitleGrant(input: AdminTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createAdminTitleGrantBulk(input: AdminTitleGrantBulkRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleGrantBulkResponse>;
   revokeAdminTitleGrant(input: { grantId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  createAdminManualTitleGrant(input: AdminManualTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantResponse>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
   updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
-  completePlayerUpload(input: { uploadId: string }, sessionToken: string, requestId?: string): Promise<{ submissionId: string; status: string }>;
+  completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
-  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; requestId?: string }): Promise<void>;
-  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; requestId?: string }): Promise<void>;
-  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number }): Promise<void>;
+  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string }): Promise<void>;
+  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
   createAdminBindingInviteBatch(input: AdminBindingInviteBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteBatchResponse>;
@@ -121,8 +114,8 @@ export type PlatformServices = {
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
-  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<void>;
-  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<void>;
+  upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;
   dispatchPendingQqGroupPolicyEvents(): Promise<void>;
   markQqGroupPolicyEventDelivered(input: { eventId: string }): Promise<void>;

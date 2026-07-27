@@ -21,8 +21,9 @@ The first Portal map-challenge slice includes database-backed map and achievemen
 catalogs, a public read-only achievement directory, upload validation, Queue-backed
 OCR orchestration, maintainer review, and the administrator-confirmed migration
 of historical titles to player accounts. The matrix records these capabilities
-as coded until complete integration evidence is available. New title issuance,
-feature switches, and Bastion/GitHub orchestration are not implemented.
+as coded until complete integration evidence is available. Platform-internal
+new title issuance is coded; feature switches and Bastion/GitHub orchestration
+are not implemented.
 
 Apply local migrations with:
 
@@ -122,10 +123,11 @@ tags. It never creates or issues a title: title
 identity and game facts remain Bastion-owned, while historical entitlement
 remains the separate administrator migration flow.
 
-The title catalog is imported from a versioned Bastion snapshot. `PIONEER`,
-`CONQUEROR`, and `DOMINATOR` are map-scoped reward slots; all other imported
-titles are global. Historical Bastion holder names remain source snapshots and
-must not be converted into platform accounts automatically. A maintainer may
+The platform owns the current title metadata. Bastion reads that metadata
+through the Agents API when building the game. `PIONEER`, `CONQUEROR`, and
+`DOMINATOR` are map-scoped reward slots; all other titles are global. Historical
+holder names remain historical source records and must not be converted into
+platform accounts automatically. A maintainer may
 create one auditable `player_title_grants` association for a historical holder
 through the administrator migration UI; a mistaken association is revoked with
 a recorded reason rather than deleted. Only active grant records authorize a
@@ -135,7 +137,8 @@ player-facing title result.
 
 - Unit and contract tests for current API, Portal, and package behavior.
 - D1 migration and repository tests when persistence changes.
-- Title-grant tests for account isolation, map and global title scope, empty
+- Title-grant tests for account isolation, map and global title scope, manual
+  grant validation and idempotency, empty
   results, duplicate historical-holder associations, revocation, administrator
   authorization, idempotency, and audit records.
 - Achievement-management tests for maintainer authorization, three-state
@@ -145,8 +148,8 @@ player-facing title result.
   challenges must also be tested before, during, and after their time window.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.
-- Queue redelivery, review, grant, and end-to-end tests when those workflows
-  are implemented.
+- Queue redelivery, review, grant, and end-to-end tests for the implemented
+  submission approval flow, including rollback and idempotent replay.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
 

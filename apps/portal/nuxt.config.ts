@@ -20,4 +20,12 @@ export default defineNuxtConfig({
       localDevAuth: false,
     },
   },
+  vite: {
+    optimizeDeps: {
+      include: [
+        '@tanstack/vue-table',
+        '@vueuse/core',
+      ]
+    }
+  }
 });

@@ -24,6 +24,7 @@ const adminApi = vi.fn(async (path: string) => {
         globalAppearanceProbability: 0.02,
         gameVersion: "2026.07.18",
         effectTags: ["测试"],
+        effectAnnotations: [],
         releaseStatus: "implemented",
         challenges: [],
       }],

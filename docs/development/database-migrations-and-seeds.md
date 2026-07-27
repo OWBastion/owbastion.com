@@ -1,7 +1,7 @@
 # Database migrations and seeds
 
-本仓库把 D1 数据变更分成三类，避免 schema 演进、测试 fixture 和 Bastion
-目录发布互相混用。
+本仓库把 D1 数据变更分成三类，避免 schema 演进、测试 fixture 和平台目录
+维护互相混用。
 
 ## Migration
 
@@ -24,6 +24,14 @@ pnpm exec wrangler d1 migrations apply DB --local
 `tools/migration-data-allowlist.txt` 登记历史数据修复例外。新数据导入不得通过
 把文件加入 allowlist 来绕过 seed/import 边界。
 
+`0040_generic_title_grants.sql` 将既有 `player_title_grants` 原地重建为通用
+权益记录：保留 Grant ID、玩家、标题、地图、状态、授予时间和撤销信息，并将
+历史来源写为 `source_type = historical`、`source_id = historical_title_grants.id`。
+`0041_challenge_reward_mapping.sql` 为地图 Challenge 写入显式的
+`reward_title_key`；运行时审批只读取该字段，不根据名称、难度或 ID 推断奖励。
+两项迁移均可在空库和已有业务数据的数据库上执行，验证脚本为
+`tools/test-title-grant-migration.sh`。
+
 `pnpm db:generate-title-migration` 仅用于重现既有 `0010_title_catalog.sql` 这类
 历史兼容文件，不用于发布新的目录 snapshot；新的 snapshot 必须使用 catalog
 import。
@@ -40,7 +48,7 @@ pnpm db:seed:local
 本地 seed 会根据当前 `maps` 目录为每张地图创建空的 `map_metadata` 记录，方便
 在管理侧直接填写地图评级和特殊机制；不会覆盖已经填写的属性。
 
-## Catalog import
+## Legacy catalog import
 
 Random-event data is intentionally not imported by a CLI or a local seed. Use
 the maintainer Portal's event-management CSV preview and confirmation flow so
@@ -52,24 +60,13 @@ pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json --dry-
 pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json
 ```
 
-Catalog import 面向已经完成 migrations 的数据库，使用 Bastion 提供的版本化
-snapshot。称号、地图和奖励使用 upsert；历史持有人只追加，不自动删除，也不
-自动关联平台账号。每个 snapshot 的 source version 和 SHA-256 hash 会写入
+该导入工具仅用于历史数据迁移或显式恢复，不是平台与 Bastion 的持续同步机制。
+当前事件、地图、称号和挑战元数据由平台维护，Bastion 在构建时通过 Agents API
+读取。若执行历史导入，称号、地图和奖励使用 upsert；历史持有人只追加，不自动
+删除，也不自动关联平台账号。每个导入文件的 source version 和 SHA-256 hash 会写入
 `catalog_imports`。只有 `source_version` 与 `snapshot_hash` 同时匹配时，重复导入
 才会直接跳过；同版本不同 hash、同 hash 不同版本或记录不一致都会失败并要求
 人工 reconciliation。
-
-版本发布控制面使用独立的 Draft、Change Set、Candidate、Build Task 和 Release
-表。新目录不会通过 migration 写入 Current；完成 `0034_release_plane.sql` 后，
-首次建立正式指针必须显式执行：
-
-```bash
-pnpm db:release:bootstrap --snapshot snapshots/2026.07.15/title-catalog.json --dry-run
-pnpm db:release:bootstrap --snapshot snapshots/2026.07.15/title-catalog.json
-```
-
-bootstrap 是幂等的本地/生产操作，发布流程只读取 Current Candidate；草稿、失败
-构建和 Next 不会改变公开目录。
 
 称号目录的 `icon` 保存默认 Lucide 图标 key；维护者可在 Portal 成就管理页填写
 CDN 图标 URL，或上传 PNG、JPG、WebP 自定义图标。上传文件写入 R2 的
@@ -88,7 +85,8 @@ pnpm db:import:catalog --snapshot <path> --remote
 
 ## Ownership and rollback
 
-Bastion owns released game facts and catalog snapshots. This repository owns the
-imported platform catalog and historical migration records. Catalog import 只做
-追加或更新，不回删旧记录；错误目录应通过新的修正 snapshot 或明确的数据
-修复 migration 处理。已有 migration 永远不通过修改文件来回滚。
+This repository owns current platform metadata and historical migration records.
+Bastion owns game implementation, builds, and release artifacts, and reads the
+platform metadata through the Agents API. Legacy catalog import 只做追加或更新，
+不回删旧记录；错误数据应通过平台管理流程或明确的数据修复 migration 处理。
+已有 migration 永远不通过修改文件来回滚。

@@ -12,3 +12,6 @@
 0037_repair_submission_foreign_keys.sql
 0038_restore_upload_pending_submission_status.sql
 0036_submission_review_statuses.sql
+0040_generic_title_grants.sql
+0041_challenge_reward_mapping.sql
+0043_effect_glossary.sql

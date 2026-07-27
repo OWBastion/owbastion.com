@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { catalogCacheKey, clearCatalogCache, withCatalogCache } from "./catalog-cache";
+import { catalogCacheKey, catalogRevisionCacheTtlSeconds, clearCatalogCache, withCatalogCache } from "./catalog-cache";
 
 type CatalogCache = NonNullable<Parameters<typeof withCatalogCache>[0]>;
 
@@ -33,6 +33,10 @@ describe("catalog cache", () => {
     expect(put).toHaveBeenCalledWith(catalogCacheKey("events:all"), JSON.stringify(["event"]), { expirationTtl: 7 * 24 * 60 * 60 });
   });
 
+  it("uses a short TTL for the catalog revision marker", () => {
+    expect(catalogRevisionCacheTtlSeconds).toBe(5 * 60);
+  });
+
   it("returns a cached value without loading D1", async () => {
     const { cache } = createCache();
     const load = vi.fn(async () => ["d1"]);
@@ -58,12 +62,14 @@ describe("catalog cache", () => {
     expect(catalogCacheKey("maps")).toBe("catalog:v2:maps");
   });
 
-  it("clears all catalog keys including revisioned keys while preserving unrelated keys", async () => {
+  it("clears all catalog keys including revisioned keys and revision marker while preserving unrelated keys", async () => {
     const { cache, values } = createCache();
+    values.set(catalogCacheKey("revision"), "v1:hash123");
     values.set(catalogCacheKey("maps"), JSON.stringify(["map"]));
     values.set(catalogCacheKey("maps", "v1:hash123"), JSON.stringify(["map_v1"]));
     values.set("other:key", JSON.stringify(["other"]));
     await clearCatalogCache(cache);
+    expect(values.has(catalogCacheKey("revision"))).toBe(false);
     expect(values.has(catalogCacheKey("maps"))).toBe(false);
     expect(values.has(catalogCacheKey("maps", "v1:hash123"))).toBe(false);
     expect(values.has("other:key")).toBe(true);

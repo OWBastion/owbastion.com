@@ -8,4 +8,4 @@ export WRANGLER_LOG_PATH=".wrangler/logs"
 export WRANGLER_REGISTRY_PATH=".wrangler/registry"
 export WRANGLER_WRITE_LOGS=false
 
-rtk pnpm exec wrangler d1 execute DB --local --file=scripts/seed-local.sql
+pnpm exec wrangler d1 execute DB --local --file=scripts/seed-local.sql

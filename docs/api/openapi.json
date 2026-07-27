@@ -55,23 +55,15 @@
     "/v1/admin/binding-claims/{claimId}/decision": { "post": { "operationId": "decideBindingClaim", "parameters": [{ "$ref": "#/components/parameters/claimId" }], "responses": { "204": { "description": "Decided" } } } },
     "/v1/admin/title-grants": { "get": { "operationId": "listHistoricalTitleGrants", "responses": { "200": { "$ref": "#/components/responses/Json" } } }, "post": { "operationId": "createAdminTitleGrant", "responses": { "204": { "description": "Created" } } } },
     "/v1/admin/title-grants/bulk": { "post": { "operationId": "createAdminTitleGrantsBulk", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
+    "/v1/admin/title-grants/manual": { "post": { "operationId": "createAdminManualTitleGrant", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/title-grants/{grantId}/revoke": { "post": { "operationId": "revokeAdminTitleGrant", "parameters": [{ "$ref": "#/components/parameters/grantId" }], "responses": { "204": { "description": "Revoked" } } } },
     "/v1/admin/submissions": { "get": { "operationId": "listAdminSubmissions", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/submissions/{submissionId}": { "get": { "operationId": "getAdminSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/submissions/{submissionId}/evidence": { "get": { "operationId": "getAdminEvidence", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "description": "Private evidence image" } } } },
-    "/v1/admin/submissions/{submissionId}/review": { "post": { "operationId": "reviewSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "204": { "description": "Reviewed" } } } },
+    "/v1/admin/submissions/{submissionId}/review": { "post": { "operationId": "reviewSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" }, "422": { "$ref": "#/components/responses/Json" } } } },
     "/v1/qq/bindings": { "post": { "operationId": "createQqBinding", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/submissions": { "post": { "operationId": "createSubmission", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/submissions/{submissionId}": { "get": { "operationId": "getPublicSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/overview": { "get": { "operationId": "getReleaseOverview", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/drafts": { "post": { "operationId": "createReleaseDraft", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/drafts/{draftId}/items": { "put": { "operationId": "putReleaseDraftItem", "parameters": [{ "$ref": "#/components/parameters/draftId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/change-sets": { "post": { "operationId": "createReleaseChangeSet", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/change-sets/{changeSetId}/candidate": { "post": { "operationId": "createReleaseCandidate", "parameters": [{ "$ref": "#/components/parameters/changeSetId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/candidates/{candidateId}": { "get": { "operationId": "getReleaseCandidate", "parameters": [{ "$ref": "#/components/parameters/candidateId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/admin/releases/candidates/{candidateId}/build": { "post": { "operationId": "startReleaseBuild", "parameters": [{ "$ref": "#/components/parameters/candidateId" }], "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/internal/bastion/candidates/{candidateId}": { "get": { "operationId": "getBastionCandidate", "parameters": [{ "$ref": "#/components/parameters/candidateId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/internal/bastion/build-results": { "post": { "operationId": "receiveBastionBuildResult", "responses": { "200": { "$ref": "#/components/responses/Json" } } } }
+    "/v1/submissions/{submissionId}": { "get": { "operationId": "getPublicSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }, { "$ref": "#/components/parameters/refreshQuery" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } }
   },
   "components": {
     "parameters": {
@@ -90,11 +82,7 @@
       "inviteId": { "name": "inviteId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "claimId": { "name": "claimId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
       "claimToken": { "name": "x-claim-token", "in": "header", "required": true, "schema": { "type": "string", "minLength": 32 } },
-      "grantId": { "name": "grantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-      "draftId": { "name": "draftId", "in": "path", "required": true, "schema": { "type": "string" } },
-      "changeSetId": { "name": "changeSetId", "in": "path", "required": true, "schema": { "type": "string" } },
-      "candidateId": { "name": "candidateId", "in": "path", "required": true, "schema": { "type": "string" } }
-      ,"agentPage": { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "default": 1 } },
+      "agentPage": { "name": "page", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "default": 1 } },
       "agentPageSize": { "name": "pageSize", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
       "agentQuery": { "name": "q", "in": "query", "required": false, "schema": { "type": "string" } },
       "agentQueryRequired": { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1 } },
@@ -103,7 +91,9 @@
       "agentMechanic": { "name": "mechanic", "in": "query", "required": false, "schema": { "type": "string" } },
       "agentStatus": { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["active", "sunsetting"] } },
       "agentScope": { "name": "scope", "in": "query", "required": false, "schema": { "type": "string", "enum": ["global", "map"] } },
-      "agentKind": { "name": "kind", "in": "query", "required": false, "schema": { "type": "string", "enum": ["event", "map", "achievement", "title"] } }
+      "agentKind": { "name": "kind", "in": "query", "required": false, "schema": { "type": "string", "enum": ["event", "map", "achievement", "title"] } },
+      "grantId": { "name": "grantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "refreshQuery": { "name": "refresh", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1"] } }
     },
     "responses": { "Json": { "description": "JSON response", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } } }
   }
