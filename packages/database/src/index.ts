@@ -854,7 +854,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async confirmPlayerSubmissionChallenge(input, sessionToken) {
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
-      if (!['ocr_review_required', 'ready_for_review'].includes(submission.status) || submission.challengeId) throw new Error("SUBMISSION_NOT_CONFIRMABLE");
+      if (submission.status !== "awaiting_player_confirmation" || submission.challengeId) throw new Error("SUBMISSION_NOT_CONFIRMABLE");
       const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))).get();
       const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"))).get();
       if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
@@ -867,7 +867,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const { skipped, ...match } = matchOcrResult({ challengeType, targetMapName: mapChallenge?.map.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
       const titleMatched = !titleChallenge || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === titleChallenge!.title.label.trim().toLocaleLowerCase());
       const matched = quality.accepted && Object.values(match).every(Boolean) && titleMatched;
-      await db.update(submissions).set({ status: matched || !quality.accepted ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, mapName: mapChallenge?.map.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched || !quality.accepted ? null : "OCR 结果与目标挑战不匹配" }).where(eq(submissions.id, submission.id));
+      await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, mapName: mapChallenge?.map.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched ? null : quality.accepted ? "OCR 结果与目标挑战不匹配" : "截图未满足识别要求，请重新提交" }).where(eq(submissions.id, submission.id));
       if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
       await invalidateSubmissionCache(cache, submission.id);
       return await this.getPlayerSubmission({ submissionId: submission.id }, sessionToken);
@@ -1069,15 +1069,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (row.status !== "ocr_pending") return;
       const data = result.data ?? {};
       if (row.challengeType === "unknown") {
-        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: assessOcrQuality("unknown", result) }), createdAt: now() });
-        await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "请确认截图对应的挑战" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        const quality = assessOcrQuality("unknown", result);
+        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: quality.accepted ? "matched" : "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
+        await db.update(submissions).set({ status: quality.accepted ? "awaiting_player_confirmation" : "resubmission_required", updatedAt: now(), reviewReason: quality.accepted ? null : "截图未满足识别要求，请重新提交" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
         await invalidateSubmissionCache(cache, row.id);
         return;
       }
       const quality = assessOcrQuality(row.challengeType, result);
       if (!quality.accepted) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-        await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "OCR 结果需要人工核对" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
         await invalidateSubmissionCache(cache, row.id);
         return;
       }
@@ -1095,7 +1096,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row || row.status !== "ocr_pending") return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
-      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: now(), reviewReason: "OCR 服务异常，需要人工核对" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图" }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
       await invalidateSubmissionCache(cache, row.id);
     },
 

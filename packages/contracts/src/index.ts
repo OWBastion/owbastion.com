@@ -137,7 +137,7 @@ const attachmentSchema = z.object({
   sourceUrl: z.string().url().max(4096),
 });
 
-const submissionStatus = z.enum(["upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
+const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 
 export const mapChallengeSchema = z.object({
   challengeId: externalId,

@@ -1,7 +1,7 @@
 import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
 import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "upload_pending" | "ocr_pending" | "ready_for_review" | "ocr_review_required" | "approved" | "rejected" | "resubmission_required";
+export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "upload_pending" | "ocr_pending" | "awaiting_player_confirmation" | "ready_for_review" | "ocr_review_required" | "approved" | "rejected" | "resubmission_required";
 
 export type CurrentPlayer = {
   contractVersion: "1";

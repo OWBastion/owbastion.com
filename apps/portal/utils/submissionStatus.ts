@@ -3,6 +3,7 @@ export const submissionStatusText: Record<string, string> = {
   evidence_pending: "保存截图中",
   evidence_stored: "截图已保存",
   ocr_pending: "等待识别",
+  awaiting_player_confirmation: "等待确认挑战",
   ready_for_review: "等待核对",
   ocr_review_required: "等待处理",
   approved: "已通过",

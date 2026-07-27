@@ -32,7 +32,7 @@ const evidenceImageUrl = ref<string | null>(null);
 const evidenceCdnHeader = { "x-owbastion-review": "portal-player" };
 const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
-const statusTone = (value: string) => value === "approved" ? "success" : value === "resubmission_required" ? "warning" : "default";
+const statusTone = (value: string) => value === "approved" || value === "ready_for_review" ? "success" : value === "resubmission_required" ? "warning" : "default";
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const confirmChallenge = async () => {
   if (!selectedChallengeId.value) return;
@@ -89,7 +89,7 @@ onBeforeUnmount(() => { if (evidenceImageUrl.value) URL.revokeObjectURL(evidence
           </dl>
         </UCard>
 
-        <UCard v-if="!data.challengeId && ['ocr_review_required', 'ready_for_review'].includes(data.status)" class="confirm-card">
+        <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card">
           <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
           <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后提交给管理员核对。</p>
           <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />

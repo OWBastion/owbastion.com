@@ -97,6 +97,7 @@ values, never OCRKit's raw response or internal match evidence.
 ~~~text
 upload_pending
 → ocr_pending
+  ├→ awaiting_player_confirmation → ready_for_review / resubmission_required
   ├→ ready_for_review → approved / rejected / resubmission_required
   ├→ ocr_review_required → approved / rejected / resubmission_required
   └→ resubmission_required
@@ -104,12 +105,16 @@ upload_pending
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
-size, content type, and private object ownership are verified. A high-quality
-OCR mismatch becomes `resubmission_required`. Unsupported OCR responses,
-missing or low-confidence fields, and exhausted OCR failures become
-`ocr_review_required`, so a maintainer can inspect the evidence rather than
-leaving a submission pending or treating uncertain recognition as a player
-error.
+size, content type, and private object ownership are verified. The Portal waits
+for OCR to finish before showing the player the next action. When no challenge
+was selected up front, a successful quality gate becomes
+`awaiting_player_confirmation`; the player then selects the challenge and the
+platform performs the final match. Only a successful match becomes
+`ready_for_review`. High-quality mismatches, missing or low-confidence fields,
+and exhausted OCR failures become `resubmission_required`; they do not enter
+the maintainer queue without a usable OCR result. `ocr_review_required` remains
+reserved for legacy or explicitly exceptional records that a maintainer must
+inspect.
 
 Approval and title issuance are one D1 batch: `approved` is written only when
 the Submission has an active Grant. Title challenges use their direct
