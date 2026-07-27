@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { h, resolveComponent } from "vue";
+import type { TableColumn } from "@nuxt/ui";
+import { useDebounceFn } from "@vueuse/core";
 import { portalErrorDetails } from "~/utils/portal-error";
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "称号迁移 · 躲避堡垒 3" });
@@ -41,6 +44,17 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+const debouncedLoad = useDebounceFn(load, 300);
+
+function handleSearchInput() {
+  debouncedLoad();
+}
+
+function handleSearchSubmit() {
+  debouncedLoad.cancel();
+  void load();
 }
 
 async function grant(row: Grant) {
@@ -116,18 +130,93 @@ async function grantAll() {
   }
 }
 
+
+
+const UButton = resolveComponent("UButton");
+const UBadge = resolveComponent("UBadge");
+
+const grantColumns = computed<TableColumn<Grant>[]>(() => [
+  {
+    accessorKey: "category",
+    header: "分类",
+    meta: { class: { th: "w-24", td: "w-24 text-sm" } },
+  },
+  {
+    id: "title",
+    header: "称号",
+    cell: ({ row }) => {
+      const label = row.original.label;
+      const mapName = row.original.mapName;
+      return mapName
+        ? h("span", {}, [label, h("span", { class: "map-hint" }, ` · ${mapName}`)])
+        : label;
+    },
+  },
+  {
+    accessorKey: "status",
+    header: "状态",
+    meta: { class: { th: "w-52", td: "w-52" } },
+    cell: ({ row }) => {
+      const s = row.original.status;
+      if (s === "unclaimed") return h(UBadge, { color: "neutral", variant: "subtle" }, () => "未关联");
+      if (s === "active") return h("span", { class: "status-active" }, `已关联至 ${row.original.playerName}#${row.original.playerId}`);
+      return h(UBadge, { color: "error", variant: "subtle" }, () => "已撤销");
+    },
+  },
+  {
+    id: "actions",
+    meta: { class: { th: "w-20", td: "w-20 text-right" } },
+    cell: ({ row }) => {
+      const r = row.original;
+      if (r.status === "unclaimed") {
+        return h(UButton, { label: "关联", color: "neutral", variant: "outline", size: "sm", disabled: !selectedPlayer.value || saving.value, onClick: () => grant(r) });
+      }
+      if (r.status === "active") {
+        return h(UButton, { label: "撤销", color: "neutral", variant: "link", size: "sm", disabled: saving.value, onClick: () => revoke(r) });
+      }
+      return null;
+    },
+  },
+]);
+
 onMounted(() => { void load(); });
 </script>
 
 <template>
   <AdminWorkspace title="称号迁移" :count="loading ? '读取中…' : `${holderGroups.length} 位持有者`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <template #toolbar><div class="admin-toolbar"><UInput v-model="query" placeholder="搜索持有者或称号" aria-label="搜索历史称号" @change="load" /><USelect v-model="selectedPlayerId" aria-label="选择玩家" placeholder="选择玩家帐号" :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))" /><UButton label="搜索" color="neutral" variant="outline" @click="load" /></div></template>
+    <template #toolbar>
+      <div class="admin-toolbar">
+        <form role="search" class="search-form" aria-label="搜索称号记录" aria-controls="title-grant-results" @submit.prevent="handleSearchSubmit">
+          <UInput
+            v-model="query"
+            type="search"
+            placeholder="搜索持有者或称号"
+            aria-label="搜索历史称号"
+            @input="handleSearchInput"
+          />
+          <UButton type="submit" label="搜索" color="neutral" variant="outline" :loading="loading" />
+        </form>
+        <USelect
+          v-model="selectedPlayerId"
+          aria-label="选择操作玩家帐号"
+          placeholder="选择玩家帐号"
+          :items="players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId }))"
+        />
+      </div>
+    </template>
 
-    <div class="holder-list" aria-live="polite">
+    <div id="title-grant-results" class="holder-list" aria-live="polite" aria-atomic="false">
       <section v-for="group in holderGroups" :key="group.holderName" class="holder-group">
-        <div class="holder-heading"><div><p class="eyebrow">历史持有者</p><h2>{{ group.holderName }}</h2><small>{{ group.unclaimedCount ? `${group.unclaimedCount} 项未关联` : "暂无未关联称号" }}</small></div><UButton :data-holder-name="group.holderName" label="关联全部未关联项" :disabled="!selectedPlayer || !group.unclaimedCount || saving" @click="openBulk(group)" /></div>
-        <div class="grant-list"><UCard v-for="row in group.grants" :key="row.grantId" class="grant-row" variant="subtle"><template #default><div><p>{{ row.category }}</p><h3>{{ row.label }}<span v-if="row.mapName"> · {{ row.mapName }}</span></h3><small>{{ row.status === "unclaimed" ? "未关联" : row.status === "active" ? `已关联至 ${row.playerName}#${row.playerId}` : "已撤销" }}</small></div><UButton v-if="row.status === 'unclaimed'" label="关联" color="neutral" variant="outline" :disabled="!selectedPlayer || saving" @click="grant(row)" /><UButton v-else-if="row.status === 'active'" label="撤销" color="neutral" variant="link" :disabled="saving" @click="revoke(row)" /></template></UCard></div>
+        <div class="holder-heading">
+          <div>
+            <p class="eyebrow">历史持有者</p>
+            <h2>{{ group.holderName }}</h2>
+            <small>{{ group.unclaimedCount ? `${group.unclaimedCount} 项未关联` : "暂无未关联称号" }}</small>
+          </div>
+          <UButton :data-holder-name="group.holderName" label="关联全部未关联项" :disabled="!selectedPlayer || !group.unclaimedCount || saving" @click="openBulk(group)" />
+        </div>
+        <UTable :data="group.grants" :columns="grantColumns" :loading="saving" />
       </section>
       <p v-if="!loading && !holderGroups.length" class="empty surface-card">暂无匹配记录。</p>
     </div>
@@ -137,7 +226,30 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.holder-list { display: grid; gap: 28px; }.holder-group { display: grid; gap: 10px; }.holder-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }.holder-heading .eyebrow { margin-bottom: 6px; }.holder-heading h2 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.75rem); letter-spacing: -.035em; overflow-wrap: anywhere; }.holder-heading small, .grant-row p, .grant-row small { color: var(--quiet); font-size: .78rem; }.grant-list { display: grid; gap: 9px; }.grant-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 18px; }.grant-row p, .grant-row small { display: block; margin: 0; }.grant-row h3 { margin: 8px 0; font-size: 1.05rem; overflow-wrap: anywhere; }.danger { color: var(--danger); }.empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }.sheet { position: relative; }.sheet h2 { margin: 0; font-size: 2.1rem; letter-spacing: -.05em; }.migration-facts { display: grid; gap: 12px; margin: 28px 0 16px; }.migration-facts p { display: grid; gap: 5px; margin: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }.migration-facts span { color: var(--quiet); font-size: .76rem; }.migration-facts strong { overflow-wrap: anywhere; font-size: .92rem; }.pending-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 13px; background: var(--surface); font-size: .85rem; overflow-wrap: anywhere; }.pending-list li + li { border-top: 1px solid var(--line); }.pending-map { color: var(--quiet); font-size: .78rem; flex-shrink: 0; }.pending-overflow { color: var(--quiet); font-size: .78rem; font-style: italic; }.sheet-copy { color: var(--muted); font-size: .83rem; line-height: 1.5; }.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 30px; }
+.holder-list { display: grid; gap: 28px; }
+.holder-group { display: grid; gap: 10px; }
+.holder-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.holder-heading .eyebrow { margin-bottom: 6px; }
+.holder-heading h2 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.75rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
+.holder-heading small { color: var(--quiet); font-size: .78rem; }
+.search-form { display: contents; }
+.map-hint { color: var(--quiet); font-size: .9em; }
+.status-active { font-size: .85rem; color: var(--quiet); }
+.danger { color: var(--danger); }
+.empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }
+.sheet { position: relative; }
+.sheet h2 { margin: 0; font-size: 2.1rem; letter-spacing: -.05em; }
+.migration-facts { display: grid; gap: 12px; margin: 28px 0 16px; }
+.migration-facts p { display: grid; gap: 5px; margin: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.migration-facts span { color: var(--quiet); font-size: .76rem; }
+.migration-facts strong { overflow-wrap: anywhere; font-size: .92rem; }
+.pending-list { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 1px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
+.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 13px; background: var(--surface); font-size: .85rem; overflow-wrap: anywhere; }
+.pending-list li + li { border-top: 1px solid var(--line); }
+.pending-map { color: var(--quiet); font-size: .78rem; flex-shrink: 0; }
+.pending-overflow { color: var(--quiet); font-size: .78rem; font-style: italic; }
+.sheet-copy { color: var(--muted); font-size: .83rem; line-height: 1.5; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 30px; }
 @media (prefers-reduced-motion: reduce) { .migration-sheet-enter-active, .migration-sheet-leave-active, .migration-sheet-enter-active .sheet, .migration-sheet-leave-active .sheet { transition: opacity 140ms ease; }.migration-sheet-enter-from .sheet, .migration-sheet-leave-to .sheet { transform: none; } }
-@media (max-width: 620px) { .grant-row { align-items: stretch; flex-direction: column; }.holder-heading { align-items: start; flex-direction: column; }.sheet-actions { flex-direction: column-reverse; }.sheet-actions button { width: 100%; } }
+@media (max-width: 620px) { .holder-heading { align-items: start; flex-direction: column; }.sheet-actions { flex-direction: column-reverse; }.sheet-actions button { width: 100%; } }
 </style>
