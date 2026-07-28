@@ -26,7 +26,7 @@ async function mountPage(): Promise<VueWrapper> {
       stubs: {
         NuxtLink: { template: "<a><slot /></a>" },
         StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-        UModal: { props: ["open"], emits: ["update:open"], template: '<div v-if="open" role="dialog"><slot name="body" /></div>' },
+        UModal: { props: ["open"], emits: ["update:open"], template: '<div v-if="open" role="dialog"><slot name="body" /><slot name="footer" /></div>' },
         UPopover: { props: ["open"], emits: ["update:open"], template: '<div><slot /><slot name="content" /></div>' },
         UCard: { template: "<div><slot /></div>" },
         UTabs: {
@@ -170,7 +170,7 @@ describe("achievement admin page", () => {
     await wrapper.get('button[aria-label="结束挑战"]').trigger("click");
     await flushPromises();
     const requestsBeforeCancel = adminApi.mock.calls.length;
-    await wrapper.find(".end-dialog button").trigger("click");
+    await wrapper.find('[role="dialog"] button').trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledTimes(requestsBeforeCancel);
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();

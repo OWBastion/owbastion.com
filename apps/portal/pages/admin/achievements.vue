@@ -449,7 +449,7 @@ onMounted(() => void load());
               <UButton class="min-h-7" label="保存规则" size="xs" form="achievement-editor" :loading="editingItem ? isSaving(editingItem) : false" type="submit" />
             </template>
           </AdminResponsiveDialog>
-    <AdminResponsiveDialog :open="endTarget !== null" title="结束挑战" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p><div class="editor-actions"><UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" /><UButton label="结束挑战" color="error" type="submit" :loading="isSaving(endTarget)" /></div></form></template></AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="endTarget !== null" title="结束挑战" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" id="end-challenge-dialog" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p></form></template><template #footer><template v-if="endTarget"><UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" /><UButton label="结束挑战" color="error" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" /></template></template></AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 

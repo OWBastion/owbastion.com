@@ -120,7 +120,7 @@ onMounted(() => void load());
 
     <AdminResponsiveDialog v-model:open="editorOpen" :title="selectedEvent ? `编辑：${selectedEvent.name}` : '新建事件'" size="lg">
       <template #body>
-        <form class="grid gap-6" @submit.prevent="save">
+        <form id="event-editor" class="grid gap-6" @submit.prevent="save">
           <section class="grid gap-4">
             <h3 class="text-base font-semibold">基本信息</h3>
             <div class="grid gap-4 sm:grid-cols-2">
@@ -165,9 +165,9 @@ onMounted(() => void load());
             </UFormField>
           </section>
 
-          <div class="flex justify-between"><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" @click="requestArchive" /><span v-else /><UButton type="submit" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></div>
         </form>
       </template>
+      <template #footer><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" :disabled="saving" @click="requestArchive" /><span v-else /><UButton type="submit" form="event-editor" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="archiveOpen" title="归档事件" :description="selectedEvent?.name" size="sm" :dismissible="!saving">
       <template #body><p class="text-sm text-muted">归档后，事件不会出现在默认目录中。</p></template>

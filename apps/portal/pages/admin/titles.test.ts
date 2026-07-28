@@ -59,7 +59,8 @@ describe("title migration page", () => {
     await flushPromises();
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("Cold");
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain("吾携秋水揽星河#5132");
-    (document.body.querySelector(".dialog-actions button:last-child") as HTMLButtonElement).click();
+    const confirmButton = Array.from(document.body.querySelectorAll('[role="dialog"] button')).find((button) => button.textContent?.includes("确认关联")) as HTMLButtonElement;
+    confirmButton.click();
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/bulk", expect.objectContaining({ method: "POST", body: expect.objectContaining({ holderName: "Cold", playerAccountId: players[0].playerAccountId }) }));
     expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ title: "已关联 2 项称号", color: "success" }));

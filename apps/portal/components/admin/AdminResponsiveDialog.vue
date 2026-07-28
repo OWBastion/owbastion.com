@@ -71,8 +71,8 @@ const sizeClasses: Record<DialogSize, string> = {
   background: color-mix(in oklch, var(--surface) 82%, transparent);
   backdrop-filter: blur(18px) saturate(1.12);
 }
-.admin-responsive-dialog__footer { border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent); }
-.admin-responsive-dialog__body { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.admin-responsive-dialog__footer { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent); }
+.admin-responsive-dialog__body { min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 @media (prefers-reduced-motion: reduce) { .admin-responsive-dialog__content { transition-duration: 1ms !important; } }
 @media (prefers-reduced-transparency: reduce) {
   .admin-responsive-dialog__content, .admin-responsive-dialog__header, .admin-responsive-dialog__footer { background: var(--surface); backdrop-filter: none; }
