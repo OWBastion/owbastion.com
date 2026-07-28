@@ -134,7 +134,7 @@ onMounted(() => void load());
               <UFormField label="内置冷却（秒）"><UInputNumber v-model="form.cooldownSeconds" :min="0" class="w-full" /></UFormField>
               <UFormField label="持续时间（秒）"><UInputNumber v-model="form.durationSeconds" :min="0" class="w-full" /></UFormField>
             </div>
-            <UFormField label="内容说明"><UTextarea v-model="form.description" required :rows="4" /></UFormField>
+            <UFormField class="w-full" label="内容说明"><UTextarea v-model="form.description" required :rows="4" class="w-full" /></UFormField>
           </section>
 
           <section class="grid gap-4">
