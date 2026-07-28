@@ -11,18 +11,18 @@ describe("AppHeader", () => {
   it("shows the management navigation on admin routes", async () => {
     const wrapper = await mountSuspended(AppHeader, { global: { stubs: {
       ThemeMenu: true,
-      AccountMenu: true,
+      LazyAccountMenu: true,
       NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" },
-      UNavigationMenu: { props: ["items"], template: '<div data-testid="admin-navigation" :data-items="JSON.stringify(items)" />' },
     } } });
 
     expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
-    const items = JSON.parse(wrapper.get('[data-testid="admin-navigation"]').attributes("data-items")!);
-    expect(items.find((item: { label: string }) => item.label === "成就").children).toEqual([
-      expect.objectContaining({ label: "审核", to: "/admin/reviews" }),
-      expect.objectContaining({ label: "成就管理", to: "/admin/achievements" }),
-      expect.objectContaining({ label: "历史称号", to: "/admin/titles" }),
-    ]);
+    expect(wrapper.text()).toContain("概览");
+    expect(wrapper.text()).toContain("玩家");
+    expect(wrapper.text()).toContain("绑定");
     expect(wrapper.text()).not.toContain("天梯排名");
+    expect(wrapper.get(".mobile-menu-toggle").attributes("aria-controls")).toBeUndefined();
+    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    expect(wrapper.get(".mobile-menu-toggle").attributes("aria-controls")).toBe("mobile-nav");
+    expect(wrapper.get("#mobile-nav").exists()).toBe(true);
   });
 });

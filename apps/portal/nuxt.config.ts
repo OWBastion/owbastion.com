@@ -1,8 +1,8 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  devtools: { enabled: false },
-  modules: ["@nuxt/ui", "@nuxtjs/color-mode"],
+  devtools: { enabled: process.env.NODE_ENV === "development" },
+  modules: ["@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
   css: ["~/assets/css/main.css"],
   colorMode: {
     preference: "light",
