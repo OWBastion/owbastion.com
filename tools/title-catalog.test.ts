@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readTitleCatalogSnapshot, type TitleCatalogSnapshot } from "./title-catalog.ts";
+import { readTitleCatalogSnapshot, renderTitlePresentationSeedSql, type TitleCatalogSnapshot } from "./title-catalog.ts";
 
 const title = (key: string, scope: string = "global") => ({
   key,
@@ -45,5 +45,16 @@ describe("readTitleCatalogSnapshot", () => {
 
   it("accepts catalogs with more than the historical map count", () => {
     expect(() => readTitleCatalogSnapshot(snapshot(58, 39))).not.toThrow();
+  });
+});
+
+describe("renderTitlePresentationSeedSql", () => {
+  it("writes semantic colors through the seed path", () => {
+    const source = snapshot(4, 0);
+    source.titles[0].colorExpr = "heroColor[12]";
+    source.titles[1].colorExpr = "null";
+    const sql = renderTitlePresentationSeedSql(source);
+    expect(sql).toContain("WHEN 'PIONEER' THEN '{\"kind\":\"heroColor\",\"index\":12}'");
+    expect(sql).toContain("WHEN 'CONQUEROR' THEN 'null'");
   });
 });

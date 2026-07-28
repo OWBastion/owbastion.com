@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { classifyCatalogImport, parseCatalogImportQueryOutput, readTitleCatalogSnapshot, renderCatalogImportSql, snapshotHash } from "./title-catalog.ts";
+import { classifyCatalogImport, parseCatalogImportQueryOutput, readTitleCatalogSnapshot, renderCatalogImportSql, renderTitlePresentationSeedSql, snapshotHash } from "./title-catalog.ts";
 
 const execFileAsync = promisify(execFile);
 const args = process.argv.slice(2);
@@ -15,6 +15,7 @@ const snapshotPath = valueAfter("--snapshot");
 const database = valueAfter("--database") ?? "DB";
 const remote = args.includes("--remote");
 const dryRun = args.includes("--dry-run");
+const refreshPresentation = args.includes("--refresh-presentation");
 
 if (!snapshotPath || args.includes("--help")) {
   console.log("Usage: pnpm db:import:catalog --snapshot <path> [--database <name>] [--remote] [--dry-run]");
@@ -39,7 +40,7 @@ const main = async () => {
   };
 
   if (dryRun) {
-    const sql = renderCatalogImportSql(snapshot, hash, Date.now());
+    const sql = refreshPresentation ? renderTitlePresentationSeedSql(snapshot) : renderCatalogImportSql(snapshot, hash, Date.now());
     console.log(JSON.stringify({ mode: "dry-run", sourceVersion: snapshot.sourceVersion, snapshotHash: hash, counts, sqlBytes: Buffer.byteLength(sql) }, null, 2));
     return;
   }
@@ -56,7 +57,7 @@ const main = async () => {
     if (error instanceof Error && error.message.startsWith("CATALOG_IMPORT_CONFLICT:")) throw error;
     throw new Error(`无法读取 catalog_imports，请先执行 D1 migrations：${error instanceof Error ? error.message : String(error)}`);
   }
-  if (decision === "skip") {
+  if (decision === "skip" && !refreshPresentation) {
     console.log(`Catalog snapshot ${snapshot.sourceVersion} 已导入，跳过。`);
     return;
   }
@@ -64,7 +65,7 @@ const main = async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "owbastion-catalog-import-"));
   const sqlPath = path.join(tempDir, "catalog-import.sql");
   try {
-    await fs.writeFile(sqlPath, renderCatalogImportSql(snapshot, hash, Date.now()));
+    await fs.writeFile(sqlPath, decision === "skip" && refreshPresentation ? renderTitlePresentationSeedSql(snapshot) : renderCatalogImportSql(snapshot, hash, Date.now()));
     await wrangler(["--file", sqlPath]);
     try {
       const finalDecision = classifyCatalogImport(await readImport(), snapshot.sourceVersion, hash);
@@ -72,7 +73,9 @@ const main = async () => {
     } catch (error) {
       throw new Error(`CATALOG_IMPORT_RECONCILIATION_REQUIRED: ${error instanceof Error ? error.message : String(error)}`);
     }
-    console.log(`Catalog snapshot ${snapshot.sourceVersion} 导入完成：${JSON.stringify(counts)}`);
+    console.log(refreshPresentation && decision === "skip"
+      ? `Title presentation seed ${snapshot.sourceVersion} 刷新完成`
+      : `Catalog snapshot ${snapshot.sourceVersion} 导入完成：${JSON.stringify(counts)}`);
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }

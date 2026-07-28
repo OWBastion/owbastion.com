@@ -60,6 +60,14 @@ pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json --dry-
 pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json
 ```
 
+若已存在的 catalog snapshot 需要补填展示颜色等新 seed 字段，使用显式刷新：
+
+```bash
+pnpm db:import:catalog --snapshot snapshots/2026.07.15/title-catalog.json --refresh-presentation --remote
+```
+
+该操作只更新 catalog seed 数据，不修改 migration 记录或表结构。
+
 该导入工具仅用于历史数据迁移或显式恢复，不是平台与 Bastion 的持续同步机制。
 当前事件、地图、称号和挑战元数据由平台维护，Bastion 在构建时通过 Agents API
 读取。若执行历史导入，称号、地图和奖励使用 upsert；历史持有人只追加，不自动

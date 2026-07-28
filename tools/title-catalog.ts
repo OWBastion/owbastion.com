@@ -109,6 +109,15 @@ export const renderCatalogImportSql = (snapshot: TitleCatalogSnapshot, hash: str
   return lines.join("\n");
 };
 
+export const renderTitlePresentationSeedSql = (snapshot: TitleCatalogSnapshot) => {
+  const lines = ["UPDATE title_catalog SET color_json = CASE key"];
+  for (const title of snapshot.titles) lines.push(`  WHEN ${sql(title.key)} THEN ${sql(titleColor(title))}`);
+  lines.push("  ELSE 'null'");
+  lines.push("END;");
+  lines.push("");
+  return lines.join("\n");
+};
+
 export const renderCatalogSchemaMigration = () => [
   "CREATE TABLE title_catalog (",
   "  key TEXT PRIMARY KEY NOT NULL,",
