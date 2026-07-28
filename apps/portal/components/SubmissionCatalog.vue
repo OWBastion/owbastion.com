@@ -4,7 +4,7 @@ import AchievementSubmissionCatalog from "./AchievementSubmissionCatalog.vue";
 import MapSubmissionCatalog from "./MapSubmissionCatalog.vue";
 
 const props = defineProps<{ maps: Map[]; mapChallenges: MapChallenge[]; achievementChallenges: AchievementChallenge[]; selectedChallengeId: string }>();
-const emit = defineEmits<{ select: [challengeId: string] }>();
+const emit = defineEmits<{ select: [selection: { challengeId: string; mapId?: string }] }>();
 const family = shallowRef<"map" | "achievement">("map");
 const familyItems = [
   { label: "地图通关", value: "map" },
@@ -15,8 +15,8 @@ const familyItems = [
 <template>
   <div class="catalog">
     <UTabs v-model="family" :items="familyItems" variant="link" aria-label="挑战类型" />
-    <MapSubmissionCatalog v-if="family === 'map'" :maps="maps" :challenges="mapChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', $event)" />
-    <AchievementSubmissionCatalog v-else :challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', $event)" />
+    <MapSubmissionCatalog v-if="family === 'map'" :maps="maps" :challenges="mapChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', { challengeId: $event.challengeId, mapId: $event.mapId })" />
+    <AchievementSubmissionCatalog v-else :maps="maps" :challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="emit('select', $event)" />
   </div>
 </template>
 

@@ -23,11 +23,12 @@ const normalized = (value: string | null | undefined) => value?.trim().toLocaleL
 
 export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
   const isTitleChallenge = input.challengeType === "title_achievement";
+  const isMapTitleChallenge = input.challengeType === "map_title_achievement";
   const match = {
-    map: isTitleChallenge || normalized(input.mapName) === normalized(input.targetMapName),
-    difficulty: isTitleChallenge || normalized(input.difficulty) === normalized(input.targetDifficulty),
+    map: isTitleChallenge ? true : normalized(input.mapName) === normalized(input.targetMapName),
+    difficulty: isTitleChallenge || isMapTitleChallenge ? true : normalized(input.difficulty) === normalized(input.targetDifficulty),
     completed: input.challengeCompleted === true,
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
   };
-  return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : [] };
+  return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : isMapTitleChallenge ? ["difficulty"] : [] };
 };

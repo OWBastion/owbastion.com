@@ -5,7 +5,7 @@ import { portalErrorDetails, recordPortalError } from "~/utils/portal-error";
 export type Map = { mapId: string; mapName: string; gameVersion: string; difficultyRating: "T0" | "T1" | "T2" | "T3" | "T4" | "T5" | null; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
 export type ChallengeStatus = "active" | "sunsetting";
 export type MapChallenge = { challengeId: string; family: "map"; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion"; name: string; mapId: string; mapName: string; difficulty?: string; gameVersion: string; status: ChallengeStatus; retiredVersion?: string };
-export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "scheduled" | ChallengeStatus; startsAt?: number; endsAt?: number; retiredVersion?: string; submissionMode: "manual" | "automatic" };
+export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "scheduled" | ChallengeStatus; startsAt?: number; endsAt?: number; retiredVersion?: string; submissionMode: "manual" | "automatic"; scope?: "global" | "map"; mapIds?: string[] };
 export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -35,14 +35,14 @@ export function useSubmissionUpload() {
     if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "挑战目录无法读取，请稍后重试。").description;
     catalogLoading.value = false;
   };
-  const submit = async (file: File, challengeId?: string) => {
+  const submit = async (file: File, challengeId?: string, mapId?: string) => {
     loading.value = true;
     error.value = "";
     let phase: keyof typeof phaseLabels = "hash";
     try {
       const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
       phase = "session";
-      const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
+      const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), ...(mapId ? { mapId } : {}), contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
       phase = "upload";
       const uploadRequestId = createRequestId();
       try {

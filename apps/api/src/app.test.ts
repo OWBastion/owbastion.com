@@ -35,6 +35,7 @@ const services: PlatformServices = {
   revokeAdminTitleGrant: async () => {},
   createAdminManualTitleGrant: async () => ({ contractVersion: "1", grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: false }),
   listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
+  createAdminAchievement: async () => { throw new Error("TITLE_KEY_CONFLICT"); },
   updateAdminChallenge: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
   updateAdminCatalogTitle: async () => {},
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
@@ -98,14 +99,14 @@ describe("API", () => {
       ...services,
       listAgentPlayerTitleGrants: async () => ({ contractVersion: "1" as const, items: [{ playerId: "1234", playerName: "Player", titleKeys: ["TITLE"], allTitles: false }], page: 1, pageSize: 20, total: 1, hasMore: false }),
       getAgentMap: async ({ mapId }) => mapId === "map.test" ? { mapId, mapName: "测试地图", gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null } : null,
-      listAgentMapTitleHolders: async () => ({ contractVersion: "1" as const, items: [{ mapId: "map.test", slot: "pioneer" as const, playerId: "1234", playerName: "Player" }], page: 1, pageSize: 20, total: 1, hasMore: false }),
+      listAgentMapTitleHolders: async () => ({ contractVersion: "1" as const, items: [{ mapId: "map.test", titleKey: "PIONEER", slot: "pioneer" as const, playerId: "1234", playerName: "Player" }], page: 1, pageSize: 20, total: 1, hasMore: false }),
     }) });
     const players = await agentApp.request("http://localhost/v1/agents/player-title-grants?page=1&pageSize=20", {}, env);
     const holders = await agentApp.request("http://localhost/v1/agents/map-title-holders?mapId=map.test&page=1&pageSize=20", {}, env);
     expect(players.status).toBe(200);
     expect(holders.status).toBe(200);
     expect((await players.json() as { items: Array<{ playerId?: string; playerName: string }> }).items[0]).toEqual({ playerName: "Player", titleKeys: ["TITLE"], allTitles: false });
-    expect((await holders.json() as { items: Array<{ playerId?: string; mapId: string; slot: string; playerName: string }> }).items[0]).toEqual({ mapId: "map.test", slot: "pioneer", playerName: "Player" });
+    expect((await holders.json() as { items: Array<{ playerId?: string; mapId: string; titleKey: string; slot: string; playerName: string }> }).items[0]).toEqual({ mapId: "map.test", titleKey: "PIONEER", slot: "pioneer", playerName: "Player" });
   });
 
   it("returns player IDs only with the Bastion build token", async () => {
@@ -448,6 +449,26 @@ describe("API", () => {
     const titleStatus = await adminApp.request("http://localhost/v1/admin/titles/INTERNAL", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "title-catalog-1" }, body: JSON.stringify({ contractVersion: "1", status: "retired" }) }, env);
     expect(titleStatus.status).toBe(204);
     expect(catalogUpdates).toMatchObject([{ titleKey: "INTERNAL", status: "retired" }]);
+  });
+
+  it("creates a scoped achievement through the maintainer API", async () => {
+    const created: unknown[] = [];
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        createAdminAchievement: async (input) => {
+          created.push(input);
+          return { challengeId: `title.${input.titleKey}`, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: input.titleKey, titleName: input.titleName, icon: input.icon, category: input.category, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: input.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: input.gameVersion, retiredVersion: null, scope: input.scope, mapIds: input.mapIds };
+        },
+      }),
+    });
+    const body = { contractVersion: "1", titleKey: "CLASSIC_RACETRACK", titleName: "经典赛道", icon: "trophy", category: "经典版系列", condition: "完成经典版挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "map", mapIds: ["map.route66"], status: "active", gameVersion: "26.0728.1" };
+    expect((await app.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env)).status).toBe(403);
+    const response = await adminApp.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ challengeId: "title.CLASSIC_RACETRACK", scope: "map", mapIds: ["map.route66"] });
+    expect(created).toEqual([expect.objectContaining(body)]);
   });
 
   it("accepts a maintainer achievement icon upload as multipart data", async () => {

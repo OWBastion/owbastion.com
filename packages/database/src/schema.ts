@@ -181,9 +181,18 @@ export const titleChallenges = sqliteTable("title_challenges", {
   retiredVersion: text("retired_version"),
   startsAt: integer("starts_at"),
   endsAt: integer("ends_at"),
+  scope: text("scope").notNull().default("global"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const achievementChallengeMaps = sqliteTable("achievement_challenge_maps", {
+  challengeId: text("challenge_id").notNull().references(() => titleChallenges.id, { onDelete: "cascade" }),
+  mapId: text("map_id").notNull().references(() => maps.id, { onDelete: "cascade" }),
+}, (table) => ({
+  primary: primaryKey({ columns: [table.challengeId, table.mapId] }),
+  mapIdx: uniqueIndex("achievement_challenge_maps_map_challenge_idx").on(table.mapId, table.challengeId),
+}));
 
 export const submissions = sqliteTable("submissions", {
   id: text("id").primaryKey(),
@@ -191,6 +200,7 @@ export const submissions = sqliteTable("submissions", {
   status: text("status").notNull(),
   challengeType: text("challenge_type").notNull(),
   challengeId: text("challenge_id"),
+  targetMapId: text("target_map_id").references(() => maps.id),
   mapName: text("map_name").notNull(),
   difficulty: text("difficulty"),
   playerName: text("player_name"),

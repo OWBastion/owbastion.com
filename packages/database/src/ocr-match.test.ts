@@ -44,6 +44,12 @@ describe("matchOcrResult", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: "Other#1234" }).player).toBe(false);
   });
 
+  it("matches a map-scoped title challenge against the selected map", () => {
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement" }).skipped).toEqual(["difficulty"]);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapName: "釜山" }).map).toBe(false);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", difficulty: "地狱" }).difficulty).toBe(true);
+  });
+
   it("normalizes player names before comparing them", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: " player#9999 " }).player).toBe(true);
   });

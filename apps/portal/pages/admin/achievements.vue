@@ -25,6 +25,8 @@ type TitleAchievement = {
   retiredVersion: string | null;
   startsAt?: number | null;
   endsAt?: number | null;
+  scope?: "global" | "map";
+  mapIds?: string[];
 };
 type MapAchievement = {
   challengeId: string;
@@ -65,6 +67,7 @@ type CatalogTitle = {
   gameVersion: string;
   hasChallenge: false;
 };
+type AdminMap = { mapId: string; mapName: string };
 export type AdminAchievement = TitleAchievement | MapAchievement | CatalogTitle;
 type TableCell<Item> = {
   row: { id: string; original: Item };
@@ -86,6 +89,9 @@ const iconUploading = shallowRef(false);
 const toast = useToast();
 const errorMessage = ref("");
 const activeTab = ref("generic");
+const createOpen = shallowRef(false);
+const creating = shallowRef(false);
+const maps = ref<AdminMap[]>([]);
 const achievementTabs = [
   { label: "通用成就", value: "generic", slot: "generic" as const },
   { label: "地图挑战", value: "map", slot: "map" as const },
@@ -196,12 +202,44 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
     categoryOverride: item.categoryOverride?.trim() || null,
     iconUrl: item.iconUrl?.trim() || null,
     status,
+    ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
     ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
     ...(status === "scheduled" ? {
       ...(item.startsAt && item.startsAt > 0 ? { startsAt: item.startsAt } : {}),
       ...(item.endsAt && item.endsAt > 0 ? { endsAt: item.endsAt } : {}),
     } : {}),
   };
+}
+
+async function openCreate() {
+  errorMessage.value = "";
+  try {
+    const response = await api<{ items: AdminMap[] }>("/v1/maps");
+    maps.value = response.items;
+    createOpen.value = true;
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取地图目录，请稍后重试。").description;
+  }
+}
+
+async function loadMapOptions() {
+  if (maps.value.length) return;
+  try { maps.value = (await api<{ items: AdminMap[] }>("/v1/maps")).items; } catch { /* the editor can still save an unchanged scope */ }
+}
+
+async function createAchievement(payload: Record<string, unknown>) {
+  creating.value = true;
+  errorMessage.value = "";
+  try {
+    await api("/v1/achievements", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: payload });
+    toast.add({ title: "成就挑战已创建", color: "success" });
+    createOpen.value = false;
+    await load();
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法创建成就挑战，请稍后重试。").description;
+  } finally {
+    creating.value = false;
+  }
 }
 
 const toDateTimeLocal = (value?: number | null) => value ? new Date(value).toISOString().slice(0, 16) : "";
@@ -314,6 +352,7 @@ function closeEnd() {
 function toggleEditing(id: string) {
   iconFile.value = null;
   editingId.value = editingId.value === id ? null : id;
+  if (editingId.value) void loadMapOptions();
 }
 
 function closeEditing() {
@@ -357,6 +396,14 @@ function setSubmissionMode(value: "manual" | "automatic") {
   if (editingItem.value && (isTitle(editingItem.value) || isMap(editingItem.value))) editingItem.value.submissionMode = value;
 }
 
+function setScope(value: "global" | "map") {
+  if (editingItem.value && isChallengeTitle(editingItem.value)) editingItem.value.scope = value;
+}
+
+function setMapIds(value: string[]) {
+  if (editingItem.value && isChallengeTitle(editingItem.value)) editingItem.value.mapIds = value;
+}
+
 function setRetiredVersion(value: string) {
   if (editingItem.value && (isTitle(editingItem.value) || isMap(editingItem.value))) editingItem.value.retiredVersion = value || null;
 }
@@ -377,7 +424,7 @@ onMounted(() => void load());
 
 <template>
   <AdminWorkspace title="成就管理" :count="loading ? '读取中…' : `${items.length} 项`">
-    <template #actions><NuxtLink class="migration-link" to="/admin/titles">称号迁移</NuxtLink></template>
+    <template #actions><UButton label="新建挑战" icon="i-lucide-plus" @click="openCreate" /><NuxtLink class="migration-link" to="/admin/titles">称号迁移</NuxtLink></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section class="catalog" aria-labelledby="catalog-title">
       <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="成就类型" class="catalog-tabs">
@@ -401,6 +448,7 @@ onMounted(() => void load());
                 <UFormField class="editor-field" label="截图规则" required><UTextarea class="editor-control" :model-value="editingItem.evidenceRule ?? defaultEvidenceRule" required maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setEvidenceRule" /></UFormField>
                 <UFormField class="editor-field" label="提交方式"><USelect class="editor-control" :model-value="editingItem.submissionMode ?? 'manual'" :disabled="isSaving(editingItem)" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :ui="{ base: 'w-full' }" @update:model-value="setSubmissionMode($event as 'manual' | 'automatic')" /></UFormField>
                 <UFormField class="editor-field" label="状态"><USelect class="editor-control" v-model="editingItem.status" :disabled="isSaving(editingItem)" :items="isMap(editingItem) ? [{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }] : isTitle(editingItem) && isDeveloperOnlyCatalog(editingItem) ? catalogStatusItems(editingItem) : [{ label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :ui="{ base: 'w-full' }" /></UFormField>
+                <template v-if="isChallengeTitle(editingItem)"><UFormField class="editor-field" label="挑战范围"><USelect class="editor-control" :model-value="editingItem.scope ?? 'global'" :disabled="isSaving(editingItem)" :items="[{ label: '通用挑战', value: 'global' }, { label: '地图挑战', value: 'map' }]" @update:model-value="setScope($event as 'global' | 'map')" /></UFormField><UFormField v-if="editingItem.scope === 'map'" class="editor-field" label="指定地图"><USelect class="editor-control" :model-value="editingItem.mapIds ?? []" multiple :items="[{ label: '全部有效地图', value: '' }, ...maps.map((map) => ({ label: map.mapName, value: map.mapId }))]" :disabled="isSaving(editingItem)" @update:model-value="setMapIds(($event as string[]).filter(Boolean))" /></UFormField></template>
                 <template v-if="isTitle(editingItem)"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.startsAt" :disabled="isSaving(editingItem)" placeholder="选择开始时间" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="editingItem.endsAt" :disabled="isSaving(editingItem)" placeholder="选择结束时间" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
                 <UFormField class="editor-field" label="计划下线版本"><UInput class="editor-control" :model-value="editingItem.retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="isSaving(editingItem)" @update:model-value="setRetiredVersion" /></UFormField>
                 <template v-if="isTitle(editingItem)"><UFormField class="editor-field" label="自定义图标" hint="留空使用默认图标。"><div class="icon-upload"><div v-if="editingItem.iconUrl" class="icon-preview"><img :src="editingItem.iconUrl" alt="当前成就图标" /></div><UInput class="editor-control" type="url" :model-value="editingItem.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="isSaving(editingItem)" @update:model-value="setIconUrl" /><details class="icon-upload-option"><summary>上传图标</summary><div class="icon-upload-content"><p>PNG、JPG 或 WebP，最大 512 KB。</p><UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="iconUploading || isSaving(editingItem)" /><UButton type="button" label="上传图标" color="neutral" variant="outline" :loading="iconUploading" :disabled="!iconFile || isSaving(editingItem)" @click="uploadIcon" /></div></details></div></UFormField><UFormField class="editor-field" label="展示分类" :hint="`留空则使用 Bastion 系列“${editingItem.category}”`"><UInput class="editor-control" :model-value="editingItem.categoryOverride ?? ''" :disabled="isSaving(editingItem)" :placeholder="editingItem.category" maxlength="128" @update:model-value="setCategoryOverride" /></UFormField></template>
@@ -450,6 +498,7 @@ onMounted(() => void load());
             </template>
           </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="endTarget !== null" title="结束挑战" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }"><template #body><form v-if="endTarget" id="end-challenge-dialog" class="end-dialog" @submit.prevent="endChallenge"><p>结束后不再接受新的截图提交。</p></form></template><template #footer><template v-if="endTarget"><UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" /><UButton label="结束挑战" color="error" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" /></template></template></AdminResponsiveDialog>
+    <AdminAchievementCreateDialog v-model:open="createOpen" :maps="maps" :saving="creating" @submit="createAchievement" />
   </AdminWorkspace>
 </template>
 

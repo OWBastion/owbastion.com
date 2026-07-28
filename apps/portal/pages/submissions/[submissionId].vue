@@ -25,6 +25,7 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
 );
 const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
 const selectedChallengeId = shallowRef("");
+const selectedMapId = shallowRef("");
 const confirming = shallowRef(false);
 const requestingManualReview = shallowRef(false);
 const manualReviewRequested = shallowRef(false);
@@ -54,7 +55,7 @@ const confirmChallenge = async () => {
   if (!selectedChallengeId.value) return;
   confirming.value = true;
   try {
-    await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, { method: "POST", body: { contractVersion: "1", challengeId: selectedChallengeId.value } });
+    await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, { method: "POST", body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}) } });
     await refresh();
   } finally { confirming.value = false; }
 };
@@ -146,7 +147,7 @@ onBeforeUnmount(() => {
             <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
             <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
             <template v-else>
-              <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectedChallengeId = $event" />
+              <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectedChallengeId = $event.challengeId; selectedMapId = $event.mapId ?? ''" />
               <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId" @click="confirmChallenge" block />
             </template>
           </UCard>

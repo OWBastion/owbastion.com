@@ -18,4 +18,9 @@ describe("assessOcrQuality", () => {
     expect(assessOcrQuality("title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } }).accepted).toBe(true);
     expect(assessOcrQuality("title_achievement", { schema_version: "2", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: { status: "ok", confidence: 0.2 } } }).reasons).toEqual(["unsupported_schema_version", "viewer_player:low_confidence"]);
   });
+
+  it("requires the map name for map-scoped title challenges", () => {
+    expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player, map_name: fields.map_name } }).accepted).toBe(true);
+    expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } }).reasons).toContain("map_name:missing_evidence");
+  });
 });

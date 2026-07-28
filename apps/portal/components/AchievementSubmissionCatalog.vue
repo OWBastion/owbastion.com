@@ -1,15 +1,29 @@
 <script setup lang="ts">
 import type { AchievementChallenge } from "../composables/useSubmissionUpload";
 
-const props = defineProps<{ challenges: AchievementChallenge[]; selectedChallengeId: string }>();
-const emit = defineEmits<{ select: [challengeId: string] }>();
+const props = defineProps<{ maps: Array<{ mapId: string; mapName: string }>; challenges: AchievementChallenge[]; selectedChallengeId: string }>();
+const emit = defineEmits<{ select: [selection: { challengeId: string; mapId?: string }] }>();
+const selectedMapId = shallowRef("");
+const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
+const mapChallenge = (challenge: AchievementChallenge) => challenge.scope === "map";
+const mapAllowed = (challenge: AchievementChallenge, mapId: string) => !challenge.mapIds?.length || challenge.mapIds.includes(mapId);
+const mapChallenges = computed(() => props.challenges.filter(mapChallenge));
+const globalChallenges = computed(() => props.challenges.filter((challenge) => !mapChallenge(challenge)));
 
-const automaticChallenges = computed(() => props.challenges.filter((challenge) => challenge.submissionMode === "automatic"));
-const scheduledChallenges = computed(() => props.challenges.filter((challenge) => challenge.submissionMode === "manual" && challenge.status === "scheduled"));
+const automaticChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "automatic"));
+const scheduledChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "manual" && challenge.status === "scheduled"));
 const manualGroups = computed(() => {
   const groups = new Map<string, AchievementChallenge[]>();
-  for (const challenge of props.challenges) {
+  for (const challenge of globalChallenges.value) {
     if (challenge.submissionMode === "automatic" || challenge.status === "scheduled") continue;
+    groups.set(challenge.category, [...(groups.get(challenge.category) ?? []), challenge]);
+  }
+  return [...groups].map(([category, challenges]) => ({ category, challenges }));
+});
+const mapManualGroups = computed(() => {
+  const groups = new Map<string, AchievementChallenge[]>();
+  for (const challenge of mapChallenges.value) {
+    if (challenge.submissionMode === "automatic" || challenge.status === "scheduled" || !mapAllowed(challenge, selectedMapId.value)) continue;
     groups.set(challenge.category, [...(groups.get(challenge.category) ?? []), challenge]);
   }
   return [...groups].map(([category, challenges]) => ({ category, challenges }));
@@ -19,6 +33,7 @@ const manualGroups = computed(() => {
 <template>
   <section class="catalog-section" aria-labelledby="achievement-catalog-title">
     <div class="catalog-heading"><h2 id="achievement-catalog-title">选择成就目标</h2></div>
+    <section v-if="mapChallenges.length" class="achievement-section"><div class="group-heading"><div><p class="card-kicker">地图范围挑战</p><h3>选择地图后查看可用目标</h3></div></div><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="mapItems" /></section>
     <section v-if="automaticChallenges.length" class="automatic-section" aria-labelledby="automatic-title">
       <div class="group-heading"><div><p class="card-kicker">系统自动判定</p><h3 id="automatic-title">自动发放</h3></div><span>{{ automaticChallenges.length }} 个称号</span></div>
       <div class="achievement-grid">
@@ -28,9 +43,10 @@ const manualGroups = computed(() => {
     <section v-for="group in manualGroups" :key="group.category" class="achievement-section" :aria-labelledby="`category-${group.category}`">
       <div class="group-heading"><div><p class="card-kicker">称号系列</p><h3 :id="`category-${group.category}`">{{ group.category }}</h3></div><span>{{ group.challenges.length }} 个目标</span></div>
       <div class="achievement-grid">
-        <button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', challenge.challengeId)"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
+        <button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', { challengeId: challenge.challengeId })"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>
     </section>
+    <section v-for="group in mapManualGroups" :key="`map-${group.category}`" class="achievement-section"><div class="group-heading"><div><p class="card-kicker">地图称号系列</p><h3>{{ group.category }}</h3></div><span>{{ group.challenges.length }} 个目标</span></div><div class="achievement-grid"><button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><span class="card-kicker">地图挑战</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span></button></div></section>
     <section v-if="scheduledChallenges.length" class="achievement-section upcoming-section" aria-labelledby="upcoming-achievements-title">
       <div class="group-heading"><div><p class="card-kicker">暂未开放</p><h3 id="upcoming-achievements-title">即将开始</h3></div><span>{{ scheduledChallenges.length }} 个称号</span></div>
       <div class="achievement-grid"><article v-for="challenge in scheduledChallenges" :key="challenge.challengeId" class="achievement-card upcoming"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><small>未开放，暂不接受截图提交。</small></article></div>

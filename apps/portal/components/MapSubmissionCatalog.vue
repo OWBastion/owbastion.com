@@ -2,7 +2,7 @@
 import type { Map, MapChallenge } from "../composables/useSubmissionUpload";
 
 const props = defineProps<{ maps: Map[]; challenges: MapChallenge[]; selectedChallengeId: string }>();
-const emit = defineEmits<{ select: [challengeId: string] }>();
+const emit = defineEmits<{ select: [selection: { challengeId: string; mapId: string }] }>();
 const selectedMapId = shallowRef("");
 
 const selectedMap = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value));
@@ -17,7 +17,7 @@ const selectedMapChallenges = computed(() => props.challenges.filter((challenge)
     <div v-if="selectedMap" class="map-selection">
       <div class="selection-heading"><span>地图挑战</span><strong>{{ selectedMap.mapName }}</strong></div>
       <div v-if="selectedMapChallenges.length" class="map-objectives">
-        <button v-for="challenge in selectedMapChallenges" :key="challenge.challengeId" class="objective-button" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', challenge.challengeId)"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
+        <button v-for="challenge in selectedMapChallenges" :key="challenge.challengeId" class="objective-button" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>
       <p v-else class="empty-state">该地图暂时没有可提交目标。</p>
     </div>

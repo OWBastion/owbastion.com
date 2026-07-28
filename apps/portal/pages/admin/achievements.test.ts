@@ -11,6 +11,7 @@ const map = { challengeId: "map-1", family: "map", type: "map_completion", name:
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/achievements") return Promise.resolve({ items: [title, secondTitle, catalogTitle, map, secondMap] });
+  if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.kings-row", mapName: "国王大道" }] });
   if (path === "/v1/achievements?status=sunsetting") return Promise.resolve({ items: [{ ...title, status: "sunsetting", retiredVersion: "26.0713.1" }] });
   if (["/v1/achievements/title-1", "/v1/achievements/title-2", "/v1/achievements/map-1", "/v1/achievements/map-2"].includes(path) && options?.method === "PUT") return Promise.resolve();
   if (path === "/v1/titles/INTERNAL" && options?.method === "PUT") return Promise.resolve();
@@ -43,6 +44,15 @@ async function mountPage(): Promise<VueWrapper> {
 }
 
 describe("achievement admin page", () => {
+  it("opens the new achievement form after loading map choices", async () => {
+    const wrapper = await mountPage();
+    await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("新建挑战");
+    expect(wrapper.text()).toContain("通用挑战");
+    wrapper.unmount();
+  });
+
   it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("通用成就");

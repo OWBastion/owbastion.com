@@ -59,8 +59,11 @@ The current API implements versioned v1 QQ flows:
 - the maintainer Portal can inspect private evidence and OCR output and record
   an idempotent review decision; an approved decision atomically creates or
   reuses the platform title Grant and links it to the Submission.
-- maintainers can list achievement challenges and immediately update
-  title-challenge rules, including their Portal display category override;
+- maintainers can create and list achievement challenges and immediately update
+  title-challenge rules, including their Portal display category override and
+  optional map scope. A map-scoped title challenge uses one unique title key;
+  an empty map allowlist means all active maps, while a populated allowlist
+  restricts submissions and map-scoped grants to those maps;
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.

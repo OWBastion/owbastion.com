@@ -110,9 +110,11 @@ challenges remain visible in the catalog but cannot receive screenshot uploads.
 Catalog migrations are forward-only and
 must preserve the introduced and retired game-version fields.
 
-Administrator catalog management is limited to existing challenges. Title
-challenges may change their conditions, evidence rules, submission mode, and
-optional Portal display-category override. A `sunsetting` challenge requires a
+Administrator catalog management supports creating and editing title-backed
+achievement challenges. A challenge uses a unique title key and may be global
+or map-scoped. Map-scoped challenges use an optional map allowlist; an empty
+allowlist means all active maps. Title challenges may change their conditions,
+evidence rules, submission mode, map scope, and optional Portal display-category override. A `sunsetting` challenge requires a
 planned Bastion version in `YY.MMDD.N` format; an administrator may also move a
 challenge directly to `retired` without a planned version. Sunsetting challenges
 remain visible and accept new uploads; retired challenges
