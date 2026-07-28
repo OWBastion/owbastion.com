@@ -6,6 +6,7 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "test:ui": "vitest --config vitest.config.ts",
+    "test:e2e": "vitest --config vitest.e2e.config.ts --run",
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
@@ -18,7 +19,10 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@nuxt/test-utils": "^4.0.3",
+    "@vue/test-utils": "^2.4.6",
     "@iconify-json/lucide": "^1.2.118",
+    "happy-dom": "^20.11.0",
     "tailwindcss": "^4.3.3",
     "vue-tsc": "^3.0.0"
   }
