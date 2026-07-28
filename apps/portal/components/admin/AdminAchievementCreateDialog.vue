@@ -82,13 +82,13 @@ function submit() {
         <UFormField class="editor-field" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="图标" required><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="系列" required><UInput v-model="form.category" class="editor-control" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
-        <UFormField class="editor-field" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
+        <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
+        <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
         <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
         <UFormField class="editor-field" label="挑战范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '通用挑战', value: 'global' }, { label: '地图挑战', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
           <UFormField class="editor-field" label="地图范围"><USelect v-model="form.mapMode" class="editor-control" :disabled="props.saving" :items="[{ label: '全部有效地图', value: 'all' }, { label: '指定地图', value: 'selected' }]" /></UFormField>
-          <UFormField v-if="form.mapMode === 'selected'" class="editor-field" label="指定地图" required><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField v-if="form.mapMode === 'selected'" class="editor-field editor-field--wide" label="指定地图" required><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
         <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
@@ -105,6 +105,7 @@ function submit() {
 <style scoped>
 .editor {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   padding: 24px;
 }
@@ -118,10 +119,19 @@ function submit() {
   min-height: 104px;
 }
 
+.editor-field--wide {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 560px) {
   .editor {
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     padding: 20px 16px;
+  }
+
+  .editor-field--wide {
+    grid-column: auto;
   }
 }
 </style>
