@@ -86,6 +86,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
       QQBOT_API_TOKEN: ${{ secrets.QQBOT_API_TOKEN }}
+      BASTION_BUILD_TOKEN: ${{ secrets.BASTION_BUILD_TOKEN }}
       QQBOT_POLICY_WEBHOOK_URL: ${{ secrets.QQBOT_POLICY_WEBHOOK_URL }}
       QQBOT_POLICY_WEBHOOK_SECRET: ${{ secrets.QQBOT_POLICY_WEBHOOK_SECRET }}
       OCRKIT_API_TOKEN: ${{ secrets.OCRKIT_API_TOKEN }}
@@ -117,6 +118,7 @@ jobs:
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_ZONE_ID"
           test -n "$QQBOT_API_TOKEN"
+          test -n "$BASTION_BUILD_TOKEN"
           test -n "$QQBOT_POLICY_WEBHOOK_URL"
           test -n "$QQBOT_POLICY_WEBHOOK_SECRET"
           test -n "$OCRKIT_API_TOKEN"
@@ -176,6 +178,7 @@ jobs:
         shell: bash
         run: |
           printf '%s' "$QQBOT_API_TOKEN" | pnpm exec wrangler secret put QQBOT_API_TOKEN
+          printf '%s' "$BASTION_BUILD_TOKEN" | pnpm exec wrangler secret put BASTION_BUILD_TOKEN
           printf '%s' "$QQBOT_POLICY_WEBHOOK_URL" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_URL
           printf '%s' "$QQBOT_POLICY_WEBHOOK_SECRET" | pnpm exec wrangler secret put QQBOT_POLICY_WEBHOOK_SECRET
           printf '%s' "$OCRKIT_API_TOKEN" | pnpm exec wrangler secret put OCRKIT_API_TOKEN

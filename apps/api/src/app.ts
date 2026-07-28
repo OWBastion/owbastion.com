@@ -28,6 +28,7 @@ export type RuntimeEnv = {
   CACHE?: KVNamespace;
   EVIDENCE_BUCKET?: R2Bucket;
   QQBOT_API_TOKEN?: string;
+  BASTION_BUILD_TOKEN?: string;
   LOGIN_SESSION_TTL_MS?: string;
   PORTAL_ORIGIN?: string;
   LOCAL_DEV_AUTH?: string;
@@ -113,7 +114,15 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Access-Control-Allow-Headers", "content-type, x-login-attempt-token, x-claim-token, idempotency-key");
     c.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   };
-  const allowAgents = (c: any) => c.header("Cache-Control", "public, max-age=60, s-maxage=60");
+  const allowAgents = (c: any) => {
+    const token = c.env.BASTION_BUILD_TOKEN;
+    const authorization = c.req.header("authorization");
+    const includePlayerIds = Boolean(token && authorization === `Bearer ${token}`);
+    c.header("Cache-Control", includePlayerIds ? "private, no-store" : "public, max-age=60, s-maxage=60");
+    return includePlayerIds;
+  };
+  const publicAgentPlayerTitleGrants = (response: Awaited<ReturnType<PlatformServices["listAgentPlayerTitleGrants"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
+  const publicAgentMapTitleHolders = (response: Awaited<ReturnType<PlatformServices["listAgentMapTitleHolders"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
 
   app.get("/health", (c) =>
     c.json({
@@ -424,13 +433,13 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   app.get("/v1/agents/titles/:titleKey", async (c) => { allowAgents(c); const title = await dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }); return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); });
   app.get("/v1/agents/player-title-grants", async (c) => {
-    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
-    return c.json(await dependencies.services(c.env).listAgentPlayerTitleGrants(page));
+    const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    return c.json(publicAgentPlayerTitleGrants(await dependencies.services(c.env).listAgentPlayerTitleGrants(page), includePlayerIds));
   });
   app.get("/v1/agents/map-title-holders", async (c) => {
-    allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required");
+    const includePlayerIds = allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required");
     if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
-    return c.json(await dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId }));
+    return c.json(publicAgentMapTitleHolders(await dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId }), includePlayerIds));
   });
   app.get("/v1/agents/search", async (c) => {
     allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");

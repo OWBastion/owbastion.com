@@ -104,8 +104,19 @@ describe("API", () => {
     const holders = await agentApp.request("http://localhost/v1/agents/map-title-holders?mapId=map.test&page=1&pageSize=20", {}, env);
     expect(players.status).toBe(200);
     expect(holders.status).toBe(200);
-    expect((await players.json() as { items: Array<{ playerId: string }> }).items[0].playerId).toBe("1234");
-    expect((await holders.json() as { items: Array<{ slot: string }> }).items[0].slot).toBe("pioneer");
+    expect((await players.json() as { items: Array<{ playerId?: string; playerName: string }> }).items[0]).toEqual({ playerName: "Player", titleKeys: ["TITLE"], allTitles: false });
+    expect((await holders.json() as { items: Array<{ playerId?: string; mapId: string; slot: string; playerName: string }> }).items[0]).toEqual({ mapId: "map.test", slot: "pioneer", playerName: "Player" });
+  });
+
+  it("returns player IDs only with the Bastion build token", async () => {
+    const agentApp = createApp({ authenticate: auth, services: () => ({
+      ...services,
+      listAgentPlayerTitleGrants: async () => ({ contractVersion: "1" as const, items: [{ playerId: "1234", playerName: "Player", titleKeys: ["TITLE"], allTitles: false }], page: 1, pageSize: 20, total: 1, hasMore: false }),
+    }) });
+    const response = await agentApp.request("http://localhost/v1/agents/player-title-grants?page=1&pageSize=20", { headers: { authorization: "Bearer bastion-token" } }, { ...env, BASTION_BUILD_TOKEN: "bastion-token" });
+    expect(response.status).toBe(200);
+    expect((await response.json() as { items: Array<{ playerId?: string }> }).items[0].playerId).toBe("1234");
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it("lists public random events without development records", async () => {

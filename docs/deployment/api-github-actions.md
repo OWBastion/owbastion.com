@@ -60,6 +60,7 @@ Configure these repository or production-environment secrets:
 | `CLOUDFLARE_ACCOUNT_ID` | Target Cloudflare account |
 | `CLOUDFLARE_ZONE_ID` | Zone where API Shield Endpoint Management is configured |
 | `QQBOT_API_TOKEN` | Service credential accepted by the API from QQBot |
+| `BASTION_BUILD_TOKEN` | Dedicated credential required for Bastion build requests that need numeric player IDs |
 | `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
 | `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
 | `OCRKIT_API_TOKEN` | Bearer credential shared only with OCRKit |
@@ -68,6 +69,8 @@ Configure these repository or production-environment secrets:
 
 The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
 Worker as a secret and must be the same value configured on the HKG QQBot.
+`BASTION_BUILD_TOKEN` is separate and must be configured in the Bastion build
+environment; it is never sent to browsers or QQBot.
 `ADMIN_BATTLETAG` must already exist in `player_accounts`; the deployment
 validates the full BattleTag and idempotently enables its `is_admin` flag after
 migrations. The Portal container does not receive this value.
