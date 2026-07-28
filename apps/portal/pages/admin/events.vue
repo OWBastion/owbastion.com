@@ -130,7 +130,7 @@ onMounted(() => void load());
               <UFormField label="稀有度"><UInput v-model="form.rarity" required /></UFormField>
               <UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField>
               <UFormField label="类别概率"><UInputNumber v-model="form.categoryProbability" :min="0" :max="1" :step="0.01" class="w-full" /></UFormField>
-              <UFormField label="权重"><UInputNumber v-model="form.weight" :min="0" class="w-full" /></UFormField>
+              <UFormField label="权重"><UInputNumber v-model="form.weight" :min="0" :step="0.01" class="w-full" /></UFormField>
               <UFormField label="内置冷却（秒）"><UInputNumber v-model="form.cooldownSeconds" :min="0" class="w-full" /></UFormField>
               <UFormField label="持续时间（秒）"><UInputNumber v-model="form.durationSeconds" :min="0" class="w-full" /></UFormField>
             </div>
