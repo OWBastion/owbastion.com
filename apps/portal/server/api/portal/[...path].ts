@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const incomingUrl = getRequestURL(event);
   const target = new URL(`/` + path, config.public.apiBaseUrl);
   target.search = incomingUrl.search;
-  const headers: Record<string, string> = { accept: "application/json" };
+  const headers: Record<string, string> = { accept: "application/json", "user-agent": "OWBastion-Portal/1.0" };
 
   for (const name of ["cookie", "idempotency-key", "content-type", "x-login-attempt-token"]) {
     const value = request.headers[name];

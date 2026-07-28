@@ -29,7 +29,7 @@ export default {
           if (!env.QQBOT_POLICY_WEBHOOK_URL || !env.QQBOT_POLICY_WEBHOOK_SECRET) throw new Error("QQBOT_POLICY_WEBHOOK_NOT_CONFIGURED");
           const body = JSON.stringify(message.body);
           const timestamp = String(Math.floor(Date.now() / 1000));
-          const response = await fetch(env.QQBOT_POLICY_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json", "x-owb-timestamp": timestamp, "x-owb-signature": await policySignature(env.QQBOT_POLICY_WEBHOOK_SECRET, timestamp, body) }, body });
+          const response = await fetch(env.QQBOT_POLICY_WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json", "user-agent": "OWBastion-PlatformAPI/1.0", "x-owb-timestamp": timestamp, "x-owb-signature": await policySignature(env.QQBOT_POLICY_WEBHOOK_SECRET, timestamp, body) }, body });
           if (!response.ok) throw new Error(`QQBOT_POLICY_WEBHOOK_FAILED_${response.status}`);
           await platform.markQqGroupPolicyEventDelivered({ eventId: message.body.eventId });
           message.ack();

@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   const uploadId = getRouterParam(event, "uploadId");
   if (!uploadId) throw createError({ statusCode: 400, statusMessage: "Upload ID is required" });
 
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { "user-agent": "OWBastion-Portal/1.0" };
   const cookie = event.node.req.headers.cookie;
   const contentType = event.node.req.headers["content-type"];
   if (cookie) headers.cookie = Array.isArray(cookie) ? cookie[0] : cookie;

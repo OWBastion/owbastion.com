@@ -153,7 +153,7 @@ const validateSourceUrl = (value: string) => {
 
 const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket, submissionId: string, attachmentId: string, sourceUrl: string, contentType: string) => {
   validateSourceUrl(sourceUrl);
-  const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(15_000) });
+  const response = await fetch(sourceUrl, { headers: { "user-agent": "OWBastion-PlatformAPI/1.0" }, signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new Error("SOURCE_ATTACHMENT_UNAVAILABLE");
   const responseType = response.headers.get("content-type")?.split(";", 1)[0] ?? contentType;
   if (!responseType.startsWith("image/")) throw new Error("UNSUPPORTED_ATTACHMENT_TYPE");
@@ -1129,7 +1129,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) throw new Error("OCR_NOT_CONFIGURED");
       let response: Response;
       try {
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "x-request-id": crypto.randomUUID() }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": crypto.randomUUID() }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
       } catch { throw new Error("OCR_NETWORK"); }
       if (!response.ok) throw new Error(`OCR_HTTP_${response.status}`);
       let result: OcrResponse;

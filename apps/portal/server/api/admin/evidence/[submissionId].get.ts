@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   const requestId = requestIdForEvent(event);
   setRequestId(event, requestId);
   const submissionId = getRouterParam(event, "submissionId");
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { "user-agent": "OWBastion-Portal/1.0" };
   const cookie = event.node.req.headers.cookie;
   if (cookie) headers.cookie = Array.isArray(cookie) ? cookie[0] : cookie;
   if (event.node.req.headers.cookie) headers.cookie = event.node.req.headers.cookie;

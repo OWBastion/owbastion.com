@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   const request = event.node.req;
   const requestId = requestIdForEvent(event);
   setRequestId(event, requestId);
-  const headers: Record<string, string> = { accept: "application/json" };
+  const headers: Record<string, string> = { accept: "application/json", "user-agent": "OWBastion-Portal/1.0" };
   for (const name of ["cookie", "idempotency-key", "content-type"]) {
     const value = request.headers[name];
     const headerValue = Array.isArray(value) ? value[0] : value;
