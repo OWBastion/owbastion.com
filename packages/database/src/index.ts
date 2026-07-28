@@ -2,11 +2,11 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, catalogImports, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
-import { catalogCacheKey, catalogRevisionCacheTtlSeconds, clearCatalogCache, withCatalogCache } from "./catalog-cache";
+import { bumpCatalogCacheRevision, catalogCacheKey, getCatalogCacheRevision, withCatalogCache } from "./catalog-cache";
 import { invalidateSubmissionCache } from "./submission-cache";
 
 const now = () => Date.now();
@@ -191,43 +191,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
   };
 
-  const getCatalogRevision = async (): Promise<string | undefined> => {
-    const cacheKey = catalogCacheKey("revision");
-    if (cache) {
-      try {
-        const cached = await cache.get(cacheKey, "text");
-        if (cached !== null) return cached === "__none__" ? undefined : cached;
-      } catch {
-        // KV is an optional derived-data optimization; D1 remains authoritative.
-      }
-    }
-    let revision: string | undefined;
-    try {
-      const record = await db
-        .select({
-          sourceVersion: catalogImports.sourceVersion,
-          snapshotHash: catalogImports.snapshotHash,
-        })
-        .from(catalogImports)
-        .where(eq(catalogImports.status, "completed"))
-        .orderBy(desc(catalogImports.importedAt), desc(catalogImports.id))
-        .limit(1)
-        .get();
-      if (record) {
-        revision = `${record.sourceVersion}:${record.snapshotHash}`;
-      }
-    } catch {
-      // Table or record may not exist yet
-    }
-    if (cache) {
-      try {
-        await cache.put(cacheKey, revision ?? "__none__", { expirationTtl: catalogRevisionCacheTtlSeconds });
-      } catch {
-        // Ignore KV write errors
-      }
-    }
-    return revision;
-  };
+  const getCatalogRevision = (domain: "events" | "maps" | "challenges" | "titles" | "grants") => getCatalogCacheRevision(cache, domain);
 
   // Fetch all currently public challenges in two parallel queries.
   // Used by both publicEventChallenges (single-event path) and the batch list path.
@@ -335,8 +299,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async getAgentMap(input) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`map:${encodeURIComponent(input.mapId)}`, revision), async () => (await this.listMaps()).find((map) => map.mapId === input.mapId) ?? null);
+      const revision = await getCatalogRevision("maps");
+      return withCatalogCache(cache, catalogCacheKey("maps", `map:${encodeURIComponent(input.mapId)}`, revision), async () => (await this.listMaps()).find((map) => map.mapId === input.mapId) ?? null);
     },
     async listAgentAchievements(input: AgentAchievementQuery) {
       const challenges = (await this.listChallenges({ family: "achievement" })).filter((challenge) => challenge.family === "achievement");
@@ -345,8 +309,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async getAgentAchievement(input) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`achievement:${encodeURIComponent(input.challengeId)}`, revision), async () => (await this.listChallenges({ family: "achievement" })).find((challenge) => challenge.family === "achievement" && challenge.challengeId === input.challengeId) ?? null);
+      const revision = await getCatalogRevision("challenges");
+      return withCatalogCache(cache, catalogCacheKey("challenges", `achievement:${encodeURIComponent(input.challengeId)}`, revision), async () => (await this.listChallenges({ family: "achievement" })).find((challenge) => challenge.family === "achievement" && challenge.challengeId === input.challengeId) ?? null);
     },
     async listAgentTitles(input: AgentTitleQuery) {
       const titles = await this.listTitles({ mapId: input.mapId });
@@ -355,8 +319,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`player-title-grants:${input.page}:${input.pageSize}`, revision), async () => {
+      const revision = await getCatalogRevision("grants");
+      return withCatalogCache(cache, catalogCacheKey("grants", `player-title-grants:${input.page}:${input.pageSize}`, revision), async () => {
         const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId })
           .from(playerTitleGrants).innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
           .where(eq(playerTitleGrants.status, "active")).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
@@ -373,8 +337,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
     },
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`map-title-holders:${encodeURIComponent(input.mapId)}:${input.page}:${input.pageSize}`, revision), async () => {
+      const revision = await getCatalogRevision("grants");
+      return withCatalogCache(cache, catalogCacheKey("grants", `map-title-holders:${encodeURIComponent(input.mapId)}:${input.page}:${input.pageSize}`, revision), async () => {
         const rows = await db.select({ mapId: playerTitleGrants.mapId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
           .from(playerTitleGrants).innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
           .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId)))
@@ -383,8 +347,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
     },
     async getAgentTitle(input) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`title:${encodeURIComponent(input.titleKey)}`, revision), async () => {
+      const revision = await getCatalogRevision("titles");
+      return withCatalogCache(cache, catalogCacheKey("titles", `title:${encodeURIComponent(input.titleKey)}`, revision), async () => {
         const maps = await this.listMaps();
         const candidates = [...await this.listTitles({}), ...(await Promise.all(maps.map((map) => this.listTitles({ mapId: map.mapId })))).flat()];
         return candidates.find((title) => title.availability === "active" && title.titleKey === input.titleKey) ?? null;
@@ -401,15 +365,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
     },
     async listRandomEvents(input) {
-      const revision = await getCatalogRevision();
-      const cacheKey = catalogCacheKey(`events:${encodeURIComponent(JSON.stringify({
+      const cacheable = !input.query && !input.category && !input.rarity && !input.status && input.includeArchived === undefined;
+      const revision = cacheable ? await getCatalogRevision("events") : "initial";
+      const cacheKey = catalogCacheKey("events", `events:${encodeURIComponent(JSON.stringify({
         query: input.query ?? null,
         category: input.category ?? null,
         rarity: input.rarity ?? null,
         status: input.status ?? null,
         includeArchived: input.includeArchived ?? null,
       }))}`, revision);
-      return withCatalogCache(cache, cacheKey, async () => {
+      return withCatalogCache(cacheable ? cache : undefined, cacheKey, async () => {
         const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
         const rows = await db.select().from(randomEvents).where(and(...filters)).orderBy(randomEvents.name);
         if (!rows.length) return [];
@@ -433,8 +398,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
     },
     async getRandomEvent(input) {
-      const revision = await getCatalogRevision();
-      const cacheKey = catalogCacheKey(`event:${encodeURIComponent(input.eventId)}:${input.includeArchived ?? false}`, revision);
+      const revision = await getCatalogRevision("events");
+      const cacheKey = catalogCacheKey("events", `event:${encodeURIComponent(input.eventId)}:${input.includeArchived ?? false}`, revision);
       return withCatalogCache(cache, cacheKey, async () => {
         const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
         return row ? asRandomEvent(row) : null;
@@ -445,17 +410,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await validateEventLinks(input.challengeLinks); const timestamp = now(); const eventId = `event.${crypto.randomUUID()}`;
       await db.insert(randomEvents).values({ id: eventId, name: input.name, category: input.category, rarity: input.rarity, description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, createdAt: timestamp, updatedAt: timestamp });
       await replaceEventLinks(eventId, input.challengeLinks); const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, eventId)).get())!);
-      await recordIdempotency(db, auth.subject, "admin.random-event.create", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.create", "random_event", eventId, input); await clearCatalogCache(cache); return response;
+      await recordIdempotency(db, auth.subject, "admin.random-event.create", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.create", "random_event", eventId, input); await bumpCatalogCacheRevision(cache, "events"); return response;
     },
     async updateAdminRandomEvent(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<RandomEvent>(db, auth.subject, "admin.random-event.update", idempotencyKey, input); if (replay) return replay;
       const existing = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!existing) throw new Error("EVENT_NOT_FOUND"); await validateEventLinks(input.challengeLinks);
       await db.update(randomEvents).set({ name: input.name, category: input.category, rarity: input.rarity, description: input.description, durationSeconds: input.durationSeconds, cooldownSeconds: input.cooldownSeconds, weight: input.weight, gameVersion: input.gameVersion, effectTagsJson: JSON.stringify([...new Set(input.effectTags)]), releaseStatus: input.releaseStatus, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await replaceEventLinks(input.eventId, input.challengeLinks);
-      const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get())!); await recordIdempotency(db, auth.subject, "admin.random-event.update", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.update", "random_event", input.eventId, input); await clearCatalogCache(cache); return response;
+      const response = await asRandomEvent((await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get())!); await recordIdempotency(db, auth.subject, "admin.random-event.update", idempotencyKey, input, response); await recordAudit(db, auth, "admin.random-event.update", "random_event", input.eventId, input); await bumpCatalogCacheRevision(cache, "events"); return response;
     },
     async archiveAdminRandomEvent(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.random-event.archive", idempotencyKey, input); if (replay) return;
-      const event = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!event) throw new Error("EVENT_NOT_FOUND"); await db.update(randomEvents).set({ archivedAt: now(), archivedBy: auth.subject, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await recordIdempotency(db, auth.subject, "admin.random-event.archive", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.random-event.archive", "random_event", input.eventId, {}); await clearCatalogCache(cache);
+      const event = await db.select().from(randomEvents).where(eq(randomEvents.id, input.eventId)).get(); if (!event) throw new Error("EVENT_NOT_FOUND"); await db.update(randomEvents).set({ archivedAt: now(), archivedBy: auth.subject, updatedAt: now() }).where(eq(randomEvents.id, input.eventId)); await recordIdempotency(db, auth.subject, "admin.random-event.archive", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.random-event.archive", "random_event", input.eventId, {}); await bumpCatalogCacheRevision(cache, "events");
     },
     async previewAdminRandomEventImport(input) {
       const parsed = await parseEventImport(input); for (const item of parsed.rows) { try { await validateEventLinks(item.challengeLinks); } catch { parsed.errors.push({ row: 0, message: `未知挑战关联：${item.name}` }); } }
@@ -468,11 +433,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now(); const response = { importedCount: parsed.rows.length }; const statements: D1PreparedStatement[] = [];
       for (const item of parsed.rows) { const eventId = `event.${crypto.randomUUID()}`; statements.push(database.prepare("INSERT INTO random_events (id,name,category,rarity,description,duration_seconds,cooldown_seconds,weight,game_version,effect_tags_json,release_status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)").bind(eventId, item.name, item.category, item.rarity, item.description, item.durationSeconds, item.cooldownSeconds, item.weight, item.gameVersion, JSON.stringify(item.effectTags), item.releaseStatus, timestamp, timestamp)); for (const link of item.challengeLinks) statements.push(database.prepare(link.family === "map" ? "INSERT INTO random_event_map_challenges (event_id,challenge_id) VALUES (?,?)" : "INSERT INTO random_event_title_challenges (event_id,challenge_id) VALUES (?,?)").bind(eventId, link.challengeId)); }
       statements.push(database.prepare("INSERT INTO random_event_imports (id,source_hash,file_name,row_count,imported_by,imported_at) VALUES (?,?,?,?,?,?)").bind(crypto.randomUUID(), parsed.sourceHash, input.fileName, parsed.rows.length, auth.subject, timestamp)); statements.push(database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)").bind(`${auth.subject}:admin.random-event.import:${idempotencyKey}`, auth.subject, "admin.random-event.import", await hashRequest(input), JSON.stringify(response), timestamp)); statements.push(database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.random-event.import", "random_event_import", parsed.sourceHash, JSON.stringify({ fileName: input.fileName, importedCount: parsed.rows.length }), timestamp));
-      await database.batch(statements); await clearCatalogCache(cache); return response;
+      await database.batch(statements); await bumpCatalogCacheRevision(cache, "events"); return response;
     },
     async listMaps() {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey("maps", revision), async () => {
+      const revision = await getCatalogRevision("maps");
+      return withCatalogCache(cache, catalogCacheKey("maps", "maps", revision), async () => {
         const rows = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.status, "active")).orderBy(maps.name);
         return rows.map(({ map, metadata }): Map => ({
           mapId: map.id,
@@ -497,13 +462,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response: Map = { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
       await recordIdempotency(db, auth.subject, "admin.map.metadata.update", idempotencyKey, input, response);
       await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, "maps");
       return response;
     },
 
     async listChallenges(input) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`challenges:${input?.family ?? "all"}`, revision), async () => {
+      const revision = await getCatalogRevision("challenges");
+      return withCatalogCache(cache, catalogCacheKey("challenges", `challenges:${input?.family ?? "all"}`, revision), async () => {
       const items: Challenge[] = [];
       if (!input?.family || input.family === "map") {
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
@@ -688,7 +653,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, "admin.achievement.create", "challenge", challengeId, JSON.stringify({ ...input, mapIds: targetMapIds }), timestamp),
       ];
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, ["challenges", "titles"]);
       return response;
     },
 
@@ -707,7 +672,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const response: AdminChallenge = { challengeId: row.challenge.id, family: "map", type: "map_completion", kind: row.challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name, mapId: row.map.id, mapName: row.map.name, difficulty: difficulty ?? undefined, condition, evidenceRule, submissionMode: submissionMode as "manual" | "automatic", gameVersion: row.challenge.gameVersion, status: input.status, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null };
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
-        await clearCatalogCache(cache);
+        await bumpCatalogCacheRevision(cache, ["challenges", "events"]);
         return response;
       } else {
         const row = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
@@ -743,7 +708,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, icon: row.title.icon, iconUrl: input.iconUrl !== undefined ? input.iconUrl : row.title.iconUrl, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: row.challenge.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: row.challenge.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null, startsAt: input.status === "scheduled" ? input.startsAt! : null, endsAt: input.status === "scheduled" ? input.endsAt! : null, scope, mapIds };
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
-        await clearCatalogCache(cache);
+        await bumpCatalogCacheRevision(cache, ["challenges", "titles", "events"]);
         return response;
       }
     },
@@ -780,7 +745,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       await recordIdempotency(db, auth.subject, "admin.title.catalog.update", idempotencyKey, input, {});
       await recordAudit(db, auth, "admin.title.catalog.update", "title_catalog", input.titleKey, { status: input.status });
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, ["titles", "challenges", "events"]);
     },
 
     async uploadAdminTitleIcon(input, auth) {
@@ -795,7 +760,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await db.update(titleCatalog).set({ iconUrl, iconObjectKey: objectKey }).where(eq(titleCatalog.key, input.titleKey));
       if (title.iconObjectKey) await evidenceBucket.delete(title.iconObjectKey);
       await recordAudit(db, auth, "admin.title.icon.upload", "title_catalog", input.titleKey, { contentType: input.contentType, byteSize: input.body.byteLength });
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, ["titles", "challenges", "events"]);
       return { iconUrl };
     },
 
@@ -809,8 +774,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listTitles(input) {
-      const revision = await getCatalogRevision();
-      return withCatalogCache(cache, catalogCacheKey(`titles:${input.mapId ? encodeURIComponent(input.mapId) : "global"}`, revision), async () => {
+      const revision = await getCatalogRevision("titles");
+      return withCatalogCache(cache, catalogCacheKey("titles", `titles:${input.mapId ? encodeURIComponent(input.mapId) : "global"}`, revision), async () => {
       const globalRows = await db.select().from(titleCatalog).where(eq(titleCatalog.scope, "global")).orderBy(titleCatalog.key);
       const globalTitles: Title[] = globalRows.map((row) => ({
         titleKey: row.key,
@@ -910,7 +875,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (existing) await db.update(playerTitleGrants).set({ playerAccountId: player.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id));
       else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, titleKey: historical.titleKey, mapId: historical.mapId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: auth.subject, grantedAt: timestamp });
       const grantId = existing?.id ?? id;
-      await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id }); await clearCatalogCache(cache);
+      await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id }); await bumpCatalogCacheRevision(cache, "grants");
     },
 
     async createAdminManualTitleGrant(input, auth, idempotencyKey): Promise<AdminManualTitleGrantResponse> {
@@ -943,7 +908,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'admin.title.grant.manual', ?, ?, ?)").bind(`${auth.subject}:admin.title.grant.manual:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'admin.title.grant.manual', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ playerAccountId: player.id, titleKey: title.key, mapId: input.mapId ?? null, slot, alreadyOwned: Boolean(existing), reason: input.reason ?? null }), timestamp),
       ]);
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, "grants");
       return response;
     },
 
@@ -964,7 +929,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.title.grant.bulk:${idempotencyKey}`, actorId: auth.subject, operation: "admin.title.grant.bulk", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
       ];
       await db.batch(statements as [typeof statements[number], ...typeof statements]);
-      await clearCatalogCache(cache);
+      await bumpCatalogCacheRevision(cache, "grants");
       return response;
     },
 
@@ -972,7 +937,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.revoke", idempotencyKey, input); if (replay) return;
       const grant = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.id, input.grantId)).get(); if (!grant) throw new Error("TITLE_GRANT_NOT_FOUND");
       await db.update(playerTitleGrants).set({ status: "revoked", revokedBy: auth.subject, revokedAt: now(), revokeReason: input.reason ?? null }).where(eq(playerTitleGrants.id, grant.id));
-      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null }); await clearCatalogCache(cache);
+      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null }); await bumpCatalogCacheRevision(cache, "grants");
     },
 
     async createPlayerUploadSession(input, sessionToken) {
@@ -1233,7 +1198,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
       await invalidateSubmissionCache(cache, row.id);
-      if (reward) await clearCatalogCache(cache);
+      if (reward) await bumpCatalogCacheRevision(cache, "grants");
       const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
       if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       if (reward && response.decision === "approved") {

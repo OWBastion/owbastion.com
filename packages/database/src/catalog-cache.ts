@@ -1,19 +1,56 @@
-const catalogCachePrefix = "catalog:v4:";
-export const catalogCacheTtlSeconds = 7 * 24 * 60 * 60;
-export const catalogRevisionCacheTtlSeconds = 5 * 60;
+export type CatalogCacheDomain = "events" | "maps" | "challenges" | "titles" | "grants";
 
-export const catalogCacheKey = (suffix: string, revision?: string) => {
-  const revSegment = revision ? `${revision}:` : "";
-  return `${catalogCachePrefix}${revSegment}${suffix}`;
+const catalogCachePrefix = "catalog:v5:";
+const catalogRevisionPrefix = "catalog:revision:v1:";
+export const catalogCacheTtlSeconds = 7 * 24 * 60 * 60;
+export const catalogRevisionCacheTtlSeconds = 30 * 24 * 60 * 60;
+
+export const catalogRevisionCacheKey = (domain: CatalogCacheDomain) => `${catalogRevisionPrefix}${domain}`;
+
+export const catalogCacheKey = (domain: CatalogCacheDomain, suffix: string, revision?: string) => {
+  const revSegment = revision ?? "initial";
+  return `${catalogCachePrefix}${domain}:${revSegment}:${suffix}`;
+};
+
+const cacheEvent = (event: string, domain: CatalogCacheDomain) => {
+  console.debug(`[catalog-cache] ${event} domain=${domain}`);
+};
+
+export const getCatalogCacheRevision = async (cache: KVNamespace | undefined, domain: CatalogCacheDomain): Promise<string> => {
+  if (!cache) return "initial";
+  try {
+    const revision = await cache.get(catalogRevisionCacheKey(domain), "text");
+    return revision ?? "initial";
+  } catch {
+    cacheEvent("revision_read_failed", domain);
+    return "initial";
+  }
+};
+
+export const bumpCatalogCacheRevision = async (cache: KVNamespace | undefined, domains: CatalogCacheDomain | CatalogCacheDomain[]) => {
+  if (!cache) return;
+  for (const domain of [...new Set(Array.isArray(domains) ? domains : [domains])]) {
+    try {
+      await cache.put(catalogRevisionCacheKey(domain), crypto.randomUUID(), { expirationTtl: catalogRevisionCacheTtlSeconds });
+      cacheEvent("revision_bumped", domain);
+    } catch {
+      cacheEvent("revision_write_failed", domain);
+    }
+  }
 };
 
 export const withCatalogCache = async <T>(cache: KVNamespace | undefined, key: string, load: () => Promise<T>, expirationTtl = catalogCacheTtlSeconds): Promise<T> => {
+  const domain = key.split(":")[2] as CatalogCacheDomain;
   if (cache) {
     try {
       const cached = await cache.get<T>(key, "json");
-      if (cached !== null) return cached;
+      if (cached !== null) {
+        cacheEvent("hit", domain);
+        return cached;
+      }
+      cacheEvent("miss", domain);
     } catch {
-      // KV is an optional derived-data optimization; D1 remains authoritative.
+      cacheEvent("read_failed", domain);
     }
   }
 
@@ -22,23 +59,8 @@ export const withCatalogCache = async <T>(cache: KVNamespace | undefined, key: s
     try {
       await cache.put(key, JSON.stringify(value), { expirationTtl });
     } catch {
-      // A cache write failure must not fail an otherwise successful D1 read.
+      cacheEvent("write_failed", domain);
     }
   }
   return value;
-};
-
-export const clearCatalogCache = async (cache: KVNamespace | undefined) => {
-  if (!cache) return;
-  try {
-    let cursor: string | undefined;
-    do {
-      const result = await cache.list({ prefix: catalogCachePrefix, cursor });
-      await Promise.all(result.keys.map(({ name }) => cache.delete(name)));
-      if (result.list_complete) return;
-      cursor = result.cursor;
-    } while (cursor);
-  } catch {
-    // TTL remains the fallback when invalidation is unavailable.
-  }
 };

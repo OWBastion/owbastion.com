@@ -171,6 +171,13 @@ queried per map through `/v1/agents/map-title-holders?mapId=...`. These response
 are KV-first derived reads with D1 fallback and never expose historical or
 revoked grants to the Bastion build.
 
+Catalog cache keys use independent KV revisions for events, maps, challenges,
+titles, and grants. A successful platform write advances only the affected
+revision; it does not list or delete old catalog keys. Old derived values expire
+through their TTL, and KV read, write, or revision failures leave D1 as the
+authoritative fallback. Submission-status cache entries remain separately
+invalidated by submission ID.
+
 The public `/v1/agents/*` API is a read-only projection of the platform's
 current event, map, title, and achievement metadata plus title-holding facts
 needed to generate Bastion's in-game title database. Bastion reads this API
