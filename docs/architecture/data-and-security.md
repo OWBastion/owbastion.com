@@ -70,6 +70,14 @@ objects, source URLs, and audit payloads do not cross the API boundary. The
 protected administrator surface may read QQ group/member identifiers to operate
 bindings; these fields are never returned by public or player APIs.
 
+The public Agents projection is a separate game-fact boundary. It may return the
+current player display name, stable game player ID, active title keys, and the
+map scope required to generate Bastion's in-game title database. Those fields
+are public game facts, not a player account or review record. Agents responses
+must not include QQ identifiers, submission identifiers or content, review
+sources, timestamps, audit payloads, runtime analytics, or revoked and
+historical title grants.
+
 Historical title holder names are immutable source snapshots, not identity
 proof. `player_title_grants` is the single entitlement table: each record
 stores the player, stable `title_key`, optional map context, source (`historical`,

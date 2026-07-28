@@ -49,8 +49,11 @@ through the Agents API; it is not a competing metadata source.
   verification, session lookup/logout, and a platform-session-protected
   administrative API for players, groups, submissions, and achievement catalog
   management. The public read-only `/v1/agents/*` projection exposes published
-  events, maps, achievements, titles, and bounded cross-content search without
-  player, draft, or administrative data.
+  events, maps, achievements, titles, bounded cross-content search, and the
+  public game facts required to build the in-game title database. Its player
+  fields are limited to current display names, stable game player IDs, active
+  title keys, and required map scope; it excludes QQ, submission, review-source,
+  time, and audit data.
 - **Evidence:** private QQ image retrieval and R2 storage during submission
   creation when the Worker R2 binding is configured.
 

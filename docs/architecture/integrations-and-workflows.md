@@ -169,13 +169,18 @@ are KV-first derived reads with D1 fallback and never expose historical or
 revoked grants to the Bastion build.
 
 The public `/v1/agents/*` API is a read-only projection of the platform's
-current event, map, title, and achievement metadata. Bastion reads this API
+current event, map, title, and achievement metadata plus the public game facts
+needed to generate Bastion's in-game title database. Bastion reads this API
 during its build and release process; the platform does not import or consume a
 formal Bastion content snapshot. The API provides paginated event, map,
-achievement, and title queries, resource details, and bounded cross-content
-search. It does not expose player progress, runtime analytics, administrative
-fields, or private evidence, and it does not provide game implementation or
-build artifacts.
+achievement, and title queries, resource details, bounded cross-content search,
+active global title grants, and map title-holder relationships. The player
+projection is intentionally narrow: it exposes only the current display name,
+stable game player ID, active title keys, and required map scope. It does not
+expose QQ identities, submissions, review sources, timestamps, audit data,
+player progress beyond active title ownership, runtime analytics,
+administrative fields, private evidence, game implementation, or build
+artifacts.
 
 ## QQBot and login
 

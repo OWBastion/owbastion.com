@@ -123,8 +123,9 @@ tags. It never creates or issues a title: title
 identity and game facts remain Bastion-owned, while historical entitlement
 remains the separate administrator migration flow.
 
-The platform owns the current title metadata. Bastion reads that metadata
-through the Agents API when building the game. `PIONEER`, `CONQUEROR`, and
+The platform owns the current title metadata and the public game facts needed
+to generate the in-game title database. Bastion reads them through the Agents
+API when building the game. `PIONEER`, `CONQUEROR`, and
 `DOMINATOR` are map-scoped reward slots; all other titles are global. Historical
 holder names remain historical source records and must not be converted into
 platform accounts automatically. A maintainer may
