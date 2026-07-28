@@ -1,4 +1,4 @@
-const catalogCachePrefix = "catalog:v2:";
+const catalogCachePrefix = "catalog:v3:";
 export const catalogCacheTtlSeconds = 7 * 24 * 60 * 60;
 export const catalogRevisionCacheTtlSeconds = 5 * 60;
 

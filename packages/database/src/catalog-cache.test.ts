@@ -58,8 +58,8 @@ describe("catalog cache", () => {
   });
 
   it("includes revision namespace in cache key when provided", () => {
-    expect(catalogCacheKey("maps", "26.0714.1:hash123")).toBe("catalog:v2:26.0714.1:hash123:maps");
-    expect(catalogCacheKey("maps")).toBe("catalog:v2:maps");
+    expect(catalogCacheKey("maps", "26.0714.1:hash123")).toBe("catalog:v3:26.0714.1:hash123:maps");
+    expect(catalogCacheKey("maps")).toBe("catalog:v3:maps");
   });
 
   it("clears all catalog keys including revisioned keys and revision marker while preserving unrelated keys", async () => {
