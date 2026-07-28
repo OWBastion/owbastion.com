@@ -18,24 +18,15 @@ future milestones.
 | QQBot, OCRKit, Bastion, submissions, or state transitions | docs/architecture/integrations-and-workflows.md |
 | Authentication, privacy, storage, or security | docs/architecture/data-and-security.md |
 | Portal UI, components, layout, or visual changes | docs/development/portal-ui-guidelines.md, docs/development/portal-copy-guidelines.md |
+| Capability implementation or verification status | docs/development/feature-status.md |
 | Tests, migrations, queues, release, or implementation changes | docs/development/testing-and-change-policy.md |
 
-## Implemented boundary
+## Implementation status
 
-The API provides health, QQ binding and submission creation, public submission
-status, QQ browser-login attempts and verification, portal session lookup and
-logout, plus a group-access route. D1 stores business state and idempotency
-records. When EVIDENCE_BUCKET is bound, submission creation retrieves
-validated image sources and stores private evidence in R2.
-
-The current runtime authenticator only accepts the QQBot service token and
-grants channel:write. The maintainer-protected group-access route exists, but
-no maintainer authentication flow is implemented yet. Do not describe that
-route as currently operable by maintainers.
-
-OCR orchestration, review decisions, grants, admin applications, and queues
-remain future milestones where they are not already implemented. Bastion/GitHub
-change orchestration is not a platform capability or planned milestone.
+Implementation and verification status for all platform capabilities are
+maintained solely in the [Feature Status Matrix](docs/development/feature-status.md).
+Do not maintain a separate feature-status list in `AGENTS.md` or other
+documentation files to prevent documentation drift.
 
 ## Ownership and working rules
 
