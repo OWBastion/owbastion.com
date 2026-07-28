@@ -21,11 +21,12 @@ type CreatePayload = {
 };
 
 const props = defineProps<{ open: boolean; maps: TargetMap[]; saving: boolean }>();
-const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload] }>();
+const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload, iconFile: File | null] }>();
 const dialogOpen = computed({
   get: () => props.open,
   set: (open: boolean) => emit("update:open", open),
 });
+const iconFile = shallowRef<File | null>(null);
 const form = reactive({
   titleKey: "",
   titleName: "",
@@ -70,7 +71,7 @@ function submit() {
     ...(form.status === "scheduled" && form.startsAt ? { startsAt: form.startsAt } : {}),
     ...(form.status === "scheduled" && form.endsAt ? { endsAt: form.endsAt } : {}),
     ...(form.status === "sunsetting" && form.retiredVersion.trim() ? { retiredVersion: form.retiredVersion.trim() } : {}),
-  });
+  }, iconFile.value);
 }
 </script>
 
@@ -95,7 +96,19 @@ function submit() {
         <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="游戏版本" required><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.0728.1" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
-        <UFormField class="editor-field" label="自定义图标地址"><UInput v-model="form.iconUrl" class="editor-control" type="url" :disabled="props.saving" /></UFormField>
+        <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
+          <div class="icon-upload">
+            <div v-if="form.iconUrl" class="icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
+            <UInput v-model="form.iconUrl" class="editor-control" type="url" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="props.saving" />
+            <details class="icon-upload-option">
+              <summary>上传图标</summary>
+              <div class="icon-upload-content">
+                <p>PNG、JPG 或 WebP，创建挑战后上传，最大 512 KB。</p>
+                <UFileUpload v-model="iconFile" accept="image/png,image/jpeg,image/webp" :multiple="false" label="选择图标文件" :disabled="props.saving" />
+              </div>
+            </details>
+          </div>
+        </UFormField>
       </form>
     </template>
     <template #footer><UButton class="min-h-7" label="取消" color="neutral" variant="outline" size="xs" :disabled="props.saving" @click="dialogOpen = false" /><UButton class="min-h-7" label="创建挑战" type="submit" form="achievement-create-form" size="xs" :loading="props.saving" :disabled="!canSubmit" /></template>
@@ -117,6 +130,50 @@ function submit() {
 
 .editor :deep(textarea) {
   min-height: 104px;
+}
+
+.icon-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.icon-upload-option {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: .82rem;
+}
+
+.icon-upload-option summary {
+  padding-top: 10px;
+  cursor: pointer;
+}
+
+.icon-upload-content {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.icon-upload-content p {
+  margin: 0;
+  color: var(--quiet);
+  font-size: .78rem;
+}
+
+.icon-preview {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.icon-preview img {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
 }
 
 .editor-field--wide {
