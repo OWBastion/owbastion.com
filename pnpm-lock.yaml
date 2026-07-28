@@ -59,6 +59,9 @@ importers:
       '@nuxt/ui':
         specifier: ^4.10.0
         version: 4.10.0(1c961d961df16e96ffd392f5a3cd1443)
+      '@nuxtjs/color-mode':
+        specifier: ^4.0.1
+        version: 4.0.1(magicast@0.5.3)
       '@tanstack/vue-table':
         specifier: ^8.21.3
         version: 8.21.3(vue@3.5.39(typescript@5.9.3))

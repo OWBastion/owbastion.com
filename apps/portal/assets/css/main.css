@@ -34,7 +34,7 @@
   --ui-radius: 0.7rem;
 }
 
-html[data-theme="dark"] {
+html.dark {
   color-scheme: dark;
   --page: oklch(16% 0.012 48);
   --surface: oklch(20% 0.014 48);
@@ -52,17 +52,6 @@ html[data-theme="dark"] {
   --header-surface: oklch(18% 0.013 48 / 82%);
   --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black);
   --shadow: oklch(0% 0 0 / 80%);
-}
-
-@media (prefers-color-scheme: dark) {
-  html[data-theme="system"] {
-    color-scheme: dark;
-    --page: oklch(16% 0.012 48); --surface: oklch(20% 0.014 48); --surface-raised: oklch(24% 0.018 48);
-    --text: oklch(93% 0.01 100); --muted: oklch(69% 0.016 48); --quiet: oklch(51% 0.014 48);
-    --line: oklch(92% 0.01 100 / 13%); --line-strong: oklch(92% 0.01 100 / 21%);
-    --accent: oklch(74% 0.14 55); --accent-surface: oklch(30% 0.07 50); --danger: oklch(68% 0.16 25); --warning: oklch(82% 0.12 85);
-    --on-accent: oklch(19% 0.026 50); --header-surface: oklch(18% 0.013 48 / 82%); --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black); --shadow: oklch(0% 0 0 / 80%);
-  }
 }
 
 * { box-sizing: border-box; }

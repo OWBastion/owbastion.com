@@ -2,8 +2,14 @@ import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
   devtools: { enabled: false },
-  modules: ["@nuxt/ui"],
+  modules: ["@nuxt/ui", "@nuxtjs/color-mode"],
   css: ["~/assets/css/main.css"],
+  colorMode: {
+    preference: "light",
+    fallback: "light",
+    dataValue: "theme",
+    storageKey: "owbastion-portal-theme",
+  },
   compatibilityDate: "2026-07-14",
   app: {
     head: {
