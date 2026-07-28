@@ -85,6 +85,7 @@ export const randomEventImports = sqliteTable("random_event_imports", { id: text
 
 export const titleCatalog = sqliteTable("title_catalog", {
   key: text("key").primaryKey(),
+  sortOrder: integer("sort_order").notNull().default(0),
   label: text("label").notNull(),
   icon: text("icon").notNull().default("award"),
   iconUrl: text("icon_url"),
@@ -94,6 +95,7 @@ export const titleCatalog = sqliteTable("title_catalog", {
   availability: text("availability").notNull(),
   scope: text("scope").notNull(),
   displayKind: text("display_kind").notNull(),
+  colorJson: text("color_json").notNull().default("null"),
   gameVersion: text("game_version").notNull(),
 });
 

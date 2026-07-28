@@ -215,6 +215,7 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
 
 export const titleSchema = z.object({
   titleKey: externalId,
+  sortOrder: z.number().int().nonnegative(),
   label: z.string().trim().min(1).max(256),
   icon: achievementIcon,
   iconUrl: z.string().url().max(2048).nullable().optional(),
@@ -226,6 +227,11 @@ export const titleSchema = z.object({
   mapId: externalId.optional(),
   slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(),
   pioneerPrefixes: z.array(z.string().trim().min(1).max(256)).optional(),
+  color: z.union([
+    z.object({ kind: z.literal("heroColor"), index: z.number().int().nonnegative() }),
+    z.object({ kind: z.literal("rgb"), value: z.tuple([z.number().int().min(0).max(255), z.number().int().min(0).max(255), z.number().int().min(0).max(255)]) }),
+    z.object({ kind: z.literal("palette"), name: z.enum(["orange", "red", "purple", "gold", "blue"]) }),
+  ]).nullable(),
   gameVersion: z.string().trim().min(1).max(64),
 });
 
@@ -242,6 +248,10 @@ export const agentEventListResponseSchema = z.object({ contractVersion, items: z
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(achievementChallengeSchema) }).merge(agentPage);
 export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) }).merge(agentPage);
+export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName: z.string().trim().min(1).max(64), titleKeys: z.array(externalId), allTitles: z.boolean() });
+export const agentPlayerTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(agentPlayerTitleGrantSchema) }).merge(agentPage);
+export const agentMapTitleHolderSchema = z.object({ mapId: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]), playerId, playerName: z.string().trim().min(1).max(64) });
+export const agentMapTitleHolderListResponseSchema = z.object({ contractVersion, items: z.array(agentMapTitleHolderSchema) }).merge(agentPage);
 export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
 export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);
 export const agentPageQuerySchema = agentPageQuery;
@@ -526,6 +536,10 @@ export type AgentEventListResponse = z.infer<typeof agentEventListResponseSchema
 export type AgentMapListResponse = z.infer<typeof agentMapListResponseSchema>;
 export type AgentAchievementListResponse = z.infer<typeof agentAchievementListResponseSchema>;
 export type AgentTitleListResponse = z.infer<typeof agentTitleListResponseSchema>;
+export type AgentPlayerTitleGrant = z.infer<typeof agentPlayerTitleGrantSchema>;
+export type AgentPlayerTitleGrantListResponse = z.infer<typeof agentPlayerTitleGrantListResponseSchema>;
+export type AgentMapTitleHolder = z.infer<typeof agentMapTitleHolderSchema>;
+export type AgentMapTitleHolderListResponse = z.infer<typeof agentMapTitleHolderListResponseSchema>;
 export type AgentSearchResult = z.infer<typeof agentSearchResultSchema>;
 export type AgentSearchResponse = z.infer<typeof agentSearchResponseSchema>;
 export type OwnedTitle = z.infer<typeof ownedTitleSchema>;

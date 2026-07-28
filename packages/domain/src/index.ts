@@ -32,7 +32,7 @@ import type {
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   PlayerSubmissionChallengeRequest,
-  AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult,
+  AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
 } from "@owbastion/contracts";
 
 export type LocalDevAccount = {
@@ -54,6 +54,8 @@ export type AgentEventQuery = AgentPageInput & { query?: string; category?: stri
 export type AgentMapQuery = AgentPageInput & { query?: string; mechanic?: string };
 export type AgentAchievementQuery = AgentPageInput & { query?: string; status?: "active" | "sunsetting"; mapId?: string };
 export type AgentTitleQuery = AgentPageInput & { query?: string; category?: string; scope?: "global" | "map"; mapId?: string };
+export type AgentPlayerTitleGrantQuery = AgentPageInput;
+export type AgentMapTitleHolderQuery = AgentPageInput & { mapId: string };
 export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
 
 export type PlatformServices = {
@@ -64,6 +66,8 @@ export type PlatformServices = {
   listAgentAchievements(input: AgentAchievementQuery): Promise<AgentAchievementListResponse>;
   getAgentAchievement(input: { challengeId: string }): Promise<Challenge | null>;
   listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
+  listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery): Promise<AgentPlayerTitleGrantListResponse>;
+  listAgentMapTitleHolders(input: AgentMapTitleHolderQuery): Promise<AgentMapTitleHolderListResponse>;
   getAgentTitle(input: { titleKey: string }): Promise<Title | null>;
   searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
   listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;

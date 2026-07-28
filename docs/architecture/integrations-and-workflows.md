@@ -161,6 +161,13 @@ write, records the source hash and audit event, and never stores the CSV.
 
 ## Agents content API
 
+Bastion consumes current title metadata and active player grants through separate
+read-only Agents endpoints. Title definitions come from `/v1/agents/titles`;
+global active grants come from `/v1/agents/player-title-grants`; map holders are
+queried per map through `/v1/agents/map-title-holders?mapId=...`. These responses
+are KV-first derived reads with D1 fallback and never expose historical or
+revoked grants to the Bastion build.
+
 The public `/v1/agents/*` API is a read-only projection of the platform's
 current event, map, title, and achievement metadata. Bastion reads this API
 during its build and release process; the platform does not import or consume a

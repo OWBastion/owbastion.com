@@ -423,6 +423,15 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json(await dependencies.services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined }));
   });
   app.get("/v1/agents/titles/:titleKey", async (c) => { allowAgents(c); const title = await dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }); return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); });
+  app.get("/v1/agents/player-title-grants", async (c) => {
+    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    return c.json(await dependencies.services(c.env).listAgentPlayerTitleGrants(page));
+  });
+  app.get("/v1/agents/map-title-holders", async (c) => {
+    allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required");
+    if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+    return c.json(await dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId }));
+  });
   app.get("/v1/agents/search", async (c) => {
     allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
     return c.json(await dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined }));
