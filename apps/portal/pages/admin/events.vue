@@ -2,6 +2,7 @@
 import type { TableColumn } from "@nuxt/ui";
 import { getGroupedRowModel, type ColumnPinningState, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
 import type { RandomEvent } from "~/types/random-event";
+import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
@@ -38,6 +39,7 @@ const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "
 const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "success" : status === "removed" ? "default" : "warning";
 const categoryColor = (category: string) => category === "减益" ? "error" : category === "增益" ? "success" : category === "机制" ? "info" : "neutral";
 const challengeLabel = (challenge: RandomEvent["challenges"][number]) => challenge.family === "map" ? challenge.name : challenge.titleName;
+const probability = (event: RandomEvent) => calculateEventProbabilities(event, events.value);
 const eventSortingOptions = [
   { id: "name", label: "事件名称" },
   { id: "category", label: "事件类别" },
@@ -67,6 +69,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "cooldownSeconds", header: "内置冷却", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
   { accessorKey: "durationSeconds", header: "持续时间（秒）", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
   { accessorKey: "weight", header: "权重", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
+  { accessorKey: "appearanceProbability", header: "最终出现概率", meta: { class: { th: "w-28", td: "!whitespace-nowrap" } } },
   { accessorKey: "gameVersion", header: "版本", meta: { class: { th: "w-16", td: "!whitespace-nowrap" } } },
   { accessorKey: "effectTags", header: "效果类型", meta: { class: { th: "w-44", td: "align-top" } } },
   { accessorKey: "releaseStatus", header: "状态", meta: { class: { th: "w-20", td: "!whitespace-nowrap" } } },
@@ -108,6 +111,7 @@ onMounted(() => void load());
         <template #cooldownSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.cooldownSeconds ?? "—" }}</span></template>
         <template #durationSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
         <template #weight-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.weight ?? "—" }}</span></template>
+        <template #appearanceProbability-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ formatProbability(probability(row.original).appearanceProbability) }}</span></template>
         <template #effectTags-cell="{ row }"><div v-if="!row.getIsGrouped() && row.original.effectTags.length" class="flex flex-wrap gap-1"><UBadge v-for="tag in row.original.effectTags" :key="tag" :label="tag" color="neutral" variant="subtle" /></div><span v-else-if="!row.getIsGrouped()">—</span></template>
         <template #releaseStatus-cell="{ row }"><StatusBadge v-if="!row.getIsGrouped()" :label="releaseStatusText(row.original.releaseStatus)" :tone="releaseStatusTone(row.original.releaseStatus)" /></template>
         <template #actions-cell="{ row }"><UButton v-if="!row.getIsGrouped()" label="编辑" color="neutral" variant="link" @click="openEvent(row.original)" /></template>
@@ -129,6 +133,23 @@ onMounted(() => void load());
               <UFormField label="持续时间（秒）"><UInputNumber v-model="form.durationSeconds" :min="0" class="w-full" /></UFormField>
             </div>
             <UFormField class="w-full" label="内容说明"><UTextarea v-model="form.description" required :rows="4" class="w-full" /></UFormField>
+          </section>
+
+          <section class="grid gap-4">
+            <h3 class="text-base font-semibold">概率信息</h3>
+            <p class="text-sm text-muted">以下字段根据当前事件目录和运行时抽样规则即时计算，不会写入数据库。</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <template v-if="selectedEvent">
+                <UFormField label="类别概率"><UInput :model-value="formatProbability(probability(selectedEvent).categoryProbability)" readonly /></UFormField>
+                <UFormField label="组内总权重"><UInput :model-value="probability(selectedEvent).groupTotalWeight === null ? '暂无记录' : String(probability(selectedEvent).groupTotalWeight)" readonly /></UFormField>
+                <UFormField label="组内个数"><UInput :model-value="probability(selectedEvent).groupSize" readonly /></UFormField>
+                <UFormField label="单次失败率"><UInput :model-value="formatProbability(probability(selectedEvent).failureProbability)" readonly /></UFormField>
+                <UFormField label="保底触发率"><UInput :model-value="formatProbability(probability(selectedEvent).guaranteeProbability)" readonly /></UFormField>
+                <UFormField label="最终出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).appearanceProbability)" readonly /></UFormField>
+                <UFormField label="全局出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).globalAppearanceProbability)" readonly /></UFormField>
+              </template>
+              <p v-else class="text-sm text-muted sm:col-span-2">保存事件后，根据目录中的同类事件计算概率。</p>
+            </div>
           </section>
 
           <section class="grid gap-4">
