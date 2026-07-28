@@ -1,2 +1,1 @@
-ALTER TABLE title_catalog ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE title_catalog ADD COLUMN color_json TEXT NOT NULL DEFAULT 'null';

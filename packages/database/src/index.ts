@@ -741,10 +741,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async listTitles(input) {
       const revision = await getCatalogRevision();
       return withCatalogCache(cache, catalogCacheKey(`titles:${input.mapId ? encodeURIComponent(input.mapId) : "global"}`, revision), async () => {
-      const globalRows = await db.select().from(titleCatalog).where(eq(titleCatalog.scope, "global")).orderBy(titleCatalog.sortOrder);
+      const globalRows = await db.select().from(titleCatalog).where(eq(titleCatalog.scope, "global")).orderBy(titleCatalog.key);
       const globalTitles: Title[] = globalRows.map((row) => ({
         titleKey: row.key,
-        sortOrder: row.sortOrder,
         label: row.label,
         icon: row.icon,
         iconUrl: row.iconUrl,
@@ -760,7 +759,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const mapRows = await db.select({ title: titleCatalog, reward: mapTitleRewards })
         .from(mapTitleRewards)
         .innerJoin(titleCatalog, eq(mapTitleRewards.titleKey, titleCatalog.key))
-        .where(eq(mapTitleRewards.mapId, input.mapId)).orderBy(titleCatalog.sortOrder);
+        .where(eq(mapTitleRewards.mapId, input.mapId)).orderBy(titleCatalog.key);
       return globalTitles.concat(mapRows.map(({ title, reward }): Title => ({
         titleKey: title.key,
         label: title.label,
@@ -774,7 +773,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         mapId: input.mapId,
         slot: reward.slot as Title["slot"],
         pioneerPrefixes: JSON.parse(reward.pioneerPrefixesJson) as string[],
-        sortOrder: title.sortOrder,
         color: titleColor(title.colorJson),
         gameVersion: title.gameVersion,
       })));

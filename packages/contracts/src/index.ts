@@ -215,7 +215,6 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
 
 export const titleSchema = z.object({
   titleKey: externalId,
-  sortOrder: z.number().int().nonnegative(),
   label: z.string().trim().min(1).max(256),
   icon: achievementIcon,
   iconUrl: z.string().url().max(2048).nullable().optional(),
