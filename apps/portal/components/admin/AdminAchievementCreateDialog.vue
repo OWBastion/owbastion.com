@@ -22,6 +22,10 @@ type CreatePayload = {
 
 const props = defineProps<{ open: boolean; maps: TargetMap[]; saving: boolean }>();
 const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload] }>();
+const dialogOpen = computed({
+  get: () => props.open,
+  set: (open: boolean) => emit("update:open", open),
+});
 const form = reactive({
   titleKey: "",
   titleName: "",
@@ -71,7 +75,7 @@ function submit() {
 </script>
 
 <template>
-  <AdminResponsiveDialog :open="props.open" title="新建成就挑战" size="lg" @update:open="emit('update:open', $event)">
+  <AdminResponsiveDialog v-model:open="dialogOpen" title="新建成就挑战" size="lg">
     <template #body>
       <form id="achievement-create-form" class="editor" @submit.prevent="submit">
         <UFormField class="editor-field" label="唯一 key" required><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" required /></UFormField>
@@ -94,6 +98,30 @@ function submit() {
         <UFormField class="editor-field" label="自定义图标地址"><UInput v-model="form.iconUrl" class="editor-control" type="url" :disabled="props.saving" /></UFormField>
       </form>
     </template>
-    <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="props.saving" @click="emit('update:open', false)" /><UButton label="创建挑战" type="submit" form="achievement-create-form" :loading="props.saving" :disabled="!canSubmit" /></template>
+    <template #footer><UButton class="min-h-7" label="取消" color="neutral" variant="outline" size="xs" :disabled="props.saving" @click="dialogOpen = false" /><UButton class="min-h-7" label="创建挑战" type="submit" form="achievement-create-form" size="xs" :loading="props.saving" :disabled="!canSubmit" /></template>
   </AdminResponsiveDialog>
 </template>
+
+<style scoped>
+.editor {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.editor-field,
+.editor-control {
+  width: 100%;
+}
+
+.editor :deep(textarea) {
+  min-height: 104px;
+}
+
+@media (max-width: 560px) {
+  .editor {
+    gap: 16px;
+    padding: 20px 16px;
+  }
+}
+</style>
