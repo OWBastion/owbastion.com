@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminManualTitleGrantRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, submissionRequestSchema } from "./index";
+import { adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminManualTitleGrantRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
+  it("keeps random-event writes to source fields and accepts fractional cooldowns", () => {
+    const input = { contractVersion: "1", name: "赌徒：梭哈艺术", category: "机制", rarity: "SR", description: "事件说明", durationSeconds: 15, cooldownSeconds: 0.32, weight: 0.7, gameVersion: "5.0", effectTags: ["心之钢"], releaseStatus: "implemented", challengeLinks: [] };
+    expect(adminRandomEventUpdateRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, appearanceProbability: 0.1 }).success).toBe(false);
+    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, effectAnnotations: [], archived: false, challenges: [] }).success).toBe(true);
+  });
   it("accepts stable QQ binding metadata", () => {
     expect(qqBindingRequestSchema.safeParse({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1", playerName: "Player", playerId: "1234" }).success).toBe(true);
   });

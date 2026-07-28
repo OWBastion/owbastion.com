@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
@@ -72,8 +72,8 @@ export const mapMetadata = sqliteTable("map_metadata", {
 
 export const randomEvents = sqliteTable("random_events", {
   id: text("id").primaryKey(), name: text("name").notNull(), category: text("category").notNull(), rarity: text("rarity").notNull(),
-  description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: integer("cooldown_seconds"), weight: integer("weight", { mode: "number" }),
-  appearanceProbability: integer("appearance_probability", { mode: "number" }), categoryProbability: integer("category_probability", { mode: "number" }), groupTotalWeight: integer("group_total_weight", { mode: "number" }), groupSize: integer("group_size"), failureProbability: integer("failure_probability", { mode: "number" }), guaranteeProbability: integer("guarantee_probability", { mode: "number" }), globalAppearanceProbability: integer("global_appearance_probability", { mode: "number" }), gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
+  description: text("description").notNull(), durationSeconds: integer("duration_seconds"), cooldownSeconds: real("cooldown_seconds"), weight: real("weight"),
+  gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
 });
 export const effectGlossaryTerms = sqliteTable("effect_glossary_terms", {
