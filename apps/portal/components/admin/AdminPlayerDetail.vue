@@ -25,7 +25,7 @@ const submissionStatusLabel = (status: string) => submissionStatusLabels[status]
 
 <template>
   <section class="player-detail" aria-label="玩家详情">
-    <nav class="detail-tabs glass elevation-1" aria-label="玩家详情分区">
+    <nav class="detail-tabs glass elevation-1 scroll-edge" aria-label="玩家详情分区">
       <a class="detail-tab detail-tab--active" href="#overview">概览</a>
       <a class="detail-tab" href="#titles">成就与称号</a>
       <a class="detail-tab" href="#submissions">最近提交</a>

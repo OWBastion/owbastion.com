@@ -375,7 +375,7 @@
 | G-02 | P0 | 修正 `prefers-reduced-motion`：禁 transform，保留语义 fade | ✅ |
 | G-03 | P1 | 抽取 `.glass` + reduce-transparency / contrast | ✅ |
 | G-04 | P1 | Elevation 阴影阶梯 token | ✅ |
-| G-05 | P1 | Type scale（display/title/body/caption） | ☐ |
+| G-05 | P1 | Type scale（display/title/body/caption） | ✅ |
 | G-06 | P1 | 主题切换背景缓变 | ✅ |
 | G-07 | P2 | 可选 View Transitions（opacity only） | ☐ |
 
@@ -389,8 +389,8 @@
 | N-02 | P0 | 桌面 nav / 登录链接触控高度 | ✅ |
 | N-03 | P0 | 移动菜单焦点陷阱 + 键盘 | ☐ |
 | N-04 | P1 | mobile-nav leave 与 enter 对称、可打断 | ✅ |
-| N-05 | P1 | Glass 导航文字对比 | ☐ |
-| N-06 | P1 | Sticky 与内容滚动边缘 | ☐ |
+| N-05 | P1 | Glass 导航文字对比 | ✅ |
+| N-06 | P1 | Sticky 与内容滚动边缘 | ✅ |
 
 **文件：** `AppHeader.vue`，`layouts/default.vue`
 
@@ -410,7 +410,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | H-01 | P0 | 可点击 content-card 的 hover/active | ✅ |
-| H-02 | P1 | 可点 vs 静态卡片视觉分化 | ☐ |
+| H-02 | P1 | 可点 vs 静态卡片视觉分化 | ✅ |
 | H-03 | P2 | 节制的区块入场（可选，默认不做） | ☐ |
 
 **文件：** `pages/index.vue`
@@ -420,7 +420,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | E-01 | P1 | 详情改为 Modal/Drawer 响应式 | ✅ |
-| E-02 | P1 | 卡片交互与地图卡对齐 | ☐ |
+| E-02 | P1 | 卡片交互与地图卡对齐 | ✅ |
 | E-03 | P1 | group 标题 tracking 纳入 type scale | ☐ |
 | E-04 | P0 | 筛选控件触控高度 | ✅ |
 
@@ -441,7 +441,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | S-01 | P1 | SubmissionProgress 状态色过渡 | ☐ |
-| S-02 | P1 | 提交列表行 press 反馈 | ☐ |
+| S-02 | P1 | 提交列表行 press 反馈 | ✅ |
 | S-03 | ✅ | 成就选择卡 active | 保持 |
 | S-04 | P0 | 上传/提交主按钮 loading + disabled 双保险（对照指南） | ✅ |
 
@@ -493,13 +493,12 @@
 
 ### Milestone B — 材质与空间（约 1–2 PR）
 
-1. G-03, G-04, G-06 — ✅；G-05 type scale 待做  
-2. E-01, M-03, N-04 — ✅（优先包）; N-05, N-06 待做  
+1. G-03, G-04, G-05, G-06 — ✅  
+2. E-01, M-03, N-04, N-05, N-06 — ✅  
 3. A-01, MAP-01, ME-01 — ✅；A-02, MAP-02 待做  
-4. 统一卡片 hover/active（E-02, S-02, H-02）  
+4. 统一卡片 hover/active（E-02, S-02, H-02）— ✅  
 
-**优先包状态（E-01 / M-03 / N-04）：已完成**  
-**材质 token 包（G-03 / G-04 / G-06 + A-01 / MAP-01 / ME-01）：已完成**
+**Milestone B 状态：已完成（除 A-02 sticky tabs 滚动边缘细化、MAP-02 drawer reduced-motion 旗标可择机补）**
 
 ### Milestone C — 流体增强（可选）
 

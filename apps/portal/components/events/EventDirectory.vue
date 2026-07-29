@@ -53,7 +53,7 @@ onMounted(() => { hydrated.value = true; });
           <span>{{ group.events.length }} 项事件</span>
         </div>
         <div class="event-grid">
-          <button v-for="event in group.events" :key="event.eventId" class="event-card pressable-soft" type="button" @click="selected = event">
+          <button v-for="event in group.events" :key="event.eventId" class="event-card interactive-card pressable-soft" type="button" @click="selected = event">
             <div class="card-top">
               <div class="card-badges">
                 <UBadge :label="event.category" :color="categoryColor(event.category)" variant="subtle" />
@@ -103,7 +103,7 @@ onMounted(() => { hydrated.value = true; });
         <section class="challenges">
           <h3>开放挑战</h3>
           <p v-if="!selected.challenges.length" class="muted">暂无开放挑战。</p>
-          <NuxtLink v-for="challenge in selected.challenges" :key="challenge.challengeId" to="/achievements" class="challenge-link pressable-soft">
+          <NuxtLink v-for="challenge in selected.challenges" :key="challenge.challengeId" to="/achievements" class="challenge-link interactive-card pressable-soft">
             {{ challenge.family === "map" ? challenge.name : challenge.titleName }}
             <span>查看成就 →</span>
           </NuxtLink>
@@ -156,8 +156,8 @@ onMounted(() => { hydrated.value = true; });
 .event-groups { display: grid; gap: 30px; }
 .event-group { display: grid; gap: 12px; }
 .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.group-heading h2 { margin: 0; font-size: .95rem; letter-spacing: .01em; }
-.group-heading span { color: var(--quiet); font-size: .8rem; }
+.group-heading h2 { margin: 0; font-size: var(--type-caption-size); font-weight: 680; letter-spacing: 0.01em; }
+.group-heading span { color: var(--quiet); font-size: var(--type-caption-size); }
 .event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
 .event-card {
   display: grid;
@@ -165,18 +165,15 @@ onMounted(() => { hydrated.value = true; });
   align-content: start;
   gap: 13px;
   padding: 18px;
-  border: 1px solid var(--line);
   border-radius: 14px;
-  color: var(--text);
   background: color-mix(in oklch, var(--surface-raised) 88%, transparent);
-  cursor: pointer;
   text-align: left;
+  font: inherit;
 }
-.event-card:hover, .event-card:focus-visible { border-color: var(--line-strong); box-shadow: 0 14px 26px -22px var(--shadow); }
 .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card-badges { display: flex; align-items: center; gap: 8px; }
 .event-rarity { color: var(--accent); font-size: .72rem; font-weight: 750; letter-spacing: .06em; }
-.event-card h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.035em; }
+.event-card h3 { margin: 0; font-size: 1.08rem; font-weight: 650; letter-spacing: var(--type-headline-tracking); }
 .event-card p {
   display: -webkit-box;
   margin: 0;

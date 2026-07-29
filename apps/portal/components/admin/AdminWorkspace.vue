@@ -27,9 +27,9 @@ defineProps<{
 .admin-workspace { display: grid; width: min(100% - 40px, 1440px); gap: clamp(16px, 2.4vw, 24px); padding-block: clamp(38px, 6vh, 66px); }
 .admin-workspace__header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 .admin-workspace__header .eyebrow { margin-bottom: 7px; }
-.admin-workspace__header h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
+.admin-workspace__header h1 { margin: 0; font-size: var(--type-title-size); font-weight: 690; letter-spacing: var(--type-title-tracking); line-height: var(--type-title-leading); }
 .admin-workspace__meta { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-.admin-workspace__count { color: var(--quiet); font-size: .78rem; font-weight: 650; white-space: nowrap; }
+.admin-workspace__count { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; white-space: nowrap; }
 .admin-workspace__messages { display: grid; gap: 8px; }
 .admin-workspace__toolbar { min-width: 0; }
 .admin-toolbar { display: flex; align-items: center; gap: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 14px; background: color-mix(in oklch, var(--surface) 92%, var(--surface-raised)); }

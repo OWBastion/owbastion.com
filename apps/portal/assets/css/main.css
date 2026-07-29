@@ -46,6 +46,26 @@
   /* G-06 theme cross-fade */
   --theme-transition: 200ms ease;
 
+  /* N-05 vibrancy on glass */
+  --text-on-glass: var(--text);
+  --text-on-glass-secondary: color-mix(in oklch, var(--text) 82%, var(--muted));
+  --text-on-glass-quiet: color-mix(in oklch, var(--text) 58%, var(--quiet));
+
+  /* G-05 type scale (size + tracking + leading as a set) */
+  --type-display-size: clamp(3.2rem, 8vw, 6.5rem);
+  --type-display-tracking: -0.052em;
+  --type-display-leading: 0.94;
+  --type-title-size: clamp(2rem, 4vw, 3.2rem);
+  --type-title-tracking: -0.052em;
+  --type-title-leading: 0.98;
+  --type-headline-size: clamp(1.3rem, 3vw, 2.1rem);
+  --type-headline-tracking: -0.04em;
+  --type-headline-leading: 1.12;
+  --type-body-size: 1rem;
+  --type-body-leading: 1.65;
+  --type-caption-size: 0.78rem;
+  --type-kicker-size: 0.75rem;
+
   --ui-bg: var(--page);
   --ui-bg-elevated: var(--surface-raised);
   --ui-bg-accented: var(--accent-surface);
@@ -81,6 +101,8 @@ html.dark {
   --glass-bg-heavy: color-mix(in oklch, var(--surface) 86%, transparent);
   --glass-bg-chip: color-mix(in oklch, var(--surface-raised) 78%, transparent);
   --elevation-3: 0 24px 80px color-mix(in oklch, var(--shadow) 88%, transparent), 0 1px 0 color-mix(in oklch, white 10%, transparent) inset;
+  --text-on-glass-secondary: color-mix(in oklch, var(--text) 88%, var(--muted));
+  --text-on-glass-quiet: color-mix(in oklch, var(--text) 62%, var(--quiet));
 }
 
 * { box-sizing: border-box; }
@@ -110,9 +132,120 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .page-shell { width: min(100% - 40px, 1440px); margin: 0 auto; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.eyebrow { margin: 0 0 .45rem; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: normal; }
-.page-title { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
-.body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
+
+/* -------------------------------------------------------------------------- */
+/* G-05 — type scale                                                          */
+/* Prefer these over one-off letter-spacing on headings.                      */
+/* -------------------------------------------------------------------------- */
+.type-display {
+  margin: 0;
+  font-size: var(--type-display-size);
+  font-weight: 650;
+  letter-spacing: var(--type-display-tracking);
+  line-height: var(--type-display-leading);
+}
+.type-title,
+.page-title {
+  margin: 0;
+  font-size: var(--type-title-size);
+  font-weight: 690;
+  letter-spacing: var(--type-title-tracking);
+  line-height: var(--type-title-leading);
+}
+.type-headline {
+  margin: 0;
+  font-size: var(--type-headline-size);
+  font-weight: 650;
+  letter-spacing: var(--type-headline-tracking);
+  line-height: var(--type-headline-leading);
+}
+.type-body,
+.body-copy {
+  color: var(--muted);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-leading);
+  letter-spacing: 0;
+}
+.type-caption {
+  color: var(--quiet);
+  font-size: var(--type-caption-size);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+.type-kicker {
+  font-size: var(--type-kicker-size);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.eyebrow {
+  margin: 0 0 .45rem;
+  color: var(--quiet);
+  font-size: var(--type-kicker-size);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+/* -------------------------------------------------------------------------- */
+/* N-05 — text on glass                                                       */
+/* -------------------------------------------------------------------------- */
+.glass-text { color: var(--text-on-glass); font-weight: 650; }
+.glass-text-secondary { color: var(--text-on-glass-secondary); font-weight: 650; }
+.glass-text-quiet { color: var(--text-on-glass-quiet); font-weight: 650; }
+
+/* -------------------------------------------------------------------------- */
+/* N-06 — soft scroll edge under sticky floating chrome                       */
+/* -------------------------------------------------------------------------- */
+.scroll-edge {
+  position: relative;
+}
+.scroll-edge::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 6%;
+  right: 6%;
+  bottom: -14px;
+  height: 14px;
+  pointer-events: none;
+  border-radius: 50%;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--shadow) 24%, transparent),
+    transparent
+  );
+  opacity: 0.5;
+  filter: blur(1.5px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Directory / interactive cards (E-02 / S-02 / H-02)                         */
+/* Hover = border + elevation; press via pressable-soft. No hover translate.  */
+/* -------------------------------------------------------------------------- */
+.interactive-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+.interactive-card:hover,
+.interactive-card:focus-visible {
+  border-color: var(--line-strong);
+  box-shadow: var(--elevation-1);
+}
+.interactive-card--static {
+  cursor: default;
+}
+.interactive-card--static:hover,
+.interactive-card--static:focus-visible {
+  border-color: var(--line);
+  box-shadow: none;
+}
 
 /* -------------------------------------------------------------------------- */
 /* G-04 — elevation                                                           */

@@ -66,7 +66,7 @@ async function signOut() {
 </script>
 
 <template>
-  <header class="app-header-wrap">
+  <header class="app-header-wrap scroll-edge">
     <div class="app-header glass elevation-1">
       <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
       <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" /></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link">轮换挑战</NuxtLink></template></nav>
@@ -99,12 +99,18 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--muted); font-size: .78rem; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
 .main-nav :deep(ul) { gap: 2px; }
-.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 40px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
-.main-nav a { display: inline-flex; min-height: 40px; align-items: center; padding: 0 11px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 40px; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
+.main-nav a { display: inline-flex; min-height: 40px; align-items: center; padding: 0 11px; border-radius: 9px; color: var(--text-on-glass-secondary); text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
 .main-nav a:active { transform: scale(var(--press-scale)); }
-.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
+.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link),
+.main-nav :deep([data-slot="link"]:hover), .main-nav :deep([data-slot="link"]:focus-visible),
+.main-nav :deep([data-slot="trigger"]:hover), .main-nav :deep([data-slot="trigger"]:focus-visible),
+.main-nav :deep([data-active="true"]) {
+  color: var(--text-on-glass);
+  background: color-mix(in oklch, var(--surface-raised) 72%, transparent);
+}
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; font-size: .78rem; font-weight: 650; }
 .login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .mobile-menu-toggle, .mobile-nav { display: none; }
@@ -127,11 +133,12 @@ async function signOut() {
     border-radius: 14px;
     transform-origin: top center;
   }
-  .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
-  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: var(--surface); }
-  .mobile-nav a:active { transform: scale(var(--press-scale)); color: var(--text); background: var(--surface); }
+  .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--text-on-glass-secondary); font-weight: 650; text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
+  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text-on-glass); background: var(--surface); }
+  .mobile-nav a:active { transform: scale(var(--press-scale)); color: var(--text-on-glass); background: var(--surface); }
   .mobile-nav :deep(ul) { display: grid; gap: 3px; }
-  .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; }
+  .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; color: var(--text-on-glass-secondary); font-weight: 650; }
+  .mobile-nav :deep([data-slot="link"]:hover), .mobile-nav :deep([data-active="true"]) { color: var(--text-on-glass); }
 }
 /* Symmetric enter/leave path; CSS transitions restart from live values when interrupted. */
 @media (prefers-reduced-motion: no-preference) {
