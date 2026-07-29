@@ -30,8 +30,8 @@ const global = {
     EffectGlossaryTooltip: { props: ["annotation"], template: "<span>{{ annotation.term.nameZh }}</span>" },
     StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
     UEmpty: { props: ["title", "description"], template: "<div>{{ title }}{{ description }}</div>" },
-    UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"body\" /></div>" },
-    UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"body\" /></div>" },
+    UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
+    UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
   },
 };
 

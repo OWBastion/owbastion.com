@@ -15,6 +15,7 @@ const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
 const allowMotion = computed(() => reducedMotion.value !== "reduce");
 const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
+const [DefineHeaderTags, ReuseHeaderTags] = createReusableTemplate();
 
 const categories = computed(() => [...new Set(props.events.map((event) => event.category))].sort());
 const rarities = computed(() => [...new Set(props.events.map((event) => event.rarity))].sort());
@@ -80,9 +81,15 @@ onMounted(() => { hydrated.value = true; });
     </div>
     <UEmpty v-else title="暂无事件" description="没有符合当前筛选条件的事件。" variant="naked" />
 
+    <DefineHeaderTags>
+      <div v-if="selected" class="detail-header-tags">
+        <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" />
+        <UBadge :label="`v${selected.gameVersion.startsWith('v') ? selected.gameVersion.slice(1) : selected.gameVersion}`" color="neutral" variant="subtle" />
+      </div>
+    </DefineHeaderTags>
+
     <DefineDetailContent>
       <div v-if="selected" class="detail">
-        <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" class="detail-category" />
         <p class="description">{{ selected.description }}</p>
         <dl>
           <div><dt>稀有度</dt><dd>{{ selected.rarity }}</dd></div>
@@ -117,12 +124,14 @@ onMounted(() => { hydrated.value = true; });
         v-if="isDesktop"
         v-model:open="detailOpen"
         :title="selected?.name ?? '事件详情'"
-        :description="selected ? `版本 ${selected.gameVersion}` : undefined"
         close
         scrollable
         :transition="allowMotion"
-        :ui="{ content: 'event-detail-surface event-detail-modal glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]' }"
+        :ui="{ content: 'event-detail-surface event-detail-modal glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]', header: 'event-detail-header glass-segment p-4 sm:p-6', body: 'event-detail-body p-4 sm:p-6' }"
       >
+        <template #description>
+          <ReuseHeaderTags />
+        </template>
         <template #body>
           <ReuseDetailContent />
         </template>
@@ -133,12 +142,14 @@ onMounted(() => { hydrated.value = true; });
         v-model:open="detailOpen"
         direction="bottom"
         :title="selected?.name ?? '事件详情'"
-        :description="selected ? `版本 ${selected.gameVersion}` : undefined"
         close
         :should-scale-background="allowMotion"
         :set-background-color-on-scale="allowMotion"
-        :ui="{ content: 'event-detail-surface event-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'pb-[max(1rem,env(safe-area-inset-bottom))]' }"
+        :ui="{ content: 'event-detail-surface event-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'event-detail-header glass-segment p-4', body: 'event-detail-body p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]' }"
       >
+        <template #description>
+          <ReuseHeaderTags />
+        </template>
         <template #body>
           <ReuseDetailContent />
         </template>
@@ -187,7 +198,7 @@ onMounted(() => { hydrated.value = true; });
 }
 .event-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .detail { display: grid; gap: 18px; }
-.detail-category { width: fit-content; }
+.detail-header-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .description { margin: 0; color: var(--text); line-height: 1.65; }
 .detail dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: 0; border-top: 1px solid var(--line); }
 .detail dl div { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
@@ -227,10 +238,22 @@ onMounted(() => { hydrated.value = true; });
 
 <style>
 .event-detail-surface {
+  display: flex !important;
+  flex-direction: column !important;
   border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
 }
 .event-detail-modal { border-radius: 20px; overflow: hidden; }
 .event-detail-drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
+.event-detail-header {
+  flex: 0 0 auto !important;
+}
+.event-detail-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 @media (prefers-reduced-motion: reduce) {
   .event-detail-surface { transition-duration: 1ms !important; }
 }
