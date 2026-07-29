@@ -12,6 +12,6 @@
     "@owbastion/contracts": "workspace:*",
     "@owbastion/database": "workspace:*",
     "@owbastion/domain": "workspace:*",
-    "hono": "^4.7.11"
+    "hono": "^4.12.32"
   }
 }

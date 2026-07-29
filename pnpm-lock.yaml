@@ -39,8 +39,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/domain
       hono:
-        specifier: ^4.7.11
-        version: 4.12.30
+        specifier: ^4.12.32
+        version: 4.12.32
 
   apps/portal:
     dependencies:
@@ -3850,8 +3850,8 @@ packages:
   hey-listen@1.0.8:
     resolution: {integrity: sha512-COpmrF2NOg4TBWUJ5UVyaCU2A88wEMkUPK4hNqyCkqHbxT92BbvfjoSozkAIIm6XhicGlJHhFdullInrdhwU8Q==}
 
-  hono@4.12.30:
-    resolution: {integrity: sha512-emn+JoJjrN9YTpRDS5it/UI2SO9BAE37T6I3d963RxcZ81G9A4pr2SZTEiiaiKbzx+NKRg5BZ89fCL7gCJCUog==}
+  hono@4.12.32:
+    resolution: {integrity: sha512-XcuyW9qE2kJn07PkecMOBd5Vq/hMy7mmGw+idz1yblbg9N17ijJODrvPkn7/dwL3Kulj8LcRJ69DLOWf91dRUg==}
     engines: {node: '>=16.9.0'}
 
   hookable@5.5.3:
@@ -9221,7 +9221,7 @@ snapshots:
 
   hey-listen@1.0.8: {}
 
-  hono@4.12.30: {}
+  hono@4.12.32: {}
 
   hookable@5.5.3: {}
 
