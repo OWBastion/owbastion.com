@@ -85,7 +85,7 @@ function submit() {
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" class="editor-control" :disabled="props.saving" required maxlength="2048" /></UFormField>
         <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
-        <UFormField class="editor-field" label="挑战范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '通用挑战', value: 'global' }, { label: '地图挑战', value: 'map' }]" /></UFormField>
+        <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
           <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>

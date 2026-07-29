@@ -67,6 +67,11 @@ The current API implements versioned v1 QQ flows:
   optional map scope. A map-scoped title challenge uses one unique title key;
   an empty map allowlist means all active maps, while a populated allowlist
   restricts submissions and map-scoped grants to those maps;
+- the public map challenge directory is a projection of both legacy map
+  completion rows and map-scoped title challenges. The latter are expanded once
+  per applicable active map from the title challenge and its map relations; the
+  projection retains the title challenge ID and map ID for submission and grant
+  matching, and does not duplicate rows in the legacy map-completion table;
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.

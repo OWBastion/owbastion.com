@@ -52,7 +52,7 @@ describe("achievement admin page", () => {
     await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("新建挑战");
-    expect(wrapper.text()).toContain("通用挑战");
+    expect(wrapper.text()).toContain("全部地图");
     wrapper.unmount();
   });
 
@@ -62,7 +62,6 @@ describe("achievement admin page", () => {
     await flushPromises();
     const form = wrapper.get("form#achievement-create-form");
     await form.findAll("select")[1]!.setValue("map");
-    expect(form.text()).not.toContain("地图范围");
     expect(form.text()).toContain("指定地图");
     expect(form.text()).toContain("留空作用于全部有效地图");
     wrapper.unmount();
@@ -90,7 +89,7 @@ describe("achievement admin page", () => {
     expect(wrapper.findAll("td.hidden")).toHaveLength(1);
     expect(wrapper.findAll('td[rowspan="1"]:not(.hidden)')).toHaveLength(1);
 
-    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await wrapper.get('button[aria-label="地图完成挑战"]').trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("国王大道");
     expect(wrapper.text()).not.toContain("内部称号");
@@ -165,7 +164,7 @@ describe("achievement admin page", () => {
 
   it("ends an active map challenge directly without a release version", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await wrapper.get('button[aria-label="地图完成挑战"]').trigger("click");
     await flushPromises();
     const endButton = wrapper.get('button[aria-label="结束挑战"]');
     await endButton.trigger("click");
@@ -180,7 +179,7 @@ describe("achievement admin page", () => {
 
   it("saves expanded map challenge rules", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await wrapper.get('button[aria-label="地图完成挑战"]').trigger("click");
     await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
     const form = wrapper.get("form.editor");
     await form.find('input[maxlength="256"]').setValue("新的地图挑战");

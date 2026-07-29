@@ -219,6 +219,71 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const ids = new Set([...mapLinks.map((link) => link.challengeId), ...titleLinks.map((link) => link.challengeId)]);
     return challenges.filter((challenge) => ids.has(challenge.challengeId));
   };
+  const listMapScopedTitleChallenges = async (): Promise<Challenge[]> => {
+    const [titleRows, activeMaps] = await Promise.all([
+      db.select({ challenge: titleChallenges, title: titleCatalog })
+        .from(titleChallenges)
+        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+        .where(and(eq(titleChallenges.scope, "map"), eq(titleCatalog.scope, "map"), eq(titleCatalog.availability, "active"), inArray(titleChallenges.status, ["active", "sunsetting"]))),
+      db.select({ id: maps.id, name: maps.name }).from(maps).where(eq(maps.status, "active")),
+    ]);
+    const items: Challenge[] = [];
+    for (const { challenge, title } of titleRows) {
+      const targetRows = await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, challenge.id));
+      const targetIds = targetRows.map(({ mapId }) => mapId);
+      const targetMaps = targetIds.length ? activeMaps.filter((map) => targetIds.includes(map.id)) : activeMaps;
+      const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, now());
+      if (status !== "active" && status !== "sunsetting") continue;
+      items.push(...targetMaps.map((map) => ({
+        challengeId: challenge.id,
+        family: "map" as const,
+        type: "map_completion" as const,
+        kind: "map_title_achievement" as const,
+        name: title.label,
+        mapId: map.id,
+        mapName: map.name,
+        titleKey: title.key,
+        gameVersion: challenge.gameVersion,
+        status: status as "active" | "sunsetting",
+        retiredVersion: challenge.retiredVersion ?? undefined,
+      })));
+    }
+    return items;
+  };
+  const listAdminMapScopedTitleChallenges = async (statusFilter?: string): Promise<AdminChallenge[]> => {
+    const [titleRows, activeMaps] = await Promise.all([
+      db.select({ challenge: titleChallenges, title: titleCatalog })
+        .from(titleChallenges)
+        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+        .where(and(eq(titleChallenges.scope, "map"), eq(titleCatalog.scope, "map"), statusFilter ? eq(titleChallenges.status, statusFilter) : inArray(titleChallenges.status, ["scheduled", "active", "sunsetting", "retired"]))),
+      db.select({ id: maps.id, name: maps.name }).from(maps).where(eq(maps.status, "active")),
+    ]);
+    const items: AdminChallenge[] = [];
+    for (const { challenge, title } of titleRows) {
+      if (challenge.status === "scheduled") continue;
+      const targetRows = await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, challenge.id));
+      const targetIds = targetRows.map(({ mapId }) => mapId);
+      const targetMaps = targetIds.length ? activeMaps.filter((map) => targetIds.includes(map.id)) : activeMaps;
+      items.push(...targetMaps.map((map) => ({
+        challengeId: challenge.id,
+        family: "map" as const,
+        type: "map_completion" as const,
+        kind: "map_title_achievement" as const,
+        name: title.label,
+        mapId: map.id,
+        mapName: map.name,
+        titleKey: title.key,
+        condition: challenge.condition,
+        evidenceRule: challenge.evidenceRule,
+        submissionMode: challenge.submissionMode as "manual" | "automatic",
+        gameVersion: challenge.gameVersion,
+        status: challenge.status === "retired" ? "retired" as const : challenge.status as "active" | "sunsetting",
+        introducedVersion: challenge.introducedVersion,
+        retiredVersion: challenge.retiredVersion,
+      })));
+    }
+    return items;
+  };
   const glossary = async () => (await db.select().from(effectGlossaryTerms)).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
   const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
@@ -453,6 +518,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           status: challenge.status as "active" | "sunsetting",
           retiredVersion: challenge.retiredVersion ?? undefined,
         })));
+        items.push(...await listMapScopedTitleChallenges());
       }
       if (!input?.family || input.family === "achievement") {
         const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
@@ -513,6 +579,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
         })));
+        items.push(...await listAdminMapScopedTitleChallenges(input.status));
       }
       if (!input.family || input.family === "achievement") {
         const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
