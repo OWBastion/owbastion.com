@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 const route = useRoute();
@@ -42,7 +43,7 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   actionLoading.value = true;
   reviewError.value = "";
   try {
-    const result = await api<{ decision: typeof decision; titleName?: string; alreadyOwned?: boolean }>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", decision } });
+    const result = await api<{ decision: typeof decision; titleName?: string; alreadyOwned?: boolean }>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", decision } });
     toast.add({ title: decision === "approved" ? result.alreadyOwned ? `审核通过；玩家此前已拥有「${result.titleName ?? "称号"}」，未重复发放` : `审核通过，已发放「${result.titleName ?? "称号"}」` : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
     await navigateTo("/admin/reviews");
   } catch (error) {

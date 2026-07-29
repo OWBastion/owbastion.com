@@ -3,6 +3,7 @@ import type { TabsItem } from "@nuxt/ui";
 import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
 import { bindingInviteCopyText } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 
@@ -124,7 +125,7 @@ async function decide(claim: Claim, decision: "approved" | "rejected") {
   try {
     await api(`/v1/binding-claims/${claim.claimId}/decision`, {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", decision },
     });
     toast.add({ title: `申请已${action}`, color: "success" });
@@ -154,7 +155,7 @@ async function revokeInvitation() {
     const reason = revokeReason.value.trim();
     await api(`/v1/binding-invites/${revokeTarget.value.inviteId}/revoke`, {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", ...(reason ? { reason } : {}) },
     });
     revokeTarget.value = null;

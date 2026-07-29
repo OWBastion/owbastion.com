@@ -3,6 +3,7 @@ import type { TableColumn } from "@nuxt/ui";
 import type { Map } from "~/composables/useSubmissionUpload";
 import type { AdminAchievement } from "~/pages/admin/achievements.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "地图管理 · 躲避堡垒 3" });
@@ -85,7 +86,7 @@ async function saveMetadata() {
   try {
     const updated = await api<Map>(`/v1/maps/${encodeURIComponent(selectedMap.value.mapId)}/metadata`, {
       method: "PUT",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", difficultyRating: draftRating.value, mechanics: draftMechanics.value, coverUrl: draftCoverUrl.value.trim() || null, backgroundUrl: draftBackgroundUrl.value.trim() || null },
     });
     maps.value = maps.value.map((map) => map.mapId === updated.mapId ? updated : map);
@@ -116,7 +117,7 @@ async function updateChallenge(challenge: MapChallenge, status: MapChallenge["st
   try {
     const updated = await api<MapChallenge>(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
       method: "PUT",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion: nextRetiredVersion } : {}) },
     });
     challenges.value = challenges.value.map((item) => item.challengeId === updated.challengeId ? updated : item);

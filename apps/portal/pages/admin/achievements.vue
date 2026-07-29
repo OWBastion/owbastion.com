@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn, TabsItem } from "@nuxt/ui";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "成就管理 · 躲避堡垒 3" });
@@ -234,7 +235,7 @@ async function createAchievement(payload: Record<string, unknown>, iconFile: Fil
   errorMessage.value = "";
   let iconUploadError = "";
   try {
-    const created = await api<AdminAchievement>("/v1/achievements", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: payload });
+    const created = await api<AdminAchievement>("/v1/achievements", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: payload });
     items.value = [created, ...items.value];
     if (iconFile) {
       const body = new FormData();
@@ -270,7 +271,7 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
   try {
     await api<void>(`/v1/titles/${encodeURIComponent(item.titleKey)}`, {
       method: "PUT",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: {
         contractVersion: "1",
         status,
@@ -305,7 +306,7 @@ async function save(item: AdminAchievement, body: Record<string, unknown>, messa
   try {
     const updated = await api<AdminAchievement>(`/v1/achievements/${encodeURIComponent(item.challengeId)}`, {
       method: "PUT",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", ...body },
     });
     items.value = items.value.map((candidate) => candidate.challengeId === updated.challengeId ? updated : candidate);

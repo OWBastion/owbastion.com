@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "称号迁移 · 躲避堡垒 3" });
@@ -89,7 +90,7 @@ async function grant(row: { grantId: string }) {
   saving.value = true;
   errorMessage.value = "";
   try {
-    await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", playerAccountId: selectedPlayerId.value, historicalTitleGrantId: row.grantId } });
+    await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", playerAccountId: selectedPlayerId.value, historicalTitleGrantId: row.grantId } });
     toast.add({ title: "已关联", color: "success" });
     await load();
   } catch (error) {
@@ -101,7 +102,7 @@ async function revoke(row: { grantId: string }) {
   saving.value = true;
   errorMessage.value = "";
   try {
-    await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1" } });
+    await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
     toast.add({ title: "已撤销", color: "success" });
     await load();
   } catch (error) {
@@ -115,7 +116,7 @@ async function grantAll() {
   errorMessage.value = "";
   const snapshot = pendingGrants.value.map((grant) => grant.mapName ? `${grant.label} · ${grant.mapName}` : grant.label);
   try {
-    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", holderName: bulkHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId } });
+    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", holderName: bulkHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId } });
     const listed = snapshot.slice(0, 5);
     const overflow = snapshot.length - listed.length;
     toast.add({ title: result.grantedCount ? `已关联 ${result.grantedCount} 项称号` : "暂无可关联称号", description: result.grantedCount ? `${listed.join("、")}${overflow > 0 ? ` 等 +${overflow} 项` : ""}` : undefined, color: "success" });

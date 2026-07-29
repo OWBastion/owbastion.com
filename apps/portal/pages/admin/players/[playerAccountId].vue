@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "玩家详情 · 躲避堡垒 3" });
@@ -35,7 +36,7 @@ async function setStatus(next: "active" | "banned") {
   actionLoading.value = true;
   try {
     const reason = banReason.value.trim();
-    await api(`/v1/player-accounts/${player.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": crypto.randomUUID() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
+    await api(`/v1/player-accounts/${player.value.playerAccountId}/status`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", status: next, ...(reason ? { reason } : {}) } });
     toast.add({ title: next === "banned" ? "玩家已封禁" : "玩家已解封", color: "success" });
     closeAction(true);
     await load();
@@ -46,7 +47,7 @@ async function unbind(bindingId: string) {
   if (!player.value) return;
   actionLoading.value = true;
   try {
-    await api(`/v1/bindings/${bindingId}`, { method: "DELETE", headers: { "Idempotency-Key": crypto.randomUUID() } });
+    await api(`/v1/bindings/${bindingId}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } });
     toast.add({ title: "QQ 绑定已解除", color: "success" });
     closeAction(true);
     await load();

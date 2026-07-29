@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { bindingInviteCopyText } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 type Invitation = {
   inviteId: string;
@@ -65,7 +66,7 @@ async function createInvitations() {
   try {
     const response = await api<{ items: Invitation[] }>("/v1/binding-invites/batch", {
       method: "POST",
-      headers: { "Idempotency-Key": crypto.randomUUID() },
+      headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", invitations: parsed.value.invitations },
     });
     invitations.value = response.items;

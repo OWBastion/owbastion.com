@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
+import { createRequestId } from "~/utils/request-id";
 
 type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string; slot?: "pioneer" | "conqueror" | "dominator" };
 type TitleOption = Title & { mapName?: string; value: string };
@@ -63,7 +64,7 @@ async function grant() {
     for (const title of selected) {
       results.push(await api<{ titleName: string; alreadyOwned: boolean }>("/v1/title-grants/manual", {
         method: "POST",
-        headers: { "Idempotency-Key": crypto.randomUUID() },
+        headers: { "Idempotency-Key": createRequestId() },
         body: { contractVersion: "1", playerAccountId: props.playerAccountId, titleKey: title.titleKey, ...(title.mapId ? { mapId: title.mapId } : {}), ...(reason.value.trim() ? { reason: reason.value.trim() } : {}) },
       }));
     }
