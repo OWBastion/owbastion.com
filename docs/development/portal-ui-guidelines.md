@@ -112,6 +112,7 @@ Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introduc
 - Divider: `var(--line)`; emphasized border: `var(--line-strong)`.
 - Brand action: `var(--accent)` / `var(--accent-surface)`; error and warning: `var(--danger)` / `var(--warning)`.
 - Use `page-shell` for regular pages and `surface-card` for cards. Do not redefine container width, radius, button height, or the font system per page.
+- Press feedback: add `pressable` (controls, scale `0.97`) or `pressable-soft` (cards/rows, scale `0.985`) from `main.css` instead of one-off `:active { transform }` rules. `primary-button` / `secondary-button` and Nuxt UI `UButton` roots already press. Prefer hover border/shadow over hover-only translate; always pair interactive cards with active press. Under `prefers-reduced-motion: reduce`, spatial press and enter/leave transforms are suppressed globally—do not reintroduce component-local scale/slide transitions without a reduce fallback that is opacity/color only.
 
 Current baselines are approximately `1100px` maximum page width, `24–28px` horizontal page padding, and `44px` minimum height for primary buttons. These are system baselines; do not drift from them in a single page. If a global rule needs to change, update the token or shared component and describe the impact.
 
@@ -139,7 +140,7 @@ Permission boundary: public pages must not render QQ OpenIDs, private screenshot
 - Use `h1`, `h2`, and `h3` according to page hierarchy. Every major section needs a heading or `aria-label`.
 - Use Nuxt UI focus management for dialogs, menus, and forms. Do not implement session-style overlays manually.
 - Provide text for states and errors; never rely on color, icons, or position alone.
-- Preserve `prefers-reduced-transparency`, `prefers-contrast`, and `prefers-reduced-motion` behavior. New animation must be necessary and have a reduced-motion/static fallback.
+- Preserve `prefers-reduced-transparency`, `prefers-contrast`, and `prefers-reduced-motion` behavior. New animation must be necessary and have a reduced-motion/static fallback. Global reduce policy (in `main.css`) limits transitions to opacity/color/border/background and disables interactive transforms and Vue enter/leave spatial motion—extend that policy rather than inventing a second reduce strategy per component.
 
 ## Agent workflow
 

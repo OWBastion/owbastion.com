@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="theme-menu">
-    <button ref="trigger" class="theme-trigger" type="button" :aria-label="`当前主题：${currentLabel}，打开主题菜单`" aria-haspopup="menu" :aria-expanded="open" @click="toggle">
+    <button ref="trigger" class="theme-trigger pressable" type="button" :aria-label="`当前主题：${currentLabel}，打开主题菜单`" aria-haspopup="menu" :aria-expanded="open" @click="toggle">
       <AppIcon :name="currentIcon" />
     </button>
     <div v-show="open" ref="panel" class="theme-panel" role="menu" aria-label="主题菜单">
@@ -69,13 +69,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .theme-menu { position: relative; }
-.theme-trigger { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: transparent; transition: color 160ms ease, border-color 160ms ease, background 160ms ease, transform 120ms ease; }
+.theme-trigger { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: transparent; transition: color 160ms ease, border-color 160ms ease, background 160ms ease; }
 .theme-trigger:hover, .theme-trigger[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-surface); }
-.theme-trigger:active { transform: scale(.96); }
 .theme-trigger .app-icon { width: 17px; height: 17px; }
 .theme-panel { position: absolute; z-index: 30; top: calc(100% + 10px); right: 0; display: grid; width: 156px; gap: 3px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface-raised); box-shadow: 0 8px 18px -8px var(--shadow); transform-origin: top right; animation: theme-menu-in 150ms ease-out; }
 .theme-option { display: flex; min-height: 38px; align-items: center; gap: 9px; padding: 0 9px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: .77rem; text-align: left; }
 .theme-option:hover, .theme-option:focus-visible { color: var(--text); background: var(--surface); outline: 0; }
+.theme-option:active { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 88%, var(--surface)); }
 .theme-option > .app-icon { width: 16px; height: 16px; color: var(--accent); }
 .theme-option span { flex: 1; white-space: nowrap; }
 .theme-check { width: 14px !important; height: 14px !important; }

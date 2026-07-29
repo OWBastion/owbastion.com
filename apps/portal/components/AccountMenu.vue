@@ -42,7 +42,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="account-menu">
-    <button ref="trigger" class="account-trigger" type="button" aria-label="打开账户菜单" aria-haspopup="menu" :aria-expanded="open" @click="toggle">
+    <button ref="trigger" class="account-trigger pressable" type="button" aria-label="打开账户菜单" aria-haspopup="menu" :aria-expanded="open" @click="toggle">
       <span class="account-avatar" aria-hidden="true">{{ props.player.playerName.slice(0, 1) }}</span>
     </button>
     <div v-show="open" ref="panel" class="account-panel" role="menu" aria-label="账户菜单">
@@ -58,9 +58,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .account-menu { position: relative; }
-.account-trigger { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--accent); background: var(--accent-surface); transition: transform 120ms ease, border-color 160ms ease; }
+.account-trigger { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--accent); background: var(--accent-surface); }
 .account-trigger:hover, .account-trigger[aria-expanded="true"] { border-color: var(--accent); }
-.account-trigger:active { transform: scale(.96); }
 .account-avatar { font-size: .85rem; font-weight: 720; letter-spacing: -.04em; }
 .account-panel { position: absolute; z-index: 30; top: calc(100% + 10px); right: 0; display: grid; width: min(270px, calc(100vw - 28px)); gap: 3px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface-raised); box-shadow: 0 8px 18px -8px var(--shadow); transform-origin: top right; animation: account-menu-in 150ms ease-out; }
 .account-identity { display: flex; min-height: 38px; align-items: center; gap: 10px; padding: 4px 9px 8px; color: var(--text); font-size: .78rem; }
@@ -68,6 +67,7 @@ onBeforeUnmount(() => {
 .account-divider { height: 1px; margin: 1px 0 4px; background: var(--line); }
 .account-menu-item { display: flex; min-height: 42px; align-items: center; gap: 10px; width: 100%; padding: 0 9px; border: 0; border-radius: 8px; color: var(--muted); background: transparent; font-size: .8rem; text-decoration: none; text-align: left; }
 .account-menu-item:hover, .account-menu-item:focus-visible { color: var(--text); background: var(--surface); outline: 0; }
+.account-menu-item:active { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 88%, var(--surface)); }
 .account-menu-logout { cursor: pointer; }
 .account-menu-logout .app-icon { color: var(--danger); }
 @keyframes account-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }

@@ -68,14 +68,14 @@ async function signOut() {
 <template>
   <header class="app-header-wrap">
     <div class="app-header">
-      <NuxtLink to="/" class="brand" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
+      <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
       <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" /></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link">轮换挑战</NuxtLink></template></nav>
       <div class="account-actions">
         <ThemeMenu />
         <LazyAccountMenu v-if="player" :player="player.player" @logout="signOut" />
-        <NuxtLink v-else to="/login" class="login-link">登录</NuxtLink>
+        <NuxtLink v-else to="/login" class="login-link pressable">登录</NuxtLink>
       </div>
-      <button ref="menuButton" class="mobile-menu-toggle" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
+      <button ref="menuButton" class="mobile-menu-toggle pressable" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
       <Transition name="mobile-nav"><nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template><template v-else><NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link" @click="closeMenu()">轮换挑战</NuxtLink></template></nav></Transition>
     </div>
   </header>
@@ -90,11 +90,11 @@ async function signOut() {
 .main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--muted); font-size: .78rem; }
 .main-nav :deep(ul) { gap: 2px; }
 .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 36px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
-.main-nav a { display: inline-flex; min-height: 36px; align-items: center; padding: 0 9px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease; }
+.main-nav a { display: inline-flex; min-height: 36px; align-items: center; padding: 0 9px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
+.main-nav a:active { transform: scale(var(--press-scale)); }
 .main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
-.login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; transition: transform 100ms ease-out, background 160ms ease; }
-.login-link:active { transform: scale(.97); }
+.login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .mobile-menu-toggle, .mobile-nav { display: none; }
 @media (max-width: 900px) {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
@@ -104,8 +104,9 @@ async function signOut() {
   .mobile-menu-toggle { display: inline-grid; flex: 0 0 40px; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
   .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
   .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--menu-surface); box-shadow: 0 16px 30px -18px var(--shadow); backdrop-filter: blur(22px) saturate(1.12); transform-origin: top right; }
-  .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; }
+  .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
   .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: var(--surface); }
+  .mobile-nav a:active { transform: scale(var(--press-scale)); color: var(--text); background: var(--surface); }
   .mobile-nav :deep(ul) { display: grid; gap: 3px; }
   .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; }
 }

@@ -20,6 +20,10 @@
   --menu-surface: oklch(98% 0.008 90 / 96%);
   --shadow: oklch(20% 0.02 55 / 28%);
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+  /* G-01 press feedback */
+  --press-scale: 0.97;
+  --press-scale-soft: 0.985;
+  --press-duration: 100ms;
   --ui-bg: var(--page);
   --ui-bg-elevated: var(--surface-raised);
   --ui-bg-accented: var(--accent-surface);
@@ -69,21 +73,136 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-title { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
 .surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 34px -30px var(--shadow); }
-.primary-button, .secondary-button { min-height: 44px; padding: 0 15px; border-radius: 11px; font-size: .88rem; font-weight: 680; transition: transform 100ms ease-out, background 180ms ease, border-color 180ms ease; }
-.primary-button { border: 1px solid color-mix(in oklch, var(--accent) 75%, var(--on-accent)); color: var(--on-accent); background: var(--accent); }
-.secondary-button { border: 1px solid var(--line-strong); color: var(--text); background: var(--surface-raised); }
-.primary-button:active, .secondary-button:active { transform: scale(.97); }
-.primary-button:disabled, .secondary-button:disabled { cursor: default; opacity: .58; }
 
-@media (prefers-reduced-transparency: reduce) { .app-header { background: var(--surface) !important; backdrop-filter: none !important; } }
-@media (prefers-contrast: more) { .surface-card, .app-header { border-color: var(--text) !important; } }
-@media (max-width: 620px) { .page-shell { width: min(100% - 24px, 1440px); } }
-@media (prefers-reduced-transparency: reduce) { .mobile-nav { background: var(--surface-raised) !important; backdrop-filter: none !important; } }
+/* -------------------------------------------------------------------------- */
+/* G-01 — unified press feedback                                              */
+/* .pressable       = controls / compact targets (scale 0.97)                 */
+/* .pressable-soft  = cards / larger surfaces (scale 0.985)                   */
+/* -------------------------------------------------------------------------- */
+.pressable,
+.pressable-soft,
+.primary-button,
+.secondary-button {
+  transition:
+    transform var(--press-duration) ease-out,
+    background 180ms ease,
+    border-color 180ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.pressable:active:not(:disabled):not([aria-disabled="true"]),
+.primary-button:active:not(:disabled),
+.secondary-button:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+}
+
+.pressable-soft:active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(var(--press-scale-soft));
+}
+
+.pressable:disabled,
+.pressable[aria-disabled="true"],
+.pressable-soft:disabled,
+.pressable-soft[aria-disabled="true"],
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: default;
+  opacity: .58;
+  transform: none;
+}
+
+/* Nuxt UI Button / link-button root (ULinkBase sets data-slot="base") */
+button[data-slot="base"],
+a[data-slot="base"] {
+  transition-property: color, background-color, border-color, opacity, box-shadow, transform;
+  transition-duration: var(--press-duration);
+  transition-timing-function: ease-out;
+}
+
+button[data-slot="base"]:active:not(:disabled):not([aria-disabled="true"]),
+a[data-slot="base"]:active:not([aria-disabled="true"]) {
+  transform: scale(var(--press-scale));
+}
+
+.primary-button {
+  border: 1px solid color-mix(in oklch, var(--accent) 75%, var(--on-accent));
+  color: var(--on-accent);
+  background: var(--accent);
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 11px;
+  font-size: .88rem;
+  font-weight: 680;
+}
+
+.secondary-button {
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  background: var(--surface-raised);
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 11px;
+  font-size: .88rem;
+  font-weight: 680;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .app-header { background: var(--surface) !important; backdrop-filter: none !important; }
+  .mobile-nav { background: var(--surface-raised) !important; backdrop-filter: none !important; }
+}
+
+@media (prefers-contrast: more) {
+  .surface-card, .app-header { border-color: var(--text) !important; }
+  :is(button, a, input, select, textarea):focus-visible { outline-color: var(--text); }
+}
+
+@media (max-width: 620px) {
+  .page-shell { width: min(100% - 24px, 1440px); }
+}
+
+/* -------------------------------------------------------------------------- */
+/* G-02 — prefers-reduced-motion: cross-fade / color, not spatial motion      */
+/* Static decorative transforms stay; interactive hover/active/enter spatial  */
+/* motion is suppressed. Transitions are limited to non-vestibular props.     */
+/* -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 120ms !important; }
-  *:where(:active) { transform: none !important; }
-}
-@media (prefers-contrast: more) {
-  :is(button, a, input, select, textarea):focus-visible { outline-color: var(--text); }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, outline-color, fill, stroke, box-shadow, text-decoration-color !important;
+    transition-duration: 150ms !important;
+    transition-timing-function: ease !important;
+  }
+
+  /* Kill press / hover spatial feedback on interactive surfaces */
+  :is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], .pressable, .pressable-soft, .primary-button, .secondary-button):is(:hover, :active, :focus-visible),
+  :is(a, button, [role="button"], .pressable, .pressable-soft, .primary-button, .secondary-button)[aria-expanded="true"] {
+    transform: none !important;
+  }
+
+  button[data-slot="base"]:active,
+  a[data-slot="base"]:active {
+    transform: none !important;
+  }
+
+  /* Vue <Transition> / <TransitionGroup> name-*-enter/leave: no slide/scale */
+  [class*="-enter-active"],
+  [class*="-leave-active"] {
+    transition-property: opacity !important;
+    transition-duration: 150ms !important;
+  }
+
+  [class*="-enter-from"],
+  [class*="-enter-to"],
+  [class*="-leave-from"],
+  [class*="-leave-to"],
+  [class*="-move"] {
+    transform: none !important;
+  }
 }

@@ -22,6 +22,7 @@ architecture milestones.
 - [Feature status matrix](development/feature-status.md) — the single source of truth for capability implementation and verification status.
 - [Portal copy guidelines](development/portal-copy-guidelines.md) — concise copy rules, status vocabulary, empty states, errors, and examples for Portal work.
 - [Portal UI guidelines](development/portal-ui-guidelines.md) — agent-facing page structures, component selection, states, responsive behavior, and accessibility rules.
+- [Portal Apple Design audit](development/portal-apple-design-audit.md) — fluid interface, materials, typography, and motion fix backlog for `apps/portal`.
 
 ## Deployment
 

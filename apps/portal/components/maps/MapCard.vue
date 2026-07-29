@@ -15,7 +15,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 </script>
 
 <template>
-  <button class="map-card" type="button" :aria-label="`查看${map.mapName}详情`" @click="emit('select')">
+  <button class="map-card pressable-soft" type="button" :aria-label="`查看${map.mapName}详情`" @click="emit('select')">
     <div class="map-card-visual" :style="map.backgroundUrl ? { backgroundImage: `linear-gradient(color-mix(in oklch, var(--surface) 42%, transparent), color-mix(in oklch, var(--surface) 68%, transparent)), url(${map.backgroundUrl})` } : undefined" aria-hidden="true"><img v-if="map.coverUrl" :src="map.coverUrl" alt="" /><span v-else>{{ mapIndex }}</span><i></i><b></b></div>
     <div class="map-card-body">
       <div class="map-card-heading"><h2>{{ map.mapName }}</h2><span>{{ map.gameVersion }}</span></div>
@@ -30,10 +30,9 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 </template>
 
 <style scoped>
-.map-card { display: grid; min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; color: inherit; background: var(--surface); font: inherit; text-align: left; transition: border-color 160ms ease, box-shadow 160ms ease, transform 100ms ease-out; }
+.map-card { display: grid; min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; color: inherit; background: var(--surface); font: inherit; text-align: left; }
 .map-card:hover { border-color: var(--line-strong); box-shadow: 0 10px 24px -20px var(--shadow); }
 .map-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.map-card:active { transform: scale(.985); }
 .map-card-visual { position: relative; display: grid; min-height: 138px; place-items: center; overflow: hidden; color: color-mix(in oklch, var(--accent) 70%, var(--text)); background: radial-gradient(circle at 70% 25%, color-mix(in oklch, var(--accent-surface) 74%, var(--surface-raised)), transparent 38%), linear-gradient(135deg, var(--surface-raised), color-mix(in oklch, var(--surface-raised) 64%, var(--accent-surface))); }
 .map-card-visual::before, .map-card-visual::after { position: absolute; width: 140%; height: 1px; background: color-mix(in oklch, var(--accent) 20%, transparent); content: ""; transform: rotate(-19deg); }
 .map-card-visual::after { transform: rotate(22deg) translateY(34px); }
@@ -57,5 +56,4 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
   .map-card-footer { gap: 5px; }
 }
 @media (max-width: 360px) { .map-card-visual { min-height: 96px; }.map-card-body { padding-inline: 12px; }.map-card-footer { display: grid; grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { .map-card { transition: border-color 160ms ease, box-shadow 160ms ease; }.map-card:active { transform: none; } }
 </style>
