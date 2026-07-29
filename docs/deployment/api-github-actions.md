@@ -110,7 +110,10 @@ not call OCRKit directly.
 The Worker is deployed to the Git-managed Custom Domain
 `https://api.owbastion.com`. The workflow does not automatically verify the
 public hostname after deployment; production reachability is checked through
-separate operational monitoring.
+separate operational monitoring. Each deployment supplies the immutable GitHub
+commit SHA as `DEPLOYMENT_REVISION`; `/health` returns it without exposing
+credentials or business data. Follow the [API observability runbook](api-observability.md)
+to verify the deployed revision and public cache behavior.
 
 ## HKG QQBot configuration
 

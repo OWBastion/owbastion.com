@@ -44,6 +44,8 @@ export type RuntimeEnv = {
   QQBOT_POLICY_WEBHOOK_SECRET?: string;
   BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
   OCR_MANUAL_REVIEW_THRESHOLD?: string;
+  DEPLOYMENT_REVISION?: string;
+  PUBLIC_HTTP_CACHE_ENABLED?: string;
 };
 
 type AppDependencies = {
@@ -51,7 +53,46 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
+type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
+
+const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
+
+const routeClassForPath = (pathname: string): RequestRouteClass => {
+  if (pathname === "/health") return "health";
+  if (pathname.startsWith("/v1/admin/")) return "admin";
+  if (pathname.startsWith("/v1/agents/")) return "agents";
+  if (pathname.startsWith("/v1/__local/")) return "local";
+  if (pathname.startsWith("/v1/qq/")) return "qq";
+  if (["/v1/events", "/v1/maps", "/v1/public/achievements"].includes(pathname) || pathname.startsWith("/v1/public/achievement-icons/") || pathname.startsWith("/v1/challenges") || pathname.startsWith("/v1/titles")) return "catalog";
+  if (pathname.startsWith("/v1/me") || pathname.startsWith("/v1/player/") || pathname.startsWith("/v1/uploads/") || pathname.startsWith("/v1/auth/") || pathname.startsWith("/v1/public/")) return "portal";
+  return "unknown";
+};
+
+const cachePolicyForResponse = (cacheControl: string | null) => {
+  if (!cacheControl) return "unspecified";
+  if (/no-store/i.test(cacheControl)) return "private_no_store";
+  if (/immutable/i.test(cacheControl)) return "public_immutable";
+  if (/\b(?:s-)?max-age=/i.test(cacheControl)) return "public_ttl";
+  return "other";
+};
+
+const logServiceOperation = async <T>(c: any, operation: string, action: () => Promise<T>): Promise<T> => {
+  const startedAt = Date.now();
+  try { return await action(); }
+  finally {
+    console.log(JSON.stringify({
+      layer: "api",
+      event: "service_operation_complete",
+      deploymentRevision: deploymentRevision(c.env),
+      requestId: c.get("requestId"),
+      routeClass: routeClassForPath(new URL(c.req.url).pathname),
+      operation,
+      durationMs: Date.now() - startedAt,
+      catalogKvOperationCount: operation.startsWith("catalog_") ? 0 : undefined,
+    }));
+  }
+};
 
 /** Validates an incoming X-Request-ID value, same rules as Portal's normalizeRequestId. */
 const normalizeIncomingId = (value: string | null | undefined): string | undefined => {
@@ -100,18 +141,23 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
   });
 
-  // Middleware 2: structured per-request completion log.
+  // Middleware 2: apply private cache policy and emit low-cardinality request telemetry.
   app.use("*", async (c, next) => {
     const start = Date.now();
     await next();
+    const routeClass = routeClassForPath(new URL(c.req.url).pathname);
+    if (routeClass === "admin" && !c.res.headers.has("cache-control")) c.header("Cache-Control", "private, no-store");
     console.log(JSON.stringify({
       layer: "api",
       event: "request_complete",
       method: c.req.method,
-      path: new URL(c.req.url).pathname,
+      deploymentRevision: deploymentRevision(c.env),
+      routeClass,
       status: c.res.status,
       requestId: c.get("requestId"),
       durationMs: Date.now() - start,
+      cachePolicy: cachePolicyForResponse(c.res.headers.get("cache-control")),
+      edgeCacheStatus: c.res.headers.get("cf-cache-status") ?? "unavailable",
     }));
   });
 
@@ -127,18 +173,21 @@ export const createApp = (dependencies: AppDependencies) => {
     const token = c.env.BASTION_BUILD_TOKEN;
     const authorization = c.req.header("authorization");
     const includePlayerIds = Boolean(token && authorization === `Bearer ${token}`);
-    c.header("Cache-Control", includePlayerIds ? "private, no-store" : "public, max-age=60, s-maxage=60");
+    const publicCacheEnabled = c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
+    c.header("Cache-Control", includePlayerIds || !publicCacheEnabled ? "private, no-store" : "public, max-age=60, s-maxage=60");
     return includePlayerIds;
   };
   const publicAgentPlayerTitleGrants = (response: Awaited<ReturnType<PlatformServices["listAgentPlayerTitleGrants"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
   const publicAgentMapTitleHolders = (response: Awaited<ReturnType<PlatformServices["listAgentMapTitleHolders"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
 
-  app.get("/health", (c) =>
-    c.json({
+  app.get("/health", (c) => {
+    c.header("Cache-Control", "private, no-store");
+    return c.json({
       service: "api",
       status: "ok",
-    }),
-  );
+      deploymentRevision: deploymentRevision(c.env),
+    });
+  });
 
   app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-invites/redeem", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -379,7 +428,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/public/achievements", async (c) => {
     allowPortal(c);
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges({ family: "achievement" }) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) });
   });
 
   app.get("/v1/public/achievement-icons/:titleKey", async (c) => {
@@ -396,28 +445,28 @@ export const createApp = (dependencies: AppDependencies) => {
     if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
     if (family === "map") {
       allowPortal(c);
-      return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges({ family: "map" }) });
+      return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) });
     }
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined }) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined })) });
   });
 
   app.get("/v1/titles", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined }) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined })) });
   });
 
   app.get("/v1/maps", async (c) => {
     allowPortal(c);
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listMaps() });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) });
   });
 
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
     if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined }) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) });
   });
   app.get("/v1/events/:eventId", async (c) => { allowPortal(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
 

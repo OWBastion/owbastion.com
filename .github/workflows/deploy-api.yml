@@ -185,7 +185,7 @@ jobs:
           printf '%s' "$BINDING_INVITE_CODE_ENCRYPTION_KEY" | pnpm exec wrangler secret put BINDING_INVITE_CODE_ENCRYPTION_KEY
 
       - name: Deploy Worker
-        run: pnpm exec wrangler deploy
+        run: pnpm exec wrangler deploy --var DEPLOYMENT_REVISION:${GITHUB_SHA} --var PUBLIC_HTTP_CACHE_ENABLED:true
 
       - name: Deploy API Shield endpoint operations
         run: pnpm deploy:api-endpoints
