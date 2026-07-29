@@ -11,8 +11,11 @@ const props = defineProps<{
 const open = defineModel<boolean>("open", { required: true });
 const mapChallenges = computed(() => props.map ? props.challenges.filter((challenge) => challenge.mapId === props.map?.mapId) : []);
 const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
+const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
+
+onMounted(() => { hydrated.value = true; });
 </script>
 
 <template>
@@ -27,17 +30,19 @@ const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
     </div>
   </DefineDetailContent>
 
-  <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
-    <template #body>
-      <ReuseDetailContent />
-    </template>
-  </UModal>
+  <template v-if="hydrated">
+    <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
+      <template #body>
+        <ReuseDetailContent />
+      </template>
+    </UModal>
 
-  <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
-    <template #body>
-      <ReuseDetailContent />
-    </template>
-  </UDrawer>
+    <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
+      <template #body>
+        <ReuseDetailContent />
+      </template>
+    </UDrawer>
+  </template>
 </template>
 
 <style scoped>

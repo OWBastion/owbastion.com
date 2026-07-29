@@ -2,6 +2,7 @@
 type ThemePreference = "light" | "dark" | "system";
 
 const colorMode = useColorMode();
+const hydrated = shallowRef(false);
 const open = ref(false);
 const trigger = ref<HTMLButtonElement | null>(null);
 const panel = ref<HTMLElement | null>(null);
@@ -12,8 +13,9 @@ const options: Array<{ value: ThemePreference; label: string; icon: "sun" | "moo
   { value: "system", label: "跟随系统", icon: "system" },
 ];
 
-const currentIcon = computed(() => options.find((option) => option.value === colorMode.preference)?.icon ?? "system");
-const currentLabel = computed(() => options.find((option) => option.value === colorMode.preference)?.label ?? "主题");
+const currentIcon = computed(() => hydrated.value ? options.find((option) => option.value === colorMode.preference)?.icon ?? "system" : "system");
+const currentLabel = computed(() => hydrated.value ? options.find((option) => option.value === colorMode.preference)?.label ?? "主题" : "主题");
+const activePreference = computed<ThemePreference | null>(() => hydrated.value ? colorMode.preference as ThemePreference : null);
 
 function close(returnFocus = false) {
   open.value = false;
@@ -39,6 +41,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  hydrated.value = true;
   document.addEventListener("pointerdown", handlePointerDown);
   document.addEventListener("keydown", handleKeydown);
 });
@@ -55,10 +58,10 @@ onBeforeUnmount(() => {
       <AppIcon :name="currentIcon" />
     </button>
     <div v-show="open" ref="panel" class="theme-panel" role="menu" aria-label="主题菜单">
-      <button v-for="option in options" :key="option.value" class="theme-option" type="button" role="menuitemradio" :aria-checked="colorMode.preference === option.value" @click="chooseTheme(option.value)">
+      <button v-for="option in options" :key="option.value" class="theme-option" type="button" role="menuitemradio" :aria-checked="activePreference === option.value" @click="chooseTheme(option.value)">
         <AppIcon :name="option.icon" />
         <span>{{ option.label }}</span>
-        <AppIcon v-if="colorMode.preference === option.value" class="theme-check" name="check" />
+        <AppIcon v-if="activePreference === option.value" class="theme-check" name="check" />
       </button>
     </div>
   </div>

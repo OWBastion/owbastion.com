@@ -1,4 +1,5 @@
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import AdminResponsiveDialog from "./AdminResponsiveDialog.vue";
 
@@ -34,6 +35,7 @@ describe("AdminResponsiveDialog", () => {
   it("renders a scroll-constrained desktop modal and forwards title, slots, and close events", async () => {
     media.desktop = true;
     const { wrapper, onUpdate } = mountDialog();
+    await nextTick();
     expect(wrapper.get('[data-overlay="modal"]').text()).toContain("编辑群配置");
     expect(wrapper.text()).toContain("表单内容");
     expect(wrapper.findComponent(ModalStub).props("ui").content).toContain("max-w-3xl");
@@ -41,9 +43,10 @@ describe("AdminResponsiveDialog", () => {
     expect(onUpdate).toHaveBeenCalledWith(false);
   });
 
-  it("renders a bottom drawer below the desktop breakpoint", () => {
+  it("renders a bottom drawer below the desktop breakpoint", async () => {
     media.desktop = false;
     const { wrapper } = mountDialog();
+    await nextTick();
     expect(wrapper.get('[data-overlay="drawer"]').text()).toContain("group-1");
     expect(wrapper.findComponent(DrawerStub).props("direction")).toBe("bottom");
     expect(wrapper.findComponent(DrawerStub).props("ui").body).toContain("safe-area-inset-bottom");

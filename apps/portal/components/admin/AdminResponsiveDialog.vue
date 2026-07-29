@@ -15,6 +15,7 @@ withDefaults(defineProps<{
 });
 
 const open = defineModel<boolean>("open", { required: true });
+const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
 const sizeClasses: Record<DialogSize, string> = {
@@ -23,11 +24,14 @@ const sizeClasses: Record<DialogSize, string> = {
   lg: "max-w-3xl",
   xl: "max-w-5xl",
 };
+
+onMounted(() => { hydrated.value = true; });
 </script>
 
 <template>
-  <UModal
-    v-if="isDesktop"
+  <template v-if="hydrated">
+    <UModal
+      v-if="isDesktop"
     v-model:open="open"
     :title="title"
     :description="description"
@@ -39,10 +43,10 @@ const sizeClasses: Record<DialogSize, string> = {
   >
     <template #body><slot name="body" /></template>
     <template v-if="$slots.footer" #footer><slot name="footer" /></template>
-  </UModal>
+    </UModal>
 
-  <UDrawer
-    v-else
+    <UDrawer
+      v-else
     v-model:open="open"
     direction="bottom"
     :title="title"
@@ -55,7 +59,8 @@ const sizeClasses: Record<DialogSize, string> = {
   >
     <template #body><slot name="body" /></template>
     <template v-if="$slots.footer" #footer><slot name="footer" /></template>
-  </UDrawer>
+    </UDrawer>
+  </template>
 </template>
 
 <style>
