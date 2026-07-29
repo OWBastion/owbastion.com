@@ -25,7 +25,7 @@ const validate = (s: typeof state): FormError[] => {
 };
 
 const send = async (_event: FormSubmitEvent<typeof state>) => {
-  if (!state.screenshot) return;
+  if (loading.value || !state.screenshot) return;
   try {
     const result = await submit(state.screenshot);
     const title = result.status === "awaiting_player_confirmation" ? "识别完成，请确认挑战。" : result.status === "ready_for_review" ? "识别通过，已提交管理员核对。" : result.status === "resubmission_required" ? "截图未通过识别，请重新提交。" : "截图已上传，正在等待 OCR 识别。";
@@ -55,7 +55,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
               <p>请确保截图清晰，包含以下必要信息</p>
             </div>
           </div>
-          <UForm :state="state" :validate="validate" aria-labelledby="upload-title" @submit="send">
+          <UForm :state="state" :validate="validate" :disabled="loading" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
               <UFileUpload v-model="state.screenshot" class="upload-control" label="点击上传或拖拽截图到此处" :accept="ACCEPT_ATTR" :multiple="false" layout="grid" position="outside" :preview="true" :ui="{ base: 'aspect-video !flex-none', files: 'w-full', file: 'w-full aspect-video overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }" description="支持 JPEG、PNG、WebP 格式，文件大小不超过 10MB" :disabled="loading" />
             </UFormField>

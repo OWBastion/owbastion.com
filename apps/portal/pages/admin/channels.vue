@@ -42,7 +42,7 @@ onMounted(() => { void load(); });
       <template #verifyEnabled-cell="{ row }"><USwitch :model-value="row.original.verifyEnabled" :disabled="row.original.status !== 'active'" @update:model-value="save(row.original, { verifyEnabled: !row.original.verifyEnabled })" /></template>
       <template #bindEnabled-cell="{ row }"><USwitch :model-value="row.original.bindEnabled" :disabled="row.original.status !== 'active'" @update:model-value="save(row.original, { bindEnabled: !row.original.bindEnabled })" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
-      <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑" size="xs" color="neutral" variant="outline" @click="openEditor(row.original)" /><UButton v-if="row.original.status !== 'active' && row.original.status !== 'disconnected'" label="设为活动群" size="xs" color="neutral" variant="outline" @click="save(row.original, { status: 'active', bindEnabled: true, verifyEnabled: true })" /></div></template>
+      <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑" size="sm" color="neutral" variant="outline" @click="openEditor(row.original)" /><UButton v-if="row.original.status !== 'active' && row.original.status !== 'disconnected'" label="设为活动群" size="sm" color="neutral" variant="outline" @click="save(row.original, { status: 'active', bindEnabled: true, verifyEnabled: true })" /></div></template>
     </AdminDataTable></section>
     <AdminResponsiveDialog v-model:open="editorOpen" title="编辑群配置" :description="editingGroup?.groupOpenId" size="sm">
       <template #body><form v-if="editingGroup" id="group-editor" class="editor" @submit.prevent="saveEditor"><UFormField label="群名或标签" hint="QQ 接口不会提供群名，此名称由管理员维护。" required><UInput v-model="editor.displayName" maxlength="128" placeholder="例如：正式服主群" :disabled="savingGroup" /></UFormField><UFormField label="所在环境" required><USelect v-model="editor.environment" :items="[{ label: '正式环境', value: 'production' }, { label: '测试环境', value: 'test' }]" :disabled="savingGroup" :ui="{ base: 'w-full' }" /></UFormField></form></template>
@@ -53,6 +53,6 @@ onMounted(() => { void load(); });
 
 <style scoped>
 .table-meta { display: block; overflow-wrap: anywhere; color:var(--quiet); font-size:.78rem; }
-.table-actions { display:flex; flex-wrap:wrap; gap:.4rem; }
+
 .editor { display:grid; gap:1rem; }
 </style>

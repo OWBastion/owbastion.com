@@ -53,7 +53,7 @@ onMounted(() => { void load(); });
         <template #status-cell="{ row }"><StatusBadge :label="row.original.status === 'banned' ? '已封禁' : '正常'" :tone="row.original.status === 'banned' ? 'warning' : 'success'" /></template>
         <template #bindingCount-cell="{ row }"><span>{{ row.original.bindingCount }} 条</span></template>
         <template #updatedAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.updatedAt) }}</span></template>
-        <template #actions-cell="{ row }"><NuxtLink class="player-detail-link" :to="`/admin/players/${row.original.playerAccountId}`">查看详情</NuxtLink></template>
+        <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/players/${row.original.playerAccountId}`" label="查看详情" size="sm" color="neutral" variant="outline" /></div></template>
       </AdminDataTable>
       <UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
     </section>
@@ -61,5 +61,5 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.table-meta { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }.player-detail-link { color:var(--accent); font-size:.8rem; font-weight:650; text-decoration:none; }.player-detail-link:hover { text-decoration:underline; }
+.table-meta { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }
 </style>

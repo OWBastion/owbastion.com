@@ -213,10 +213,10 @@ onMounted(load);
             <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
             <template #actions-cell="{ row }">
               <div class="claim-actions">
-                <UButton label="详情" color="neutral" variant="outline" size="xs" @click="detailTarget = row.original" />
+                <UButton label="详情" color="neutral" variant="outline" size="sm" @click="detailTarget = row.original" />
                 <template v-if="row.original.status === 'pending_review'">
-                  <UButton label="批准" size="xs" :disabled="deciding" @click="handleApprove(row.original)" />
-                  <UButton label="拒绝" color="error" variant="soft" size="xs" :disabled="deciding" @click="decide(row.original, 'rejected')" />
+                  <UButton label="批准" size="sm" :disabled="deciding" @click="handleApprove(row.original)" />
+                  <UButton label="拒绝" color="error" variant="soft" size="sm" :disabled="deciding" @click="decide(row.original, 'rejected')" />
                 </template>
               </div>
             </template>
@@ -227,7 +227,7 @@ onMounted(load);
             <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
-            <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="xs" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="xs" @click="openRevoke(row.original)" /></div></template>
+            <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div></template>
           </AdminDataTable>
         </template>
         <template #batch>

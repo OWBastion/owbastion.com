@@ -75,6 +75,50 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 34px -30px var(--shadow); }
 
 /* -------------------------------------------------------------------------- */
+/* N-01 / A-03 — touch targets                                                */
+/* .hit-44 keeps visual chrome while guaranteeing a ≥44×44 hit box            */
+/* -------------------------------------------------------------------------- */
+.hit-44 {
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Admin row/icon actions: desktop ≥40, still usable on touch */
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.table-action {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.table-action:hover,
+.table-action:focus-visible {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+.table-action:disabled {
+  cursor: wait;
+  opacity: .5;
+}
+.table-actions :where(button, a, [role="button"]):not(.table-action) {
+  min-height: 40px;
+}
+
+/* -------------------------------------------------------------------------- */
 /* G-01 — unified press feedback                                              */
 /* .pressable       = controls / compact targets (scale 0.97)                 */
 /* .pressable-soft  = cards / larger surfaces (scale 0.985)                   */

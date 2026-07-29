@@ -51,8 +51,14 @@ const statusAlert = computed(() => {
   if (data.value?.status === "resubmission_required") return { title: "需要重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
   return null;
 });
+const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
+  if (confirming.value) return;
+  selectedChallengeId.value = event.challengeId;
+  selectedMapId.value = event.mapId ?? "";
+};
+
 const confirmChallenge = async () => {
-  if (!selectedChallengeId.value) return;
+  if (!selectedChallengeId.value || confirming.value) return;
   confirming.value = true;
   try {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, { method: "POST", body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}) } });
@@ -60,6 +66,7 @@ const confirmChallenge = async () => {
   } finally { confirming.value = false; }
 };
 const handleRequestManualReview = async () => {
+  if (requestingManualReview.value) return;
   requestingManualReview.value = true;
   try {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/manual-review`, { method: "POST" });
@@ -147,8 +154,10 @@ onBeforeUnmount(() => {
             <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
             <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
             <template v-else>
-              <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectedChallengeId = $event.challengeId; selectedMapId = $event.mapId ?? ''" />
-              <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId" @click="confirmChallenge" block />
+              <div class="confirm-catalog" :class="{ 'confirm-catalog--busy': confirming }" :aria-busy="confirming || undefined">
+                <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectChallenge" />
+              </div>
+              <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId || confirming" @click="confirmChallenge" block />
             </template>
           </UCard>
         </div>
@@ -194,6 +203,7 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 .evidence-message, .message { margin: 0; padding: 96px 0; color: var(--muted); font-size: .88rem; text-align: center; }
 .confirm-copy { margin: 0 0 18px; color: var(--muted); }
 .confirm-card :deep(.catalog) { margin-bottom: 20px; }
+.confirm-catalog--busy { pointer-events: none; opacity: .72; }
 .resubmission-card { display: grid; margin-top: clamp(18px, 2.4vw, 28px); }
 .resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 10px; }

@@ -113,6 +113,7 @@ Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introduc
 - Brand action: `var(--accent)` / `var(--accent-surface)`; error and warning: `var(--danger)` / `var(--warning)`.
 - Use `page-shell` for regular pages and `surface-card` for cards. Do not redefine container width, radius, button height, or the font system per page.
 - Press feedback: add `pressable` (controls, scale `0.97`) or `pressable-soft` (cards/rows, scale `0.985`) from `main.css` instead of one-off `:active { transform }` rules. `primary-button` / `secondary-button` and Nuxt UI `UButton` roots already press. Prefer hover border/shadow over hover-only translate; always pair interactive cards with active press. Under `prefers-reduced-motion: reduce`, spatial press and enter/leave transforms are suppressed globally—do not reintroduce component-local scale/slide transitions without a reduce fallback that is opacity/color only.
+- Touch targets: icon controls use `hit-44` (min 44×44). Desktop nav and primary login actions use min-height ≥40; mobile primary chrome uses ≥44. Admin table row actions use `.table-actions` / `.table-action` (min 40) or `UButton` `size="sm"` outline—not bare text links or `size="xs"` in data tables.
 
 Current baselines are approximately `1100px` maximum page width, `24–28px` horizontal page padding, and `44px` minimum height for primary buttons. These are system baselines; do not drift from them in a single page. If a global rule needs to change, update the token or shared component and describe the impact.
 

@@ -385,8 +385,8 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| N-01 | P0 | 图标按钮命中区 ≥44 | ☐ |
-| N-02 | P0 | 桌面 nav / 登录链接触控高度 | ☐ |
+| N-01 | P0 | 图标按钮命中区 ≥44 | ✅ |
+| N-02 | P0 | 桌面 nav / 登录链接触控高度 | ✅ |
 | N-03 | P0 | 移动菜单焦点陷阱 + 键盘 | ☐ |
 | N-04 | P1 | mobile-nav leave 与 enter 对称、可打断 | ☐ |
 | N-05 | P1 | Glass 导航文字对比 | ☐ |
@@ -398,8 +398,8 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| M-01 | P0 | 改用 UDropdownMenu 或补齐 Arrow 键 | ☐ |
-| M-02 | P0 | 菜单项 active / press | ☐ |
+| M-01 | P0 | 改用 UDropdownMenu 或补齐 Arrow 键 | ✅ |
+| M-02 | P0 | 菜单项 active / press | ✅ |
 | M-03 | P1 | 关闭 leave 动画（与 enter 镜像） | ☐ |
 | M-04 | P1 | 阴影/材质与 header 层级 | ☐ |
 
@@ -409,7 +409,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| H-01 | P0 | 可点击 content-card 的 hover/active | ☐ |
+| H-01 | P0 | 可点击 content-card 的 hover/active | ✅ |
 | H-02 | P1 | 可点 vs 静态卡片视觉分化 | ☐ |
 | H-03 | P2 | 节制的区块入场（可选，默认不做） | ☐ |
 
@@ -422,7 +422,7 @@
 | E-01 | P1 | 详情改为 Modal/Drawer 响应式 | ☐ |
 | E-02 | P1 | 卡片交互与地图卡对齐 | ☐ |
 | E-03 | P1 | group 标题 tracking 纳入 type scale | ☐ |
-| E-04 | P0 | 筛选控件触控高度 | ☐ |
+| E-04 | P0 | 筛选控件触控高度 | ✅ |
 
 **文件：** `components/events/EventDirectory.vue`
 
@@ -443,7 +443,7 @@
 | S-01 | P1 | SubmissionProgress 状态色过渡 | ☐ |
 | S-02 | P1 | 提交列表行 press 反馈 | ☐ |
 | S-03 | ✅ | 成就选择卡 active | 保持 |
-| S-04 | P0 | 上传/提交主按钮 loading + disabled 双保险（对照指南） | ☐ |
+| S-04 | P0 | 上传/提交主按钮 loading + disabled 双保险（对照指南） | ✅ |
 
 **文件：** `SubmissionProgress.vue`，`PlayerRecentSubmissions.vue`，`pages/submissions/*`，catalog 组件
 
@@ -462,7 +462,7 @@
 | --- | --- | --- | --- |
 | A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ☐ |
 | A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ☐ |
-| A-03 | P0 | 表格/行内操作触控目标 | ☐ |
+| A-03 | P0 | 表格/行内操作触控目标 | ✅ |
 | A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ |
 | A-05 | P2 | Drawer 手势与速度交接实测与调参 | ☐ |
 | A-06 | ✅ | reducedMotion 关闭 modal transition | 保持 |
@@ -484,10 +484,12 @@
 
 ### Milestone A — 响应与可达（约 1–2 PR）
 
-1. G-01, G-02, N-01, N-02  
-2. M-01, M-02, H-01  
-3. E-04, A-03, S-04  
+1. G-01, G-02, N-01, N-02 — ✅  
+2. M-01, M-02, H-01 — ✅  
+3. E-04, A-03, S-04 — ✅  
 4. 回归：键盘、reduce motion、320px 宽  
+
+**状态：已完成（2026-07-30）**
 
 ### Milestone B — 材质与空间（约 1–2 PR）
 

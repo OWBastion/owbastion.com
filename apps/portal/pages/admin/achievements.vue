@@ -533,13 +533,10 @@ onMounted(() => void load());
 .achievement-table strong, .achievement-table small { display: block; }
 .achievement-table small { margin-top: 4px; }
 .condition-cell { display: -webkit-box; overflow: hidden; color: var(--muted); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.table-actions { display: flex; align-items: center; justify-content: flex-start; gap: 4px; }
-.table-action { display: inline-grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; }
-.table-action:hover { color: var(--text); background: var(--surface-raised); }
-.table-action:disabled { cursor: wait; opacity: .5; }
+.table-actions { justify-content: flex-start; }
 .table-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .table-action-danger { color: var(--error); }
-.table-action-danger:hover { background: color-mix(in srgb, var(--error) 12%, transparent); }
+.table-action-danger:hover, .table-action-danger:focus-visible { color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); }
 .editor, .end-dialog, .plan-popover { display: grid; gap: 16px; }
 .icon-upload { display: grid; gap: 10px; }
 .icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); font-size: .82rem; }

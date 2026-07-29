@@ -89,19 +89,20 @@ async function signOut() {
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
 .main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--muted); font-size: .78rem; }
 .main-nav :deep(ul) { gap: 2px; }
-.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 36px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
-.main-nav a { display: inline-flex; min-height: 36px; align-items: center; padding: 0 9px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 40px; border-radius: 9px; font-size: .78rem; font-weight: 650; }
+.main-nav a { display: inline-flex; min-height: 40px; align-items: center; padding: 0 11px; border-radius: 9px; text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
 .main-nav a:active { transform: scale(var(--press-scale)); }
 .main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
-.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; font-size: .78rem; font-weight: 650; }
-.login-link { min-height: 34px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
+.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; font-size: .78rem; font-weight: 650; }
+.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .mobile-menu-toggle, .mobile-nav { display: none; }
 @media (max-width: 900px) {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
   .app-header { position: relative; gap: 10px; min-height: 52px; padding: 6px 8px 6px 10px; }
   .main-nav { display: none; }
   .account-actions { margin-left: auto; }
-  .mobile-menu-toggle { display: inline-grid; flex: 0 0 40px; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
+  .login-link { min-height: 44px; }
+  .mobile-menu-toggle { display: inline-grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
   .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
   .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--menu-surface); box-shadow: 0 16px 30px -18px var(--shadow); backdrop-filter: blur(22px) saturate(1.12); transform-origin: top right; }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
