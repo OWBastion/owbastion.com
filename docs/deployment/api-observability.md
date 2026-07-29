@@ -39,6 +39,14 @@ catalog implementation does not issue KV reads.
 
 ## Verify public caching and bypasses
 
+The initial allowlist is deliberately narrow: `/v1/maps`,
+`/v1/public/achievements`, `/v1/challenges?family=map`, unfiltered
+`/v1/events`, event details, and unfiltered public Agents event lists/details.
+They return `public, max-age=60, s-maxage=60`. Search and every filtered event
+variant return `private, no-store`. Public Agents responses set
+`Vary: Authorization`; a request carrying the Bastion build token always
+bypasses shared caching with `private, no-store`.
+
 Use a public Agents request with no build credential. Preserve response headers
 but do not retain the response body:
 

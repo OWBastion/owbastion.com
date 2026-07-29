@@ -170,10 +170,15 @@ export const createApp = (dependencies: AppDependencies) => {
   const allowAgents = (c: any) => {
     const token = c.env.BASTION_BUILD_TOKEN;
     const authorization = c.req.header("authorization");
-    const includePlayerIds = Boolean(token && authorization === `Bearer ${token}`);
-    const publicCacheEnabled = c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
-    c.header("Cache-Control", includePlayerIds || !publicCacheEnabled ? "private, no-store" : "public, max-age=60, s-maxage=60");
-    return includePlayerIds;
+    return Boolean(token && authorization === `Bearer ${token}`);
+  };
+  const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
+  const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
+    c.header("Cache-Control", enabled ? "public, max-age=60, s-maxage=60" : "private, no-store");
+  };
+  const setAgentsCache = (c: any, includePlayerIds: boolean, cacheable: boolean) => {
+    setPublicCatalogCache(c, !includePlayerIds && cacheable && publicCacheEnabled(c));
+    c.header("Vary", "Authorization");
   };
   const publicAgentPlayerTitleGrants = (response: Awaited<ReturnType<PlatformServices["listAgentPlayerTitleGrants"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
   const publicAgentMapTitleHolders = (response: Awaited<ReturnType<PlatformServices["listAgentMapTitleHolders"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
@@ -426,6 +431,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/public/achievements", async (c) => {
     allowPortal(c);
+    setPublicCatalogCache(c);
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) });
   });
 
@@ -443,6 +449,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
     if (family === "map") {
       allowPortal(c);
+      setPublicCatalogCache(c);
       return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) });
     }
     const access = await requirePortalPlayer(c);
@@ -458,26 +465,28 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/maps", async (c) => {
     allowPortal(c);
+    setPublicCatalogCache(c);
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) });
   });
 
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
     if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
+    setPublicCatalogCache(c, !c.req.query("query") && !c.req.query("category") && !c.req.query("rarity") && !status && publicCacheEnabled(c));
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) });
   });
-  app.get("/v1/events/:eventId", async (c) => { allowPortal(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+  app.get("/v1/events/:eventId", async (c) => { allowPortal(c); setPublicCatalogCache(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
 
   app.get("/v1/agents/events", async (c) => {
-    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, !c.req.query("q") && !c.req.query("category") && !c.req.query("rarity"));
     return c.json({ ...await dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined }) });
   });
-  app.get("/v1/agents/events/:eventId", async (c) => { allowAgents(c); const event = await dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+  app.get("/v1/agents/events/:eventId", async (c) => { const includePlayerIds = allowAgents(c); setAgentsCache(c, includePlayerIds, true); const event = await dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
   app.get("/v1/agents/maps", async (c) => {
-    allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
+    const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, !c.req.query("q") && !c.req.query("mechanic"));
     return c.json(await dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }));
   });
-  app.get("/v1/agents/maps/:mapId", async (c) => { allowAgents(c); const map = await dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }); return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); });
+  app.get("/v1/agents/maps/:mapId", async (c) => { const includePlayerIds = allowAgents(c); setAgentsCache(c, includePlayerIds, true); const map = await dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }); return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); });
   app.get("/v1/agents/achievements", async (c) => {
     allowAgents(c); const page = agentPage(c); const status = c.req.query("status"); if (!page || (status && status !== "active" && status !== "sunsetting")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
     return c.json(await dependencies.services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined }));

@@ -132,6 +132,20 @@ describe("API", () => {
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+  });
+
+  it("does not share-cache filtered public event variants", async () => {
+    const response = await app.request("http://localhost/v1/events?category=%E5%A2%9E%E7%9B%8A", {}, env);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("separates public Agents responses from authenticated build reads", async () => {
+    const publicResponse = await app.request("http://localhost/v1/agents/events?page=1&pageSize=20", {}, { ...env, BASTION_BUILD_TOKEN: "build-token" });
+    const buildResponse = await app.request("http://localhost/v1/agents/events?page=1&pageSize=20", { headers: { authorization: "Bearer build-token" } }, { ...env, BASTION_BUILD_TOKEN: "build-token" });
+    expect(publicResponse.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+    expect(publicResponse.headers.get("vary")).toBe("Authorization");
+    expect(buildResponse.headers.get("cache-control")).toBe("private, no-store");
   });
   it("requires a maintainer and an idempotency key for event imports", async () => {
     const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
