@@ -388,7 +388,7 @@
 | N-01 | P0 | 图标按钮命中区 ≥44 | ✅ |
 | N-02 | P0 | 桌面 nav / 登录链接触控高度 | ✅ |
 | N-03 | P0 | 移动菜单焦点陷阱 + 键盘 | ☐ |
-| N-04 | P1 | mobile-nav leave 与 enter 对称、可打断 | ☐ |
+| N-04 | P1 | mobile-nav leave 与 enter 对称、可打断 | ✅ |
 | N-05 | P1 | Glass 导航文字对比 | ☐ |
 | N-06 | P1 | Sticky 与内容滚动边缘 | ☐ |
 
@@ -400,7 +400,7 @@
 | --- | --- | --- | --- |
 | M-01 | P0 | 改用 UDropdownMenu 或补齐 Arrow 键 | ✅ |
 | M-02 | P0 | 菜单项 active / press | ✅ |
-| M-03 | P1 | 关闭 leave 动画（与 enter 镜像） | ☐ |
+| M-03 | P1 | 关闭 leave 动画（与 enter 镜像） | ✅ |
 | M-04 | P1 | 阴影/材质与 header 层级 | ☐ |
 
 **文件：** `AccountMenu.vue`，`ThemeMenu.vue`
@@ -419,7 +419,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| E-01 | P1 | 详情改为 Modal/Drawer 响应式 | ☐ |
+| E-01 | P1 | 详情改为 Modal/Drawer 响应式 | ✅ |
 | E-02 | P1 | 卡片交互与地图卡对齐 | ☐ |
 | E-03 | P1 | group 标题 tracking 纳入 type scale | ☐ |
 | E-04 | P0 | 筛选控件触控高度 | ✅ |
@@ -494,9 +494,11 @@
 ### Milestone B — 材质与空间（约 1–2 PR）
 
 1. G-03, G-04, G-05, G-06  
-2. E-01, M-03, N-04, N-05, N-06  
+2. E-01, M-03, N-04 — ✅（优先包）; N-05, N-06 待做  
 3. A-01, A-02, MAP-01/02, ME-01  
 4. 统一卡片 hover/active（E-02, S-02, H-02）  
+
+**优先包状态（E-01 / M-03 / N-04）：已完成**
 
 ### Milestone C — 流体增强（可选）
 

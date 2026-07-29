@@ -76,7 +76,19 @@ async function signOut() {
         <NuxtLink v-else to="/login" class="login-link pressable">登录</NuxtLink>
       </div>
       <button ref="menuButton" class="mobile-menu-toggle pressable" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
-      <Transition name="mobile-nav"><nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template><template v-else><NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink><NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink><NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link" @click="closeMenu()">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link" @click="closeMenu()">轮换挑战</NuxtLink></template></nav></Transition>
+      <!-- No mode="out-in": leave can be interrupted mid-flight when reopening (N-04). -->
+      <Transition name="mobile-nav">
+        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'">
+          <template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template>
+          <template v-else>
+            <NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink>
+            <NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink>
+            <NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink>
+            <NuxtLink to="/#rankings" class="hash-nav-link" @click="closeMenu()">天梯排名</NuxtLink>
+            <NuxtLink to="/#rotation" class="hash-nav-link" @click="closeMenu()">轮换挑战</NuxtLink>
+          </template>
+        </nav>
+      </Transition>
     </div>
   </header>
 </template>
@@ -104,16 +116,55 @@ async function signOut() {
   .login-link { min-height: 44px; }
   .mobile-menu-toggle { display: inline-grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
   .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
-  .mobile-nav { position: absolute; z-index: 2; inset: calc(100% + 8px) 0 auto; display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--menu-surface); box-shadow: 0 16px 30px -18px var(--shadow); backdrop-filter: blur(22px) saturate(1.12); transform-origin: top right; }
+  .mobile-nav {
+    position: absolute;
+    z-index: 2;
+    inset: calc(100% + 8px) 0 auto;
+    display: grid;
+    gap: 3px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--menu-surface);
+    box-shadow: 0 16px 30px -18px var(--shadow);
+    backdrop-filter: blur(22px) saturate(1.12);
+    transform-origin: top center;
+  }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
   .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text); background: var(--surface); }
   .mobile-nav a:active { transform: scale(var(--press-scale)); color: var(--text); background: var(--surface); }
   .mobile-nav :deep(ul) { display: grid; gap: 3px; }
   .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; }
 }
+/* Symmetric enter/leave path; CSS transitions restart from live values when interrupted. */
 @media (prefers-reduced-motion: no-preference) {
-  .mobile-nav-enter-active, .mobile-nav-leave-active { transition: opacity 150ms ease, transform 150ms cubic-bezier(.2, .7, .2, 1); }
-  .mobile-nav-enter-from, .mobile-nav-leave-to { opacity: 0; transform: translateY(-5px) scale(.98); }
+  .mobile-nav-enter-active {
+    transition: opacity 160ms ease, transform 160ms cubic-bezier(.2, .7, .2, 1);
+  }
+  .mobile-nav-leave-active {
+    transition: opacity 140ms ease, transform 140ms cubic-bezier(.8, 0, .8, .3);
+  }
+  .mobile-nav-enter-from,
+  .mobile-nav-leave-to {
+    opacity: 0;
+    transform: translateY(-6px) scale(.98);
+  }
+  .mobile-nav-enter-to,
+  .mobile-nav-leave-from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-enter-active,
+  .mobile-nav-leave-active {
+    transition: opacity 150ms ease;
+  }
+  .mobile-nav-enter-from,
+  .mobile-nav-leave-to {
+    opacity: 0;
+    transform: none;
+  }
 }
 @media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; } }
 </style>

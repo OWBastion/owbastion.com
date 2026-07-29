@@ -118,6 +118,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 40px;
 }
 
+/* M-03 — account/theme dropdown surfaces (Reka/Nuxt UI already animate open/close) */
+.portal-menu-surface {
+  transform-origin: top right;
+}
+
 /* -------------------------------------------------------------------------- */
 /* G-01 — unified press feedback                                              */
 /* .pressable       = controls / compact targets (scale 0.97)                 */

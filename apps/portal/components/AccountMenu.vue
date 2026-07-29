@@ -35,7 +35,7 @@ const items = computed<DropdownMenuItem[][]>(() => {
   <UDropdownMenu
     :items="items"
     :content="{ align: 'end', side: 'bottom', sideOffset: 10, collisionPadding: 12 }"
-    :ui="{ content: 'account-menu-content min-w-56', item: 'min-h-10' }"
+    :ui="{ content: 'portal-menu-surface account-menu-content min-w-56 origin-top-right', item: 'min-h-10' }"
   >
     <button class="account-trigger hit-44 pressable" type="button" aria-label="打开账户菜单">
       <span class="account-avatar" aria-hidden="true">{{ props.player.playerName.slice(0, 1) }}</span>

@@ -30,7 +30,8 @@ const global = {
     EffectGlossaryTooltip: { props: ["annotation"], template: "<span>{{ annotation.term.nameZh }}</span>" },
     StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
     UEmpty: { props: ["title", "description"], template: "<div>{{ title }}{{ description }}</div>" },
-    UModal: { template: "<div><slot name=\"body\" /></div>" },
+    UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"body\" /></div>" },
+    UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"body\" /></div>" },
   },
 };
 
@@ -56,5 +57,19 @@ describe("EventDirectory", () => {
     await wrapper.get('select[aria-label="筛选事件状态"]').setValue("removed");
     expect(wrapper.text()).toContain("已移除事件");
     expect(wrapper.text()).not.toContain("Alpha 事件");
+  });
+
+  it("opens event detail in a responsive overlay after hydration", async () => {
+    const wrapper = await mountSuspended(EventDirectory, {
+      props: {
+        events: [event({ eventId: "event.alpha", name: "Alpha 事件", description: "详情说明" })],
+      },
+      global,
+    });
+
+    await wrapper.get(".event-card").trigger("click");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain("详情说明");
+    expect(wrapper.text()).toContain("稀有度");
   });
 });
