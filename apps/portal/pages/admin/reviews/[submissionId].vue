@@ -17,7 +17,13 @@ const ocrRetryError = ref("");
 const evidenceImageUrl = ref<string | null>(null);
 const evidenceError = ref(false);
 const submissionId = computed(() => String(route.params.submissionId));
-const pageTitle = computed(() => submission.value?.mapName ? `审核：${submission.value.mapName}` : "审核详情");
+/** Single page title: challenge target only (detail body no longer repeats an h2). */
+const pageTitle = computed(() => {
+  const detail = submission.value;
+  if (!detail) return "审核详情";
+  if (detail.challenge?.family === "achievement") return detail.challenge.titleName;
+  return detail.difficulty ? `${detail.mapName} · ${detail.difficulty}` : detail.mapName;
+});
 const evidenceSrc = computed(() => evidenceImageUrl.value ?? `/api/admin/evidence/${encodeURIComponent(submissionId.value)}`);
 const evidenceCdnHeader = { "x-owbastion-review": "portal-admin" };
 
