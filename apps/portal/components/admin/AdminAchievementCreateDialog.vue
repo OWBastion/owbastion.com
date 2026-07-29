@@ -36,7 +36,6 @@ const form = reactive({
   evidenceRule: "上传包含结算画面、称号条件与玩家信息的完整截图。",
   submissionMode: "manual" as "manual" | "automatic",
   scope: "global" as "global" | "map",
-  mapMode: "all" as "all" | "selected",
   mapIds: [] as string[],
   status: "active" as "scheduled" | "active" | "sunsetting" | "retired",
   gameVersion: "",
@@ -48,7 +47,7 @@ const form = reactive({
 });
 
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
-const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && form.gameVersion.trim() && (form.scope === "global" || form.mapMode === "all" || form.mapIds.length) && (form.status !== "scheduled" || (form.startsAt && form.endsAt)) && (form.status !== "sunsetting" || form.retiredVersion.trim())));
+const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && form.gameVersion.trim() && (form.status !== "scheduled" || (form.startsAt && form.endsAt)) && (form.status !== "sunsetting" || form.retiredVersion.trim())));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
 
 function submit() {
@@ -63,7 +62,7 @@ function submit() {
     evidenceRule: form.evidenceRule.trim(),
     submissionMode: form.submissionMode,
     scope: form.scope,
-    mapIds: form.scope === "map" && form.mapMode === "selected" ? [...form.mapIds] : [],
+    mapIds: form.scope === "map" ? [...form.mapIds] : [],
     status: form.status,
     gameVersion: form.gameVersion.trim(),
     categoryOverride: form.categoryOverride.trim() || null,
@@ -88,8 +87,7 @@ function submit() {
         <UFormField class="editor-field" label="提交方式"><USelect v-model="form.submissionMode" class="editor-control" :disabled="props.saving" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField>
         <UFormField class="editor-field" label="挑战范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '通用挑战', value: 'global' }, { label: '地图挑战', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
-          <UFormField class="editor-field" label="地图范围"><USelect v-model="form.mapMode" class="editor-control" :disabled="props.saving" :items="[{ label: '全部有效地图', value: 'all' }, { label: '指定地图', value: 'selected' }]" /></UFormField>
-          <UFormField v-if="form.mapMode === 'selected'" class="editor-field editor-field--wide" label="指定地图" required><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
         </template>
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
         <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>

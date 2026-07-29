@@ -53,6 +53,18 @@ describe("achievement admin page", () => {
     wrapper.unmount();
   });
 
+  it("uses an empty map selection for all-map challenges", async () => {
+    const wrapper = await mountPage();
+    await wrapper.findAll("button").find((button) => button.text() === "新建挑战")!.trigger("click");
+    await flushPromises();
+    const form = wrapper.get("form#achievement-create-form");
+    await form.findAll("select")[1]!.setValue("map");
+    expect(form.text()).not.toContain("地图范围");
+    expect(form.text()).toContain("指定地图");
+    expect(form.text()).toContain("留空作用于全部有效地图");
+    wrapper.unmount();
+  });
+
   it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("通用成就");
