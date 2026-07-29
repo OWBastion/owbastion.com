@@ -84,7 +84,8 @@ onMounted(() => { hydrated.value = true; });
     <DefineHeaderTags>
       <div v-if="selected" class="detail-header-tags">
         <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" />
-        <UBadge :label="`v${selected.gameVersion.startsWith('v') ? selected.gameVersion.slice(1) : selected.gameVersion}`" color="neutral" variant="subtle" />
+        <UBadge :label="selected.rarity" color="primary" variant="subtle" />
+        <UBadge :label="selected.gameVersion" color="neutral" variant="subtle" />
       </div>
     </DefineHeaderTags>
 
@@ -92,18 +93,21 @@ onMounted(() => { hydrated.value = true; });
       <div v-if="selected" class="detail">
         <p class="description">{{ selected.description }}</p>
         <dl>
-          <div><dt>稀有度</dt><dd>{{ selected.rarity }}</dd></div>
           <div><dt>持续时间</dt><dd>{{ selected.durationSeconds === null ? "暂无记录" : `${selected.durationSeconds} 秒` }}</dd></div>
           <div><dt>内置冷却</dt><dd>{{ selected.cooldownSeconds === null ? "暂无记录" : `${selected.cooldownSeconds} 秒` }}</dd></div>
           <div><dt>权重</dt><dd>{{ selected.weight ?? "暂无记录" }}</dd></div>
-          <div><dt>类别概率</dt><dd>{{ formatProbability(probability(selected).categoryProbability) }}</dd></div>
-          <div><dt>同类事件数</dt><dd>{{ probability(selected).groupSize }}</dd></div>
-          <div><dt>组内总权重</dt><dd>{{ probability(selected).groupTotalWeight ?? "暂无记录" }}</dd></div>
-          <div><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
-          <div><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
-          <div><dt>最终出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
-          <div><dt>全局出现概率</dt><dd>{{ formatProbability(probability(selected).globalAppearanceProbability) }}</dd></div>
         </dl>
+        <UAccordion :items="[{ label: '概率统计', slot: 'probability' }]">
+          <template #probability>
+            <dl class="probability-dl">
+              <div><dt>类别概率</dt><dd>{{ formatProbability(probability(selected).categoryProbability) }}</dd></div>
+              <div><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
+              <div><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
+              <div><dt>最终出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
+              <div><dt>全局出现概率</dt><dd>{{ formatProbability(probability(selected).globalAppearanceProbability) }}</dd></div>
+            </dl>
+          </template>
+        </UAccordion>
         <div class="event-tags">
           <EffectGlossaryTooltip v-for="annotation in selected.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
           <UBadge v-for="tag in unannotatedEffectTags(selected)" :key="`detail-${tag}`" :label="tag" color="neutral" variant="subtle" />
@@ -226,10 +230,16 @@ onMounted(() => { hydrated.value = true; });
   .filters > :first-child { grid-column: 1 / -1; }
   .event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.probability-dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: 0; padding-top: 4px; }
+.probability-dl div { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.probability-dl div:nth-child(odd) { padding-right: 16px; }
+.probability-dl dt { color: var(--muted); font-size: .8rem; }
+.probability-dl dd { margin: 0; font-size: .82rem; font-weight: 650; }
+
 @media (max-width: 520px) {
   .event-grid { grid-template-columns: 1fr; }
-  .detail dl { grid-template-columns: 1fr; }
-  .detail dl div:nth-child(odd) { padding-right: 0; }
+  .detail dl, .probability-dl { grid-template-columns: 1fr; }
+  .detail dl div:nth-child(odd), .probability-dl div:nth-child(odd) { padding-right: 0; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .event-card { background: var(--surface-raised); }

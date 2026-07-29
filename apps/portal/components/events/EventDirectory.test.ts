@@ -32,6 +32,7 @@ const global = {
     UEmpty: { props: ["title", "description"], template: "<div>{{ title }}{{ description }}</div>" },
     UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
     UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
+    UAccordion: { props: ["items"], template: "<div><template v-for=\"item in items\" :key=\"item.label\"><slot :name=\"item.slot || 'probability'\" :item=\"item\" /></template></div>" },
   },
 };
 
@@ -70,6 +71,6 @@ describe("EventDirectory", () => {
     await wrapper.get(".event-card").trigger("click");
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain("详情说明");
-    expect(wrapper.text()).toContain("稀有度");
+    expect(wrapper.text()).toContain("普通");
   });
 });
