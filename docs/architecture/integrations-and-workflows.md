@@ -33,8 +33,11 @@ The current API implements versioned v1 QQ flows:
 - when EVIDENCE_BUCKET is configured, submission creation validates and
   retrieves HTTPS image sources, writes private objects to R2, and records
   content metadata;
-- public submission status exposes only the opaque submission ID, map,
-  timestamps, and status;
+- public submission status is an unauthenticated, opaque-ID lookup that exposes
+  only the submission ID, map, timestamps, and workflow status. It returns
+  `Cache-Control: private, no-store`, reads D1 for every request, and excludes
+  evidence, OCR output, player or QQ identity, review metadata, grants, and
+  internal signals;
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
 - the Portal can select a platform-owned challenge, create a single-image
@@ -171,7 +174,10 @@ queried per map through `/v1/agents/map-title-holders?mapId=...`. These response
 read D1 as the authoritative source and never expose historical or revoked
 grants to the Bastion build. Catalog reads do not use KV, so Portal edits are
 immediately visible after refresh and catalog requests do not spend KV quota.
-Submission-status cache entries remain separately invalidated by submission ID.
+Optional HTTP response caching belongs at the HTTP boundary and must not alter
+database-service reads or become a second catalog truth.
+Submission-status reads are intentionally uncached: workflow state is
+authoritative in D1 and each refresh observes the latest committed transition.
 
 The public `/v1/agents/*` API is a read-only projection of the platform's
 current event, map, title, and achievement metadata plus title-holding facts

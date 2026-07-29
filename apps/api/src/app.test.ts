@@ -120,6 +120,13 @@ describe("API", () => {
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
+  it("can disable public Agents HTTP caching without changing catalog data", async () => {
+    const response = await app.request("http://localhost/v1/agents/maps?page=1&pageSize=20", {}, { ...env, PUBLIC_HTTP_CACHE_ENABLED: "false" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ contractVersion: "1", items: [] });
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
   it("lists public random events without development records", async () => {
     const eventApp = createApp({ authenticate: auth, services: () => ({ ...services, listRandomEvents: async () => [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", effectTags: ["护盾"], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }] }) });
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
@@ -132,10 +139,11 @@ describe("API", () => {
     const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
     expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
   });
-  it("reports health without external services", async () => {
-    const response = await app.request("http://localhost/health", {}, env);
+  it("reports health without external services and identifies its deployment revision", async () => {
+    const response = await app.request("http://localhost/health", {}, { ...env, DEPLOYMENT_REVISION: "sha-0123456789abcdef" });
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ service: "api", status: "ok" });
+    expect(await response.json()).toEqual({ service: "api", status: "ok", deploymentRevision: "sha-0123456789abcdef" });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
   describe("X-Request-ID middleware", () => {
@@ -174,6 +182,32 @@ describe("API", () => {
       const body = await response.json() as { error: { requestId: string } };
       expect(body.error.requestId).toBe(incomingId);
       expect(response.headers.get("x-request-id")).toBe(incomingId);
+    });
+
+    it("logs a low-cardinality request record with the revision and cache policy", async () => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+      try {
+        const response = await app.request("http://localhost/v1/agents/maps?page=1&pageSize=20", { headers: { "x-request-id": "trace-for-observability" } }, { ...env, DEPLOYMENT_REVISION: "sha-0123456789abcdef" });
+        expect(response.status).toBe(200);
+        const entries = log.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>);
+        expect(entries).toContainEqual(expect.objectContaining({
+          event: "request_complete",
+          deploymentRevision: "sha-0123456789abcdef",
+          requestId: "trace-for-observability",
+          routeClass: "agents",
+          status: 200,
+          cachePolicy: "public_ttl",
+          edgeCacheStatus: "unavailable",
+        }));
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it("marks administrative responses as private and no-store", async () => {
+      const response = await app.request("http://localhost/v1/admin/events", {}, env);
+      expect(response.status).toBe(403);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
     });
 
   });
@@ -295,6 +329,7 @@ describe("API", () => {
   it("returns only public submission status fields", async () => {
     const response = await app.request("http://localhost/v1/submissions/00000000-0000-0000-0000-000000000003");
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(await response.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 });
   });
 
@@ -701,7 +736,7 @@ describe("API", () => {
     expect(denied.status).toBe(403);
   });
 
-  it("caches public submission status in KV using key submission:v1:<id> and honors refresh=1", async () => {
+  it("reads public submission status directly from D1 on every request", async () => {
     const getSubmissionMock = vi.fn().mockResolvedValue({
       contractVersion: "1",
       submissionId: "00000000-0000-0000-0000-000000000099",
@@ -715,33 +750,11 @@ describe("API", () => {
       services: () => ({ ...services, getSubmission: getSubmissionMock }),
     });
 
-    const kvStore = new Map<string, string>();
-    const cacheGet = vi.fn(async (key: string, format?: string) => {
-      const val = kvStore.get(key);
-      if (!val) return null;
-      return format === "json" ? JSON.parse(val) : val;
-    });
-    const cachePut = vi.fn(async (key: string, val: string) => {
-      kvStore.set(key, val);
-    });
-    const mockCache = {
-      get: cacheGet,
-      put: cachePut,
-    } as unknown as KVNamespace;
-
-    const cacheEnv = { ...env, CACHE: mockCache };
     const url = "http://localhost/v1/submissions/00000000-0000-0000-0000-000000000099";
 
-    const res1 = await subApp.request(url, {}, cacheEnv);
+    const res1 = await subApp.request(url, {}, env);
     expect(res1.status).toBe(200);
     expect(getSubmissionMock).toHaveBeenCalledTimes(1);
-    expect(cacheGet).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", "json");
-    expect(cachePut).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", expect.any(String), { expirationTtl: 300 });
-
-    getSubmissionMock.mockClear();
-    const res2 = await subApp.request(url, {}, cacheEnv);
-    expect(res2.status).toBe(200);
-    expect(getSubmissionMock).not.toHaveBeenCalled();
 
     getSubmissionMock.mockResolvedValueOnce({
       contractVersion: "1",
@@ -751,35 +764,10 @@ describe("API", () => {
       createdAt: 100,
       updatedAt: 300,
     });
-    cacheGet.mockClear();
-    cachePut.mockClear();
-
-    const res3 = await subApp.request(`${url}?refresh=1`, {}, cacheEnv);
-    expect(res3.status).toBe(200);
-    expect(cacheGet).not.toHaveBeenCalled();
-    expect(getSubmissionMock).toHaveBeenCalledTimes(1);
-    expect(cachePut).toHaveBeenCalledWith("submission:v1:00000000-0000-0000-0000-000000000099", expect.any(String), { expirationTtl: 300 });
-  });
-
-  it("does not cache 404 or error responses in KV for public submission status", async () => {
-    const getSubmissionMock = vi.fn().mockRejectedValue(new Error("SUBMISSION_NOT_FOUND"));
-    const subApp = createApp({
-      authenticate: auth,
-      services: () => ({ ...services, getSubmission: getSubmissionMock }),
-    });
-
-    const cachePut = vi.fn().mockResolvedValue(undefined);
-    const mockCache = {
-      get: vi.fn().mockResolvedValue(null),
-      put: cachePut,
-    } as unknown as KVNamespace;
-
-    const cacheEnv = { ...env, CACHE: mockCache };
-    const url = "http://localhost/v1/submissions/00000000-0000-0000-0000-000000000099";
-
-    const response = await subApp.request(url, {}, cacheEnv);
-    expect(response.status).toBe(404);
-    expect(cachePut).not.toHaveBeenCalled();
+    const res2 = await subApp.request(url, {}, env);
+    expect(res2.status).toBe(200);
+    expect(getSubmissionMock).toHaveBeenCalledTimes(2);
+    expect(await res2.json()).toMatchObject({ status: "approved", updatedAt: 300 });
   });
 
   it("returns 401 for manual review request without session", async () => {

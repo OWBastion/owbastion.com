@@ -65,7 +65,7 @@
     "/v1/admin/submissions/{submissionId}/review": { "post": { "operationId": "reviewSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" }, "422": { "$ref": "#/components/responses/Json" } } } },
     "/v1/qq/bindings": { "post": { "operationId": "createQqBinding", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/submissions": { "post": { "operationId": "createSubmission", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
-    "/v1/submissions/{submissionId}": { "get": { "operationId": "getPublicSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }, { "$ref": "#/components/parameters/refreshQuery" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } }
+    "/v1/submissions/{submissionId}": { "get": { "operationId": "getPublicSubmission", "parameters": [{ "$ref": "#/components/parameters/submissionId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } }
   },
   "components": {
     "parameters": {
@@ -95,8 +95,7 @@
       "agentStatus": { "name": "status", "in": "query", "required": false, "schema": { "type": "string", "enum": ["active", "sunsetting"] } },
       "agentScope": { "name": "scope", "in": "query", "required": false, "schema": { "type": "string", "enum": ["global", "map"] } },
       "agentKind": { "name": "kind", "in": "query", "required": false, "schema": { "type": "string", "enum": ["event", "map", "achievement", "title"] } },
-      "grantId": { "name": "grantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
-      "refreshQuery": { "name": "refresh", "in": "query", "required": false, "schema": { "type": "string", "enum": ["1"] } }
+      "grantId": { "name": "grantId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
     },
     "responses": { "Json": { "description": "JSON response", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } } }
   }

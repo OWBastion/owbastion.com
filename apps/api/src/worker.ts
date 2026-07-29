@@ -8,7 +8,7 @@ const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL
 
 const app = createApp({
   authenticate: authenticatePlatformActor,
-  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.CACHE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env)),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env)),
 });
 
 const policySignature = async (secret: string, timestamp: string, body: string) => {
@@ -22,7 +22,7 @@ const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage): body i
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.CACHE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env));
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env));
     for (const message of batch.messages) {
       if (isQqPolicyMessage(message.body)) {
         try {
@@ -48,6 +48,6 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.CACHE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN).dispatchPendingQqGroupPolicyEvents();
+    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN).dispatchPendingQqGroupPolicyEvents();
   },
 };

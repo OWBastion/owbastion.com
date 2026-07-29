@@ -13,6 +13,7 @@ architecture milestones.
 ## Architecture decisions
 
 - [ADR 0001: Platform technology stack](adr/0001-platform-technology-stack.md) — frontend, backend, Cloudflare services, contract ownership, repository organization, and implementation guardrails.
+- [ADR 0002: Submission status reads use D1 directly](adr/0002-submission-status-d1-reads.md) — workflow-state freshness, privacy, and cache decision.
 
 ## Development
 

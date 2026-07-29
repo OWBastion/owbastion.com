@@ -6,7 +6,6 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
-import { invalidateSubmissionCache } from "./submission-cache";
 
 const now = () => Date.now();
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
@@ -168,7 +167,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, cache?: KVNamespace, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 2): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 2): PlatformServices => {
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
@@ -891,7 +890,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.revoke", idempotencyKey, input); if (replay) return;
       const grant = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.id, input.grantId)).get(); if (!grant) throw new Error("TITLE_GRANT_NOT_FOUND");
       await db.update(playerTitleGrants).set({ status: "revoked", revokedBy: auth.subject, revokedAt: now(), revokeReason: input.reason ?? null }).where(eq(playerTitleGrants.id, grant.id));
-      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null }); await bumpCatalogCacheRevision(cache, "grants");
+      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null });
     },
 
     async createPlayerUploadSession(input, sessionToken) {
@@ -933,7 +932,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
       await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId ?? null, targetMapId: targetMap?.id ?? null, mapName, difficulty, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
-      await invalidateSubmissionCache(cache, submissionId);
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
     },
 
@@ -965,7 +963,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const matched = quality.accepted && Object.values(match).every(Boolean) && titleMatched;
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, targetMapId: targetMap?.id ?? null, mapName: targetMap?.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched ? null : quality.accepted ? "OCR 结果与目标挑战不匹配" : "截图未满足识别要求，请重新提交" }).where(eq(submissions.id, submission.id));
       if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
-      await invalidateSubmissionCache(cache, submission.id);
       return await this.getPlayerSubmission({ submissionId: submission.id }, sessionToken);
     },
 
@@ -996,7 +993,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      await invalidateSubmissionCache(cache, session.submissionId);
       if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
@@ -1061,7 +1057,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: "玩家申请人工处理" }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
       await db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: "user", actorId: submission.id, operation: "submission.manual_review_requested", entityType: "submission", entityId: submission.id, payloadJson: JSON.stringify({ ocrFailCount: submission.ocrFailCount }), createdAt: timestamp });
-      await invalidateSubmissionCache(cache, submission.id);
     },
 
     async getPlayerEvidence(input, sessionToken) {
@@ -1151,7 +1146,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         );
       }
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      await invalidateSubmissionCache(cache, row.id);
       const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
       if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
       if (reward && response.decision === "approved") {
@@ -1184,7 +1178,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         } else {
           await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
         }
-        await invalidateSubmissionCache(cache, row.id);
         return;
       }
       const title = row.challengeType === "title_achievement" && row.challengeId
@@ -1195,7 +1188,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!quality.accepted) {
         await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
         await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
-        await invalidateSubmissionCache(cache, row.id);
         return;
       }
       const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
@@ -1206,7 +1198,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } else {
         await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 结果与目标挑战不匹配", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
       }
-      await invalidateSubmissionCache(cache, row.id);
     },
 
     async markOcrJobFailed(input) {
@@ -1214,7 +1205,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row || row.status !== "ocr_pending") return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
       await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
-      await invalidateSubmissionCache(cache, row.id);
     },
 
     async listQqGroupAccess() {
@@ -1836,7 +1826,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response = { contractVersion: "1" as const, submissionId, status, mapName: input.challenge.mapName, attachmentIds };
       await recordIdempotency(db, auth.subject, "submission.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "submission.create", "submission", submissionId, { bindingId: binding.id, attachmentCount: attachmentIds.length, mapName: input.challenge.mapName, status });
-      await invalidateSubmissionCache(cache, submissionId);
       return response;
     },
 
@@ -1849,4 +1838,3 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 };
 
 export * from "./schema";
-export * from "./submission-cache";

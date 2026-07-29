@@ -22,7 +22,6 @@ deployment job:
   `x-owbastion-review` header is not exactly `portal-admin` or `portal-player`.
   This is only a weak source check, not authorization; anyone who learns the
   header value and object URL can still read the object.
-- KV namespace for public submission-status cache, bound as `CACHE`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;
 - the real D1 `database_id` written to `wrangler.toml`.
@@ -31,24 +30,42 @@ Record the staging database ID in `wrangler.staging-d1.toml`. It is used only
 for migration and schema validation, and must not contain production player,
 binding, evidence, or private submission data.
 
-Create the KV namespace with Wrangler, then replace the `CACHE` placeholder ID
-in `wrangler.toml` with the returned namespace ID. Namespace IDs are account
-resources and are not secrets, but the repository must not contain a guessed
-production ID:
-
-~~~bash
-pnpm exec wrangler kv namespace create owbastion-codes-cache --binding CACHE
-~~~
-
-The local configuration uses a separate local KV namespace ID. Wrangler local
-development stores KV data locally by default, so local cache state does not
-affect production.
-
 Do not reuse the QQBot channel-state D1 or OCRKit's model/evidence bucket.
 For the coded OCRKit orchestration, set the Worker variable
 `OCRKIT_EVIDENCE_BUCKET` to `owbastion-codes-evidence`. The Worker passes this
 bucket explicitly with every object-mode OCR request; it does not use OCRKit's
 default bucket.
+
+## Retiring obsolete catalog KV keys
+
+Catalog and grant reads come directly from D1. After the Worker version that
+removes catalog caching is deployed, an authorized operator may run this
+one-time cleanup against the former production cache namespace. It is not part
+of application runtime or deployment: list and review each prefix first, then
+delete only the resulting reviewed key names. Substitute the namespace ID from
+the retired binding or Cloudflare dashboard; do not put it in this repository.
+
+~~~bash
+task_tmp_dir=$(mktemp -d /private/tmp/owbastion-catalog-kv.XXXXXX)
+pnpm exec wrangler kv key list --namespace-id '<production-cache-namespace-id>' --remote --prefix 'catalog:v4:' > "$task_tmp_dir/catalog-v4.json"
+pnpm exec wrangler kv key list --namespace-id '<production-cache-namespace-id>' --remote --prefix 'catalog:v5:' > "$task_tmp_dir/catalog-v5.json"
+pnpm exec wrangler kv key list --namespace-id '<production-cache-namespace-id>' --remote --prefix 'catalog:revision:' > "$task_tmp_dir/catalog-revision.json"
+jq '[.[] | { key: .name }]' "$task_tmp_dir/catalog-v4.json" > "$task_tmp_dir/catalog-v4-delete.json"
+jq '[.[] | { key: .name }]' "$task_tmp_dir/catalog-v5.json" > "$task_tmp_dir/catalog-v5-delete.json"
+jq '[.[] | { key: .name }]' "$task_tmp_dir/catalog-revision.json" > "$task_tmp_dir/catalog-revision-delete.json"
+~~~
+
+Review every generated `*-delete.json` file before running the matching command:
+
+~~~bash
+pnpm exec wrangler kv bulk delete "$task_tmp_dir/catalog-v4-delete.json" --namespace-id '<production-cache-namespace-id>' --remote
+pnpm exec wrangler kv bulk delete "$task_tmp_dir/catalog-v5-delete.json" --namespace-id '<production-cache-namespace-id>' --remote
+pnpm exec wrangler kv bulk delete "$task_tmp_dir/catalog-revision-delete.json" --namespace-id '<production-cache-namespace-id>' --remote
+~~~
+
+Remove `task_tmp_dir` after confirming all three reviewed operations succeed.
+This is an external destructive operation and must not be automated by the
+Worker.
 
 ## GitHub configuration
 
@@ -100,8 +117,7 @@ CLOUDFLARE_ZONE_ID=<zone-id> CLOUDFLARE_API_TOKEN=<api-token> pnpm deploy:api-en
 ~~~
 
 The workflow refuses to deploy while the D1 ID is still the repository's
-placeholder or while the `CACHE` KV ID is still its placeholder. It does not
-reset, delete, or roll back D1 or KV data.
+placeholder. It does not reset, delete, or roll back D1 data.
 
 Set `OCRKIT_BASE_URL` in `wrangler.toml` to the public OCRKit hostname. The Worker sends
 `OCRKIT_API_TOKEN` only to that service as a Bearer credential; browser and QQBot clients do

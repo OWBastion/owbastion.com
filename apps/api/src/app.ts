@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { submissionCacheKey, submissionCacheTtlSeconds } from "@owbastion/database";
 import {
   qqBindingRequestSchema,
   submissionRequestSchema,
@@ -26,7 +25,6 @@ import type { Authenticator, PlatformServices } from "@owbastion/domain";
 
 export type RuntimeEnv = {
   DB: D1Database;
-  CACHE?: KVNamespace;
   EVIDENCE_BUCKET?: R2Bucket;
   QQBOT_API_TOKEN?: string;
   BASTION_BUILD_TOKEN?: string;
@@ -864,32 +862,12 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/submissions/:submissionId", async (c) => {
     c.header("Access-Control-Allow-Origin", "*");
+    c.header("Cache-Control", "private, no-store");
     const submissionId = c.req.param("submissionId");
     if (!/^[0-9a-f-]{36}$/.test(submissionId)) return errorResponse(c, 422, "INVALID_SUBMISSION_ID", "The submission ID is invalid");
 
-    const refresh = c.req.query("refresh") === "1";
-    const cacheKey = submissionCacheKey(submissionId);
-
-    if (!refresh && c.env?.CACHE) {
-      try {
-        const cached = await c.env.CACHE.get(cacheKey, "json");
-        if (cached !== null) {
-          return c.json(cached);
-        }
-      } catch {
-        // KV is an optional derived-data optimization; D1 remains authoritative.
-      }
-    }
-
     try {
       const submission = await dependencies.services(c.env).getSubmission({ submissionId }, { actorType: "user", subject: "public-status", roles: [], provider: "public" });
-      if (c.env?.CACHE) {
-        try {
-          await c.env.CACHE.put(cacheKey, JSON.stringify(submission), { expirationTtl: submissionCacheTtlSeconds });
-        } catch {
-          // A cache write failure must not fail an otherwise successful D1 read.
-        }
-      }
       return c.json(submission);
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
