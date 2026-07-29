@@ -475,40 +475,63 @@ export const createApp = (dependencies: AppDependencies) => {
     setPublicCatalogCache(c, !c.req.query("query") && !c.req.query("category") && !c.req.query("rarity") && !status && publicCacheEnabled(c));
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) });
   });
-  app.get("/v1/events/:eventId", async (c) => { allowPortal(c); setPublicCatalogCache(c); const event = await dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+  app.get("/v1/events/:eventId", async (c) => {
+    allowPortal(c);
+    setPublicCatalogCache(c);
+    const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
+    return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
+  });
 
   app.get("/v1/agents/events", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, !c.req.query("q") && !c.req.query("category") && !c.req.query("rarity"));
-    return c.json({ ...await dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined }) });
+    return c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined })) });
   });
-  app.get("/v1/agents/events/:eventId", async (c) => { const includePlayerIds = allowAgents(c); setAgentsCache(c, includePlayerIds, true); const event = await dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }); return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist"); });
+  app.get("/v1/agents/events/:eventId", async (c) => {
+    const includePlayerIds = allowAgents(c);
+    setAgentsCache(c, includePlayerIds, true);
+    const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }));
+    return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
+  });
   app.get("/v1/agents/maps", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, !c.req.query("q") && !c.req.query("mechanic"));
-    return c.json(await dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }));
+    return c.json(await logServiceOperation(c, "agents_list_maps", () => dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined })));
   });
-  app.get("/v1/agents/maps/:mapId", async (c) => { const includePlayerIds = allowAgents(c); setAgentsCache(c, includePlayerIds, true); const map = await dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }); return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); });
+  app.get("/v1/agents/maps/:mapId", async (c) => {
+    const includePlayerIds = allowAgents(c);
+    setAgentsCache(c, includePlayerIds, true);
+    const map = await logServiceOperation(c, "agents_get_map", () => dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }));
+    return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+  });
   app.get("/v1/agents/achievements", async (c) => {
     allowAgents(c); const page = agentPage(c); const status = c.req.query("status"); if (!page || (status && status !== "active" && status !== "sunsetting")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await dependencies.services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined }));
+    return c.json(await logServiceOperation(c, "agents_list_achievements", () => dependencies.services(c.env).listAgentAchievements({ ...page, query: c.req.query("q")?.trim() || undefined, status: status as "active" | "sunsetting" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
-  app.get("/v1/agents/achievements/:achievementId", async (c) => { allowAgents(c); const achievement = await dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId") }); return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist"); });
+  app.get("/v1/agents/achievements/:achievementId", async (c) => {
+    allowAgents(c);
+    const achievement = await logServiceOperation(c, "agents_get_achievement", () => dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId") }));
+    return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist");
+  });
   app.get("/v1/agents/titles", async (c) => {
     allowAgents(c); const page = agentPage(c); const scope = c.req.query("scope"); if (!page || (scope && scope !== "global" && scope !== "map")) return errorResponse(c, 422, "INVALID_REQUEST", "The request parameters are invalid");
-    return c.json(await dependencies.services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined }));
+    return c.json(await logServiceOperation(c, "agents_list_titles", () => dependencies.services(c.env).listAgentTitles({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, scope: scope as "global" | "map" | undefined, mapId: c.req.query("mapId")?.trim() || undefined })));
   });
-  app.get("/v1/agents/titles/:titleKey", async (c) => { allowAgents(c); const title = await dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }); return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist"); });
+  app.get("/v1/agents/titles/:titleKey", async (c) => {
+    allowAgents(c);
+    const title = await logServiceOperation(c, "agents_get_title", () => dependencies.services(c.env).getAgentTitle({ titleKey: c.req.param("titleKey") }));
+    return title ? c.json({ contractVersion: "1", item: title }) : errorResponse(c, 404, "TITLE_NOT_FOUND", "The title does not exist");
+  });
   app.get("/v1/agents/player-title-grants", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, true);
-    return c.json(publicAgentPlayerTitleGrants(await dependencies.services(c.env).listAgentPlayerTitleGrants(page), includePlayerIds));
+    return c.json(publicAgentPlayerTitleGrants(await logServiceOperation(c, "agents_list_player_title_grants", () => dependencies.services(c.env).listAgentPlayerTitleGrants(page)), includePlayerIds));
   });
   app.get("/v1/agents/map-title-holders", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required"); setAgentsCache(c, includePlayerIds, true);
     if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
-    return c.json(publicAgentMapTitleHolders(await dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId }), includePlayerIds));
+    return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
   });
   app.get("/v1/agents/search", async (c) => {
     allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
-    return c.json(await dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined }));
+    return c.json(await logServiceOperation(c, "agents_search", () => dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined })));
   });
 
   app.post("/v1/player/uploads/session", async (c) => {
@@ -608,7 +631,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
     if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
     if (status && !["scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
-    return c.json(await dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!));
+    return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!)));
   });
 
   app.post("/v1/admin/achievements", async (c) => {
@@ -633,16 +656,28 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/maps", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listMaps() });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => dependencies.services(c.env).listMaps()) });
   });
 
   app.get("/v1/admin/titles", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined }) });
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
   });
 
-  app.get("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json({ contractVersion: "1", items: await dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, includeArchived: c.req.query("archived") === "true" }) }); });
+  app.get("/v1/admin/events", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    return c.json({
+      contractVersion: "1",
+      items: await logServiceOperation(c, "admin_list_events", () => dependencies.services(c.env).listRandomEvents({
+        query: c.req.query("query")?.trim() || undefined,
+        category: c.req.query("category")?.trim() || undefined,
+        rarity: c.req.query("rarity")?.trim() || undefined,
+        includeArchived: c.req.query("archived") === "true",
+      })),
+    });
+  });
   app.post("/v1/admin/events", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventCreateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).createAdminRandomEvent(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_CREATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.put("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventUpdateRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).updateAdminRandomEvent({ ...parsed.data, eventId: c.req.param("eventId") }, access.auth!, key)); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_UPDATE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.delete("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); try { await dependencies.services(c.env).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, access.auth!, key); return c.body(null, 204); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_ARCHIVE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });

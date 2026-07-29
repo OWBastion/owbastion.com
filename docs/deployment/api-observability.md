@@ -90,6 +90,18 @@ Investigate high `durationMs` records by fixed `routeClass` and `operation`
 only. Do not add player names, IDs, event IDs, arbitrary URLs, SQL text,
 evidence keys, query values, or response bodies as log dimensions.
 
+Representative catalog operation names for D1 performance baselines (issue #24):
+
+| Operation | Route class | Notes |
+| --- | --- | --- |
+| `catalog_list_*` / `catalog_get_event` | `catalog` | Public catalog lists and single event; `catalogKvOperationCount: 0` |
+| `admin_list_maps` / `admin_list_achievements` / `admin_list_titles` / `admin_list_events` | `admin` | Uncached D1 admin lists |
+| `agents_list_*` / `agents_get_*` / `agents_search` | `agents` | Public or Bastion-token Agents reads; single-title uses a direct lookup |
+
+Catalog relationship loads (challenge↔map associations) are batched in the
+database package so statement counts stay bounded as achievement/title counts
+grow. Assert ceilings live in `packages/database/src/catalog-query-budget.test.ts`.
+
 ## Mutation refresh check
 
 In an approved staging or production administrative session, make one catalog
