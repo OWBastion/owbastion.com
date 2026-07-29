@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
@@ -211,6 +211,103 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     return grouped;
   };
+
+  // ── Map title rule resolution ────────────────────────────────────────────────
+  //
+  // Immutable snapshot type persisted to submissions.rule_snapshot_json.
+  // All fields are required; exceptionId is null when the rule default applies.
+  type MapTitleRuleSnapshot = {
+    ruleId: string;
+    ruleRevision: number; // updatedAt timestamp of the rule row at resolution time
+    mapId: string;
+    titleKey: string;
+    slot: string | null;
+    displayKind: string;
+    condition: string;
+    evidenceRule: string;
+    submissionMode: string;
+    defaultScope: string;
+    exceptionId: string | null;
+  };
+
+  // Resolve the deterministic projection for a (ruleId, mapId) pair.
+  // Returns null when no challenge is projected (retired map, disabled exception,
+  // or map outside an explicit-scope rule with no exception).
+  //
+  // Exception precedence (from the issue's locked invariants):
+  //   1. A retired or inactive map → no projection.
+  //   2. A disabled exception (enabled=0) → no projection.
+  //   3. An enabled exception → override fields win over rule defaults.
+  //   4. Map is inside the rule's effective scope → rule default applies.
+  //   5. Otherwise → no projection.
+  const resolveMapTitleProjection = async (
+    ruleId: string,
+    mapId: string,
+  ): Promise<MapTitleRuleSnapshot | null> => {
+    // Step 1: check map status.
+    const map = await db.select({ id: maps.id, status: maps.status }).from(maps).where(eq(maps.id, mapId)).get();
+    if (!map || map.status !== "active") return null;
+
+    // Load the rule.
+    const rule = await db.select().from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get();
+    if (!rule || rule.status === "inactive") return null;
+
+    // Step 2-3: look for an explicit exception.
+    const exception = await db.select().from(mapTitleRuleExceptions)
+      .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
+      .get();
+
+    if (exception) {
+      // Step 2: disabled exception removes the projection.
+      if (exception.enabled === 0) return null;
+      // Step 3: enabled exception — override fields win.
+      return {
+        ruleId: rule.id,
+        ruleRevision: rule.updatedAt,
+        mapId,
+        titleKey: rule.titleKey,
+        slot: exception.slot ?? rule.slot ?? null,
+        displayKind: rule.displayKind,
+        condition: exception.condition ?? rule.condition,
+        evidenceRule: exception.evidenceRule ?? rule.evidenceRule,
+        submissionMode: exception.submissionMode ?? rule.submissionMode,
+        defaultScope: rule.defaultScope,
+        exceptionId: exception.id,
+      };
+    }
+
+    // Step 4: no exception — apply rule default only when map is in scope.
+    if (rule.defaultScope === "explicit") return null;
+    return {
+      ruleId: rule.id,
+      ruleRevision: rule.updatedAt,
+      mapId,
+      titleKey: rule.titleKey,
+      slot: rule.slot ?? null,
+      displayKind: rule.displayKind,
+      condition: rule.condition,
+      evidenceRule: rule.evidenceRule,
+      submissionMode: rule.submissionMode,
+      defaultScope: rule.defaultScope,
+      exceptionId: null,
+    };
+  };
+
+  // Resolve a compat-mapped legacy challenge ID through the rule model.
+  // Returns the snapshot if the compat entry exists and the map is still active,
+  // or null if the map is retired / the compat entry is missing.
+  const resolveCompatProjection = async (
+    legacyChallengeId: string,
+    mapId: string,
+  ): Promise<MapTitleRuleSnapshot | null> => {
+    const compat = await db.select({ ruleId: mapTitleRuleCompat.ruleId })
+      .from(mapTitleRuleCompat)
+      .where(and(eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId), eq(mapTitleRuleCompat.mapId, mapId)))
+      .get();
+    if (!compat) return null;
+    return resolveMapTitleProjection(compat.ruleId, mapId);
+  };
+
 
   const toPublicTitleChallenge = (
     challenge: typeof titleChallenges.$inferSelect,
@@ -1318,15 +1415,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       let reward: { titleKey: string; titleName: string; mapId: string | null; slot: string | null } | null = null;
       if (input.decision === "approved") {
         if (!row.challengeId) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
-        if (row.challengeType === "title_achievement") {
+
+        // Fast path: submission was created with an immutable rule snapshot.
+        if (row.ruleSnapshotJson) {
+          const snap = JSON.parse(row.ruleSnapshotJson) as { titleKey: string; mapId: string; slot: string | null };
+          reward = { titleKey: snap.titleKey, titleName: "", mapId: snap.mapId, slot: snap.slot };
+          // Resolve the display name from the catalog (read-only; snapshot has the authoritative facts).
+          const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
+          reward.titleName = catalogRow?.label ?? snap.titleKey;
+        } else if (row.challengeType === "title_achievement") {
           const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get();
           if (!challenge) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
           if (challenge.scope === "map" && !row.targetMapId) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
           reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.scope === "map" ? row.targetMapId : null, slot: null };
         } else {
-          const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, row.challengeId)).get();
-          if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
-          reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, slot: challenge.slot };
+          // Legacy map challenge path: check compat table first, then fall back to direct join.
+          const snap = row.targetMapId ? await resolveCompatProjection(row.challengeId, row.targetMapId) : null;
+          if (snap) {
+            const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
+            reward = { titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, slot: snap.slot };
+          } else {
+            const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, row.challengeId)).get();
+            if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+            reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, slot: challenge.slot };
+          }
         }
       }
 

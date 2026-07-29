@@ -162,6 +162,53 @@ through OCR and review under the ordinary submission lifecycle. Reopening
 clears the retirement version. Administrator changes require maintainer
 authorization, an idempotency key, and an audit record.
 
+### Map title rule model
+
+Standard map titles (CONQUEROR, DOMINATOR, PIONEER) are governed by a
+reusable `map_title_rules` entity — one row per rule kind — rather than
+duplicated `achievement_challenges` rows per map. Each rule owns the
+authoritative condition, evidence rule, submission mode, display strategy
+(`map_name_suffix`, `map_pioneer`, or `fixed`), default reward slot, and
+lifecycle status.
+
+**Exception precedence** — the deterministic resolution algorithm for a
+`(ruleId, mapId)` pair follows five steps:
+
+1. A retired or inactive map produces no projection regardless of the rule.
+2. A disabled exception (`enabled = 0`) removes the projection for that map,
+   overriding even an `all_active` rule default.
+3. An enabled exception — override fields win over the rule default. Only
+   `condition`, `evidence_rule`, `submission_mode`, and `slot` may be
+   overridden; `title_key` and `display_kind` remain rule-level and cannot be
+   changed by an exception.
+4. No exception exists and the rule's `default_scope` is `all_active` — the
+   rule default applies to the map.
+5. No exception and `default_scope` is `explicit` — no projection.
+
+**Compatibility mapping** — the `map_title_rule_compat` table retains the
+legacy `map.<mapId>.<kind>` public IDs used by existing `achievement_challenges`
+rows. Each compat row links a legacy challenge ID to its authoritative rule and
+map; the `is_standard_instance` flag distinguishes template projections (the
+old per-map duplication pattern) from genuine map-specific exceptions. These
+IDs are stable across rule changes.
+
+**Submission-time snapshot** — at upload-session creation, the resolved
+projection is serialised as an immutable JSON object and stored in
+`submissions.rule_snapshot_json`. The snapshot captures `ruleId`,
+`ruleRevision`, `mapId`, `titleKey`, `slot`, `displayKind`, `condition`,
+`evidenceRule`, `submissionMode`, `defaultScope`, and `exceptionId`. Review
+and grant decisions must read this snapshot rather than performing a live rule
+lookup; the snapshot governs even if the rule or exception is subsequently
+modified. Legacy submissions (`rule_snapshot_json IS NULL`) continue to resolve
+through the direct `achievement_challenges` join or the `title_challenges` path.
+
+**`map_title_rewards` remains a read-only compatibility layer** during the
+current migration window. The rule model is the new source of truth; existing
+`map_title_rewards` rows continue to serve the Agents API and grant display
+paths until explicitly retired. New rules do not write to `map_title_rewards`.
+
+
+
 ## Random-event directory
 
 The public Portal lists implemented and removed random events, their public

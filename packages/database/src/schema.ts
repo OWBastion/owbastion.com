@@ -108,6 +108,63 @@ export const mapTitleRewards = sqliteTable("map_title_rewards", {
   mapTitle: uniqueIndex("map_title_rewards_map_title_idx").on(table.mapId, table.titleKey),
 }));
 
+// Reusable map title rule entity. One row per rule kind (e.g. conqueror).
+// Replaces per-map duplication in achievement_challenges as the authoritative
+// source for conditions, reward slot, display strategy, and lifecycle.
+export const mapTitleRules = sqliteTable("map_title_rules", {
+  id: text("id").primaryKey(),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  kind: text("kind").notNull(),
+  condition: text("condition").notNull(),
+  evidenceRule: text("evidence_rule").notNull(),
+  submissionMode: text("submission_mode").notNull().default("manual"),
+  displayKind: text("display_kind").notNull(),
+  // slot persisted at rule level; null means no named slot (custom map titles).
+  slot: text("slot"),
+  // all_active: projects to every active map; explicit: only via exceptions.
+  defaultScope: text("default_scope").notNull().default("all_active"),
+  status: text("status").notNull().default("active"),
+  introducedVersion: text("introduced_version").notNull(),
+  retiredVersion: text("retired_version"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  kindIdx: uniqueIndex("map_title_rules_kind_idx").on(table.kind),
+  titleKeyIdx: uniqueIndex("map_title_rules_title_key_idx").on(table.titleKey),
+}));
+
+// Optional per-(ruleId, mapId) overrides.
+// enabled=0: disabled exception — removes the projection for this map.
+// enabled=1: active exception — override fields win over rule defaults.
+// title_key and display_kind cannot be overridden by an exception.
+export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
+  id: text("id").primaryKey(),
+  ruleId: text("rule_id").notNull().references(() => mapTitleRules.id),
+  mapId: text("map_id").notNull().references(() => maps.id),
+  enabled: integer("enabled").notNull().default(1),
+  condition: text("condition"),
+  evidenceRule: text("evidence_rule"),
+  submissionMode: text("submission_mode"),
+  slot: text("slot"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  ruleMapIdx: uniqueIndex("map_title_rule_exceptions_rule_map_idx").on(table.ruleId, table.mapId),
+}));
+
+// Compatibility mapping: retains legacy map.<mapId>.<kind> IDs.
+// is_standard_instance=1: template projection (old per-map duplication).
+// is_standard_instance=0: genuine map-specific exception.
+export const mapTitleRuleCompat = sqliteTable("map_title_rule_compat", {
+  legacyChallengeId: text("legacy_challenge_id").primaryKey(),
+  ruleId: text("rule_id").notNull().references(() => mapTitleRules.id),
+  mapId: text("map_id").notNull().references(() => maps.id),
+  isStandardInstance: integer("is_standard_instance").notNull().default(1),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  ruleMapIdx: uniqueIndex("map_title_rule_compat_rule_map_idx").on(table.ruleId, table.mapId),
+}));
+
 export const historicalTitleGrants = sqliteTable("historical_title_grants", {
   id: text("id").primaryKey(),
   scope: text("scope").notNull(),
@@ -207,6 +264,10 @@ export const submissions = sqliteTable("submissions", {
   reviewReason: text("review_reason"),
   grantId: text("grant_id"),
   ocrFailCount: integer("ocr_fail_count").notNull().default(0),
+  // Immutable JSON snapshot persisted at upload-session creation for rule-based
+  // submissions. Null for all legacy rows. Review and grant paths must read
+  // this snapshot; they must not perform a live rule lookup when not null.
+  ruleSnapshotJson: text("rule_snapshot_json"),
   sourceProvider: text("source_provider").notNull(),
   sourceConversationId: text("source_conversation_id").notNull(),
   sourceMessageId: text("source_message_id").notNull(),
