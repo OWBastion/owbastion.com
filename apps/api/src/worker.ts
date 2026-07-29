@@ -2,7 +2,7 @@ import { authenticatePlatformActor } from "@owbastion/auth";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
 
-type OcrQueueMessage = { version: number; submissionId: string; objectKey: string };
+type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 2; };
 
@@ -42,7 +42,7 @@ export default {
       catch (error) {
         if (message.attempts < 3) { message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
         const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : "OCR_PROCESS_FAILED";
-        try { await platform.markOcrJobFailed({ submissionId: message.body.submissionId, attempt: message.attempts, errorCode }); message.ack(); }
+        try { await platform.markOcrJobFailed({ submissionId: message.body.submissionId, attempt: message.attempts, errorCode, manual: message.body.manual }); message.ack(); }
         catch { message.retry({ delaySeconds: 60 }); }
       }
     }

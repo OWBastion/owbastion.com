@@ -11,10 +11,13 @@ const props = defineProps<{
   evidenceError?: boolean;
   reviewError?: string;
   actionLoading?: boolean;
+  ocrRetryError?: string;
+  ocrRetryLoading?: boolean;
 }>();
 const emit = defineEmits<{
   review: [decision: "approved" | "rejected" | "resubmission_required"];
   "evidence-error": [];
+  "retry-ocr": [];
 }>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
@@ -28,7 +31,7 @@ const submissionTarget = computed(() => props.submission.challenge?.family === "
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const ocrStatusText: Record<AdminSubmission["ocrStatus"], string> = { not_started: "未开始", pending: "识别中", matched: "已匹配", mismatch: "未匹配", review_required: "需人工核对", error: "识别失败" };
 const ocrStatusTone = (status: AdminSubmission["ocrStatus"]) => status === "matched" ? "success" : status === "mismatch" || status === "review_required" || status === "error" ? "warning" : "default";
-const isDecisionComplete = computed(() => ["approved", "rejected", "resubmission_required"].includes(props.submission.status));
+const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 </script>
 
 <template>
@@ -54,12 +57,16 @@ const isDecisionComplete = computed(() => ["approved", "rejected", "resubmission
       </div>
 
       <div class="info-col">
-        <UCard v-if="!isDecisionComplete" class="actions-card">
+        <UCard class="actions-card">
           <template #header><div class="card-heading"><h3>审核操作</h3><span>请选择处理结果</span></div></template>
           <div class="actions">
-            <UButton label="通过" :loading="actionLoading" :disabled="actionLoading" @click="emit('review', 'approved')" />
-            <UButton label="要求重传" color="neutral" variant="outline" :loading="actionLoading" :disabled="actionLoading" @click="emit('review', 'resubmission_required')" />
-            <UButton label="驳回" color="error" :loading="actionLoading" :disabled="actionLoading" @click="emit('review', 'rejected')" />
+            <UButton label="通过" :loading="actionLoading" :disabled="actionsLoading" @click="emit('review', 'approved')" />
+            <UButton label="要求重传" color="neutral" variant="outline" :loading="actionLoading" :disabled="actionsLoading" @click="emit('review', 'resubmission_required')" />
+            <UButton label="驳回" color="error" :loading="actionLoading" :disabled="actionsLoading" @click="emit('review', 'rejected')" />
+          </div>
+          <div class="ocr-retry-actions">
+            <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
+            <UButton label="重新发送 OCRKit 请求" color="neutral" variant="outline" :loading="ocrRetryLoading" :disabled="actionsLoading" @click="emit('retry-ocr')" />
           </div>
         </UCard>
 
@@ -115,7 +122,7 @@ const isDecisionComplete = computed(() => ["approved", "rejected", "resubmission
 </template>
 
 <style scoped>
-.review-detail { display:grid; gap:24px; }.detail-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; }.detail-heading h2 { margin:0; max-width:22ch; font-size:clamp(1.8rem,4vw,2.8rem); letter-spacing:-.05em; line-height:1.05; overflow-wrap:anywhere; }.detail-heading .eyebrow { margin-bottom:8px; }.detail-meta { margin:10px 0 0; color:var(--quiet); font-size:.82rem; }.detail-grid { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,.9fr); align-items:start; gap:clamp(18px,2.4vw,28px); }.evidence-col { position:sticky; top:24px; min-width:0; }.info-col { display:grid; gap:16px; min-width:0; }.overview-card,.challenge-card,.ocr-card,.actions-card,.evidence-card { border-color:var(--line); box-shadow:0 12px 32px -24px var(--shadow); }.evidence-card { box-shadow:0 18px 44px -28px var(--shadow); }.card-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }.card-heading h3 { margin:0; font-size:1rem; font-weight:720; letter-spacing:-.02em; }.card-heading > span { color:var(--quiet); font-size:.72rem; font-weight:680; letter-spacing:.04em; }.detail-list { display:grid; gap:0; margin:0; }.detail-list div { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:13px 0; border-bottom:1px solid var(--line); }.detail-list div:first-child { padding-top:0; }.detail-list div:last-child { padding-bottom:0; border-bottom:0; }dt { color:var(--quiet); font-size:.8rem; }dd { min-width:0; margin:0; font-size:.88rem; font-weight:650; text-align:right; overflow-wrap:anywhere; }.evidence-image { display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:12px; }.evidence-message { margin:0; padding:96px 0; color:var(--muted); text-align:center; }.actions { display:grid; gap:8px; }.ocr-card h4 { margin:22px 0 12px; font-size:.9rem; }.detail-list small { display:block; color:var(--quiet); font-size:.72rem; }.ocr-meta { margin:12px 0 0; color:var(--muted); font-size:.78rem; overflow-wrap:anywhere; }.ocr-card details { margin-top:14px; }.ocr-card pre { max-height:280px; overflow:auto; margin:10px 0 0; padding:12px; color:var(--muted); background:var(--surface); font-size:.72rem; white-space:pre-wrap; overflow-wrap:anywhere; }
+.review-detail { display:grid; gap:24px; }.detail-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; }.detail-heading h2 { margin:0; max-width:22ch; font-size:clamp(1.8rem,4vw,2.8rem); letter-spacing:-.05em; line-height:1.05; overflow-wrap:anywhere; }.detail-heading .eyebrow { margin-bottom:8px; }.detail-meta { margin:10px 0 0; color:var(--quiet); font-size:.82rem; }.detail-grid { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,.9fr); align-items:start; gap:clamp(18px,2.4vw,28px); }.evidence-col { position:sticky; top:24px; min-width:0; }.info-col { display:grid; gap:16px; min-width:0; }.overview-card,.challenge-card,.ocr-card,.actions-card,.evidence-card { border-color:var(--line); box-shadow:0 12px 32px -24px var(--shadow); }.evidence-card { box-shadow:0 18px 44px -28px var(--shadow); }.card-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }.card-heading h3 { margin:0; font-size:1rem; font-weight:720; letter-spacing:-.02em; }.card-heading > span { color:var(--quiet); font-size:.72rem; font-weight:680; letter-spacing:.04em; }.detail-list { display:grid; gap:0; margin:0; }.detail-list div { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:13px 0; border-bottom:1px solid var(--line); }.detail-list div:first-child { padding-top:0; }.detail-list div:last-child { padding-bottom:0; border-bottom:0; }dt { color:var(--quiet); font-size:.8rem; }dd { min-width:0; margin:0; font-size:.88rem; font-weight:650; text-align:right; overflow-wrap:anywhere; }.evidence-image { display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:12px; }.evidence-message { margin:0; padding:96px 0; color:var(--muted); text-align:center; }.actions { display:grid; gap:8px; }.ocr-retry-actions { display:grid; gap:8px; margin-top:18px; padding-top:18px; border-top:1px solid var(--line); }.ocr-retry-error { margin:0; color:var(--error); font-size:.78rem; }.ocr-card h4 { margin:22px 0 12px; font-size:.9rem; }.detail-list small { display:block; color:var(--quiet); font-size:.72rem; }.ocr-meta { margin:12px 0 0; color:var(--muted); font-size:.78rem; overflow-wrap:anywhere; }.ocr-card details { margin-top:14px; }.ocr-card pre { max-height:280px; overflow:auto; margin:10px 0 0; padding:12px; color:var(--muted); background:var(--surface); font-size:.72rem; white-space:pre-wrap; overflow-wrap:anywhere; }
 @media (max-width:820px) { .detail-grid { grid-template-columns:1fr; }.evidence-col { position:static; } }
 @media (max-width:620px) { .detail-heading { align-items:flex-start; flex-direction:column; }.detail-heading h2 { max-width:none; }.detail-list div { align-items:flex-start; flex-direction:column; gap:6px; }.detail-list dd { text-align:left; } }
 @media (prefers-reduced-transparency:reduce) { .overview-card,.challenge-card,.ocr-card,.actions-card,.evidence-card { box-shadow:none; } }

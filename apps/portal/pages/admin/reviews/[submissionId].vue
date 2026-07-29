@@ -10,8 +10,10 @@ const toast = useToast();
 const submission = shallowRef<AdminSubmission | null>(null);
 const loading = ref(true);
 const actionLoading = ref(false);
+const ocrRetryLoading = ref(false);
 const errorMessage = ref("");
 const reviewError = ref("");
+const ocrRetryError = ref("");
 const evidenceImageUrl = ref<string | null>(null);
 const evidenceError = ref(false);
 const submissionId = computed(() => String(route.params.submissionId));
@@ -52,6 +54,20 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   } finally { actionLoading.value = false; }
 }
 
+async function retryOcr() {
+  if (!submission.value || actionLoading.value || ocrRetryLoading.value) return;
+  ocrRetryLoading.value = true;
+  ocrRetryError.value = "";
+  try {
+    await api(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/ocr/retry`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
+    toast.add({ title: "已重新发送 OCRKit 识别请求", color: "success" });
+    await load();
+  } catch (error) {
+    const details = portalErrorDetails(error, "OCRKit 请求发送失败，请稍后重试。");
+    ocrRetryError.value = details.code ? `OCRKit 请求失败（${details.code}）：${details.description}` : details.description;
+  } finally { ocrRetryLoading.value = false; }
+}
+
 function clearEvidenceImage() {
   if (evidenceImageUrl.value?.startsWith("blob:")) URL.revokeObjectURL(evidenceImageUrl.value);
   evidenceImageUrl.value = null;
@@ -66,7 +82,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton to="/admin/reviews" label="返回审核管理" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError" :action-loading="actionLoading" @review="review" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" description="提交记录可能已不存在或链接无效。" />
   </AdminWorkspace>
 </template>

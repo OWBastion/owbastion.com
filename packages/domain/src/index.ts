@@ -22,6 +22,7 @@ import type {
   AdminSubmissionListResponse,
   AdminSubmissionReviewRequest,
   AdminSubmissionReviewResponse,
+  AdminSubmissionOcrRetryResponse,
   Challenge,
   Map,
   Title,
@@ -100,8 +101,9 @@ export type PlatformServices = {
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
-  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number }): Promise<void>;
-  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string }): Promise<void>;
+  requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionOcrRetryResponse>;
+  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean }): Promise<void>;
+  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; manual?: boolean }): Promise<void>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;

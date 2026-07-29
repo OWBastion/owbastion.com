@@ -441,6 +441,8 @@ export const adminSubmissionReviewRequestSchema = z.object({
 export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(),
 }).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
+export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
+export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 
 export const submissionRequestSchema = z.object({
   contractVersion,
@@ -601,3 +603,5 @@ export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
+export type AdminSubmissionOcrRetryRequest = z.infer<typeof adminSubmissionOcrRetryRequestSchema>;
+export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;

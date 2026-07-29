@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -1363,6 +1363,34 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
     },
 
+    async requestAdminOcr(input, auth, idempotencyKey): Promise<AdminSubmissionOcrRetryResponse> {
+      const replay = await replayOrConflict<AdminSubmissionOcrRetryResponse>(db, auth.subject, "submission.ocr.retry", idempotencyKey, input);
+      if (replay) return replay;
+      if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const attachment = await db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get();
+      if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
+
+      const timestamp = now();
+      const pendingResultId = crypto.randomUUID();
+      const response: AdminSubmissionOcrRetryResponse = { contractVersion: "1", submissionId: row.id, status: "ocr_pending" };
+      const requestHash = await hashRequest(input);
+      const idempotencyKeyId = `${auth.subject}:submission.ocr.retry:${idempotencyKey}`;
+      await database.batch([
+        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES (?, ?, 0, 'pending', ?)").bind(pendingResultId, row.id, timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.ocr.retry', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
+      ]);
+      try {
+        await ocrQueue.send({ version: 1, submissionId: row.id, objectKey: attachment.objectKey, manual: true });
+      } catch (error) {
+        await db.update(ocrResults).set({ status: "error", errorCode: "OCR_QUEUE_SEND_FAILED", createdAt: now() }).where(eq(ocrResults.id, pendingResultId));
+        throw error;
+      }
+      return response;
+    },
+
     async getPlayerSubmission(input, sessionToken) {
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
       const [result, attachment] = await Promise.all([
@@ -1410,7 +1438,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (!["ready_for_review", "ocr_review_required"].includes(row.status)) throw new Error("SUBMISSION_NOT_REVIEWABLE");
 
       let reward: { titleKey: string; titleName: string; mapId: string | null; slot: string | null } | null = null;
       if (input.decision === "approved") {
@@ -1458,7 +1485,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const statements: D1PreparedStatement[] = [];
       statements.push(
         database.prepare(
-          "INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ? AND status IN ('ready_for_review', 'ocr_review_required')"
+          "INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?"
         ).bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)
       );
       if (reward) {
@@ -1519,7 +1546,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       catch { throw new Error("OCR_INVALID_RESPONSE"); }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (row.status !== "ocr_pending") return;
+      if (row.status !== "ocr_pending" && !input.manual) return;
       const data = result.data ?? {};
       if (row.challengeType === "unknown") {
         const quality = assessOcrQuality("unknown", result);
@@ -1553,9 +1580,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async markOcrJobFailed(input) {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
-      if (!row || row.status !== "ocr_pending") return;
+      if (!row || (!input.manual && row.status !== "ocr_pending")) return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
-      await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      if (row.status === "ocr_pending") await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
     },
 
     async listQqGroupAccess() {
