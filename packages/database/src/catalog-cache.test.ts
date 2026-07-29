@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { bumpCatalogCacheRevision, catalogCacheKey, catalogRevisionCacheKey, catalogRevisionCacheTtlSeconds, getCatalogCacheRevision, withCatalogCache } from "./catalog-cache";
+import { bumpCatalogCacheRevision, catalogCacheKey, catalogRevisionCacheKey, getCatalogCacheRevision, withCatalogCache } from "./catalog-cache";
 
 type CatalogCache = NonNullable<Parameters<typeof withCatalogCache>[0]>;
 
@@ -18,54 +18,46 @@ const createCache = () => {
 };
 
 describe("catalog cache", () => {
-  it("uses a seven-day TTL for catalog data", async () => {
+  it("always reads catalog data from D1", async () => {
     const { cache } = createCache();
     const put = vi.spyOn(cache, "put");
 
     await withCatalogCache(cache, catalogCacheKey("events", "all"), async () => ["event"]);
 
-    expect(put).toHaveBeenCalledWith(catalogCacheKey("events", "all"), JSON.stringify(["event"]), { expirationTtl: 7 * 24 * 60 * 60 });
+    expect(put).not.toHaveBeenCalled();
   });
 
-  it("keeps revisions for independent domains", async () => {
+  it("does not read catalog revisions from KV", async () => {
     const { cache, values } = createCache();
     const put = vi.spyOn(cache, "put");
     await bumpCatalogCacheRevision(cache, "events");
-    const eventsRevision = values.get(catalogRevisionCacheKey("events"));
-    expect(eventsRevision).toBeTruthy();
-    expect(await getCatalogCacheRevision(cache, "events")).toBe(eventsRevision);
+    expect(values.get(catalogRevisionCacheKey("events"))).toBeUndefined();
+    expect(await getCatalogCacheRevision(cache, "events")).toBe("initial");
     expect(await getCatalogCacheRevision(cache, "maps")).toBe("initial");
-    expect(put).toHaveBeenCalledWith(catalogRevisionCacheKey("events"), eventsRevision, { expirationTtl: catalogRevisionCacheTtlSeconds });
+    expect(put).not.toHaveBeenCalled();
   });
 
-  it("returns a cached value without loading D1", async () => {
+  it("does not read stale catalog values from KV", async () => {
     const { cache } = createCache();
     const load = vi.fn(async () => ["d1"]);
     await withCatalogCache(cache, catalogCacheKey("maps", "maps"), load);
     expect(await withCatalogCache(cache, catalogCacheKey("maps", "maps"), load)).toEqual(["d1"]);
-    expect(load).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back when KV fails", async () => {
+  it("does not depend on KV availability", async () => {
     const { cache: brokenCache } = createCache();
     vi.spyOn(brokenCache, "get").mockRejectedValue(new Error("KV unavailable"));
     expect(await withCatalogCache(brokenCache, catalogCacheKey("maps", "maps"), async () => ["map"])).toEqual(["map"]);
   });
 
-  it("does not list or delete old catalog keys during invalidation", async () => {
+  it("does not write revisions during invalidation", async () => {
     const { cache } = createCache();
-    const list = vi.fn();
-    const remove = vi.fn();
-    Object.assign(cache, { list, delete: remove });
+    const put = vi.spyOn(cache, "put");
 
     await bumpCatalogCacheRevision(cache, ["events", "maps"]);
 
-    expect(list).not.toHaveBeenCalled();
-    expect(remove).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
   });
 
-  it("does not fail the write path when revision KV is unavailable", async () => {
-    const cache = { put: vi.fn().mockRejectedValue(new Error("KV unavailable")) } as unknown as KVNamespace;
-    await expect(bumpCatalogCacheRevision(cache, "titles")).resolves.toBeUndefined();
-  });
 });

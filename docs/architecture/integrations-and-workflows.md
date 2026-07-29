@@ -168,15 +168,10 @@ Bastion consumes current title metadata and active player grants through separat
 read-only Agents endpoints. Title definitions come from `/v1/agents/titles`;
 global active grants come from `/v1/agents/player-title-grants`; map holders are
 queried per map through `/v1/agents/map-title-holders?mapId=...`. These responses
-are KV-first derived reads with D1 fallback and never expose historical or
-revoked grants to the Bastion build.
-
-Catalog cache keys use independent KV revisions for events, maps, challenges,
-titles, and grants. A successful platform write advances only the affected
-revision; it does not list or delete old catalog keys. Old derived values expire
-through their TTL, and KV read, write, or revision failures leave D1 as the
-authoritative fallback. Submission-status cache entries remain separately
-invalidated by submission ID.
+read D1 as the authoritative source and never expose historical or revoked
+grants to the Bastion build. Catalog reads do not use KV, so Portal edits are
+immediately visible after refresh and catalog requests do not spend KV quota.
+Submission-status cache entries remain separately invalidated by submission ID.
 
 The public `/v1/agents/*` API is a read-only projection of the platform's
 current event, map, title, and achievement metadata plus title-holding facts

@@ -22,7 +22,7 @@ deployment job:
   `x-owbastion-review` header is not exactly `portal-admin` or `portal-player`.
   This is only a weak source check, not authorization; anyone who learns the
   header value and object URL can still read the object.
-- KV namespace for derived catalog caches, bound as `CACHE`;
+- KV namespace for public submission-status cache, bound as `CACHE`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;
 - the real D1 `database_id` written to `wrangler.toml`.
