@@ -374,9 +374,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 40px;
 }
 
-/* M-03 — account/theme dropdown surfaces */
-.portal-menu-surface {
-  transform-origin: top right;
+/* Account / theme UDropdownMenu: fix item hover highlight alignment */
+.portal-menu-surface [data-slot="item"],
+.portal-menu-surface [data-slot="label"] {
+  align-items: center;
+  min-height: 2.5rem;
+}
+/* Nuxt UI uses before:z-[-1]; under stacking contexts the highlight vanishes or shifts — keep it in-layer. */
+.portal-menu-surface [data-slot="item"] {
+  isolation: isolate;
+}
+.portal-menu-surface [data-slot="item"]::before {
+  z-index: 0;
+}
+.portal-menu-surface [data-slot="item"] > * {
+  position: relative;
+  z-index: 1;
+}
+.portal-menu-surface [data-slot="item"]:active,
+.portal-menu-surface a[data-slot="item"]:active,
+.portal-menu-surface button[data-slot="item"]:active {
+  transform: none !important;
 }
 
 /* -------------------------------------------------------------------------- */

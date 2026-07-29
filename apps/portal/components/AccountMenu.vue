@@ -34,8 +34,12 @@ const items = computed<DropdownMenuItem[][]>(() => {
 <template>
   <UDropdownMenu
     :items="items"
-    :content="{ align: 'end', side: 'bottom', sideOffset: 10, collisionPadding: 12 }"
-    :ui="{ content: 'portal-menu-surface account-menu-content min-w-56 origin-top-right', item: 'min-h-10' }"
+    :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }"
+    :ui="{
+      content: 'portal-menu-surface account-menu-content min-w-56',
+      item: 'min-h-10 items-center gap-2.5 px-2.5 py-0',
+      label: 'min-h-10 items-center gap-2.5 px-2.5 py-0',
+    }"
   >
     <button class="account-trigger hit-44 pressable" type="button" aria-label="打开账户菜单">
       <span class="account-avatar" aria-hidden="true">{{ props.player.playerName.slice(0, 1) }}</span>
@@ -46,6 +50,8 @@ const items = computed<DropdownMenuItem[][]>(() => {
 <style scoped>
 .account-trigger {
   display: grid;
+  width: 44px;
+  height: 44px;
   place-items: center;
   padding: 0;
   border: 1px solid var(--line-strong);
