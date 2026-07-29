@@ -218,6 +218,39 @@ button, a { -webkit-tap-highlight-color: transparent; }
   filter: blur(1.5px);
 }
 
+/* Sticky control chips sitting over scrolling content (A-02) */
+.scroll-edge-sticky {
+  position: relative;
+  isolation: isolate;
+}
+.scroll-edge-sticky::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 8%;
+  right: 8%;
+  bottom: -10px;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklch, var(--shadow) 20%, transparent),
+    transparent
+  );
+  opacity: 0.45;
+  filter: blur(2px);
+}
+
+/* G-07 — route page cross-fade (opacity only) */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 180ms ease;
+}
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Directory / interactive cards (E-02 / S-02 / H-02)                         */
 /* Hover = border + elevation; press via pressable-soft. No hover translate.  */

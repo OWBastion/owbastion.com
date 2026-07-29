@@ -18,6 +18,7 @@ const open = defineModel<boolean>("open", { required: true });
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
+const allowMotion = computed(() => reducedMotion.value !== "reduce");
 const sizeClasses: Record<DialogSize, string> = {
   sm: "max-w-lg",
   md: "max-w-2xl",
@@ -32,33 +33,33 @@ onMounted(() => { hydrated.value = true; });
   <template v-if="hydrated">
     <UModal
       v-if="isDesktop"
-    v-model:open="open"
-    :title="title"
-    :description="description"
-    :dismissible="dismissible"
-    close
-    :transition="reducedMotion !== 'reduce'"
-    scrollable
-    :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer glass-segment' }"
-  >
-    <template #body><slot name="body" /></template>
-    <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+      v-model:open="open"
+      :title="title"
+      :description="description"
+      :dismissible="dismissible"
+      close
+      :transition="allowMotion"
+      scrollable
+      :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer glass-segment' }"
+    >
+      <template #body><slot name="body" /></template>
+      <template v-if="$slots.footer" #footer><slot name="footer" /></template>
     </UModal>
 
     <UDrawer
       v-else
-    v-model:open="open"
-    direction="bottom"
-    :title="title"
-    :description="description"
-    :dismissible="dismissible"
-    close
-    should-scale-background
-    set-background-color-on-scale
-    :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body pb-[max(1rem,env(safe-area-inset-bottom))]', footer: 'admin-responsive-dialog__footer glass-segment' }"
-  >
-    <template #body><slot name="body" /></template>
-    <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+      v-model:open="open"
+      direction="bottom"
+      :title="title"
+      :description="description"
+      :dismissible="dismissible"
+      close
+      :should-scale-background="allowMotion"
+      :set-background-color-on-scale="allowMotion"
+      :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body pb-[max(1rem,env(safe-area-inset-bottom))]', footer: 'admin-responsive-dialog__footer glass-segment' }"
+    >
+      <template #body><slot name="body" /></template>
+      <template v-if="$slots.footer" #footer><slot name="footer" /></template>
     </UDrawer>
   </template>
 </template>

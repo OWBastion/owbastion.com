@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { createReusableTemplate, useMediaQuery } from "@vueuse/core";
+import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
 import type { Map, MapChallenge } from "../../composables/useSubmissionUpload";
 
 const props = defineProps<{
@@ -13,6 +13,8 @@ const mapChallenges = computed(() => props.map ? props.challenges.filter((challe
 const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
+const reducedMotion = usePreferredReducedMotion();
+const allowMotion = computed(() => reducedMotion.value !== "reduce");
 const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
 
 onMounted(() => { hydrated.value = true; });
@@ -31,13 +33,32 @@ onMounted(() => { hydrated.value = true; });
   </DefineDetailContent>
 
   <template v-if="hydrated">
-    <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'map-detail-surface map-detail-modal glass-heavy elevation-3 w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
+    <UModal
+      v-if="isDesktop"
+      v-model:open="open"
+      :title="map?.mapName ?? '地图详情'"
+      :description="map ? `版本 ${map.gameVersion}` : undefined"
+      scrollable
+      close
+      :transition="allowMotion"
+      :ui="{ content: 'map-detail-surface map-detail-modal glass-heavy elevation-3 w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }"
+    >
       <template #body>
         <ReuseDetailContent />
       </template>
     </UModal>
 
-    <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'map-detail-surface map-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
+    <UDrawer
+      v-else
+      v-model:open="open"
+      direction="bottom"
+      :title="map?.mapName ?? '地图详情'"
+      :description="map ? `版本 ${map.gameVersion}` : undefined"
+      close
+      :should-scale-background="allowMotion"
+      :set-background-color-on-scale="allowMotion"
+      :ui="{ content: 'map-detail-surface map-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'p-0' }"
+    >
       <template #body>
         <ReuseDetailContent />
       </template>

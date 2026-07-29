@@ -25,7 +25,7 @@ const submissionStatusLabel = (status: string) => submissionStatusLabels[status]
 
 <template>
   <section class="player-detail" aria-label="玩家详情">
-    <nav class="detail-tabs glass elevation-1 scroll-edge" aria-label="玩家详情分区">
+    <nav class="detail-tabs glass elevation-1 scroll-edge-sticky" aria-label="玩家详情分区">
       <a class="detail-tab detail-tab--active" href="#overview">概览</a>
       <a class="detail-tab" href="#titles">成就与称号</a>
       <a class="detail-tab" href="#submissions">最近提交</a>
@@ -93,8 +93,35 @@ const submissionStatusLabel = (status: string) => submissionStatusLabels[status]
 
 <style scoped>
 .player-detail { display: grid; gap: 16px; max-width: 1180px; scroll-behavior: smooth; }
-.detail-tabs { position: sticky; z-index: 3; top: 12px; display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 5px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 14px; }
-.detail-tab { flex: 0 0 auto; padding: 8px 13px; border-radius: 10px; color: var(--muted); font-size: .78rem; font-weight: 650; text-decoration: none; transition: color 160ms ease, background 160ms ease, transform 100ms ease; }.detail-tab:hover, .detail-tab:focus-visible { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.detail-tab--active { color: var(--on-accent); background: var(--accent); }.detail-tab:active { transform: scale(.97); }
+.detail-tabs {
+  position: sticky;
+  z-index: 3;
+  top: 12px;
+  display: flex;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in oklch, var(--line) 55%, transparent);
+  border-radius: 14px;
+}
+.detail-tab {
+  flex: 0 0 auto;
+  padding: 8px 13px;
+  border-radius: 10px;
+  color: var(--text-on-glass-secondary);
+  font-size: var(--type-caption-size);
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 160ms ease, background 160ms ease, transform 100ms ease;
+}
+.detail-tab:hover, .detail-tab:focus-visible {
+  color: var(--text-on-glass);
+  background: color-mix(in oklch, var(--surface) 72%, transparent);
+}
+.detail-tab--active { color: var(--on-accent); background: var(--accent); }
+.detail-tab:active { transform: scale(var(--press-scale)); }
 .identity-card, .detail-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 14px 36px color-mix(in oklch, var(--text) 5%, transparent); }
 .identity-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 22px; padding: clamp(20px, 3vw, 30px); }.identity-card__main { display: flex; min-width: 0; align-items: center; gap: 16px; }.identity-avatar { display: grid; flex: 0 0 auto; width: 68px; height: 68px; place-items: center; border: 1px solid color-mix(in oklch, var(--accent) 24%, var(--line)); border-radius: 50%; color: var(--accent); background: var(--accent-surface); font-size: 1.25rem; font-weight: 750; letter-spacing: -.08em; }.identity-card__copy { min-width: 0; }.identity-card__copy .eyebrow { margin-bottom: 5px; }.identity-card h2 { margin: 0; overflow-wrap: anywhere; font-size: clamp(1.45rem, 3vw, 2rem); letter-spacing: -.055em; line-height: 1.05; }.identity-card__id { margin: 7px 0 0; overflow-wrap: anywhere; color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; }.identity-card__actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }.identity-card__metrics { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-top: 18px; border-top: 1px solid var(--line); }.identity-card__metrics div { display: grid; gap: 5px; padding-inline: 15px; border-right: 1px solid var(--line); }.identity-card__metrics div:first-child { padding-left: 0; }.identity-card__metrics div:last-child { padding-right: 0; border-right: 0; }.identity-card__metrics span, .card-kicker { color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }.identity-card__metrics strong { font-size: .86rem; font-weight: 680; }
 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.detail-card { min-width: 0; padding: clamp(18px, 2.4vw, 26px); scroll-margin-top: 92px; }.detail-card--wide { grid-column: 1 / -1; }.card-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }.card-kicker { margin: 0 0 5px; }.card-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.card-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; color: var(--accent); background: var(--accent-surface); font-size: .82rem; font-weight: 750; }.info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 20px 0 0; }.info-grid div { min-width: 0; }.info-grid__wide { grid-column: 1 / -1; }.info-grid dt { color: var(--quiet); font-size: .72rem; }.info-grid dd { margin: 5px 0 0; overflow-wrap: anywhere; font-size: .86rem; font-weight: 650; }.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem !important; }
@@ -102,6 +129,10 @@ const submissionStatusLabel = (status: string) => submissionStatusLabels[status]
 @media (max-width: 760px) { .identity-card { grid-template-columns: 1fr; }.identity-card__actions { justify-content: flex-start; }.detail-grid { grid-template-columns: 1fr; }.detail-card--wide { grid-column: auto; } }
 @media (max-width: 520px) { .detail-tabs { position: static; width: 100%; }.identity-card__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 0; }.identity-card__metrics div:nth-child(2) { border-right: 0; }.identity-card__metrics div:nth-child(3) { padding-left: 0; }.identity-card__metrics div:nth-child(-n+2) { padding-bottom: 12px; border-bottom: 1px solid var(--line); }.identity-card__metrics div:nth-child(4) { padding-right: 0; }.submission-row { align-items: flex-start; flex-wrap: wrap; }.submission-row time { width: 100%; margin-top: -4px; } }
 
-@media (prefers-reduced-motion: reduce) { .detail-tab { transition: color 160ms ease, background 160ms ease; }.detail-tab:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .player-detail { scroll-behavior: auto; }
+  .detail-tab { transition: color 160ms ease, background 160ms ease; }
+  .detail-tab:active { transform: none; }
+}
 @media (prefers-contrast: more) { .detail-tabs, .identity-card, .detail-card { border-color: var(--line-strong); } }
 </style>

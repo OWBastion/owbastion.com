@@ -377,7 +377,7 @@
 | G-04 | P1 | Elevation 阴影阶梯 token | ✅ |
 | G-05 | P1 | Type scale（display/title/body/caption） | ✅ |
 | G-06 | P1 | 主题切换背景缓变 | ✅ |
-| G-07 | P2 | 可选 View Transitions（opacity only） | ☐ |
+| G-07 | P2 | 可选 View Transitions（opacity only） | ✅ |
 
 **文件：** `apps/portal/assets/css/main.css`，`app.vue`
 
@@ -431,7 +431,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | MAP-01 | P1 | MapDetailModal 材质与 Admin dialog 对齐（glass 可选） | ✅ |
-| MAP-02 | P1 | Drawer reduced-motion 配置（对齐 AdminResponsiveDialog 的 transition flag） | ☐ |
+| MAP-02 | P1 | Drawer reduced-motion 配置（对齐 AdminResponsiveDialog 的 transition flag） | ✅ |
 | MAP-03 | ✅ | 卡片 active scale + reduce | 保持 |
 
 **文件：** `MapCard.vue`，`MapDetailModal.vue`，`MapDirectory.vue`
@@ -440,7 +440,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| S-01 | P1 | SubmissionProgress 状态色过渡 | ☐ |
+| S-01 | P1 | SubmissionProgress 状态色过渡 | ✅ |
 | S-02 | P1 | 提交列表行 press 反馈 | ✅ |
 | S-03 | ✅ | 成就选择卡 active | 保持 |
 | S-04 | P0 | 上传/提交主按钮 loading + disabled 双保险（对照指南） | ✅ |
@@ -461,7 +461,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ✅ |
-| A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ☐ |
+| A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ✅ |
 | A-03 | P0 | 表格/行内操作触控目标 | ✅ |
 | A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ |
 | A-05 | P2 | Drawer 手势与速度交接实测与调参 | ☐ |
@@ -498,14 +498,16 @@
 3. A-01, MAP-01, ME-01 — ✅；A-02, MAP-02 待做  
 4. 统一卡片 hover/active（E-02, S-02, H-02）— ✅  
 
-**Milestone B 状态：已完成（除 A-02 sticky tabs 滚动边缘细化、MAP-02 drawer reduced-motion 旗标可择机补）**
+**Milestone B 状态：已完成**
 
 ### Milestone C — 流体增强（可选）
 
 1. A-05 Drawer 实测调参  
-2. G-07 页面交叉淡入  
+2. G-07 页面交叉淡入 — ✅（Nuxt `pageTransition` opacity only）  
 3. 7.2 弹簧库仅限手势表面  
 4. 7.5 Haptics（若产品需要）  
+
+**轻量 C 项：** G-07、MAP-02 / 全站 Drawer reduce 旗标已完成；弹簧与 haptics 仍为可选。
 
 ---
 

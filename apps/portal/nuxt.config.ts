@@ -25,6 +25,8 @@ export default defineNuxtConfig({
         { name: "theme-color", content: "#f5f4ef" },
       ],
     },
+    // G-07: opacity-only page cross-fade; reduced-motion falls back via global CSS.
+    pageTransition: { name: "page", mode: "out-in" },
   },
   runtimeConfig: {
     public: {

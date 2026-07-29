@@ -116,7 +116,8 @@ Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introduc
 - Theme: page background/text ease over `--theme-transition` (~200ms); disabled under reduced-motion.
 - Type scale: prefer `type-display` / `type-title` (alias `page-title`) / `type-headline` / `type-body` (alias `body-copy`) / `type-caption` / `type-kicker` (and `eyebrow` for section labels). Do not invent new letter-spacing per heading.
 - Glass text: interactive chrome uses `var(--text-on-glass)` / `--text-on-glass-secondary` rather than flat `--muted` over blur.
-- Sticky chrome: add `scroll-edge` under floating sticky bars for a soft bottom fade (not a hard 1px divider alone).
+- Sticky chrome: add `scroll-edge` under floating sticky bars, or `scroll-edge-sticky` for sticky control chips sitting over scrolling content (soft bottom fade, not a hard divider alone).
+- Route changes use the shared Nuxt `page` opacity transition; do not add per-page slide/parallax transitions.
 - Interactive cards: `interactive-card` + `pressable-soft` for hover border/elevation and press scale; static placeholders use `interactive-card--static` (no hover lift).
 - Use `page-shell` for regular pages and `surface-card` for cards. Do not redefine container width, radius, button height, or the font system per page.
 - Press feedback: add `pressable` (controls, scale `0.97`) or `pressable-soft` (cards/rows, scale `0.985`) from `main.css` instead of one-off `:active { transform }` rules. `primary-button` / `secondary-button` and Nuxt UI `UButton` roots already press. Prefer hover border/shadow over hover-only translate; always pair interactive cards with active press. Under `prefers-reduced-motion: reduce`, spatial press and enter/leave transforms are suppressed globally—do not reintroduce component-local scale/slide transitions without a reduce fallback that is opacity/color only.

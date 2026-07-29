@@ -13,6 +13,7 @@ const selected = shallowRef<RandomEvent | null>(null);
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
+const allowMotion = computed(() => reducedMotion.value !== "reduce");
 const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
 
 const categories = computed(() => [...new Set(props.events.map((event) => event.category))].sort());
@@ -119,7 +120,7 @@ onMounted(() => { hydrated.value = true; });
         :description="selected ? `版本 ${selected.gameVersion}` : undefined"
         close
         scrollable
-        :transition="reducedMotion !== 'reduce'"
+        :transition="allowMotion"
         :ui="{ content: 'event-detail-surface event-detail-modal glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]' }"
       >
         <template #body>
@@ -134,8 +135,8 @@ onMounted(() => { hydrated.value = true; });
         :title="selected?.name ?? '事件详情'"
         :description="selected ? `版本 ${selected.gameVersion}` : undefined"
         close
-        should-scale-background
-        set-background-color-on-scale
+        :should-scale-background="allowMotion"
+        :set-background-color-on-scale="allowMotion"
         :ui="{ content: 'event-detail-surface event-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'pb-[max(1rem,env(safe-area-inset-bottom))]' }"
       >
         <template #body>
