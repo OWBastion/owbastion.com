@@ -437,6 +437,9 @@ describe("API", () => {
     expect((await anonymousApp.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(401);
     const listed = await adminApp.request("http://localhost/v1/admin/achievements?type=title_achievement&status=active", {}, env);
     expect(listed.status).toBe(200);
+    expect(listed.headers.get("cache-control")).toBe("private, no-store");
+    const denied = await app.request("http://localhost/v1/admin/achievements", {}, env);
+    expect(denied.headers.get("cache-control")).toBe("private, no-store");
     expect(await listed.json()).toMatchObject({ items: [{ family: "achievement", categoryOverride: null }] });
     const retirement = { contractVersion: "1", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: "极限操作系列", status: "retired" };
     expect((await adminApp.request("http://localhost/v1/admin/achievements/title.flawless", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(retirement) }, env)).status).toBe(422);

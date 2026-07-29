@@ -25,7 +25,7 @@ export function useAdminApi() {
     const headers = new Headers(options?.headers as HeadersInit | undefined);
     if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
     try {
-      return await $fetch<T>(`/api/admin${path}`, { ...options, headers, credentials: "include", retry: 0, timeout: 8_000 });
+      return await $fetch<T>(`/api/admin${path}`, { ...options, headers, cache: "no-store", credentials: "include", retry: 0, timeout: 8_000 });
     } catch (error) {
       Object.assign(error as object, { requestId });
       recordPortalError(error, { operation: path, requestId });

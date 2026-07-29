@@ -13,7 +13,10 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/achievements") return Promise.resolve({ items: [title, secondTitle, catalogTitle, map, secondMap] });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.kings-row", mapName: "国王大道" }] });
   if (path === "/v1/achievements?status=sunsetting") return Promise.resolve({ items: [{ ...title, status: "sunsetting", retiredVersion: "26.0713.1" }] });
-  if (["/v1/achievements/title-1", "/v1/achievements/title-2", "/v1/achievements/map-1", "/v1/achievements/map-2"].includes(path) && options?.method === "PUT") return Promise.resolve();
+  if (path === "/v1/achievements/title-1" && options?.method === "PUT") return Promise.resolve({ ...title, ...options.body });
+  if (path === "/v1/achievements/title-2" && options?.method === "PUT") return Promise.resolve({ ...secondTitle, ...options.body });
+  if (path === "/v1/achievements/map-1" && options?.method === "PUT") return Promise.resolve({ ...map, ...options.body });
+  if (path === "/v1/achievements/map-2" && options?.method === "PUT") return Promise.resolve({ ...secondMap, ...options.body });
   if (path === "/v1/titles/INTERNAL" && options?.method === "PUT") return Promise.resolve();
   throw new Error(`Unexpected request: ${path}`);
 });

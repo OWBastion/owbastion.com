@@ -25,6 +25,7 @@ export default defineEventHandler(async (event) => {
   const responseId = upstreamRequestId(response, requestId);
   setRequestId(event, responseId);
   setResponseStatus(event, response.status);
+  setResponseHeader(event, "cache-control", "private, no-store");
   const responseContentType = response.headers.get("content-type");
   if (responseContentType) setResponseHeader(event, "content-type", responseContentType);
   if (response.status === 204) return null;

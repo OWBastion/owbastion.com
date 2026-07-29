@@ -232,7 +232,8 @@ async function createAchievement(payload: Record<string, unknown>, iconFile: Fil
   errorMessage.value = "";
   let iconUploadError = "";
   try {
-    await api("/v1/achievements", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: payload });
+    const created = await api<AdminAchievement>("/v1/achievements", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() }, body: payload });
+    items.value = [created, ...items.value];
     if (iconFile) {
       const body = new FormData();
       body.append("file", iconFile);
@@ -244,7 +245,6 @@ async function createAchievement(payload: Record<string, unknown>, iconFile: Fil
     }
     toast.add({ title: "成就挑战已创建", color: "success" });
     createOpen.value = false;
-    await load();
     if (iconUploadError) errorMessage.value = iconUploadError;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法创建成就挑战，请稍后重试。").description;
@@ -301,13 +301,13 @@ async function save(item: AdminAchievement, body: Record<string, unknown>, messa
   savingId.value = item.challengeId;
   errorMessage.value = "";
   try {
-    await api<void>(`/v1/achievements/${encodeURIComponent(item.challengeId)}`, {
+    const updated = await api<AdminAchievement>(`/v1/achievements/${encodeURIComponent(item.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", ...body },
     });
+    items.value = items.value.map((candidate) => candidate.challengeId === updated.challengeId ? updated : candidate);
     toast.add({ title: message, color: "success" });
-    await load();
     return true;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存成就规则，请稍后重试。").description;

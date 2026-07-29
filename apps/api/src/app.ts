@@ -92,6 +92,14 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("X-Request-ID", c.get("requestId"));
   });
 
+  // Administrative state is always read directly from D1; it must never share
+  // an intermediary or browser cache entry with another request.
+  app.use("/v1/admin/*", async (c, next) => {
+    c.header("Cache-Control", "private, no-store");
+    await next();
+    c.header("Cache-Control", "private, no-store");
+  });
+
   // Middleware 2: structured per-request completion log.
   app.use("*", async (c, next) => {
     const start = Date.now();

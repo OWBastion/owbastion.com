@@ -114,13 +114,13 @@ async function updateChallenge(challenge: MapChallenge, status: MapChallenge["st
   saving.value = true;
   errorMessage.value = "";
   try {
-    await api(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
+    const updated = await api<MapChallenge>(`/v1/achievements/${encodeURIComponent(challenge.challengeId)}`, {
       method: "PUT",
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: { contractVersion: "1", family: "map", status, ...(status === "sunsetting" ? { retiredVersion: nextRetiredVersion } : {}) },
     });
+    challenges.value = challenges.value.map((item) => item.challengeId === updated.challengeId ? updated : item);
     toast.add({ title: status === "active" ? "挑战已重新开放" : status === "sunsetting" ? "挑战已计划下线" : "挑战已下线", color: "success" });
-    await load();
     closeChallengeAction(true);
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存挑战状态，请稍后重试。").description;
