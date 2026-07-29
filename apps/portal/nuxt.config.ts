@@ -1,7 +1,13 @@
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
-  devtools: { enabled: process.env.NODE_ENV === "development" },
+  devtools: {
+    enabled: process.env.NODE_ENV === "development",
+
+    timeline: {
+      enabled: true
+    }
+  },
   modules: ["@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
   css: ["~/assets/css/main.css"],
   colorMode: {
