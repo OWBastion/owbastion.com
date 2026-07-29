@@ -373,10 +373,10 @@
 | --- | --- | --- | --- |
 | G-01 | P0 | 抽取 `.pressable` / 按钮 active 规范 | ✅ |
 | G-02 | P0 | 修正 `prefers-reduced-motion`：禁 transform，保留语义 fade | ✅ |
-| G-03 | P1 | 抽取 `.glass` + reduce-transparency / contrast | ☐ |
-| G-04 | P1 | Elevation 阴影阶梯 token | ☐ |
+| G-03 | P1 | 抽取 `.glass` + reduce-transparency / contrast | ✅ |
+| G-04 | P1 | Elevation 阴影阶梯 token | ✅ |
 | G-05 | P1 | Type scale（display/title/body/caption） | ☐ |
-| G-06 | P1 | 主题切换背景缓变 | ☐ |
+| G-06 | P1 | 主题切换背景缓变 | ✅ |
 | G-07 | P2 | 可选 View Transitions（opacity only） | ☐ |
 
 **文件：** `apps/portal/assets/css/main.css`，`app.vue`
@@ -430,7 +430,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| MAP-01 | P1 | MapDetailModal 材质与 Admin dialog 对齐（glass 可选） | ☐ |
+| MAP-01 | P1 | MapDetailModal 材质与 Admin dialog 对齐（glass 可选） | ✅ |
 | MAP-02 | P1 | Drawer reduced-motion 配置（对齐 AdminResponsiveDialog 的 transition flag） | ☐ |
 | MAP-03 | ✅ | 卡片 active scale + reduce | 保持 |
 
@@ -451,7 +451,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| ME-01 | P1 | coming-soon glass 的 reduce-transparency | ☐ |
+| ME-01 | P1 | coming-soon glass 的 reduce-transparency | ✅ |
 | ME-02 | P1 | 区块间距在大字号下的弹性 | ☐ |
 
 **文件：** `pages/me.vue`，`TitleCollection.vue`，`PlayerIdentityCard.vue`
@@ -460,7 +460,7 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ☐ |
+| A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ✅ |
 | A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ☐ |
 | A-03 | P0 | 表格/行内操作触控目标 | ✅ |
 | A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ |
@@ -493,12 +493,13 @@
 
 ### Milestone B — 材质与空间（约 1–2 PR）
 
-1. G-03, G-04, G-05, G-06  
+1. G-03, G-04, G-06 — ✅；G-05 type scale 待做  
 2. E-01, M-03, N-04 — ✅（优先包）; N-05, N-06 待做  
-3. A-01, A-02, MAP-01/02, ME-01  
+3. A-01, MAP-01, ME-01 — ✅；A-02, MAP-02 待做  
 4. 统一卡片 hover/active（E-02, S-02, H-02）  
 
-**优先包状态（E-01 / M-03 / N-04）：已完成**
+**优先包状态（E-01 / M-03 / N-04）：已完成**  
+**材质 token 包（G-03 / G-04 / G-06 + A-01 / MAP-01 / ME-01）：已完成**
 
 ### Milestone C — 流体增强（可选）
 

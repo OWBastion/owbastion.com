@@ -67,7 +67,7 @@ async function signOut() {
 
 <template>
   <header class="app-header-wrap">
-    <div class="app-header">
+    <div class="app-header glass elevation-1">
       <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
       <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" /></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link">轮换挑战</NuxtLink></template></nav>
       <div class="account-actions">
@@ -78,7 +78,7 @@ async function signOut() {
       <button ref="menuButton" class="mobile-menu-toggle pressable" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
       <!-- No mode="out-in": leave can be interrupted mid-flight when reopening (N-04). -->
       <Transition name="mobile-nav">
-        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'">
+        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav glass-heavy elevation-2" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'">
           <template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template>
           <template v-else>
             <NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink>
@@ -95,7 +95,7 @@ async function signOut() {
 
 <style scoped>
 .app-header-wrap { position: sticky; z-index: 10; top: 14px; width: min(100% - 28px, 1480px); margin: 0 auto; }
-.app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--header-surface); box-shadow: 0 8px 24px -18px var(--shadow); backdrop-filter: blur(20px) saturate(1.12); }
+.app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; }
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
@@ -125,9 +125,6 @@ async function signOut() {
     padding: 8px;
     border: 1px solid var(--line);
     border-radius: 14px;
-    background: var(--menu-surface);
-    box-shadow: 0 16px 30px -18px var(--shadow);
-    backdrop-filter: blur(22px) saturate(1.12);
     transform-origin: top center;
   }
   .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--muted); text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }

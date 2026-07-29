@@ -31,13 +31,13 @@ onMounted(() => { hydrated.value = true; });
   </DefineDetailContent>
 
   <template v-if="hydrated">
-    <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
+    <UModal v-if="isDesktop" v-model:open="open" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" scrollable :ui="{ content: 'map-detail-surface map-detail-modal glass-heavy elevation-3 w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }">
       <template #body>
         <ReuseDetailContent />
       </template>
     </UModal>
 
-    <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
+    <UDrawer v-else v-model:open="open" direction="bottom" :title="map?.mapName ?? '地图详情'" :description="map ? `版本 ${map.gameVersion}` : undefined" should-scale-background set-background-color-on-scale :ui="{ content: 'map-detail-surface map-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'p-0' }">
       <template #body>
         <ReuseDetailContent />
       </template>
@@ -63,4 +63,10 @@ onMounted(() => { hydrated.value = true; });
   .empty-stat-grid > div:last-child { padding-bottom: 0; border-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .detail-card :deep(*) { scroll-behavior: auto; } }
+</style>
+
+<style>
+.map-detail-surface { border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent); }
+.map-detail-modal { border-radius: 20px; overflow: hidden; }
+.map-detail-drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
 </style>

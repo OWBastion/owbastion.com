@@ -20,10 +20,32 @@
   --menu-surface: oklch(98% 0.008 90 / 96%);
   --shadow: oklch(20% 0.02 55 / 28%);
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Noto Sans CJK SC", "Segoe UI", sans-serif;
+
   /* G-01 press feedback */
   --press-scale: 0.97;
   --press-scale-soft: 0.985;
   --press-duration: 100ms;
+
+  /* G-03 glass materials */
+  --glass-blur: 20px;
+  --glass-blur-heavy: 22px;
+  --glass-blur-chip: 12px;
+  --glass-saturate: 1.12;
+  --glass-saturate-heavy: 1.18;
+  --glass-bg: var(--header-surface);
+  --glass-bg-heavy: color-mix(in oklch, var(--surface) 88%, transparent);
+  --glass-bg-chip: color-mix(in oklch, var(--surface-raised) 72%, transparent);
+  --glass-bg-solid: var(--surface);
+  --glass-bg-solid-raised: var(--surface-raised);
+
+  /* G-04 elevation ladder */
+  --elevation-1: 0 8px 24px -18px var(--shadow);
+  --elevation-2: 0 12px 34px -28px var(--shadow);
+  --elevation-3: 0 24px 80px color-mix(in oklch, var(--shadow) 80%, transparent), 0 1px 0 color-mix(in oklch, white 42%, transparent) inset;
+
+  /* G-06 theme cross-fade */
+  --theme-transition: 200ms ease;
+
   --ui-bg: var(--page);
   --ui-bg-elevated: var(--surface-raised);
   --ui-bg-accented: var(--accent-surface);
@@ -56,11 +78,30 @@ html.dark {
   --header-surface: oklch(18% 0.013 48 / 82%);
   --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black);
   --shadow: oklch(0% 0 0 / 80%);
+  --glass-bg-heavy: color-mix(in oklch, var(--surface) 86%, transparent);
+  --glass-bg-chip: color-mix(in oklch, var(--surface-raised) 78%, transparent);
+  --elevation-3: 0 24px 80px color-mix(in oklch, var(--shadow) 88%, transparent), 0 1px 0 color-mix(in oklch, white 10%, transparent) inset;
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; background: var(--page); scroll-padding-top: 92px; }
-body { min-width: 320px; margin: 0; overflow-x: hidden; color: var(--text); background: var(--page); font-family: var(--font-ui); font-synthesis: none; font-optical-sizing: auto; line-height: 1.5; }
+html {
+  min-width: 320px;
+  background: var(--page);
+  scroll-padding-top: 92px;
+  transition: background-color var(--theme-transition), color var(--theme-transition);
+}
+body {
+  min-width: 320px;
+  margin: 0;
+  overflow-x: hidden;
+  color: var(--text);
+  background: var(--page);
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  line-height: 1.5;
+  transition: background-color var(--theme-transition), color var(--theme-transition);
+}
 button { cursor: pointer; }
 button, a { -webkit-tap-highlight-color: transparent; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -72,11 +113,61 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .eyebrow { margin: 0 0 .45rem; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: normal; }
 .page-title { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 690; letter-spacing: -.052em; line-height: .98; }
 .body-copy { color: var(--muted); font-size: 1rem; line-height: 1.65; }
-.surface-card { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 12px 34px -30px var(--shadow); }
+
+/* -------------------------------------------------------------------------- */
+/* G-04 — elevation                                                           */
+/* -------------------------------------------------------------------------- */
+.elevation-1 { box-shadow: var(--elevation-1); }
+.elevation-2 { box-shadow: var(--elevation-2); }
+.elevation-3 { box-shadow: var(--elevation-3); }
+
+.surface-card {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--elevation-2);
+  transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
+}
+
+/* -------------------------------------------------------------------------- */
+/* G-03 — glass materials                                                     */
+/* Prefer these classes over one-off backdrop-filter rules.                   */
+/* -------------------------------------------------------------------------- */
+.glass,
+.glass-heavy,
+.glass-chip {
+  transition:
+    background-color var(--theme-transition),
+    border-color var(--theme-transition),
+    box-shadow var(--theme-transition),
+    color var(--theme-transition);
+}
+
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+.glass-heavy {
+  background: var(--glass-bg-heavy);
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturate-heavy));
+  backdrop-filter: blur(var(--glass-blur-heavy)) saturate(var(--glass-saturate-heavy));
+}
+
+.glass-chip {
+  background: var(--glass-bg-chip);
+  -webkit-backdrop-filter: blur(var(--glass-blur-chip)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur-chip)) saturate(var(--glass-saturate));
+}
+
+/* Solid segments on glass shells (avoid stacking translucent blurs) */
+.glass-segment {
+  background: color-mix(in oklch, var(--surface) 94%, transparent);
+}
 
 /* -------------------------------------------------------------------------- */
 /* N-01 / A-03 — touch targets                                                */
-/* .hit-44 keeps visual chrome while guaranteeing a ≥44×44 hit box            */
 /* -------------------------------------------------------------------------- */
 .hit-44 {
   position: relative;
@@ -84,7 +175,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 44px;
 }
 
-/* Admin row/icon actions: desktop ≥40, still usable on touch */
 .table-actions {
   display: flex;
   flex-wrap: wrap;
@@ -118,15 +208,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   min-height: 40px;
 }
 
-/* M-03 — account/theme dropdown surfaces (Reka/Nuxt UI already animate open/close) */
+/* M-03 — account/theme dropdown surfaces */
 .portal-menu-surface {
   transform-origin: top right;
 }
 
 /* -------------------------------------------------------------------------- */
 /* G-01 — unified press feedback                                              */
-/* .pressable       = controls / compact targets (scale 0.97)                 */
-/* .pressable-soft  = cards / larger surfaces (scale 0.985)                   */
 /* -------------------------------------------------------------------------- */
 .pressable,
 .pressable-soft,
@@ -162,7 +250,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transform: none;
 }
 
-/* Nuxt UI Button / link-button root (ULinkBase sets data-slot="base") */
 button[data-slot="base"],
 a[data-slot="base"] {
   transition-property: color, background-color, border-color, opacity, box-shadow, transform;
@@ -197,27 +284,76 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   font-weight: 680;
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .app-header { background: var(--surface) !important; backdrop-filter: none !important; }
-  .mobile-nav { background: var(--surface-raised) !important; backdrop-filter: none !important; }
-}
-
-@media (prefers-contrast: more) {
-  .surface-card, .app-header { border-color: var(--text) !important; }
-  :is(button, a, input, select, textarea):focus-visible { outline-color: var(--text); }
-}
-
 @media (max-width: 620px) {
   .page-shell { width: min(100% - 24px, 1440px); }
 }
 
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-heavy,
+  .glass-chip,
+  .app-header,
+  .mobile-nav,
+  .event-detail-surface,
+  .admin-responsive-dialog__content,
+  .admin-responsive-dialog__header,
+  .admin-responsive-dialog__footer {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .glass,
+  .app-header,
+  .event-detail-surface,
+  .admin-responsive-dialog__content,
+  .admin-responsive-dialog__header,
+  .admin-responsive-dialog__footer {
+    background: var(--glass-bg-solid) !important;
+  }
+
+  .glass-heavy {
+    background: var(--glass-bg-solid) !important;
+  }
+
+  .glass-chip,
+  .mobile-nav {
+    background: var(--glass-bg-solid-raised) !important;
+  }
+
+  .glass-segment {
+    background: var(--surface-raised) !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .surface-card,
+  .app-header,
+  .glass,
+  .glass-heavy,
+  .event-detail-surface,
+  .admin-responsive-dialog__content {
+    border-color: var(--text) !important;
+  }
+  :is(button, a, input, select, textarea):focus-visible { outline-color: var(--text); }
+}
+
 /* -------------------------------------------------------------------------- */
-/* G-02 — prefers-reduced-motion: cross-fade / color, not spatial motion      */
-/* Static decorative transforms stay; interactive hover/active/enter spatial  */
-/* motion is suppressed. Transitions are limited to non-vestibular props.     */
+/* G-02 — prefers-reduced-motion                                              */
 /* -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
+  html {
+    scroll-behavior: auto;
+    transition: none;
+  }
+  body {
+    transition: none;
+  }
+  .surface-card,
+  .glass,
+  .glass-heavy,
+  .glass-chip {
+    transition: none;
+  }
 
   *,
   *::before,
@@ -229,7 +365,6 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     transition-timing-function: ease !important;
   }
 
-  /* Kill press / hover spatial feedback on interactive surfaces */
   :is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], .pressable, .pressable-soft, .primary-button, .secondary-button):is(:hover, :active, :focus-visible),
   :is(a, button, [role="button"], .pressable, .pressable-soft, .primary-button, .secondary-button)[aria-expanded="true"] {
     transform: none !important;
@@ -240,7 +375,6 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     transform: none !important;
   }
 
-  /* Vue <Transition> / <TransitionGroup> name-*-enter/leave: no slide/scale */
   [class*="-enter-active"],
   [class*="-leave-active"] {
     transition-property: opacity !important;

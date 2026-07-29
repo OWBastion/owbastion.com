@@ -39,7 +39,7 @@ onMounted(() => { hydrated.value = true; });
     close
     :transition="reducedMotion !== 'reduce'"
     scrollable
-    :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer' }"
+    :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer glass-segment' }"
   >
     <template #body><slot name="body" /></template>
     <template v-if="$slots.footer" #footer><slot name="footer" /></template>
@@ -55,7 +55,7 @@ onMounted(() => { hydrated.value = true; });
     close
     should-scale-background
     set-background-color-on-scale
-    :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header', body: 'admin-responsive-dialog__body pb-[max(1rem,env(safe-area-inset-bottom))]', footer: 'admin-responsive-dialog__footer' }"
+    :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body pb-[max(1rem,env(safe-area-inset-bottom))]', footer: 'admin-responsive-dialog__footer glass-segment' }"
   >
     <template #body><slot name="body" /></template>
     <template v-if="$slots.footer" #footer><slot name="footer" /></template>
@@ -66,21 +66,24 @@ onMounted(() => { hydrated.value = true; });
 <style>
 .admin-responsive-dialog__content {
   border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
-  background: color-mix(in oklch, var(--surface) 88%, transparent);
-  box-shadow: 0 24px 80px color-mix(in oklch, var(--shadow) 86%, transparent), 0 1px 0 color-mix(in oklch, white 45%, transparent) inset;
-  backdrop-filter: blur(22px) saturate(1.18);
 }
 .admin-responsive-dialog__modal { border-radius: 20px; overflow: hidden; }
 .admin-responsive-dialog__drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
-.admin-responsive-dialog__header, .admin-responsive-dialog__footer {
-  background: color-mix(in oklch, var(--surface) 82%, transparent);
-  backdrop-filter: blur(18px) saturate(1.12);
+/* Header/footer are solid segments on glass — no second backdrop blur (A-01). */
+.admin-responsive-dialog__footer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent);
 }
-.admin-responsive-dialog__footer { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent); }
-.admin-responsive-dialog__body { min-height: 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
-@media (prefers-reduced-motion: reduce) { .admin-responsive-dialog__content { transition-duration: 1ms !important; } }
-@media (prefers-reduced-transparency: reduce) {
-  .admin-responsive-dialog__content, .admin-responsive-dialog__header, .admin-responsive-dialog__footer { background: var(--surface); backdrop-filter: none; }
+.admin-responsive-dialog__body {
+  min-height: 0;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
-@media (prefers-contrast: more) { .admin-responsive-dialog__content { border-color: var(--line-strong); } }
+@media (prefers-reduced-motion: reduce) {
+  .admin-responsive-dialog__content { transition-duration: 1ms !important; }
+}
 </style>

@@ -120,7 +120,7 @@ onMounted(() => { hydrated.value = true; });
         close
         scrollable
         :transition="reducedMotion !== 'reduce'"
-        :ui="{ content: 'event-detail-surface event-detail-modal w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]' }"
+        :ui="{ content: 'event-detail-surface event-detail-modal glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]' }"
       >
         <template #body>
           <ReuseDetailContent />
@@ -136,7 +136,7 @@ onMounted(() => { hydrated.value = true; });
         close
         should-scale-background
         set-background-color-on-scale
-        :ui="{ content: 'event-detail-surface event-detail-drawer max-h-[calc(100dvh-1rem)]', body: 'pb-[max(1rem,env(safe-area-inset-bottom))]' }"
+        :ui="{ content: 'event-detail-surface event-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'pb-[max(1rem,env(safe-area-inset-bottom))]' }"
       >
         <template #body>
           <ReuseDetailContent />
@@ -230,19 +230,10 @@ onMounted(() => { hydrated.value = true; });
 <style>
 .event-detail-surface {
   border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
-  background: color-mix(in oklch, var(--surface) 90%, transparent);
-  box-shadow: 0 24px 80px color-mix(in oklch, var(--shadow) 80%, transparent);
-  backdrop-filter: blur(20px) saturate(1.12);
 }
 .event-detail-modal { border-radius: 20px; overflow: hidden; }
 .event-detail-drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .event-detail-surface { transition-duration: 1ms !important; }
-}
-@media (prefers-reduced-transparency: reduce) {
-  .event-detail-surface { background: var(--surface); backdrop-filter: none; }
-}
-@media (prefers-contrast: more) {
-  .event-detail-surface { border-color: var(--text); }
 }
 </style>
