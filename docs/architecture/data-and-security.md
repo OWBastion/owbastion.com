@@ -13,7 +13,9 @@ version, and an optional request-correlation ID. The consumer resolves the platf
 Worker configuration and passes it explicitly to OCRKit; OCRKit's default
 bucket is not used for platform evidence. The consumer receives the delivery attempt count from Queue
 metadata and records it with OCR results. OCR raw output and review decisions
-remain in D1; no private screenshot is committed to the repository.
+remain in D1; result persistence and submission state transitions are
+platform-owned, idempotent by request-correlation ID, and committed together.
+No private screenshot is committed to the repository.
 
 ## Implemented service boundary
 

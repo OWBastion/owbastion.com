@@ -426,6 +426,7 @@ const installSchema = (sqlite: DatabaseSync) => {
     CREATE TABLE ocr_results (
       id TEXT PRIMARY KEY NOT NULL,
       submission_id TEXT NOT NULL,
+      request_id TEXT,
       attempt INTEGER NOT NULL,
       status TEXT NOT NULL,
       response_json TEXT,

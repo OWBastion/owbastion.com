@@ -19,7 +19,7 @@ INSERT INTO bindings VALUES ('binding-1', 'identity-1', 'player-1', 'qq', 'group
 INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
 VALUES ('submission-1', 'binding-1', 'received', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'qq', 'group-1', 'message-1', 1, 1);
 INSERT INTO attachments VALUES ('attachment-1', 'submission-1', 'qq', 'attachment-1', 'image/png', 1, NULL, NULL, 'pending', 1);
-INSERT INTO ocr_results VALUES ('ocr-1', 'submission-1', 1, 'succeeded', NULL, NULL, NULL, 1);
+INSERT INTO ocr_results VALUES ('ocr-1', 'submission-1', 1, 'succeeded', NULL, NULL, NULL, 1, NULL);
 INSERT INTO upload_sessions VALUES ('upload-1', 'submission-1', 'player-1', 'image/png', 1, 'hash', 'key', 'pending', 2, 1);
 INSERT INTO submission_reviews VALUES ('review-1', 'submission-1', 'approved', NULL, 'admin-1', 1);
 SQL
