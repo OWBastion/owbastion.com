@@ -476,6 +476,13 @@ const seedRule = (
   ).run(ruleId, titleKey, kind, opts.slot ?? null, opts.defaultScope ?? "all_active", opts.status ?? "active", now, now);
 };
 
+const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {
+  sqlite.prepare(
+    "INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成经典版地图', '上传截图', 'manual', '2026.07.15', 'active', '2026.07.15', 'map', ?, ?)",
+  ).run(challengeId, titleKey, now, now);
+  sqlite.prepare("INSERT INTO achievement_challenge_maps (challenge_id, map_id) VALUES (?, ?)").run(challengeId, mapId);
+};
+
 const seedException = (
   sqlite: DatabaseSync,
   id: string,
@@ -591,6 +598,19 @@ describe("map title rule model – locked invariants", () => {
 
   // ─── Invariant: Exception precedence ─────────────────────────────────────
   describe("exception precedence – resolution is deterministic", () => {
+    it("projects map-scoped title challenges into the map catalog and admin map list", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.hanamura");
+      seedTitle(sqlite, "CLASSIC");
+      seedMapTitleChallenge(sqlite, "title.CLASSIC", "CLASSIC", "map.hanamura");
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      await expect(services.listChallenges({ family: "map" })).resolves.toContainEqual(expect.objectContaining({ challengeId: "title.CLASSIC", titleKey: "CLASSIC", mapId: "map.hanamura", kind: "map_title_achievement" }));
+      await expect(services.listAdminChallenges({ family: "map" }, auth)).resolves.toMatchObject({ items: [expect.objectContaining({ challengeId: "title.CLASSIC", titleKey: "CLASSIC", mapId: "map.hanamura", kind: "map_title_achievement" })] });
+    });
+
     it("projects one stable, traceable map challenge for Portal, Admin, and Agents", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);

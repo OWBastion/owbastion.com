@@ -436,6 +436,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     return items;
   };
+  const loadMapScopedTitleChallenges = async (): Promise<Challenge[]> => {
+    const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
+      .from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+      .where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleChallenges.scope, "map"), eq(titleCatalog.availability, "active")));
+    const mapIdsByChallenge = await loadChallengeMapIds(rows.map(({ challenge }) => challenge.id));
+    const activeMaps = await db.select({ id: maps.id, name: maps.name }).from(maps).where(eq(maps.status, "active"));
+    const mapNames = new Map(activeMaps.map((map) => [map.id, map.name]));
+    return rows.flatMap(({ challenge, title }) => {
+      const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, now());
+      if (!status || (status !== "active" && status !== "sunsetting")) return [];
+      return (mapIdsByChallenge.get(challenge.id) ?? []).flatMap((mapId) => {
+        const mapName = mapNames.get(mapId);
+        if (!mapName) return [];
+        return [{ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: "map_title_achievement" as const, titleKey: title.key, name: title.label, mapId, mapName, condition: challenge.condition, evidenceRule: challenge.evidenceRule, submissionMode: challenge.submissionMode as "manual" | "automatic", gameVersion: challenge.gameVersion, status: status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined }];
+      });
+    });
+  };
   const glossary = async () => (await db.select().from(effectGlossaryTerms)).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
   const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
@@ -801,6 +818,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           retiredVersion: challenge.retiredVersion ?? undefined,
         })));
         items.push(...await loadMapTitleRuleChallenges());
+        items.push(...await loadMapScopedTitleChallenges());
       }
       if (!input?.family || input.family === "achievement") {
         const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
@@ -867,12 +885,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           condition: item.condition!, evidenceRule: item.evidenceRule!, submissionMode: item.submissionMode!,
           introducedVersion: item.gameVersion, retiredVersion: item.retiredVersion ?? null,
         }) as AdminChallenge));
+        const scopedTitleItems = await loadMapScopedTitleChallenges();
+        items.push(...scopedTitleItems.filter((item) => !input.status || item.status === input.status).map((item) => ({
+          ...item,
+          condition: item.condition!, evidenceRule: item.evidenceRule!, submissionMode: item.submissionMode!,
+          introducedVersion: item.gameVersion, retiredVersion: item.retiredVersion ?? null,
+        }) as AdminChallenge));
       }
       if (!input.family || input.family === "achievement") {
         const rows = await db.select({ challenge: titleChallenges, title: titleCatalog })
           .from(titleChallenges)
           .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
-          .where(input.status ? eq(titleChallenges.status, input.status) : undefined)
+          .where(and(input.status ? eq(titleChallenges.status, input.status) : undefined, input.family ? undefined : eq(titleCatalog.scope, "global")))
           .orderBy(titleCatalog.category, titleCatalog.label);
         const mapScopedIds = rows.filter(({ challenge }) => (challenge.scope ?? "global") === "map").map(({ challenge }) => challenge.id);
         const mapIdsByChallenge = await loadChallengeMapIds(mapScopedIds);
@@ -1409,12 +1433,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const data = raw?.data ?? {};
       const challengeType = ruleProjection ? "map_title_achievement" : mapChallenge ? "map_completion" : "title_achievement";
       const matchChallengeType = ruleProjection || titleChallenge?.challenge.scope === "map" ? "map_title_achievement" : challengeType;
-      const quality = raw ? assessOcrQuality(matchChallengeType, raw) : { accepted: false, requiredFields: [], reasons: ["missing_ocr_result"] };
-      const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: targetMap?.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
+      const requiredMapVariant = titleChallenge?.title.key === "CLASSIC" ? "classic" : null;
+      const quality = raw ? assessOcrQuality(matchChallengeType, raw, requiredMapVariant) : { accepted: false, requiredFields: [], reasons: ["missing_ocr_result"] };
+      const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: targetMap?.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, mapVariant: data.map_variant, requiredMapVariant });
       const expectedTitleName = ruleProjection
         ? (await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, ruleProjection.titleKey)).get())?.label
         : titleChallenge?.title.label;
-      const titleMatched = !expectedTitleName || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === expectedTitleName.trim().toLocaleLowerCase());
+      const titleMatched = requiredMapVariant ? match.variant : !expectedTitleName || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === expectedTitleName.trim().toLocaleLowerCase());
       const matched = quality.accepted && Object.values(match).every(Boolean) && titleMatched;
       await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, targetMapId: targetMap?.id ?? null, mapName: targetMap?.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, ruleSnapshotJson: ruleProjection ? JSON.stringify(ruleProjection) : null, updatedAt: now(), reviewReason: matched ? null : quality.accepted ? "OCR 结果与目标挑战不匹配" : "截图未满足识别要求，请重新提交" }).where(eq(submissions.id, submission.id));
       if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
@@ -1707,12 +1732,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         stage = "resolve_challenge";
         const snapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
         const title = snapshot
-          ? await db.select({ label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()
+          ? await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()
           : row.challengeType === "title_achievement" && row.challengeId
-          ? await db.select({ label: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
+          ? await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
           : null;
         const matchChallengeType = snapshot || title?.scope === "map" ? "map_title_achievement" : row.challengeType;
-        const quality = assessOcrQuality(matchChallengeType, result);
+        const requiredMapVariant = (snapshot?.titleKey ?? title?.key) === "CLASSIC" ? "classic" : null;
+        const quality = assessOcrQuality(matchChallengeType, result, requiredMapVariant);
         if (!quality.accepted) {
           stage = "persist_quality_result";
           await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
@@ -1721,7 +1747,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           return;
         }
         stage = "match_result";
-        const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
+        const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, mapVariant: data.map_variant, requiredMapVariant, titleName: title?.label, achievementTitles: data.achievement_titles });
         const matched = Object.values(match).every(Boolean);
         stage = "persist_result";
         await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), nextStatus: matched ? "ready_for_review" : "resubmission_required", reviewReason: matched ? null : "OCR 结果与目标挑战不匹配", incrementFailCount: !matched, allowExistingStatus: Boolean(input.manual) });

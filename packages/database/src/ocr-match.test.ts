@@ -18,6 +18,7 @@ describe("matchOcrResult", () => {
       difficulty: true,
       completed: true,
       player: true,
+      variant: true,
       skipped: [],
     });
     expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", mapName: "釜山" }).map).toBe(false);
@@ -35,6 +36,7 @@ describe("matchOcrResult", () => {
       difficulty: true,
       completed: true,
       player: true,
+      variant: true,
       skipped: ["map", "difficulty"],
     });
   });
@@ -52,5 +54,10 @@ describe("matchOcrResult", () => {
 
   it("normalizes player names before comparing them", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: " player#9999 " }).player).toBe(true);
+  });
+
+  it("requires the classic map variant when the challenge declares it", () => {
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic", requiredMapVariant: "classic" }).variant).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: null, requiredMapVariant: "classic" }).variant).toBe(false);
   });
 });

@@ -23,4 +23,10 @@ describe("assessOcrQuality", () => {
     expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player, map_name: fields.map_name } }).accepted).toBe(true);
     expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } }).reasons).toContain("map_name:missing_evidence");
   });
+
+  it("requires the declared map variant for classic challenges", () => {
+    const response = { schema_version: "1", ok: true, fields, data: { map_variant: "classic" } };
+    expect(assessOcrQuality("map_title_achievement", response, "classic").accepted).toBe(true);
+    expect(assessOcrQuality("map_title_achievement", { ...response, data: { map_variant: null } }, "classic").reasons).toContain("map_variant:expected_classic");
+  });
 });
