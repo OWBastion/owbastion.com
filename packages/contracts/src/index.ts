@@ -148,6 +148,7 @@ export const mapChallengeSchema = z.object({
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
   titleKey: externalId.optional(),
+  mapVariant: z.literal("classic").optional(),
   // Present only for map-title instances derived from map_title_rules.  Consumers
   // must use this explicit discriminator instead of treating a null slot as a
   // special case.
@@ -187,6 +188,7 @@ export const achievementChallengeSchema = z.object({
   submissionMode: z.enum(["manual", "automatic"]),
   scope: z.enum(["global", "map"]).optional(),
   mapIds: z.array(externalId).max(256).optional(),
+  mapVariant: z.literal("classic").optional(),
 });
 
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
@@ -396,6 +398,7 @@ const adminAchievementChallengeUpdateSchema = z.object({
   endsAt: optionalScheduleTimestamp,
   scope: z.enum(["global", "map"]).optional(),
   mapIds: z.array(externalId).max(256).optional(),
+  mapVariant: z.literal("classic").optional(),
 }).superRefine((value, ctx) => {
   if (value.status === "active" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "An active challenge cannot have a retired version" });
   if (value.startsAt !== undefined && value.endsAt !== undefined && value.endsAt <= value.startsAt) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
@@ -416,6 +419,7 @@ export const adminAchievementCreateRequestSchema = z.object({
   submissionMode: z.enum(["manual", "automatic"]),
   scope: z.enum(["global", "map"]),
   mapIds: z.array(externalId).max(256).default([]),
+  mapVariant: z.literal("classic").optional(),
   status: titleChallengeStatus,
   gameVersion: z.string().trim().min(1).max(64),
   categoryOverride: z.string().trim().min(1).max(128).nullable().default(null),
@@ -475,7 +479,7 @@ export const adminSubmissionSchema = z.object({
   challengeId: externalId,
   challenge: z.union([
     z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable() }),
-    z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string() }),
+    z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
   ]).nullable().optional(),
   mapName: z.string(),
   difficulty: z.string(),

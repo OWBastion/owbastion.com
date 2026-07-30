@@ -162,7 +162,9 @@ Sunsetting retains player visibility and new upload sessions while displaying
 the planned release version. Retiring a challenge prevents new upload sessions
 while preserving submissions that already exist. Those submissions continue
 through OCR and review under the ordinary submission lifecycle. Reopening
-clears the retirement version. Administrator changes require maintainer
+clears the retirement version. Map-scoped title challenges may declare
+`map_variant = classic`; the platform passes this requirement to OCR matching
+and exposes the OCR result in admin review details. Administrator changes require maintainer
 authorization, an idempotency key, and an audit record.
 
 ### Map title rule model

@@ -100,8 +100,10 @@ Keep domain logic independent from HTTP and storage adapters. Add migrations,
 tests, and runbooks with operational changes. Avoid broad framework rewrites
 without an architecture decision record.
 
-The public achievement directory reads active global achievement challenges and
-does not expose player data. The public map directory reads active rows from the
+The public achievement directory reads active global and map-scoped achievement
+challenges and does not expose player data. Map-scoped challenges may declare a
+`classic` map variant, which is carried through the catalog and OCR matching.
+The public map directory reads active rows from the
 D1 `maps` and `achievement_challenges` catalogs without exposing player data.
 Player submission targets use the same catalogs, but the upload session accepts
 only an enabled manual-submission `challengeId`;

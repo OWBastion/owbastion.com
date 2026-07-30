@@ -4,8 +4,8 @@ import { portalErrorDetails, recordPortalError } from "~/utils/portal-error";
 
 export type Map = { mapId: string; mapName: string; gameVersion: string; difficultyRating: "T0" | "T1" | "T2" | "T3" | "T4" | "T5" | null; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
 export type ChallengeStatus = "active" | "sunsetting";
-export type MapChallenge = { challengeId: string; family: "map"; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; name: string; mapId: string; mapName: string; titleKey?: string; difficulty?: string; gameVersion: string; status: ChallengeStatus; retiredVersion?: string };
-export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "scheduled" | ChallengeStatus; startsAt?: number; endsAt?: number; retiredVersion?: string; submissionMode: "manual" | "automatic"; scope?: "global" | "map"; mapIds?: string[] };
+export type MapChallenge = { challengeId: string; family: "map"; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; name: string; mapId: string; mapName: string; titleKey?: string; mapVariant?: "classic"; difficulty?: string; gameVersion: string; status: ChallengeStatus; retiredVersion?: string };
+export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "scheduled" | ChallengeStatus; startsAt?: number; endsAt?: number; retiredVersion?: string; submissionMode: "manual" | "automatic"; scope?: "global" | "map"; mapIds?: string[]; mapVariant?: "classic" };
 export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -134,6 +134,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       starts_at INTEGER,
       ends_at INTEGER,
       scope TEXT NOT NULL DEFAULT 'global',
+      map_variant TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

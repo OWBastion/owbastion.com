@@ -11,6 +11,7 @@ type CreatePayload = {
   submissionMode: "manual" | "automatic";
   scope: "global" | "map";
   mapIds: string[];
+  mapVariant?: "classic";
   status: "scheduled" | "active" | "sunsetting" | "retired";
   gameVersion: string;
   categoryOverride: string | null;
@@ -37,6 +38,7 @@ const form = reactive({
   submissionMode: "manual" as "manual" | "automatic",
   scope: "global" as "global" | "map",
   mapIds: [] as string[],
+  mapVariant: undefined as "classic" | undefined,
   status: "active" as "scheduled" | "active" | "sunsetting" | "retired",
   gameVersion: "",
   categoryOverride: "",
@@ -63,6 +65,7 @@ function submit() {
     submissionMode: form.submissionMode,
     scope: form.scope,
     mapIds: form.scope === "map" ? [...form.mapIds] : [],
+    ...(form.scope === "map" && form.mapVariant ? { mapVariant: form.mapVariant } : {}),
     status: form.status,
     gameVersion: form.gameVersion.trim(),
     categoryOverride: form.categoryOverride.trim() || null,
@@ -88,6 +91,7 @@ function submit() {
         <UFormField class="editor-field" label="称号适用范围"><USelect v-model="form.scope" class="editor-control" :disabled="props.saving" :items="[{ label: '全部地图', value: 'global' }, { label: '指定地图', value: 'map' }]" /></UFormField>
         <template v-if="form.scope === 'map'">
           <UFormField class="editor-field editor-field--wide" label="指定地图" hint="留空作用于全部有效地图。"><USelect v-model="form.mapIds" class="editor-control" multiple :items="mapItems" :disabled="props.saving" /></UFormField>
+          <UFormField class="editor-field" label="地图版本"><USelect v-model="form.mapVariant" class="editor-control" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="props.saving" /></UFormField>
         </template>
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
         <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>

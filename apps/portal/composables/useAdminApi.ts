@@ -17,7 +17,7 @@ export type AdminPlayerDetail = AdminPlayer & {
 };
 
 export type AdminGroup = { groupOpenId: string; displayName: string; environment: "production" | "test"; status: "pending" | "active" | "legacy" | "disconnected"; bindEnabled: boolean; verifyEnabled: boolean; updatedAt: number };
-export type AdminSubmission = { submissionId: string; status: string; challengeId: string; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string } | null; mapName: string; difficulty: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocr: Record<string, unknown> | null; evidenceUrl: string | null };
+export type AdminSubmission = { submissionId: string; status: string; challengeId: string; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; mapName: string; difficulty: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocr: Record<string, unknown> | null; evidenceUrl: string | null };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
