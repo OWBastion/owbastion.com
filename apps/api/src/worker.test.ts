@@ -7,7 +7,7 @@ const createPlatformServices = vi.hoisted(() => vi.fn());
 vi.mock("@owbastion/database", () => ({ createPlatformServices }));
 
 const queueMessage = (attempts: number) => ({
-  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload" },
+  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "test-request-1" },
   attempts,
   ack: vi.fn(),
   retry: vi.fn(),
@@ -38,6 +38,7 @@ describe("OCR Queue consumer", () => {
       version: 1,
       submissionId: "submission-1",
       objectKey: "uploads/submission-1/evidence.upload",
+      requestId: "test-request-1",
       attempt,
     });
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds });
@@ -52,9 +53,25 @@ describe("OCR Queue consumer", () => {
 
     await worker.queue({ messages: [message] } as never, { OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
 
-    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: 3, errorCode: "OCR_NETWORK" });
+    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: 3, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
     expect(message.ack).toHaveBeenCalledOnce();
     expect(message.retry).not.toHaveBeenCalled();
+  });
+
+  it("logs the original processing error before recording the generic failure", async () => {
+    const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockRejectedValue(new Error("TypeError: OCR response field was not a string"));
+    const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockResolvedValue();
+    createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
+    const message = queueMessage(3);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await worker.queue({ messages: [message] } as never, { OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
+    const errorLogs = errorSpy.mock.calls.map(([line]) => String(line));
+    errorSpy.mockRestore();
+
+    expect(errorLogs.some((line) => line.includes('"event":"queue_job_failed"'))).toBe(true);
+    expect(errorLogs.some((line) => line.includes("OCR response field was not a string"))).toBe(true);
+    expect(markOcrJobFailed).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "OCR_PROCESS_FAILED" }));
   });
 
   it("does not acknowledge the final delivery when recording its failure fails", async () => {

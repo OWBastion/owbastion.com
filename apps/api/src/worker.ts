@@ -2,7 +2,7 @@ import { authenticatePlatformActor } from "@owbastion/auth";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
 
-type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean };
+type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 2; };
 
@@ -38,12 +38,15 @@ export default {
         }
         continue;
       }
-      try { await platform.processOcrJob({ ...message.body, attempt: message.attempts }); message.ack(); }
+      const requestId = message.body.requestId ?? crypto.randomUUID();
+      try { await platform.processOcrJob({ ...message.body, attempt: message.attempts, requestId }); message.ack(); }
       catch (error) {
-        if (message.attempts < 3) { message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
+        const errorMessage = error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256);
+        console.error(JSON.stringify({ layer: "ocr", event: "queue_job_failed", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage }));
+        if (message.attempts < 3) { console.warn(JSON.stringify({ layer: "ocr", event: "queue_job_retry", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, delaySeconds: Math.min(60, 5 * message.attempts), errorMessage })); message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
         const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : "OCR_PROCESS_FAILED";
-        try { await platform.markOcrJobFailed({ submissionId: message.body.submissionId, attempt: message.attempts, errorCode, manual: message.body.manual }); message.ack(); }
-        catch { message.retry({ delaySeconds: 60 }); }
+        try { await platform.markOcrJobFailed({ submissionId: message.body.submissionId, attempt: message.attempts, errorCode, manual: message.body.manual, requestId }); message.ack(); }
+        catch (markError) { console.error(JSON.stringify({ layer: "ocr", event: "queue_failure_record_failed", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: markError instanceof Error ? markError.name : "UnknownError", errorMessage: markError instanceof Error ? markError.message.slice(0, 256) : String(markError).slice(0, 256) })); message.retry({ delaySeconds: 60 }); }
       }
     }
   },

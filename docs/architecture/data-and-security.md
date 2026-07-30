@@ -8,8 +8,8 @@
 | R2 | Submission evidence served through the configured public CDN origin and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
-The OCR Queue carries only an opaque submission ID, private object key, and
-schema version. The consumer resolves the platform evidence bucket from the
+The OCR Queue carries only an opaque submission ID, private object key, schema
+version, and an optional request-correlation ID. The consumer resolves the platform evidence bucket from the
 Worker configuration and passes it explicitly to OCRKit; OCRKit's default
 bucket is not used for platform evidence. The consumer receives the delivery attempt count from Queue
 metadata and records it with OCR results. OCR raw output and review decisions

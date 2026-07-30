@@ -8,6 +8,8 @@ import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
 
 const now = () => Date.now();
+const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
+const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
 export const paginateHistoricalHolderNames = (holderNames: string[], page: number, pageSize: number) => {
   const safePage = Math.max(1, page);
@@ -1411,7 +1413,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await db.insert(attachments).values({ id: crypto.randomUUID(), submissionId: session.submissionId, provider: "portal", externalAttachmentId: session.id, contentType: input.contentType, byteSize: input.body.byteLength, sha256, objectKey: session.objectKey, uploadStatus: "stored", createdAt: now() });
     },
 
-    async completePlayerUpload(input, sessionToken) {
+    async completePlayerUpload(input, sessionToken, requestId) {
       const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
       if (!session || session.expiresAt <= now() || session.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
       const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
@@ -1420,7 +1422,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
       await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
       await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      if (ocrQueue) await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey });
+      if (ocrQueue) {
+        try {
+          await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
+          logOcrEvent("job_enqueued", { attempt: 0, manual: false, requestId: requestId ?? null });
+        } catch (error) {
+          logOcrEvent("job_enqueue_failed", { attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+          throw error;
+        }
+      }
       return { submissionId: session.submissionId, status: "ocr_pending" };
     },
 
@@ -1454,7 +1464,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
     },
 
-    async requestAdminOcr(input, auth, idempotencyKey): Promise<AdminSubmissionOcrRetryResponse> {
+    async requestAdminOcr(input, auth, idempotencyKey, requestId): Promise<AdminSubmissionOcrRetryResponse> {
       const replay = await replayOrConflict<AdminSubmissionOcrRetryResponse>(db, auth.subject, "submission.ocr.retry", idempotencyKey, input);
       if (replay) return replay;
       if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
@@ -1474,8 +1484,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
       ]);
       try {
-        await ocrQueue.send({ version: 1, submissionId: row.id, objectKey: attachment.objectKey, manual: true });
+        await ocrQueue.send({ version: 1, submissionId: row.id, objectKey: attachment.objectKey, manual: true, ...(requestId ? { requestId } : {}) });
+        logOcrEvent("job_enqueued", { attempt: 0, manual: true, requestId: requestId ?? null });
       } catch (error) {
+        logOcrEvent("job_enqueue_failed", { attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
         await db.update(ocrResults).set({ status: "error", errorCode: "OCR_QUEUE_SEND_FAILED", createdAt: now() }).where(eq(ocrResults.id, pendingResultId));
         throw error;
       }
@@ -1626,49 +1638,81 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async processOcrJob(input) {
-      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) throw new Error("OCR_NOT_CONFIGURED");
+      const ocrRequestId = input.requestId ?? crypto.randomUUID();
+      const context = { attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
+      const startedAt = Date.now();
+      logOcrEvent("job_started", context);
+      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) {
+        logOcrEvent("job_processing_failed", { ...context, stage: "configuration", durationMs: Date.now() - startedAt, errorName: "Error", errorMessage: "OCR_NOT_CONFIGURED" });
+        throw new Error("OCR_NOT_CONFIGURED");
+      }
       let response: Response;
       try {
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": crypto.randomUUID() }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
-      } catch { throw new Error("OCR_NETWORK"); }
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+      } catch (error) {
+        logOcrEvent("ocrkit_request_failed", { ...context, stage: "fetch", durationMs: Date.now() - startedAt, ...errorDetails(error) });
+        throw new Error("OCR_NETWORK");
+      }
+      logOcrEvent("ocrkit_response", { ...context, status: response.status, ok: response.ok, contentType: response.headers.get("content-type"), durationMs: Date.now() - startedAt });
       if (!response.ok) throw new Error(`OCR_HTTP_${response.status}`);
       let result: OcrResponse;
-      try { result = await response.json() as typeof result; }
-      catch { throw new Error("OCR_INVALID_RESPONSE"); }
-      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
-      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      if (row.status !== "ocr_pending" && !input.manual) return;
-      const data = result.data ?? {};
-      if (row.challengeType === "unknown") {
-        const quality = assessOcrQuality("unknown", result);
-        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: quality.accepted ? "matched" : "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-        if (quality.accepted) {
-          await db.update(submissions).set({ status: "awaiting_player_confirmation", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
-        } else {
-          await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      try {
+        const parsed = await response.json() as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("response_body_not_object");
+        result = parsed as OcrResponse;
+        logOcrEvent("ocrkit_response_parsed", { ...context, responseRequestId: result.request_id ?? null, schemaVersion: result.schema_version ?? null, responseOk: result.ok ?? null, dataFields: Object.keys(result.data ?? {}), evidenceFields: Object.keys(result.fields ?? {}), durationMs: Date.now() - startedAt });
+      } catch (error) {
+        logOcrEvent("ocrkit_response_parse_failed", { ...context, stage: "parse_response", durationMs: Date.now() - startedAt, ...errorDetails(error) });
+        throw new Error("OCR_INVALID_RESPONSE");
+      }
+      let stage = "load_submission";
+      try {
+        const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+        if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+        if (row.status !== "ocr_pending" && !input.manual) return;
+        const data = result.data ?? {};
+        if (row.challengeType === "unknown") {
+          const quality = assessOcrQuality("unknown", result);
+          stage = "persist_unknown_result";
+          await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: quality.accepted ? "matched" : "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
+          if (quality.accepted) {
+            await db.update(submissions).set({ status: "awaiting_player_confirmation", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+          } else {
+            await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+          }
+          logOcrEvent("job_completed", { ...context, outcome: quality.accepted ? "matched" : "review_required", qualityAccepted: quality.accepted, durationMs: Date.now() - startedAt });
+          return;
         }
-        return;
-      }
-      const snapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
-      const title = snapshot
-        ? await db.select({ label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()
-        : row.challengeType === "title_achievement" && row.challengeId
-        ? await db.select({ label: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
-        : null;
-      const matchChallengeType = snapshot || title?.scope === "map" ? "map_title_achievement" : row.challengeType;
-      const quality = assessOcrQuality(matchChallengeType, result);
-      if (!quality.accepted) {
-        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
-        return;
-      }
-      const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
-      const matched = Object.values(match).every(Boolean);
-      await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), createdAt: now() });
-      if (matched) {
-        await db.update(submissions).set({ status: "ready_for_review", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
-      } else {
-        await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 结果与目标挑战不匹配", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        stage = "resolve_challenge";
+        const snapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
+        const title = snapshot
+          ? await db.select({ label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()
+          : row.challengeType === "title_achievement" && row.challengeId
+          ? await db.select({ label: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
+          : null;
+        const matchChallengeType = snapshot || title?.scope === "map" ? "map_title_achievement" : row.challengeType;
+        const quality = assessOcrQuality(matchChallengeType, result);
+        if (!quality.accepted) {
+          stage = "persist_quality_result";
+          await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
+          await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+          logOcrEvent("job_completed", { ...context, outcome: "review_required", qualityAccepted: false, durationMs: Date.now() - startedAt });
+          return;
+        }
+        stage = "match_result";
+        const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, titleName: title?.label, achievementTitles: data.achievement_titles });
+        const matched = Object.values(match).every(Boolean);
+        stage = "persist_result";
+        await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), createdAt: now() });
+        if (matched) {
+          await db.update(submissions).set({ status: "ready_for_review", updatedAt: now(), reviewReason: null }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        } else {
+          await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 结果与目标挑战不匹配", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+        }
+        logOcrEvent("job_completed", { ...context, outcome: matched ? "matched" : "mismatch", qualityAccepted: quality.accepted, durationMs: Date.now() - startedAt });
+      } catch (error) {
+        logOcrEvent("job_processing_failed", { ...context, stage, durationMs: Date.now() - startedAt, ...errorDetails(error) });
+        throw error;
       }
     },
 
@@ -1677,6 +1721,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row || (!input.manual && row.status !== "ocr_pending")) return;
       await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "error", errorCode: input.errorCode, createdAt: now() });
       if (row.status === "ocr_pending") await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "OCR 识别失败，请重新提交截图", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+      logOcrEvent("job_failure_recorded", { attempt: input.attempt, manual: Boolean(input.manual), requestId: input.requestId ?? null, errorCode: input.errorCode });
     },
 
     async listQqGroupAccess() {

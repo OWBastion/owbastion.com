@@ -555,7 +555,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.post("/v1/player/uploads/:uploadId/complete", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!)); }
+    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
   });
 
@@ -915,7 +915,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionOcrRetryRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).requestAdminOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
+    try { return c.json(await dependencies.services(c.env).requestAdminOcr({ submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey, c.get("requestId"))); }
     catch (error) {
       const code = error instanceof Error ? error.message : "OCR_RETRY_FAILED";
       if (code === "SUBMISSION_NOT_FOUND" || code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, code === "EVIDENCE_NOT_FOUND" ? "The submission has no evidence" : "The submission does not exist");

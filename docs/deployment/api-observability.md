@@ -90,6 +90,23 @@ Investigate high `durationMs` records by fixed `routeClass` and `operation`
 only. Do not add player names, IDs, event IDs, arbitrary URLs, SQL text,
 evidence keys, query values, or response bodies as log dimensions.
 
+## Diagnose Queue-backed OCR
+
+For a player upload or administrator retry, search Workers Logs by the request
+ID returned by the originating API request. The OCR records use the fixed
+`layer: "ocr"` event names `job_enqueued`, `job_started`, `ocrkit_response`,
+`ocrkit_response_parsed`, `job_completed`, `queue_job_failed`,
+`job_failure_recorded`, and their corresponding `*_failed` events. They retain
+the Queue attempt, manual flag, HTTP status, response field names, processing
+stage, duration, and bounded exception name/message; they never log player or
+submission IDs, the image, OCR text, object key, authorization token, or response body.
+
+`queue_job_failed` on attempts 1 or 2 means the message will be retried. On
+attempt 3, compare its `requestId` with the `X-Request-ID` sent to OCRKit and
+inspect the OCRKit container's access/error logs for the same request window.
+An OCRKit access line alone proves only that the request arrived; it does not
+prove object download or recognition succeeded.
+
 Representative catalog operation names for D1 performance baselines (issue #24):
 
 | Operation | Route class | Notes |
