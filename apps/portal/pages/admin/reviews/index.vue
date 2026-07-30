@@ -11,15 +11,37 @@ const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
+type OcrField = { confidence?: unknown };
+type OcrPayload = {
+  data?: { map_name?: unknown; achievement_titles?: unknown };
+  fields?: Record<string, OcrField>;
+};
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const visibleStatuses = "received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required,approved,rejected,resubmission_required";
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
-const submissionTarget = (submission: AdminSubmission) => submission.challenge?.family === "achievement" ? submission.challenge.titleName : `${submission.mapName}${submission.difficulty ? ` · ${submission.difficulty}` : ""}`;
+const ocrPayload = (submission: AdminSubmission) => submission.ocr as OcrPayload | null;
+const ocrMapName = (submission: AdminSubmission) => {
+  const mapName = ocrPayload(submission)?.data?.map_name;
+  return typeof mapName === "string" && mapName.trim() ? mapName : "未识别地图";
+};
+const ocrAchievementTitles = (submission: AdminSubmission) => {
+  const payload = ocrPayload(submission);
+  if (!payload) return "未识别";
+  const titles = payload.data?.achievement_titles;
+  if (!Array.isArray(titles)) return "未识别";
+  const names = titles.filter((title): title is string => typeof title === "string" && Boolean(title.trim()));
+  return names.length ? names.join("、") : "无";
+};
+const ocrConfidence = (submission: AdminSubmission, field: string) => {
+  const confidence = ocrPayload(submission)?.fields?.[field]?.confidence;
+  return typeof confidence === "number" ? `${Math.round(confidence * 100)}%` : "—";
+};
 const ocrStatusText: Record<AdminSubmission["ocrStatus"], string> = { not_started: "未开始", pending: "识别中", matched: "已匹配", mismatch: "未匹配", review_required: "需人工核对", error: "识别失败" };
 const ocrStatusTone = (status: AdminSubmission["ocrStatus"]) => status === "matched" ? "success" : status === "mismatch" || status === "review_required" || status === "error" ? "warning" : "default";
 const columns = [
-  { accessorKey: "challenge", header: "挑战" },
+  { id: "ocrContent", header: "OCR识别" },
+  { id: "ocrConfidence", header: "置信度" },
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "ocrStatus", header: "OCRKit" },
@@ -47,7 +69,8 @@ onMounted(() => { void load(); });
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
-      <template #challenge-cell="{ row }"><strong>{{ submissionTarget(row.original) }}</strong><small v-if="row.original.challenge?.family === 'achievement'" class="table-meta">{{ row.original.challenge.condition }}</small></template>
+      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
+      <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>
       <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusText[row.original.ocrStatus]" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
