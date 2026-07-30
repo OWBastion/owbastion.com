@@ -554,6 +554,25 @@ describe("map title rule model – locked invariants", () => {
 
   // ─── Invariant: Exception precedence ─────────────────────────────────────
   describe("exception precedence – resolution is deterministic", () => {
+    it("projects one stable, traceable map challenge for Portal, Admin, and Agents", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      const services = createPlatformServices(database);
+
+      const portal = await services.listChallenges({ family: "map" });
+      const admin = await services.listAdminChallenges({ family: "map" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" });
+      const agents = await services.listAgentAchievements({ page: 1, pageSize: 20, mapId: "map.paris" });
+      const expected = { challengeId: "map.paris.conqueror", titleKey: "CONQUEROR", mapId: "map.paris", mapTitleRule: { ruleId: "rule.conqueror", kind: "conqueror", displayKind: "map_name_suffix", slot: "conqueror", dynamic: true } };
+
+      expect(portal).toContainEqual(expect.objectContaining(expected));
+      expect(admin.items).toContainEqual(expect.objectContaining(expected));
+      expect(agents.items).toContainEqual(expect.objectContaining(expected));
+    });
+
     it("disabled exception removes the projection even for an all_active rule", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);

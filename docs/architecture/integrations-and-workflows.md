@@ -67,11 +67,12 @@ The current API implements versioned v1 QQ flows:
   optional map scope. A map-scoped title challenge uses one unique title key;
   an empty map allowlist means all active maps, while a populated allowlist
   restricts submissions and map-scoped grants to those maps;
-- the public map challenge directory is a projection of both legacy map
-  completion rows and map-scoped title challenges. The latter are expanded once
-  per applicable active map from the title challenge and its map relations; the
-  projection retains the title challenge ID and map ID for submission and grant
-  matching, and does not duplicate rows in the legacy map-completion table;
+- the public and administrator map challenge directories project standard map
+  titles from `map_title_rules` once per applicable active map. Each instance
+  keeps its stable `map.<map>.<kind>` compatibility ID and exposes its source
+  rule ID, title key, display kind, and explicit slot semantics; it is not an
+  independently editable challenge record. Legacy map-completion rows, including
+  CLASSIC, remain direct read projections;
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.
@@ -245,6 +246,10 @@ expose QQ identities, submissions, review sources, timestamps, audit data,
 player progress beyond active title ownership, runtime analytics,
 administrative fields, private evidence, game implementation, or build
 artifacts.
+Agents achievement responses include rule-derived map-title instances alongside
+ordinary title challenges. A dynamic instance carries its source rule and an
+explicit `dynamic: true` slot descriptor, so Bastion must not infer dynamic
+map-title meaning from a nullable slot.
 
 ## QQBot and login
 

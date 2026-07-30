@@ -148,6 +148,19 @@ export const mapChallengeSchema = z.object({
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
   titleKey: externalId.optional(),
+  // Present only for map-title instances derived from map_title_rules.  Consumers
+  // must use this explicit discriminator instead of treating a null slot as a
+  // special case.
+  mapTitleRule: z.object({
+    ruleId: externalId,
+    kind: z.string().trim().min(1).max(64),
+    displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
+    slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(),
+    dynamic: z.literal(true),
+  }).optional(),
+  condition: z.string().trim().min(1).max(1024).optional(),
+  evidenceRule: z.string().trim().min(1).max(2048).optional(),
+  submissionMode: z.enum(["manual", "automatic"]).optional(),
   difficulty: z.string().trim().min(1).max(64).optional(),
   gameVersion: z.string().trim().min(1).max(64),
   status: playableChallengeStatus,
@@ -248,11 +261,11 @@ const agentPage = z.object({
 const agentPageQuery = z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().positive().max(100).default(20) });
 export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) }).merge(agentPage);
-export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(achievementChallengeSchema) }).merge(agentPage);
+export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
 export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) }).merge(agentPage);
 export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName: z.string().trim().min(1).max(64), titleKeys: z.array(externalId), allTitles: z.boolean() });
 export const agentPlayerTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(agentPlayerTitleGrantSchema) }).merge(agentPage);
-export const agentMapTitleHolderSchema = z.object({ mapId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), playerId, playerName: z.string().trim().min(1).max(64) });
+export const agentMapTitleHolderSchema = z.object({ mapId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName: z.string().trim().min(1).max(64) });
 export const agentMapTitleHolderListResponseSchema = z.object({ contractVersion, items: z.array(agentMapTitleHolderSchema) }).merge(agentPage);
 export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
 export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);

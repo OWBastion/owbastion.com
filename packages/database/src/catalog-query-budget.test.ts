@@ -149,6 +149,41 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       pioneer_prefixes_json TEXT NOT NULL,
       PRIMARY KEY (map_id, slot)
     );
+    CREATE TABLE map_title_rules (
+      id TEXT PRIMARY KEY NOT NULL,
+      title_key TEXT NOT NULL REFERENCES title_catalog(key),
+      kind TEXT NOT NULL,
+      condition TEXT NOT NULL,
+      evidence_rule TEXT NOT NULL,
+      submission_mode TEXT NOT NULL DEFAULT 'manual',
+      display_kind TEXT NOT NULL,
+      slot TEXT,
+      default_scope TEXT NOT NULL DEFAULT 'all_active',
+      status TEXT NOT NULL DEFAULT 'active',
+      introduced_version TEXT NOT NULL,
+      retired_version TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE map_title_rule_exceptions (
+      id TEXT PRIMARY KEY NOT NULL,
+      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition TEXT,
+      evidence_rule TEXT,
+      submission_mode TEXT,
+      slot TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE map_title_rule_compat (
+      legacy_challenge_id TEXT PRIMARY KEY NOT NULL,
+      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      is_standard_instance INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    );
     CREATE TABLE achievement_challenges (
       id TEXT PRIMARY KEY NOT NULL,
       map_id TEXT NOT NULL,
