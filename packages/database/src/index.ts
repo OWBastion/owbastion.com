@@ -1354,11 +1354,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
       if (submission.status !== "awaiting_player_confirmation" || submission.challengeId) throw new Error("SUBMISSION_NOT_CONFIRMABLE");
       const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))).get();
-      const titleChallenge = mapChallenge ? null : await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.availability, "active"))).get();
-      if (!mapChallenge && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
+      const ruleProjection = !mapChallenge
+        ? await (async () => {
+          const compat = await db.select({ mapId: mapTitleRuleCompat.mapId }).from(mapTitleRuleCompat).where(eq(mapTitleRuleCompat.legacyChallengeId, input.challengeId)).get();
+          return compat ? resolveCompatProjection(input.challengeId, compat.mapId) : null;
+        })()
+        : null;
+      const titleChallenge = !mapChallenge && !ruleProjection ? await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.availability, "active"))).get() : null;
+      if (!mapChallenge && !ruleProjection && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
       if (titleChallenge && (!titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now()) || titleChallenge.challenge.submissionMode === "automatic")) throw new Error("CHALLENGE_NOT_FOUND");
       let targetMap = mapChallenge?.map ?? null;
       if (titleChallenge?.challenge.scope === "global" && input.mapId) throw new Error("GLOBAL_CHALLENGE_CANNOT_HAVE_MAP");
+      if (ruleProjection && input.mapId && input.mapId !== ruleProjection.mapId) throw new Error("MAP_NOT_IN_CHALLENGE");
+      if (ruleProjection) targetMap = await db.select().from(maps).where(and(eq(maps.id, ruleProjection.mapId), eq(maps.status, "active"))).get() ?? null;
+      if (ruleProjection && !targetMap) throw new Error("CHALLENGE_NOT_FOUND");
       if (titleChallenge?.challenge.scope === "map") {
         if (!input.mapId) throw new Error("MAP_REQUIRED");
         targetMap = await db.select().from(maps).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get() ?? null;
@@ -1370,13 +1379,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
       const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
       const data = raw?.data ?? {};
-      const challengeType = mapChallenge ? "map_completion" : "title_achievement";
-      const matchChallengeType = titleChallenge?.challenge.scope === "map" ? "map_title_achievement" : challengeType;
+      const challengeType = ruleProjection ? "map_title_achievement" : mapChallenge ? "map_completion" : "title_achievement";
+      const matchChallengeType = ruleProjection || titleChallenge?.challenge.scope === "map" ? "map_title_achievement" : challengeType;
       const quality = raw ? assessOcrQuality(matchChallengeType, raw) : { accepted: false, requiredFields: [], reasons: ["missing_ocr_result"] };
       const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: targetMap?.name ?? "成就挑战", targetDifficulty: mapChallenge?.challenge.difficulty ?? null, targetPlayerName: submission.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player });
-      const titleMatched = !titleChallenge || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === titleChallenge!.title.label.trim().toLocaleLowerCase());
+      const expectedTitleName = ruleProjection
+        ? (await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, ruleProjection.titleKey)).get())?.label
+        : titleChallenge?.title.label;
+      const titleMatched = !expectedTitleName || (data.achievement_titles ?? []).some((title) => title.trim().toLocaleLowerCase() === expectedTitleName.trim().toLocaleLowerCase());
       const matched = quality.accepted && Object.values(match).every(Boolean) && titleMatched;
-      await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, targetMapId: targetMap?.id ?? null, mapName: targetMap?.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, updatedAt: now(), reviewReason: matched ? null : quality.accepted ? "OCR 结果与目标挑战不匹配" : "截图未满足识别要求，请重新提交" }).where(eq(submissions.id, submission.id));
+      await db.update(submissions).set({ status: matched ? "ready_for_review" : "resubmission_required", challengeType, challengeId: input.challengeId, targetMapId: targetMap?.id ?? null, mapName: targetMap?.name ?? "成就挑战", difficulty: mapChallenge?.challenge.difficulty ?? null, ruleSnapshotJson: ruleProjection ? JSON.stringify(ruleProjection) : null, updatedAt: now(), reviewReason: matched ? null : quality.accepted ? "OCR 结果与目标挑战不匹配" : "截图未满足识别要求，请重新提交" }).where(eq(submissions.id, submission.id));
       if (result) await db.update(ocrResults).set({ matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }) }).where(eq(ocrResults.id, result.id));
       return await this.getPlayerSubmission({ submissionId: submission.id }, sessionToken);
     },

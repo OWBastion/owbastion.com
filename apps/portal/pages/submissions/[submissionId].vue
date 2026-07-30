@@ -46,7 +46,7 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过处理，请查看原因并重新提交。" : "查看截图、识别结果与提交状态。");
 const manualReviewEligible = computed(() => data.value?.status === "resubmission_required" && (data.value?.ocrFailCount ?? 0) >= OCR_MANUAL_REVIEW_THRESHOLD);
 const statusAlert = computed(() => {
-  if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别完成后，这里会显示下一步操作。", color: "info" as const };
+  if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后可确认地图或成就挑战。", color: "info" as const };
   if (data.value?.status === "ocr_review_required") return { title: "等待人工审核", description: "已进入审核队列，请等待管理员处理。", color: "warning" as const };
   if (data.value?.status === "resubmission_required") return { title: "需要重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
   return null;

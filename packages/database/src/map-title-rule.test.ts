@@ -493,6 +493,11 @@ const seedCompat = (sqlite: DatabaseSync, legacyId: string, ruleId: string, mapI
   ).run(legacyId, ruleId, mapId, isStandard, now);
 };
 
+const requestHash = async (value: unknown) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
 // Expose the internal resolveMapTitleProjection helper via the service's test-internal path.
 // We test it indirectly through reviewSubmission and a thin wrapper export.
 // For direct unit coverage of the resolver we call it through a minimal service instance
@@ -502,6 +507,37 @@ const seedCompat = (sqlite: DatabaseSync, legacyId: string, ruleId: string, mapI
 // a minimal services object and asserting on the reviewSubmission behaviour.
 
 describe("map title rule model – locked invariants", () => {
+  describe("post-OCR player confirmation", () => {
+    it("confirms a rule-projected map title and preserves its snapshot", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+
+      const sessionToken = "player-session";
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.1', 'attempt.1', 'group.1', 'member.1', 'production', ?, ?, ?)").run(await requestHash(sessionToken), now + 60_000, now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.1', 'binding.1', 'awaiting_player_confirmation', 'unknown', NULL, NULL, '成就挑战', 'Tester', 'portal', 'portal', 'upload.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.1', 'submission.1', 1, 'matched', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, fields: { challenge_completed: { status: "ok", confidence: 0.99 }, viewer_player: { status: "ok", confidence: 0.99 }, map_name: { status: "ok", confidence: 0.99 } }, data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", achievement_titles: ["称号 CONQUEROR"] } }), now);
+
+      const services = createPlatformServices(database);
+      const result = await services.confirmPlayerSubmissionChallenge(
+        { submissionId: "submission.1", challengeId: "map.paris.conqueror", mapId: "map.paris" } as never,
+        sessionToken,
+      );
+
+      expect(result.status).toBe("ready_for_review");
+      const submission = sqlite.prepare("SELECT challenge_type, challenge_id, target_map_id, rule_snapshot_json FROM submissions WHERE id = 'submission.1'").get() as { challenge_type: string; challenge_id: string; target_map_id: string; rule_snapshot_json: string };
+      expect(submission.challenge_type).toBe("map_title_achievement");
+      expect(submission.challenge_id).toBe("map.paris.conqueror");
+      expect(submission.target_map_id).toBe("map.paris");
+      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", titleKey: "CONQUEROR", slot: "conqueror" });
+    });
+  });
+
   // ─── Invariant: Stable IDs ────────────────────────────────────────────────
   describe("stable IDs – compat table preserves map.<mapId>.<kind> IDs", () => {
     it("resolves a legacy challenge ID via the compat table", async () => {

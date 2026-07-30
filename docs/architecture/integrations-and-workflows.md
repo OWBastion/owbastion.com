@@ -40,8 +40,10 @@ The current API implements versioned v1 QQ flows:
   internal signals;
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
-- the Portal can select a platform-owned challenge, create a single-image
-  upload session, upload private evidence, and complete the upload;
+- the Portal can create a single-image upload session without a target, upload
+  private evidence, and complete the upload; after OCR accepts the screenshot,
+  the player confirms a platform-owned map or achievement challenge before it
+  enters maintainer review;
 - an authenticated player can read only their own submission detail and
   screenshot, plus a constrained OCR summary; public submission status remains
   free of evidence and OCR fields;
