@@ -325,6 +325,50 @@ const adminCatalogTitleSchema = z.object({
 export const adminChallengeSchema = z.discriminatedUnion("family", [adminMapChallengeSchema, adminAchievementChallengeSchema, adminCatalogTitleSchema]);
 export const adminChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminChallengeSchema) });
 
+const mapTitleRuleStatus = z.enum(["active", "sunsetting", "retired"]);
+const mapTitleRuleSlot = z.enum(["pioneer", "conqueror", "dominator"]);
+const mapTitleRuleShape = {
+  titleKey: externalId,
+  kind: z.string().trim().min(1).max(64),
+  condition: z.string().trim().min(1).max(1024),
+  evidenceRule: z.string().trim().min(1).max(2048),
+  submissionMode: z.enum(["manual", "automatic"]),
+  displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
+  slot: mapTitleRuleSlot.nullable(),
+  defaultScope: z.enum(["all_active", "explicit"]),
+  status: mapTitleRuleStatus,
+  introducedVersion: z.string().trim().min(1).max(64),
+  retiredVersion: optionalRetirementVersion,
+};
+const mapTitleRuleInputSchema = z.object(mapTitleRuleShape).superRefine((value, ctx) => {
+  if (value.status === "sunsetting" && value.retiredVersion === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Sunsetting rules require a retired version" });
+  if (value.status !== "sunsetting" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only sunsetting rules may have a retired version" });
+});
+export const adminMapTitleRuleSchema = z.object(mapTitleRuleShape).extend({
+  ruleId: externalId,
+  titleName: z.string().trim().min(1).max(256),
+  retiredVersion: storedRetirementVersion.nullable(),
+});
+export const adminMapTitleRuleListResponseSchema = z.object({ contractVersion, items: z.array(adminMapTitleRuleSchema) });
+export const adminMapTitleRuleCreateRequestSchema = mapTitleRuleInputSchema.safeExtend({ contractVersion });
+export const adminMapTitleRuleUpdateRequestSchema = mapTitleRuleInputSchema.safeExtend({ contractVersion });
+export const adminMapTitleRuleExceptionSchema = z.object({
+  exceptionId: z.string().uuid(), ruleId: externalId, mapId: externalId, enabled: z.boolean(),
+  condition: z.string().trim().min(1).max(1024).nullable(), evidenceRule: z.string().trim().min(1).max(2048).nullable(),
+  submissionMode: z.enum(["manual", "automatic"]).nullable(), slot: mapTitleRuleSlot.nullable(),
+});
+export const adminMapTitleInheritanceSchema = z.object({
+  mapId: externalId, rule: adminMapTitleRuleSchema, projected: z.boolean(),
+  source: z.literal("map_title_rule"),
+  effective: z.object({ condition: z.string(), evidenceRule: z.string(), submissionMode: z.enum(["manual", "automatic"]), slot: mapTitleRuleSlot.nullable() }).nullable(),
+  exception: adminMapTitleRuleExceptionSchema.nullable(),
+});
+export const adminMapTitleInheritanceResponseSchema = z.object({ contractVersion, items: z.array(adminMapTitleInheritanceSchema) });
+export const adminMapTitleRuleExceptionUpsertRequestSchema = z.object({
+  contractVersion, enabled: z.boolean(), condition: z.string().trim().min(1).max(1024).nullable().optional(),
+  evidenceRule: z.string().trim().min(1).max(2048).nullable().optional(), submissionMode: z.enum(["manual", "automatic"]).nullable().optional(), slot: mapTitleRuleSlot.nullable().optional(),
+});
+
 const adminMapChallengeUpdateSchema = z.object({
   contractVersion,
   family: z.literal("map"),
@@ -609,6 +653,12 @@ export type AdminChallengeListResponse = z.infer<typeof adminChallengeListRespon
 export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateRequestSchema>;
 export type AdminAchievementCreateRequest = z.infer<typeof adminAchievementCreateRequestSchema>;
 export type AdminCatalogTitleUpdateRequest = z.infer<typeof adminCatalogTitleUpdateRequestSchema>;
+export type AdminMapTitleRule = z.infer<typeof adminMapTitleRuleSchema>;
+export type AdminMapTitleRuleListResponse = z.infer<typeof adminMapTitleRuleListResponseSchema>;
+export type AdminMapTitleRuleCreateRequest = z.infer<typeof adminMapTitleRuleCreateRequestSchema>;
+export type AdminMapTitleRuleUpdateRequest = z.infer<typeof adminMapTitleRuleUpdateRequestSchema>;
+export type AdminMapTitleInheritanceResponse = z.infer<typeof adminMapTitleInheritanceResponseSchema>;
+export type AdminMapTitleRuleExceptionUpsertRequest = z.infer<typeof adminMapTitleRuleExceptionUpsertRequestSchema>;
 export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;

@@ -16,6 +16,7 @@ import {
   adminChallengeUpdateRequestSchema,
   adminAchievementCreateRequestSchema,
   adminCatalogTitleUpdateRequestSchema,
+  adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
@@ -658,6 +659,41 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => dependencies.services(c.env).listMaps()) });
+  });
+
+  app.get("/v1/admin/map-title-rules", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    return c.json(await dependencies.services(c.env).listAdminMapTitleRules(access.auth!));
+  });
+  app.post("/v1/admin/map-title-rules", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapTitleRuleCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createAdminMapTitleRule(parsed.data, access.auth!, key), 201); }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_CREATE_FAILED"; if (["MAP_TITLE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
+  });
+  app.put("/v1/admin/map-title-rules/:ruleId", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapTitleRuleUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).updateAdminMapTitleRule({ ...parsed.data, ruleId: c.req.param("ruleId") }, access.auth!, key)); }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_UPDATE_FAILED"; if (code === "MAP_TITLE_RULE_NOT_FOUND") return errorResponse(c, 404, code, "The map title rule does not exist"); if (code === "MAP_TITLE_NOT_FOUND") return errorResponse(c, 422, code, "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
+  });
+  app.get("/v1/admin/maps/:mapId/map-title-inheritance", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    try { return c.json(await dependencies.services(c.env).listAdminMapTitleInheritance({ mapId: c.req.param("mapId") }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); throw error; }
+  });
+  app.put("/v1/admin/maps/:mapId/map-title-rules/:ruleId/exception", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapTitleRuleExceptionUpsertRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { await dependencies.services(c.env).upsertAdminMapTitleRuleException({ ...parsed.data, mapId: c.req.param("mapId"), ruleId: c.req.param("ruleId") }, access.auth!, key); return c.body(null, 204); }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_EXCEPTION_UPDATE_FAILED"; if (["MAP_NOT_FOUND", "MAP_TITLE_RULE_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The map or map title rule does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/titles", async (c) => {

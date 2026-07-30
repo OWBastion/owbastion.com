@@ -172,6 +172,12 @@ authoritative condition, evidence rule, submission mode, display strategy
 (`map_name_suffix`, `map_pioneer`, or `fixed`), default reward slot, and
 lifecycle status.
 
+Administrators manage these entities on the dedicated map-title-rule surface.
+The ordinary map-completion screen may display a projection, but it is read-only
+and links back to its authoritative rule. Per-map management exposes resolved
+inheritance and writes only the permitted exception fields; it never updates
+`achievement_challenges` for a map-title projection.
+
 **Exception precedence** — the deterministic resolution algorithm for a
 `(ruleId, mapId)` pair follows five steps:
 

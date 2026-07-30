@@ -16,6 +16,7 @@ const adminNavigationItems = [
     children: [
       { label: "审核", description: "截图审核队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews" },
       { label: "成就管理", description: "挑战目录与规则", icon: "i-lucide-settings-2", to: "/admin/achievements" },
+      { label: "地图称号规则", description: "规则继承与地图例外", icon: "i-lucide-award", to: "/admin/map-titles" },
       { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
     ],
   },

@@ -29,6 +29,7 @@ import type {
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest,
   AdminCatalogTitleUpdateRequest,
+  AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
@@ -94,6 +95,11 @@ export type PlatformServices = {
   createAdminAchievement(input: AdminAchievementCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
   updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  listAdminMapTitleRules(auth: AuthContext): Promise<AdminMapTitleRuleListResponse>;
+  createAdminMapTitleRule(input: AdminMapTitleRuleCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminMapTitleRule>;
+  updateAdminMapTitleRule(input: AdminMapTitleRuleUpdateRequest & { ruleId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapTitleRule>;
+  listAdminMapTitleInheritance(input: { mapId: string }, auth: AuthContext): Promise<AdminMapTitleInheritanceResponse>;
+  upsertAdminMapTitleRuleException(input: AdminMapTitleRuleExceptionUpsertRequest & { mapId: string; ruleId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
   completePlayerUpload(input: { uploadId: string }, sessionToken: string): Promise<{ submissionId: string; status: string }>;
   confirmPlayerSubmissionChallenge(input: PlayerSubmissionChallengeRequest & { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;

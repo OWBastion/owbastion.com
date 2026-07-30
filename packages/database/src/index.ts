@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -307,6 +307,22 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!compat) return null;
     return resolveMapTitleProjection(compat.ruleId, mapId);
   };
+
+  const asAdminMapTitleRule = (rule: typeof mapTitleRules.$inferSelect, titleName: string): AdminMapTitleRule => ({
+    ruleId: rule.id,
+    titleKey: rule.titleKey,
+    titleName,
+    kind: rule.kind,
+    condition: rule.condition,
+    evidenceRule: rule.evidenceRule,
+    submissionMode: rule.submissionMode as "manual" | "automatic",
+    displayKind: rule.displayKind as "fixed" | "map_pioneer" | "map_name_suffix",
+    slot: rule.slot as "pioneer" | "conqueror" | "dominator" | null,
+    defaultScope: rule.defaultScope as "all_active" | "explicit",
+    status: rule.status === "inactive" ? "retired" : rule.status as "active" | "sunsetting",
+    introducedVersion: rule.introducedVersion,
+    retiredVersion: rule.retiredVersion,
+  });
 
 
   const toPublicTitleChallenge = (
@@ -881,6 +897,76 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         })));
       }
       return { contractVersion: "1" as const, items };
+    },
+
+    async listAdminMapTitleRules() {
+      const rows = await db.select({ rule: mapTitleRules, title: titleCatalog })
+        .from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
+        .orderBy(mapTitleRules.kind);
+      return { contractVersion: "1" as const, items: rows.map(({ rule, title }) => asAdminMapTitleRule(rule, title.label)) };
+    },
+
+    async createAdminMapTitleRule(input: AdminMapTitleRuleCreateRequest, auth, idempotencyKey) {
+      const replay = await replayOrConflict<AdminMapTitleRule>(db, auth.subject, "admin.map-title-rule.create", idempotencyKey, input);
+      if (replay) return replay;
+      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
+      if (!title || title.scope !== "map") throw new Error("MAP_TITLE_NOT_FOUND");
+      const existing = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.kind, input.kind)).get();
+      if (existing) throw new Error("MAP_TITLE_RULE_KIND_CONFLICT");
+      const timestamp = now();
+      const rule = { id: crypto.randomUUID(), titleKey: input.titleKey, kind: input.kind, condition: input.condition, evidenceRule: input.evidenceRule, submissionMode: input.submissionMode, displayKind: input.displayKind, slot: input.slot, defaultScope: input.defaultScope, status: input.status === "retired" ? "inactive" : input.status, introducedVersion: input.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion ?? null : null, createdAt: timestamp, updatedAt: timestamp };
+      await db.insert(mapTitleRules).values(rule);
+      const response = asAdminMapTitleRule(rule, title.label);
+      await recordIdempotency(db, auth.subject, "admin.map-title-rule.create", idempotencyKey, input, response);
+      await recordAudit(db, auth, "admin.map-title-rule.create", "map_title_rule", rule.id, input);
+      return response;
+    },
+
+    async updateAdminMapTitleRule(input: AdminMapTitleRuleUpdateRequest & { ruleId: string }, auth, idempotencyKey) {
+      const replay = await replayOrConflict<AdminMapTitleRule>(db, auth.subject, "admin.map-title-rule.update", idempotencyKey, input);
+      if (replay) return replay;
+      const row = await db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key)).where(eq(mapTitleRules.id, input.ruleId)).get();
+      if (!row) throw new Error("MAP_TITLE_RULE_NOT_FOUND");
+      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
+      if (!title || title.scope !== "map") throw new Error("MAP_TITLE_NOT_FOUND");
+      const conflict = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(and(eq(mapTitleRules.kind, input.kind), ne(mapTitleRules.id, input.ruleId))).get();
+      if (conflict) throw new Error("MAP_TITLE_RULE_KIND_CONFLICT");
+      const updatedAt = now();
+      const next = { ...row.rule, titleKey: input.titleKey, kind: input.kind, condition: input.condition, evidenceRule: input.evidenceRule, submissionMode: input.submissionMode, displayKind: input.displayKind, slot: input.slot, defaultScope: input.defaultScope, status: input.status === "retired" ? "inactive" : input.status, introducedVersion: input.introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion ?? null : null, updatedAt };
+      await db.update(mapTitleRules).set(next).where(eq(mapTitleRules.id, input.ruleId));
+      const response = asAdminMapTitleRule(next, title.label);
+      await recordIdempotency(db, auth.subject, "admin.map-title-rule.update", idempotencyKey, input, response);
+      await recordAudit(db, auth, "admin.map-title-rule.update", "map_title_rule", input.ruleId, input);
+      return response;
+    },
+
+    async listAdminMapTitleInheritance(input) {
+      const map = await db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get();
+      if (!map) throw new Error("MAP_NOT_FOUND");
+      const rows = await db.select({ rule: mapTitleRules, title: titleCatalog, exception: mapTitleRuleExceptions })
+        .from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
+        .leftJoin(mapTitleRuleExceptions, and(eq(mapTitleRuleExceptions.ruleId, mapTitleRules.id), eq(mapTitleRuleExceptions.mapId, input.mapId)))
+        .orderBy(mapTitleRules.kind);
+      const items = await Promise.all(rows.map(async ({ rule, title, exception }) => {
+        const projection = await resolveMapTitleProjection(rule.id, input.mapId);
+        return { mapId: input.mapId, rule: asAdminMapTitleRule(rule, title.label), projected: projection !== null, source: "map_title_rule" as const,
+          effective: projection ? { condition: projection.condition, evidenceRule: projection.evidenceRule, submissionMode: projection.submissionMode as "manual" | "automatic", slot: projection.slot as "pioneer" | "conqueror" | "dominator" | null } : null,
+          exception: exception ? { exceptionId: exception.id, ruleId: exception.ruleId, mapId: exception.mapId, enabled: exception.enabled === 1, condition: exception.condition, evidenceRule: exception.evidenceRule, submissionMode: exception.submissionMode as "manual" | "automatic" | null, slot: exception.slot as "pioneer" | "conqueror" | "dominator" | null } : null };
+      }));
+      return { contractVersion: "1" as const, items };
+    },
+
+    async upsertAdminMapTitleRuleException(input: AdminMapTitleRuleExceptionUpsertRequest & { mapId: string; ruleId: string }, auth, idempotencyKey) {
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.map-title-rule-exception.upsert", idempotencyKey, input);
+      if (replay) return;
+      const [map, rule] = await Promise.all([db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get(), db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.id, input.ruleId)).get()]);
+      if (!map) throw new Error("MAP_NOT_FOUND");
+      if (!rule) throw new Error("MAP_TITLE_RULE_NOT_FOUND");
+      const timestamp = now();
+      await database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, updated_at=excluded.updated_at")
+        .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, timestamp, timestamp).run();
+      await recordIdempotency(db, auth.subject, "admin.map-title-rule-exception.upsert", idempotencyKey, input, {});
+      await recordAudit(db, auth, "admin.map-title-rule-exception.upsert", "map_title_rule_exception", `${input.ruleId}:${input.mapId}`, input);
     },
 
     async createAdminAchievement(input: AdminAchievementCreateRequest, auth, idempotencyKey) {
