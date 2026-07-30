@@ -21,6 +21,30 @@ pnpm check:migrations
 pnpm exec wrangler d1 migrations apply DB --local
 ```
 
+`0049_migrate_standard_map_title_rules.sql` 是标准地图称号的必要数据修复：它从
+既有 `title_catalog` 与 `map_title_rewards` 建立 `PIONEER`、`CONQUEROR`、
+`DOMINATOR` 规则，只为实际存在的旧挑战建立 compatibility 记录，并把没有旧奖励
+关系的有效地图写为禁用例外。它不会新增或猜测 `CLASSIC` 关系，也不会修改旧挑战、
+奖励、历史持有人、玩家权益或提交记录。
+
+在任何远程 migration 前后，先执行只读 reconciliation（结果只有计数，不含玩家
+姓名或标识）：
+
+```bash
+pnpm db:reconcile:map-title-rules
+pnpm exec wrangler d1 execute DB --remote --file tools/map-title-rule-reconciliation.sql --json
+```
+
+保存两次输出并比较标准奖励、规则、例外、兼容记录、历史持有人和有效权益的计数。
+`0050_migrate_classic_map_title.sql` 使用 Bastion 同步契约中的 `CLASSIC` 定义和
+三种经典地图变体建立一个 map-scoped title challenge。`classic_map_scope` 必须分别
+列出 `map.circuit_royal`、`map.paris`、`map.hanamura`，且每项计数为 1；其他 CLASSIC
+关系仍需通过管理员称号界面建立，不得由 migration 猜测。
+
+兼容记录的清理前提是：所有相关发布的 Bastion 均已读取规则投影；没有仍在处理的
+旧挑战提交；迁移前后 reconciliation 已归档；并且针对生产和构建令牌的 Agents
+验证均已完成。届时另建 corrective migration 退役旧记录，不能删除或改写 `0049`。
+
 `tools/migration-data-allowlist.txt` 登记历史数据修复例外。新数据导入不得通过
 把文件加入 allowlist 来绕过 seed/import 边界。
 
