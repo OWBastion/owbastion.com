@@ -84,15 +84,35 @@ function updatePage(value: number) { page.value = value; void load({ resetSelect
 
 function openBulk() { if (selectedHolder.value && selectedPlayer.value && selectedHolder.value.unclaimedCount) bulkHolder.value = selectedHolder.value; }
 function closeBulk() { bulkHolder.value = null; }
+function refreshSelectedHolder() { selectedHolder.value = groupFor(selectedHolderName.value); }
+function updateMigrationStats(grantedCount: number, pendingHolderDelta: number) {
+  stats.value = {
+    pendingHolderCount: Math.max(0, stats.value.pendingHolderCount + pendingHolderDelta),
+    unclaimedGrantCount: Math.max(0, stats.value.unclaimedGrantCount - grantedCount),
+    migratedGrantCount: stats.value.migratedGrantCount + grantedCount,
+  };
+}
 
 async function grant(row: { grantId: string }) {
-  if (!selectedPlayerId.value) return;
+  const player = selectedPlayer.value;
+  if (!player) return;
   saving.value = true;
   errorMessage.value = "";
   try {
-    await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", playerAccountId: selectedPlayerId.value, historicalTitleGrantId: row.grantId } });
+    await api("/v1/title-grants", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", playerAccountId: player.playerAccountId, historicalTitleGrantId: row.grantId } });
     toast.add({ title: "已关联", color: "success" });
-    await load();
+    const updated = grants.value.find((grant) => grant.grantId === row.grantId);
+    const holderBefore = updated ? groupFor(updated.holderName) : null;
+    const wasUnclaimed = updated?.status === "unclaimed";
+    if (updated) {
+      updated.status = "active";
+      updated.playerAccountId = player.playerAccountId;
+      updated.playerName = player.playerName;
+      updated.playerId = player.playerId;
+      grants.value = [...grants.value];
+      refreshSelectedHolder();
+      if (wasUnclaimed) updateMigrationStats(1, holderBefore?.unclaimedCount === 1 ? -1 : 0);
+    }
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
   } finally { saving.value = false; }
@@ -104,23 +124,36 @@ async function revoke(row: { grantId: string }) {
   try {
     await api(`/v1/title-grants/${row.grantId}/revoke`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1" } });
     toast.add({ title: "已撤销", color: "success" });
-    await load();
+    const updated = grants.value.find((grant) => grant.grantId === row.grantId);
+    if (updated) {
+      updated.status = "revoked";
+      grants.value = [...grants.value];
+      refreshSelectedHolder();
+    }
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法撤销称号，请稍后重试。").description;
   } finally { saving.value = false; }
 }
 
 async function grantAll() {
-  if (!bulkHolder.value || !selectedPlayer.value) return;
+  const holder = bulkHolder.value;
+  const player = selectedPlayer.value;
+  if (!holder || !player) return;
   saving.value = true;
   errorMessage.value = "";
-  const snapshot = pendingGrants.value.map((grant) => grant.mapName ? `${grant.label} · ${grant.mapName}` : grant.label);
+  const pending = pendingGrants.value;
+  const snapshot = pending.map((grant) => grant.mapName ? `${grant.label} · ${grant.mapName}` : grant.label);
   try {
-    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", holderName: bulkHolder.value.holderName, playerAccountId: selectedPlayer.value.playerAccountId } });
+    const result = await api<{ grantedCount: number }>("/v1/title-grants/bulk", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", holderName: holder.holderName, playerAccountId: player.playerAccountId } });
     const listed = snapshot.slice(0, 5);
     const overflow = snapshot.length - listed.length;
     toast.add({ title: result.grantedCount ? `已关联 ${result.grantedCount} 项称号` : "暂无可关联称号", description: result.grantedCount ? `${listed.join("、")}${overflow > 0 ? ` 等 +${overflow} 项` : ""}` : undefined, color: "success" });
-    await load();
+    if (result.grantedCount) {
+      const pendingIds = new Set(pending.map((grant) => grant.grantId));
+      grants.value = grants.value.map((grant) => pendingIds.has(grant.grantId) ? { ...grant, status: "active", playerAccountId: player.playerAccountId, playerName: player.playerName, playerId: player.playerId } : grant);
+      refreshSelectedHolder();
+      updateMigrationStats(result.grantedCount, holder.unclaimedCount ? -1 : 0);
+    }
     closeBulk();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法关联称号，请稍后重试。").description;
