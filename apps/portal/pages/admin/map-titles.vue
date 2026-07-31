@@ -20,6 +20,7 @@ const loading = ref(true);
 const saving = ref(false);
 const errorMessage = ref("");
 const editing = ref<Rule | null>(null);
+const formOpen = shallowRef(false);
 const form = reactive<RuleForm>({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
 
 const resetForm = (rule?: Rule) => Object.assign(form, rule ? { ...rule, retiredVersion: rule.retiredVersion ?? "" } : { titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
@@ -38,14 +39,15 @@ async function loadInheritance() {
   const result = await api<{ items: Inheritance[] }>(`/v1/maps/${selectedMapId.value}/map-title-inheritance`);
   inheritance.value = result.items;
 }
-function edit(rule?: Rule) { editing.value = rule ?? null; resetForm(rule); }
+function edit(rule?: Rule) { editing.value = rule ?? null; resetForm(rule); formOpen.value = true; }
+function closeForm() { editing.value = null; formOpen.value = false; resetForm(); }
 async function saveRule() {
   saving.value = true;
   const body = { contractVersion: "1", ...form, retiredVersion: form.status === "sunsetting" ? form.retiredVersion.trim() || null : null };
   try {
     if (editing.value) await api(`/v1/map-title-rules/${editing.value.ruleId}`, { method: "PUT", body, headers: { "idempotency-key": createRequestId() } });
     else await api("/v1/map-title-rules", { method: "POST", body, headers: { "idempotency-key": createRequestId() } });
-    toast.add({ title: editing.value ? "规则已更新" : "规则已创建", color: "success" }); editing.value = null; resetForm(); await load();
+    toast.add({ title: editing.value ? "规则已更新" : "规则已创建", color: "success" }); closeForm(); await load();
   } catch (error) { errorMessage.value = portalErrorDetails(error, "无法保存地图称号规则。").description; }
   finally { saving.value = false; }
 }
@@ -75,7 +77,7 @@ onMounted(() => { void load(); });
           <p v-if="!loading && !rules.length" class="text-sm text-muted">暂无规则。</p>
         </div>
       </UCard>
-      <UCard v-if="editing !== null || form.titleKey">
+      <UCard v-if="formOpen">
         <template #header><p class="font-medium">{{ editing ? '编辑权威规则' : '新建权威规则' }}</p></template>
         <form class="grid gap-3 md:grid-cols-2" @submit.prevent="saveRule">
           <UFormField label="称号键" required><UInput v-model="form.titleKey" required /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required /></UFormField>
@@ -84,7 +86,7 @@ onMounted(() => { void load(); });
           <UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无命名槽位', value: null }, { label: '先锋', value: 'pioneer' }, { label: '征服者', value: 'conqueror' }, { label: '支配者', value: 'dominator' }]" /></UFormField>
           <UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required /></UFormField>
           <UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required /></UFormField>
-          <div class="md:col-span-2 flex justify-end gap-2"><UButton label="取消" color="neutral" variant="outline" @click="editing = null; resetForm()" /><UButton type="submit" label="保存规则" :loading="saving" /></div>
+          <div class="md:col-span-2 flex justify-end gap-2"><UButton label="取消" color="neutral" variant="outline" @click="closeForm" /><UButton type="submit" label="保存规则" :loading="saving" /></div>
         </form>
       </UCard>
       <UCard>

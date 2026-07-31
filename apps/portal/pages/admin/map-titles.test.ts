@@ -16,13 +16,17 @@ const api = vi.fn((path: string, options?: { method?: string }) => {
 mockNuxtImport("useAdminApi", () => () => api);
 
 describe("map title rule admin", () => {
-  it("shows a rule source and keeps its map projection read-only", async () => {
+  it("shows a rule source, keeps its map projection read-only, and opens a new rule form", async () => {
     const wrapper = await mountSuspended(MapTitlesPage, { global: { stubs: { UCard: { template: "<div><slot name='header' /><slot /></div>" }, USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: "<select :value='modelValue'><option v-for='item in items' :value='item.value'>{{ item.label }}</option></select>" }, UFormField: { template: "<label><slot /></label>" }, UTextarea: { template: "<textarea />" }, UInput: { template: "<input />" }, UButton: { template: "<button><slot />{{ label }}</button>", props: ["label"] }, USwitch: { template: "<input type='checkbox' />" }, UAlert: { template: "<div />" } } } });
     await flushPromises();
     expect(wrapper.text()).toContain("征服者");
     expect(wrapper.text()).toContain("规则 conqueror");
     expect(wrapper.text()).toContain("已投影，只读");
     expect(wrapper.text()).toContain("保存例外");
+    const newRuleButton = wrapper.findAll("button").find((button) => button.text().includes("新建规则"));
+    expect(newRuleButton).toBeDefined();
+    await newRuleButton!.trigger("click");
+    expect(wrapper.text()).toContain("新建权威规则");
     wrapper.unmount();
   });
 });
