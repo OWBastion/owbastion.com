@@ -22,7 +22,8 @@ of implementation and verification status.
 - [Feature status matrix](development/feature-status.md) — the single source of truth for capability implementation and verification status.
 - [Portal copy guidelines](development/portal-copy-guidelines.md) — concise copy rules, status vocabulary, empty states, errors, and examples for Portal work.
 - [Portal UI guidelines](development/portal-ui-guidelines.md) — agent-facing page structures, component selection, states, responsive behavior, and accessibility rules.
-- [Portal Apple Design audit](development/portal-apple-design-audit.md) — fluid interface, materials, typography, and motion fix backlog for `apps/portal`.
+
+Implementation status belongs in the feature status matrix; durable Portal behavior and visual rules belong in the UI and copy guidelines. Task plans, dated audits, execution checklists, and other temporary snapshots belong in issues or pull requests and should not be added as active repository documentation.
 
 ## Deployment
 

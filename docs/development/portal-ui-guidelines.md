@@ -110,7 +110,7 @@ Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introduc
 - Page background: `var(--page)`; regular surface: `var(--surface)`; raised surface: `var(--surface-raised)`.
 - Primary text: `var(--text)`; supporting text: `var(--muted)`; quiet text: `var(--quiet)`.
 - Divider: `var(--line)`; emphasized border: `var(--line-strong)`.
-- Brand action: `var(--accent)` / `var(--accent-surface)`; error and warning: `var(--danger)` / `var(--warning)`.
+- Brand action and successful/completed states: `var(--accent)` / `var(--accent-surface)`; error and warning: `var(--danger)` / `var(--warning)`. Keep one semantic color per state across Portal components; do not reintroduce hardcoded success colors.
 - Glass materials: `glass` (chrome), `glass-heavy` (modals/drawers/menus), `glass-chip` (small badges). Prefer these classes over one-off `backdrop-filter`. Header/footer segments on glass shells use `glass-segment` (no second blur). `prefers-reduced-transparency` solidifies all glass classes globally.
 - Elevation: `elevation-1` (sticky chrome), `elevation-2` (cards/menus), `elevation-3` (modals/drawers) — maps to `--elevation-1/2/3`.
 - Theme: page background/text ease over `--theme-transition` (~200ms); disabled under reduced-motion.
@@ -125,19 +125,31 @@ Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introduc
 
 Current baselines are approximately `1100px` maximum page width, `24–28px` horizontal page padding, and `44px` minimum height for primary buttons. These are system baselines; do not drift from them in a single page. If a global rule needs to change, update the token or shared component and describe the impact.
 
+## Interaction and motion baseline
+
+These are durable behavior rules, not a task checklist:
+
+- Give feedback at the start of an interaction. Use `pressable` for controls and `pressable-soft` for cards or rows; do not add hover-only lifts or one-off active transforms.
+- Enter and leave along the same spatial path. Menus, drawers, and dialogs should remain interruptible through the existing Nuxt UI primitives; do not add page-local spatial transitions.
+- Use custom Pointer Events, momentum, rubber-banding, or a spring dependency only when a surface genuinely requires direct manipulation. A gesture surface must track the grab point, hand off release velocity, and have a reduced-motion fallback. Haptics are optional and never a release requirement.
+- Keep decoration subordinate to content. Static cards do not receive entrance or looping motion merely to make the page feel animated.
+- Treat `elevation-1/2/3`, `glass`/`glass-heavy`, and semantic tokens as the complete material system. New surfaces must reuse those tokens instead of introducing a parallel shadow, blur, or color vocabulary.
+
 ## State, permission, and data presentation
 
 Every data-requesting region must consider these states:
 
 | State | UI | Rule |
 | --- | --- | --- |
-| Initial loading | `读取中…` or component loading state | Do not show an empty state that could be mistaken for real data |
+| Initial loading | `读取中…`, a structure-matched `USkeleton`, or a component loading state | Do not show an empty state that could be mistaken for real data |
 | Read failure | `UAlert` / `role="alert"` | Name the object and the smallest useful next step, such as `无法读取地图，请稍后重试。` |
 | Successful but empty | `UEmpty` | State the current condition only; add an action only when it is explicit and executable |
 | Available | Normal content or submit control | Do not add an unnecessary “available” explanation |
 | Unavailable/future | `未开放` | Do not show an unavailable submit or admin action |
 | In progress | Component loading + disabled duplicate actions | Do not hide the real operation state behind static copy |
 | Completed | Short feedback or refreshed state | Do not repeat the entire workflow |
+
+When the shape of a directory or detail view is known, prefer a structure-matched `USkeleton` while retaining `role="status"` and an accessible loading label. Text-only loading remains valid for small or indeterminate regions.
 
 Permission boundary: public pages must not render QQ OpenIDs, private screenshots, review notes, internal risk signals, or unapproved drafts. Player pages render only the current player's data. Admin pages access admin APIs through the existing server-side proxy and session. Do not hide data that should not be returned by using CSS alone.
 
