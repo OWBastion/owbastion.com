@@ -17,7 +17,7 @@ mockNuxtImport("useAdminApi", () => () => api);
 
 describe("map title rule admin", () => {
   it("shows a rule source, keeps its map projection read-only, and opens a new rule form", async () => {
-    const wrapper = await mountSuspended(MapTitlesPage, { global: { stubs: { UCard: { template: "<div><slot name='header' /><slot /></div>" }, USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: "<select :value='modelValue'><option v-for='item in items' :value='item.value'>{{ item.label }}</option></select>" }, UFormField: { template: "<label><slot /></label>" }, UTextarea: { template: "<textarea />" }, UInput: { template: "<input />" }, UButton: { template: "<button><slot />{{ label }}</button>", props: ["label"] }, USwitch: { template: "<input type='checkbox' />" }, UAlert: { template: "<div />" } } } });
+    const wrapper = await mountSuspended(MapTitlesPage, { global: { stubs: { AdminResponsiveDialog: { props: ["open", "title"], template: "<div v-if='open'><h2>{{ title }}</h2><slot name='body' /><slot name='footer' /></div>" }, UCard: { template: "<div><slot name='header' /><slot /></div>" }, USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: "<select :value='modelValue'><option v-for='item in items' :value='item.value'>{{ item.label }}</option></select>" }, UFormField: { template: "<label><slot /></label>" }, UTextarea: { template: "<textarea />" }, UInput: { template: "<input />" }, UButton: { template: "<button><slot />{{ label }}</button>", props: ["label"] }, USwitch: { template: "<input type='checkbox' />" }, UAlert: { template: "<div />" } } } });
     await flushPromises();
     expect(wrapper.text()).toContain("征服者");
     expect(wrapper.text()).toContain("规则 conqueror");
