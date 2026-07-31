@@ -34,7 +34,18 @@ function closeMenu(returnFocus = false) {
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
-  if (menuOpen.value) nextTick(() => menuPanel.value?.querySelector<HTMLAnchorElement>("a")?.focus());
+  if (menuOpen.value) focusFirstNavItem();
+}
+
+/* N-03 — move focus to the first item once the panel settles. LazyUNavigationMenu
+   hydrates asynchronously, so retry on the next tick until an item exists. */
+function focusFirstNavItem() {
+  if (!menuOpen.value) return;
+  const panel = menuPanel.value;
+  if (!panel) { nextTick(focusFirstNavItem); return; }
+  const target = panel.querySelector<HTMLElement>("a[href], [data-slot='link'], [data-slot='trigger']");
+  if (target) target.focus();
+  else nextTick(focusFirstNavItem);
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
@@ -43,6 +54,60 @@ function handleDocumentPointerDown(event: PointerEvent) {
 
 function handleDocumentKeydown(event: KeyboardEvent) {
   if (event.key === "Escape" && menuOpen.value) closeMenu(true);
+}
+
+/* N-03 — roving keyboard navigation + focus trap inside the mobile panel.
+   Track the focused item via focusin so roving works without trusting
+   document.activeElement (which can point outside during transitions).
+   Children like UNavigationMenu handle their own arrow keys; skip those events. */
+const focusedItem = ref<HTMLElement | null>(null);
+
+function handlePanelFocusin(event: FocusEvent) {
+  const target = event.target;
+  if (target instanceof HTMLElement && menuPanel.value?.contains(target)) focusedItem.value = target;
+}
+
+function getMobileNavItems(): HTMLElement[] {
+  if (!menuPanel.value) return [];
+  return Array.from(
+    menuPanel.value.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-slot="link"], [data-slot="trigger"], [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+}
+
+function handleMobileNavKeydown(event: KeyboardEvent) {
+  if (!menuOpen.value || event.defaultPrevented) return;
+  const items = getMobileNavItems();
+  if (items.length === 0) return;
+  const current = focusedItem.value ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+  const currentIndex = current ? items.indexOf(current) : -1;
+  const moveFocus = (index: number) => {
+    event.preventDefault();
+    items[((index % items.length) + items.length) % items.length]?.focus();
+  };
+
+  switch (event.key) {
+    case "ArrowDown":
+      moveFocus(currentIndex === -1 ? 0 : currentIndex + 1);
+      break;
+    case "ArrowUp":
+      moveFocus(currentIndex === -1 ? items.length - 1 : currentIndex - 1);
+      break;
+    case "Home":
+      moveFocus(0);
+      break;
+    case "End":
+      moveFocus(items.length - 1);
+      break;
+    case "Tab": {
+      // Trap focus inside the open panel; wrap instead of leaking to the page.
+      if (currentIndex === -1) break;
+      event.preventDefault();
+      moveFocus(event.shiftKey ? currentIndex - 1 : currentIndex + 1);
+      break;
+    }
+  }
 }
 
 onMounted(() => {
@@ -79,7 +144,7 @@ async function signOut() {
       <button ref="menuButton" class="mobile-menu-toggle pressable" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
       <!-- No mode="out-in": leave can be interrupted mid-flight when reopening (N-04). -->
       <Transition name="mobile-nav">
-        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav glass-heavy elevation-2" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'">
+        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav glass-heavy elevation-2" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'" @focusin="handlePanelFocusin" @keydown="handleMobileNavKeydown">
           <template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template>
           <template v-else>
             <NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink>
