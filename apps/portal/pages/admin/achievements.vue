@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn, TabsItem } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -97,6 +98,27 @@ const activeTab = ref("generic");
 const createOpen = shallowRef(false);
 const creating = shallowRef(false);
 const maps = ref<AdminMap[]>([]);
+const defaultTitleSorting: SortingState = [
+  { id: "category", desc: false },
+  { id: "titleName", desc: false },
+];
+const titleSorting = shallowRef<SortingState>([...defaultTitleSorting]);
+const titleSortingOptions = [
+  { id: "category", label: "系列" },
+  { id: "titleName", label: "称号" },
+  { id: "status", label: "状态" },
+];
+const defaultMapSorting: SortingState = [
+  { id: "mapName", desc: false },
+  { id: "name", desc: false },
+];
+const mapSorting = shallowRef<SortingState>([...defaultMapSorting]);
+const mapSortingOptions = [
+  { id: "mapName", label: "地图" },
+  { id: "name", label: "挑战" },
+  { id: "difficulty", label: "难度" },
+  { id: "status", label: "状态" },
+];
 /* A-04 — briefly flash a row after an in-place update so the change is
    visible without reloading the whole page. */
 const updatedCatalogIds = new Set<string>();
@@ -474,7 +496,7 @@ onMounted(() => void load());
         <template #generic>
         <section class="catalog-section" aria-labelledby="title-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleItems.length }} 项</span></div>
-          <AdminDataTable v-model:column-filters="statusColumnFilters" :data="titleItems" :columns="titleColumns" :loading="loading" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
+          <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
             <template #filters><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
             <template #titleName-cell="{ row }"><strong>{{ itemTitleName(row.original) }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `${row.original.mapVariant === 'classic' ? '经典版地图 · ' : ''}引入版本 ${row.original.introducedVersion}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small></template>
@@ -508,7 +530,7 @@ onMounted(() => void load());
         <template #map>
         <section class="catalog-section" aria-labelledby="map-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">地图完成挑战</p><h3 id="map-achievements-title">按地图管理</h3></div><span>{{ mapItems.length }} 项</span></div>
-          <AdminDataTable v-model:column-filters="statusColumnFilters" :data="mapItems" :columns="mapColumns" :loading="loading" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
+          <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="mapSorting" :data="mapItems" :columns="mapColumns" :loading="loading" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" empty="暂无记录。" table-key="achievement-maps" class="admin-table achievement-table">
             <template #filters><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #mapName-cell="{ row }"><span class="table-meta">{{ row.original.mapName }}</span></template>
             <template #name-cell="{ row }"><strong>{{ row.original.name }}</strong><small v-if="row.original.mapVariant === 'classic'" class="table-meta">经典版地图</small></template>
