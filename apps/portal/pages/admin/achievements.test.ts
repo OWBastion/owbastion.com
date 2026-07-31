@@ -166,7 +166,8 @@ describe("achievement admin page", () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="地图完成挑战"]').trigger("click");
     await flushPromises();
-    const endButton = wrapper.get('button[aria-label="结束挑战"]');
+    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战"))!;
+    const endButton = mapRow.get('button[aria-label="结束挑战"]');
     await endButton.trigger("click");
     await flushPromises();
     const dialog = document.body.querySelector('[role="dialog"]') as HTMLElement;
@@ -180,7 +181,8 @@ describe("achievement admin page", () => {
   it("saves expanded map challenge rules", async () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="地图完成挑战"]').trigger("click");
-    await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
+    const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战"))!;
+    await mapRow.get('button[aria-label="编辑规则"]').trigger("click");
     const form = wrapper.get("form.editor");
     await form.find('input[maxlength="256"]').setValue("新的地图挑战");
     await form.findAll("textarea")[0]!.setValue("完成更新后的地图挑战");
