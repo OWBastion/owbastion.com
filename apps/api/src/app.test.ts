@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
 import { createApp, type RuntimeEnv } from "./app";
 
@@ -99,6 +99,33 @@ const app = createApp({
 
 const env = {} as RuntimeEnv;
 
+class FakeCache {
+  private readonly entries = new Map<string, Response>();
+  matchCalls = 0;
+  putCalls = 0;
+  failRead = false;
+  failWrite = false;
+  expireNextRead = false;
+
+  async match(request: Request) {
+    this.matchCalls += 1;
+    if (this.failRead) throw new Error("cache read failed");
+    if (this.expireNextRead) {
+      this.expireNextRead = false;
+      return undefined;
+    }
+    return this.entries.get(request.url)?.clone();
+  }
+
+  async put(request: Request, response: Response) {
+    this.putCalls += 1;
+    if (this.failWrite) throw new Error("cache write failed");
+    this.entries.set(request.url, response.clone());
+  }
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
 describe("API", () => {
   it("exposes platform player and map title grant Agents endpoints", async () => {
     const agentApp = createApp({ authenticate: auth, services: () => ({
@@ -139,6 +166,104 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
     expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+  });
+
+  it("serves the second public catalog request from Cache API without calling the service", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    let calls = 0;
+    const cacheApp = createApp({ authenticate: auth, services: () => ({ ...services, listMaps: async () => { calls += 1; return [{ mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null }]; } }) });
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const first = await cacheApp.request("http://localhost/v1/maps", { headers: { origin: "http://localhost:3000" } }, { ...env, LOCAL_DEV_AUTH: "true" });
+    const second = await cacheApp.request("http://localhost/v1/maps", { headers: { origin: "http://127.0.0.1:3000" } }, { ...env, LOCAL_DEV_AUTH: "true" });
+    const cacheStatuses = log.mock.calls.map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>).filter((entry) => entry.event === "public_cache").map((entry) => entry.status);
+    log.mockRestore();
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect((await second.json() as { items: unknown[] }).items).toHaveLength(1);
+    expect(calls).toBe(1);
+    expect(cache.matchCalls).toBe(2);
+    expect(cache.putCalls).toBe(1);
+    expect(cacheStatuses).toEqual(["MISS", "HIT"]);
+    expect(first.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+    expect(second.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
+  });
+
+  it("canonicalizes equivalent public Agents pagination queries", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    let calls = 0;
+    const cacheApp = createApp({ authenticate: auth, services: () => ({ ...services, listAgentMaps: async () => { calls += 1; return { contractVersion: "1" as const, items: [], page: 1, pageSize: 20, total: 0, hasMore: false }; } }) });
+
+    await cacheApp.request("http://localhost/v1/agents/maps?pageSize=20&page=1", {}, env);
+    await cacheApp.request("http://localhost/v1/agents/maps?page=1&pageSize=20", {}, env);
+
+    expect(calls).toBe(1);
+    expect(cache.putCalls).toBe(1);
+  });
+
+  it("bypasses Cache API for filtered, credentialed, cookie, and admin requests", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    const cacheApp = createApp({ authenticate: async () => null, services: () => services });
+
+    expect((await cacheApp.request("http://localhost/v1/events?category=%E5%A2%9E%E7%9B%8A", {}, env)).status).toBe(200);
+    expect((await cacheApp.request("http://localhost/v1/agents/maps", { headers: { authorization: "Bearer build-token" } }, { ...env, BASTION_BUILD_TOKEN: "build-token" })).status).toBe(200);
+    const cookieResponse = await cacheApp.request("http://localhost/v1/maps", { headers: { cookie: "session=private" } }, env);
+    expect(cookieResponse.status).toBe(200);
+    expect(cookieResponse.headers.get("cache-control")).toBe("private, no-store");
+    expect((await cacheApp.request("http://localhost/v1/admin/events", {}, env)).status).toBe(401);
+
+    expect(cache.matchCalls).toBe(0);
+    expect(cache.putCalls).toBe(0);
+  });
+
+  it("falls back to the service when Cache API read or write fails", async () => {
+    const readFailure = new FakeCache();
+    readFailure.failRead = true;
+    vi.stubGlobal("caches", { default: readFailure });
+    let calls = 0;
+    const cacheApp = createApp({ authenticate: auth, services: () => ({ ...services, listMaps: async () => { calls += 1; return []; } }) });
+    const readResponse = await cacheApp.request("http://localhost/v1/maps", {}, env);
+    expect(readResponse.status).toBe(200);
+    expect(await readResponse.json()).toMatchObject({ contractVersion: "1", items: [] });
+
+    vi.unstubAllGlobals();
+    const writeFailure = new FakeCache();
+    writeFailure.failWrite = true;
+    vi.stubGlobal("caches", { default: writeFailure });
+    const writeResponse = await cacheApp.request("http://localhost/v1/maps", {}, env);
+    expect(writeResponse.status).toBe(200);
+    expect(await writeResponse.json()).toMatchObject({ contractVersion: "1", items: [] });
+    expect(calls).toBe(2);
+  });
+
+  it("does not look up or populate Cache API when public caching is disabled", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    const response = await app.request("http://localhost/v1/maps", {}, { ...env, PUBLIC_HTTP_CACHE_ENABLED: "false" });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(cache.matchCalls).toBe(0);
+    expect(cache.putCalls).toBe(0);
+  });
+
+  it("returns to the miss path when a cache entry has expired", async () => {
+    const cache = new FakeCache();
+    cache.expireNextRead = true;
+    vi.stubGlobal("caches", { default: cache });
+    let calls = 0;
+    const cacheApp = createApp({ authenticate: auth, services: () => ({ ...services, listMaps: async () => { calls += 1; return []; } }) });
+
+    await cacheApp.request("http://localhost/v1/maps", {}, env);
+    await cacheApp.request("http://localhost/v1/maps", {}, env);
+
+    expect(calls).toBe(1);
+    expect(cache.matchCalls).toBe(2);
+    expect(cache.putCalls).toBe(1);
   });
 
   it("does not share-cache filtered public event variants", async () => {

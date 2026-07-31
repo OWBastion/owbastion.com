@@ -47,6 +47,13 @@ variant return `private, no-store`. Public Agents responses set
 `Vary: Authorization`; a request carrying the Bastion build token always
 bypasses shared caching with `private, no-store`.
 
+The Worker also emits one `public_cache` record per allowlisted request. Its
+fixed `operation` and `status` fields distinguish `HIT`, `MISS`, `BYPASS`,
+`READ_FAILURE`, and `WRITE_FAILURE`; it never includes query values, IDs, or
+response data. A `MISS` is followed by the catalog operation, while a `HIT`
+must not emit that catalog operation for the same request. Cache API failures
+fall back to the D1-backed service response.
+
 Use a public Agents request with no build credential. Preserve response headers
 but do not retain the response body:
 
@@ -62,9 +69,11 @@ curl --silent --show-error --output /dev/null --dump-header - \
 Record `Cache-Control`, `Age`, `ETag`, `Vary`, and `CF-Cache-Status` if each
 header is present. Public Agents responses normally use a 60-second public
 policy. Cloudflare may report no edge cache header for a Worker response; that
-is a result to record, not a reason to infer a hit. The two request logs show
-the route class, cache policy, and duration without request query values or
-payloads.
+is a result to record, not a reason to infer a hit. Use the application
+`public_cache` records together with `service_operation_complete`: the first
+request must be `MISS` plus one catalog operation, and the equivalent second
+request must be `HIT` without that operation. The request logs show the route
+class, cache policy, and duration without request query values or payloads.
 
 Use an authorized Bastion build request only in the approved build environment.
 It must return `Cache-Control: private, no-store`; do not put the bearer token
