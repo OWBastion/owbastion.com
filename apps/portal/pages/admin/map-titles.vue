@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -27,6 +28,15 @@ const scopeLabel = (scope: Rule["defaultScope"]) => scope === "all_active" ? "�
 const displayKindLabel = (displayKind: Rule["displayKind"]) => ({ fixed: "固定", map_pioneer: "地图先锋", map_name_suffix: "地图名称后缀" })[displayKind];
 const statusLabel = (status: Rule["status"]) => ({ active: "已开放", sunsetting: "即将结束", retired: "已下线" })[status];
 const statusTone = (status: Rule["status"]) => status === "active" ? "success" : status === "sunsetting" ? "warning" : "default";
+const defaultRuleSorting: SortingState = [{ id: "titleName", desc: false }];
+const ruleSorting = shallowRef<SortingState>([...defaultRuleSorting]);
+const ruleSortingOptions = [
+  { id: "titleName", label: "称号" },
+  { id: "titleKey", label: "称号键" },
+  { id: "defaultScope", label: "适用范围" },
+  { id: "displayKind", label: "展示方式" },
+  { id: "status", label: "状态" },
+];
 const columns: TableColumn<Rule>[] = [
   { accessorKey: "titleName", header: "称号", meta: { class: { td: "align-top" } } },
   { accessorKey: "titleKey", header: "键", meta: { class: { td: "align-top" } } },
@@ -83,7 +93,7 @@ onMounted(() => { void load(); });
       <UAlert v-if="errorMessage" color="error" :description="errorMessage" />
       <UCard>
         <template #header><div class="flex items-center justify-between gap-3"><div><p class="text-sm font-medium">权威规则</p><p class="text-sm text-muted">规则定义称号关联、条件、展示与生命周期；不会为每张地图创建挑战记录。</p></div><UButton label="新建规则" size="sm" @click="edit()" /></div></template>
-        <AdminDataTable :data="rules" :columns="columns" :loading="loading" empty="暂无规则。" table-key="map-title-rules" table-min-width="760px" class="admin-table">
+        <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="rules" :columns="columns" :loading="loading" empty="暂无规则。" table-key="map-title-rules" table-min-width="760px" class="admin-table">
           <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.kind }}</small></template>
           <template #defaultScope-cell="{ row }"><span>{{ scopeLabel(row.original.defaultScope) }}</span></template>
           <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
