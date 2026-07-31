@@ -85,7 +85,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .submit-page { padding-block: clamp(56px, 8vw, 88px) 72px; }
 .submit-intro { max-width: 650px; margin-bottom: 28px; }
 .submit-intro .body-copy { margin-bottom: 0; }
-.submission-card, .process-card { border-color: var(--line); box-shadow: 0 16px 40px -34px var(--shadow); }
+.submission-card, .process-card { border-color: var(--line); box-shadow: var(--elevation-2); }
 .submission-card { padding: clamp(20px, 3vw, 30px); }
 .submission-columns { display: grid; grid-template-columns: minmax(0, 1.02fr) minmax(320px, .98fr); gap: clamp(28px, 5vw, 64px); }
 .upload-section { min-width: 0; }

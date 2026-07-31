@@ -187,8 +187,9 @@ onBeforeUnmount(() => {
 .evidence-col { position: sticky; top: 24px; min-width: 0; }
 .status-alert { margin-bottom: 16px; }
 .info-col { display: grid; gap: 16px; min-width: 0; }
-.overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); box-shadow: 0 12px 32px -24px var(--shadow); }
-.evidence-card { box-shadow: 0 18px 44px -28px var(--shadow); }
+.overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
+.overview-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: var(--elevation-2); }
+.evidence-card { box-shadow: var(--elevation-3); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
 .card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }

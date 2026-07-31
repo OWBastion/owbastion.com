@@ -232,8 +232,11 @@ function decisionLoading(decision: ReviewDecision) {
 .overview-card,
 .challenge-card,
 .ocr-card,
-.evidence-card { border-color: var(--line); box-shadow: 0 12px 32px -24px var(--shadow); }
-.evidence-card { box-shadow: 0 18px 44px -28px var(--shadow); }
+.evidence-card { border-color: var(--line); }
+.overview-card,
+.challenge-card,
+.ocr-card { box-shadow: var(--elevation-2); }
+.evidence-card { box-shadow: var(--elevation-3); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .card-heading h3 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
 .card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }

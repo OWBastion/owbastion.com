@@ -75,7 +75,7 @@ const progressItems = computed(() => steps.map((step, index) => {
 </template>
 
 <style scoped>
-.progress-card { border-color: var(--line); box-shadow: 0 12px 32px -24px var(--shadow); }
+.progress-card { border-color: var(--line); box-shadow: var(--elevation-2); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
 .card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 650; }
