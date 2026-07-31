@@ -34,8 +34,8 @@ In Cloudflare Workers Logs, find the same request ID. The `request_complete`
 record contains only low-cardinality fields: `deploymentRevision`, `routeClass`,
 HTTP method and status, duration, cache policy, and edge-cache availability.
 Catalog reads also emit `service_operation_complete`; its operation name is a
-fixed catalog class and `catalogKvOperationCount: 0` documents that the current
-catalog implementation does not issue KV reads.
+fixed catalog class. Use it to distinguish cache hits from requests that reach
+the D1-backed catalog service.
 
 ## Verify public caching and bypasses
 
@@ -85,14 +85,7 @@ For the immutable public achievement icon path, additionally compare `ETag`
 and `Cache-Control`; it is intentionally distinct from the short-lived Agents
 catalog policy.
 
-## Confirm catalog KV and slow operations
-
-Before rollout, note the Cloudflare KV namespace operation counters for the
-catalog window. After the revision check and repeated public catalog checks,
-compare the same counters: catalog reads and invalidations should add zero KV
-operations. Other platform features may still legitimately use the namespace,
-so scope the comparison to a quiet verification window and corroborate it with
-the catalog operation logs.
+## Inspect slow operations
 
 Search Workers Logs by a safe request ID or `event=service_operation_complete`.
 Investigate high `durationMs` records by fixed `routeClass` and `operation`
@@ -116,11 +109,11 @@ inspect the OCRKit container's access/error logs for the same request window.
 An OCRKit access line alone proves only that the request arrived; it does not
 prove object download or recognition succeeded.
 
-Representative catalog operation names for D1 performance baselines (issue #24):
+Representative operation names for D1 performance baselines:
 
 | Operation | Route class | Notes |
 | --- | --- | --- |
-| `catalog_list_*` / `catalog_get_event` | `catalog` | Public catalog lists and single event; `catalogKvOperationCount: 0` |
+| `catalog_list_*` / `catalog_get_event` | `catalog` | Public catalog lists and single event; reads are D1-backed |
 | `admin_list_maps` / `admin_list_achievements` / `admin_list_titles` / `admin_list_events` | `admin` | Uncached D1 admin lists |
 | `agents_list_*` / `agents_get_*` / `agents_search` | `agents` | Public or Bastion-token Agents reads; single-title uses a direct lookup |
 

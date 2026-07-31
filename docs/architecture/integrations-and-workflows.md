@@ -24,10 +24,10 @@ The current API implements versioned v1 QQ flows:
 
 - authenticated QQBot confirms invitation-bound binding claims from a stable QQ
   member OpenID; it never creates or merges player accounts directly;
-- authenticated QQBot calls create a map-completion submission using stable QQ
-  group/member and source-message metadata;
-- writes require an idempotency key; equal retries replay the original response
-  and a changed reuse is rejected;
+- authenticated QQBot binding and verification calls use stable QQ group/member
+  metadata; QQBot does not create current Portal screenshot submissions;
+- channel writes require an idempotency key; equal retries replay the original
+  response and a changed reuse is rejected;
 - D1 stores player accounts, bindings, submissions, attachment metadata,
   idempotency records, audit events, QQ login attempts, and sessions;
 - when EVIDENCE_BUCKET is configured, submission creation validates and
@@ -235,10 +235,9 @@ read-only Agents endpoints. Title definitions come from `/v1/agents/titles`;
 global active grants come from `/v1/agents/player-title-grants`; map holders are
 queried per map through `/v1/agents/map-title-holders?mapId=...`. These responses
 read D1 as the authoritative source and never expose historical or revoked
-grants to the Bastion build. Catalog reads do not use KV, so Portal edits are
-immediately visible after refresh and catalog requests do not spend KV quota.
-Optional HTTP response caching belongs at the HTTP boundary and must not alter
-database-service reads or become a second catalog truth.
+grants to the Bastion build. Portal edits are immediately visible through the
+D1-backed service. Optional HTTP response caching belongs at the HTTP boundary
+and must not alter database-service reads or become a second catalog truth.
 Submission-status reads are intentionally uncached: workflow state is
 authoritative in D1 and each refresh observes the latest committed transition.
 

@@ -10,22 +10,25 @@
 > implementation, builds, and release artifacts, and reads platform metadata
 > through `/v1/agents/*`. The platform does not consume formal Bastion content
 > snapshots or orchestrate Bastion/GitHub changes. The original snapshot and
-> change-orchestration assumptions below are superseded by this amendment.
+> change-orchestration assumptions below are superseded by this amendment. The
+> current implementation notes below supersede the original target structures
+> wherever they differ; capability status remains in the feature status matrix.
 
 ## Context
 
 `owbastion.codes` is the Bastion web platform and operational control plane. It must support three product surfaces:
 
 1. a public and player-facing portal;
-2. a reviewer and administrator application;
-3. developer-oriented analysis, draft, validation, and change-orchestration workflows.
+2. a reviewer and administrator surface within that Portal;
+3. developer-oriented validation and release workflows outside the player UI.
 
 The platform also owns durable business state and orchestrates integrations with QQBot, OCRKit, Cloudflare storage, and asynchronous work.
 
 The accepted stack now backs the pnpm workspace, Hono Worker API, Nuxt Portal,
-contracts/domain/database/auth packages, D1 migrations, and private R2 evidence
-binding. The remaining workers, admin application, and orchestration workflows
-remain planned milestones.
+contracts/domain/database/auth packages, D1 migrations, Queue consumers, and
+R2 evidence binding. OCR orchestration, review, grants, and the administrator
+surface are implemented slices of the modular workspace; their verification
+status is maintained in `docs/development/feature-status.md`.
 
 ## Decision
 
@@ -46,12 +49,11 @@ Use:
 - TanStack Query for remote-data fetching, caching, invalidation, and mutation state;
 - Playwright for browser-level integration and end-to-end tests.
 
-The target applications are:
+The current application structure is:
 
 ```text
 apps/
-  portal/   public and player-facing Nuxt application
-  admin/    reviewer, administrator, and developer Nuxt application
+  portal/   public, player-facing, and administrator Nuxt application
 ```
 
 The public portal should use server rendering, prerendering, and edge caching where appropriate. The admin application may use more client-side interaction, but must enforce authorization at the API boundary rather than relying on UI visibility.
@@ -70,16 +72,11 @@ Use:
 - Drizzle ORM and Drizzle Kit for D1 schema access and migrations;
 - Vitest for unit, contract, repository, and worker tests.
 
-The target backend structure is:
+The current backend structure is:
 
 ```text
 apps/
-  api/                 authenticated Hono API
-workers/
-  evidence/            attachment retrieval and R2 persistence
-  ocr/                 OCRKit orchestration
-  grant/               platform title-grant orchestration
-  notification/        QQ and future channel delivery jobs
+  api/                 Hono API and Queue consumers
 ```
 
 HTTP routes and queue handlers are adapters. Domain rules, state transitions, authorization policy, and idempotency logic must remain independent from Hono handlers and Cloudflare bindings.
@@ -93,7 +90,7 @@ Use Cloudflare services according to the existing ownership contract:
 | Business state | Cloudflare D1 | identities, submissions, OCR metadata, corrections, decisions, grants, drafts, and delivery state |
 | Evidence and large artifacts | Cloudflare R2 | player-private screenshots, CDN-served maintainer review screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
 | Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, and notifications |
-| Cache and short-lived coordination | Cloudflare KV | caches, rate limits, revocable sessions backed by durable truth, and short-lived derived results |
+| Public catalog response cache | Cloudflare Cache API | short-lived HTTP responses; D1 remains the catalog source of truth |
 | Access control for privileged web surfaces | Platform sessions with account roles | administrator and maintainer authentication boundary |
 
 KV and process memory must never become the sole source of truth for identities, submissions, review state, grants, player assets, or release state.
@@ -114,33 +111,22 @@ for `api.owbastion.com`.
 
 Use a pnpm workspace. Turborepo may be adopted for task orchestration and caching when the initial workspace contains enough packages and applications to justify it; it is not required for the first foundation commit.
 
-Target structure:
+Current structure:
 
 ```text
 apps/
   portal/
-  admin/
   api/
-workers/
-  evidence/
-  ocr/
-  grant/
-  notification/
 packages/
   contracts/
   domain/
   database/
-  storage/
   auth/
-  bastion-data/
-  challenge-rules/
-  api-client/
-  ui/
 docs/
   architecture/
   adr/
   development/
-  runbooks/
+  deployment/
 migrations/
 ```
 
@@ -183,7 +169,7 @@ OCR output is evidence, not an approval decision.
 
 - The public portal can reuse and migrate existing Vue-based work.
 - Frontend, API, workers, contracts, and QQBot clients share TypeScript tooling.
-- Hono and Cloudflare Workers provide a small runtime surface suitable for D1, R2, Queues, and KV.
+- Hono and Cloudflare Workers provide a small runtime surface suitable for D1, R2, Queues, and the HTTP Cache API.
 - Zod and OpenAPI provide runtime validation and generated cross-repository clients.
 - The modular monolith avoids premature operational complexity while preserving clear domain boundaries.
 - OCR remains isolated in the language and ecosystem best suited to its model and image-processing dependencies.
@@ -237,7 +223,8 @@ Not selected for the initial platform because the architecture is already center
 
 ## Initial implementation sequence
 
-The following foundation work is complete:
+The following foundation and product slices are present; detailed verification
+is tracked in the feature status matrix:
 
 1. initialize a pnpm TypeScript workspace;
 2. create `packages/contracts`, `packages/domain`, and `packages/database`;
@@ -246,10 +233,9 @@ The following foundation work is complete:
 5. create D1 migrations for identities, bindings, submissions, attachments, idempotency, and audit events;
 6. add the R2-backed evidence persistence path in the API;
 7. integrate the QQBot HTTP client;
-8. add the first Nuxt Portal slice.
-
-OCR orchestration, review UI, grants, administrative surfaces,
-and balance tooling remain separate validated milestones.
+8. add the Nuxt Portal and its administrator surface;
+9. add Queue-backed OCR orchestration, review decisions, and title Grants;
+10. add Agents projections, random-event management, and map-title rule management.
 
 ## Revisit conditions
 

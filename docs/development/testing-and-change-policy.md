@@ -65,8 +65,9 @@ Before generating invitations locally, add a non-production
 remain unchanged while local invitations need to be copied again.
 
 The local login does not represent QQ authentication and never enables the
-local branch in production. Real invitation confirmation through `/验证`, `/成就挑战`, QQ webhook, and
-QQ gateway tests still require a test QQ application and real QQ credentials.
+local branch in production. Real invitation confirmation through `/验证`, QQ
+webhook, and QQ gateway tests still require a test QQ application and real QQ
+credentials.
 
 Administrator player and review queues use server-side pagination. Their list
 responses include `page`, `pageSize`, `total`, and `hasMore`; the submissions

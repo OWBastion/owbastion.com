@@ -2,7 +2,7 @@
 
 > 审计对象：`apps/portal`  
 > 审计依据：Apple Design（WWDC *Designing Fluid Interfaces* 等）+ 现有 [`portal-ui-guidelines.md`](./portal-ui-guidelines.md)  
-> 审计日期：2026-07-30（复核：2026-07-31）  
+> 最近一次代码复核：2026-07-31
 > 范围：玩家端与管理端前端交互、动效、材质、排版、可达性与空间一致性（不含业务规则与后端契约）
 
 本清单按 **优先级** 与 **Apple Design 原则** 组织。每一项给出：问题现象、原则对照、涉及文件、建议修复与验收标准。
@@ -21,22 +21,18 @@
 
 ---
 
-## 当前待办（截至 2026-07-31 复核）
+## 当前待办
 
-Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡入、全站 Drawer/modal 的 reduce-motion 旗标）已完成。逐项对照代码复核后，仍开放的 backlog 如下；按优先级推进，完成后勾选第 8 节对应 ID 并在 PR 描述引用。
+逐项对照代码复核后，仍开放的 backlog 如下。它们都是 P2 打磨项，暂无明确排期；完成后更新第 8 节对应 ID。
 
 | ID | 优先级 | 项 | 现状 |
 | --- | --- | --- | --- |
-| N-03 | P0 | 移动菜单焦点陷阱 + 完整键盘操作（Arrow/Home/End/焦点不泄漏） | ✅ |
-| A-04 | P1 | 危险操作后列表就地更新反馈，避免整页 `await load()` 闪烁 | ✅ |
-| M-04 | P1 | 账户/主题菜单阴影与材质接入 elevation token（现为 Nuxt UI 默认 shadow） | ✅ |
-| ME-02 | P1 | 区块间距/卡片高度在大字号下弹性（`upcoming-card` 仍为固定 min-height） | ✅ |
 | A-05 | P2 | Drawer 拖拽速度交接与 rubber-band 实测调参 | ☐ |
 | H-03 | P2 | 首页区块节制入场动画（默认不做，可选） | ☐ |
 | §7.2 | P2 | 弹簧库仅限手势表面（可选依赖，评估包体积与 SSR） | ☐ |
 | §7.5 | P2 | Haptics（可选，产品需要时再加） | ☐ |
 
-其余条目（G-01~G-07、N-01/02/03/04/05/06、M-01/02/03/04、H-01/02、E-01/02/04、MAP-01/02/03、S-01/02/04、ME-01/02、A-01/02/03/04/06、L-01/02、E-03）均已在代码中核验为落地，见第 8 节状态列。A-05、H-03、§7.2、§7.5 为可选打磨项，无明确排期。
+其余条目已在第 8 节的状态列中核验为落地。本文件只继续追踪上述可选打磨项。
 
 ---
 
@@ -58,21 +54,14 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ### 0.2 主要差距（按原则）
 
-> 下表为 2026-07-30 审计时的初始评级。截至 2026-07-31 复核，绝大多数条目已落地，当前逐项状态见第 8 节。
+下表只保留当前仍有决策价值的差距；已落地的基础能力见第 8 节和组件对照表。
 
 | 原则 | 评级 | 摘要 |
 | --- | --- | --- |
-| 1. Response（即时反馈） | ⚠️ | 自定义按钮有 press；大量 `UButton`/链接/首页卡片无统一 press；菜单项无 `:active` |
-| 2. Direct manipulation | ⚠️ | Drawer 依赖 Vaul/Nuxt UI（较好）；自研菜单无拖动手势、无 1:1 跟踪 |
-| 3. Interruptibility | ❌ | 菜单/导航动画多为固定 CSS transition/keyframes，无法中途抓取改向 |
-| 4. Springs | ❌ | 无弹簧库；全部 ease/cubic-bezier 定时长动画 |
-| 5–6. Velocity / Momentum | ❌ | 无释放速度交接、无投影落点（除底层 Drawer 库可能具备） |
-| 7. Spatial consistency | ⚠️ | 菜单 `transform-origin: top right` 较好；事件详情仅 Modal 无移动端对称路径；进出路径未统一 |
-| 9. Materials & depth | ⚠️ | Header/Dialog 有玻璃；菜单面板多为不透明 raised；硬 1px 分割线多，缺 scroll-edge 渐隐 |
-| 12. Multimodal | ❌ | 无 haptics/音效（可接受为 P2；有意义的完成点可后加） |
-| 14. Reduced motion | ⚠️ | 全局将 transition 压到 120ms，非「交叉淡入」语义；部分组件遗漏 reduce 分支 |
-| 15. Typography | ✅/⚠️ | 层级清晰；中等标题 tracking 不完全按尺寸阶梯；少数 quiet 文案对比偏弱 |
-| 16. Foundations | ⚠️ | 空间与文案克制较好；交互反馈与方式不一致；部分导航与可点击区域偏小 |
+| 2. Direct manipulation | ⚠️ | Drawer 依赖 Nuxt UI/Vaul；是否支持速度交接和越界阻尼仍需真机验证 |
+| 4. Springs | ☐ | 当前没有弹簧依赖；只有在现有手势确有收益时再评估 |
+| 5–6. Velocity / Momentum | ☐ | 仅作为 Drawer 实测项，不为静态页面增加装饰性动效 |
+| 12. Multimodal | ☐ | Haptics 仅在产品明确需要时评估，不能作为上线门槛 |
 
 ---
 
@@ -502,48 +491,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ---
 
-## 9. 建议实施顺序（里程碑）
-
-### Milestone A — 响应与可达（约 1–2 PR）
-
-1. G-01, G-02, N-01, N-02 — ✅  
-2. M-01, M-02, H-01 — ✅  
-3. E-04, A-03, S-04 — ✅  
-4. 回归：键盘、reduce motion、320px 宽  
-
-**状态：已完成（2026-07-30）**
-
-### Milestone B — 材质与空间（约 1–2 PR）
-
-1. G-03, G-04, G-05, G-06 — ✅  
-2. E-01, M-03, N-04, N-05, N-06 — ✅  
-3. A-01, MAP-01, ME-01 — ✅；A-02, MAP-02 待做  
-4. 统一卡片 hover/active（E-02, S-02, H-02）— ✅  
-
-**Milestone B 状态：已完成**
-
-### Milestone C — 流体增强（可选）
-
-1. A-05 Drawer 实测调参  
-2. G-07 页面交叉淡入 — ✅（Nuxt `pageTransition` opacity only）  
-3. 7.2 弹簧库仅限手势表面  
-4. 7.5 Haptics（若产品需要）  
-
-**轻量 C 项：** G-07、MAP-02 / 全站 Drawer reduce 旗标已完成；弹簧与 haptics 仍为可选。
-
-### Milestone D — 收尾 backlog（截至 2026-07-31）
-
-1. **N-03（P0）** 移动导航焦点陷阱 + 完整键盘操作（Arrow 上下 / Home / End / 焦点不泄漏到背景），参照 Nuxt UI 焦点管理 — ✅
-2. **A-04（P1）** 管理列表危险操作后就地更新：以 `channels.vue` 的 `Object.assign` 就地更新为基准，扩展至 bindings/achievements/maps；行变化用 opacity 过渡，避免整页刷新闪烁 — ✅（bindings/achievements；maps 的「结束挑战」仅影响无行内状态的对话框确认）
-3. **M-04（P1）** 账户/主题菜单 content 接入 `elevation-2` / 材质 token，替换 Nuxt UI 默认 shadow — ✅
-4. **ME-02（P1）** `upcoming-card` 固定 min-height 改为弹性（`min-height: min()` 或 rem），验证浏览器 150%–200% 字号 — ✅
-5. **A-05（P2）** 真机/浏览器实测 Drawer：快甩关闭、慢拖取消、中途反向、越界阻尼
-6. **H-03（P2，可选）** 首页区块入场动画，默认不做；若做需 reduce 禁用
-7. **§7.2 / §7.5（P2，可选）** 弹簧库仅限手势表面；Haptics 按产品需要
-
----
-
-## 10. 验收矩阵（每 PR 自检）
+## 9. 验收矩阵（每 PR 自检）
 
 | 检查 | 方法 |
 | --- | --- |
@@ -561,7 +509,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ---
 
-## 11. 明确非目标（本审计不强制）
+## 10. 明确非目标（本审计不强制）
 
 - 不为「更像 iOS」重做整站视觉品牌或改动业务 copy 体系  
 - 不在迁移/种子/API 契约层引入动效  
@@ -571,7 +519,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ---
 
-## 12. 与现有指南的关系
+## 11. 与现有指南的关系
 
 | 文档 | 关系 |
 | --- | --- |
@@ -583,7 +531,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ---
 
-## 13. 组件对照速查（原则 × 现状）
+## 12. 组件对照速查（原则 × 现状）
 
 | 组件/页面 | Response | Materials | Spatial | Reduce | 备注 |
 | --- | --- | --- | --- | --- | --- |
@@ -600,4 +548,4 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ---
 
-*本清单为设计/工程 backlog，不表示所列缺口均为产品缺陷；按 Milestone 渐进落地，并始终服从业务边界与 `portal-ui-guidelines` 的组件复用规则。*
+*本清单为设计/工程 backlog，不表示所列缺口均为产品缺陷；始终服从业务边界与 `portal-ui-guidelines` 的组件复用规则。*

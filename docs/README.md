@@ -1,8 +1,8 @@
 # Documentation Index
 
-This directory contains detailed, public-facing project documentation. It
-separates implemented API, Portal, storage, and login behavior from future
-architecture milestones.
+This directory contains the repository's architecture, development, deployment,
+and API documentation. The feature status matrix is the only current inventory
+of implementation and verification status.
 
 ## Architecture
 
