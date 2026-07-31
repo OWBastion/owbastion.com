@@ -96,7 +96,7 @@ const formattedDisplay = computed(() => {
       <template #content>
         <div class="p-3 flex flex-col gap-3">
           <UCalendar :model-value="(calendarValue as any)" @update:model-value="handleCalendarChange" />
-          <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+          <div class="flex items-center justify-between pt-2 border-t border-[var(--line)]">
             <span class="text-xs font-medium text-muted">具体时间</span>
             <UInput
               type="time"
@@ -115,6 +115,7 @@ const formattedDisplay = computed(() => {
       color="neutral"
       variant="ghost"
       size="xs"
+      class="hit-44"
       icon="i-lucide-x"
       aria-label="清除时间"
       :disabled="disabled"
