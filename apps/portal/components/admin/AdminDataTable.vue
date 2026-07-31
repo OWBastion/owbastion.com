@@ -160,7 +160,9 @@ onBeforeUnmount(() => controlsResizeObserver?.disconnect());
         <template #caption>
           <div ref="controls" class="admin-data-table__controls">
             <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
-            <USelect v-if="props.sortingOptions.length" v-model="sortingSelection" aria-label="排序方式" size="md" :items="sortingItems" />
+            <div v-if="props.sortingOptions.length" class="admin-data-table__sort-control">
+              <USelect v-model="sortingSelection" class="w-full" aria-label="排序方式" size="md" :items="sortingItems" :ui="{ content: 'min-w-64', itemLabel: 'whitespace-nowrap overflow-visible text-clip' }" />
+            </div>
             <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
             <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
               <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
@@ -180,6 +182,7 @@ onBeforeUnmount(() => controlsResizeObserver?.disconnect());
 .admin-data-table :deep([data-slot="caption"]) { position: sticky; z-index: 2; top: 0; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; white-space: normal; background: var(--surface); }
 .admin-data-table__controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
 .admin-data-table__scroll--bounded { overflow: auto; overscroll-behavior: contain; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
@@ -187,5 +190,5 @@ onBeforeUnmount(() => controlsResizeObserver?.disconnect());
 .admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
-@media (max-width: 620px) { .admin-data-table { margin-inline: -2px; }.admin-data-table__controls { align-items: stretch; flex-direction: column; }.admin-data-table__filters { width: 100%; }.admin-data-table__filters > :first-child { flex: 1; }.admin-data-table :deep(table[data-slot="base"]) { min-width: 560px; } }
+@media (max-width: 620px) { .admin-data-table { margin-inline: -2px; }.admin-data-table__controls { align-items: stretch; flex-direction: column; }.admin-data-table__filters { width: 100%; }.admin-data-table__sort-control { width: 100%; min-width: 0; }.admin-data-table__filters > :first-child { flex: 1; }.admin-data-table :deep(table[data-slot="base"]) { min-width: 560px; } }
 </style>

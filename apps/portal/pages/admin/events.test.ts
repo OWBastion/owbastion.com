@@ -33,7 +33,9 @@ describe("admin events page", () => {
     const wrapper = await mountSuspended(EventsAdminPage, { attachTo: document.body });
     await flushPromises();
 
-    expect(wrapper.get('[aria-label="排序方式"]')).toBeTruthy();
+    const sortingSelect = wrapper.get('[aria-label="排序方式"]');
+    expect(sortingSelect).toBeTruthy();
+    expect(sortingSelect.element.closest(".admin-data-table__sort-control")).not.toBeNull();
     expect(wrapper.get('[aria-label="分组方式"]')).toBeTruthy();
     expect(wrapper.text()).toContain("默认顺序");
     expect(wrapper.text()).toContain("不分组");
