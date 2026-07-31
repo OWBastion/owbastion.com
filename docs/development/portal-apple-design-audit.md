@@ -27,16 +27,16 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 | ID | 优先级 | 项 | 现状 |
 | --- | --- | --- | --- |
-| N-03 | P0 | 移动菜单焦点陷阱 + 完整键盘操作（Arrow/Home/End/焦点不泄漏） | ☐ |
-| A-04 | P1 | 危险操作后列表就地更新反馈，避免整页 `await load()` 闪烁 | ☐ |
-| M-04 | P1 | 账户/主题菜单阴影与材质接入 elevation token（现为 Nuxt UI 默认 shadow） | ⚠️ 部分 |
-| ME-02 | P1 | 区块间距/卡片高度在大字号下弹性（`upcoming-card` 仍为固定 min-height） | ⚠️ 部分 |
+| N-03 | P0 | 移动菜单焦点陷阱 + 完整键盘操作（Arrow/Home/End/焦点不泄漏） | ✅ |
+| A-04 | P1 | 危险操作后列表就地更新反馈，避免整页 `await load()` 闪烁 | ✅ |
+| M-04 | P1 | 账户/主题菜单阴影与材质接入 elevation token（现为 Nuxt UI 默认 shadow） | ✅ |
+| ME-02 | P1 | 区块间距/卡片高度在大字号下弹性（`upcoming-card` 仍为固定 min-height） | ✅ |
 | A-05 | P2 | Drawer 拖拽速度交接与 rubber-band 实测调参 | ☐ |
 | H-03 | P2 | 首页区块节制入场动画（默认不做，可选） | ☐ |
 | §7.2 | P2 | 弹簧库仅限手势表面（可选依赖，评估包体积与 SSR） | ☐ |
 | §7.5 | P2 | Haptics（可选，产品需要时再加） | ☐ |
 
-其余条目（G-01~G-07、N-01/02/04/05/06、M-01/02/03、H-01/02、E-01/02/04、MAP-01/02/03、S-01/02/04、ME-01、A-01/02/03/06、L-01/02、E-03）均已在代码中核验为落地，见第 8 节状态列。
+其余条目（G-01~G-07、N-01/02/03/04/05/06、M-01/02/03/04、H-01/02、E-01/02/04、MAP-01/02/03、S-01/02/04、ME-01/02、A-01/02/03/04/06、L-01/02、E-03）均已在代码中核验为落地，见第 8 节状态列。A-05、H-03、§7.2、§7.5 为可选打磨项，无明确排期。
 
 ---
 
@@ -409,7 +409,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 | --- | --- | --- | --- |
 | N-01 | P0 | 图标按钮命中区 ≥44 | ✅ |
 | N-02 | P0 | 桌面 nav / 登录链接触控高度 | ✅ |
-| N-03 | P0 | 移动菜单焦点陷阱 + 键盘 | ☐ |
+| N-03 | P0 | 移动菜单焦点陷阱 + 键盘 | ✅ roving Arrow/Home/End + Tab 陷阱 + Escape 返回触发器 |
 | N-04 | P1 | mobile-nav leave 与 enter 对称、可打断 | ✅ |
 | N-05 | P1 | Glass 导航文字对比 | ✅ |
 | N-06 | P1 | Sticky 与内容滚动边缘 | ✅ |
@@ -423,7 +423,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 | M-01 | P0 | 改用 UDropdownMenu 或补齐 Arrow 键 | ✅ |
 | M-02 | P0 | 菜单项 active / press | ✅ |
 | M-03 | P1 | 关闭 leave 动画（与 enter 镜像） | ✅ |
-| M-04 | P1 | 阴影/材质与 header 层级 | ⚠️ UDropdownMenu 默认 shadow/glass，未接入 `elevation-2` 等 token |
+| M-04 | P1 | 阴影/材质与 header 层级 | ✅ content 接入 `elevation-2` + `--menu-surface` + `--line` 描边，覆盖默认 shadow-lg |
 
 **文件：** `AccountMenu.vue`，`ThemeMenu.vue`
 
@@ -474,7 +474,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | ME-01 | P1 | coming-soon glass 的 reduce-transparency | ✅ |
-| ME-02 | P1 | 区块间距在大字号下的弹性 | ⚠️ 区块 margin 已用 clamp/rem；`upcoming-card` min-height 仍固定 272/220px，大字号下可能裁切 |
+| ME-02 | P1 | 区块间距在大字号下的弹性 | ✅ `upcoming-card` min-height 改 `17rem`/`13.75rem`（rem 弹性），验证 150%–200% 字号 |
 
 **文件：** `pages/me.vue`，`TitleCollection.vue`，`PlayerIdentityCard.vue`
 
@@ -485,7 +485,7 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 | A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ✅ |
 | A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ✅ |
 | A-03 | P0 | 表格/行内操作触控目标 | ✅ |
-| A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ bindings/achievements 仍整页 `await load()`；`channels.vue` 的 `Object.assign` 就地更新可作基准 |
+| A-04 | P1 | 危险操作后列表局部更新反馈 | ✅ decision/revoke/catalog-title 就地更新 + 状态格 opacity 闪烁；batch 生成改为 `@created="load"` |
 | A-05 | P2 | Drawer 手势与速度交接实测与调参 | ☐ |
 | A-06 | ✅ | reducedMotion 关闭 modal transition | 保持 |
 
@@ -533,10 +533,10 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 
 ### Milestone D — 收尾 backlog（截至 2026-07-31）
 
-1. **N-03（P0）** 移动导航焦点陷阱 + 完整键盘操作（Arrow 上下 / Home / End / 焦点不泄漏到背景），参照 Nuxt UI 焦点管理
-2. **A-04（P1）** 管理列表危险操作后就地更新：以 `channels.vue` 的 `Object.assign` 就地更新为基准，扩展至 bindings/achievements/maps；行变化用 opacity 过渡，避免整页刷新闪烁
-3. **M-04（P1）** 账户/主题菜单 content 接入 `elevation-2` / 材质 token，替换 Nuxt UI 默认 shadow
-4. **ME-02（P1）** `upcoming-card` 固定 min-height 改为弹性（`min-height: min()` 或 rem），验证浏览器 150%–200% 字号
+1. **N-03（P0）** 移动导航焦点陷阱 + 完整键盘操作（Arrow 上下 / Home / End / 焦点不泄漏到背景），参照 Nuxt UI 焦点管理 — ✅
+2. **A-04（P1）** 管理列表危险操作后就地更新：以 `channels.vue` 的 `Object.assign` 就地更新为基准，扩展至 bindings/achievements/maps；行变化用 opacity 过渡，避免整页刷新闪烁 — ✅（bindings/achievements；maps 的「结束挑战」仅影响无行内状态的对话框确认）
+3. **M-04（P1）** 账户/主题菜单 content 接入 `elevation-2` / 材质 token，替换 Nuxt UI 默认 shadow — ✅
+4. **ME-02（P1）** `upcoming-card` 固定 min-height 改为弹性（`min-height: min()` 或 rem），验证浏览器 150%–200% 字号 — ✅
 5. **A-05（P2）** 真机/浏览器实测 Drawer：快甩关闭、慢拖取消、中途反向、越界阻尼
 6. **H-03（P2，可选）** 首页区块入场动画，默认不做；若做需 reduce 禁用
 7. **§7.2 / §7.5（P2，可选）** 弹簧库仅限手势表面；Haptics 按产品需要
@@ -588,15 +588,15 @@ Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡�
 | 组件/页面 | Response | Materials | Spatial | Reduce | 备注 |
 | --- | --- | --- | --- | --- | --- |
 | `main.css` | ✅ | ✅ token | — | ✅ | pressable / glass / type / elevation 已落地 |
-| `AppHeader` | ✅ | ✅ glass | ✅ 对称 | ✅ | 剩 N-03 移动焦点陷阱 |
-| `AccountMenu` / `ThemeMenu` | ✅ UDropdownMenu | ⚠️ 默认 shadow | ✅ | ✅ | 剩 M-04 接入 token |
+| `AppHeader` | ✅ | ✅ glass | ✅ 对称 | ✅ | N-03 焦点陷阱 + roving 键已完成 |
+| `AccountMenu` / `ThemeMenu` | ✅ UDropdownMenu | ✅ elevation-2 + menu-surface | ✅ | ✅ | M-04 已完成 |
 | `AdminResponsiveDialog` | — | ✅ glass-segment | ✅ M/D | ✅ | 无二次 blur |
 | `MapDetailModal` | — | ✅ | ✅ M/D | ✅ | 已对齐 Admin |
 | `EventDirectory` | ✅ 卡 press | ⚠️ 部分玻璃 | ✅ M/D | ✅ | 已响应式 |
 | `MapCard` | ✅ | ✅ | — | ✅ | 基准 |
 | `SubmissionProgress` | — | ✅ | — | ✅ | 状态色 160ms 过渡 |
 | `pages/index` | ✅ 链接卡 press | ✅ | — | ✅ | 可点/静态已分化 |
-| `pages/me` | — | ✅ glass-chip | — | ✅ | reduce 已覆盖；剩 ME-02 弹性 |
+| `pages/me` | — | ✅ glass-chip | — | ✅ | reduce 已覆盖；ME-02 弹性已完成 |
 
 ---
 
