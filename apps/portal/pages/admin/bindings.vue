@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TabsItem } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
 import { bindingInviteCopyText } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -60,15 +61,30 @@ const bindingTabs = [
   { label: "批量生成", value: "batch", slot: "batch" as const },
 ] satisfies TabsItem[];
 
+const defaultClaimSorting: SortingState = [{ id: "createdAt", desc: true }];
+const claimSorting = shallowRef<SortingState>([...defaultClaimSorting]);
+const claimSortingOptions = [
+  { id: "playerName", label: "玩家" },
+  { id: "operationType", label: "类型" },
+  { id: "status", label: "状态" },
+  { id: "createdAt", label: "申请时间" },
+];
+const defaultInvitationSorting: SortingState = [{ id: "expiresAt", desc: false }];
+const invitationSorting = shallowRef<SortingState>([...defaultInvitationSorting]);
+const invitationSortingOptions = [
+  { id: "playerName", label: "玩家" },
+  { id: "status", label: "状态" },
+  { id: "expiresAt", label: "有效期" },
+];
 const columns = [
-  { accessorKey: "battleTag", header: "玩家" },
+  { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "operationType", header: "类型" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "createdAt", header: "申请时间" },
   { id: "actions", header: "", enableHiding: false },
 ];
 const invitationColumns = [
-  { accessorKey: "battleTag", header: "玩家" },
+  { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "expiresAt", header: "有效期" },
   { id: "actions", header: "", enableHiding: false },
@@ -227,8 +243,8 @@ onMounted(load);
     <section class="binding-section" aria-label="绑定记录">
       <UTabs v-model="activeTab" :items="bindingTabs" variant="link" aria-label="绑定记录类型" class="binding-tabs">
         <template #claims>
-          <AdminDataTable :data="claims" :columns="columns" :loading="loading" empty="暂无绑定申请。" table-key="binding-claims">
-            <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
+          <AdminDataTable v-model:sorting="claimSorting" :data="claims" :columns="columns" :loading="loading" :sorting-options="claimSortingOptions" :default-sorting="defaultClaimSorting" empty="暂无绑定申请。" table-key="binding-claims">
+            <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #operationType-cell="{ row }"><StatusBadge :label="operationTypeLabel(row.original.operationType)" :tone="operationTypeTone(row.original.operationType)" /></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedClaimIds.has(row.original.claimId) ? 'row-update-flash' : undefined" :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
             <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
@@ -244,8 +260,8 @@ onMounted(load);
           </AdminDataTable>
         </template>
         <template #invitations>
-          <AdminDataTable :data="invitations" :columns="invitationColumns" :loading="loading" empty="暂无邀请码。" table-key="binding-invites">
-            <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
+          <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" table-key="binding-invites">
+            <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
             <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div></template>
