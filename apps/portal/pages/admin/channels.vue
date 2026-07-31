@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SortingState } from "@tanstack/vue-table";
 import type { AdminGroup } from "~/composables/useAdminApi";
 import { reactive, shallowRef } from "vue";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -15,9 +16,17 @@ const editorOpen = shallowRef(false);
 const editingGroup = shallowRef<AdminGroup | null>(null);
 const editor = reactive({ displayName: "", environment: "test" as AdminGroup["environment"] });
 const savingGroup = shallowRef(false);
+const defaultGroupSorting: SortingState = [{ id: "updatedAt", desc: true }];
+const groupSorting = shallowRef<SortingState>([...defaultGroupSorting]);
+const groupSortingOptions = [
+  { id: "displayName", label: "群组" },
+  { id: "environment", label: "环境" },
+  { id: "status", label: "状态" },
+  { id: "updatedAt", label: "最近更新" },
+];
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const columns = [
-  { accessorKey: "groupOpenId", header: "群组" },
+  { accessorKey: "displayName", header: "群组" },
   { accessorKey: "environment", header: "环境" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "verifyEnabled", header: "/验证" },
@@ -36,8 +45,8 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="渠道管理" :count="loading ? '读取中…' : `${groups.length} 个`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="群配置"><AdminDataTable :data="groups" :columns="columns" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
-      <template #groupOpenId-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>
+    <section aria-label="群配置"><AdminDataTable v-model:sorting="groupSorting" :sorting-options="groupSortingOptions" :default-sorting="defaultGroupSorting" :data="groups" :columns="columns" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
+      <template #displayName-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>
       <template #environment-cell="{ row }"><span>{{ row.original.environment === 'production' ? '正式群' : '测试群' }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="{ pending: '待启用', active: '已启用', legacy: '历史群', disconnected: '已断开' }[row.original.status]" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
       <template #verifyEnabled-cell="{ row }"><USwitch :model-value="row.original.verifyEnabled" :disabled="row.original.status !== 'active'" @update:model-value="save(row.original, { verifyEnabled: !row.original.verifyEnabled })" /></template>
