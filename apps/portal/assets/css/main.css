@@ -398,6 +398,20 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* -------------------------------------------------------------------------- */
+/* A-04 — in-place row update feedback                                        */
+/* Applied to a row/status cell after a dangerous action resolves, so the     */
+/* change is visible without reloading the page. Opacity only, no layout      */
+/* shift; the global reduced-motion rule collapses it to an instant fade.     */
+/* -------------------------------------------------------------------------- */
+@keyframes row-update-flash {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+.row-update-flash {
+  animation: row-update-flash 360ms ease-out;
+}
+
+/* -------------------------------------------------------------------------- */
 /* G-01 — unified press feedback                                              */
 /* -------------------------------------------------------------------------- */
 .pressable,

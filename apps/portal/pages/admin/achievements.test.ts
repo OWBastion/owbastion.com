@@ -208,5 +208,12 @@ describe("achievement admin page", () => {
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", status: "retired" } }));
+    // A-04 — the row updates in place: the status badge flips to 已下线 (with the
+    // row-update flash) and the catalog list is not re-fetched, so the page does
+    // not flash through a full reload.
+    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBe(1);
+    const flashed = wrapper.findAll("span.row-update-flash");
+    expect(flashed.length).toBe(1);
+    expect(flashed[0]!.text()).toBe("已下线");
   });
 });

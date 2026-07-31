@@ -89,6 +89,7 @@ describe("admin bindings page", () => {
     // Click secondary confirmation button
     const confirmButton = Array.from(document.body.querySelectorAll("button")).find((btn) => btn.textContent?.trim() === "确认批准");
     expect(confirmButton).not.toBeUndefined();
+    const listCallsBefore = adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length;
     confirmButton?.click();
     await flushPromises();
 
@@ -99,5 +100,9 @@ describe("admin bindings page", () => {
         body: { contractVersion: "1", decision: "approved" },
       }),
     );
+    // A-04 — the row updates in place: status flips to 已批准 and the list is
+    // not re-fetched, so the page does not flash through a full reload.
+    expect(wrapper.text()).toContain("已批准");
+    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length).toBe(listCallsBefore);
   });
 });

@@ -97,6 +97,13 @@ const activeTab = ref("generic");
 const createOpen = shallowRef(false);
 const creating = shallowRef(false);
 const maps = ref<AdminMap[]>([]);
+/* A-04 — briefly flash a row after an in-place update so the change is
+   visible without reloading the whole page. */
+const updatedCatalogIds = new Set<string>();
+function flashRow(id: string) {
+  updatedCatalogIds.add(id);
+  window.setTimeout(() => updatedCatalogIds.delete(id), 420);
+}
 const achievementTabs = [
   { label: "通用成就", value: "generic", slot: "generic" as const },
   { label: "地图完成挑战", value: "map", slot: "map" as const },
@@ -293,7 +300,23 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
       },
     });
     toast.add({ title: status === "active" ? "称号已重新开放" : "称号已下线", color: "success" });
-    await load();
+    // A-04 — update the catalog row in place instead of reloading the whole page.
+    const updated = items.value.find((candidate): candidate is CatalogTitle => candidate.challengeId === item.challengeId && candidate.family === "title_catalog");
+    if (updated) {
+      updated.status = status;
+      updated.availability = status === "retired" ? "retired" : "active";
+      if (includeChallengeFields) {
+        if (item.condition !== undefined) updated.condition = item.condition;
+        if (item.evidenceRule !== undefined) updated.evidenceRule = item.evidenceRule;
+        if (item.submissionMode !== undefined) updated.submissionMode = item.submissionMode;
+        if (item.categoryOverride !== undefined) updated.categoryOverride = item.categoryOverride;
+        if (item.iconUrl !== undefined) updated.iconUrl = item.iconUrl;
+        if (item.retiredVersion !== undefined) updated.retiredVersion = item.retiredVersion;
+        if (item.startsAt !== undefined) updated.startsAt = item.startsAt;
+        if (item.endsAt !== undefined) updated.endsAt = item.endsAt;
+      }
+      flashRow(updated.challengeId);
+    }
     return true;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存称号状态，请稍后重试。").description;
@@ -456,7 +479,7 @@ onMounted(() => void load());
             <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
             <template #titleName-cell="{ row }"><strong>{{ itemTitleName(row.original) }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `${row.original.mapVariant === 'classic' ? '经典版地图 · ' : ''}引入版本 ${row.original.introducedVersion}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small></template>
             <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
-            <template #status-cell="{ row }"><StatusBadge :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" /></template>
+            <template #status-cell="{ row }"><StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" /></template>
 <template #actions-cell="{ row }"><div class="table-actions"><button v-if="isChallengeTitle(row.original)" class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><button v-else class="table-action" type="button" :aria-label="editingId === row.original.challengeId ? '收起编辑' : '编辑状态'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button><template v-if="isChallengeTitle(row.original)"><UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }"><button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg></button><template #content><UCard class="plan-popover-card"><form class="plan-popover" @submit.prevent="planSunsetting(row.original)"><UFormField label="计划下线版本" required><UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" /></UFormField><UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" /></form></UCard></template></UPopover><button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template><template v-else><button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg></button><button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg></button></template></div></template>
           </AdminDataTable>
           <AdminResponsiveDialog v-model:open="editorOpen" title="编辑规则" :description="editingItem ? itemName(editingItem) : undefined" size="lg">

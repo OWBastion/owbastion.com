@@ -44,6 +44,15 @@ const detailTarget = ref<Claim | null>(null);
 const conflictTarget = ref<Claim | null>(null);
 const deciding = ref(false);
 
+/* A-04 — briefly flash a row after an in-place update so the change is
+   visible without reloading the whole page. */
+const updatedClaimIds = new Set<string>();
+const updatedInviteIds = new Set<string>();
+function flashRow(id: string, updatedIds: Set<string>) {
+  updatedIds.add(id);
+  window.setTimeout(() => updatedIds.delete(id), 420);
+}
+
 const activeTab = shallowRef("claims");
 const bindingTabs = [
   { label: "绑定申请", value: "claims", slot: "claims" as const },
@@ -131,7 +140,12 @@ async function decide(claim: Claim, decision: "approved" | "rejected") {
     toast.add({ title: `申请已${action}`, color: "success" });
     conflictTarget.value = null;
     detailTarget.value = null;
-    await load();
+    // A-04 — update the row in place instead of reloading the whole page.
+    const updated = claims.value.find((candidate) => candidate.claimId === claim.claimId);
+    if (updated) {
+      updated.status = decision === "approved" ? "approved" : "rejected";
+      flashRow(updated.claimId, updatedClaimIds);
+    }
   } catch (error) {
     toast.add({ title: "无法处理申请", description: portalErrorDetails(error).description, color: "error" });
   } finally {
@@ -149,11 +163,12 @@ function closeRevoke() {
   revokeReason.value = "";
 }
 async function revokeInvitation() {
-  if (!revokeTarget.value) return;
+  const target = revokeTarget.value;
+  if (!target) return;
   revoking.value = true;
   try {
     const reason = revokeReason.value.trim();
-    await api(`/v1/binding-invites/${revokeTarget.value.inviteId}/revoke`, {
+    await api(`/v1/binding-invites/${target.inviteId}/revoke`, {
       method: "POST",
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", ...(reason ? { reason } : {}) },
@@ -161,7 +176,12 @@ async function revokeInvitation() {
     revokeTarget.value = null;
     revokeReason.value = "";
     toast.add({ title: "邀请码已撤销", color: "success" });
-    await load();
+    // A-04 — update the row in place instead of reloading the whole page.
+    const updated = invitations.value.find((candidate) => candidate.inviteId === target.inviteId);
+    if (updated) {
+      updated.status = "revoked";
+      flashRow(updated.inviteId, updatedInviteIds);
+    }
   } catch (error) {
     toast.add({ title: "无法撤销邀请码", description: portalErrorDetails(error).description, color: "error" });
   } finally {
@@ -210,7 +230,7 @@ onMounted(load);
           <AdminDataTable :data="claims" :columns="columns" :loading="loading" empty="暂无绑定申请。" table-key="binding-claims">
             <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #operationType-cell="{ row }"><StatusBadge :label="operationTypeLabel(row.original.operationType)" :tone="operationTypeTone(row.original.operationType)" /></template>
-            <template #status-cell="{ row }"><StatusBadge :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
+            <template #status-cell="{ row }"><StatusBadge :class="updatedClaimIds.has(row.original.claimId) ? 'row-update-flash' : undefined" :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
             <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
             <template #actions-cell="{ row }">
               <div class="claim-actions">
@@ -226,7 +246,7 @@ onMounted(load);
         <template #invitations>
           <AdminDataTable :data="invitations" :columns="invitationColumns" :loading="loading" empty="暂无邀请码。" table-key="binding-invites">
             <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
-            <template #status-cell="{ row }"><StatusBadge :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
+            <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
             <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div></template>
           </AdminDataTable>
