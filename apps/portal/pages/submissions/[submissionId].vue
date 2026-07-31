@@ -171,7 +171,34 @@ onBeforeUnmount(() => {
         </div>
       </UCard>
     </template>
-    <p v-else class="message">读取中…</p>
+    <section v-else class="detail-grid submission-skeleton" role="status" aria-label="读取中…">
+      <div class="evidence-col" aria-hidden="true">
+        <UCard class="evidence-card submission-skeleton-card">
+          <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading" /></div></template>
+          <USkeleton class="submission-skeleton-evidence" />
+        </UCard>
+      </div>
+
+      <div class="info-col" aria-hidden="true">
+        <UCard class="overview-card submission-skeleton-card">
+          <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading submission-skeleton-heading--overview" /><USkeleton class="submission-skeleton-status" /></div></template>
+          <div class="submission-skeleton-list">
+            <div v-for="row in 4" :key="row" class="submission-skeleton-row"><USkeleton class="submission-skeleton-label" /><USkeleton class="submission-skeleton-value" /></div>
+          </div>
+          <div class="submission-skeleton-actions"><USkeleton class="submission-skeleton-action" /><USkeleton class="submission-skeleton-action" /></div>
+        </UCard>
+
+        <UCard class="overview-card submission-skeleton-card">
+          <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading submission-skeleton-heading--progress" /><USkeleton class="submission-skeleton-updated" /></div></template>
+          <div class="submission-skeleton-progress">
+            <div v-for="step in 4" :key="step" class="submission-skeleton-progress-item">
+              <USkeleton class="submission-skeleton-marker" />
+              <div class="submission-skeleton-progress-copy"><USkeleton class="submission-skeleton-progress-title" /><USkeleton class="submission-skeleton-progress-detail" /></div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+    </section>
   </main>
 </template>
 
@@ -212,8 +239,30 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 .tip-icon > svg { width: 17px; height: 17px; }
 .resubmission-tip strong { display: block; color: var(--text); font-size: .82rem; }
 .resubmission-tip p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.submission-skeleton { align-items: start; }
+.submission-skeleton-card { border-color: var(--line); }
+.submission-skeleton-heading { width: 104px; height: 18px; }
+.submission-skeleton-heading--overview { width: 96px; }
+.submission-skeleton-heading--progress { width: 82px; }
+.submission-skeleton-status { width: 72px; height: 24px; border-radius: 999px; }
+.submission-skeleton-evidence { width: 100%; aspect-ratio: 4 / 3; }
+.submission-skeleton-list { display: grid; gap: 0; }
+.submission-skeleton-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+.submission-skeleton-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.submission-skeleton-label { width: 30%; height: 12px; }
+.submission-skeleton-value { width: 42%; height: 14px; }
+.submission-skeleton-actions { display: grid; gap: 8px; margin-top: 22px; }
+.submission-skeleton-action { width: 100%; height: 40px; border-radius: 999px; }
+.submission-skeleton-updated { width: 92px; height: 12px; }
+.submission-skeleton-progress { display: grid; gap: 0; }
+.submission-skeleton-progress-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; min-height: 68px; }
+.submission-skeleton-progress-item:not(:last-child)::after { position: absolute; top: 32px; bottom: 0; left: 15px; width: 1px; background: var(--line); content: ""; }
+.submission-skeleton-marker { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; }
+.submission-skeleton-progress-copy { display: grid; align-content: start; gap: 8px; padding: 4px 0 16px; }
+.submission-skeleton-progress-title { width: 68%; height: 14px; }
+.submission-skeleton-progress-detail { width: 92%; height: 12px; }
 @media (max-width: 820px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } .resubmission-grid { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading .page-title { max-width: none; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.breadcrumb { margin-bottom: 30px; } }
+@media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading .page-title { max-width: none; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.breadcrumb { margin-bottom: 30px; }.submission-skeleton-row { align-items: flex-start; flex-direction: column; gap: 6px; }.submission-skeleton-label, .submission-skeleton-value { width: 62%; } }
 @media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; } .tip-icon { background: var(--surface); } }
 @media (prefers-contrast: more) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--text); } }
 </style>
