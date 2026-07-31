@@ -34,6 +34,8 @@ ALTER TABLE submissions ADD COLUMN grant_id TEXT;
 ALTER TABLE submissions ADD COLUMN ocr_fail_count INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE submissions ADD COLUMN target_map_id TEXT;
 ALTER TABLE submissions ADD COLUMN rule_snapshot_json TEXT;
+ALTER TABLE ocr_results ADD COLUMN request_id TEXT;
+CREATE UNIQUE INDEX ocr_results_submission_request_idx ON ocr_results(submission_id, request_id);
 SQL
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0053_add_awaiting_player_confirmation_status.sql"
 
