@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TableColumn } from "@nuxt/ui";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -22,6 +23,18 @@ const errorMessage = ref("");
 const editing = ref<Rule | null>(null);
 const formOpen = shallowRef(false);
 const form = reactive<RuleForm>({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
+const scopeLabel = (scope: Rule["defaultScope"]) => scope === "all_active" ? "全部有效地图" : "仅例外地图";
+const displayKindLabel = (displayKind: Rule["displayKind"]) => ({ fixed: "固定", map_pioneer: "地图先锋", map_name_suffix: "地图名称后缀" })[displayKind];
+const statusLabel = (status: Rule["status"]) => ({ active: "已开放", sunsetting: "即将结束", retired: "已下线" })[status];
+const statusTone = (status: Rule["status"]) => status === "active" ? "success" : status === "sunsetting" ? "warning" : "default";
+const columns: TableColumn<Rule>[] = [
+  { accessorKey: "titleName", header: "称号", meta: { class: { td: "align-top" } } },
+  { accessorKey: "titleKey", header: "键", meta: { class: { td: "align-top" } } },
+  { accessorKey: "defaultScope", header: "适用范围" },
+  { accessorKey: "displayKind", header: "展示方式" },
+  { accessorKey: "status", header: "状态" },
+  { id: "actions", header: "操作", size: 96, enableHiding: false },
+];
 
 const resetForm = (rule?: Rule) => Object.assign(form, rule ? { ...rule, retiredVersion: rule.retiredVersion ?? "" } : { titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
 async function load() {
@@ -70,13 +83,13 @@ onMounted(() => { void load(); });
       <UAlert v-if="errorMessage" color="error" :description="errorMessage" />
       <UCard>
         <template #header><div class="flex items-center justify-between gap-3"><div><p class="text-sm font-medium">权威规则</p><p class="text-sm text-muted">规则定义称号关联、条件、展示与生命周期；不会为每张地图创建挑战记录。</p></div><UButton label="新建规则" size="sm" @click="edit()" /></div></template>
-        <div class="space-y-3">
-          <div v-for="rule in rules" :key="rule.ruleId" class="flex items-start justify-between gap-4 border-b border-default pb-3 last:border-0">
-            <div><p class="font-medium">{{ rule.titleName }} <span class="text-muted">{{ rule.kind }}</span></p><p class="text-sm text-muted">{{ rule.titleKey }} · {{ rule.defaultScope === 'all_active' ? '全部有效地图' : '仅例外地图' }} · {{ rule.displayKind }}</p></div>
-            <UButton label="编辑规则" size="xs" color="neutral" variant="outline" @click="edit(rule)" />
-          </div>
-          <p v-if="!loading && !rules.length" class="text-sm text-muted">暂无规则。</p>
-        </div>
+        <AdminDataTable :data="rules" :columns="columns" :loading="loading" empty="暂无规则。" table-key="map-title-rules" table-min-width="760px" class="admin-table">
+          <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.kind }}</small></template>
+          <template #defaultScope-cell="{ row }"><span>{{ scopeLabel(row.original.defaultScope) }}</span></template>
+          <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
+          <template #status-cell="{ row }"><StatusBadge :label="statusLabel(row.original.status)" :tone="statusTone(row.original.status)" /></template>
+          <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="edit(row.original)" /></div></template>
+        </AdminDataTable>
       </UCard>
       <AdminResponsiveDialog v-model:open="dialogOpen" :title="editing ? '编辑权威规则' : '新建权威规则'" size="lg">
         <template #body>
@@ -95,10 +108,10 @@ onMounted(() => { void load(); });
         <template #header><div><p class="text-sm font-medium">地图继承与例外</p><p class="text-sm text-muted">每一项都是规则投影，只能在此设置允许的地图例外字段。</p></div></template>
         <USelect v-model="selectedMapId" :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" @update:model-value="loadInheritance" />
         <div class="mt-4 space-y-3">
-          <div v-for="item in inheritance" :key="item.rule.ruleId" class="rounded border border-default p-3">
+          <div v-for="item in inheritance" :key="item.rule.ruleId" class="inheritance-item rounded p-3">
             <div class="flex items-start justify-between gap-3"><div><p class="font-medium">{{ item.rule.titleName }}</p><p class="text-sm text-muted">来源：{{ item.source === 'map_title_rule' ? `规则 ${item.rule.kind}` : item.source }} · {{ item.projected ? '已投影，只读' : '未投影' }}</p></div><USwitch v-model="(item.exception ??= { enabled: item.projected, condition: null, evidenceRule: null, submissionMode: null, slot: null }).enabled" label="启用例外" /></div>
             <div class="mt-3 grid gap-3 md:grid-cols-2"><UFormField label="覆盖完成条件"><UInput :model-value="item.exception!.condition ?? ''" placeholder="留空继承规则" @update:model-value="item.exception!.condition = $event || null" /></UFormField><UFormField label="覆盖提交方式"><USelect v-model="item.exception!.submissionMode" :items="[{ label: '继承规则', value: null }, { label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField></div>
-            <div class="mt-3 flex justify-end"><UButton label="保存例外" size="xs" :loading="saving" @click="saveException(item)" /></div>
+            <div class="mt-3 flex justify-end"><UButton label="保存例外" size="sm" :loading="saving" @click="saveException(item)" /></div>
           </div>
           <p v-if="selectedMapId && !inheritance.length" class="text-sm text-muted">暂无可继承的地图称号规则。</p>
         </div>
@@ -106,3 +119,7 @@ onMounted(() => { void load(); });
     </div>
   </AdminWorkspace>
 </template>
+
+<style scoped>
+.inheritance-item { border: 1px solid var(--line); }
+</style>
