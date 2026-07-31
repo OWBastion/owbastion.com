@@ -7,7 +7,7 @@ trap 'rm -f "$database"' EXIT
 
 for migration in "$root_dir"/migrations/*.sql; do
   case "$(basename "$migration")" in
-    0036_submission_review_statuses.sql|0037_repair_submission_foreign_keys.sql|0038_restore_upload_pending_submission_status.sql) continue ;;
+  0036_submission_review_statuses.sql|0037_repair_submission_foreign_keys.sql|0038_restore_upload_pending_submission_status.sql|0053_add_awaiting_player_confirmation_status.sql) continue ;;
   esac
   sqlite3 -bail "$database" < "$migration"
 done
@@ -27,13 +27,22 @@ SQL
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0036_submission_review_statuses.sql"
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0037_repair_submission_foreign_keys.sql"
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0038_restore_upload_pending_submission_status.sql"
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" <<'SQL'
+-- The historical rebuild above predates later submission columns; restore the
+-- current shape before testing the status-constraint migration.
+ALTER TABLE submissions ADD COLUMN grant_id TEXT;
+ALTER TABLE submissions ADD COLUMN ocr_fail_count INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE submissions ADD COLUMN target_map_id TEXT;
+ALTER TABLE submissions ADD COLUMN rule_snapshot_json TEXT;
+SQL
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0053_add_awaiting_player_confirmation_status.sql"
 
 sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" <<'SQL'
 INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
 VALUES ('submission-upload-1', 'binding-1', 'upload_pending', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'portal', 'portal', 'upload-1', 2, 2);
 SQL
 
-for status in evidence_pending evidence_stored ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
+for status in evidence_pending evidence_stored ocr_pending awaiting_player_confirmation ready_for_review ocr_review_required approved rejected resubmission_required; do
   sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" "
     INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, review_reason, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
     VALUES ('submission-status-${status}', 'binding-1', '${status}', 'map_completion', NULL, 'Test Map', NULL, NULL, NULL, 'portal', 'portal', 'message-${status}', 3, 3);
@@ -55,7 +64,7 @@ done
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id = 'review-1';")" == "1" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submission_reviews WHERE id IN ('review-rejected-1', 'review-resubmission-1');")" == "2" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submissions WHERE id = 'submission-upload-1' AND status = 'upload_pending';")" == "1" ]]
-for status in received evidence_pending evidence_stored upload_pending ocr_pending ready_for_review ocr_review_required approved rejected resubmission_required; do
+for status in received evidence_pending evidence_stored upload_pending ocr_pending awaiting_player_confirmation ready_for_review ocr_review_required approved rejected resubmission_required; do
   [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM submissions WHERE status = '${status}';")" -ge "1" ]]
 done
 [[ -z "$(sqlite3 "$database" 'PRAGMA foreign_key_check;')" ]]
