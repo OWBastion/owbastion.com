@@ -7,12 +7,12 @@ const emit = defineEmits<{ logout: [] }>();
 
 const items = computed<DropdownMenuItem[][]>(() => {
   const links: DropdownMenuItem[] = [
-    { label: "我的", icon: "i-lucide-user", to: "/me" },
+    { label: "我的", icon: "i-lucide-user", to: "/me", exactHash: true },
   ];
   if (props.player.isAdmin) {
     links.push({ label: "管理后台", icon: "i-lucide-settings-2", to: "/admin" });
   }
-  links.push({ label: "设置", icon: "i-lucide-sliders-horizontal", to: "/me#appearance" });
+  links.push({ label: "设置", icon: "i-lucide-sliders-horizontal", to: "/me#appearance", exactHash: true });
   links.push({
     label: "退出",
     icon: "i-lucide-log-out",
