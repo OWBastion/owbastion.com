@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { SortingState } from "@tanstack/vue-table";
 import type { AdminPlayer } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -12,6 +13,14 @@ const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
+const defaultPlayerSorting: SortingState = [{ id: "updatedAt", desc: true }];
+const playerSorting = shallowRef<SortingState>([...defaultPlayerSorting]);
+const playerSortingOptions = [
+  { id: "playerName", label: "玩家" },
+  { id: "status", label: "状态" },
+  { id: "bindingCount", label: "QQ 绑定" },
+  { id: "updatedAt", label: "最近更新" },
+];
 const statusColumnFilters = computed({
   get: () => status.value === "all" ? [] : [{ id: "status", value: status.value }],
   set: (filters: Array<{ id: string; value: unknown }>) => {
@@ -20,7 +29,7 @@ const statusColumnFilters = computed({
   },
 });
 const columns = [
-  { accessorKey: "battleTag", header: "玩家" },
+  { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
   { accessorKey: "bindingCount", header: "QQ 绑定" },
   { accessorKey: "updatedAt", header: "最近更新" },
@@ -47,9 +56,9 @@ onMounted(() => { void load(); });
   <AdminWorkspace title="玩家管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="玩家帐号">
-      <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:global-filter="query" :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" table-key="players" manual-filtering :reset-scroll-key="page" class="admin-table">
+      <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:global-filter="query" v-model:sorting="playerSorting" :sorting-options="playerSortingOptions" :default-sorting="defaultPlayerSorting" :data="players" :columns="columns" :loading="loading" empty="暂无匹配玩家。" table-key="players" manual-filtering :reset-scroll-key="page" class="admin-table">
         <template #filters><UInput v-model="query" size="md" aria-label="搜索玩家" placeholder="搜索战网 ID 或 QQ 标识" /><USelect v-model="status" size="md" aria-label="筛选玩家状态" :items="[{ label: '全部状态', value: 'all' }, { label: '正常', value: 'active' }, { label: '已封禁', value: 'banned' } ]" /></template>
-        <template #battleTag-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
+        <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
         <template #status-cell="{ row }"><StatusBadge :label="row.original.status === 'banned' ? '已封禁' : '正常'" :tone="row.original.status === 'banned' ? 'warning' : 'success'" /></template>
         <template #bindingCount-cell="{ row }"><span>{{ row.original.bindingCount }} 条</span></template>
         <template #updatedAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.updatedAt) }}</span></template>
