@@ -1535,6 +1535,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const idempotencyKeyId = `${auth.subject}:submission.ocr.retry:${idempotencyKey}`;
       await database.batch([
         database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES (?, ?, 0, 'pending', ?)").bind(pendingResultId, row.id, timestamp),
+        database.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = NULL, updated_at = ? WHERE id = ?").bind(timestamp, row.id),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.ocr.retry', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
       ]);
@@ -1757,8 +1758,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), nextStatus: matched ? "ready_for_review" : "resubmission_required", reviewReason: matched ? null : "OCR 结果与目标挑战不匹配", incrementFailCount: !matched, allowExistingStatus: Boolean(input.manual) });
         logOcrEvent("job_completed", { ...context, outcome: matched ? "matched" : "mismatch", qualityAccepted: quality.accepted, durationMs: Date.now() - startedAt });
       } catch (error) {
-        logOcrEvent("job_processing_failed", { ...context, stage, durationMs: Date.now() - startedAt, ...errorDetails(error) });
-        throw error;
+        const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : `OCR_PROCESS_FAILED_${stage.toUpperCase()}`;
+        logOcrEvent("job_processing_failed", { ...context, stage, errorCode, durationMs: Date.now() - startedAt, ...errorDetails(error) });
+        throw new Error(errorCode, { cause: error });
       }
     },
 
