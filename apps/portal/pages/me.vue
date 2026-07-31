@@ -47,7 +47,30 @@ onMounted(async () => {
         </div>
       </section>
     </template>
-    <p v-else-if="loading" class="state" role="status">读取中…</p>
+    <div v-else-if="loading" class="me-skeleton" role="status" aria-label="读取中…">
+      <section class="me-skeleton-intro" aria-hidden="true"><USkeleton class="me-skeleton-eyebrow" /><USkeleton class="me-skeleton-heading" /></section>
+
+      <div class="me-skeleton-identity surface-card" aria-hidden="true">
+        <USkeleton class="me-skeleton-avatar" />
+        <div class="me-skeleton-identity-copy"><USkeleton class="me-skeleton-identity-label" /><USkeleton class="me-skeleton-identity-name" /></div>
+        <div class="me-skeleton-identity-status"><USkeleton class="me-skeleton-identity-status-label" /><USkeleton class="me-skeleton-identity-status-value" /></div>
+      </div>
+
+      <section class="me-skeleton-section titles-section" aria-hidden="true">
+        <div class="me-skeleton-section-heading"><USkeleton class="me-skeleton-section-title" /><USkeleton class="me-skeleton-action" /></div>
+        <div class="me-skeleton-title-grid"><article v-for="card in 3" :key="`title-${card}`" class="me-skeleton-title-card"><USkeleton class="me-skeleton-title-kicker" /><USkeleton class="me-skeleton-title-name" /><USkeleton class="me-skeleton-title-copy" /></article></div>
+      </section>
+
+      <section class="me-skeleton-section" aria-hidden="true">
+        <div class="me-skeleton-section-heading"><USkeleton class="me-skeleton-section-title" /><USkeleton class="me-skeleton-action" /></div>
+        <div class="me-skeleton-submission-list"><article v-for="row in 3" :key="`submission-${row}`" class="me-skeleton-submission-row"><div class="me-skeleton-submission-copy"><USkeleton class="me-skeleton-submission-name" /><USkeleton class="me-skeleton-submission-date" /></div><USkeleton class="me-skeleton-submission-status" /></article></div>
+      </section>
+
+      <section class="me-skeleton-section" aria-hidden="true">
+        <div class="me-skeleton-section-heading me-skeleton-section-heading-plain"><USkeleton class="me-skeleton-section-eyebrow" /><USkeleton class="me-skeleton-section-title" /></div>
+        <div class="me-skeleton-upcoming-grid"><article v-for="card in 2" :key="`upcoming-${card}`" class="me-skeleton-upcoming-card surface-card"><div class="me-skeleton-upcoming-top"><USkeleton class="me-skeleton-upcoming-index" /><USkeleton class="me-skeleton-upcoming-badge" /></div><div class="me-skeleton-upcoming-copy"><USkeleton class="me-skeleton-upcoming-kicker" /><USkeleton class="me-skeleton-upcoming-title" /></div></article></div>
+      </section>
+    </div>
   </main>
 </template>
 
@@ -66,5 +89,8 @@ onMounted(async () => {
 .upcoming-kicker { margin: 0 0 9px; color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .05em; }
 .upcoming-card h3 { margin: 0; color: color-mix(in oklch, var(--text) 84%, var(--muted)); font-size: clamp(1.22rem, 2.3vw, 1.55rem); letter-spacing: -.035em; }
 .upcoming-card p:last-child { margin: 12px 0 0; color: var(--quiet); font-size: .82rem; line-height: 1.6; }
+.me-skeleton { display: grid; }.me-skeleton-intro { display: grid; gap: 14px; max-width: 690px; margin-bottom: 32px; }.me-skeleton-eyebrow { width: 72px; height: 12px; }.me-skeleton-heading { width: min(58%, 360px); height: 46px; }.me-skeleton-identity { display: flex; align-items: center; gap: 15px; padding: 22px; }.me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }.me-skeleton-identity-copy { display: grid; flex: 1; gap: 8px; min-width: 0; }.me-skeleton-identity-label { width: 54px; height: 12px; }.me-skeleton-identity-name { width: min(44%, 220px); height: 25px; }.me-skeleton-identity-status { display: grid; flex: 0 0 auto; gap: 8px; justify-items: end; }.me-skeleton-identity-status-label { width: 48px; height: 12px; }.me-skeleton-identity-status-value { width: 58px; height: 22px; border-radius: 999px; }.me-skeleton-section { display: grid; gap: 16px; margin-top: clamp(66px, 10vw, 110px); }.me-skeleton-section.titles-section { margin-top: clamp(52px, 8vw, 86px); }.me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.me-skeleton-section-heading-plain { align-items: flex-start; flex-direction: column; gap: 10px; }.me-skeleton-section-eyebrow { width: 48px; height: 11px; }.me-skeleton-section-title { width: 150px; height: 22px; }.me-skeleton-action { width: 118px; height: 40px; border-radius: 999px; }.me-skeleton-title-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }.me-skeleton-title-card { display: grid; min-height: 132px; align-content: start; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in oklch, var(--surface-raised) 76%, var(--surface)); }.me-skeleton-title-kicker { width: 64px; height: 11px; }.me-skeleton-title-name { width: 72%; height: 21px; }.me-skeleton-title-copy { width: 92%; height: 13px; }.me-skeleton-submission-list { display: grid; gap: 10px; }.me-skeleton-submission-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; min-height: 78px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }.me-skeleton-submission-copy { display: grid; flex: 1; gap: 8px; min-width: 0; }.me-skeleton-submission-name { width: min(42%, 220px); height: 18px; }.me-skeleton-submission-date { width: 30%; height: 12px; }.me-skeleton-submission-status { width: 68px; height: 24px; border-radius: 999px; }.me-skeleton-upcoming-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.me-skeleton-upcoming-card { display: flex; min-height: 17rem; flex-direction: column; justify-content: space-between; padding: 22px; }.me-skeleton-upcoming-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.me-skeleton-upcoming-index { width: 20px; height: 12px; }.me-skeleton-upcoming-badge { width: 54px; height: 23px; border-radius: 999px; }.me-skeleton-upcoming-copy { display: grid; gap: 10px; }.me-skeleton-upcoming-kicker { width: 72px; height: 12px; }.me-skeleton-upcoming-title { width: 124px; height: 24px; }
 @media (max-width: 760px) { .upcoming-grid { grid-template-columns: 1fr; }.upcoming-card { min-height: 13.75rem; } }
+@media (max-width: 760px) { .me-skeleton-title-grid { grid-template-columns: 1fr; }.me-skeleton-upcoming-grid { grid-template-columns: 1fr; }.me-skeleton-upcoming-card { min-height: 13.75rem; } }
+@media (max-width: 620px) { .me-skeleton-intro { margin-bottom: 20px; }.me-skeleton-heading { width: 76%; height: 38px; }.me-skeleton-identity { align-items: flex-start; flex-wrap: wrap; padding: 18px; }.me-skeleton-identity-copy { flex-basis: calc(100% - 63px); }.me-skeleton-identity-status { flex-basis: 100%; justify-items: start; padding-top: 17px; border-top: 1px solid var(--line); }.me-skeleton-section-heading { align-items: flex-start; }.me-skeleton-section-title { width: 128px; }.me-skeleton-action { width: 102px; height: 38px; }.me-skeleton-submission-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px; }.me-skeleton-submission-status { align-self: flex-start; } }
 </style>
