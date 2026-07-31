@@ -24,7 +24,7 @@ defineProps<{ metrics: Metric[] }>();
 .migration-metric__icon { display: grid; flex: 0 0 auto; width: 48px; height: 48px; place-items: center; border-radius: 50%; font-size: 1.35rem; }
 .migration-metric--accent .migration-metric__icon { color: var(--accent); background: var(--accent-surface); }
 .migration-metric--warning .migration-metric__icon { color: var(--warning); background: color-mix(in oklch, var(--warning) 16%, var(--surface)); }
-.migration-metric--success .migration-metric__icon { color: #2f9b58; background: color-mix(in oklch, #2f9b58 14%, var(--surface)); }
+.migration-metric--success .migration-metric__icon { color: var(--accent); background: color-mix(in oklch, var(--accent-surface) 14%, var(--surface)); }
 .migration-metric__label, .migration-metric__detail { margin: 0; color: var(--quiet); font-size: .76rem; }
 .migration-metric__label { font-weight: 680; }
 .migration-metric__value { display: block; margin-top: 2px; font-size: clamp(1.8rem, 3vw, 2.25rem); letter-spacing: -.065em; line-height: 1.05; }
