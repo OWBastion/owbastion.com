@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import type { Map } from "~/composables/useSubmissionUpload";
 import type { AdminAchievement } from "~/pages/admin/achievements.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -32,6 +33,21 @@ const challengeAction = shallowRef<{ challenge: MapChallenge; status: MapChallen
 const retiredVersion = shallowRef("");
 
 const ratings = ["T0", "T1", "T2", "T3", "T4", "T5"] as const;
+const defaultMapSorting: SortingState = [{ id: "mapName", desc: false }];
+const mapSorting = shallowRef<SortingState>([...defaultMapSorting]);
+const mapSortingOptions = [
+  { id: "mapName", label: "地图" },
+  { id: "difficultyRating", label: "地图评级" },
+  { id: "challengeCount", label: "挑战" },
+  { id: "gameVersion", label: "游戏版本" },
+];
+const defaultChallengeSorting: SortingState = [{ id: "name", desc: false }];
+const challengeSorting = shallowRef<SortingState>([...defaultChallengeSorting]);
+const challengeSortingOptions = [
+  { id: "name", label: "挑战" },
+  { id: "difficulty", label: "挑战难度" },
+  { id: "status", label: "状态" },
+];
 const columns: TableColumn<MapRow>[] = [
   { accessorKey: "mapName", header: "地图" },
   { accessorKey: "difficultyRating", header: "地图评级" },
@@ -142,7 +158,7 @@ onMounted(() => void load());
   <AdminWorkspace title="地图管理" :count="loading ? '读取中…' : `${maps.length} 张`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="地图目录">
-      <AdminDataTable v-model:global-filter="globalFilter" :data="mapRows" :columns="columns" :loading="loading" empty="暂无地图记录。" table-key="maps" class="admin-table">
+      <AdminDataTable v-model:global-filter="globalFilter" v-model:sorting="mapSorting" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" :data="mapRows" :columns="columns" :loading="loading" empty="暂无地图记录。" table-key="maps" class="admin-table">
         <template #filters><UInput v-model="query" size="md" aria-label="搜索地图" placeholder="搜索地图名称或 ID" /><USelect v-model="ratingFilter" size="md" aria-label="筛选地图评级" :items="[{ label: '全部评级', value: 'all' }, ...ratings.map((rating) => ({ label: rating, value: rating }))]" /></template>
         <template #mapName-cell="{ row }"><strong>{{ row.original.mapName }}</strong></template>
         <template #difficultyRating-cell="{ row }"><StatusBadge v-if="row.original.difficultyRating" :label="row.original.difficultyRating" tone="success" /><span v-else class="table-meta">暂无记录</span></template>
@@ -162,7 +178,7 @@ onMounted(() => void load());
             <UFormField label="地图难度评级" hint="这是地图综合评级，不等同于挑战难度。"><USelect v-model="draftRating" :items="[{ label: '暂无评级', value: null }, ...ratings.map((rating) => ({ label: rating, value: rating }))]" :disabled="saving" /></UFormField>
             <UFormField label="特殊机制" hint="最多 16 个标签，每个标签不超过 64 个字符。"><UInputTags v-model="draftMechanics" placeholder="输入机制标签" :disabled="saving" :max="16" aria-label="特殊机制" /></UFormField>
           </form>
-          <section class="challenge-section" aria-labelledby="map-challenges-title"><div class="section-heading"><div><p class="eyebrow">挑战目录</p><h3 id="map-challenges-title">挑战难度</h3></div><span>{{ selectedChallenges.length }} 项</span></div><AdminDataTable :data="selectedChallenges" :columns="challengeColumns" :loading="loading" empty="暂无挑战记录。" :table-key="`map-challenges-${selectedMap.mapId}`" class="admin-table nested-table"><template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template><template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template><template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template><template #actions-cell="{ row }"><div class="table-actions"><span v-if="row.original.titleKey" class="table-meta">在称号挑战中管理</span><template v-else><UButton v-if="row.original.status !== 'retired'" label="计划下线" size="sm" color="neutral" variant="outline" :disabled="saving" @click="requestChallengeUpdate(row.original, 'sunsetting')" /><UButton v-if="row.original.status !== 'retired'" label="结束" size="sm" color="error" variant="soft" :disabled="saving" @click="requestChallengeUpdate(row.original, 'retired')" /><UButton v-else label="重新开放" size="sm" color="neutral" variant="outline" :disabled="saving" @click="requestChallengeUpdate(row.original, 'active')" /></template></div></template></AdminDataTable></section>
+          <section class="challenge-section" aria-labelledby="map-challenges-title"><div class="section-heading"><div><p class="eyebrow">挑战目录</p><h3 id="map-challenges-title">挑战难度</h3></div><span>{{ selectedChallenges.length }} 项</span></div><AdminDataTable v-model:sorting="challengeSorting" :sorting-options="challengeSortingOptions" :default-sorting="defaultChallengeSorting" :data="selectedChallenges" :columns="challengeColumns" :loading="loading" empty="暂无挑战记录。" :table-key="`map-challenges-${selectedMap.mapId}`" class="admin-table nested-table"><template #name-cell="{ row }"><strong>{{ row.original.name }}</strong></template><template #difficulty-cell="{ row }"><span>{{ row.original.difficulty ?? '地图通关' }}</span></template><template #status-cell="{ row }"><StatusBadge :label="statusText(row.original.status)" :tone="statusTone(row.original.status)" /></template><template #actions-cell="{ row }"><div class="table-actions"><span v-if="row.original.titleKey" class="table-meta">在称号挑战中管理</span><template v-else><UButton v-if="row.original.status !== 'retired'" label="计划下线" size="sm" color="neutral" variant="outline" :disabled="saving" @click="requestChallengeUpdate(row.original, 'sunsetting')" /><UButton v-if="row.original.status !== 'retired'" label="结束" size="sm" color="error" variant="soft" :disabled="saving" @click="requestChallengeUpdate(row.original, 'retired')" /><UButton v-else label="重新开放" size="sm" color="neutral" variant="outline" :disabled="saving" @click="requestChallengeUpdate(row.original, 'active')" /></template></div></template></AdminDataTable></section>
         </section>
       </template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="panelOpen = false" /><UButton type="submit" form="map-metadata-editor" label="保存属性" :loading="saving" /></template>
