@@ -158,7 +158,7 @@ onMounted(() => void load());
             <UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField>
             <UFormField label="关联挑战">
               <div v-if="selectedEvent?.challenges.length" class="grid gap-2">
-                <div v-for="challenge in selectedEvent.challenges" :key="`${challenge.family}-${challenge.challengeId}`" class="rounded-md border border-default px-3 py-2 text-sm">
+                <div v-for="challenge in selectedEvent.challenges" :key="`${challenge.family}-${challenge.challengeId}`" class="rounded-md border border-[var(--line)] px-3 py-2 text-sm">
                   {{ challengeLabel(challenge) }}
                 </div>
               </div>
