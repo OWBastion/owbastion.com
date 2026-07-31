@@ -2,7 +2,7 @@
 
 > 审计对象：`apps/portal`  
 > 审计依据：Apple Design（WWDC *Designing Fluid Interfaces* 等）+ 现有 [`portal-ui-guidelines.md`](./portal-ui-guidelines.md)  
-> 审计日期：2026-07-30  
+> 审计日期：2026-07-30（复核：2026-07-31）  
 > 范围：玩家端与管理端前端交互、动效、材质、排版、可达性与空间一致性（不含业务规则与后端契约）
 
 本清单按 **优先级** 与 **Apple Design 原则** 组织。每一项给出：问题现象、原则对照、涉及文件、建议修复与验收标准。
@@ -16,7 +16,27 @@
 | P2 | 打磨项：弹簧、动量、愉悦感 |
 | ✅ | 已有较好实践，保留并作为基准 |
 | ⚠️ | 部分到位，需补齐 |
+| ☐ | 待办（尚未落地） |
 | ❌ | 缺失或与原则冲突 |
+
+---
+
+## 当前待办（截至 2026-07-31 复核）
+
+Milestone A / B 全部落地，Milestone C 的轻量项（G-07 页面交叉淡入、全站 Drawer/modal 的 reduce-motion 旗标）已完成。逐项对照代码复核后，仍开放的 backlog 如下；按优先级推进，完成后勾选第 8 节对应 ID 并在 PR 描述引用。
+
+| ID | 优先级 | 项 | 现状 |
+| --- | --- | --- | --- |
+| N-03 | P0 | 移动菜单焦点陷阱 + 完整键盘操作（Arrow/Home/End/焦点不泄漏） | ☐ |
+| A-04 | P1 | 危险操作后列表就地更新反馈，避免整页 `await load()` 闪烁 | ☐ |
+| M-04 | P1 | 账户/主题菜单阴影与材质接入 elevation token（现为 Nuxt UI 默认 shadow） | ⚠️ 部分 |
+| ME-02 | P1 | 区块间距/卡片高度在大字号下弹性（`upcoming-card` 仍为固定 min-height） | ⚠️ 部分 |
+| A-05 | P2 | Drawer 拖拽速度交接与 rubber-band 实测调参 | ☐ |
+| H-03 | P2 | 首页区块节制入场动画（默认不做，可选） | ☐ |
+| §7.2 | P2 | 弹簧库仅限手势表面（可选依赖，评估包体积与 SSR） | ☐ |
+| §7.5 | P2 | Haptics（可选，产品需要时再加） | ☐ |
+
+其余条目（G-01~G-07、N-01/02/04/05/06、M-01/02/03、H-01/02、E-01/02/04、MAP-01/02/03、S-01/02/04、ME-01、A-01/02/03/06、L-01/02、E-03）均已在代码中核验为落地，见第 8 节状态列。
 
 ---
 
@@ -37,6 +57,8 @@
 | ✅ 语义 token | page/surface/text/line/accent 统一 | `main.css` |
 
 ### 0.2 主要差距（按原则）
+
+> 下表为 2026-07-30 审计时的初始评级。截至 2026-07-31 复核，绝大多数条目已落地，当前逐项状态见第 8 节。
 
 | 原则 | 评级 | 摘要 |
 | --- | --- | --- |
@@ -401,7 +423,7 @@
 | M-01 | P0 | 改用 UDropdownMenu 或补齐 Arrow 键 | ✅ |
 | M-02 | P0 | 菜单项 active / press | ✅ |
 | M-03 | P1 | 关闭 leave 动画（与 enter 镜像） | ✅ |
-| M-04 | P1 | 阴影/材质与 header 层级 | ☐ |
+| M-04 | P1 | 阴影/材质与 header 层级 | ⚠️ UDropdownMenu 默认 shadow/glass，未接入 `elevation-2` 等 token |
 
 **文件：** `AccountMenu.vue`，`ThemeMenu.vue`
 
@@ -421,7 +443,7 @@
 | --- | --- | --- | --- |
 | E-01 | P1 | 详情改为 Modal/Drawer 响应式 | ✅ |
 | E-02 | P1 | 卡片交互与地图卡对齐 | ✅ |
-| E-03 | P1 | group 标题 tracking 纳入 type scale | ☐ |
+| E-03 | P1 | group 标题 tracking 纳入 type scale | ✅ `group-heading h2` 已改用 `--type-caption-size` + `.01em`，与 caption 阶梯一致 |
 | E-04 | P0 | 筛选控件触控高度 | ✅ |
 
 **文件：** `components/events/EventDirectory.vue`
@@ -452,7 +474,7 @@
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
 | ME-01 | P1 | coming-soon glass 的 reduce-transparency | ✅ |
-| ME-02 | P1 | 区块间距在大字号下的弹性 | ☐ |
+| ME-02 | P1 | 区块间距在大字号下的弹性 | ⚠️ 区块 margin 已用 clamp/rem；`upcoming-card` min-height 仍固定 272/220px，大字号下可能裁切 |
 
 **文件：** `pages/me.vue`，`TitleCollection.vue`，`PlayerIdentityCard.vue`
 
@@ -463,7 +485,7 @@
 | A-01 | P1 | AdminResponsiveDialog 避免 header/footer 双层 blur | ✅ |
 | A-02 | P1 | AdminPlayerDetail sticky tabs 滚动边缘 | ✅ |
 | A-03 | P0 | 表格/行内操作触控目标 | ✅ |
-| A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ |
+| A-04 | P1 | 危险操作后列表局部更新反馈 | ☐ bindings/achievements 仍整页 `await load()`；`channels.vue` 的 `Object.assign` 就地更新可作基准 |
 | A-05 | P2 | Drawer 手势与速度交接实测与调参 | ☐ |
 | A-06 | ✅ | reducedMotion 关闭 modal transition | 保持 |
 
@@ -473,8 +495,8 @@
 
 | ID | 优先级 | 项 | 状态 |
 | --- | --- | --- | --- |
-| L-01 | P1 | 挑战码面板与主按钮 press 一致 | ☐ |
-| L-02 | P1 | 错误/警告状态不单靠颜色（已有文案则核对） | ☐ |
+| L-01 | P1 | 挑战码面板与主按钮 press 一致 | ✅ 登录页 `primary-button` / `secondary-button` 已接入统一 press |
+| L-02 | P1 | 错误/警告状态不单靠颜色（已有文案则核对） | ✅ `notice warning/error` 均有文案；bind 页用 `UAlert` description |
 
 **文件：** `pages/login/index.vue`，`pages/bind.vue`
 
@@ -508,6 +530,16 @@
 4. 7.5 Haptics（若产品需要）  
 
 **轻量 C 项：** G-07、MAP-02 / 全站 Drawer reduce 旗标已完成；弹簧与 haptics 仍为可选。
+
+### Milestone D — 收尾 backlog（截至 2026-07-31）
+
+1. **N-03（P0）** 移动导航焦点陷阱 + 完整键盘操作（Arrow 上下 / Home / End / 焦点不泄漏到背景），参照 Nuxt UI 焦点管理
+2. **A-04（P1）** 管理列表危险操作后就地更新：以 `channels.vue` 的 `Object.assign` 就地更新为基准，扩展至 bindings/achievements/maps；行变化用 opacity 过渡，避免整页刷新闪烁
+3. **M-04（P1）** 账户/主题菜单 content 接入 `elevation-2` / 材质 token，替换 Nuxt UI 默认 shadow
+4. **ME-02（P1）** `upcoming-card` 固定 min-height 改为弹性（`min-height: min()` 或 rem），验证浏览器 150%–200% 字号
+5. **A-05（P2）** 真机/浏览器实测 Drawer：快甩关闭、慢拖取消、中途反向、越界阻尼
+6. **H-03（P2，可选）** 首页区块入场动画，默认不做；若做需 reduce 禁用
+7. **§7.2 / §7.5（P2，可选）** 弹簧库仅限手势表面；Haptics 按产品需要
 
 ---
 
@@ -555,16 +587,16 @@
 
 | 组件/页面 | Response | Materials | Spatial | Reduce | 备注 |
 | --- | --- | --- | --- | --- | --- |
-| `main.css` | ✅ 按钮 | ⚠️ token | — | ⚠️ 过粗 | 扩展 pressable/glass/type |
-| `AppHeader` | ⚠️ | ✅ glass | ⚠️ menu | ⚠️ | 命中区 + 焦点 |
-| `AccountMenu` / `ThemeMenu` | ⚠️ | ⚠️ opaque | ⚠️ no leave | ✅ 部分 | 键盘 P0 |
-| `AdminResponsiveDialog` | — | ⚠️ 双 blur | ✅ M/D | ✅ | 简化材料 |
-| `MapDetailModal` | — | 默认 UI | ✅ M/D | ⚠️ | 对齐 Admin |
-| `EventDirectory` | ⚠️ hover | ⚠️ | ❌ 仅 Modal | ⚠️ | P1 重点 |
+| `main.css` | ✅ | ✅ token | — | ✅ | pressable / glass / type / elevation 已落地 |
+| `AppHeader` | ✅ | ✅ glass | ✅ 对称 | ✅ | 剩 N-03 移动焦点陷阱 |
+| `AccountMenu` / `ThemeMenu` | ✅ UDropdownMenu | ⚠️ 默认 shadow | ✅ | ✅ | 剩 M-04 接入 token |
+| `AdminResponsiveDialog` | — | ✅ glass-segment | ✅ M/D | ✅ | 无二次 blur |
+| `MapDetailModal` | — | ✅ | ✅ M/D | ✅ | 已对齐 Admin |
+| `EventDirectory` | ✅ 卡 press | ⚠️ 部分玻璃 | ✅ M/D | ✅ | 已响应式 |
 | `MapCard` | ✅ | ✅ | — | ✅ | 基准 |
-| `SubmissionProgress` | — | ✅ | — | ⚠️ | 微过渡 |
-| `pages/index` | ❌ 链接卡 | ✅ | — | — | press 缺失 |
-| `pages/me` | — | ⚠️ chip blur | — | ⚠️ | reduce glass |
+| `SubmissionProgress` | — | ✅ | — | ✅ | 状态色 160ms 过渡 |
+| `pages/index` | ✅ 链接卡 press | ✅ | — | ✅ | 可点/静态已分化 |
+| `pages/me` | — | ✅ glass-chip | — | ✅ | reduce 已覆盖；剩 ME-02 弹性 |
 
 ---
 
