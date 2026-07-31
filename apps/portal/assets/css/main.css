@@ -396,6 +396,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .portal-menu-surface button[data-slot="item"]:active {
   transform: none !important;
 }
+/* M-04 — menu material: near-opaque raised surface floating above the glass
+   header. elevation-2 comes from the components' content class list and wins
+   over Nuxt UI's default shadow-lg (unlayered rule); the crisp edge replaces
+   the ring that elevation-2's box-shadow supersedes. */
+.portal-menu-surface {
+  border: 1px solid var(--line);
+  background: var(--menu-surface);
+}
 
 /* -------------------------------------------------------------------------- */
 /* A-04 — in-place row update feedback                                        */

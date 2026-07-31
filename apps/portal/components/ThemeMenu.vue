@@ -44,7 +44,7 @@ onMounted(() => {
     :items="items"
     :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }"
     :ui="{
-      content: 'portal-menu-surface theme-menu-content min-w-40',
+      content: 'portal-menu-surface theme-menu-content elevation-2 min-w-40',
       item: 'min-h-10 items-center gap-2.5 px-2.5 py-0',
     }"
   >
