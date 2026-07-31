@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TableColumn } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import { submissionStatusText } from "~/utils/submissionStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -39,8 +41,17 @@ const ocrConfidence = (submission: AdminSubmission, field: string) => {
 };
 const ocrStatusText: Record<AdminSubmission["ocrStatus"], string> = { not_started: "未开始", pending: "识别中", matched: "已匹配", mismatch: "未匹配", review_required: "需人工核对", error: "识别失败" };
 const ocrStatusTone = (status: AdminSubmission["ocrStatus"]) => status === "matched" ? "success" : status === "mismatch" || status === "review_required" || status === "error" ? "warning" : "default";
-const columns = [
-  { id: "ocrContent", header: "OCR识别" },
+const defaultReviewSorting: SortingState = [{ id: "updatedAt", desc: true }];
+const reviewSorting = shallowRef<SortingState>([...defaultReviewSorting]);
+const reviewSortingOptions = [
+  { id: "ocrContent", label: "OCR识别" },
+  { id: "playerName", label: "玩家" },
+  { id: "status", label: "状态" },
+  { id: "ocrStatus", label: "OCRKit" },
+  { id: "updatedAt", label: "最近更新" },
+];
+const columns: TableColumn<AdminSubmission>[] = [
+  { accessorFn: (row) => ocrMapName(row), id: "ocrContent", header: "OCR识别" },
   { id: "ocrConfidence", header: "置信度" },
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
@@ -68,7 +79,7 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="提交记录"><AdminDataTable :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
+    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
