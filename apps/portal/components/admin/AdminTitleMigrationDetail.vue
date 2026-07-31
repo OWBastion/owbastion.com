@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { h, resolveComponent } from "vue";
 import type { TableColumn } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 
 type Grant = { grantId: string; label: string; category: string; mapName?: string; status: "unclaimed" | "active" | "revoked"; playerName?: string; playerId?: string };
 type Holder = { holderName: string; totalCount: number; unclaimedCount: number; grants: Grant[] };
@@ -11,10 +12,17 @@ const emit = defineEmits<{ "update:selectedPlayerId": [value: string]; grant: [g
 const UButton = resolveComponent("UButton");
 const UBadge = resolveComponent("UBadge");
 const playerItems = computed(() => props.players.map((player) => ({ label: `${player.playerName}#${player.playerId}`, value: player.playerAccountId })));
+const defaultGrantSorting: SortingState = [{ id: "category", desc: false }, { id: "title", desc: false }];
+const grantSorting = shallowRef<SortingState>([...defaultGrantSorting]);
+const grantSortingOptions = [
+  { id: "category", label: "分类" },
+  { id: "title", label: "称号" },
+  { id: "status", label: "状态" },
+];
 const columns = computed<TableColumn<Grant>[]>(() => [
   { accessorKey: "category", header: "分类", meta: { class: { th: "w-36", td: "w-36" } } },
-  { id: "title", header: "称号", cell: ({ row }) => h("div", { class: "title-cell" }, [h("strong", {}, row.original.label), row.original.mapName ? h("small", {}, row.original.mapName) : null]) },
-  { id: "status", header: "状态", cell: ({ row }) => row.original.status === "unclaimed" ? h(UBadge, { label: "未关联", color: "neutral", variant: "subtle" }) : row.original.status === "active" ? h(UBadge, { label: "已关联", color: "success", variant: "subtle" }) : h(UBadge, { label: "已撤销", color: "error", variant: "subtle" }) },
+  { accessorKey: "label", id: "title", header: "称号", cell: ({ row }) => h("div", { class: "title-cell" }, [h("strong", {}, row.original.label), row.original.mapName ? h("small", {}, row.original.mapName) : null]) },
+  { accessorKey: "status", id: "status", header: "状态", cell: ({ row }) => row.original.status === "unclaimed" ? h(UBadge, { label: "未关联", color: "neutral", variant: "subtle" }) : row.original.status === "active" ? h(UBadge, { label: "已关联", color: "success", variant: "subtle" }) : h(UBadge, { label: "已撤销", color: "error", variant: "subtle" }) },
   { id: "actions", header: "操作", meta: { class: { th: "w-24", td: "w-24 text-right" } }, cell: ({ row }) => row.original.status === "unclaimed" ? h(UButton, { label: "关联", color: "neutral", variant: "outline", size: "sm", disabled: !props.selectedPlayerId || props.saving, onClick: () => emit("grant", row.original) }) : row.original.status === "active" ? h(UButton, { label: "撤销", color: "neutral", variant: "link", size: "sm", disabled: props.saving, onClick: () => emit("revoke", row.original) }) : null },
 ]);
 </script>
@@ -27,7 +35,7 @@ const columns = computed<TableColumn<Grant>[]>(() => [
         <div class="detail-action"><UFormField label="选择目标玩家帐号"><USelect :model-value="selectedPlayerId" :items="playerItems" placeholder="选择或搜索玩家帐号" :disabled="loading || saving" aria-label="选择目标玩家帐号" @update:model-value="emit('update:selectedPlayerId', $event)" /></UFormField><UButton label="关联全部未关联项" :disabled="!selectedPlayerId || !holder.unclaimedCount || saving" :loading="saving" @click="emit('bulk')" /></div>
       </div>
     </template>
-    <AdminDataTable :data="holder.grants" :columns="columns" :loading="loading || saving" empty="暂无称号记录。" table-key="title-migration-grants" table-min-width="620px" class="admin-table" />
+    <AdminDataTable v-model:sorting="grantSorting" :sorting-options="grantSortingOptions" :default-sorting="defaultGrantSorting" :data="holder.grants" :columns="columns" :loading="loading || saving" empty="暂无称号记录。" table-key="title-migration-grants" table-min-width="620px" class="admin-table" />
   </UCard>
   <UCard v-else class="detail-panel detail-panel--empty" variant="outline"><UEmpty title="选择历史持有者" description="从左侧列表选择需要迁移的记录。" variant="naked" /></UCard>
 </template>
