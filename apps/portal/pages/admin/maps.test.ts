@@ -25,5 +25,7 @@ describe("admin maps page", () => {
     await flushPromises();
     expect(document.body.textContent).toContain("地图难度评级");
     expect(document.body.textContent).toContain("挑战难度");
+    expect(document.body.textContent).toContain("在成就与称号中管理");
+    expect(document.body.textContent).not.toContain("结束");
   });
 });

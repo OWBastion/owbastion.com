@@ -34,6 +34,8 @@ describe("AppHeader", () => {
     expect(wrapper.text()).toContain("概览");
     expect(wrapper.text()).toContain("玩家");
     expect(wrapper.text()).toContain("绑定");
+    expect(wrapper.text()).toContain("成就与称号");
+    expect(wrapper.text()).not.toContain("地图称号规则");
     expect(wrapper.text()).not.toContain("天梯排名");
     expect(wrapper.get(".mobile-menu-toggle").attributes("aria-controls")).toBeUndefined();
     await wrapper.get(".mobile-menu-toggle").trigger("click");

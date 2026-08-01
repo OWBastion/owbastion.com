@@ -88,7 +88,7 @@ describe("v1 platform contracts", () => {
   });
 
   it("validates complete catalog-title challenge edits", () => {
-    const input = { contractVersion: "1", status: "scheduled", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 };
+    const input = { contractVersion: "1", status: "scheduled", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: { kind: "palette", name: "blue" }, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 };
     expect(adminCatalogTitleUpdateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ ...input, endsAt: 1_000 }).success).toBe(false);
     expect(adminCatalogTitleUpdateRequestSchema.safeParse({ contractVersion: "1", status: "active", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, startsAt: 2_000, endsAt: 3_000 }).success).toBe(false);

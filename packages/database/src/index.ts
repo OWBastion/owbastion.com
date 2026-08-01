@@ -945,6 +945,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           availability: title.availability as "active" | "retired",
           scope: title.scope as "global" | "map",
           displayKind: title.displayKind as "fixed" | "map_pioneer" | "map_name_suffix",
+          color: titleColor(title.colorJson),
           status: title.availability as "active" | "retired",
           gameVersion: title.gameVersion,
           hasChallenge: false,
@@ -1133,7 +1134,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!title) throw new Error("TITLE_NOT_FOUND");
       const challenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.titleKey, input.titleKey)).get();
       if (challenge) throw new Error("TITLE_HAS_CHALLENGE");
-      await db.update(titleCatalog).set({ availability: input.status === "retired" ? "retired" : "active" }).where(eq(titleCatalog.key, input.titleKey));
+      await db.update(titleCatalog).set({
+        availability: input.status === "retired" ? "retired" : "active",
+        ...(input.label !== undefined ? { label: input.label } : {}),
+        ...(input.icon !== undefined ? { icon: input.icon } : {}),
+        ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.scope !== undefined ? { scope: input.scope } : {}),
+        ...(input.displayKind !== undefined ? { displayKind: input.displayKind } : {}),
+        ...(input.color !== undefined ? { colorJson: JSON.stringify(input.color) } : {}),
+      }).where(eq(titleCatalog.key, input.titleKey));
       if (input.iconUrl !== undefined) await db.update(titleCatalog).set({ iconUrl: input.iconUrl, iconObjectKey: input.iconUrl === title.iconUrl ? title.iconObjectKey : null }).where(eq(titleCatalog.key, title.key));
       if (input.status !== "active" && input.status !== "retired" && title.category === "开发保留") throw new Error("DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE");
       const hasChallengeFields = input.condition !== undefined || input.evidenceRule !== undefined || input.submissionMode !== undefined || input.categoryOverride !== undefined || input.iconUrl !== undefined || input.startsAt !== undefined || input.endsAt !== undefined || input.retiredVersion !== undefined;

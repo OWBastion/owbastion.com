@@ -231,6 +231,12 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
   backgroundUrl: z.string().trim().url().max(2048).nullable(),
 });
 
+const titleColorSchema = z.union([
+  z.object({ kind: z.literal("heroColor"), index: z.number().int().nonnegative() }),
+  z.object({ kind: z.literal("rgb"), value: z.tuple([z.number().int().min(0).max(255), z.number().int().min(0).max(255), z.number().int().min(0).max(255)]) }),
+  z.object({ kind: z.literal("palette"), name: z.enum(["orange", "red", "purple", "gold", "blue"]) }),
+]);
+
 export const titleSchema = z.object({
   titleKey: externalId,
   label: z.string().trim().min(1).max(256),
@@ -244,11 +250,7 @@ export const titleSchema = z.object({
   mapId: externalId.optional(),
   slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(),
   pioneerPrefixes: z.array(z.string().trim().min(1).max(256)).optional(),
-  color: z.union([
-    z.object({ kind: z.literal("heroColor"), index: z.number().int().nonnegative() }),
-    z.object({ kind: z.literal("rgb"), value: z.tuple([z.number().int().min(0).max(255), z.number().int().min(0).max(255), z.number().int().min(0).max(255)]) }),
-    z.object({ kind: z.literal("palette"), name: z.enum(["orange", "red", "purple", "gold", "blue"]) }),
-  ]).nullable(),
+  color: titleColorSchema.nullable(),
   gameVersion: z.string().trim().min(1).max(64),
 });
 
@@ -320,6 +322,7 @@ const adminCatalogTitleSchema = z.object({
   availability: z.enum(["active", "retired"]),
   scope: z.enum(["global", "map"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
+  color: titleColorSchema.nullable().optional(),
   status: z.enum(["active", "retired"]),
   gameVersion: z.string().trim().min(1).max(64),
   hasChallenge: z.literal(false),
@@ -438,6 +441,12 @@ export const adminAchievementCreateRequestSchema = z.object({
 export const adminCatalogTitleUpdateRequestSchema = z.object({
   contractVersion,
   status: titleChallengeStatus,
+  label: z.string().trim().min(1).max(256).optional(),
+  icon: achievementIcon.optional(),
+  category: z.string().trim().min(1).max(128).optional(),
+  scope: z.enum(["global", "map"]).optional(),
+  displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]).optional(),
+  color: titleColorSchema.nullable().optional(),
   condition: z.string().trim().min(1).max(1024).optional(),
   evidenceRule: z.string().trim().min(1).max(2048).optional(),
   submissionMode: z.enum(["manual", "automatic"]).optional(),

@@ -11,12 +11,11 @@ const adminNavigationItems = [
   { label: "玩家", icon: "i-lucide-users", to: "/admin/players" },
   { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings" },
   {
-    label: "成就",
+    label: "成就与称号",
     icon: "i-lucide-trophy",
     children: [
       { label: "审核", description: "截图审核队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews" },
-      { label: "成就管理", description: "挑战目录与规则", icon: "i-lucide-settings-2", to: "/admin/achievements" },
-      { label: "地图称号规则", description: "规则继承与地图例外", icon: "i-lucide-award", to: "/admin/map-titles" },
+      { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements" },
       { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
     ],
   },
