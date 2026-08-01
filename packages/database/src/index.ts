@@ -665,6 +665,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     reviewReason: string | null;
     incrementFailCount: boolean;
     allowExistingStatus: boolean;
+    ruleSnapshotJson?: string | null;
   }) => {
     const timestamp = now();
     const resultInsert = input.allowExistingStatus
@@ -675,8 +676,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         "INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, match_json, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')"
       ).bind(crypto.randomUUID(), input.submissionId, input.requestId, input.attempt, input.status, input.responseJson ?? null, input.matchJson ?? null, timestamp, input.submissionId);
     const submissionUpdate = database.prepare(
-      `UPDATE submissions SET status = ?, review_reason = ?, ocr_fail_count = ocr_fail_count + ?, updated_at = ? WHERE id = ? AND ${input.allowExistingStatus ? "status = 'ocr_pending'" : "status = 'ocr_pending'"}`
-    ).bind(input.nextStatus, input.reviewReason, input.incrementFailCount ? 1 : 0, timestamp, input.submissionId);
+      `UPDATE submissions SET status = ?, review_reason = ?, ocr_fail_count = ocr_fail_count + ?, rule_snapshot_json = COALESCE(?, rule_snapshot_json), updated_at = ? WHERE id = ? AND ${input.allowExistingStatus ? "status = 'ocr_pending'" : "status = 'ocr_pending'"}`
+    ).bind(input.nextStatus, input.reviewReason, input.incrementFailCount ? 1 : 0, input.ruleSnapshotJson ?? null, timestamp, input.submissionId);
     await database.batch([resultInsert, submissionUpdate]);
   };
 
@@ -1892,19 +1893,33 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           return;
         }
         stage = "resolve_challenge";
-        const snapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
+        const storedSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
+        const legacyProjection = row.challengeId && row.targetMapId
+          ? await resolveLegacyProjection(row.challengeId, row.targetMapId)
+          : null;
+        const titleChallenge = row.challengeId
+          ? await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
+          : null;
+        const directProjection = titleChallenge?.challenge.scope === "map" && row.targetMapId
+          ? snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, row.targetMapId)
+          : null;
+        const hasStoredVariant = storedSnapshot && Object.prototype.hasOwnProperty.call(storedSnapshot, "mapVariant");
+        const snapshot = storedSnapshot
+          ? hasStoredVariant
+            ? storedSnapshot
+            : { ...storedSnapshot, mapVariant: legacyProjection?.mapVariant ?? directProjection?.mapVariant ?? null }
+          : legacyProjection ?? directProjection;
         const title = snapshot
-          ? { ...(await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()), mapVariant: undefined as string | null | undefined }
-          : row.challengeType === "title_achievement" && row.challengeId
-          ? await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleChallenges.scope, mapVariant: titleChallenges.mapVariant }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
+          ? { ...(await db.select({ key: titleCatalog.key, label: titleCatalog.label, scope: titleCatalog.scope }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get()), mapVariant: snapshot.mapVariant }
+          : titleChallenge
+          ? { key: titleChallenge.title.key, label: titleChallenge.title.label, scope: titleChallenge.challenge.scope, mapVariant: titleChallenge.challenge.mapVariant }
           : null;
         const matchChallengeType = snapshot || title?.scope === "map" ? "map_title_achievement" : row.challengeType;
         const requiredMapVariant = snapshot?.mapVariant ?? title?.mapVariant ?? null;
         const quality = assessOcrQuality(matchChallengeType, result, requiredMapVariant);
         if (!quality.accepted) {
           stage = "persist_quality_result";
-          await db.insert(ocrResults).values({ id: crypto.randomUUID(), submissionId: row.id, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), createdAt: now() });
-          await db.update(submissions).set({ status: "resubmission_required", updatedAt: now(), reviewReason: "截图未满足识别要求，请重新提交", ocrFailCount: row.ocrFailCount + 1 }).where(and(eq(submissions.id, row.id), eq(submissions.status, "ocr_pending")));
+          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality }), nextStatus: "resubmission_required", reviewReason: "截图未满足识别要求，请重新提交", incrementFailCount: true, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null });
           logOcrEvent("job_completed", { ...context, outcome: "review_required", qualityAccepted: false, durationMs: Date.now() - startedAt });
           return;
         }
@@ -1912,7 +1927,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const { skipped, ...match } = matchOcrResult({ challengeType: matchChallengeType, targetMapName: row.mapName, targetDifficulty: row.difficulty, targetPlayerName: row.playerName, mapName: data.map_name, difficulty: data.difficulty, challengeCompleted: data.challenge_completed, player: data.viewer_player, mapVariant: data.map_variant, requiredMapVariant, titleName: title?.label, achievementTitles: data.achievement_titles });
         const matched = Object.values(match).every(Boolean);
         stage = "persist_result";
-        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), nextStatus: matched ? "ready_for_review" : "resubmission_required", reviewReason: matched ? null : "OCR 结果与目标挑战不匹配", incrementFailCount: !matched, allowExistingStatus: Boolean(input.manual) });
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: matched ? "matched" : "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality }), nextStatus: matched ? "ready_for_review" : "resubmission_required", reviewReason: matched ? null : "OCR 结果与目标挑战不匹配", incrementFailCount: !matched, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null });
         logOcrEvent("job_completed", { ...context, outcome: matched ? "matched" : "mismatch", qualityAccepted: quality.accepted, durationMs: Date.now() - startedAt });
       } catch (error) {
         const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : `OCR_PROCESS_FAILED_${stage.toUpperCase()}`;

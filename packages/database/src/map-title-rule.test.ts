@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
 
 /**
@@ -546,6 +546,44 @@ describe("map title rule model – locked invariants", () => {
       expect(submission.challenge_id).toBe("map.paris.conqueror");
       expect(submission.target_map_id).toBe("map.paris");
       expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", titleKey: "CONQUEROR", slot: "conqueror" });
+    });
+
+    it("repairs a legacy classic submission before manual OCR retry", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CLASSIC");
+      seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
+      seedException(sqlite, "exception.paris", "rule.classic", "map.paris");
+      seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.paris");
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.legacy-classic', 'binding.1', 'resubmission_required', 'map_title_achievement', 'title.CLASSIC', 'map.paris', '地图 map.paris', 'Tester', 'portal', 'portal', 'msg.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.1', 'sub.legacy-classic', 'portal', 'external.1', 'image/png', 1, 'hash', 'evidence/classic.png', 'stored', ?)").run(now);
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        fields: {
+          challenge_completed: { status: "ok", confidence: 0.99 },
+          viewer_player: { status: "ok", confidence: 0.99 },
+          map_name: { status: "ok", confidence: 0.99 },
+          map_variant: { status: "ok", confidence: 0.99 },
+        },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", map_variant: "classic" },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const sent: unknown[] = [];
+        const queue = { send: async (message: unknown) => { sent.push(message); } } as Queue;
+        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", queue, "ocr-bucket");
+        await services.requestAdminOcr({ submissionId: "sub.legacy-classic" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "idem.1", "request.1");
+        await services.processOcrJob({ ...(sent[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      const submission = sqlite.prepare("SELECT status, rule_snapshot_json FROM submissions WHERE id = 'sub.legacy-classic'").get() as { status: string; rule_snapshot_json: string | null };
+      expect(submission.status).toBe("ready_for_review");
+      expect(JSON.parse(submission.rule_snapshot_json!)).toMatchObject({ titleKey: "CLASSIC", mapId: "map.paris", mapVariant: "classic" });
     });
   });
 
