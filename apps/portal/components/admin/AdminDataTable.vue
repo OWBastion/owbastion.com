@@ -190,5 +190,5 @@ onBeforeUnmount(() => controlsResizeObserver?.disconnect());
 .admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
-@media (max-width: 620px) { .admin-data-table { margin-inline: -2px; }.admin-data-table__controls { align-items: stretch; flex-direction: column; }.admin-data-table__filters { width: 100%; }.admin-data-table__sort-control { width: 100%; min-width: 0; }.admin-data-table__filters > :first-child { flex: 1; }.admin-data-table :deep(table[data-slot="base"]) { min-width: 560px; } }
+@media (max-width: 620px) { .admin-data-table { margin-inline: -2px; }.admin-data-table__controls { align-items: stretch; flex-direction: column; justify-content: flex-start; }.admin-data-table__filters { width: 100%; }.admin-data-table__sort-control { width: 100%; min-width: 0; flex: 0 0 auto; }.admin-data-table__filters > :first-child { flex: 1; }.admin-data-table :deep(table[data-slot="base"]) { min-width: 560px; } }
 </style>
