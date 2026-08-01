@@ -25,7 +25,7 @@ const editing = ref<Rule | null>(null);
 const formOpen = shallowRef(false);
 const form = reactive<RuleForm>({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
 const scopeLabel = (scope: Rule["defaultScope"]) => scope === "all_active" ? "全部有效地图" : "仅例外地图";
-const displayKindLabel = (displayKind: Rule["displayKind"]) => ({ fixed: "固定", map_pioneer: "地图先锋", map_name_suffix: "地图名称后缀" })[displayKind];
+const displayKindLabel = (displayKind: Rule["displayKind"]) => ({ fixed: "固定称号", map_pioneer: "地图名 + 开拓者", map_name_suffix: "地图名 + 后缀称号" })[displayKind];
 const statusLabel = (status: Rule["status"]) => ({ active: "已开放", sunsetting: "即将结束", retired: "已下线" })[status];
 const statusTone = (status: Rule["status"]) => status === "active" ? "success" : status === "sunsetting" ? "warning" : "default";
 const defaultRuleSorting: SortingState = [{ id: "titleName", desc: false }];
@@ -106,8 +106,8 @@ onMounted(() => { void load(); });
           <form id="map-title-rule-editor" class="grid gap-3 md:grid-cols-2" @submit.prevent="saveRule">
             <UFormField label="称号键" required><UInput v-model="form.titleKey" required /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required /></UFormField>
             <UFormField class="md:col-span-2" label="完成条件" required><UTextarea v-model="form.condition" required /></UFormField><UFormField class="md:col-span-2" label="截图规则" required><UTextarea v-model="form.evidenceRule" required /></UFormField>
-            <UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="[{ label: '全部有效地图', value: 'all_active' }, { label: '仅例外地图', value: 'explicit' }]" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定', value: 'fixed' }, { label: '地图先锋', value: 'map_pioneer' }, { label: '地图名称后缀', value: 'map_name_suffix' }]" /></UFormField>
-            <UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无命名槽位', value: null }, { label: '先锋', value: 'pioneer' }, { label: '征服者', value: 'conqueror' }, { label: '支配者', value: 'dominator' }]" /></UFormField>
+            <UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="[{ label: '全部有效地图', value: 'all_active' }, { label: '仅例外地图', value: 'explicit' }]" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" /></UFormField>
+            <UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无指定槽位', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" /></UFormField>
             <UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required /></UFormField>
             <UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required /></UFormField>
           </form>

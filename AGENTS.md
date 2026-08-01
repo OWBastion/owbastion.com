@@ -85,6 +85,7 @@ operational changes. Use local fakes for external services in normal tests.
 
 ## Portal copy guidelines
 
+- 新增或修改任何 Portal 文案前，先查阅 `docs/design-rules/terminology.md`，并复用其中的规范术语。
 - For detailed rules, status terminology, and examples, follow the
   `docs/design-rules/` index; check the authoritative `DESIGN.md` there before
   modifying Portal UI or copy.

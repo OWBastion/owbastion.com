@@ -28,7 +28,7 @@ const selectedTitleValues = computed(() => new Set([...selectedGlobalValues.valu
 const selectedTitles = computed(() => titles.value.filter((title) => selectedTitleValues.value.has(title.value)));
 const selectedTitleCount = computed(() => selectedTitles.value.length);
 const sourceLabels = { historical: "历史迁移", submission: "截图审核", manual: "人工发放", automatic: "自动发放" } as const;
-const slotLabels = { pioneer: "先锋", conqueror: "征服者", dominator: "支配者" } as const;
+const slotLabels = { pioneer: "开拓者", conqueror: "征服者", dominator: "主宰" } as const;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const activeTab = shallowRef<"global" | "map">("global");
 const globalGrants = computed(() => props.titleGrants.filter((g) => g.scope === "global"));
@@ -96,7 +96,7 @@ onMounted(() => { void loadOptions(); });
     <div v-if="activeGrants.length" class="title-table-wrap">
       <table class="title-table">
         <thead v-if="activeTab === 'global'"><tr><th>称号</th><th>来源</th><th>授予时间</th></tr></thead>
-        <thead v-else><tr><th>称号</th><th>地图 · 段位</th><th>来源</th><th>授予时间</th></tr></thead>
+        <thead v-else><tr><th>称号</th><th>地图 · 称号槽位</th><th>来源</th><th>授予时间</th></tr></thead>
         <tbody v-if="activeTab === 'global'"><tr v-for="grant in globalGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td></tr></tbody>
         <tbody v-else><tr v-for="grant in mapGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td class="table-map">{{ grant.mapName ?? "未知地图" }}{{ grant.slot ? ` · ${slotLabels[grant.slot]}` : "" }}</td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td></tr></tbody>
       </table>

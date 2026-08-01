@@ -20,6 +20,8 @@ describe("map title rule admin", () => {
     const wrapper = await mountSuspended(MapTitlesPage, { global: { stubs: { AdminResponsiveDialog: { props: ["open", "title"], template: "<div v-if='open'><h2>{{ title }}</h2><slot name='body' /><slot name='footer' /></div>" }, UCard: { template: "<div><slot name='header' /><slot /></div>" }, USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: "<select :value='modelValue'><option v-for='item in items' :value='item.value'>{{ item.label }}</option></select>" }, UFormField: { template: "<label><slot /></label>" }, UTextarea: { template: "<textarea />" }, UInput: { template: "<input />" }, UButton: { template: "<button><slot />{{ label }}</button>", props: ["label"] }, USwitch: { template: "<input type='checkbox' />" }, UAlert: { template: "<div />" } } } });
     await flushPromises();
     expect(wrapper.text()).toContain("征服者");
+    expect(wrapper.text()).toContain("地图名 + 后缀称号");
+    expect(wrapper.text()).not.toContain("地图先锋");
     expect(wrapper.text()).toContain("规则 conqueror");
     expect(wrapper.text()).toContain("已投影，只读");
     expect(wrapper.text()).toContain("保存例外");
