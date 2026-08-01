@@ -9,24 +9,43 @@ packages, and forward-only D1 migrations. Inspect source and tests before
 claiming any behavior; documentation distinguishes implemented slices from
 future milestones.
 
-## Required reading by task
+## Rule organization
+
+- Development and engineering rules live in `docs/dev-rules/`.
+- Product behavior and experience rules live in `docs/product-rules/`.
+- UI visual, interaction, accessibility, and content design rules live in
+  `docs/design-rules/`. The authoritative design text is `DESIGN.md` in that
+  directory; root `DESIGN.md` is only the entry redirect, and the directory
+  index is `docs/design-rules/README.md`.
+- The root `AGENTS.md` keeps only rules that apply to all tasks, risk entry
+  points, and the rule indexes. Directory indexes decide which specific
+  documents an agent must read for a task.
+- Architecture decisions live in `docs/adr/`, deployment and production
+  verification runbooks live in `docs/deployment/`, and the machine-readable
+  API contract lives in `docs/api/`.
+
+## Rule index by task
 
 | Task | Read first |
 | --- | --- |
-| General orientation or README work | README.md, docs/README.md |
-| Architecture, ownership, or repository shape | docs/dev-rules/architecture-overview.md |
-| QQBot, OCRKit, Bastion, submissions, or state transitions | docs/product-rules/integrations-and-workflows.md |
-| Authentication, privacy, storage, or security | docs/dev-rules/data-and-security.md |
-| Portal UI, components, layout, or visual changes | DESIGN.md, docs/design-rules/DESIGN.md, docs/design-rules/portal-ui-guidelines.md, docs/design-rules/portal-copy-guidelines.md |
-| Capability implementation or verification status | docs/product-rules/feature-status.md |
-| Tests, migrations, queues, release, or implementation changes | docs/dev-rules/testing-and-change-policy.md |
+| General orientation or README work | README.md, `docs/README.md` |
+| Architecture, ownership, or repository shape | `docs/dev-rules/` index |
+| QQBot, OCRKit, Bastion, submissions, or state transitions | `docs/product-rules/` index |
+| Authentication, privacy, storage, or security | `docs/dev-rules/` index |
+| Portal UI, components, layout, or visual changes | `DESIGN.md`, `docs/design-rules/` index |
+| Capability implementation or verification status | `docs/product-rules/` index |
+| Tests, migrations, queues, release, or implementation changes | `docs/dev-rules/` index |
+
+Read the applicable directory index first, then follow its document table to
+the smallest relevant set of rules. Do not recreate a second task-specific
+document list in this file.
 
 ## Implementation status
 
 Implementation and verification status for all platform capabilities are
-maintained solely in the [Feature Status Matrix](docs/product-rules/feature-status.md).
-Do not maintain a separate feature-status list in `AGENTS.md` or other
-documentation files to prevent documentation drift.
+maintained solely in the Feature Status Matrix identified by the
+`docs/product-rules/` index. Do not maintain a separate feature-status list in
+`AGENTS.md` or other documentation files to prevent documentation drift.
 
 ## Ownership and working rules
 
@@ -66,7 +85,9 @@ operational changes. Use local fakes for external services in normal tests.
 
 ## Portal copy guidelines
 
-- For detailed rules, status terminology, and examples, see [`docs/design-rules/portal-copy-guidelines.md`](docs/design-rules/portal-copy-guidelines.md); check the [authoritative design rules](docs/design-rules/DESIGN.md) before modifying Portal UI or copy.
+- For detailed rules, status terminology, and examples, follow the
+  `docs/design-rules/` index; check the authoritative `DESIGN.md` there before
+  modifying Portal UI or copy.
 - Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
 - Prefer short labels, noun phrases, and direct statuses; avoid full explanatory sentences when phrases like "暂无记录" (No records) or "未开放" (Not available) suffice.
 - Focus on describing what players can do and see rather than internal process or implementation terms like review, distribution, or publishing.

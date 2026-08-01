@@ -1,25 +1,17 @@
 # Design Rules Index
 
-This directory contains the UI visual, interaction, and content rules for the
-Portal. Read the authority document first.
+本目录统一维护 Portal 的 UI 视觉、交互、可访问性和内容设计规则。规则正文
+以 [`DESIGN.md`](DESIGN.md) 为权威来源。
 
-## Authority
+| 文档 | 类型 | 状态 | 治理 / 相关代码 |
+| --- | --- | --- | --- |
+| [DESIGN.md](DESIGN.md) | 设计规范 | authoritative | 视觉 token、布局、交互、状态语言与无障碍基线 |
+| [portal-ui-guidelines.md](portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 |
+| [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
 
-- [DESIGN.md](DESIGN.md) — normative visual, interaction, accessibility, and
-  content baseline.
+## 使用规则
 
-## Implementation guidance
-
-- [Portal UI guidelines](portal-ui-guidelines.md) — page structures, component
-  reuse, form and table conventions, states, and Portal implementation checks.
-- [Portal copy guidelines](portal-copy-guidelines.md) — player/admin copy tone,
-  status wording, empty states, errors, and examples.
-
-## Usage rule
-
-When documents disagree, `DESIGN.md` is authoritative for design principles
-and cross-surface rules. The supporting guides may be more specific about
-Portal implementation, but they must reuse the same tokens, state vocabulary,
-accessibility baseline, and permission boundaries. Feature or workflow rules
-belong in [`../product-rules/`](../product-rules/); engineering rules belong in
-[`../dev-rules/`](../dev-rules/).
+当文档存在冲突时，`DESIGN.md` 对设计原则和跨页面规则具有最高优先级。其他
+文档可以补充 Portal 的具体实现，但必须复用相同的 token、状态词汇、无障碍
+基线和权限边界。产品行为和流程规则放在 [`../product-rules/`](../product-rules/)，
+工程规则放在 [`../dev-rules/`](../dev-rules/)。
