@@ -85,15 +85,15 @@ operational changes. Use local fakes for external services in normal tests.
 
 ## Portal copy guidelines
 
-- 新增或修改任何 Portal 文案前，先查阅 `docs/design-rules/terminology.md`，并复用其中的规范术语。
+- Before adding or modifying any Portal copy, read `docs/design-rules/terminology.md` first and reuse its canonical terms.
 - For detailed rules, status terminology, and examples, follow the
   `docs/design-rules/` index; check the authoritative `DESIGN.md` there before
   modifying Portal UI or copy.
 - Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
-- Prefer short labels, noun phrases, and direct statuses; avoid full explanatory sentences when phrases like "暂无记录" (No records) or "未开放" (Not available) suffice.
+- Prefer short labels, noun phrases, and direct statuses; reuse the established copy vocabulary instead of adding explanatory sentences when a short status label is sufficient.
 - Focus on describing what players can do and see rather than internal process or implementation terms like review, distribution, or publishing.
 - Empty states should default to stating current status; provide guidance only when a clear, actionable next step exists.
-- Clearly distinguish active, in-progress, unavailable, and future planned features—never describe future features as current capabilities.
+- Clearly distinguish active, in-progress, unavailable, and future planned features; never describe future features as current capabilities.
 - Let headings carry the narrative while body copy adds scope, conditions, or status, avoiding duplicate messaging between heading and body text.
 - Use factual descriptions for status copy; avoid exaggerated promises, vague marketing language, or unconfirmed timeline commitments.
 - Avoid generic patterns like "Here... will...", "Will be displayed here once available...", or "Record every...", and do not repeat information already clear on the page.
