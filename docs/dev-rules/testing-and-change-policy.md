@@ -2,7 +2,7 @@
 
 ## Current implementation status
 
-The [feature status matrix](feature-status.md) is the single source of truth
+The [feature status matrix](../product-rules/feature-status.md) is the single source of truth
 for capability status and verification evidence.
 
 The repository contains a runnable pnpm TypeScript workspace. The Hono

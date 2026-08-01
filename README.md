@@ -31,7 +31,7 @@ docs/        架构、开发、部署和 API 文档
 
 Portal 通过服务端 API 访问平台数据；业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 保存私有提交证据，Queue 驱动 OCR 处理，公共目录在 HTTP 边界使用短期缓存。QQBot 负责 QQ 绑定、验证、群策略和通知，不创建当前 Portal 截图提交；OCRKit 只负责识别，Bastion 在构建时通过 Agents API 读取平台元数据。
 
-平台当前包含公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的 `/admin` 管理面。称号授予、审核、地图称号规则和随机事件目录由平台维护；具体实现和验证等级见[功能状态矩阵](docs/development/feature-status.md)。
+平台当前包含公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的 `/admin` 管理面。称号授予、审核、地图称号规则和随机事件目录由平台维护；具体实现和验证等级见[功能状态矩阵](docs/product-rules/feature-status.md)。
 
 ## 开始开发
 
@@ -75,12 +75,13 @@ pnpm db:import:catalog --snapshot <path> --dry-run
 ## 文档
 
 - [文档索引](docs/README.md)
-- [架构概览](docs/architecture/overview.md)
-- [外部集成与业务流程](docs/architecture/integrations-and-workflows.md)
-- [数据与安全](docs/architecture/data-and-security.md)
-- [测试与变更策略](docs/development/testing-and-change-policy.md)
-- [数据库 migrations 与本地数据](docs/development/database-migrations-and-seeds.md)
-- [功能状态矩阵](docs/development/feature-status.md)
+- [架构概览](docs/dev-rules/architecture-overview.md)
+- [外部集成与业务流程](docs/product-rules/integrations-and-workflows.md)
+- [数据与安全](docs/dev-rules/data-and-security.md)
+- [测试与变更策略](docs/dev-rules/testing-and-change-policy.md)
+- [数据库 migrations 与本地数据](docs/dev-rules/database-migrations-and-seeds.md)
+- [功能状态矩阵](docs/product-rules/feature-status.md)
+- [设计规则入口](DESIGN.md)
 - [API OpenAPI 文档](docs/api/openapi.json)
 - [API 部署](docs/deployment/api-github-actions.md)
 - [API 可观测性运行手册](docs/deployment/api-observability.md)

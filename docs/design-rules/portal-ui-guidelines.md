@@ -47,7 +47,7 @@ Use this pattern for screenshot uploads, submission status, and result pages:
 - Use `UCard` as the upload form container, `UFormField` for fields, and `UFileUpload` for files.
 - The submit button is the form's only primary action. During submission, use `loading` and disable inputs/actions that could cause duplicate submissions.
 - Reuse `SubmissionCatalog`, `MapSubmissionCatalog`, or `AchievementSubmissionCatalog` for challenge selection. Do not copy directory grouping rules into a page.
-- Reuse `SubmissionStatusBadge` for status display. Status wording comes from `docs/development/portal-copy-guidelines.md`.
+- Reuse `SubmissionStatusBadge` for status display. Status wording comes from `docs/design-rules/portal-copy-guidelines.md`.
 - Submission details may be organized as overview → screenshot evidence → recognition result. Private evidence and internal recognition fields may only appear on authorized pages.
 - Screenshot evidence in submission details must use the source image's natural aspect ratio (`width: 100%; height: auto`); do not impose a fixed-height frame or crop the evidence with `object-fit`.
 

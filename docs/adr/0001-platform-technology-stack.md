@@ -28,7 +28,7 @@ The accepted stack now backs the pnpm workspace, Hono Worker API, Nuxt Portal,
 contracts/domain/database/auth packages, D1 migrations, Queue consumers, and
 R2 evidence binding. OCR orchestration, review, grants, and the administrator
 surface are implemented slices of the modular workspace; their verification
-status is maintained in `docs/development/feature-status.md`.
+status is maintained in `docs/product-rules/feature-status.md`.
 
 ## Decision
 

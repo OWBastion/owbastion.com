@@ -4,7 +4,7 @@
 
 ## Status and scope
 
-The capability status matrix in [development/feature-status.md](../development/feature-status.md)
+The capability status matrix in [product-rules/feature-status.md](../product-rules/feature-status.md)
 is the single source of truth for implementation and verification status.
 
 The repository contains an implemented TypeScript workspace with:

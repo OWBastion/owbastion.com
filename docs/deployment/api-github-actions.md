@@ -139,7 +139,7 @@ unavailable or invalid source image reaches `resubmission_required`.
 OCRKit orchestration, review, and title grants are coded platform capabilities
 but are not production-verified by this deployment workflow. Bastion
 implementation, build, and release changes are outside this workflow. See the
-[feature status matrix](../development/feature-status.md).
+[feature status matrix](../product-rules/feature-status.md).
 
 ## Rollback
 

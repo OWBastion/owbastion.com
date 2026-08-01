@@ -14,17 +14,17 @@ future milestones.
 | Task | Read first |
 | --- | --- |
 | General orientation or README work | README.md, docs/README.md |
-| Architecture, ownership, or repository shape | docs/architecture/overview.md |
-| QQBot, OCRKit, Bastion, submissions, or state transitions | docs/architecture/integrations-and-workflows.md |
-| Authentication, privacy, storage, or security | docs/architecture/data-and-security.md |
-| Portal UI, components, layout, or visual changes | docs/development/portal-ui-guidelines.md, docs/development/portal-copy-guidelines.md |
-| Capability implementation or verification status | docs/development/feature-status.md |
-| Tests, migrations, queues, release, or implementation changes | docs/development/testing-and-change-policy.md |
+| Architecture, ownership, or repository shape | docs/dev-rules/architecture-overview.md |
+| QQBot, OCRKit, Bastion, submissions, or state transitions | docs/product-rules/integrations-and-workflows.md |
+| Authentication, privacy, storage, or security | docs/dev-rules/data-and-security.md |
+| Portal UI, components, layout, or visual changes | DESIGN.md, docs/design-rules/DESIGN.md, docs/design-rules/portal-ui-guidelines.md, docs/design-rules/portal-copy-guidelines.md |
+| Capability implementation or verification status | docs/product-rules/feature-status.md |
+| Tests, migrations, queues, release, or implementation changes | docs/dev-rules/testing-and-change-policy.md |
 
 ## Implementation status
 
 Implementation and verification status for all platform capabilities are
-maintained solely in the [Feature Status Matrix](docs/development/feature-status.md).
+maintained solely in the [Feature Status Matrix](docs/product-rules/feature-status.md).
 Do not maintain a separate feature-status list in `AGENTS.md` or other
 documentation files to prevent documentation drift.
 
@@ -66,7 +66,7 @@ operational changes. Use local fakes for external services in normal tests.
 
 ## Portal copy guidelines
 
-- For detailed rules, status terminology, and examples, see [`docs/development/portal-copy-guidelines.md`](docs/development/portal-copy-guidelines.md); check this document before modifying Portal copy.
+- For detailed rules, status terminology, and examples, see [`docs/design-rules/portal-copy-guidelines.md`](docs/design-rules/portal-copy-guidelines.md); check the [authoritative design rules](docs/design-rules/DESIGN.md) before modifying Portal UI or copy.
 - Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
 - Prefer short labels, noun phrases, and direct statuses; avoid full explanatory sentences when phrases like "暂无记录" (No records) or "未开放" (Not available) suffice.
 - Focus on describing what players can do and see rather than internal process or implementation terms like review, distribution, or publishing.
