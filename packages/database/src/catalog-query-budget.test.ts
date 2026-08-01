@@ -159,6 +159,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       submission_mode TEXT NOT NULL DEFAULT 'manual',
       display_kind TEXT NOT NULL,
       slot TEXT,
+      map_variant TEXT,
       default_scope TEXT NOT NULL DEFAULT 'all_active',
       status TEXT NOT NULL DEFAULT 'active',
       introduced_version TEXT NOT NULL,
@@ -179,11 +180,12 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       updated_at INTEGER NOT NULL
     );
     CREATE TABLE map_title_rule_compat (
-      legacy_challenge_id TEXT PRIMARY KEY NOT NULL,
+      legacy_challenge_id TEXT NOT NULL,
       rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
       map_id TEXT NOT NULL REFERENCES maps(id),
       is_standard_instance INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (legacy_challenge_id, map_id)
     );
     CREATE TABLE achievement_challenges (
       id TEXT PRIMARY KEY NOT NULL,

@@ -32,7 +32,11 @@ export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
     difficulty: isTitleChallenge || isMapTitleChallenge ? true : normalized(input.difficulty) === normalized(input.targetDifficulty),
     completed: input.challengeCompleted === true,
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
-    variant: !input.requiredMapVariant || normalized(input.mapVariant) === normalized(input.requiredMapVariant),
+    variant: isTitleChallenge
+      ? true
+      : input.requiredMapVariant
+        ? normalized(input.mapVariant) === normalized(input.requiredMapVariant)
+        : normalized(input.mapVariant) !== "classic",
   };
   return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : isMapTitleChallenge ? ["difficulty"] : [] };
 };

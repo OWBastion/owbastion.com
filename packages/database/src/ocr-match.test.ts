@@ -59,5 +59,6 @@ describe("matchOcrResult", () => {
   it("requires the classic map variant when the challenge declares it", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic", requiredMapVariant: "classic" }).variant).toBe(true);
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: null, requiredMapVariant: "classic" }).variant).toBe(false);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic" }).variant).toBe(false);
   });
 });

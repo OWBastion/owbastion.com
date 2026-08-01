@@ -6,6 +6,7 @@ const fields = {
   viewer_player: { status: "ok", confidence: 0.9 },
   map_name: { status: "ok", confidence: 0.9 },
   difficulty: { status: "ok", confidence: 0.9 },
+  map_variant: { status: "ok", confidence: 0.9 },
 };
 
 describe("assessOcrQuality", () => {
@@ -27,6 +28,9 @@ describe("assessOcrQuality", () => {
   it("requires the declared map variant for classic challenges", () => {
     const response = { schema_version: "1", ok: true, fields, data: { map_variant: "classic" } };
     expect(assessOcrQuality("map_title_achievement", response, "classic").accepted).toBe(true);
-    expect(assessOcrQuality("map_title_achievement", { ...response, data: { map_variant: null } }, "classic").reasons).toContain("map_variant:expected_classic");
+    const missing = assessOcrQuality("map_title_achievement", { ...response, data: { map_variant: null } }, "classic");
+    expect(missing.reasons).toContain("map_variant:expected_classic");
+    expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: undefined }, data: { map_variant: "classic" } }, "classic").reasons).toContain("map_variant:missing_evidence");
+    expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: { status: "ok", confidence: 0.4 } } }, "classic").reasons).toContain("map_variant:low_confidence");
   });
 });

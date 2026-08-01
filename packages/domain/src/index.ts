@@ -66,7 +66,7 @@ export type PlatformServices = {
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
   getAgentMap(input: { mapId: string }): Promise<Map | null>;
   listAgentAchievements(input: AgentAchievementQuery): Promise<AgentAchievementListResponse>;
-  getAgentAchievement(input: { challengeId: string }): Promise<Challenge | null>;
+  getAgentAchievement(input: { challengeId: string; mapId?: string }): Promise<Challenge | null>;
   listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
   listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery): Promise<AgentPlayerTitleGrantListResponse>;
   listAgentMapTitleHolders(input: AgentMapTitleHolderQuery): Promise<AgentMapTitleHolderListResponse>;

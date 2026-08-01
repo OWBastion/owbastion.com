@@ -37,6 +37,10 @@ export const assessOcrQuality = (challengeType: string, response: OcrResponse, r
   for (const name of requiredFields) {
     if (name === "map_variant") {
       if (response.data?.map_variant !== requiredMapVariant) reasons.push(`map_variant:expected_${requiredMapVariant}`);
+      const field = response.fields?.[name];
+      if (!field) reasons.push("map_variant:missing_evidence");
+      else if (field.status !== "ok") reasons.push(`map_variant:${field.status ?? "missing_status"}`);
+      else if (typeof field.confidence !== "number" || field.confidence < minOcrConfidence) reasons.push("map_variant:low_confidence");
       continue;
     }
     const field = response.fields?.[name];

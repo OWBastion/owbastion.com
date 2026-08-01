@@ -163,8 +163,9 @@ the planned release version. Retiring a challenge prevents new upload sessions
 while preserving submissions that already exist. Those submissions continue
 through OCR and review under the ordinary submission lifecycle. Reopening
 clears the retirement version. Map-scoped title challenges may declare
-`map_variant = classic`; the platform passes this requirement to OCR matching
-and exposes the OCR result in admin review details. Administrator changes require maintainer
+`map_variant = classic`; the platform persists the effective requirement in the
+upload snapshot, passes it to OCR matching, and exposes both the required and
+recognized variants in admin review details. Administrator changes require maintainer
 authorization, an idempotency key, and an audit record.
 
 ### Map title rule model
@@ -206,7 +207,7 @@ IDs are stable across rule changes.
 **Submission-time snapshot** — at upload-session creation, the resolved
 projection is serialised as an immutable JSON object and stored in
 `submissions.rule_snapshot_json`. The snapshot captures `ruleId`,
-`ruleRevision`, `mapId`, `titleKey`, `slot`, `displayKind`, `condition`,
+`ruleRevision`, `mapId`, `titleKey`, `mapVariant`, `slot`, `displayKind`, `condition`,
 `evidenceRule`, `submissionMode`, `defaultScope`, and `exceptionId`. Review
 and grant decisions must read this snapshot rather than performing a live rule
 lookup; the snapshot governs even if the rule or exception is subsequently

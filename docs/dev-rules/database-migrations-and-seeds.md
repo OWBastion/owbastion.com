@@ -37,9 +37,12 @@ pnpm exec wrangler d1 execute DB --remote --file tools/map-title-rule-reconcilia
 
 保存两次输出并比较标准奖励、规则、例外、兼容记录、历史持有人和有效权益的计数。
 `0050_migrate_classic_map_title.sql` 使用 Bastion 同步契约中的 `CLASSIC` 定义和
-三种经典地图变体建立一个 map-scoped title challenge。`classic_map_scope` 必须分别
-列出 `map.circuit_royal`、`map.paris`、`map.hanamura`，且每项计数为 1；其他 CLASSIC
-关系仍需通过管理员称号界面建立，不得由 migration 猜测。
+三种经典地图变体建立初始 map-scoped challenge。`0054_materialise_variant_map_title_rules.sql`
+随后将已有的 variant challenge 转为 `map_title_rules` 的显式约束，并以复合
+`(legacy_challenge_id, map_id)` 保存兼容关系；它保留 `title.CLASSIC`、历史持有人、
+已有权益和提交记录，不为每张地图创建独立可编辑的 Classic challenge。`classic_map_scope`
+必须分别列出 `map.circuit_royal`、`map.paris`、`map.hanamura`，且每项计数为 1；其他
+CLASSIC 关系仍需通过管理员地图成就界面建立，不得由 migration 猜测。
 
 兼容记录的清理前提是：所有相关发布的 Bastion 均已读取规则投影；没有仍在处理的
 旧挑战提交；迁移前后 reconciliation 已归档；并且针对生产和构建令牌的 Agents

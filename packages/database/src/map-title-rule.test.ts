@@ -83,6 +83,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       submission_mode TEXT NOT NULL DEFAULT 'manual',
       display_kind TEXT NOT NULL,
       slot TEXT,
+      map_variant TEXT,
       default_scope TEXT NOT NULL DEFAULT 'all_active',
       status TEXT NOT NULL DEFAULT 'active',
       introduced_version TEXT NOT NULL,
@@ -107,11 +108,12 @@ const installSchema = (sqlite: DatabaseSync) => {
     CREATE UNIQUE INDEX map_title_rule_exceptions_rule_map_idx
       ON map_title_rule_exceptions (rule_id, map_id);
     CREATE TABLE map_title_rule_compat (
-      legacy_challenge_id TEXT PRIMARY KEY NOT NULL,
+      legacy_challenge_id TEXT NOT NULL,
       rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
       map_id TEXT NOT NULL REFERENCES maps(id),
       is_standard_instance INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (legacy_challenge_id, map_id)
     );
     CREATE UNIQUE INDEX map_title_rule_compat_rule_map_idx
       ON map_title_rule_compat (rule_id, map_id);
@@ -470,11 +472,11 @@ const seedRule = (
   ruleId: string,
   titleKey: string,
   kind: string,
-  opts: { slot?: string; defaultScope?: string; status?: string } = {},
+  opts: { slot?: string; mapVariant?: string; defaultScope?: string; status?: string } = {},
 ) => {
   sqlite.prepare(
-    "INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, submission_mode, display_kind, slot, default_scope, status, introduced_version, created_at, updated_at) VALUES (?, ?, ?, '完成地图', '上传截图', 'manual', 'map_name_suffix', ?, ?, ?, '2026.07.15', ?, ?)",
-  ).run(ruleId, titleKey, kind, opts.slot ?? null, opts.defaultScope ?? "all_active", opts.status ?? "active", now, now);
+    "INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, submission_mode, display_kind, slot, map_variant, default_scope, status, introduced_version, created_at, updated_at) VALUES (?, ?, ?, '完成地图', '上传截图', 'manual', 'map_name_suffix', ?, ?, ?, ?, '2026.07.15', ?, ?)",
+  ).run(ruleId, titleKey, kind, opts.slot ?? null, opts.mapVariant ?? null, opts.defaultScope ?? "all_active", opts.status ?? "active", now, now);
 };
 
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {
@@ -629,6 +631,30 @@ describe("map title rule model – locked invariants", () => {
       expect(portal).toContainEqual(expect.objectContaining(expected));
       expect(admin.items).toContainEqual(expect.objectContaining(expected));
       expect(agents.items).toContainEqual(expect.objectContaining(expected));
+    });
+
+    it("keeps repeated legacy challenge IDs distinct by map context", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedMap(sqlite, "map.hanamura");
+      seedTitle(sqlite, "CLASSIC");
+      seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
+      seedException(sqlite, "exception.paris", "rule.classic", "map.paris");
+      seedException(sqlite, "exception.hanamura", "rule.classic", "map.hanamura");
+      seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.paris");
+      seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.hanamura");
+      const services = createPlatformServices(database);
+
+      const projections = (await services.listChallenges({ family: "map" })).filter((item) => item.challengeId === "title.CLASSIC");
+      expect(projections).toHaveLength(2);
+      expect(projections).toEqual(expect.arrayContaining([
+        expect.objectContaining({ challengeId: "title.CLASSIC", mapId: "map.paris", mapVariant: "classic" }),
+        expect.objectContaining({ challengeId: "title.CLASSIC", mapId: "map.hanamura", mapVariant: "classic" }),
+      ]));
+      await expect(services.getAgentAchievement({ challengeId: "title.CLASSIC" })).resolves.toBeNull();
+      await expect(services.getAgentAchievement({ challengeId: "title.CLASSIC", mapId: "map.paris" })).resolves.toMatchObject({ mapId: "map.paris", mapVariant: "classic" });
+      await expect(services.getAgentAchievement({ challengeId: "title.CLASSIC", mapId: "map.hanamura" })).resolves.toMatchObject({ mapId: "map.hanamura", mapVariant: "classic" });
     });
 
     it("disabled exception removes the projection even for an all_active rule", async () => {

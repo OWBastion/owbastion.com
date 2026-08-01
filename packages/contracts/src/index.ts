@@ -343,6 +343,7 @@ const mapTitleRuleShape = {
   submissionMode: z.enum(["manual", "automatic"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
   slot: mapTitleRuleSlot.nullable(),
+  mapVariant: z.literal("classic").optional(),
   defaultScope: z.enum(["all_active", "explicit"]),
   status: mapTitleRuleStatus,
   introducedVersion: z.string().trim().min(1).max(64),

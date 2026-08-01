@@ -121,6 +121,7 @@ export const mapTitleRules = sqliteTable("map_title_rules", {
   displayKind: text("display_kind").notNull(),
   // slot persisted at rule level; null means no named slot (custom map titles).
   slot: text("slot"),
+  mapVariant: text("map_variant"),
   // all_active: projects to every active map; explicit: only via exceptions.
   defaultScope: text("default_scope").notNull().default("all_active"),
   status: text("status").notNull().default("active"),
@@ -156,12 +157,13 @@ export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
 // is_standard_instance=1: template projection (old per-map duplication).
 // is_standard_instance=0: genuine map-specific exception.
 export const mapTitleRuleCompat = sqliteTable("map_title_rule_compat", {
-  legacyChallengeId: text("legacy_challenge_id").primaryKey(),
+  legacyChallengeId: text("legacy_challenge_id").notNull(),
   ruleId: text("rule_id").notNull().references(() => mapTitleRules.id),
   mapId: text("map_id").notNull().references(() => maps.id),
   isStandardInstance: integer("is_standard_instance").notNull().default(1),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
+  legacyChallengeMap: primaryKey({ columns: [table.legacyChallengeId, table.mapId] }),
   ruleMapIdx: uniqueIndex("map_title_rule_compat_rule_map_idx").on(table.ruleId, table.mapId),
 }));
 

@@ -18,3 +18,4 @@
 0049_migrate_standard_map_title_rules.sql
 0050_migrate_classic_map_title.sql
 0053_add_awaiting_player_confirmation_status.sql
+0054_materialise_variant_map_title_rules.sql

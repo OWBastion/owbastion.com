@@ -597,7 +597,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   app.get("/v1/agents/achievements/:achievementId", async (c) => {
     allowAgents(c);
-    const achievement = await logServiceOperation(c, "agents_get_achievement", () => dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId") }));
+    const achievement = await logServiceOperation(c, "agents_get_achievement", () => dependencies.services(c.env).getAgentAchievement({ challengeId: c.req.param("achievementId"), mapId: c.req.query("mapId")?.trim() || undefined }));
     return achievement ? c.json({ contractVersion: "1", item: achievement }) : errorResponse(c, 404, "ACHIEVEMENT_NOT_FOUND", "The achievement does not exist");
   });
   app.get("/v1/agents/titles", async (c) => {
