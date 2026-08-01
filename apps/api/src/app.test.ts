@@ -58,18 +58,19 @@ const services: PlatformServices = {
   markOcrJobFailed: async () => {},
   requestManualReview: async () => {},
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
-  createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }),
-  createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
-  listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, codeAvailable: true, createdAt: 1, expiresAt: 2 }] }),
+  createAdminBindingInvite: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }),
+  createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }] }),
+  listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, codeAvailable: true, createdAt: 1, expiresAt: 2, historicalMigration: { status: "not_requested" as const, requestedCount: 0, completedCount: 0, conflictCount: 0, retryCount: 0 } }] }),
   getAdminBindingInviteCode: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL" }),
   listAdminBindings: async () => ({ contractVersion: "1", items: [] }),
   revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", playerName: "Player", playerId: "1234", expiresAt: 1 }),
-  getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1 }),
+  getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 } }),
   exchangeBindingClaimSession: async () => ({ contractVersion: "1", status: "authenticated", sessionToken: "a".repeat(64) }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
+  retryHistoricalTitleMigration: async () => {},
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
@@ -451,7 +452,7 @@ describe("API", () => {
     expect((await app.request(path, {}, env)).status).toBe(422);
     const response = await app.request(path, { headers: { "x-claim-token": "a".repeat(64) } }, env);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1 });
+    expect(await response.json()).toEqual({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested", requestedCount: 0, restoredCount: 0 } });
   });
 
   it("rejects requests without an idempotency key", async () => {

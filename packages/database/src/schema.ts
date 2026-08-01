@@ -179,6 +179,20 @@ export const historicalTitleGrants = sqliteTable("historical_title_grants", {
   holder: uniqueIndex("historical_title_grants_holder_idx").on(table.scope, table.mapId, table.slot, table.titleKey, table.holderName),
 }));
 
+export const bindingInviteHistoricalTitleGrants = sqliteTable("binding_invite_historical_title_grants", {
+  id: text("id").primaryKey(),
+  inviteId: text("invite_id").notNull().references(() => bindingInvites.id),
+  historicalTitleGrantId: text("historical_title_grant_id").notNull().references(() => historicalTitleGrants.id),
+  authorizedBy: text("authorized_by").notNull(),
+  status: text("status").notNull().default("authorized"),
+  playerTitleGrantId: text("player_title_grant_id"),
+  lastError: text("last_error"),
+  createdAt: integer("created_at").notNull(),
+  processedAt: integer("processed_at"),
+}, (table) => ({
+  inviteGrant: uniqueIndex("binding_invite_historical_title_grants_invite_grant_idx").on(table.inviteId, table.historicalTitleGrantId),
+}));
+
 export const catalogImports = sqliteTable("catalog_imports", {
   id: text("id").primaryKey(),
   sourceVersion: text("source_version").notNull(),

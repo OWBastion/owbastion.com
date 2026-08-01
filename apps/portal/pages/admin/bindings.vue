@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TabsItem } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
+import BindingInvitePanel from "~/components/admin/BindingInvitePanel.vue";
 import BindingInviteBatchPanel from "~/components/admin/BindingInviteBatchPanel.vue";
 import { bindingInviteCopyText } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -24,7 +25,8 @@ type Claim = {
   invalidatingSessionCount?: number;
   operationType?: "initial_binding" | "rebind_account" | "qq_transfer" | "conflict";
 };
-type Invitation = { inviteId: string; playerName: string; playerId: string; status: "active" | "redeemed" | "expired" | "revoked"; codeAvailable: boolean; createdAt: number; expiresAt: number; redeemedAt?: number };
+type HistoricalMigration = { status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled"; requestedCount: number; completedCount: number; conflictCount: number; retryCount: number };
+type Invitation = { inviteId: string; playerName: string; playerId: string; status: "active" | "redeemed" | "expired" | "revoked"; codeAvailable: boolean; createdAt: number; expiresAt: number; redeemedAt?: number; historicalMigration: HistoricalMigration };
 type ActiveBinding = { bindingId: string; playerName: string; playerId: string; groupOpenId: string; memberOpenId: string; createdAt: number };
 
 const toast = useToast();
@@ -61,6 +63,7 @@ const bindingTabs = [
   { label: "绑定申请", value: "claims", slot: "claims" as const },
   { label: "已生成邀请码", value: "invitations", slot: "invitations" as const },
   { label: "当前绑定", value: "active", slot: "active" as const },
+  { label: "定向邀请", value: "create", slot: "create" as const },
   { label: "批量生成", value: "batch", slot: "batch" as const },
 ] satisfies TabsItem[];
 
@@ -96,6 +99,7 @@ const columns = [
 const invitationColumns = [
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "status", header: "状态" },
+  { accessorKey: "historicalMigration", header: "历史称号" },
   { accessorKey: "expiresAt", header: "有效期" },
   { id: "actions", header: "", enableHiding: false },
 ];
@@ -108,6 +112,8 @@ const activeBindingColumns = [
 
 const statusLabel = (status: Claim["status"]) => ({ pending_confirmation: "等待确认", pending_review: "待处理", approved: "已批准", rejected: "已拒绝", expired: "已过期" })[status];
 const invitationStatusLabel = (status: Invitation["status"]) => ({ active: "待使用", redeemed: "已确认", expired: "已过期", revoked: "已撤销" })[status];
+const historicalMigrationLabel = (migration: HistoricalMigration) => ({ not_requested: "未请求", authorized: `已授权 · ${migration.requestedCount} 项`, completed: `已完成 · ${migration.completedCount} 项`, partial: `部分完成 · ${migration.completedCount}/${migration.requestedCount}`, retry_required: "需重试", cancelled: "已取消" })[migration.status];
+const historicalMigrationTone = (migration: HistoricalMigration) => migration.status === "completed" ? "success" as const : migration.status === "retry_required" || migration.status === "partial" ? "warning" as const : "default" as const;
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 
 const operationTypeLabel = (type?: Claim["operationType"]) => {
@@ -252,6 +258,16 @@ async function copyInvitationCode() {
   }
 }
 
+async function retryHistoricalMigration(invitation: Invitation) {
+  try {
+    await api(`/v1/binding-invites/${invitation.inviteId}/historical-migration/retry`, { method: "POST", headers: { "Idempotency-Key": createRequestId() } });
+    toast.add({ title: "已提交历史称号重试", color: "success" });
+    await load();
+  } catch (error) {
+    toast.add({ title: "无法重试历史称号迁移", description: portalErrorDetails(error).description, color: "error" });
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -281,8 +297,9 @@ onMounted(load);
           <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" table-key="binding-invites">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
+            <template #historicalMigration-cell="{ row }"><StatusBadge :label="historicalMigrationLabel(row.original.historicalMigration)" :tone="historicalMigrationTone(row.original.historicalMigration)" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
-            <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div></template>
+            <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div><UButton v-if="row.original.historicalMigration.status === 'retry_required'" label="重试迁移" color="warning" variant="soft" size="sm" @click="retryHistoricalMigration(row.original)" /></template>
           </AdminDataTable>
         </template>
         <template #active>
@@ -292,6 +309,9 @@ onMounted(load);
             <template #groupOpenId-cell="{ row }"><span class="table-meta">{{ row.original.groupOpenId }}</span></template>
             <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
           </AdminDataTable>
+        </template>
+        <template #create>
+          <BindingInvitePanel @created="load" />
         </template>
         <template #batch>
           <BindingInviteBatchPanel @created="load" />

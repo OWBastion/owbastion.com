@@ -36,19 +36,27 @@ export const qqBindingResponseSchema = z.object({
 
 const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
 const inviteClaimCode = z.string().trim().regex(/^[A-Z2-9]{6}$/);
-export const adminBindingInviteRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64), playerId });
-export const adminBindingInviteResponseSchema = z.object({ contractVersion, inviteId: z.string().uuid(), code: inviteCode, playerName: z.string(), playerId, expiresAt: z.number().int() });
-export const adminBindingInviteBatchRequestSchema = z.object({ contractVersion, invitations: z.array(adminBindingInviteRequestSchema.omit({ contractVersion: true })).min(1).max(100) }).superRefine((value, context) => {
+const historicalTitleGrantId = z.string().trim().min(1).max(256);
+export const historicalMigrationStatusSchema = z.enum(["not_requested", "authorized", "completed", "partial", "retry_required", "cancelled"]);
+export const adminHistoricalMigrationSummarySchema = z.object({ status: historicalMigrationStatusSchema, requestedCount: z.number().int().nonnegative(), completedCount: z.number().int().nonnegative(), conflictCount: z.number().int().nonnegative(), retryCount: z.number().int().nonnegative() });
+export const publicHistoricalMigrationSummarySchema = z.object({ status: z.enum(["not_requested", "pending", "completed", "partial", "retry_required", "cancelled"]), requestedCount: z.number().int().nonnegative(), restoredCount: z.number().int().nonnegative() });
+const adminBindingInviteRequestBaseSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64), playerId, historicalTitleGrantIds: z.array(historicalTitleGrantId).max(1000).default([]) });
+export const adminBindingInviteRequestSchema = adminBindingInviteRequestBaseSchema.superRefine((value, context) => {
+  if (new Set(value.historicalTitleGrantIds).size !== value.historicalTitleGrantIds.length) context.addIssue({ code: "custom", path: ["historicalTitleGrantIds"], message: "Duplicate historical title grant" });
+});
+export const adminBindingInviteResponseSchema = z.object({ contractVersion, inviteId: z.string().uuid(), code: inviteCode, playerName: z.string(), playerId, expiresAt: z.number().int(), historicalMigration: adminHistoricalMigrationSummarySchema });
+export const adminBindingInviteBatchRequestSchema = z.object({ contractVersion, invitations: z.array(adminBindingInviteRequestBaseSchema.omit({ contractVersion: true })).min(1).max(100) }).superRefine((value, context) => {
   const seen = new Set<string>();
   value.invitations.forEach((invitation, index) => {
     const key = `${invitation.playerName.toLocaleLowerCase()}#${invitation.playerId}`;
     if (seen.has(key)) context.addIssue({ code: "custom", path: ["invitations", index], message: "Duplicate BattleTag" });
     seen.add(key);
+    if (new Set(invitation.historicalTitleGrantIds).size !== invitation.historicalTitleGrantIds.length) context.addIssue({ code: "custom", path: ["invitations", index, "historicalTitleGrantIds"], message: "Duplicate historical title grant" });
   });
 });
 export const adminBindingInviteBatchResponseSchema = z.object({ contractVersion, items: z.array(adminBindingInviteResponseSchema).min(1).max(100) });
 export const adminBindingInviteStatusSchema = z.enum(["active", "redeemed", "expired", "revoked"]);
-export const adminBindingInviteListItemSchema = z.object({ inviteId: z.string().uuid(), playerName: z.string(), playerId, status: adminBindingInviteStatusSchema, codeAvailable: z.boolean(), createdAt: z.number().int(), expiresAt: z.number().int(), redeemedAt: z.number().int().optional() });
+export const adminBindingInviteListItemSchema = z.object({ inviteId: z.string().uuid(), playerName: z.string(), playerId, status: adminBindingInviteStatusSchema, codeAvailable: z.boolean(), createdAt: z.number().int(), expiresAt: z.number().int(), redeemedAt: z.number().int().optional(), historicalMigration: adminHistoricalMigrationSummarySchema });
 export const adminBindingInviteListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingInviteListItemSchema) });
 export const adminBindingInviteRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
 export const adminBindingInviteCodeResponseSchema = z.object({ contractVersion, inviteId: z.string().uuid(), code: inviteCode });
@@ -56,7 +64,7 @@ export const adminActiveBindingSchema = z.object({ bindingId: z.string().uuid(),
 export const adminActiveBindingListResponseSchema = z.object({ contractVersion, items: z.array(adminActiveBindingSchema) });
 export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode }).strict();
 export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, playerName: z.string().trim().min(1).max(64), playerId, expiresAt: z.number().int() });
-export const bindingClaimStatusResponseSchema = z.object({ contractVersion, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), expiresAt: z.number().int() });
+export const bindingClaimStatusResponseSchema = z.object({ contractVersion, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), expiresAt: z.number().int(), historicalMigration: publicHistoricalMigrationSummarySchema });
 export const bindingClaimSessionResponseSchema = z.object({ contractVersion, status: z.literal("authenticated") });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
 export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(256).optional() });
@@ -283,11 +291,11 @@ export const ownedTitleSchema = z.object({
   condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
 });
 export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema) });
-export const historicalTitleGrantSchema = ownedTitleSchema.extend({ holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
+export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
 export const adminTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean(), stats: adminTitleGrantStatsSchema });
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
-export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId: z.string().uuid() });
+export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative() });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });

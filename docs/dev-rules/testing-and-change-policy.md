@@ -19,8 +19,8 @@ and achievement-catalog management.
 
 The first Portal map-challenge slice includes database-backed map and achievement
 catalogs, a public read-only achievement directory, upload validation, Queue-backed
-OCR orchestration, maintainer review, and the administrator-confirmed migration
-of historical titles to player accounts. The matrix records these capabilities
+OCR orchestration, maintainer review, and explicit or administrator-confirmed
+migration of historical titles to player accounts. The matrix records these capabilities
 as coded until complete integration evidence is available. Platform-internal
 new title issuance is coded; feature switches and Bastion/GitHub orchestration
 are not implemented.
@@ -135,8 +135,11 @@ API when building the game. `PIONEER`, `CONQUEROR`, and
 holder names remain historical source records and must not be converted into
 platform accounts automatically. A maintainer may
 create one auditable `player_title_grants` association for a historical holder
-through the administrator migration UI; a mistaken association is revoked with
-a recorded reason rather than deleted. Only active grant records authorize a
+through the administrator migration UI or by explicitly authorizing selected
+unclaimed records on a binding invitation. A clean approved binding executes
+that authorization without a second decision; conflicts and retryable failures
+remain visible to maintainers. A mistaken association is revoked with a
+recorded reason rather than deleted. Only active grant records authorize a
 player-facing title result.
 
 ## Testing layers
@@ -145,8 +148,9 @@ player-facing title result.
 - D1 migration and repository tests when persistence changes.
 - Title-grant tests for account isolation, map and global title scope, manual
   grant validation and idempotency, empty
-  results, duplicate historical-holder associations, revocation, administrator
-  authorization, idempotency, and audit records.
+  results, duplicate historical-holder associations, explicit invitation
+  authorization, automatic clean-binding migration, conflict/retry handling,
+  revocation, administrator authorization, idempotency, and audit records.
 - Achievement-management tests for maintainer authorization, three-state
   validation, idempotency replay and conflicts, audit records, immediate
   title-rule updates, planned retirement versions, reopening, and the

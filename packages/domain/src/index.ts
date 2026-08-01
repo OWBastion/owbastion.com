@@ -115,6 +115,7 @@ export type PlatformServices = {
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
   createAdminBindingInviteBatch(input: AdminBindingInviteBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteBatchResponse>;
   listAdminBindingInvites(auth: AuthContext): Promise<AdminBindingInviteListResponse>;
+  retryHistoricalTitleMigration(input: { inviteId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   getAdminBindingInviteCode(input: { inviteId: string }, auth: AuthContext): Promise<AdminBindingInviteCodeResponse>;
   listAdminBindings(auth: AuthContext): Promise<AdminActiveBindingListResponse>;
   revokeAdminBindingInvite(input: { inviteId: string } & AdminBindingInviteRevokeRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;

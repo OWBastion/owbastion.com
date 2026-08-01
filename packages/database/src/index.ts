@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
@@ -20,6 +20,29 @@ export const summarizeHistoricalTitleGrantStatuses = (rows: Array<{ holderName: 
   const pendingHolders = new Set(rows.filter(({ grantId }) => !grantId).map(({ holderName }) => holderName));
   return { pendingHolderCount: pendingHolders.size, unclaimedGrantCount: rows.filter(({ grantId }) => !grantId).length, migratedGrantCount: rows.filter(({ grantId }) => Boolean(grantId)).length };
 };
+
+type HistoricalMigrationItem = { status: string };
+const summarizeHistoricalMigration = (rows: HistoricalMigrationItem[], invite: { revokedAt: number | null; expiresAt: number }, claimStatus: string | undefined, timestamp: number) => {
+  const completedCount = rows.filter((row) => row.status === "created" || row.status === "reused").length;
+  const conflictCount = rows.filter((row) => row.status === "conflict").length;
+  const retryCount = rows.filter((row) => row.status === "retry_required").length;
+  let status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled" = "not_requested";
+  if (rows.length > 0) {
+    const cancelled = Boolean(invite.revokedAt) || (!(["approved"].includes(claimStatus ?? "")) && (invite.expiresAt <= timestamp || ["rejected", "expired"].includes(claimStatus ?? "")));
+    if (cancelled) status = "cancelled";
+    else if (retryCount > 0) status = "retry_required";
+    else if (completedCount === rows.length) status = "completed";
+    else if (conflictCount > 0 || completedCount > 0) status = "partial";
+    else status = "authorized";
+  }
+  return { status, requestedCount: rows.length, completedCount, conflictCount, retryCount };
+};
+
+const toPublicHistoricalMigration = (summary: ReturnType<typeof summarizeHistoricalMigration>) => ({
+  status: summary.status === "authorized" ? "pending" as const : summary.status,
+  requestedCount: summary.requestedCount,
+  restoredCount: summary.completedCount,
+});
 const loginTtlMs = 2 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
@@ -175,6 +198,74 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
+
+  const performAuthorizedHistoricalTitleMigration = async (input: { inviteId: string; playerAccountId: string; claimId: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
+    const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
+    const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
+    const items = await db.select().from(bindingInviteHistoricalTitleGrants).where(eq(bindingInviteHistoricalTitleGrants.inviteId, input.inviteId));
+    if (!invite || !claim || claim.status !== "approved" || invite.revokedAt || !items.length) return;
+
+    const timestamp = now();
+    const statements: any[] = [];
+    const audits: Array<{ entityId: string; payload: Record<string, unknown> }> = [];
+    for (const item of items) {
+      if (["created", "reused", "conflict"].includes(item.status)) continue;
+      const historical = await db.select().from(historicalTitleGrants).where(eq(historicalTitleGrants.id, item.historicalTitleGrantId)).get();
+      if (!historical) {
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_GRANT_NOT_FOUND", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+        continue;
+      }
+      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id))).get();
+      let outcome: "created" | "reused" | "conflict";
+      let grantId: string;
+      if (existing && existing.playerAccountId !== input.playerAccountId) {
+        outcome = "conflict";
+        grantId = existing.id;
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: "HISTORICAL_TITLE_GRANT_CLAIMED", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      } else if (existing?.status === "revoked") {
+        outcome = "reused";
+        grantId = existing.id;
+        statements.push(db.update(playerTitleGrants).set({ playerAccountId: input.playerAccountId, status: "active", grantedBy: `binding:${input.claimId}`, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id)));
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      } else if (existing) {
+        outcome = "reused";
+        grantId = existing.id;
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      } else {
+        outcome = "created";
+        grantId = crypto.randomUUID();
+        statements.push(db.insert(playerTitleGrants).values({ id: grantId, playerAccountId: input.playerAccountId, titleKey: historical.titleKey, mapId: historical.mapId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: `binding:${input.claimId}`, grantedAt: timestamp }));
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      }
+      audits.push({ entityId: grantId, payload: { inviteId: input.inviteId, claimId: input.claimId, historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode } });
+    }
+    if (!statements.length) return;
+    const auditStatements = audits.map(({ entityId, payload }) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: input.auth.actorType, actorId: input.auth.subject, operation: "binding_invite.historical_migration.item", entityType: "player_title_grant", entityId, payloadJson: JSON.stringify(payload), createdAt: timestamp }));
+    try {
+      await db.batch([...statements, ...auditStatements] as [any, ...any[]]);
+    } catch {
+      const retryStatements = items.filter((item) => !["created", "reused", "conflict"].includes(item.status)).map((item) => db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_MIGRATION_FAILED", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      try {
+        if (retryStatements.length) await db.batch(retryStatements as [any, ...any[]]);
+        await recordAudit(db, input.auth, "binding_invite.historical_migration.failed", "binding_invite", input.inviteId, { claimId: input.claimId, playerAccountId: input.playerAccountId, mode: input.mode });
+      } catch {
+        // Binding activation remains successful even if migration recovery state cannot be written.
+      }
+    }
+  };
+
+  const migrateAuthorizedHistoricalTitles = async (input: { inviteId: string; playerAccountId: string; claimId: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
+    try {
+      await performAuthorizedHistoricalTitleMigration(input);
+    } catch {
+      try {
+        await db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_MIGRATION_FAILED", processedAt: now() }).where(and(eq(bindingInviteHistoricalTitleGrants.inviteId, input.inviteId), inArray(bindingInviteHistoricalTitleGrants.status, ["authorized", "retry_required"])));
+        await recordAudit(db, input.auth, "binding_invite.historical_migration.failed", "binding_invite", input.inviteId, { claimId: input.claimId, playerAccountId: input.playerAccountId, mode: input.mode });
+      } catch {
+        // Binding activation remains successful even if migration recovery state cannot be written.
+      }
+    }
+  };
 
   const dispatchPendingQqGroupPolicyEvents = async () => {
     if (!qqPolicyQueue) return;
@@ -2082,11 +2173,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async createAdminBindingInvite(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["createAdminBindingInvite"]> extends Promise<infer T> ? T : never>(db, auth.subject, "admin.binding_invite.create", idempotencyKey, input);
       if (replay) return replay;
+      const historicalIds = input.historicalTitleGrantIds ?? [];
+      const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
+      if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
       const timestamp = now(); const code = randomInviteCode(); const inviteId = crypto.randomUUID();
-      const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs };
-      await db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt });
-      await recordIdempotency(db, auth.subject, "admin.binding_invite.create", idempotencyKey, input, response);
-      await recordAudit(db, auth, "admin.binding_invite.create", "binding_invite", inviteId, { playerId: input.playerId });
+      const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs, historicalMigration: { status: historicalIds.length ? "authorized" as const : "not_requested" as const, requestedCount: historicalIds.length, completedCount: 0, conflictCount: 0, retryCount: 0 } };
+      await db.batch([
+        db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt }),
+        ...historicalIds.map((historicalTitleGrantId) => db.insert(bindingInviteHistoricalTitleGrants).values({ id: crypto.randomUUID(), inviteId, historicalTitleGrantId, authorizedBy: auth.subject, status: "authorized", createdAt: timestamp })),
+        db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.binding_invite.create:${idempotencyKey}`, actorId: auth.subject, operation: "admin.binding_invite.create", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
+        db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.binding_invite.create", entityType: "binding_invite", entityId: inviteId, payloadJson: JSON.stringify({ playerId: input.playerId, historicalTitleGrantIds: historicalIds, historicalTitleGrantCount: historicalIds.length }), createdAt: timestamp }),
+      ] as [any, ...any[]]);
       return response;
     },
 
@@ -2100,16 +2197,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const prepared = await Promise.all(input.invitations.map(async (invitation, index) => {
         const code = [...codes][index]!;
         const inviteId = crypto.randomUUID();
+        const historicalIds = invitation.historicalTitleGrantIds ?? [];
+        const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
+        if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
         return {
           invite: { id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: invitation.playerName, normalizedPlayerName: normalizePlayerName(invitation.playerName), playerId: invitation.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: timestamp + inviteTtlMs },
-          response: { contractVersion: "1" as const, inviteId, code, playerName: invitation.playerName, playerId: invitation.playerId, expiresAt: timestamp + inviteTtlMs },
+          historicalIds,
+          response: { contractVersion: "1" as const, inviteId, code, playerName: invitation.playerName, playerId: invitation.playerId, expiresAt: timestamp + inviteTtlMs, historicalMigration: { status: historicalIds.length ? "authorized" as const : "not_requested" as const, requestedCount: historicalIds.length, completedCount: 0, conflictCount: 0, retryCount: 0 } },
         };
       }));
       const response = { contractVersion: "1" as const, items: prepared.map(({ response }) => response) };
       await db.batch([
         ...prepared.map(({ invite }) => db.insert(bindingInvites).values(invite)),
+        ...prepared.flatMap(({ invite, historicalIds }) => historicalIds.map((historicalTitleGrantId) => db.insert(bindingInviteHistoricalTitleGrants).values({ id: crypto.randomUUID(), inviteId: invite.id, historicalTitleGrantId, authorizedBy: auth.subject, status: "authorized", createdAt: timestamp }))),
         db.insert(idempotencyKeys).values({ id: `${auth.subject}:${operation}:${idempotencyKey}`, actorId: auth.subject, operation, requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
-        ...prepared.map(({ response: invite }) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation, entityType: "binding_invite", entityId: invite.inviteId, payloadJson: JSON.stringify({ playerId: invite.playerId }), createdAt: timestamp })),
+        ...prepared.map(({ response: invite, historicalIds }) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation, entityType: "binding_invite", entityId: invite.inviteId, payloadJson: JSON.stringify({ playerId: invite.playerId, historicalTitleGrantIds: historicalIds, historicalTitleGrantCount: historicalIds.length }), createdAt: timestamp })),
       ] as [any, ...any[]]);
       return response;
     },
@@ -2117,6 +2219,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async listAdminBindingInvites() {
       const timestamp = now();
       const rows = await db.select().from(bindingInvites).orderBy(desc(bindingInvites.createdAt)).limit(100);
+      const migrationRows = await db.select().from(bindingInviteHistoricalTitleGrants);
+      const claims = await db.select({ inviteId: bindingClaims.inviteId, status: bindingClaims.status }).from(bindingClaims);
       return {
         contractVersion: "1" as const,
         items: rows.map((invite) => ({
@@ -2128,8 +2232,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: invite.createdAt,
           expiresAt: invite.expiresAt,
           ...(invite.redeemedAt ? { redeemedAt: invite.redeemedAt } : {}),
+          historicalMigration: summarizeHistoricalMigration(migrationRows.filter((row) => row.inviteId === invite.id), invite, claims.find((claim) => claim.inviteId === invite.id)?.status, timestamp),
         })),
       };
+    },
+
+    async retryHistoricalTitleMigration(input, auth, idempotencyKey) {
+      const operation = "admin.binding_invite.historical_migration.retry";
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return;
+      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
+      const claim = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, input.inviteId), eq(bindingClaims.status, "approved"))).orderBy(desc(bindingClaims.decidedAt)).get();
+      if (!invite || !claim?.memberOpenId || invite.revokedAt) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.status, "active"))).get();
+      if (!binding) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+      await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: binding.playerAccountId, claimId: claim.id, auth, mode: "retry" });
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
+      await recordAudit(db, auth, operation, "binding_invite", invite.id, { claimId: claim.id, playerAccountId: binding.playerAccountId });
     },
 
     async getAdminBindingInviteCode(input, auth) {
@@ -2192,11 +2311,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
       if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
       if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
+      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
+      const migration = invite ? toPublicHistoricalMigration(summarizeHistoricalMigration(await db.select().from(bindingInviteHistoricalTitleGrants).where(eq(bindingInviteHistoricalTitleGrants.inviteId, invite.id)), invite, claim.status, now())) : { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 };
       if (claim.status === "pending_confirmation" && claim.expiresAt <= now()) {
         await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
-        return { contractVersion: "1" as const, status: "expired" as const, expiresAt: claim.expiresAt };
+        return { contractVersion: "1" as const, status: "expired" as const, expiresAt: claim.expiresAt, historicalMigration: { ...migration, status: "cancelled" as const } };
       }
-      return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt };
+      return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt, historicalMigration: claim.status === "rejected" || claim.status === "expired" ? { ...migration, status: "cancelled" as const } : migration };
     },
 
     async exchangeBindingClaimSession(input) {
@@ -2285,6 +2406,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           idempotencyStatement,
           db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.binding_claim.auto_activate", entityType: "binding_claim", entityId: claim.id, payloadJson: JSON.stringify({ inviteId: invite.id, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, operationType: "initial_binding", bindingId }), createdAt: timestamp }),
         ] as [any, ...any[]]);
+        await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: playerAccount.id, claimId: claim.id, auth, mode: "automatic" });
         return verifiedResponse;
       }
 
@@ -2384,6 +2506,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.binding_claim.decide", idempotencyKey, input); if (replay) return;
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
       if (!claim || claim.status !== "pending_review" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_REVIEWABLE");
+      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
+      if (!invite || invite.revokedAt || invite.expiresAt <= now()) throw new Error("BINDING_CLAIM_NOT_REVIEWABLE");
       const timestamp = now();
       const requestHash = await hashRequest(input);
       const idempotencyStatement = db.insert(idempotencyKeys).values({
@@ -2445,6 +2569,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         );
 
         await db.batch(statements as [typeof statements[number], ...typeof statements]);
+        await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: account.id, claimId: claim.id, auth, mode: "reviewed" });
       }
     },
 

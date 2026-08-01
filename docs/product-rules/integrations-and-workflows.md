@@ -283,6 +283,17 @@ expiry, and lifecycle status, but never its plaintext code. A maintainer may
 revoke only an unused, unexpired invitation with an auditable reason; revocation
 makes the invitation unusable immediately.
 
+An administrator may explicitly attach currently unclaimed historical title
+record IDs to an invitation. The Portal uses a searchable holder selection for
+discovery, but the selected platform-owned record IDs are the authorization;
+BattleTag or holder-name equality never authorizes migration. After a binding
+claim becomes approved, the platform creates or reuses the normal historical
+`player_title_grants` without a second administrator action for a clean first
+binding. Each item records created, reused, conflict, or retry-required state;
+conflicts never reassign an existing grant, and a recoverable migration failure
+does not roll back the binding or session. Existing invitations without an
+authorization remain unchanged.
+
 Map-only titles are scoped to the map that supplied their reward slot. The
 platform does not expose them as global titles, and it preserves Bastion's
 map-specific pioneer display prefixes when returning a map-filtered title catalog.

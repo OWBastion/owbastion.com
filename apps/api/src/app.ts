@@ -321,14 +321,16 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingInviteRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createAdminBindingInvite(parsed.data, access.auth!, idempotencyKey), 201);
+    try { return c.json(await dependencies.services(c.env).createAdminBindingInvite(parsed.data, access.auth!, idempotencyKey), 201); }
+    catch (error) { if (error instanceof Error && error.message === "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE") return errorResponse(c, 409, "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE", "One or more historical titles are no longer unclaimed"); throw error; }
   });
 
   app.post("/v1/admin/binding-invites/batch", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminBindingInviteBatchRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createAdminBindingInviteBatch(parsed.data, access.auth!, idempotencyKey), 201);
+    try { return c.json(await dependencies.services(c.env).createAdminBindingInviteBatch(parsed.data, access.auth!, idempotencyKey), 201); }
+    catch (error) { if (error instanceof Error && error.message === "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE") return errorResponse(c, 409, "HISTORICAL_TITLE_GRANT_NOT_AVAILABLE", "One or more historical titles are no longer unclaimed"); throw error; }
   });
 
   app.get("/v1/admin/binding-invites", async (c) => {
@@ -339,6 +341,13 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/bindings", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     return c.json(await dependencies.services(c.env).listAdminBindings(access.auth!));
+  });
+
+  app.post("/v1/admin/binding-invites/:inviteId/historical-migration/retry", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    try { await dependencies.services(c.env).retryHistoricalTitleMigration({ inviteId: c.req.param("inviteId") }, access.auth!, idempotencyKey); return c.body(null, 204); }
+    catch (error) { if (error instanceof Error && error.message === "HISTORICAL_MIGRATION_NOT_READY") return errorResponse(c, 409, "HISTORICAL_MIGRATION_NOT_READY", "The binding is not ready for historical title migration"); throw error; }
   });
 
   app.get("/v1/admin/binding-invites/:inviteId/code", async (c) => {
