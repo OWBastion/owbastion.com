@@ -16,7 +16,7 @@ describe("TitleCollection", () => {
     const wrapper = await mountSuspended(TitleCollection, { props: { titles } });
 
     const summaries = wrapper.findAll("summary").map((summary) => summary.text());
-    expect(summaries).toEqual(["地图专属地图称号3 项", "暴雪世界2 项", "哈瓦那1 项", "通用称号随机事件系列2 项", "通用称号开发保留1 项"]);
+    expect(summaries).toEqual(["限定地图地图称号3 项", "暴雪世界2 项", "哈瓦那1 项", "通用称号随机事件系列2 项", "通用称号开发保留1 项"]);
     expect(wrapper.findAll(".title-card h3").map((title) => title.text())).toEqual(["开拓者", "主宰", "征服者", "幸运星", "福星高照", "这是一个超长的称号测试字段如果到这里还没有被截断"]);
     expect(wrapper.text()).toContain("开拓者");
     expect(wrapper.text()).toContain("完成暴雪世界地狱难度。");

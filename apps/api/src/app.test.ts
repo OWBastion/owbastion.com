@@ -764,7 +764,7 @@ describe("API", () => {
       body: JSON.stringify({ contractVersion: "1", challengeId: "title.SKY", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }),
     }, env);
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_AUTOMATIC", message: "该称号由系统自动发放，无需提交截图。" } });
+    expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_AUTOMATIC", message: "该称号满足条件后自动获得，无需提交截图。" } });
   });
 
   it("rejects screenshot uploads for retired title challenges", async () => {

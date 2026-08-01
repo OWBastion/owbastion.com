@@ -38,7 +38,7 @@ const openCategory = computed(() => latestTitle.value?.scope === "global" ? late
   <div class="title-collection">
     <details v-if="mapGroups.length" class="title-group title-group-map" :open="mapSectionOpen">
       <summary class="title-group-summary" :aria-label="`地图称号，${mapTitleCount} 项称号`">
-        <span class="title-group-label"><span class="title-group-kicker">地图专属</span><strong>地图称号</strong></span>
+        <span class="title-group-label"><span class="title-group-kicker">限定地图</span><strong>地图称号</strong></span>
         <span class="title-group-count">{{ mapTitleCount }} 项</span>
       </summary>
       <div class="title-group-content map-groups">

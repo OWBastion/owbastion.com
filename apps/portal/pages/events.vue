@@ -8,7 +8,7 @@ onMounted(async () => { try { events.value = (await api<{ items: RandomEvent[] }
 </script>
 <template>
   <main class="events-page page-shell">
-    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1><p class="body-copy">查看已实装事件、历史记录与开放挑战。</p></section>
+    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1><p class="body-copy">查看当前事件与开放挑战。</p></section>
     <section class="events-panel surface-card" aria-labelledby="events-title">
       <div v-if="loading" class="event-skeleton-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">

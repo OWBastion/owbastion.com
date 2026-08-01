@@ -1,5 +1,5 @@
 export const submissionStatusText: Record<string, string> = {
-  upload_pending: "正在上传",
+  upload_pending: "上传中…",
   received: "已收到",
   evidence_pending: "保存截图中",
   evidence_stored: "截图已保存",
@@ -9,5 +9,5 @@ export const submissionStatusText: Record<string, string> = {
   ocr_review_required: "等待处理",
   approved: "已通过",
   rejected: "未通过",
-  resubmission_required: "需要重新提交",
+  resubmission_required: "需重新提交",
 };

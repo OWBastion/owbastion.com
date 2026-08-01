@@ -16,7 +16,7 @@ useSeoMeta({
       </div>
       <aside class="focus-panel" aria-labelledby="focus-title">
         <p class="panel-eyebrow">本期焦点</p>
-        <h2 id="focus-title">首个轮换挑战<br>即将开放</h2>
+        <h2 id="focus-title">首个轮换挑战<br>未开放</h2>
         <p>限时目标、参与条件和公开完成记录。</p>
         <ul><li>限时成就挑战</li><li>限时活动</li><li>公开完成记录</li></ul>
       </aside>
@@ -31,7 +31,7 @@ useSeoMeta({
       <div class="section-heading"><div><h2 id="content-title">游玩记录</h2></div><p>仅展示公开内容。</p></div>
       <div class="content-grid">
         <article id="events" class="content-card content-card-wide interactive-card--static"><p class="card-label type-kicker">事件</p><h3 class="type-headline">随机事件</h3><p>已发布的随机事件与规则变化。</p></article>
-        <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">成就</p><h3 class="type-headline">完成过的挑战</h3><p>查看已发布的目标与完成条件。</p></NuxtLink>
+        <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">成就</p><h3 class="type-headline">成就挑战</h3><p>查看已发布的目标与完成条件。</p></NuxtLink>
         <article id="rankings" class="content-card content-card-emphasis interactive-card--static"><p class="card-label type-kicker">天梯排名</p><h3 class="type-headline">公开记录</h3><p>挑战、完成时间与玩家排名。</p></article>
         <article class="content-card interactive-card--static"><p class="card-label type-kicker">版本记录</p><h3 class="type-headline">版本变化</h3><p>已发布的内容与规则变化。</p></article>
       </div>

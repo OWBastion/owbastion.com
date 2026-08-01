@@ -3,9 +3,9 @@ import type { StepperItem } from "@nuxt/ui";
 
 const steps: StepperItem[] = [
   { icon: "i-lucide-upload", title: "上传截图" },
-  { icon: "i-lucide-scan-line", title: "AI 识别" },
-  { icon: "i-lucide-user-round-check", title: "人工核对" },
-  { icon: "i-lucide-award", title: "发放称号" },
+  { icon: "i-lucide-scan-line", title: "截图识别" },
+  { icon: "i-lucide-user-round-check", title: "核对结果" },
+  { icon: "i-lucide-award", title: "获得称号" },
   { icon: "i-lucide-refresh-cw", title: "游戏内同步" },
 ];
 </script>
@@ -14,7 +14,7 @@ const steps: StepperItem[] = [
   <UCard class="process-card" variant="subtle" aria-labelledby="process-title">
     <div class="process-heading">
       <UIcon name="i-lucide-circle-help" aria-hidden="true" />
-      <h2 id="process-title">称号发放流程</h2>
+      <h2 id="process-title">获得称号流程</h2>
     </div>
     <UStepper
       :items="steps"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
+import { submissionStatusText } from "~/utils/submissionStatus";
 
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; grantCompleted: [] }>();
@@ -7,20 +8,8 @@ const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateSty
 const battleTag = computed(() => `${props.player.playerName}#${props.player.playerId}`);
 const initials = computed(() => props.player.playerName.slice(0, 2));
 const statusLabel = computed(() => props.player.status === "active" ? "正常" : "已封禁");
-const submissionStatusLabels: Record<string, string> = {
-  received: "已收到",
-  evidence_pending: "保存截图中",
-  evidence_stored: "截图已保存",
-  upload_pending: "上传中",
-  ocr_pending: "等待识别",
-  ready_for_review: "等待核对",
-  ocr_review_required: "等待处理",
-  approved: "已通过",
-  rejected: "未通过",
-  resubmission_required: "需要重新提交",
-};
 const submissionStatusTone = (status: string) => status === "approved" || status === "ready_for_review" ? "success" : status === "rejected" || status === "resubmission_required" || status === "ocr_review_required" ? "warning" : "default";
-const submissionStatusLabel = (status: string) => submissionStatusLabels[status] ?? status;
+const submissionStatusLabel = (status: string) => submissionStatusText[status] ?? status;
 </script>
 
 <template>

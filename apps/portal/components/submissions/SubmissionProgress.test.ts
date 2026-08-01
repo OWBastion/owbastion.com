@@ -19,6 +19,6 @@ describe("SubmissionProgress", () => {
     const wrapper = await mountSuspended(SubmissionProgress, { props: { status: "awaiting_player_confirmation", updatedAt: 0 } });
 
     expect(wrapper.text()).toContain("等待确认挑战");
-    expect(wrapper.get('[aria-label="OCR 识别：进行中"]').exists()).toBe(true);
+    expect(wrapper.get('[aria-label="截图识别：进行中"]').exists()).toBe(true);
   });
 });

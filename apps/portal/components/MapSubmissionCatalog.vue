@@ -19,7 +19,7 @@ const selectedMapChallenges = computed(() => props.challenges.filter((challenge)
       <div v-if="selectedMapChallenges.length" class="map-objectives">
         <button v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}`" class="objective-button" :class="{ selected: props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>
-      <p v-else class="empty-state">该地图暂时没有可提交目标。</p>
+      <p v-else class="empty-state">该地图暂无提交目标。</p>
     </div>
     <p v-else class="selection-hint">选择地图后，查看该地图可提交的难度与开拓者目标。</p>
   </section>

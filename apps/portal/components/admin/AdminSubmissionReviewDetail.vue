@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { submissionStatusText } from "~/utils/submissionStatus";
+import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 
 type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
 type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
@@ -30,8 +31,6 @@ const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.ro
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
-const ocrStatusText: Record<AdminSubmission["ocrStatus"], string> = { not_started: "未开始", pending: "识别中", matched: "已匹配", mismatch: "未匹配", review_required: "需人工核对", error: "识别失败" };
-const ocrStatusTone = (status: AdminSubmission["ocrStatus"]) => status === "matched" ? "success" : status === "mismatch" || status === "review_required" || status === "error" ? "warning" : "default";
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
@@ -178,7 +177,7 @@ function decisionLoading(decision: ReviewDecision) {
         <UCard class="ocr-card">
           <template #header><div class="card-heading"><h3>OCRKit</h3><span>识别证据</span></div></template>
           <dl class="detail-list">
-            <div><dt>状态</dt><dd><StatusBadge :label="ocrStatusText[submission.ocrStatus]" :tone="ocrStatusTone(submission.ocrStatus)" /></dd></div>
+            <div><dt>状态</dt><dd><StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" /></dd></div>
             <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
             <div v-if="submission.ocrErrorCode"><dt>错误代码</dt><dd>{{ submission.ocrErrorCode }}</dd></div>
           </dl>

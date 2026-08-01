@@ -43,12 +43,12 @@ const resubmissionTips = [
 const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
-const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过处理，请查看原因并重新提交。" : "查看截图、识别结果与提交状态。");
+const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过识别，请查看原因后重新提交。" : "查看截图、识别结果与提交状态。");
 const manualReviewEligible = computed(() => data.value?.status === "resubmission_required" && (data.value?.ocrFailCount ?? 0) >= OCR_MANUAL_REVIEW_THRESHOLD);
 const statusAlert = computed(() => {
-  if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后可确认地图或成就挑战。", color: "info" as const };
-  if (data.value?.status === "ocr_review_required") return { title: "等待人工审核", description: "已进入审核队列，请等待管理员处理。", color: "warning" as const };
-  if (data.value?.status === "resubmission_required") return { title: "需要重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
+  if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后确认对应的地图通关或成就挑战。", color: "info" as const };
+  if (data.value?.status === "ocr_review_required") return { title: "等待处理", description: "已提交处理申请，请稍后查看结果。", color: "warning" as const };
+  if (data.value?.status === "resubmission_required") return { title: "需重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
   return null;
 });
 const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
@@ -129,8 +129,8 @@ onBeforeUnmount(() => {
             </dl>
             <div class="overview-actions">
               <UButton v-if="data.status === 'resubmission_required'" to="/submissions/new" label="重新提交截图" icon="i-lucide-upload" color="primary" block />
-              <UButton v-if="manualReviewEligible" label="申请人工处理" icon="i-lucide-user-check" color="neutral" variant="outline" :loading="requestingManualReview" :disabled="requestingManualReview" aria-label="申请人工处理" @click="handleRequestManualReview" block />
-              <UAlert v-if="manualReviewRequested" color="success" variant="subtle" icon="i-lucide-check-circle" title="已提交申请" description="已进入人工审核队列，请等待管理员处理。" />
+              <UButton v-if="manualReviewEligible" label="申请人工核对" icon="i-lucide-user-check" color="neutral" variant="outline" :loading="requestingManualReview" :disabled="requestingManualReview" aria-label="申请人工核对" @click="handleRequestManualReview" block />
+              <UAlert v-if="manualReviewRequested" color="success" variant="subtle" icon="i-lucide-check-circle" title="已提交申请" description="申请已提交，请等待核对结果。" />
               <UButton label="刷新状态" icon="i-lucide-refresh-cw" color="neutral" variant="outline" aria-label="刷新状态" :loading="fetchStatus === 'pending'" :disabled="fetchStatus === 'pending'" @click="refreshSubmission" block />
             </div>
           </UCard>
@@ -138,7 +138,7 @@ onBeforeUnmount(() => {
           <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" />
 
           <UCard v-if="data.ocr" class="ocr-card">
-            <template #header><div class="card-heading"><h2>识别摘要</h2><span>OCR</span></div></template>
+            <template #header><div class="card-heading"><h2>识别摘要</h2><span>截图识别</span></div></template>
             <dl class="ocr-list">
               <div><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
               <div><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
@@ -150,7 +150,7 @@ onBeforeUnmount(() => {
 
           <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card">
             <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
-            <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后提交给管理员核对。</p>
+            <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后进入核对。</p>
             <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
             <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
             <template v-else>

@@ -8,7 +8,7 @@
 | [DESIGN.md](DESIGN.md) | 设计规范 | authoritative | 视觉 token、布局、交互、状态语言与无障碍基线 |
 | [portal-ui-guidelines.md](portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 |
 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
-| [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、地图称号规则、槽位和展示方式的中文术语 |
+| [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
 
 ## 使用规则
 

@@ -11,7 +11,7 @@ describe("submission detail page", () => {
     api.mockClear();
     const wrapper = await mountSuspended(SubmissionPage, { route: "/submissions/submission-1", global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' } } } });
     await flushPromises();
-    expect(wrapper.text()).toContain("需要重新提交");
+    expect(wrapper.text()).toContain("需重新提交");
     expect(wrapper.text()).toContain("OCR 结果与目标挑战不匹配");
     expect(wrapper.text()).toContain("识别摘要");
     expect(wrapper.text()).toContain("提交编号");
@@ -34,14 +34,14 @@ describe("submission detail page", () => {
     api.mockClear();
     const wrapper = await mountSuspended(SubmissionPage, { route: "/submissions/submission-1", global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' } } } });
     await flushPromises();
-    expect(wrapper.find('[aria-label="申请人工处理"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
   });
 
   it("shows manual review button when ocrFailCount meets threshold and calls the correct endpoint", async () => {
     api.mockImplementation(() => Promise.resolve({ submissionId: "submission-eligible", status: "resubmission_required", mapName: "帕拉伊苏", difficulty: "困难", reason: "OCR 结果与目标挑战不匹配", createdAt: 0, updatedAt: 1, ocrFailCount: 2, ocr: { mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", challengeCompleted: true } }));
     const wrapper = await mountSuspended(SubmissionPage, { route: "/submissions/submission-eligible", global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' } } } });
     await flushPromises();
-    const btn = wrapper.find('[aria-label="申请人工处理"]');
+    const btn = wrapper.find('[aria-label="申请人工核对"]');
     expect(btn.exists()).toBe(true);
     await btn.trigger("click");
     await flushPromises();

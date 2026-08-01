@@ -9,7 +9,7 @@ export type AchievementChallenge = { challengeId: string; family: "achievement";
 export type Challenge = MapChallenge | AchievementChallenge;
 
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
-const phaseLabels = { hash: "读取截图", session: "创建上传会话", upload: "上传截图", complete: "完成上传" } as const;
+const phaseLabels = { hash: "读取截图", session: "开始上传", upload: "上传截图", complete: "完成上传" } as const;
 
 export function useSubmissionUpload() {
   const api = usePortalApi();

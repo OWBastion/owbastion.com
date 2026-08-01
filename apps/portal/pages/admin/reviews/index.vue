@@ -2,6 +2,7 @@
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
 import { submissionStatusText } from "~/utils/submissionStatus";
+import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -41,8 +42,6 @@ const ocrConfidence = (submission: AdminSubmission, field: string) => {
   const confidence = ocrPayload(submission)?.fields?.[field]?.confidence;
   return typeof confidence === "number" ? `${Math.round(confidence * 100)}%` : "—";
 };
-const ocrStatusText: Record<AdminSubmission["ocrStatus"], string> = { not_started: "未开始", pending: "识别中", matched: "已匹配", mismatch: "未匹配", review_required: "需人工核对", error: "识别失败" };
-const ocrStatusTone = (status: AdminSubmission["ocrStatus"]) => status === "matched" ? "success" : status === "mismatch" || status === "review_required" || status === "error" ? "warning" : "default";
 const defaultReviewSorting: SortingState = [{ id: "updatedAt", desc: true }];
 const reviewSorting = shallowRef<SortingState>([...defaultReviewSorting]);
 const reviewSortingOptions = [
@@ -89,7 +88,7 @@ onMounted(() => { void load(); });
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>
-      <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusText[row.original.ocrStatus]" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
+      <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>
     </AdminDataTable><UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" /></section>

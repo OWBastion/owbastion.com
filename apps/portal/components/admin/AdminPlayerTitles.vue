@@ -27,7 +27,7 @@ const mapTitleItems = computed(() => titles.value.filter((title) => title.scope 
 const selectedTitleValues = computed(() => new Set([...selectedGlobalValues.value, ...selectedMapValues.value].map((item) => item.value)));
 const selectedTitles = computed(() => titles.value.filter((title) => selectedTitleValues.value.has(title.value)));
 const selectedTitleCount = computed(() => selectedTitles.value.length);
-const sourceLabels = { historical: "历史迁移", submission: "截图审核", manual: "人工发放", automatic: "自动发放" } as const;
+const sourceLabels = { historical: "历史迁移", submission: "截图核对", manual: "人工发放", automatic: "自动获得" } as const;
 const slotLabels = { pioneer: "开拓者", conqueror: "征服者", dominator: "主宰" } as const;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const activeTab = shallowRef<"global" | "map">("global");
@@ -91,7 +91,7 @@ onMounted(() => { void loadOptions(); });
     <p v-if="errorMessage" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" @click="activeTab = 'global'">通用称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
-      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" @click="activeTab = 'map'">地图专属<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
+      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
     </nav>
     <div v-if="activeGrants.length" class="title-table-wrap">
       <table class="title-table">
@@ -101,7 +101,7 @@ onMounted(() => { void loadOptions(); });
         <tbody v-else><tr v-for="grant in mapGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td class="table-map">{{ grant.mapName ?? "未知地图" }}{{ grant.slot ? ` · ${slotLabels[grant.slot]}` : "" }}</td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td></tr></tbody>
       </table>
     </div>
-    <UEmpty v-else-if="!props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图专属称号'" variant="naked" />
+    <UEmpty v-else-if="!props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">

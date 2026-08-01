@@ -28,7 +28,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
   if (loading.value || !state.screenshot) return;
   try {
     const result = await submit(state.screenshot);
-    const title = result.status === "awaiting_player_confirmation" ? "识别完成，请确认挑战。" : result.status === "ready_for_review" ? "识别通过，已提交管理员核对。" : result.status === "resubmission_required" ? "截图未通过识别，请重新提交。" : "截图已上传，正在等待 OCR 识别。";
+    const title = result.status === "awaiting_player_confirmation" ? "识别完成，请确认挑战。" : result.status === "ready_for_review" ? "识别通过，等待核对。" : result.status === "resubmission_required" ? "截图未通过识别，请重新提交。" : "截图已上传，等待识别。";
     toast.add({ title, color: result.status === "resubmission_required" ? "warning" : "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch (cause) {
@@ -65,12 +65,12 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           <div class="privacy-note">
             <div class="privacy-header">
               <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
-              <span>截图仅用于挑战核对与模型训练，你的隐私会得到严格保护</span>
+              <span>截图仅用于核对与改进识别服务，你的隐私会得到严格保护</span>
             </div>
             <ul class="privacy-details">
-              <li>截图将用于模型训练，以提升该项目的识别能力</li>
-              <li>模型训练在非云端且不经任何第三方介入的情况下完成</li>
-              <li>训练数据不会对外公开访问，训练模型仅用于该项目的截图识别</li>
+              <li>截图将用于改进识别服务，不会用于其他用途</li>
+              <li>识别处理在独立环境完成，不经过任何第三方</li>
+              <li>数据不会对外公开，识别服务仅用于本项目</li>
             </ul>
           </div>
         </section>

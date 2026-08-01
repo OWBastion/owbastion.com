@@ -6,9 +6,9 @@ const props = defineProps<{ status: string; updatedAt: number }>();
 
 const steps: ProgressStep[] = [
   { key: "submitted", title: "已提交", icon: "i-lucide-check", detail: "截图已提交" },
-  { key: "ocr", title: "OCR 识别", icon: "i-lucide-scan-line", detail: "等待识别" },
-  { key: "review", title: "人工核对", icon: "i-lucide-user-round-check", detail: "等待进入人工核对" },
-  { key: "grant", title: "发放称号", icon: "i-lucide-award", detail: "核对通过后发放称号" },
+  { key: "ocr", title: "截图识别", icon: "i-lucide-scan-line", detail: "等待识别" },
+  { key: "review", title: "核对结果", icon: "i-lucide-user-round-check", detail: "等待进入核对" },
+  { key: "grant", title: "获得称号", icon: "i-lucide-award", detail: "核对通过后获得称号" },
 ];
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
