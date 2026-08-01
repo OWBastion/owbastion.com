@@ -244,6 +244,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-invites/redeem", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-claims/:claimId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/binding-claims/:claimId/session", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -299,6 +300,23 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  app.post("/v1/public/binding-claims/:claimId/session", async (c) => {
+    allowPortal(c);
+    const claimId = c.req.param("claimId");
+    const claimToken = c.req.header("x-claim-token");
+    if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
+    try {
+      const result = await dependencies.services(c.env).exchangeBindingClaimSession({ claimId, claimToken });
+      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json({ contractVersion: "1" as const, status: result.status });
+    } catch (error) {
+      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
+      if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
+      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_COMPLETE") return errorResponse(c, 409, "BINDING_CLAIM_NOT_COMPLETE", "The binding claim is not complete");
+      throw error;
+    }
+  });
+
   app.post("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
@@ -316,6 +334,11 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     return c.json(await dependencies.services(c.env).listAdminBindingInvites(access.auth!));
+  });
+
+  app.get("/v1/admin/bindings", async (c) => {
+    const access = await requireMaintainer(c); if (access.error) return access.error;
+    return c.json(await dependencies.services(c.env).listAdminBindings(access.auth!));
   });
 
   app.get("/v1/admin/binding-invites/:inviteId/code", async (c) => {

@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   target.search = incomingUrl.search;
   const headers: Record<string, string> = { accept: "application/json", "user-agent": "OWBastion-Portal/1.0" };
 
-  for (const name of ["cookie", "idempotency-key", "content-type", "x-login-attempt-token"]) {
+  for (const name of ["cookie", "idempotency-key", "content-type", "x-login-attempt-token", "x-claim-token"]) {
     const value = request.headers[name];
     const headerValue = Array.isArray(value) ? value[0] : value;
     if (headerValue) headers[name] = headerValue;

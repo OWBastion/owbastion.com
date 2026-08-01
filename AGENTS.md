@@ -3,6 +3,11 @@
 > Repository: OWBastion/owbastion.codes  
 > Role: Bastion web platform and operational control plane
 
+## Repository identity
+
+- The local directory is intentionally named `owbastion.codes` to preserve Codex conversation history. Its Git remote is `OWBastion/owbastion.com`; treat GitHub issue URLs under that repository as issues for this repository.
+- For issue work, verify `git remote get-url origin` and use `gh issue view <number> --repo OWBastion/owbastion.com`; do not infer repository ownership from the local directory name. When the implementation resolves an issue in this repository, use `Fixes #<number>` in the commit message; use `Refs` only for related, non-closing work.
+
 This repository contains an implemented pnpm TypeScript workspace: a Hono
 Cloudflare Worker API, a Nuxt Portal, platform contracts/domain/database/auth
 packages, and forward-only D1 migrations. Inspect source and tests before

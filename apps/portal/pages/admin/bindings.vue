@@ -25,11 +25,13 @@ type Claim = {
   operationType?: "initial_binding" | "rebind_account" | "qq_transfer" | "conflict";
 };
 type Invitation = { inviteId: string; playerName: string; playerId: string; status: "active" | "redeemed" | "expired" | "revoked"; codeAvailable: boolean; createdAt: number; expiresAt: number; redeemedAt?: number };
+type ActiveBinding = { bindingId: string; playerName: string; playerId: string; groupOpenId: string; memberOpenId: string; createdAt: number };
 
 const toast = useToast();
 const api = useAdminApi();
 const claims = ref<Claim[]>([]);
 const invitations = ref<Invitation[]>([]);
+const activeBindings = ref<ActiveBinding[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
 
@@ -58,6 +60,7 @@ const activeTab = shallowRef("claims");
 const bindingTabs = [
   { label: "绑定申请", value: "claims", slot: "claims" as const },
   { label: "已生成邀请码", value: "invitations", slot: "invitations" as const },
+  { label: "当前绑定", value: "active", slot: "active" as const },
   { label: "批量生成", value: "batch", slot: "batch" as const },
 ] satisfies TabsItem[];
 
@@ -76,6 +79,13 @@ const invitationSortingOptions = [
   { id: "status", label: "状态" },
   { id: "expiresAt", label: "有效期" },
 ];
+const defaultActiveBindingSorting: SortingState = [{ id: "createdAt", desc: true }];
+const activeBindingSorting = shallowRef<SortingState>([...defaultActiveBindingSorting]);
+const activeBindingSortingOptions = [
+  { id: "playerName", label: "玩家" },
+  { id: "memberOpenId", label: "QQ 身份" },
+  { id: "createdAt", label: "绑定时间" },
+];
 const columns = [
   { accessorKey: "playerName", header: "玩家" },
   { accessorKey: "operationType", header: "类型" },
@@ -88,6 +98,12 @@ const invitationColumns = [
   { accessorKey: "status", header: "状态" },
   { accessorKey: "expiresAt", header: "有效期" },
   { id: "actions", header: "", enableHiding: false },
+];
+const activeBindingColumns = [
+  { accessorKey: "playerName", header: "玩家" },
+  { accessorKey: "memberOpenId", header: "QQ 身份" },
+  { accessorKey: "groupOpenId", header: "群" },
+  { accessorKey: "createdAt", header: "绑定时间" },
 ];
 
 const statusLabel = (status: Claim["status"]) => ({ pending_confirmation: "等待确认", pending_review: "待处理", approved: "已批准", rejected: "已拒绝", expired: "已过期" })[status];
@@ -123,12 +139,14 @@ async function load() {
   loading.value = true;
   errorMessage.value = "";
   try {
-    const [claimResult, invitationResult] = await Promise.all([
+    const [claimResult, invitationResult, activeResult] = await Promise.all([
       api<{ items: Claim[] }>("/v1/binding-claims"),
       api<{ items: Invitation[] }>("/v1/binding-invites"),
+      api<{ items: ActiveBinding[] }>("/v1/bindings"),
     ]);
     claims.value = claimResult.items;
     invitations.value = invitationResult.items;
+    activeBindings.value = activeResult.items;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取绑定记录，请稍后重试。").description;
   } finally {
@@ -265,6 +283,14 @@ onMounted(load);
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
             <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div></template>
+          </AdminDataTable>
+        </template>
+        <template #active>
+          <AdminDataTable v-model:sorting="activeBindingSorting" :data="activeBindings" :columns="activeBindingColumns" :loading="loading" :sorting-options="activeBindingSortingOptions" :default-sorting="defaultActiveBindingSorting" empty="暂无当前绑定。" table-key="active-bindings">
+            <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
+            <template #memberOpenId-cell="{ row }"><span class="table-meta">{{ row.original.memberOpenId }}</span></template>
+            <template #groupOpenId-cell="{ row }"><span class="table-meta">{{ row.original.groupOpenId }}</span></template>
+            <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
           </AdminDataTable>
         </template>
         <template #batch>

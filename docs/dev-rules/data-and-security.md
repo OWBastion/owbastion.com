@@ -56,12 +56,12 @@ token and code. Invitation codes are hashed for verification and encrypted at
 rest for maintainer re-copy, are single-use, target one BattleTag, and expire
 after seven days. A maintainer can revoke only an unused, unexpired invitation;
 the reason is retained in the audit record and revocation takes effect
-immediately. Invitation confirmation codes expire after two
-minutes; only a maintainer approval activates a binding. Login attempts expire
-after two minutes; a verified browser
-session expires after 30 days. The Portal receives a session cookie only after
-the platform verifies a code from an enabled group with an existing QQ member
-OpenID binding.
+immediately. Invitation confirmation codes expire after two minutes; a clean
+first invitation activates a binding automatically after the platform verifies
+a code from an enabled group, while conflicts remain under maintainer review.
+Login attempts expire after two minutes; a verified browser session expires
+after 30 days. The Portal receives a session cookie only after the platform
+verifies both the completed claim and the original browser claim capability.
 
 GET /v1/me returns only the authenticated player's name, numeric player ID,
 binding status, and up to five recent player-facing submissions. The separate

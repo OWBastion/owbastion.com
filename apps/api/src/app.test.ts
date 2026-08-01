@@ -62,9 +62,11 @@ const services: PlatformServices = {
   createAdminBindingInviteBatch: async () => ({ contractVersion: "1", items: [{ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234", expiresAt: 1 }] }),
   listAdminBindingInvites: async () => ({ contractVersion: "1", items: [{ inviteId: "00000000-0000-0000-0000-000000000007", playerName: "Player", playerId: "1234", status: "active" as const, codeAvailable: true, createdAt: 1, expiresAt: 2 }] }),
   getAdminBindingInviteCode: async () => ({ contractVersion: "1", inviteId: "00000000-0000-0000-0000-000000000007", code: "ABCDEFGHIJKL" }),
+  listAdminBindings: async () => ({ contractVersion: "1", items: [] }),
   revokeAdminBindingInvite: async () => {},
-  redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
+  redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1 }),
+  exchangeBindingClaimSession: async () => ({ contractVersion: "1", status: "authenticated", sessionToken: "a".repeat(64) }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
@@ -364,9 +366,21 @@ describe("API", () => {
   });
 
   it("creates a public invitation claim without a player session", async () => {
-    const response = await app.request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL", playerName: "Player", playerId: "1234" }) }, env);
+    const response = await app.request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL" }) }, env);
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ claimId: "00000000-0000-0000-0000-000000000008", code: "ABC234" });
+    expect(await response.json()).toMatchObject({ claimId: "00000000-0000-0000-0000-000000000008", code: "ABC234", playerName: "Player", playerId: "1234" });
+  });
+
+  it("exchanges a completed invitation claim for the normal Portal session", async () => {
+    const exchangeApp = createApp({ authenticate: auth, services: () => ({ ...services, exchangeBindingClaimSession: async ({ claimId, claimToken }) => {
+      expect(claimId).toBe("00000000-0000-0000-0000-000000000008");
+      expect(claimToken).toBe("a".repeat(64));
+      return { contractVersion: "1" as const, status: "authenticated" as const, sessionToken: "s".repeat(64) };
+    } }) });
+    const response = await exchangeApp.request("https://owbastion.com/v1/public/binding-claims/00000000-0000-0000-0000-000000000008/session", { method: "POST", headers: { "x-claim-token": "a".repeat(64) } }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("owb_session=");
+    expect(await response.json()).toEqual({ contractVersion: "1", status: "authenticated" });
   });
 
   it("limits invitation creation and claim decisions to maintainers", async () => {

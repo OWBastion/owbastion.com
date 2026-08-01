@@ -61,6 +61,8 @@ const hashRequest = async (value: unknown) => {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
+const bindingClaimSessionToken = (claimToken: string) => hashRequest({ purpose: "binding-claim-session", claimToken });
+
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 const hexToBytes = (value: string) => {
   if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
@@ -2083,6 +2085,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, inviteId: invite.id, code };
     },
 
+    async listAdminBindings() {
+      const rows = await db.select({ binding: bindings, account: playerAccounts })
+        .from(bindings)
+        .innerJoin(playerAccounts, eq(bindings.playerAccountId, playerAccounts.id))
+        .where(eq(bindings.status, "active"))
+        .orderBy(desc(bindings.createdAt));
+      return {
+        contractVersion: "1" as const,
+        items: rows.map(({ binding, account }) => ({ bindingId: binding.id, playerName: account.playerName, playerId: account.playerId, groupOpenId: binding.groupOpenId, memberOpenId: binding.memberOpenId, createdAt: binding.createdAt })),
+      };
+    },
+
     async revokeAdminBindingInvite(input, auth, idempotencyKey) {
       const operation = "admin.binding_invite.revoke";
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input);
@@ -2097,14 +2111,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async redeemBindingInvite(input) {
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code))).get();
-      const normalized = normalizePlayerName(input.playerName);
-      if (!invite || invite.expiresAt <= now() || invite.redeemedAt || invite.revokedAt || invite.playerId !== input.playerId || invite.normalizedPlayerName !== normalized) throw new Error("INVITE_INVALID");
+      if (!invite || invite.expiresAt <= now() || invite.redeemedAt || invite.revokedAt) throw new Error("INVITE_INVALID");
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
       if (pending) {
         if (pending.expiresAt > now()) throw new Error("INVITE_INVALID");
       }
       const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
-      const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: input.playerName, normalizedPlayerName: normalized, playerId: input.playerId, status: "pending_confirmation", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
+      const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
       try {
         if (pending) {
           await db.batch([
@@ -2117,7 +2130,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } catch {
         throw new Error("INVITE_INVALID");
       }
-      return { contractVersion: "1" as const, claimId, claimToken, code, expiresAt: timestamp + loginTtlMs };
+      return { contractVersion: "1" as const, claimId, claimToken, code, playerName: invite.playerName, playerId: invite.playerId, expiresAt: timestamp + loginTtlMs };
     },
 
     async getBindingClaimStatus(input) {
@@ -2131,10 +2144,42 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt };
     },
 
+    async exchangeBindingClaimSession(input) {
+      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
+      if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
+      if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
+      if (claim.status !== "approved" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.status, "active"))).get();
+      if (!binding) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.id, binding.playerAccountId), eq(playerAccounts.status, "active"))).get();
+      if (!account) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const group = await db.select().from(qqGroupAccess).where(eq(qqGroupAccess.groupOpenId, claim.groupOpenId)).get();
+      const sessionToken = await bindingClaimSessionToken(input.claimToken);
+      const timestamp = now();
+      const sessionId = `binding-claim:${claim.id}`;
+      const existing = await db.select().from(qqSessions).where(eq(qqSessions.id, sessionId)).get();
+      if (existing?.expiresAt && existing.expiresAt <= timestamp) {
+        await db.update(qqSessions).set({ expiresAt: timestamp + sessionTtlMs }).where(eq(qqSessions.id, sessionId));
+      } else if (!existing) {
+        try {
+          await db.insert(qqSessions).values({ id: sessionId, attemptId: claim.id, groupOpenId: claim.groupOpenId, memberOpenId: claim.memberOpenId, environment: group?.environment ?? "production", tokenHash: await hashRequest(sessionToken), expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
+        } catch {
+          const raced = await db.select().from(qqSessions).where(eq(qqSessions.id, sessionId)).get();
+          if (!raced) throw new Error("BINDING_CLAIM_SESSION_FAILED");
+        }
+      }
+      return { contractVersion: "1" as const, status: "authenticated" as const, sessionToken };
+    },
+
     async verifyBindingClaim(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyBindingClaim"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.binding_claim.verify", idempotencyKey, input); if (replay) return replay;
-      const claim = await db.select().from(bindingClaims).where(and(eq(bindingClaims.codeHash, await hashRequest(input.code)), eq(bindingClaims.status, "pending_confirmation"))).get();
+      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.codeHash, await hashRequest(input.code))).get();
       if (!claim) throw new Error("BINDING_CLAIM_CODE_INVALID");
+      const response = { contractVersion: "1" as const, status: "verified" as const, environment: "test" as const };
+      if (claim.status !== "pending_confirmation") {
+        if (["pending_review", "approved"].includes(claim.status) && claim.memberOpenId === input.memberOpenId && claim.groupOpenId === input.groupOpenId) return response;
+        throw new Error("BINDING_CLAIM_CODE_INVALID");
+      }
       if (claim.expiresAt <= now()) {
         await db.update(bindingClaims).set({ status: "expired" }).where(eq(bindingClaims.id, claim.id));
         throw new Error("BINDING_CLAIM_CODE_INVALID");
@@ -2144,14 +2189,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, claim.inviteId)).get();
       if (!invite || invite.redeemedAt || invite.revokedAt || invite.expiresAt <= now()) throw new Error("INVITE_INVALID");
       const timestamp = now();
-      const response = { contractVersion: "1" as const, status: "verified" as const, environment: group.environment as "production" | "test" };
+      const verifiedResponse = { ...response, environment: group.environment as "production" | "test" };
 
       const idempotencyStatement = db.insert(idempotencyKeys).values({
         id: `${auth.subject}:qq.binding_claim.verify:${idempotencyKey}`,
         actorId: auth.subject,
         operation: "qq.binding_claim.verify",
         requestHash: await hashRequest(input),
-        responseJson: JSON.stringify(response),
+        responseJson: JSON.stringify(verifiedResponse),
         createdAt: timestamp,
       });
 
@@ -2163,9 +2208,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         operation: "qq.binding_claim.verify",
         entityType: "binding_claim",
         entityId: claim.id,
-        payloadJson: JSON.stringify({}),
+        payloadJson: JSON.stringify({ inviteId: invite.id, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId }),
         createdAt: timestamp,
       });
+
+      const account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
+      const targetBinding = account ? await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).get() : undefined;
+      const memberBindings = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, input.memberOpenId), eq(bindings.status, "active")));
+      const cleanFirstBinding = (!account || account.status === "active") && !targetBinding && memberBindings.length === 0;
+
+      if (cleanFirstBinding) {
+        const playerAccount = account ?? { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
+        const identityId = crypto.randomUUID();
+        const bindingId = crypto.randomUUID();
+        await db.batch([
+          db.update(bindingClaims).set({ status: "approved", memberOpenId: input.memberOpenId, groupOpenId: input.groupOpenId, messageId: input.messageId, verifiedAt: timestamp, decidedAt: timestamp, decidedBy: auth.subject }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_confirmation"))),
+          db.update(bindingInvites).set({ redeemedAt: timestamp }).where(and(eq(bindingInvites.id, invite.id), isNull(bindingInvites.redeemedAt))),
+          ...(!account ? [db.insert(playerAccounts).values(playerAccount)] : []),
+          db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp }),
+          db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: playerAccount.id, provider: "qq", groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, status: "active", createdAt: timestamp }),
+          idempotencyStatement,
+          db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.binding_claim.auto_activate", entityType: "binding_claim", entityId: claim.id, payloadJson: JSON.stringify({ inviteId: invite.id, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, operationType: "initial_binding", bindingId }), createdAt: timestamp }),
+        ] as [any, ...any[]]);
+        return verifiedResponse;
+      }
 
       await db.batch([
         db.update(bindingClaims).set({ status: "pending_review", memberOpenId: input.memberOpenId, groupOpenId: input.groupOpenId, messageId: input.messageId, verifiedAt: timestamp }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_confirmation"))),
@@ -2174,7 +2240,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         auditStatement,
       ]);
 
-      return response;
+      return verifiedResponse;
     },
 
     async listAdminBindingClaims() {

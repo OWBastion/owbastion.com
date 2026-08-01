@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminManualTitleGrantRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminManualTitleGrantRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -29,6 +29,12 @@ describe("v1 platform contracts", () => {
 
   it("accepts the QQ login verification contract", () => {
     expect(qqLoginVerifyRequestSchema.safeParse({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "user-1", messageId: "message-1" }).success).toBe(true);
+  });
+
+  it("resolves invitation identity from the invitation code", () => {
+    expect(bindingInviteRedeemRequestSchema.safeParse({ contractVersion: "1", code: "ABCDEFGHIJKL" }).success).toBe(true);
+    expect(bindingInviteRedeemRequestSchema.safeParse({ contractVersion: "1", code: "ABCDEFGHIJKL", playerName: "Changed", playerId: "9999" }).success).toBe(false);
+    expect(bindingInviteRedeemResponseSchema.safeParse({ contractVersion: "1", claimId: "00000000-0000-4000-8000-000000000008", claimToken: "a".repeat(64), code: "ABC234", playerName: "Player", playerId: "1234", expiresAt: 1 }).success).toBe(true);
   });
 
   it("accepts a player response without QQ identifiers", () => {

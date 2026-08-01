@@ -262,13 +262,19 @@ map-title meaning from a nullable slot.
 
 ## QQBot and login
 
-QQBot is a channel adapter. Binding starts from a Portal invitation page. The
-player sends the existing `/验证 CODE` command in an enabled group; QQBot forwards only the stable
-group/member identity and code. A maintainer must approve or reject the claim.
-Unapproved claims cannot log in, submit, or read player data.
+QQBot is a channel adapter. Binding starts from a Portal invitation link whose
+target BattleTag is resolved from the administrator-issued invitation. The
+player sends the existing `/验证 CODE` command in an enabled group; QQBot
+forwards only the stable group/member identity and code. A clean first binding
+is activated atomically after verification and records an automatic audit
+decision. Rebinds, transfers, conflicts, and ambiguous recovery cases remain
+pending for maintainer approval; uncompleted claims cannot log in, submit, or
+read player data.
 Maintainers may issue up to 100 BattleTag-targeted invitations in one
 idempotent batch. The Portal presents a per-player copy action for the binding
-link, code, and player instructions. New invitation codes are encrypted at
+link, code, and player instructions. The link carries the invitation code; the
+public page shows the resolved BattleTag as read-only and does not accept
+replacement identity fields. New invitation codes are encrypted at
 rest and can be retrieved individually by a maintainer while still active, so
 they can be copied again without exposing them in the invitation list.
 The administrator list retains each invitation's BattleTag, issuance time,
@@ -281,11 +287,11 @@ platform does not expose them as global titles, and it preserves Bastion's
 map-specific pioneer display prefixes when returning a map-filtered title catalog.
 
 A Portal login attempt creates a six-character code valid for two minutes.
-The user sends /验证 CODE in an enabled QQ group. The API verifies that the
-same QQ member OpenID has an existing binding before consuming the code,
-records the group environment, and issues a 30-day browser session when the
-Portal later polls the verified attempt. QQBot replies and recalls the code
-message only after a successful verification.
+The user sends /验证 CODE in an enabled QQ group. The API verifies the group
+and claim policy before consuming the code, records the group/member
+environment, and the original invitation browser exchanges a completed claim
+for a 30-day browser session. QQBot replies and recalls the code message only
+after a successful verification; it never receives browser session tokens.
 
 Group access is managed through the platform-session-protected `/admin` Portal.
 The Worker accepts maintainer requests only for player accounts with `is_admin`

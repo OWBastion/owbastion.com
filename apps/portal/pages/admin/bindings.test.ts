@@ -41,6 +41,9 @@ const adminApi = vi.fn((path: string, options?: any) => {
   if (path === "/v1/binding-invites") {
     return Promise.resolve({ items: [] });
   }
+  if (path === "/v1/bindings") {
+    return Promise.resolve({ items: [] });
+  }
   if (path.startsWith("/v1/binding-claims/") && path.endsWith("/decision")) {
     return Promise.resolve();
   }
