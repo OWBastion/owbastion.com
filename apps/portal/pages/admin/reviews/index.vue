@@ -20,7 +20,9 @@ type OcrPayload = {
 };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
-const visibleStatuses = "received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required,approved,rejected,resubmission_required";
+type ReviewStatus = "all" | keyof typeof submissionStatusText;
+const reviewStatus = shallowRef<ReviewStatus>("all");
+const reviewStatusOptions = [{ label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).map(([value, label]) => ({ label, value }))];
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const ocrPayload = (submission: AdminSubmission) => submission.ocr as OcrPayload | null;
 const ocrMapName = (submission: AdminSubmission) => {
@@ -62,7 +64,8 @@ const columns: TableColumn<AdminSubmission>[] = [
 async function load() {
   loading.value = true; errorMessage.value = "";
   try {
-    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?status=${visibleStatuses}&page=${page.value}&pageSize=20`);
+    const statusQuery = reviewStatus.value === "all" ? "" : `&status=${encodeURIComponent(reviewStatus.value)}`;
+    const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}`);
     submissions.value = response.items;
     total.value = response.total;
     if (page.value > 1 && !submissions.value.length && total.value) {
@@ -73,6 +76,7 @@ async function load() {
   catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; }
   finally { loading.value = false; }
 }
+watch(reviewStatus, () => { page.value = 1; void load(); });
 onMounted(() => { void load(); });
 </script>
 
@@ -80,6 +84,7 @@ onMounted(() => { void load(); });
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
+      <template #filters><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
