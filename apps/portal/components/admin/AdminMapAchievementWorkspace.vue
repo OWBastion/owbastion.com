@@ -13,6 +13,7 @@ type MapChallenge = {
   kind?: string;
   titleKey?: string;
   name: string;
+  mapVariant?: "classic";
   mapId: string;
   mapName: string;
   difficulty?: string;
@@ -34,6 +35,7 @@ type Rule = {
   submissionMode: "manual" | "automatic";
   displayKind: "fixed" | "map_pioneer" | "map_name_suffix";
   slot: "pioneer" | "conqueror" | "dominator" | null;
+  mapVariant?: "classic";
   defaultScope: "all_active" | "explicit";
   status: "active" | "sunsetting" | "retired";
   introducedVersion: string;
@@ -93,7 +95,7 @@ const editingRule = shallowRef<Rule | null>(null);
 const ruleFormOpen = shallowRef(false);
 const editingExceptionId = shallowRef<string | null>(null);
 const exceptionDraft = reactive<Exception>({ enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null });
-const form = reactive({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual" as Rule["submissionMode"], displayKind: "fixed" as Rule["displayKind"], slot: null as Rule["slot"], defaultScope: "all_active" as Rule["defaultScope"], status: "active" as Rule["status"], introducedVersion: "", retiredVersion: "" });
+const form = reactive({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual" as Rule["submissionMode"], displayKind: "fixed" as Rule["displayKind"], slot: null as Rule["slot"], mapVariant: undefined as "classic" | undefined, defaultScope: "all_active" as Rule["defaultScope"], status: "active" as Rule["status"], introducedVersion: "", retiredVersion: "" });
 
 const defaultRuleSorting: SortingState = [{ id: "titleName", desc: false }];
 const ruleSorting = shallowRef<SortingState>([...defaultRuleSorting]);
@@ -151,7 +153,7 @@ const mapRows = computed<MapViewRow[]>(() => {
     rule: item.rule,
     inheritance: item,
   }));
-  const genuineChallenges = props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value && !challenge.mapTitleRule?.dynamic && challenge.kind !== "map_title_achievement").map((challenge) => ({
+  const genuineChallenges = props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value && !challenge.mapTitleRule?.dynamic).map((challenge) => ({
     rowId: `${challenge.mapId}:${challenge.challengeId}`,
     rowType: "challenge" as const,
     titleName: challenge.name,
@@ -167,7 +169,7 @@ const selectedException = computed(() => selectedInheritance.value.find((item) =
 const dialogOpen = computed({ get: () => ruleFormOpen.value, set: (open: boolean) => { if (open) ruleFormOpen.value = true; else closeRuleForm(); } });
 
 function resetForm(rule?: Rule) {
-  Object.assign(form, rule ? { ...rule, retiredVersion: rule.retiredVersion ?? "" } : { titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
+  Object.assign(form, rule ? { ...rule, retiredVersion: rule.retiredVersion ?? "" } : { titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, mapVariant: undefined, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
 }
 function editRule(rule?: Rule) { editingRule.value = rule ?? null; resetForm(rule); ruleFormOpen.value = true; }
 function closeRuleForm() { editingRule.value = null; ruleFormOpen.value = false; resetForm(); }
@@ -259,7 +261,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     <template v-else>
       <div class="section-toolbar"><USelect v-model="selectedMapId" aria-label="选择地图" :items="props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /><span class="table-meta">{{ mapName }} · {{ mapRows.length }} 项</span></div>
       <AdminDataTable v-model:sorting="mapSorting" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" :data="mapRows" :columns="mapColumns" :loading="loadingRules || props.loading" empty="暂无地图成就。" :table-key="`unified-map-achievements-${selectedMapId}`" table-min-width="860px" class="admin-table">
-        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.rowType === 'projection' ? row.original.inheritance?.projected ? '有效结果' : '未启用规则' : '真实单图挑战' }}</small></template>
+        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.rowType === 'projection' ? `${row.original.rule?.mapVariant === 'classic' ? '经典版地图 · ' : ''}${row.original.inheritance?.projected ? '有效结果' : '未启用规则'}` : `${row.original.challenge?.mapVariant === 'classic' ? '经典版地图 · ' : ''}真实单图挑战` }}</small></template>
         <template #source-cell="{ row }"><span>{{ row.original.source }}</span></template>
         <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition || '暂无记录' }}</span></template>
         <template #submissionMode-cell="{ row }"><span>{{ row.original.submissionMode }}</span></template>
@@ -273,7 +275,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     </template>
 
     <AdminResponsiveDialog v-model:open="dialogOpen" :title="editingRule ? '编辑地图称号规则' : '新建地图称号规则'" size="lg">
-      <template #body><form id="map-title-rule-editor" class="rule-editor" @submit.prevent="saveRule"><UFormField label="称号键" required><UInput v-model="form.titleKey" required :disabled="Boolean(editingRule) || saving" /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="完成条件" required><UTextarea v-model="form.condition" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" required :disabled="saving" /></UFormField><UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="[{ label: '全部有效地图', value: 'all_active' }, { label: '仅例外地图', value: 'explicit' }]" :disabled="saving" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" /></UFormField><UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无指定槽位', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField><UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :disabled="saving" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required :disabled="saving" /></UFormField><UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required :disabled="saving" /></UFormField></form></template>
+      <template #body><form id="map-title-rule-editor" class="rule-editor" @submit.prevent="saveRule"><UFormField label="称号键" required><UInput v-model="form.titleKey" required :disabled="Boolean(editingRule) || saving" /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="完成条件" required><UTextarea v-model="form.condition" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" required :disabled="saving" /></UFormField><UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="[{ label: '全部有效地图', value: 'all_active' }, { label: '仅例外地图', value: 'explicit' }]" :disabled="saving" /></UFormField><UFormField label="地图版本"><USelect v-model="form.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" /></UFormField><UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无指定槽位', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField><UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :disabled="saving" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required :disabled="saving" /></UFormField><UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required :disabled="saving" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeRuleForm" /><UButton label="保存规则" type="submit" form="map-title-rule-editor" :loading="saving" /></template>
     </AdminResponsiveDialog>
   </section>

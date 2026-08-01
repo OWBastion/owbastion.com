@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { AchievementChallenge } from "../composables/useSubmissionUpload";
 
-const props = defineProps<{ maps: Array<{ mapId: string; mapName: string }>; challenges: AchievementChallenge[]; selectedChallengeId: string }>();
+const props = withDefaults(defineProps<{ maps: Array<{ mapId: string; mapName: string }>; challenges: AchievementChallenge[]; selectedChallengeId: string; selectedMapId?: string }>(), { selectedMapId: "" });
 const emit = defineEmits<{ select: [selection: { challengeId: string; mapId?: string }] }>();
 const selectedMapId = shallowRef("");
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
 const mapChallenge = (challenge: AchievementChallenge) => challenge.scope === "map";
 const mapAllowed = (challenge: AchievementChallenge, mapId: string) => !challenge.mapIds?.length || challenge.mapIds.includes(mapId);
+const isSelected = (challenge: AchievementChallenge, mapId = "") => props.selectedChallengeId === challenge.challengeId && props.selectedMapId === mapId;
 const mapChallenges = computed(() => props.challenges.filter(mapChallenge));
 const globalChallenges = computed(() => props.challenges.filter((challenge) => !mapChallenge(challenge)));
 
@@ -37,16 +38,16 @@ const mapManualGroups = computed(() => {
     <section v-if="automaticChallenges.length" class="automatic-section" aria-labelledby="automatic-title">
       <div class="group-heading"><div><p class="card-kicker">系统自动判定</p><h3 id="automatic-title">自动发放</h3></div><span>{{ automaticChallenges.length }} 个称号</span></div>
       <div class="achievement-grid">
-        <article v-for="challenge in automaticChallenges" :key="challenge.challengeId" class="achievement-card automatic"><span class="card-kicker">{{ challenge.category }}</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><small>系统满足条件后自动发放，无需提交截图。</small></article>
+        <article v-for="challenge in automaticChallenges" :key="challenge.scope === 'map' ? `${selectedMapId}:${challenge.challengeId}` : challenge.challengeId" class="achievement-card automatic"><span class="card-kicker">{{ challenge.category }}</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><small>系统满足条件后自动发放，无需提交截图。</small></article>
       </div>
     </section>
     <section v-for="group in manualGroups" :key="group.category" class="achievement-section" :aria-labelledby="`category-${group.category}`">
       <div class="group-heading"><div><p class="card-kicker">称号系列</p><h3 :id="`category-${group.category}`">{{ group.category }}</h3></div><span>{{ group.challenges.length }} 个目标</span></div>
       <div class="achievement-grid">
-        <button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', { challengeId: challenge.challengeId })"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span v-if="challenge.mapVariant === 'classic'" class="card-kicker">经典版地图</span><span>{{ challenge.condition }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
+        <button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: isSelected(challenge) }" type="button" @click="emit('select', { challengeId: challenge.challengeId })"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span v-if="challenge.mapVariant === 'classic'" class="card-kicker">经典版地图</span><span>{{ challenge.condition }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>
     </section>
-    <section v-for="group in mapManualGroups" :key="`map-${group.category}`" class="achievement-section"><div class="group-heading"><div><p class="card-kicker">地图称号系列</p><h3>{{ group.category }}</h3></div><span>{{ group.challenges.length }} 个目标</span></div><div class="achievement-grid"><button v-for="challenge in group.challenges" :key="challenge.challengeId" class="achievement-card" :class="{ selected: selectedChallengeId === challenge.challengeId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><span class="card-kicker">地图挑战</span><strong>{{ challenge.titleName }}</strong><span v-if="challenge.mapVariant === 'classic'" class="card-kicker">经典版地图</span><span>{{ challenge.condition }}</span></button></div></section>
+    <section v-for="group in mapManualGroups" :key="`map-${group.category}`" class="achievement-section"><div class="group-heading"><div><p class="card-kicker">地图称号系列</p><h3>{{ group.category }}</h3></div><span>{{ group.challenges.length }} 个目标</span></div><div class="achievement-grid"><button v-for="challenge in group.challenges" :key="`${selectedMapId}:${challenge.challengeId}`" class="achievement-card" :class="{ selected: isSelected(challenge, selectedMapId) }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><span class="card-kicker">地图挑战</span><strong>{{ challenge.titleName }}</strong><span v-if="challenge.mapVariant === 'classic'" class="card-kicker">经典版地图</span><span>{{ challenge.condition }}</span></button></div></section>
     <section v-if="scheduledChallenges.length" class="achievement-section upcoming-section" aria-labelledby="upcoming-achievements-title">
       <div class="group-heading"><div><p class="card-kicker">暂未开放</p><h3 id="upcoming-achievements-title">即将开始</h3></div><span>{{ scheduledChallenges.length }} 个称号</span></div>
       <div class="achievement-grid"><article v-for="challenge in scheduledChallenges" :key="challenge.challengeId" class="achievement-card upcoming"><span class="card-kicker">挑战称号</span><strong>{{ challenge.titleName }}</strong><span>{{ challenge.condition }}</span><small>未开放，暂不接受截图提交。</small></article></div>

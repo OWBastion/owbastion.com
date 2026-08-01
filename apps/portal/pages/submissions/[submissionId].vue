@@ -155,7 +155,7 @@ onBeforeUnmount(() => {
             <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
             <template v-else>
               <div class="confirm-catalog" :class="{ 'confirm-catalog--busy': confirming }" :aria-busy="confirming || undefined">
-                <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" @select="selectChallenge" />
+                <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" :selected-map-id="selectedMapId" @select="selectChallenge" />
               </div>
               <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId || confirming" @click="confirmChallenge" block />
             </template>
