@@ -304,6 +304,7 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-skeleton { height: 72px; }
 @media (max-width: 620px) {
   .admin-data-table { margin-inline: -2px; }
+  .admin-data-table__scroll--bounded { height: auto !important; max-height: min(70dvh, 42rem); overflow-y: auto; }
   .admin-data-table__controls { align-items: center; flex-wrap: wrap; justify-content: flex-start; }
   .admin-data-table__filters { width: 100%; flex: 1 1 100%; }
   .admin-data-table__secondary-controls { display: block; flex: 1 1 auto; min-width: 0; }
@@ -314,7 +315,7 @@ onBeforeUnmount(() => {
   .admin-data-table__sort-control { width: 100%; min-width: 0; flex: 0 0 auto; }
   .admin-data-table__filters > :first-child { flex: 1; }
   .admin-data-table__controls { position: relative; }
-  .admin-data-table > .admin-data-table__scroll > :deep(table[data-slot="base"]) { display: none; }
+  .admin-data-table :deep(table[data-slot="base"]) { display: none; }
   .admin-data-table__mobile-list { display: block; }
 }
 </style>
