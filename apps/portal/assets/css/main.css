@@ -13,8 +13,14 @@
   --line-strong: oklch(24% 0.025 55 / 25%);
   --accent: oklch(59% 0.16 48);
   --accent-surface: oklch(91% 0.045 70);
+  --info: oklch(55% 0.14 235);
+  --info-surface: oklch(92% 0.035 235);
+  --success: oklch(53% 0.14 145);
+  --success-surface: oklch(91% 0.04 145);
   --danger: oklch(57% 0.17 25);
   --warning: oklch(58% 0.15 75);
+  --disabled-text: var(--quiet);
+  --disabled-surface: var(--surface-raised);
   --on-accent: oklch(99% 0.006 90);
   --header-surface: oklch(99% 0.006 90 / 86%);
   --menu-surface: oklch(98% 0.008 90 / 96%);
@@ -75,6 +81,8 @@
   --ui-border: var(--line);
   --ui-border-accented: var(--line-strong);
   --ui-primary: var(--accent);
+  --ui-info: var(--info);
+  --ui-success: var(--success);
   --ui-error: var(--danger);
   --ui-warning: var(--warning);
   --ui-radius: 0.7rem;
@@ -92,8 +100,14 @@ html.dark {
   --line-strong: oklch(92% 0.01 100 / 21%);
   --accent: oklch(74% 0.14 55);
   --accent-surface: oklch(30% 0.07 50);
+  --info: oklch(76% 0.12 230);
+  --info-surface: oklch(28% 0.06 230);
+  --success: oklch(76% 0.13 145);
+  --success-surface: oklch(28% 0.06 145);
   --danger: oklch(68% 0.16 25);
   --warning: oklch(82% 0.12 85);
+  --disabled-text: var(--quiet);
+  --disabled-surface: var(--surface-raised);
   --on-accent: oklch(19% 0.026 50);
   --header-surface: oklch(18% 0.013 48 / 82%);
   --menu-surface: color-mix(in oklch, var(--surface-raised) 94%, black);
@@ -130,7 +144,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 *:focus:not(:focus-visible) { outline: none; }
 [id] { scroll-margin-top: 92px; }
 
-.page-shell { width: min(100% - 40px, 1440px); margin: 0 auto; }
+.page-shell,
+.page-shell--narrow { width: min(100% - 48px, 1100px); margin: 0 auto; }
+.page-shell--wide { width: min(100% - 48px, 1440px); margin: 0 auto; }
+.page-shell--narrow { max-width: 760px; }
+.page-shell--wide { max-width: 1440px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* -------------------------------------------------------------------------- */
@@ -294,6 +312,51 @@ button, a { -webkit-tap-highlight-color: transparent; }
   box-shadow: var(--elevation-2);
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
 }
+
+/* Shared domain patterns: card headers and key-value detail lists. */
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.card-heading :where(h2, h3) {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 720;
+  letter-spacing: -.02em;
+}
+.card-heading > span {
+  color: var(--quiet);
+  font-size: .72rem;
+  font-weight: 680;
+  letter-spacing: .04em;
+}
+.detail-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.detail-list > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.detail-list > div:first-child { padding-top: 0; }
+.detail-list > div:last-child { padding-bottom: 0; border-bottom: 0; }
+.detail-list dt { color: var(--quiet); font-size: .8rem; }
+.detail-list dd {
+  min-width: 0;
+  margin: 0;
+  font-size: .88rem;
+  font-weight: 650;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.detail-list small { display: block; color: var(--quiet); font-size: .72rem; }
 
 /* -------------------------------------------------------------------------- */
 /* G-03 — glass materials                                                     */
@@ -491,7 +554,12 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
 }
 
 @media (max-width: 620px) {
-  .page-shell { width: min(100% - 24px, 1440px); }
+  .page-shell,
+  .page-shell--narrow,
+  .page-shell--wide { width: min(100% - 24px, 1440px); }
+  .page-shell--narrow { max-width: 760px; }
+  .detail-list > div { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .detail-list dd { text-align: left; }
 }
 
 @media (prefers-reduced-transparency: reduce) {

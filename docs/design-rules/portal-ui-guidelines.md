@@ -65,6 +65,37 @@ Use this pattern for `/admin`:
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
 - Optional admin fields are unmarked by default; do not append “（可选）” to labels. Keep limits such as character counts out of the primary flow unless they prevent an imminent validation error.
 
+### Admin master/detail and batch actions
+
+- Master/detail workspaces keep selection and detail visible together on wide
+  screens; on narrow screens, stack the detail below the list or open it with
+  `AdminResponsiveDialog` when the detail is an edit/decision surface.
+- Batch confirmation shows the selected scope, affected count, current status,
+  consequence, and actions. Put the confirm action after the consequence and
+  keep cancel available without making an optional reason mandatory.
+
+### Page-scoped CSS ownership
+
+Use the following ownership boundary when reviewing a `<style scoped>` block:
+
+- `main.css`, Nuxt UI configuration, or an established shared component owns
+  tokens, type scale, materials, elevation, press feedback, touch targets,
+  focus behavior, containers, and reduced-motion/transparency/contrast policy.
+- A shared domain component owns repeated semantic structure or behavior, such
+  as a status presentation, key-value list, or action group. A shared class is
+  appropriate only for a stable purely visual pattern.
+- A reusable component may keep scoped CSS for internal layout and state
+  presentation. A page may keep scoped CSS for its own grid, sticky evidence,
+  natural image aspect ratio, responsive collapse, and structure-matched
+  skeleton.
+- A pattern used twice deserves an extraction review; at three or more uses,
+  extract it or record why the instances are intentionally distinct. File-count
+  reduction and eliminating scoped CSS are not goals.
+
+Do not locally redefine shared colors, typography, radius, elevation, material,
+interaction, touch-target, or container systems. Preserve legitimate local
+composition even when it is larger than a shared utility would be.
+
 ### List and detail route files
 
 When a list and a dynamic detail page share a route prefix, keep the list in the

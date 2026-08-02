@@ -63,7 +63,7 @@ const progressItems = computed(() => steps.map((step, index) => {
 </script>
 
 <template>
-  <UCard class="progress-card" aria-labelledby="submission-progress-title">
+  <UCard class="progress-card elevation-2" aria-labelledby="submission-progress-title">
     <template #header><div class="card-heading"><h2 id="submission-progress-title">提交进度</h2><span>最后更新 {{ formatTime(props.updatedAt) }}</span></div></template>
     <ol class="progress-list">
       <li v-for="step in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
@@ -75,10 +75,7 @@ const progressItems = computed(() => steps.map((step, index) => {
 </template>
 
 <style scoped>
-.progress-card { border-color: var(--line); box-shadow: var(--elevation-2); }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
-.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 650; }
+.progress-card { border-color: var(--line); }
 .progress-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
 .progress-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; min-height: 68px; }
 .progress-item:not(:last-child)::after { position: absolute; top: 32px; bottom: 0; left: 15px; width: 1px; background: var(--line); content: ""; }

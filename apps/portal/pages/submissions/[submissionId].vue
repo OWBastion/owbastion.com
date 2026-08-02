@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
       <section class="detail-grid" aria-live="polite">
         <div class="evidence-col">
           <UAlert v-if="statusAlert" class="status-alert" :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : 'i-lucide-scan-line'" :color="statusAlert.color" variant="subtle" :title="statusAlert.title" :description="statusAlert.description" aria-live="polite" />
-          <UCard class="evidence-card">
+          <UCard class="evidence-card elevation-3">
             <template #header><div class="card-heading"><h2>提交截图</h2></div></template>
             <img v-if="!evidenceLoadError" :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" @error="evidenceLoadError = true" />
             <p v-else class="evidence-message" role="status">暂无截图。</p>
@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="info-col">
-          <UCard class="overview-card">
+          <UCard class="overview-card elevation-2">
             <template #header><div class="card-heading"><h2>提交概览</h2><SubmissionStatusBadge :status="data.status" /></div></template>
             <dl class="detail-list">
               <div><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
@@ -137,9 +137,9 @@ onBeforeUnmount(() => {
 
           <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" />
 
-          <UCard v-if="data.ocr" class="ocr-card">
+          <UCard v-if="data.ocr" class="ocr-card elevation-2">
             <template #header><div class="card-heading"><h2>识别摘要</h2><span>截图识别</span></div></template>
-            <dl class="ocr-list">
+            <dl class="detail-list">
               <div><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
               <div><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
               <div><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
             </dl>
           </UCard>
 
-          <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card">
+          <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card elevation-2">
             <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
             <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后进入核对。</p>
             <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
           </UCard>
         </div>
       </section>
-      <UCard v-if="data.status === 'resubmission_required'" class="resubmission-card" aria-labelledby="resubmission-title">
+      <UCard v-if="data.status === 'resubmission_required'" class="resubmission-card elevation-2" aria-labelledby="resubmission-title">
         <template #header><div class="card-heading"><h2 id="resubmission-title">重新提交建议</h2></div></template>
         <div class="resubmission-grid">
           <div v-for="item in resubmissionTips" :key="item.title" class="resubmission-tip">
@@ -173,14 +173,14 @@ onBeforeUnmount(() => {
     </template>
     <section v-else class="detail-grid submission-skeleton" role="status" aria-label="读取中…">
       <div class="evidence-col" aria-hidden="true">
-        <UCard class="evidence-card submission-skeleton-card">
+        <UCard class="evidence-card elevation-3 submission-skeleton-card">
           <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading" /></div></template>
           <USkeleton class="submission-skeleton-evidence" />
         </UCard>
       </div>
 
       <div class="info-col" aria-hidden="true">
-        <UCard class="overview-card submission-skeleton-card">
+        <UCard class="overview-card elevation-2 submission-skeleton-card">
           <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading submission-skeleton-heading--overview" /><USkeleton class="submission-skeleton-status" /></div></template>
           <div class="submission-skeleton-list">
             <div v-for="row in 4" :key="row" class="submission-skeleton-row"><USkeleton class="submission-skeleton-label" /><USkeleton class="submission-skeleton-value" /></div>
@@ -188,7 +188,7 @@ onBeforeUnmount(() => {
           <div class="submission-skeleton-actions"><USkeleton class="submission-skeleton-action" /><USkeleton class="submission-skeleton-action" /></div>
         </UCard>
 
-        <UCard class="overview-card submission-skeleton-card">
+        <UCard class="overview-card elevation-2 submission-skeleton-card">
           <template #header><div class="card-heading"><USkeleton class="submission-skeleton-heading submission-skeleton-heading--progress" /><USkeleton class="submission-skeleton-updated" /></div></template>
           <div class="submission-skeleton-progress">
             <div v-for="step in 4" :key="step" class="submission-skeleton-progress-item">
@@ -215,17 +215,6 @@ onBeforeUnmount(() => {
 .status-alert { margin-bottom: 16px; }
 .info-col { display: grid; gap: 16px; min-width: 0; }
 .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
-.overview-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: var(--elevation-2); }
-.evidence-card { box-shadow: var(--elevation-3); }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.card-heading h2 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
-.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }
-.detail-list, .ocr-list { display: grid; gap: 0; margin: 0; }
-.detail-list div, .ocr-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }
-.detail-list div:first-child, .ocr-list div:first-child { padding-top: 0; }
-.detail-list div:last-child, .ocr-list div:last-child { padding-bottom: 0; border-bottom: 0; }
-dt { color: var(--quiet); font-size: .8rem; }
-dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
 .overview-actions { display: grid; gap: 8px; margin-top: 22px; }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message, .message { margin: 0; padding: 96px 0; color: var(--muted); font-size: .88rem; text-align: center; }
@@ -262,7 +251,7 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 .submission-skeleton-progress-title { width: 68%; height: 14px; }
 .submission-skeleton-progress-detail { width: 92%; height: 12px; }
 @media (max-width: 820px) { .detail-grid { grid-template-columns: 1fr; }.evidence-col { position: static; } .resubmission-grid { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading .page-title { max-width: none; }.detail-list div, .ocr-list div { align-items: flex-start; flex-direction: column; gap: 6px; }.detail-list dd, .ocr-list dd { text-align: left; }.breadcrumb { margin-bottom: 30px; }.submission-skeleton-row { align-items: flex-start; flex-direction: column; gap: 6px; }.submission-skeleton-label, .submission-skeleton-value { width: 62%; } }
+@media (max-width: 620px) { .submission-page { padding-top: 56px; }.page-heading .page-title { max-width: none; }.breadcrumb { margin-bottom: 30px; }.submission-skeleton-row { align-items: flex-start; flex-direction: column; gap: 6px; }.submission-skeleton-label, .submission-skeleton-value { width: 62%; } }
 @media (prefers-reduced-transparency: reduce) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; } .tip-icon { background: var(--surface); } }
 @media (prefers-contrast: more) { .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--text); } }
 </style>

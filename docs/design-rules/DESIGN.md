@@ -18,15 +18,36 @@ system.
 
 - Use semantic tokens from `apps/portal/assets/css/main.css`: `--page`,
   `--surface`, `--surface-raised`, `--text`, `--muted`, `--quiet`, `--line`,
-  `--line-strong`, `--accent`, `--accent-surface`, `--danger`, and `--warning`.
-- Use `page-shell` for page layout and `surface-card` for cards. The baseline
-  is approximately `1100px` maximum width with `24–28px` horizontal padding.
+  `--line-strong`, `--accent`, `--accent-surface`, `--info`, `--info-surface`,
+  `--success`, `--success-surface`, `--danger`, `--warning`,
+  `--disabled-text`, and `--disabled-surface`.
+- Use `page-shell` for readable page content, `page-shell--narrow` for compact
+  forms/detail views, and `page-shell--wide` for data-dense admin workspaces.
+  Their shared maximum widths are approximately `1100px`, `760px`, and
+  `1440px`; use the existing shared gutters rather than redefining a container
+  in a page or component.
 - Use the shared type scale: `type-display`, `type-title`, `type-headline`,
   `type-body`, `type-caption`, and `type-kicker`. Do not introduce one-off
   heading tracking or a page-local font system.
 - Use `glass`, `glass-heavy`, `glass-chip`, `glass-segment`, and
   `elevation-1/2/3` for materials and depth. Do not add isolated blur,
   shadow, or color vocabularies.
+
+### Semantic state mapping
+
+State color communicates a state in addition to its text or accessible
+semantics; it never carries the meaning alone.
+
+| State | Tokens / Nuxt UI color | Use |
+| --- | --- | --- |
+| Informational | `--info`, `--info-surface` / `info` | neutral progress or contextual guidance |
+| Pending / warning | `--warning` / `warning` | waiting, attention, or a recoverable problem |
+| Completed / success | `--success`, `--success-surface` / `success` | completed, accepted, or confirmed |
+| Error | `--danger` / `error` | failed operation or dangerous consequence |
+| Disabled | `--disabled-text`, `--disabled-surface` | unavailable controls; pair with `disabled` semantics |
+
+The orange accent is reserved for primary brand action and active emphasis; it
+is not a generic success color.
 
 ## Interaction baseline
 
@@ -58,6 +79,54 @@ system.
 - Preserve `prefers-reduced-motion`, `prefers-reduced-transparency`, and
   `prefers-contrast` behavior. Do not reintroduce component-local transforms
   without an explicit fallback.
+
+## Page archetypes
+
+- **Public directory:** page title and scope first, filters at the top of the
+  directory, then loading/error/empty/content states in one `surface-card`
+  region. Use the directory components and `UEmpty`.
+- **Player center:** identity and current-player facts first, then recent
+  records and available actions. Use `PlayerIdentityCard`, `PageSectionHeader`,
+  `TitleCollection`, and `PlayerRecentSubmissions`; collapse to one column on
+  narrow screens.
+- **Screenshot upload:** one primary upload action in a `UCard`, requirements
+  beside it on wide screens and below it on narrow screens, with `UFileUpload`
+  and explicit disabled/loading feedback.
+- **Submission detail/status:** status and next action first, evidence in its
+  natural aspect ratio, then recognition/result details. Keep evidence sticky
+  only where the desktop detail layout benefits; collapse it above details on
+  mobile.
+- **Admin list/table:** `AdminWorkspace` owns title, count, messages, and
+  toolbar; `AdminDataTable` owns filters, table scrolling, pagination context,
+  and row actions. Mobile may collapse secondary controls and scroll the table
+  region horizontally.
+- **Admin master/detail:** keep the selectable list and selected detail in a
+  wide workspace; use `AdminResponsiveDialog` for overlays and collapse the
+  columns rather than shrinking data below operable sizes.
+- **Admin batch confirmation:** show selection, affected count, consequence,
+  and the confirm/cancel actions in that order. Reasons or notes may be
+  optional audit data, never a prerequisite for an authorized decision.
+
+## CSS ownership
+
+The Portal has one design system. Ownership follows responsibility rather than
+file size:
+
+1. `main.css`, Nuxt UI configuration, and shared tokens own semantic colors,
+   type scale, materials, elevation, interaction feedback, touch targets,
+   containers, focus, and reduced-motion/transparency/contrast policy.
+2. Shared domain components or classes own stable patterns repeated across
+   pages, especially when they carry semantics or behavior.
+3. A reusable component may keep scoped CSS for its internal layout and state
+   presentation.
+4. A page may keep scoped CSS for its own composition: unique grids, sticky
+   evidence/detail columns, responsive collapse, natural-aspect evidence, and
+   structure-matched skeletons.
+
+When a pattern appears twice, check whether it is stable; at three or more uses,
+extract it or record why the instances are intentionally different. Do not
+extract a one-off wrapper merely to reduce scoped CSS, and do not redefine
+shared tokens, radii, elevations, materials, type, or container widths locally.
 
 ## Content and state language
 

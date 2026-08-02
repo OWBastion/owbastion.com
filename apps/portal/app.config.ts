@@ -3,6 +3,8 @@ export default defineAppConfig({
     colors: {
       primary: "orange",
       neutral: "stone",
+      info: "sky",
+      success: "green",
       warning: "amber",
       error: "red",
     },

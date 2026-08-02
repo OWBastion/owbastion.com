@@ -69,7 +69,7 @@ function decisionLoading(decision: ReviewDecision) {
 
     <div class="detail-grid">
       <div class="evidence-col">
-        <UCard class="evidence-card">
+        <UCard class="evidence-card elevation-3">
           <template #header><div class="card-heading"><h3>提交截图</h3><span>私有证据</span></div></template>
           <img v-if="!evidenceError" class="evidence-image" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
@@ -144,7 +144,7 @@ function decisionLoading(decision: ReviewDecision) {
           </div>
         </section>
 
-        <UCard class="overview-card">
+        <UCard class="overview-card elevation-2">
           <template #header><div class="card-heading"><h3>提交概览</h3><StatusBadge :label="formatStatus(submission.status)" :tone="statusTone(submission.status)" /></div></template>
           <dl class="detail-list">
             <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
@@ -154,7 +154,7 @@ function decisionLoading(decision: ReviewDecision) {
           </dl>
         </UCard>
 
-        <UCard v-if="submission.challenge" class="challenge-card">
+        <UCard v-if="submission.challenge" class="challenge-card elevation-2">
           <template #header><div class="card-heading"><h3>申请挑战</h3></div></template>
           <dl class="detail-list">
             <template v-if="submission.challenge.family === 'achievement'">
@@ -174,7 +174,7 @@ function decisionLoading(decision: ReviewDecision) {
           </dl>
         </UCard>
 
-        <UCard class="ocr-card">
+        <UCard class="ocr-card elevation-2">
           <template #header><div class="card-heading"><h3>OCRKit</h3><span>识别证据</span></div></template>
           <dl class="detail-list">
             <div><dt>状态</dt><dd><StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" /></dd></div>
@@ -232,19 +232,6 @@ function decisionLoading(decision: ReviewDecision) {
 .challenge-card,
 .ocr-card,
 .evidence-card { border-color: var(--line); }
-.overview-card,
-.challenge-card,
-.ocr-card { box-shadow: var(--elevation-2); }
-.evidence-card { box-shadow: var(--elevation-3); }
-.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.card-heading h3 { margin: 0; font-size: 1rem; font-weight: 720; letter-spacing: -.02em; }
-.card-heading > span { color: var(--quiet); font-size: .72rem; font-weight: 680; letter-spacing: .04em; }
-.detail-list { display: grid; gap: 0; margin: 0; }
-.detail-list div { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 13px 0; border-bottom: 1px solid var(--line); }
-.detail-list div:first-child { padding-top: 0; }
-.detail-list div:last-child { padding-bottom: 0; border-bottom: 0; }
-dt { color: var(--quiet); font-size: .8rem; }
-dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message { margin: 0; padding: 96px 0; color: var(--muted); text-align: center; }
 
@@ -317,7 +304,6 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 }
 
 .ocr-card h4 { margin: 22px 0 12px; font-size: .9rem; }
-.detail-list small { display: block; color: var(--quiet); font-size: .72rem; }
 .ocr-meta { margin: 12px 0 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
 .ocr-card details { margin-top: 14px; }
 .ocr-card pre {
@@ -345,8 +331,6 @@ dd { min-width: 0; margin: 0; font-size: .88rem; font-weight: 650; text-align: r
 
 @media (max-width: 620px) {
   .detail-meta-bar { align-items: flex-start; }
-  .detail-list div { align-items: flex-start; flex-direction: column; gap: 6px; }
-  .detail-list dd { text-align: left; }
   /*
    * Bottom dock: decisions stay in thumb reach while scrolling tall evidence.
    * Fixed (not sticky-bottom) so the bar remains available after leaving its
