@@ -19,6 +19,7 @@ describe("admin reviews page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=20");
     expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(5);
+    expect(wrapper.findAll(".admin-data-table__mobile-record")).toHaveLength(5);
     expect(wrapper.text()).toContain("等待确认挑战");
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("成就挑战：守望先锋");

@@ -18,8 +18,13 @@ type TableVirtualizeOptions = {
   [key: string]: unknown;
 };
 
+type MobileColumnPriority = "primary" | "detail" | "hidden";
+type MobileColumn = { id: string; priority: MobileColumnPriority; order?: number };
+type AdminTableColumn<TData> = TableColumn<TData>;
+
 type Props = {
-  columns: TableColumn<TData>[];
+  columns: AdminTableColumn<TData>[];
+  mobileColumns?: MobileColumn[];
   data: TData[];
   empty: string;
   loading?: boolean;
@@ -37,6 +42,7 @@ type Props = {
 };
 
 const props = withDefaults(defineProps<Props>(), {
+  mobileColumns: () => [],
   loading: false,
   manualFiltering: false,
   sortingOptions: () => [],
@@ -62,10 +68,7 @@ const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => name !== "filters"));
-const tableUi = computed(() => ({
-  caption: "not-sr-only",
-  root: "overflow-visible",
-}));
+const tableUi = { root: "overflow-visible" };
 const tableVirtualize = computed<boolean | TableVirtualizeOptions>(() => {
   if (!props.virtualize) return false;
   const options = typeof props.virtualize === "object" ? props.virtualize : {};
@@ -104,11 +107,46 @@ const groupingSelection = computed({
   set: (value: string) => { grouping.value = value === defaultSelection ? [] : [value]; },
 });
 
+const columnId = (column: AdminTableColumn<TData>) => {
+  const accessorKey = "accessorKey" in column ? column.accessorKey : undefined;
+  return column.id ?? (typeof accessorKey === "string" ? accessorKey : undefined);
+};
+const mobileColumns = computed(() => props.columns
+  .map((column, index) => ({ column, index, id: columnId(column), config: props.mobileColumns.find((item) => item.id === columnId(column)) }))
+  .filter((item): item is { column: AdminTableColumn<TData>; index: number; id: string; config: MobileColumn | undefined } => Boolean(item.id) && item.column.enableHiding !== false)
+  .map((item, index) => ({ ...item, priority: item.config?.priority ?? (index < 2 ? "primary" : "detail"), order: item.config?.order ?? index }))
+  .filter((item) => item.priority !== "hidden")
+  .sort((left, right) => left.order - right.order));
+const mobilePrimaryColumns = computed(() => mobileColumns.value.filter((item) => item.priority === "primary"));
+const mobileDetailColumns = computed(() => mobileColumns.value.filter((item) => item.priority === "detail"));
+const mobileHasDetails = computed(() => mobileDetailColumns.value.length > 0);
+const mobileExpanded = ref<Record<number, boolean>>({});
+const mobileRow = (original: TData) => ({
+  original,
+  getIsGrouped: () => false,
+  getIsExpanded: () => false,
+  toggleExpanded: () => undefined,
+  groupingColumnId: undefined,
+  subRows: [],
+  getValue: (id: string) => {
+    const column = props.columns.find((candidate) => columnId(candidate) === id);
+    if (!column) return undefined;
+    if ("accessorKey" in column && typeof column.accessorKey === "string") return original[column.accessorKey as keyof TData];
+    if ("accessorFn" in column && typeof column.accessorFn === "function") return column.accessorFn(original, 0);
+    return undefined;
+  },
+});
+const mobileValue = (row: TData, column: AdminTableColumn<TData>) => {
+  const key = columnId(column);
+  if ("accessorKey" in column && typeof column.accessorKey === "string") return row[column.accessorKey as keyof TData] ?? "—";
+  if ("accessorFn" in column && typeof column.accessorFn === "function") return column.accessorFn(row, 0) ?? "—";
+  return key ? row[key as keyof TData] ?? "—" : "—";
+};
+
 const columnMenuItems = computed(() => props.columns
   .filter((column) => column.enableHiding !== false)
   .flatMap((column) => {
-    const accessorKey = "accessorKey" in column ? column.accessorKey : undefined;
-    const id = column.id ?? (typeof accessorKey === "string" ? accessorKey : undefined);
+    const id = columnId(column);
     if (!id) return [];
     return [{
       label: typeof column.header === "string" ? column.header : id,
@@ -174,37 +212,64 @@ onBeforeUnmount(() => {
         :sticky="props.sticky"
         :virtualize="tableVirtualize"
       >
-        <template #caption>
-          <div ref="controls" class="admin-data-table__controls">
-            <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
-            <div class="admin-data-table__secondary-controls">
-              <button class="admin-data-table__secondary-controls-trigger" type="button" :aria-expanded="secondaryControlsOpen" :aria-controls="`admin-table-settings-${props.tableKey}`" @click="secondaryControlsOpen = !secondaryControlsOpen">
-                <span>表格设置</span><span aria-hidden="true">⌄</span>
-              </button>
-              <div :id="`admin-table-settings-${props.tableKey}`" class="admin-data-table__secondary-controls-content" :hidden="!secondaryControlsOpen">
-                <div v-if="props.sortingOptions.length" class="admin-data-table__sort-control">
-                  <USelect v-model="sortingSelection" class="w-full" aria-label="排序方式" size="md" :items="sortingItems" :ui="{ content: 'min-w-64', itemLabel: 'whitespace-nowrap overflow-visible text-clip' }" />
-                </div>
-                <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
-                <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
-                  <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
-                </UDropdownMenu>
-              </div>
-            </div>
-          </div>
-        </template>
         <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
           <slot :name="name" v-bind="slotProps" />
         </template>
       </UTable>
+      <div ref="controls" class="admin-data-table__controls">
+        <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
+        <div class="admin-data-table__secondary-controls">
+          <button class="admin-data-table__secondary-controls-trigger" type="button" :aria-expanded="secondaryControlsOpen" :aria-controls="`admin-table-settings-${props.tableKey}`" @click="secondaryControlsOpen = !secondaryControlsOpen">
+            <span>表格设置</span><span aria-hidden="true">⌄</span>
+          </button>
+          <div :id="`admin-table-settings-${props.tableKey}`" class="admin-data-table__secondary-controls-content" :hidden="!secondaryControlsOpen">
+            <div v-if="props.sortingOptions.length" class="admin-data-table__sort-control">
+              <USelect v-model="sortingSelection" class="w-full" aria-label="排序方式" size="md" :items="sortingItems" :ui="{ content: 'min-w-64', itemLabel: 'whitespace-nowrap overflow-visible text-clip' }" />
+            </div>
+            <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
+            <UDropdownMenu :items="columnMenuItems" :content="{ align: 'end' }">
+              <UButton label="列" color="neutral" variant="outline" size="md" trailing-icon="i-lucide-chevron-down" />
+            </UDropdownMenu>
+          </div>
+        </div>
+      </div>
+      <div class="admin-data-table__mobile-list" :aria-busy="loading">
+        <div v-if="loading" class="admin-data-table__mobile-loading" aria-label="正在加载"><USkeleton v-for="index in 3" :key="index" class="admin-data-table__mobile-skeleton" /></div>
+        <p v-else-if="!data.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
+        <ul v-else class="admin-data-table__mobile-records">
+          <li v-for="(item, index) in data" :key="index" class="admin-data-table__mobile-record">
+            <div class="admin-data-table__mobile-primary">
+              <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
+                <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
+                <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
+                <span v-else>{{ mobileValue(item, field.column) }}</span>
+              </div>
+            </div>
+            <div v-if="mobileHasDetails" class="admin-data-table__mobile-disclosure">
+              <button class="admin-data-table__mobile-disclosure-trigger" type="button" :aria-expanded="Boolean(mobileExpanded[index])" @click="mobileExpanded[index] = !mobileExpanded[index]">
+                <span>{{ mobileExpanded[index] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
+              </button>
+              <div v-if="mobileExpanded[index]" class="admin-data-table__mobile-details">
+                <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field">
+                  <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
+                  <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
+                  <span v-else>{{ mobileValue(item, field.column) }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="tableSlots['actions-cell']" class="admin-data-table__mobile-actions">
+              <slot name="actions-cell" :row="mobileRow(item)" />
+            </div>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.admin-data-table :deep([data-slot="caption"]) { position: sticky; z-index: 2; top: 0; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; clip: auto; white-space: normal; background: var(--surface); }
-.admin-data-table__controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+.admin-data-table__controls { position: sticky; z-index: 2; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
 .admin-data-table__secondary-controls-trigger { display: none; }
@@ -212,12 +277,31 @@ onBeforeUnmount(() => {
 .admin-data-table__secondary-controls-content[hidden] { display: none; }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
-.admin-data-table__scroll--bounded { overflow: auto; overscroll-behavior: contain; }
+.admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
+.admin-data-table__scroll--bounded > .admin-data-table__controls { order: -1; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
 .admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }
 .admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
+.admin-data-table__mobile-list { display: none; }
+.admin-data-table__mobile-records { margin: 0; padding: 0; list-style: none; }
+.admin-data-table__mobile-record { padding: 14px; border-bottom: 1px solid var(--line); }
+.admin-data-table__mobile-record:last-child { border-bottom: 0; }
+.admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: 12px; }
+.admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.admin-data-table__mobile-field { display: grid; gap: 4px; min-width: 0; }
+.admin-data-table__mobile-label { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
+.admin-data-table__mobile-disclosure { margin-top: 12px; }
+.admin-data-table__mobile-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--line); color: var(--quiet); background: transparent; font: inherit; font-size: .82rem; font-weight: 650; text-align: left; cursor: pointer; }
+.admin-data-table__mobile-disclosure-trigger > span:last-child { font-size: 1.1rem; transform: translateY(-2px); }
+.admin-data-table__mobile-disclosure-trigger[aria-expanded="true"] > span:last-child { transform: rotate(180deg) translateY(-2px); }
+.admin-data-table__mobile-details { padding: 12px 0 2px; }
+.admin-data-table__mobile-actions { display: flex; justify-content: flex-end; gap: 8px; min-height: 44px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.admin-data-table__mobile-actions :deep(.table-actions) { justify-content: flex-end; }
+.admin-data-table__mobile-empty { margin: 0; padding: 32px 16px; color: var(--quiet); text-align: center; }
+.admin-data-table__mobile-loading { display: grid; gap: 1px; padding: 14px; }
+.admin-data-table__mobile-skeleton { height: 72px; }
 @media (max-width: 620px) {
   .admin-data-table { margin-inline: -2px; }
   .admin-data-table__controls { align-items: center; flex-wrap: wrap; justify-content: flex-start; }
@@ -229,7 +313,8 @@ onBeforeUnmount(() => {
   .admin-data-table__secondary-controls-content { display: grid; gap: 8px; padding-top: 8px; }
   .admin-data-table__sort-control { width: 100%; min-width: 0; flex: 0 0 auto; }
   .admin-data-table__filters > :first-child { flex: 1; }
-  .admin-data-table :deep(table[data-slot="base"]) { min-width: 560px; }
-  .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 10px 11px; }
+  .admin-data-table__controls { position: relative; }
+  .admin-data-table > .admin-data-table__scroll > :deep(table[data-slot="base"]) { display: none; }
+  .admin-data-table__mobile-list { display: block; }
 }
 </style>

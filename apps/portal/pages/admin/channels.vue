@@ -45,7 +45,7 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="渠道管理" :count="loading ? '读取中…' : `${groups.length} 个`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="群配置"><AdminDataTable v-model:sorting="groupSorting" :sorting-options="groupSortingOptions" :default-sorting="defaultGroupSorting" :data="groups" :columns="columns" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
+    <section aria-label="群配置"><AdminDataTable v-model:sorting="groupSorting" :sorting-options="groupSortingOptions" :default-sorting="defaultGroupSorting" :data="groups" :columns="columns" :mobile-columns="[{ id: 'displayName', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'environment', priority: 'detail', order: 2 }, { id: 'verifyEnabled', priority: 'detail', order: 3 }, { id: 'bindEnabled', priority: 'detail', order: 4 }, { id: 'updatedAt', priority: 'detail', order: 5 }]" :loading="loading" empty="暂无群配置。" table-key="channels" class="admin-table">
       <template #displayName-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>
       <template #environment-cell="{ row }"><span>{{ row.original.environment === 'production' ? '正式群' : '测试群' }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="{ pending: '待启用', active: '已启用', legacy: '历史群', disconnected: '已断开' }[row.original.status]" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>

@@ -92,9 +92,9 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).not.toContain("开发保留");
     expect(wrapper.text()).not.toContain("国王大道");
     expect(wrapper.find(".portal-side-panel").exists()).toBe(false);
-    expect(wrapper.findAll('button[aria-label="编辑规则"]')).toHaveLength(2);
-    expect(wrapper.findAll('button[aria-label="计划下线"]')).toHaveLength(2);
-    expect(wrapper.findAll('button[aria-label="结束挑战"]')).toHaveLength(2);
+    expect(wrapper.findAll('table button[aria-label="编辑规则"]')).toHaveLength(2);
+    expect(wrapper.findAll('table button[aria-label="计划下线"]')).toHaveLength(2);
+    expect(wrapper.findAll('table button[aria-label="结束挑战"]')).toHaveLength(2);
     expect(wrapper.findAll("button").some((button) => button.text() === "管理")).toBe(false);
 
     expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);

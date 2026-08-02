@@ -82,7 +82,7 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
+    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'primary', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'updatedAt', priority: 'detail', order: 5 }]" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #filters><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
