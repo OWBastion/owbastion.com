@@ -2,6 +2,11 @@
 
 This document is for AI agents and developers modifying `apps/portal`. It turns the Portal's existing layout, component, state, and business-boundary conventions into executable rules. Before adding a page or component, check whether an existing pattern can express the requirement. Add a new variation only when the existing patterns cannot.
 
+Shared visual foundation, interaction and accessibility, page archetypes, CSS
+ownership, and content/state boundaries are indexed in
+[`DESIGN.md`](DESIGN.md). This document owns the Portal-specific implementation
+details and workflow for applying those rules.
+
 ## Goals and boundaries
 
 - The Portal is an API rendering layer. Do not duplicate business rules in components or access D1, R2, OCRKit, or Bastion directly.
@@ -198,7 +203,8 @@ Permission boundary: public pages must not render QQ OpenIDs, private screenshot
 
 Before modifying Portal UI:
 
-1. Read this document, `portal-copy-guidelines.md`, and the neighboring pages/shared components.
+1. Read [`DESIGN.md`](DESIGN.md), the relevant topic documents, this document,
+   `portal-copy-guidelines.md`, and the neighboring pages/shared components.
 2. Identify whether the page is a public directory, player center, submission flow, or admin panel, and confirm its data/permission boundary.
 3. Search for reusable domain or Nuxt UI components. Do not start by creating a new CSS system.
 4. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.

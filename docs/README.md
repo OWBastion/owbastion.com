@@ -15,7 +15,12 @@
 | [feature-status.md](product-rules/feature-status.md) | 能力状态矩阵 | authoritative | 能力实现、测试和生产验证状态 | 平台 |
 | [integrations-and-workflows.md](product-rules/integrations-and-workflows.md) | 产品流程与跨仓契约 | authoritative | API、Portal、QQBot、OCRKit、Bastion 的业务流程 | 平台 |
 | [design-rules/README.md](design-rules/README.md) | 设计规则索引 | authoritative | UI 视觉、交互、可访问性与内容规则 | Portal |
-| [design-rules/DESIGN.md](design-rules/DESIGN.md) | 设计规范 | authoritative | 视觉 token、布局、交互、状态语言与无障碍基线 | Portal |
+| [design-rules/DESIGN.md](design-rules/DESIGN.md) | 设计主题索引 | authoritative | 设计规则按职责路由与冲突边界 | Portal |
+| [design-rules/visual-foundation.md](design-rules/visual-foundation.md) | 视觉基础 | authoritative | 语义 token、颜色状态、字体、材料和深度 | Portal |
+| [design-rules/interaction-accessibility.md](design-rules/interaction-accessibility.md) | 交互与无障碍 | authoritative | 交互反馈、动效、响应式布局和无障碍 | Portal |
+| [design-rules/page-archetypes.md](design-rules/page-archetypes.md) | 页面范式 | authoritative | 公开目录、玩家中心、提交流程和管理工作区 | Portal |
+| [design-rules/css-ownership.md](design-rules/css-ownership.md) | CSS 归属 | authoritative | 全局样式、共享组件和页面 scoped CSS 边界 | Portal |
+| [design-rules/content-and-state.md](design-rules/content-and-state.md) | 内容与状态语言 | authoritative | 内容层级、状态表达和权限展示边界 | Portal |
 | [portal-ui-guidelines.md](design-rules/portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 | Portal |
 | [portal-copy-guidelines.md](design-rules/portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 | Portal |
 | [dev-rules/README.md](dev-rules/README.md) | 开发规则索引 | authoritative | 工程、数据、安全、测试与变更边界 | 平台 |
@@ -35,8 +40,8 @@
 - 产品行为、用户可见状态、流程和跨服务契约放在 `product-rules/`。
 - 工程约束、数据安全、迁移、测试和变更流程放在 `dev-rules/`。
 - UI 视觉、交互、可访问性和内容设计放在 `design-rules/`；其中
-  [`DESIGN.md`](design-rules/DESIGN.md) 是设计规范正文，目录索引是
-  [`design-rules/README.md`](design-rules/README.md)。
+  [`DESIGN.md`](design-rules/DESIGN.md) 是设计主题索引，具体规则由索引列出的
+  对应文档负责，目录索引是 [`design-rules/README.md`](design-rules/README.md)。
 - 架构决策放在 `adr/`，部署和生产验证放在 `deployment/`，API 机器可读
   契约放在 `api/`。
 - 任务计划、临时审计、执行清单和一次性验证记录放在 issue 或 PR 中，

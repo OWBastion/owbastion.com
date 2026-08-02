@@ -19,9 +19,10 @@ future milestones.
 - Development and engineering rules live in `docs/dev-rules/`.
 - Product behavior and experience rules live in `docs/product-rules/`.
 - UI visual, interaction, accessibility, and content design rules live in
-  `docs/design-rules/`. The authoritative design text is `DESIGN.md` in that
-  directory; root `DESIGN.md` is only the entry redirect, and the directory
-  index is `docs/design-rules/README.md`.
+  `docs/design-rules/`. `DESIGN.md` in that directory is the topic index; the
+  linked topic documents are authoritative for their respective scopes. Root
+  `DESIGN.md` is the repository entry index, and the directory governance index
+  is `docs/design-rules/README.md`.
 - The root `AGENTS.md` keeps only rules that apply to all tasks, risk entry
   points, and the rule indexes. Directory indexes decide which specific
   documents an agent must read for a task.
@@ -92,7 +93,7 @@ operational changes. Use local fakes for external services in normal tests.
 
 - Before adding or modifying any Portal copy, read `docs/design-rules/terminology.md` first and reuse its canonical terms.
 - For detailed rules, status terminology, and examples, follow the
-  `docs/design-rules/` index; check the authoritative `DESIGN.md` there before
+  `docs/design-rules/` index; check the authoritative topic document there before
   modifying Portal UI or copy.
 - Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
 - Prefer short labels, noun phrases, and direct statuses; reuse the established copy vocabulary instead of adding explanatory sentences when a short status label is sufficient.
