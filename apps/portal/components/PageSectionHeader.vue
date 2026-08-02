@@ -4,6 +4,7 @@ defineProps<{
   eyebrow?: string;
   count?: string;
   headingLevel?: "h2" | "h3";
+  headingId?: string;
 }>();
 </script>
 
@@ -11,7 +12,7 @@ defineProps<{
   <header class="section-header">
     <div>
       <p v-if="eyebrow" class="eyebrow">{{ eyebrow }}</p>
-      <component :is="headingLevel ?? 'h2'" class="section-header__title">{{ title }}</component>
+      <component :is="headingLevel ?? 'h2'" :id="headingId" class="section-header__title">{{ title }}</component>
     </div>
     <div v-if="count || $slots.actions" class="section-header__meta"><slot name="actions" /><span v-if="count">{{ count }}</span></div>
   </header>
