@@ -27,6 +27,14 @@ describe("matchOcrAgainstChallenges", () => {
     expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
   });
 
+  it("only evaluates map challenges for the map recognized in the screenshot", () => {
+    const result = matchOcrAgainstChallenges([
+      mapChallenge("map.samoa.conqueror"),
+      mapChallenge("map.hanamura.conqueror", "花村"),
+    ], response, "Player#1234");
+    expect(result.candidates.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
+  });
+
   it("routes equal candidates to review instead of guessing", () => {
     const result = matchOcrAgainstChallenges([mapChallenge("one"), mapChallenge("two")], response, "Player#1234");
     expect(result.outcome).toBe("review");
@@ -43,5 +51,17 @@ describe("matchOcrAgainstChallenges", () => {
   it("does not silently auto-grant a candidate without a reward mapping", () => {
     const { titleKey: _titleKey, ...unmapped } = mapChallenge("unmapped");
     expect(matchOcrAgainstChallenges([unmapped], response, "Player#1234").outcome).toBe("review");
+  });
+
+  it("does not treat a statistics panel as checked achievement evidence", () => {
+    const titleChallenge = {
+      challengeId: "title.conqueror", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const,
+      titleKey: "CONQUEROR", titleName: "征服者", category: "挑战", condition: "完成挑战", evidenceRule: "左侧成就面板显示称号和勾选", gameVersion: "1",
+      status: "active" as const, submissionMode: "manual" as const,
+    };
+    const statisticsPanel = { ...response, data: { ...response.data, achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" } };
+    const result = matchOcrAgainstChallenges([titleChallenge], statisticsPanel, "Player#1234");
+    expect(result.exact).toHaveLength(0);
+    expect(result.outcome).toBe("review");
   });
 });

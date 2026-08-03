@@ -492,7 +492,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   // Used by the batch event list path and other composed catalog reads.
   const fetchAllPublicChallenges = async (): Promise<Challenge[]> => {
     const [mapRows, titleRows, mapIdsByChallenge] = await Promise.all([
-      db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))),
+      db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(
+        inArray(achievementChallenges.status, ["active", "sunsetting"]),
+        eq(maps.status, "active"),
+        notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
+          .from(mapTitleRuleCompat)
+          .where(and(
+            eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
+            eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
+          ))),
+        )),
       db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
       loadChallengeMapIds(),
     ]);
@@ -502,10 +511,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     for (const { challenge, title } of titleRows) {
       const item = toPublicTitleChallenge(challenge, title, timestamp, mapIdsByChallenge);
       // Public event composition only surfaces currently open title challenges.
-      if (item && (item.status === "active" || item.status === "sunsetting")) items.push(item);
+      if (item && (item.status === "active" || item.status === "sunsetting") && item.scope !== "map") items.push(item);
     }
     return items;
   };
+
+  const fetchAllAutoMatchChallenges = async (): Promise<Challenge[]> => [
+    ...await fetchAllPublicChallenges(),
+    ...await loadMapTitleRuleChallenges(),
+    ...await loadMapScopedTitleChallenges(),
+  ];
 
   // Single-event path: load only linked challenges (bounded), not the full catalog.
   const publicEventChallenges = async (eventId: string) => {
@@ -2007,7 +2022,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const data = result.data ?? {};
         if (row.challengeType === "unknown") {
           stage = "resolve_auto_candidates";
-          const decision = matchOcrAgainstChallenges(await fetchAllPublicChallenges(), result, row.playerName ?? "");
+          const decision = matchOcrAgainstChallenges(await fetchAllAutoMatchChallenges(), result, row.playerName ?? "");
           const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
           const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates });
           if (decision.outcome === "automatic") {

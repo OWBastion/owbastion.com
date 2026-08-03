@@ -25,7 +25,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("申请挑战");
     expect(wrapper.text()).toContain("OCRKit");
-    expect(wrapper.text()).toContain("识别结果");
+    expect(wrapper.text()).toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("98%");
     expect(wrapper.text()).toContain("查看原始 OCR 响应");
     expect(wrapper.findAll(".actions button")).toHaveLength(3);

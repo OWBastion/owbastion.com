@@ -34,6 +34,13 @@ const candidateTitleName = (challenge: Challenge) => {
   return isMapTitleChallenge(challenge) ? challenge.name : null;
 };
 
+const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
+
+const isReliableMapEvidence = (response: OcrResponse) => {
+  const field = response.fields?.map_name;
+  return Boolean(response.data?.map_name?.trim()) && field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= 0.85;
+};
+
 const evaluateCandidate = (challenge: Challenge, response: OcrResponse, playerName: string): AutoMatchCandidate => {
   const challengeType = candidateType(challenge);
   const targetMapName = challenge.family === "map" ? challenge.mapName : "成就挑战";
@@ -57,6 +64,12 @@ const evaluateCandidate = (challenge: Challenge, response: OcrResponse, playerNa
     achievementTitles: data.achievement_titles,
     achievementPanelText: data.achievement_panel_text,
   });
+  const matchWithEvidence = titleName && !match.achievement
+    ? { ...match, achievement: false }
+    : match;
+  const qualityWithEvidence = titleName && !match.achievement
+    ? { ...quality, accepted: false, reasons: [...quality.reasons, "achievement_evidence:title_not_checked"] }
+    : quality;
   return {
     challenge,
     challengeType,
@@ -65,22 +78,28 @@ const evaluateCandidate = (challenge: Challenge, response: OcrResponse, playerNa
     targetPlayerName: playerName,
     titleName,
     requiredMapVariant,
-    match: { ...match, skipped },
-    quality,
-    grantable: challenge.family === "achievement" || Boolean(challenge.titleKey),
+    match: { ...matchWithEvidence, skipped },
+    quality: qualityWithEvidence,
+    grantable: Boolean(challenge.titleKey),
   };
 };
 
 export const matchOcrAgainstChallenges = (challenges: Challenge[], response: OcrResponse, playerName: string): AutoMatchDecision => {
-  const candidates = challenges
-    .filter((challenge) => (challenge.status === "active" || challenge.status === "sunsetting") && challenge.submissionMode !== "automatic")
+  const publicManualChallenges = challenges.filter((challenge) =>
+    (challenge.status === "active" || challenge.status === "sunsetting") && challenge.submissionMode !== "automatic",
+  );
+  const currentMapName = response.data?.map_name?.trim() ?? "";
+  const mapChallenges = publicManualChallenges.filter((challenge) => challenge.family === "map");
+  const candidates = publicManualChallenges
+    .filter((challenge) => challenge.family !== "map" || Boolean(currentMapName) && normalized(challenge.mapName) === normalized(currentMapName))
     .map((challenge) => evaluateCandidate(challenge, response, playerName));
   const exact = candidates.filter((candidate) => Object.values(candidate.match).filter((value) => typeof value === "boolean").every(Boolean));
   const lowConfidence = exact.filter((candidate) => !candidate.quality.accepted);
   const grantableExact = exact.filter((candidate) => candidate.grantable && candidate.quality.accepted);
-  const outcome = grantableExact.length === 1 && exact.length === 1
+  const mapEvidenceUnresolved = mapChallenges.length > 0 && (!currentMapName || !isReliableMapEvidence(response));
+  const outcome = grantableExact.length === 1 && exact.length === 1 && !mapEvidenceUnresolved
     ? "automatic"
-    : exact.length > 0 || candidates.some((candidate) => !candidate.quality.accepted)
+    : exact.length > 0 || candidates.some((candidate) => !candidate.quality.accepted) || mapEvidenceUnresolved
       ? "review"
       : "resubmit";
   return { candidates, exact, lowConfidence, outcome };

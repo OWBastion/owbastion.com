@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { submissionStatusText } from "~/utils/submissionStatus";
-import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
-
-type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
-type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -25,18 +21,10 @@ const emit = defineEmits<{
   "retry-ocr": [];
 }>();
 
-const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", achievement_panel_text: "成就面板" };
-const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
-const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
-const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
-const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
-const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: Array<{ challengeId?: string; targetMapName?: string; titleName?: string | null; quality?: { accepted?: boolean }; grantable?: boolean }> | undefined | null });
-const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "已自动判定" : outcome === "review" ? "转人工核对" : outcome === "resubmit" ? "需重新提交" : "已记录判定";
-const candidateResultLabel = (candidate: { challengeId?: string; targetMapName?: string; titleName?: string | null }) => candidate.titleName || candidate.targetMapName || candidate.challengeId || "候选挑战";
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
@@ -198,35 +186,10 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           </dl>
         </UCard>
 
-        <UCard v-if="matchPayload" class="match-card elevation-2">
-          <template #header><div class="card-heading"><h3>自动判定</h3><StatusBadge :label="matchOutcomeLabel(matchPayload.outcome)" :tone="matchPayload.outcome === 'automatic' ? 'success' : 'warning'" /></div></template>
-          <p v-if="submission.reason" class="match-reason">{{ submission.reason }}</p>
-          <dl v-if="matchPayload.candidates?.length" class="detail-list match-list">
-            <div v-for="candidate in matchPayload.candidates" :key="candidate.challengeId"><dt>{{ candidateResultLabel(candidate) }}</dt><dd>{{ candidate.quality?.accepted ? "字段完整" : "需核对字段" }}<small v-if="candidate.grantable"> · 可获得称号</small></dd></div>
-          </dl>
-        </UCard>
-
-        <UCard class="ocr-card elevation-2">
-          <template #header><div class="card-heading"><h3>OCRKit</h3><span>识别证据</span></div></template>
-          <dl class="detail-list">
-            <div><dt>状态</dt><dd><StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" /></dd></div>
-            <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
-            <div v-if="submission.ocrErrorCode"><dt>错误代码</dt><dd>{{ submission.ocrErrorCode }}</dd></div>
-          </dl>
-          <template v-if="ocrPayload">
-            <h4>识别结果</h4>
-            <dl class="detail-list">
-              <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd>{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }} <small>{{ ocrConfidence(field.confidence) }} · {{ field.status ?? "unknown" }}</small></dd></div>
-              <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd>{{ ocrValue(ocrPayload.data.map_variant) }} <small>OCR 数据</small></dd></div>
-              <div v-if="ocrPayload.data?.achievement_panel_text !== undefined && !ocrFields.some(([name]) => name === 'achievement_panel_text')"><dt>成就面板</dt><dd>{{ ocrValue(ocrPayload.data.achievement_panel_text) }} <small>原始面板文本</small></dd></div>
-            </dl>
-            <p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="ocr-meta">告警：{{ ocrPayload.warnings.join("、") }}</p>
-            <p class="ocr-meta">模型 {{ ocrPayload.model_version ?? "未知" }} · 请求 {{ ocrPayload.request_id ?? "未知" }}</p>
-            <details><summary>查看原始 OCR 响应</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
-          </template>
-        </UCard>
       </div>
     </div>
+
+    <AdminSubmissionReviewSignals :submission="submission" />
   </section>
 </template>
 
@@ -263,8 +226,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .info-col { display: grid; gap: 16px; min-width: 0; }
 .overview-card,
 .challenge-card,
-.match-card,
-.ocr-card,
 .evidence-card { border-color: var(--line); }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message { margin: 0; padding: 96px 0; color: var(--muted); text-align: center; }
@@ -337,28 +298,10 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   white-space: nowrap;
 }
 
-.ocr-card h4 { margin: 22px 0 12px; font-size: .9rem; }
-.match-reason { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
-.match-list { margin-top: 14px; }
-.match-list small { color: var(--muted); }
 .spot-check-panel { display:grid; gap:10px; padding-top:12px; border-top:1px solid color-mix(in oklch, var(--line) 80%, transparent); }
 .spot-check-panel h4 { margin:0; font-size:.82rem; }
 .spot-check-panel p { margin:4px 0 0; color:var(--text-on-glass-quiet); font-size:.75rem; line-height:1.5; }
 .spot-check-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.ocr-meta { margin: 12px 0 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
-.ocr-card details { margin-top: 14px; }
-.ocr-card pre {
-  max-height: 280px;
-  overflow: auto;
-  margin: 10px 0 0;
-  padding: 12px;
-  color: var(--muted);
-  background: var(--surface);
-  font-size: .72rem;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 @media (max-width: 820px) {
   .detail-grid { grid-template-columns: 1fr; }
   .evidence-col { position: static; }
@@ -400,8 +343,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 @media (prefers-reduced-transparency: reduce) {
   .overview-card,
   .challenge-card,
-  .match-card,
-  .ocr-card,
   .actions-card,
   .evidence-card { box-shadow: none; }
   .actions-card {
@@ -413,8 +354,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 @media (prefers-contrast: more) {
   .overview-card,
   .challenge-card,
-  .match-card,
-  .ocr-card,
   .actions-card,
   .evidence-card { border-color: var(--text); }
 }
