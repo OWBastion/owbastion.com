@@ -181,6 +181,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
               <div><dt>类型</dt><dd>地图挑战</dd></div>
               <div><dt>挑战</dt><dd>{{ submission.challenge.name }}</dd></div>
               <div><dt>地图</dt><dd>{{ submission.challenge.mapName }}</dd></div>
+              <div v-if="submission.challenge.mapVariant === 'classic'"><dt>地图版本</dt><dd>经典版</dd></div>
               <div><dt>难度</dt><dd>{{ submission.challenge.difficulty ?? "地图通关" }}</dd></div>
             </template>
           </dl>

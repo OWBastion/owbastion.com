@@ -10,6 +10,7 @@ type MatchCandidate = {
   targetMapName?: string;
   targetDifficulty?: string | null;
   titleName?: string | null;
+  requiredMapVariant?: "classic" | null;
   match?: Record<string, unknown>;
   quality?: { accepted?: boolean; reasons?: string[] };
   grantable?: boolean;
@@ -22,13 +23,16 @@ const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: MatchCandidate[] } | undefined | null);
 const candidates = computed(() => matchPayload.value?.candidates ?? []);
-const recognizedMapName = computed(() => typeof ocrPayload.value?.data?.map_name === "string" ? ocrPayload.value.data.map_name.trim().toLocaleLowerCase() : "");
+const normalized = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
+const recognizedMapName = computed(() => normalized(ocrPayload.value?.data?.map_name) || normalized(props.submission.mapName));
 const visibleCandidates = computed(() => candidates.value.filter((candidate) => {
   if (candidate.titleName && candidate.match?.achievement !== true) return false;
-  if (candidate.targetMapName) return Boolean(recognizedMapName.value) && candidate.targetMapName.trim().toLocaleLowerCase() === recognizedMapName.value;
+  if (candidate.targetMapName && recognizedMapName.value) return normalized(candidate.targetMapName) === recognizedMapName.value;
   return true;
 }));
 const hiddenCandidateCount = computed(() => candidates.value.length - visibleCandidates.value.length);
+const hiddenTitleCandidateCount = computed(() => candidates.value.filter((candidate) => Boolean(candidate.titleName) && candidate.match?.achievement !== true).length);
+const hiddenMapCandidateCount = computed(() => candidates.value.filter((candidate) => !candidate.titleName && candidate.targetMapName && !visibleCandidates.value.includes(candidate)).length);
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const panelText = computed(() => typeof ocrPayload.value?.data?.achievement_panel_text === "string" ? ocrPayload.value.data.achievement_panel_text.trim() : "");
 const hasCheckedTitle = computed(() => checkedTitles.value.length > 0 || /[✓✔√☑]/u.test(panelText.value));
@@ -36,13 +40,24 @@ const hasCheckedTitle = computed(() => checkedTitles.value.length > 0 || /[✓�
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
 const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "已自动判定" : outcome === "review" ? "转人工核对" : outcome === "resubmit" ? "需重新提交" : "已记录判定";
-const candidateResultLabel = (candidate: MatchCandidate) => candidate.titleName || candidate.targetDifficulty && `${candidate.targetMapName} · ${candidate.targetDifficulty}` || candidate.targetMapName || candidate.challengeId || "候选挑战";
+const candidateResultLabel = (candidate: MatchCandidate) => {
+  const label = candidate.titleName || candidate.targetDifficulty && `${candidate.targetMapName} · ${candidate.targetDifficulty}` || candidate.targetMapName || candidate.challengeId || "候选挑战";
+  return candidate.requiredMapVariant === "classic" ? `${label} · 经典版` : label;
+};
+const candidateScopeLabel = (candidate: MatchCandidate) => candidate.challengeType === "map_title_achievement" ? "当前地图称号" : candidate.challengeType === "title_achievement" ? "通用称号" : "地图挑战";
 const candidateStatus = (candidate: MatchCandidate) => {
   if (candidate.titleName && candidate.match?.achievement !== true) return "未检测到目标称号勾选";
-  if (candidate.quality?.accepted && Object.entries(candidate.match ?? {}).filter(([, value]) => typeof value === "boolean").every(([, value]) => value === true)) return "识别字段与证据均匹配";
-  if (candidate.quality?.accepted) return "识别字段完整，仍需核对";
+  if (candidate.quality?.accepted && Object.entries(candidate.match ?? {}).filter(([, value]) => typeof value === "boolean").every(([, value]) => value === true)) return candidate.titleName ? "识别字段与称号证据均匹配" : "地图与通关证据均匹配";
+  if (candidate.quality?.accepted) return candidate.titleName ? "识别字段完整，仍需核对称号证据" : "地图字段完整，仍需核对通关证据";
   return "需核对识别字段";
 };
+const candidateEmptyMessage = computed(() => {
+  if (!candidates.value.length) return "没有可用的自动判定候选。";
+  const reasons = [];
+  if (hiddenMapCandidateCount.value) reasons.push("地图候选未匹配当前地图或地图识别证据不足");
+  if (hiddenTitleCandidateCount.value) reasons.push("称号候选未发现带勾证据");
+  return reasons.length ? `${reasons.join("；")}。` : "当前证据未匹配到可展示的候选。";
+});
 </script>
 
 <template>
@@ -60,14 +75,13 @@ const candidateStatus = (candidate: MatchCandidate) => {
         <div v-for="candidate in visibleCandidates" :key="candidate.challengeId" class="match-candidate">
           <div class="match-candidate__title">
             <strong>{{ candidateResultLabel(candidate) }}</strong>
-            <span v-if="candidate.challengeType === 'map_title_achievement'" class="candidate-scope">当前地图</span>
-            <span v-else-if="candidate.challengeType === 'title_achievement'" class="candidate-scope">通用称号</span>
+            <span class="candidate-scope">{{ candidateScopeLabel(candidate) }}</span>
           </div>
           <p>{{ candidateStatus(candidate) }}<small v-if="candidate.grantable"> · 奖励已配置</small></p>
         </div>
       </div>
-      <p v-else class="signal-empty">没有发现带勾的目标称号，也没有可自动发放的称号候选。</p>
-      <p v-if="hiddenCandidateCount" class="signal-note">已隐藏 {{ hiddenCandidateCount }} 个非当前地图或未出现目标称号的候选；它们不会被视为可发放称号。</p>
+      <p v-else class="signal-empty">{{ candidateEmptyMessage }}</p>
+      <p v-if="hiddenCandidateCount" class="signal-note">已隐藏 {{ hiddenCandidateCount }} 个不满足当前证据范围的候选；地图挑战不要求左侧称号勾选，称号挑战才需要带勾证据。</p>
     </section>
 
     <section class="signal-panel ocr-panel" aria-labelledby="ocr-title">

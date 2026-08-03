@@ -507,7 +507,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     ]);
     const timestamp = now();
     const items: Challenge[] = [];
-    items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, ...(challenge.rewardTitleKey ? { titleKey: challenge.rewardTitleKey } : {}), condition: challenge.condition, evidenceRule: challenge.evidenceRule, submissionMode: challenge.submissionMode as "manual" | "automatic", difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })));
+    items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, ...(challenge.rewardTitleKey ? { titleKey: challenge.rewardTitleKey } : {}), ...(challenge.type === "classic_completion" ? { mapVariant: "classic" as const } : {}), condition: challenge.condition, evidenceRule: challenge.evidenceRule, submissionMode: challenge.submissionMode as "manual" | "automatic", difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })));
     for (const { challenge, title } of titleRows) {
       const item = toPublicTitleChallenge(challenge, title, timestamp, mapIdsByChallenge);
       // Public event composition only surfaces currently open title challenges.
@@ -542,7 +542,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     ]);
     const timestamp = now();
     const items: Challenge[] = [];
-    items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, ...(challenge.rewardTitleKey ? { titleKey: challenge.rewardTitleKey } : {}), condition: challenge.condition, evidenceRule: challenge.evidenceRule, submissionMode: challenge.submissionMode as "manual" | "automatic", difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })));
+    items.push(...mapRows.map(({ challenge, map }) => ({ challengeId: challenge.id, family: "map" as const, type: "map_completion" as const, kind: challenge.type as "difficulty_completion" | "pioneer" | "classic_completion", name: challenge.name, mapId: map.id, mapName: map.name, ...(challenge.rewardTitleKey ? { titleKey: challenge.rewardTitleKey } : {}), ...(challenge.type === "classic_completion" ? { mapVariant: "classic" as const } : {}), condition: challenge.condition, evidenceRule: challenge.evidenceRule, submissionMode: challenge.submissionMode as "manual" | "automatic", difficulty: challenge.difficulty ?? undefined, gameVersion: challenge.gameVersion, status: challenge.status as "active" | "sunsetting", retiredVersion: challenge.retiredVersion ?? undefined })));
     for (const { challenge, title } of titleRows) {
       const item = toPublicTitleChallenge(challenge, title, timestamp, mapIdsByChallenge);
       if (item && (item.status === "active" || item.status === "sunsetting")) items.push(item);
@@ -621,7 +621,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   type AdminSubmissionChallenge =
-    | { family: "map"; name: string; mapName: string; difficulty: string | null }
+    | { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" }
     | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" };
 
   const resolveAdminSubmissionDetails = async (submissionRows: Array<typeof submissions.$inferSelect>) => {
@@ -642,7 +642,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
-    for (const { challenge, map } of mapRows) challenges.set(challenge.id, { family: "map", name: challenge.name, mapName: map.name, difficulty: challenge.difficulty ?? "" });
+    for (const { challenge, map } of mapRows) challenges.set(challenge.id, { family: "map", name: challenge.name, mapName: map.name, difficulty: challenge.difficulty ?? "", ...(challenge.type === "classic_completion" ? { mapVariant: "classic" as const } : {}) });
     for (const { challenge, title } of titleRows) challenges.set(challenge.id, { family: "achievement", titleName: title.label, category: challenge.categoryOverride ?? title.category, condition: challenge.condition, evidenceRule: challenge.evidenceRule, ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}) });
     const snapshotTitlesByKey = new Map(snapshotTitleRows.map((title) => [title.key, title]));
     for (const { challengeId, snapshot } of snapshots) {

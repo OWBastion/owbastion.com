@@ -45,7 +45,7 @@ const evaluateCandidate = (challenge: Challenge, response: OcrResponse, playerNa
   const challengeType = candidateType(challenge);
   const targetMapName = challenge.family === "map" ? challenge.mapName : "成就挑战";
   const targetDifficulty = challenge.family === "map" ? challenge.difficulty ?? null : null;
-  const requiredMapVariant = challenge.mapVariant ?? null;
+  const requiredMapVariant = challenge.mapVariant ?? (challenge.family === "map" && challenge.kind === "classic_completion" ? "classic" : null);
   const titleName = candidateTitleName(challenge);
   const quality = assessOcrQuality(challengeType, response, requiredMapVariant, Boolean(titleName));
   const data = response.data ?? {};

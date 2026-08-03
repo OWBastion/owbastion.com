@@ -64,4 +64,16 @@ describe("matchOcrAgainstChallenges", () => {
     expect(result.exact).toHaveLength(0);
     expect(result.outcome).toBe("review");
   });
+
+  it("matches a classic map completion without checked achievement evidence", () => {
+    const classicResponse = {
+      ...response,
+      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 }, achievement_titles: { status: "ok", confidence: 0.98 } },
+      data: { ...response.data, map_variant: "classic", achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" },
+    };
+    const classicChallenge = { ...mapChallenge("map.samoa.classic"), kind: "classic_completion" as const, name: "经典版通关" };
+    const result = matchOcrAgainstChallenges([classicChallenge], classicResponse, "Player#1234");
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact[0]).toMatchObject({ titleName: null, requiredMapVariant: "classic", match: { achievement: true } });
+  });
 });
