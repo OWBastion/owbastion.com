@@ -19,6 +19,7 @@ describe("matchOcrResult", () => {
       completed: true,
       player: true,
       variant: true,
+      achievement: true,
       skipped: [],
     });
     expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", mapName: "釜山" }).map).toBe(false);
@@ -37,6 +38,7 @@ describe("matchOcrResult", () => {
       completed: true,
       player: true,
       variant: true,
+      achievement: true,
       skipped: ["map", "difficulty"],
     });
   });
@@ -44,6 +46,15 @@ describe("matchOcrResult", () => {
   it("still requires completion and the bound player for title challenges", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", challengeCompleted: false }).completed).toBe(false);
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: "Other#1234" }).player).toBe(false);
+  });
+
+  it("matches a title from the raw achievement panel when catalog candidates are absent", () => {
+    expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", titleName: "钢门", achievementPanelText: "钢门 ✓" }).achievement).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", titleName: "钢门", achievementPanelText: "英雄：51/51" }).achievement).toBe(false);
+  });
+
+  it("keeps catalog title candidates as the preferred evidence", () => {
+    expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", titleName: "钢门", achievementTitles: ["钢门"] }).achievement).toBe(true);
   });
 
   it("matches a map-scoped title challenge against the selected map", () => {

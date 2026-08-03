@@ -577,6 +577,7 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
   evidenceUrl: z.string().url().nullable().optional(),
   ocr: playerSubmissionOcrSummarySchema.optional(),
   ocrFailCount: z.number().int().nonnegative().optional(),
+  manualReviewEligible: z.boolean().optional(),
 });
 
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({

@@ -16,7 +16,7 @@ const page = ref(1);
 const total = ref(0);
 type OcrField = { confidence?: unknown };
 type OcrPayload = {
-  data?: { map_name?: unknown; achievement_titles?: unknown };
+  data?: { map_name?: unknown; achievement_titles?: unknown; achievement_panel_text?: unknown };
   fields?: Record<string, OcrField>;
 };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
@@ -37,6 +37,10 @@ const ocrAchievementTitles = (submission: AdminSubmission) => {
   if (!Array.isArray(titles)) return "未识别";
   const names = titles.filter((title): title is string => typeof title === "string" && Boolean(title.trim()));
   return names.length ? names.join("、") : "无";
+};
+const ocrAchievementPanelText = (submission: AdminSubmission) => {
+  const text = ocrPayload(submission)?.data?.achievement_panel_text;
+  return typeof text === "string" && text.trim() ? text.trim() : "未识别";
 };
 const ocrConfidence = (submission: AdminSubmission, field: string) => {
   const confidence = ocrPayload(submission)?.fields?.[field]?.confidence;
@@ -84,7 +88,7 @@ onMounted(() => { void load(); });
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'primary', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'updatedAt', priority: 'detail', order: 5 }]" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #filters><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /></template>
-      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
+      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small><small class="table-meta">面板：{{ ocrAchievementPanelText(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>

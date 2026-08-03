@@ -568,7 +568,7 @@ describe("map title rule model – locked invariants", () => {
           map_name: { status: "ok", confidence: 0.99 },
           map_variant: { status: "ok", confidence: 0.99 },
         },
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", map_variant: "classic" },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", map_variant: "classic", achievement_panel_text: "称号 CLASSIC ✓" },
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {

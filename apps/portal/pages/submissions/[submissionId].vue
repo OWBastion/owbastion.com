@@ -10,6 +10,7 @@ type SubmissionDetail = {
   updatedAt: number;
   evidenceUrl?: string | null;
   ocrFailCount?: number;
+  manualReviewEligible?: boolean;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
 };
 
@@ -29,7 +30,6 @@ const selectedMapId = shallowRef("");
 const confirming = shallowRef(false);
 const requestingManualReview = shallowRef(false);
 const manualReviewRequested = shallowRef(false);
-const OCR_MANUAL_REVIEW_THRESHOLD = 2;
 let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
 const evidenceImageUrl = shallowRef<string | null>(null);
@@ -44,7 +44,7 @@ const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过识别，请查看原因后重新提交。" : "查看截图、识别结果与提交状态。");
-const manualReviewEligible = computed(() => data.value?.status === "resubmission_required" && (data.value?.ocrFailCount ?? 0) >= OCR_MANUAL_REVIEW_THRESHOLD);
+const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
 const statusAlert = computed(() => {
   if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后确认对应的地图通关或成就挑战。", color: "info" as const };
   if (data.value?.status === "ocr_review_required") return { title: "等待处理", description: "已提交处理申请，请稍后查看结果。", color: "warning" as const };

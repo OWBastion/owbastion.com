@@ -4,7 +4,7 @@ import { createApp, type RuntimeEnv } from "./app";
 
 type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
-const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 2; };
+const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 
 const app = createApp({
   authenticate: authenticatePlatformActor,

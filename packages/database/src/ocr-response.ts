@@ -12,7 +12,7 @@ export type OcrResponse = {
   warnings?: unknown;
   quality?: { warnings?: unknown };
   fields?: Record<string, OcrFieldEvidence>;
-  data?: { map_name?: string | null; map_variant?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; viewer_player?: string | null; achievement_titles?: string[] };
+  data?: { map_name?: string | null; map_variant?: string | null; difficulty?: string | null; challenge_completed?: boolean | null; viewer_player?: string | null; achievement_titles?: string[]; achievement_panel_text?: string | null };
 };
 
 export type OcrQualityGate = {

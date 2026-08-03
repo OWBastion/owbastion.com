@@ -23,7 +23,7 @@ const emit = defineEmits<{
   "retry-ocr": [];
 }>();
 
-const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
+const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", achievement_panel_text: "成就面板" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
@@ -186,6 +186,7 @@ function decisionLoading(decision: ReviewDecision) {
             <dl class="detail-list">
               <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd>{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }} <small>{{ ocrConfidence(field.confidence) }} · {{ field.status ?? "unknown" }}</small></dd></div>
               <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd>{{ ocrValue(ocrPayload.data.map_variant) }} <small>OCR 数据</small></dd></div>
+              <div v-if="ocrPayload.data?.achievement_panel_text !== undefined && !ocrFields.some(([name]) => name === 'achievement_panel_text')"><dt>成就面板</dt><dd>{{ ocrValue(ocrPayload.data.achievement_panel_text) }} <small>原始面板文本</small></dd></div>
             </dl>
             <p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="ocr-meta">告警：{{ ocrPayload.warnings.join("、") }}</p>
             <p class="ocr-meta">模型 {{ ocrPayload.model_version ?? "未知" }} · 请求 {{ ocrPayload.request_id ?? "未知" }}</p>
