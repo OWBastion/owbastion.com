@@ -1,4 +1,4 @@
-import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte } from "drizzle-orm";
+import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
@@ -1017,7 +1017,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .where(and(inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active")))
+          .where(and(
+            inArray(achievementChallenges.status, ["active", "sunsetting"]),
+            eq(maps.status, "active"),
+            notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
+              .from(mapTitleRuleCompat)
+              .where(and(
+                eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
+                eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
+              )))
+          ))
           .orderBy(maps.name, achievementChallenges.name);
         items.push(...rows.map(({ challenge, map }): Challenge => ({
           challengeId: challenge.id,
@@ -1079,7 +1088,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rows = await db.select({ challenge: achievementChallenges, map: maps })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .where(input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : input.status) : undefined)
+          .where(and(
+            input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : input.status) : undefined,
+            notExists(db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId })
+              .from(mapTitleRuleCompat)
+              .where(and(
+                eq(mapTitleRuleCompat.legacyChallengeId, achievementChallenges.id),
+                eq(mapTitleRuleCompat.mapId, achievementChallenges.mapId),
+              )))
+          ))
           .orderBy(maps.name, achievementChallenges.name);
         items.push(...rows.map(({ challenge, map }): AdminChallenge => ({
           challengeId: challenge.id,

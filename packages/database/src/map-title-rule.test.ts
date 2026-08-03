@@ -504,6 +504,12 @@ const seedCompat = (sqlite: DatabaseSync, legacyId: string, ruleId: string, mapI
   ).run(legacyId, ruleId, mapId, isStandard, now);
 };
 
+const seedLegacyMapChallenge = (sqlite: DatabaseSync, challengeId: string, mapId: string) => {
+  sqlite.prepare(
+    "INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, 'difficulty_completion', '旧称号挑战', '传奇', '旧条件', '旧截图规则', 'manual', 'CONQUEROR', '2026.07.15', 'active', '2026.07.15', ?, ?)",
+  ).run(challengeId, mapId, now, now);
+};
+
 const requestHash = async (value: unknown) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -669,6 +675,26 @@ describe("map title rule model – locked invariants", () => {
       expect(portal).toContainEqual(expect.objectContaining(expected));
       expect(admin.items).toContainEqual(expect.objectContaining(expected));
       expect(agents.items).toContainEqual(expect.objectContaining(expected));
+    });
+
+    it("does not expose a legacy map-title row alongside its rule projection", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      seedLegacyMapChallenge(sqlite, "map.paris.conqueror", "map.paris");
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      const portal = (await services.listChallenges({ family: "map" })).filter((item) => item.challengeId === "map.paris.conqueror" && item.mapId === "map.paris");
+      const admin = (await services.listAdminChallenges({ family: "map" }, auth)).items.filter((item) => item.challengeId === "map.paris.conqueror" && item.mapId === "map.paris");
+
+      expect(portal).toHaveLength(1);
+      expect(portal[0]).toMatchObject({ mapTitleRule: { ruleId: "rule.conqueror", dynamic: true } });
+      expect(admin).toHaveLength(1);
+      expect(admin[0]).toMatchObject({ mapTitleRule: { ruleId: "rule.conqueror", dynamic: true } });
     });
 
     it("keeps repeated legacy challenge IDs distinct by map context", async () => {
