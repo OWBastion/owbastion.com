@@ -111,7 +111,7 @@ export function useBindingInvite() {
       confirmationCode.value = saved.code;
       state.value = "waiting";
       void pollStatus();
-    } catch { clearClaim(); state.value = "expired"; }
+    } catch { clearClaim(); state.value = "ready"; }
   });
 
   onBeforeUnmount(stopPolling);

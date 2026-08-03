@@ -113,6 +113,7 @@ describe("invitation binding flow", () => {
     sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "INVITE123456" });
+    expect(claim.expiresAt).toBeGreaterThan(now + 9 * 60 * 1000);
     const result = await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.1", messageId: "message.1" }, auth, "verify.1");
 
     expect(result).toMatchObject({ status: "verified", environment: "test" });

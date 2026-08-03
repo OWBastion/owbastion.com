@@ -45,6 +45,7 @@ const toPublicHistoricalMigration = (summary: ReturnType<typeof summarizeHistori
   restoredCount: summary.completedCount,
 });
 const loginTtlMs = 2 * 60 * 1000;
+const bindingClaimTtlMs = 10 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -2472,7 +2473,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (pending.expiresAt > now()) throw new Error("INVITE_INVALID");
       }
       const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
-      const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
+      const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
         if (pending) {
           await db.batch([
@@ -2485,7 +2486,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } catch {
         throw new Error("INVITE_INVALID");
       }
-      return { contractVersion: "1" as const, claimId, claimToken, code, playerName: invite.playerName, playerId: invite.playerId, expiresAt: timestamp + loginTtlMs };
+      return { contractVersion: "1" as const, claimId, claimToken, code, playerName: invite.playerName, playerId: invite.playerId, expiresAt: timestamp + bindingClaimTtlMs };
     },
 
     async getBindingClaimStatus(input) {

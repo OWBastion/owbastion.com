@@ -1,11 +1,11 @@
 <script setup lang="ts">
 const route = useRoute();
 const { state, invite, confirmationCode, errorMessage, refreshing, refreshStatus, submit } = useBindingInvite();
+const inviteCode = computed(() => typeof route.query.code === "string" ? route.query.code : "");
 useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
 
 onMounted(() => {
-  const code = typeof route.query.code === "string" ? route.query.code : "";
-  if (code && state.value === "ready") void submit(code);
+  if (inviteCode.value && state.value === "ready") void submit(inviteCode.value);
 });
 </script>
 
@@ -32,10 +32,11 @@ onMounted(() => {
         <p v-if="state === 'waiting'" class="binding-note">验证成功后将自动完成首次绑定并登录。</p>
         <p v-else-if="state === 'review'" class="binding-note">此操作涉及现有绑定或其他冲突，等待管理员处理，处理完成后本页面会自动继续。</p>
         <p v-else-if="state === 'rejected'" class="binding-note error-note">绑定申请未通过。</p>
-        <p v-else-if="state === 'expired'" class="binding-note warning-note">绑定邀请或确认码已过期，请联系管理员重新生成链接。</p>
+        <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原绑定链接重新生成。</p>
         <p v-else-if="state === 'failed'" class="binding-note error-note">{{ errorMessage }}</p>
         <p v-else class="binding-note">绑定完成，正在进入玩家中心…</p>
         <UAlert v-if="errorMessage && state !== 'failed'" color="error" variant="subtle" :description="errorMessage" />
+        <UButton v-if="state === 'expired' && inviteCode" class="binding-refresh w-fit" label="重新生成确认码" color="neutral" variant="outline" @click="submit(inviteCode)" />
         <UButton v-if="['waiting', 'review', 'failed'].includes(state)" class="binding-refresh w-fit" label="刷新状态" color="neutral" variant="outline" :loading="refreshing" :disabled="refreshing" @click="refreshStatus" />
       </section>
     </UCard>
