@@ -21,6 +21,7 @@ import {
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
+  adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
@@ -45,6 +46,7 @@ export type RuntimeEnv = {
   QQBOT_POLICY_WEBHOOK_SECRET?: string;
   BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
   OCR_MANUAL_REVIEW_THRESHOLD?: string;
+  OCR_AUTO_REVIEW_SAMPLE_RATE?: string;
   DEPLOYMENT_REVISION?: string;
   PUBLIC_HTTP_CACHE_ENABLED?: string;
 };
@@ -974,9 +976,11 @@ export const createApp = (dependencies: AppDependencies) => {
     const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 50) || 50));
     const statuses = c.req.query("status")?.split(",").map((status) => status.trim()).filter(Boolean) ?? [];
+    const spotCheck = c.req.query("spotCheck");
     const allowedStatuses = ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"] as const;
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
-    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], page, pageSize }, access.auth!));
+    if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
+    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), page, pageSize }, access.auth!));
   });
 
   app.get("/v1/admin/submissions/:submissionId", async (c) => {
@@ -1016,6 +1020,23 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "OCR_RETRY_FAILED";
       if (code === "SUBMISSION_NOT_FOUND" || code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, code === "EVIDENCE_NOT_FOUND" ? "The submission has no evidence" : "The submission does not exist");
       if (code === "OCR_NOT_CONFIGURED") return errorResponse(c, 503, code, "OCRKit is not configured");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/submissions/:submissionId/spot-check", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminSubmissionSpotCheckRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).resolveAdminSubmissionSpotCheck({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "SPOT_CHECK_FAILED";
+      if (["SUBMISSION_NOT_FOUND", "SPOT_CHECK_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The spot check does not exist");
+      if (["SPOT_CHECK_ALREADY_RESOLVED", "TITLE_GRANT_NOT_FOUND"].includes(code)) return errorResponse(c, 409, code, "The spot check cannot be resolved");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

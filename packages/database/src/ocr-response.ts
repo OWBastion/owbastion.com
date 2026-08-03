@@ -23,7 +23,7 @@ export type OcrQualityGate = {
 
 const minOcrConfidence = 0.85;
 
-export const assessOcrQuality = (challengeType: string, response: OcrResponse, requiredMapVariant?: string | null): OcrQualityGate => {
+export const assessOcrQuality = (challengeType: string, response: OcrResponse, requiredMapVariant?: string | null, requireAchievementEvidence = false): OcrQualityGate => {
   const requiredFields = challengeType === "title_achievement" || challengeType === "unknown"
     ? ["challenge_completed", "viewer_player"]
     : challengeType === "map_title_achievement"
@@ -47,6 +47,13 @@ export const assessOcrQuality = (challengeType: string, response: OcrResponse, r
     if (!field) reasons.push(`${name}:missing_evidence`);
     else if (field.status !== "ok") reasons.push(`${name}:${field.status ?? "missing_status"}`);
     else if (typeof field.confidence !== "number" || field.confidence < minOcrConfidence) reasons.push(`${name}:low_confidence`);
+  }
+
+  if (requireAchievementEvidence) {
+    const evidenceField = response.fields?.achievement_titles ?? response.fields?.achievement_panel_text;
+    if (!evidenceField) reasons.push("achievement_evidence:missing_evidence");
+    else if (evidenceField.status !== "ok") reasons.push(`achievement_evidence:${evidenceField.status ?? "missing_status"}`);
+    else if (typeof evidenceField.confidence !== "number" || evidenceField.confidence < minOcrConfidence) reasons.push("achievement_evidence:low_confidence");
   }
 
   return { accepted: reasons.length === 0, requiredFields, reasons };

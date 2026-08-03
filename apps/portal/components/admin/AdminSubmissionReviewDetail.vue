@@ -7,6 +7,7 @@ type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
 type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
+type SpotCheckDecision = "confirmed" | "revoked";
 
 const props = defineProps<{
   submission: AdminSubmission;
@@ -19,6 +20,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   review: [decision: ReviewDecision];
+  "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "retry-ocr": [];
 }>();
@@ -32,14 +34,18 @@ const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateSty
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
+const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: Array<{ challengeId?: string; targetMapName?: string; titleName?: string | null; quality?: { accepted?: boolean }; grantable?: boolean }> | undefined | null });
+const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "已自动判定" : outcome === "review" ? "转人工核对" : outcome === "resubmit" ? "需重新提交" : "已记录判定";
+const candidateResultLabel = (candidate: { challengeId?: string; targetMapName?: string; titleName?: string | null }) => candidate.titleName || candidate.targetMapName || candidate.challengeId || "候选挑战";
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
+const pendingSpotCheck = ref<SpotCheckDecision | null>(null);
 
 watch(
   () => props.actionLoading,
   (loading) => {
-    if (!loading) pendingDecision.value = null;
+    if (!loading) { pendingDecision.value = null; pendingSpotCheck.value = null; }
   },
 );
 
@@ -51,6 +57,16 @@ function emitReview(decision: ReviewDecision) {
 
 function decisionLoading(decision: ReviewDecision) {
   return Boolean(props.actionLoading && pendingDecision.value === decision);
+}
+
+function emitSpotCheck(decision: SpotCheckDecision) {
+  if (actionsLoading.value) return;
+  pendingSpotCheck.value = decision;
+  emit("spot-check", decision);
+}
+
+function spotCheckLoading(decision: SpotCheckDecision) {
+  return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
 </script>
 
@@ -126,6 +142,14 @@ function decisionLoading(decision: ReviewDecision) {
             </div>
           </div>
 
+          <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
+            <div><h4 id="spot-check-title">自动判定抽检</h4><p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p></div>
+            <div class="spot-check-actions">
+              <UButton class="action-btn pressable" type="button" block label="确认抽检" color="neutral" variant="outline" :loading="spotCheckLoading('confirmed')" :disabled="actionsLoading" @click="emitSpotCheck('confirmed')" />
+              <UButton class="action-btn pressable" type="button" block label="撤销称号" color="error" variant="soft" :loading="spotCheckLoading('revoked')" :disabled="actionsLoading" @click="emitSpotCheck('revoked')" />
+            </div>
+          </div>
+
           <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || undefined">
             <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
             <UButton
@@ -171,6 +195,14 @@ function decisionLoading(decision: ReviewDecision) {
               <div><dt>地图</dt><dd>{{ submission.challenge.mapName }}</dd></div>
               <div><dt>难度</dt><dd>{{ submission.challenge.difficulty ?? "地图通关" }}</dd></div>
             </template>
+          </dl>
+        </UCard>
+
+        <UCard v-if="matchPayload" class="match-card elevation-2">
+          <template #header><div class="card-heading"><h3>自动判定</h3><StatusBadge :label="matchOutcomeLabel(matchPayload.outcome)" :tone="matchPayload.outcome === 'automatic' ? 'success' : 'warning'" /></div></template>
+          <p v-if="submission.reason" class="match-reason">{{ submission.reason }}</p>
+          <dl v-if="matchPayload.candidates?.length" class="detail-list match-list">
+            <div v-for="candidate in matchPayload.candidates" :key="candidate.challengeId"><dt>{{ candidateResultLabel(candidate) }}</dt><dd>{{ candidate.quality?.accepted ? "字段完整" : "需核对字段" }}<small v-if="candidate.grantable"> · 可获得称号</small></dd></div>
           </dl>
         </UCard>
 
@@ -231,6 +263,7 @@ function decisionLoading(decision: ReviewDecision) {
 .info-col { display: grid; gap: 16px; min-width: 0; }
 .overview-card,
 .challenge-card,
+.match-card,
 .ocr-card,
 .evidence-card { border-color: var(--line); }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
@@ -305,6 +338,13 @@ function decisionLoading(decision: ReviewDecision) {
 }
 
 .ocr-card h4 { margin: 22px 0 12px; font-size: .9rem; }
+.match-reason { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+.match-list { margin-top: 14px; }
+.match-list small { color: var(--muted); }
+.spot-check-panel { display:grid; gap:10px; padding-top:12px; border-top:1px solid color-mix(in oklch, var(--line) 80%, transparent); }
+.spot-check-panel h4 { margin:0; font-size:.82rem; }
+.spot-check-panel p { margin:4px 0 0; color:var(--text-on-glass-quiet); font-size:.75rem; line-height:1.5; }
+.spot-check-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .ocr-meta { margin: 12px 0 0; color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
 .ocr-card details { margin-top: 14px; }
 .ocr-card pre {
@@ -338,7 +378,7 @@ function decisionLoading(decision: ReviewDecision) {
    * natural flow position at the top of the info column.
    */
   .review-detail {
-    padding-bottom: calc(220px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(300px + env(safe-area-inset-bottom, 0px));
   }
   .actions-card {
     position: fixed;
@@ -354,11 +394,13 @@ function decisionLoading(decision: ReviewDecision) {
       inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
   }
   .actions-secondary { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .spot-check-actions { grid-template-columns: 1fr 1fr; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .overview-card,
   .challenge-card,
+  .match-card,
   .ocr-card,
   .actions-card,
   .evidence-card { box-shadow: none; }
@@ -371,6 +413,7 @@ function decisionLoading(decision: ReviewDecision) {
 @media (prefers-contrast: more) {
   .overview-card,
   .challenge-card,
+  .match-card,
   .ocr-card,
   .actions-card,
   .evidence-card { border-color: var(--text); }

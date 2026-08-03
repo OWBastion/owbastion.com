@@ -328,6 +328,17 @@ export const submissionReviews = sqliteTable("submission_reviews", {
   submissionIdIdx: uniqueIndex("submission_reviews_submission_id_idx").on(table.submissionId),
 }));
 
+export const submissionSpotChecks = sqliteTable("submission_spot_checks", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  status: text("status").notNull(),
+  policyJson: text("policy_json").notNull(),
+  sampledAt: integer("sampled_at").notNull(),
+  resolvedAt: integer("resolved_at"),
+  reviewer: text("reviewer"),
+  reason: text("reason"),
+}, (table) => ({ submissionIdIdx: uniqueIndex("submission_spot_checks_submission_id_idx").on(table.submissionId) }));
+
 export const attachments = sqliteTable("attachments", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),

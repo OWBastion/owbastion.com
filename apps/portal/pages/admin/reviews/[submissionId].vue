@@ -14,6 +14,7 @@ const ocrRetryLoading = ref(false);
 const errorMessage = ref("");
 const reviewError = ref("");
 const ocrRetryError = ref("");
+const spotCheckError = ref("");
 const evidenceImageUrl = ref<string | null>(null);
 const evidenceError = ref(false);
 const submissionId = computed(() => String(route.params.submissionId));
@@ -52,11 +53,25 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   reviewError.value = "";
   try {
     const result = await api<{ decision: typeof decision; titleName?: string; alreadyOwned?: boolean }>(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/review`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", decision } });
-    toast.add({ title: decision === "approved" ? result.alreadyOwned ? `审核通过；玩家此前已拥有「${result.titleName ?? "称号"}」，未重复发放` : `审核通过，已发放「${result.titleName ?? "称号"}」` : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
+    toast.add({ title: decision === "approved" ? result.alreadyOwned ? `审核通过；玩家此前已拥有「${result.titleName ?? "称号"}」，未重复获得` : `审核通过，玩家已获得「${result.titleName ?? "称号"}」` : decision === "rejected" ? "审核已拒绝" : "已要求重新提交", color: "success" });
     await navigateTo("/admin/reviews");
   } catch (error) {
     const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
     reviewError.value = details.code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "该挑战尚未配置可发放的称号，无法审核通过。" : details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description;
+  } finally { actionLoading.value = false; }
+}
+
+async function resolveSpotCheck(decision: "confirmed" | "revoked") {
+  if (!submission.value || actionLoading.value) return;
+  actionLoading.value = true;
+  spotCheckError.value = "";
+  try {
+    await api(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/spot-check`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", decision } });
+    toast.add({ title: decision === "confirmed" ? "抽检已确认" : "已撤销自动获得的称号", color: "success" });
+    await load();
+  } catch (error) {
+    const details = portalErrorDetails(error, "抽检处理失败，请稍后重试。");
+    spotCheckError.value = details.code ? `抽检处理失败（${details.code}）：${details.description}` : details.description;
   } finally { actionLoading.value = false; }
 }
 
@@ -88,7 +103,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton to="/admin/reviews" label="返回审核管理" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" description="提交记录可能已不存在或链接无效。" />
   </AdminWorkspace>
 </template>

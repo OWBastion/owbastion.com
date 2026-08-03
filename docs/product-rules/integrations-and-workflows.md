@@ -59,11 +59,21 @@ The current API implements versioned v1 QQ flows:
   Global titles have no map context; map titles require a configured
   `map_title_rewards` association. Retired catalog titles remain eligible when
   explicitly selected by a maintainer;
-- a versioned Queue message invokes OCRKit, persists the raw result and match
-  evidence, and moves matching submissions to `ready_for_review`;
+- a versioned Queue message invokes OCRKit and persists the raw result and match
+  evidence. For an unselected challenge, the platform compares the response
+  with the current active catalog and auto-approves exactly one complete,
+  high-confidence rewardable candidate; ambiguous or low-confidence matches
+  become `ocr_review_required`, while an explicit mismatch becomes
+  `resubmission_required`;
 - the maintainer Portal can inspect private evidence and OCR output and record
   an idempotent review decision; an approved decision atomically creates or
   reuses the platform title Grant and links it to the Submission.
+- automatic approval writes the OCR result, approved review, title Grant reuse
+  or creation, submission rule snapshot, and audit records in one D1 batch. A
+  deterministic sample can create a pending spot check without blocking the
+  automatic result; a maintainer can confirm the sample or revoke its active
+  automatic Grant, with the player and Agents projections then reflecting the
+  revoked state.
 - maintainers can create and list achievement challenges and immediately update
   title-challenge rules, including their Portal display category override and
   optional map scope. A map-scoped title challenge uses one unique title key;
@@ -111,6 +121,7 @@ values, never OCRKit's raw response or internal match evidence.
 ~~~text
 upload_pending
 → ocr_pending
+  ├→ approved (unique automatic match) / ocr_review_required / resubmission_required
   ├→ awaiting_player_confirmation → ready_for_review / resubmission_required
   ├→ ready_for_review → approved / rejected / resubmission_required
   ├→ ocr_review_required → approved / rejected / resubmission_required
@@ -120,15 +131,15 @@ upload_pending
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
 size, content type, and private object ownership are verified. The Portal waits
-for OCR to finish before showing the player the next action. When no challenge
-was selected up front, a successful quality gate becomes
-`awaiting_player_confirmation`; the player then selects the challenge and the
-platform performs the final match. Only a successful match becomes
-`ready_for_review`. High-quality mismatches, missing or low-confidence fields,
-and exhausted OCR failures become `resubmission_required`; they do not enter
-the maintainer queue without a usable OCR result. `ocr_review_required` remains
-reserved for legacy or explicitly exceptional records that a maintainer must
-inspect.
+for OCR to finish before showing the player the next action. A selected
+challenge is matched against its submission-time snapshot; a successful match
+enters `ready_for_review` unless the rewardable evidence can be approved
+automatically. When no challenge was selected, the OCR response is compared
+against active map/title challenges. A unique rewardable match with complete
+evidence can become `approved` directly; ambiguity or low confidence enters
+`ocr_review_required`, and an explicit mismatch becomes
+`resubmission_required`. `ocr_review_required` therefore represents a usable
+but non-automatic record that a maintainer must inspect.
 
 Approval and title issuance are one D1 batch: `approved` is written only when
 the Submission has an active Grant. Title challenges use their direct
@@ -336,9 +347,11 @@ components.
 OCRKit remains the recognition-only service. The platform accepts only response
 schema version `1`, `ok: true`, and required field evidence at or above its
 configured confidence gate before value matching. For map challenges, this covers
-`map_name`, `difficulty`, `challenge_completed`, and `player`; for manual title
-challenges, it covers only `challenge_completed` and `player`. Uncertain OCR is
-routed to human review. Title-specific conditions remain human-reviewed;
-OCRKit does not decide eligibility or approval. Bastion implementation and
-build changes remain reviewable, idempotent, and reconciled through Bastion's
-own CI and release process.
+`map_name`, `difficulty`, `challenge_completed`, and `player`; map-title
+matches also require structured title evidence or panel-text evidence. For
+title challenges, it covers `challenge_completed`, `player`, and title
+evidence. The platform owns candidate selection, rule-snapshot evaluation,
+approval, Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous
+results are routed to maintainers; OCRKit does not decide eligibility or
+approval. Bastion implementation and build changes remain reviewable,
+idempotent, and reconciled through Bastion's own CI and release process.

@@ -36,6 +36,10 @@ For the coded OCRKit orchestration, set the Worker variable
 bucket explicitly with every object-mode OCR request; it does not use OCRKit's
 default bucket.
 
+`OCR_AUTO_REVIEW_SAMPLE_RATE` is an optional decimal from `0` to `1`. It
+deterministically samples automatic approvals for maintainer spot checks; the
+default `0` leaves automatic approval unchanged and disables sampling.
+
 ## GitHub configuration
 
 Configure these repository or production-environment secrets:

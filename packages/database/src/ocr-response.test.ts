@@ -33,4 +33,10 @@ describe("assessOcrQuality", () => {
     expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: undefined }, data: { map_variant: "classic" } }, "classic").reasons).toContain("map_variant:missing_evidence");
     expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: { status: "ok", confidence: 0.4 } } }, "classic").reasons).toContain("map_variant:low_confidence");
   });
+
+  it("requires confident structured or panel evidence for automatic title matching", () => {
+    const response = { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } };
+    expect(assessOcrQuality("title_achievement", response, null, true).reasons).toContain("achievement_evidence:missing_evidence");
+    expect(assessOcrQuality("title_achievement", { ...response, fields: { ...response.fields, achievement_titles: { status: "ok", confidence: 0.9 } } }, null, true).accepted).toBe(true);
+  });
 });

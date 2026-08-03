@@ -507,11 +507,14 @@ export const adminSubmissionSchema = z.object({
   playerName: z.string(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
-  ocrStatus: z.enum(["not_started", "pending", "completed", "failed"]).optional(),
+  ocrStatus: z.enum(["not_started", "pending", "completed", "matched", "mismatch", "review_required", "failed"]).optional(),
   ocrAttempt: z.number().int().nullable().optional(),
   ocrErrorCode: z.string().nullable().optional(),
   ocr: z.record(z.string(), z.unknown()).nullable(),
+  match: z.record(z.string(), z.unknown()).nullable().optional(),
+  reason: z.string().nullable().optional(),
   evidenceUrl: z.string().url().nullable(),
+  spotCheck: z.object({ status: z.enum(["pending", "confirmed", "revoked"]), sampledAt: z.number().int(), resolvedAt: z.number().int().nullable(), reviewer: z.string().nullable(), reason: z.string().nullable() }).nullable().optional(),
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
@@ -525,6 +528,8 @@ export const adminSubmissionReviewResponseSchema = z.object({
 }).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
+export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
+export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable() });
 
 export const submissionRequestSchema = z.object({
   contractVersion,
@@ -578,6 +583,7 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
   ocr: playerSubmissionOcrSummarySchema.optional(),
   ocrFailCount: z.number().int().nonnegative().optional(),
   manualReviewEligible: z.boolean().optional(),
+  titleGrant: z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapName: z.string().optional() }).optional(),
 });
 
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
@@ -696,3 +702,5 @@ export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewR
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
 export type AdminSubmissionOcrRetryRequest = z.infer<typeof adminSubmissionOcrRetryRequestSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
+export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
+export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;

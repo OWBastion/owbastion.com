@@ -11,6 +11,7 @@ type SubmissionDetail = {
   evidenceUrl?: string | null;
   ocrFailCount?: number;
   manualReviewEligible?: boolean;
+  titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
 };
 
@@ -43,12 +44,13 @@ const resubmissionTips = [
 const refreshSubmission = () => refresh();
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
-const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过识别，请查看原因后重新提交。" : "查看截图、识别结果与提交状态。");
+const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过识别，请查看原因后重新提交。" : data.value?.titleGrant ? "称号已获得。" : "查看截图、识别结果与提交状态。");
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
 const statusAlert = computed(() => {
   if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后确认对应的地图通关或成就挑战。", color: "info" as const };
   if (data.value?.status === "ocr_review_required") return { title: "等待处理", description: "已提交处理申请，请稍后查看结果。", color: "warning" as const };
   if (data.value?.status === "resubmission_required") return { title: "需重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
+  if (data.value?.titleGrant) return { title: "称号已获得", description: `已获得「${data.value.titleGrant.titleName}」${data.value.titleGrant.mapName ? ` · ${data.value.titleGrant.mapName}` : ""}。`, color: "success" as const };
   return null;
 });
 const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
@@ -109,7 +111,7 @@ onBeforeUnmount(() => {
     <template v-else-if="data">
       <section class="detail-grid" aria-live="polite">
         <div class="evidence-col">
-          <UAlert v-if="statusAlert" class="status-alert" :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : 'i-lucide-scan-line'" :color="statusAlert.color" variant="subtle" :title="statusAlert.title" :description="statusAlert.description" aria-live="polite" />
+          <UAlert v-if="statusAlert" class="status-alert" :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : statusAlert.color === 'success' ? 'i-lucide-badge-check' : 'i-lucide-scan-line'" :color="statusAlert.color" variant="subtle" :title="statusAlert.title" :description="statusAlert.description" aria-live="polite" />
           <UCard class="evidence-card elevation-3">
             <template #header><div class="card-heading"><h2>提交截图</h2></div></template>
             <img v-if="!evidenceLoadError" :src="evidenceImageUrl ?? evidenceUrl" :alt="`${data.mapName}的提交截图`" class="evidence-image" @error="evidenceLoadError = true" />
