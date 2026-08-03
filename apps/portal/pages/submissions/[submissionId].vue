@@ -120,6 +120,19 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="info-col">
+          <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card elevation-2">
+            <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
+            <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后进入核对。</p>
+            <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
+            <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
+            <template v-else>
+              <div class="confirm-catalog" :class="{ 'confirm-catalog--busy': confirming }" :aria-busy="confirming || undefined">
+                <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" :selected-map-id="selectedMapId" @select="selectChallenge" />
+              </div>
+              <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId || confirming" @click="confirmChallenge" block />
+            </template>
+          </UCard>
+
           <UCard class="overview-card elevation-2">
             <template #header><div class="card-heading"><h2>提交概览</h2><SubmissionStatusBadge :status="data.status" /></div></template>
             <dl class="detail-list">
@@ -148,19 +161,6 @@ onBeforeUnmount(() => {
               <div><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
               <div v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
             </dl>
-          </UCard>
-
-          <UCard v-if="!data.challengeId && data.status === 'awaiting_player_confirmation'" class="confirm-card elevation-2">
-            <template #header><div class="card-heading"><h2>确认挑战</h2><span>识别结果仅供参考</span></div></template>
-            <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后进入核对。</p>
-            <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
-            <div v-else-if="catalogLoading" class="message">读取挑战目录…</div>
-            <template v-else>
-              <div class="confirm-catalog" :class="{ 'confirm-catalog--busy': confirming }" :aria-busy="confirming || undefined">
-                <SubmissionCatalog :maps="maps" :map-challenges="mapChallenges" :achievement-challenges="achievementChallenges" :selected-challenge-id="selectedChallengeId" :selected-map-id="selectedMapId" @select="selectChallenge" />
-              </div>
-              <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId || confirming" @click="confirmChallenge" block />
-            </template>
           </UCard>
         </div>
       </section>

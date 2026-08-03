@@ -48,4 +48,19 @@ describe("submission detail page", () => {
     const calls = api.mock.calls.map((call) => call[0]);
     expect(calls).toContain(`/v1/player/submissions/submission-eligible/manual-review`);
   });
+
+  it("places challenge confirmation before the submission overview", async () => {
+    api.mockImplementation((path: string) => {
+      if (path === "/v1/maps") return Promise.resolve({ items: [] });
+      if (path === "/v1/challenges?family=map") return Promise.resolve({ items: [] });
+      if (path === "/v1/challenges?family=achievement") return Promise.resolve({ items: [] });
+      return Promise.resolve({ submissionId: "submission-awaiting", status: "awaiting_player_confirmation", mapName: "花村", createdAt: 0, updatedAt: 1, ocr: { mapName: "花村", difficulty: "地狱", playerName: "他又", challengeCompleted: true, achievementTitles: [] } });
+    });
+    const wrapper = await mountSuspended(SubmissionPage, { route: "/submissions/submission-awaiting", global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" }, SubmissionProgress: { template: '<div class="progress-card">等待确认挑战</div>' } } } });
+    await flushPromises();
+
+    const infoCards = wrapper.findAll(".info-col > *").map((card) => card.classes());
+    expect(infoCards[0]).toContain("confirm-card");
+    expect(infoCards[1]).toContain("overview-card");
+  });
 });
