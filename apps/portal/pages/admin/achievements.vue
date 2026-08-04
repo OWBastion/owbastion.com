@@ -502,8 +502,8 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <AdminWorkspace title="成就与称号" :count="loading ? '读取中…' : `${items.length} 项`">
-    <template #actions><UButton label="新建挑战" icon="i-lucide-plus" @click="openCreate" /><NuxtLink class="migration-link" to="/admin/titles">称号迁移</NuxtLink></template>
+  <AdminWorkspace title="成就与称号">
+    <template #actions><UButton label="新建挑战" icon="i-lucide-plus" @click="openCreate" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section class="catalog" aria-labelledby="catalog-title">
       <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="成就类型" class="catalog-tabs">
