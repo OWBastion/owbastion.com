@@ -64,7 +64,7 @@ onMounted(() => { void load(); });
         <template #updatedAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.updatedAt) }}</span></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/players/${row.original.playerAccountId}`" label="查看详情" size="sm" color="neutral" variant="outline" /></div></template>
       </AdminDataTable>
-      <UPagination v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
+      <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
     </section>
   </AdminWorkspace>
 </template>

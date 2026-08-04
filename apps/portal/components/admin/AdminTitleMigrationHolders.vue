@@ -29,7 +29,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
         <UBadge :label="holder.unclaimedCount ? '有未关联' : '已完成'" :color="holder.unclaimedCount ? 'warning' : 'success'" variant="subtle" />
       </button>
     </div>
-    <template #footer><div class="holder-pagination"><UPagination :page="page" :total="total" :items-per-page="pageSize" :disabled="loading || holderPages <= 1" @update:page="emit('update:page', $event)" /></div></template>
+    <template #footer><div v-if="holderPages > 1" class="holder-pagination"><UPagination :page="page" :total="total" :items-per-page="pageSize" :disabled="loading" @update:page="emit('update:page', $event)" /></div></template>
   </UCard>
 </template>
 
