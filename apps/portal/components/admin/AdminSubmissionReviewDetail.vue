@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
+import { mapVariantLabel } from "~/utils/map-variant";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -174,7 +175,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
             <template v-if="submission.challenge.family === 'achievement'">
               <div><dt>类型</dt><dd>称号挑战</dd></div>
               <div><dt>称号</dt><dd>{{ submission.challenge.titleName }}</dd></div>
-              <div v-if="submission.challenge.mapVariant === 'classic'"><dt>地图版本</dt><dd>经典版</dd></div>
+              <div v-if="submission.challenge.mapVariant === 'classic'"><dt>地图版本</dt><dd>{{ mapVariantLabel(submission.challenge.mapVariant) }}</dd></div>
               <div><dt>系列</dt><dd>{{ submission.challenge.category }}</dd></div>
               <div><dt>完成条件</dt><dd>{{ submission.challenge.condition }}</dd></div>
               <div><dt>截图规则</dt><dd>{{ submission.challenge.evidenceRule }}</dd></div>
@@ -183,7 +184,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
               <div><dt>类型</dt><dd>地图挑战</dd></div>
               <div><dt>挑战</dt><dd>{{ submission.challenge.name }}</dd></div>
               <div><dt>地图</dt><dd>{{ submission.challenge.mapName }}</dd></div>
-              <div v-if="submission.challenge.mapVariant === 'classic'"><dt>地图版本</dt><dd>经典版</dd></div>
+              <div><dt>地图版本</dt><dd>{{ mapVariantLabel(submission.challenge.mapVariant) }}</dd></div>
               <div><dt>难度</dt><dd>{{ submission.challenge.difficulty ?? "地图通关" }}</dd></div>
             </template>
           </dl>

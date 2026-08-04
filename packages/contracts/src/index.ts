@@ -501,7 +501,7 @@ export const adminSubmissionSchema = z.object({
   status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
   challenge: z.union([
-    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable() }),
+    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), mapVariant: z.literal("classic").optional() }),
     z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
   ]).nullable().optional(),
   mapName: z.string(),
