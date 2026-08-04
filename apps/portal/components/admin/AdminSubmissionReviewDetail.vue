@@ -84,13 +84,8 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       </div>
 
       <div class="info-col">
-        <section class="actions-card glass elevation-2" aria-labelledby="review-actions-title">
-          <header class="actions-card__header">
-            <h3 id="review-actions-title">审核操作</h3>
-            <span v-if="actionLoading" class="action-status" role="status">提交中…</span>
-          </header>
-
-          <div class="actions" role="group" aria-label="审核决定" :aria-busy="actionLoading || undefined">
+        <section class="actions-card glass elevation-2" aria-label="审核操作" :aria-busy="actionLoading || undefined">
+          <div class="actions" role="group" aria-label="审核决定">
             <UButton
               class="action-btn action-btn--primary pressable"
               type="button"
@@ -232,27 +227,14 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 /* Review decision chrome — compact material layer (Apple materials hierarchy) */
 .actions-card {
   display: grid;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 12px;
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
   border-radius: 14px;
   /* bright top edge = light catching the material */
   box-shadow:
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
-}
-.actions-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.actions-card__header h3 {
-  margin: 0;
-  font-size: .9rem;
-  font-weight: 720;
-  letter-spacing: -.02em;
-  color: var(--text-on-glass);
 }
 .actions {
   display: grid;
@@ -279,18 +261,11 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .ocr-retry-actions :deep(.action-btn) {
   justify-self: start;
   min-height: 28px;
-  padding-inline: 8px;
+  padding-inline: 6px;
   font-size: .76rem;
   font-weight: 650;
 }
 .ocr-retry-error { margin: 0; color: var(--danger); font-size: .78rem; }
-.action-status {
-  flex: 0 0 auto;
-  color: var(--text-on-glass-quiet);
-  font-size: .72rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
 
 .spot-check-panel { display:grid; gap:10px; padding-top:12px; border-top:1px solid color-mix(in oklch, var(--line) 80%, transparent); }
 .spot-check-panel h4 { margin:0; font-size:.82rem; }
