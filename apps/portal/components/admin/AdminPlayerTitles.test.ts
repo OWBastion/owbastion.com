@@ -8,6 +8,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "GLOBAL_2", label: "第二个全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }] });
   if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", availability: "retired", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
   if (path === "/v1/title-grants/manual" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", grantId: "grant-new", titleKey: "OLD_MAP", titleName: "旧地图称号", mapId: "map.samoa", slot: "conqueror", alreadyOwned: false });
+  if (path === "/v1/title-grants/grant-1/revoke" && options?.method === "POST") return Promise.resolve();
   throw new Error(`Unexpected request: ${path}`);
 });
 const toastAdd = vi.fn();
@@ -44,5 +45,27 @@ describe("AdminPlayerTitles", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/manual", expect.objectContaining({ method: "POST", body: { contractVersion: "1", playerAccountId: "player-1", titleKey: "GLOBAL_2" } }));
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/manual", expect.objectContaining({ method: "POST", body: { contractVersion: "1", playerAccountId: "player-1", titleKey: "OLD_MAP", mapId: "map.samoa" } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "已处理 2 个称号", color: "success" });
+  });
+
+  it("confirms and revokes a current title without requiring a reason", async () => {
+    const wrapper = await mountSuspended(AdminPlayerTitles, {
+      props: {
+        playerAccountId: "player-1",
+        titleGrants: [{ grantId: "grant-1", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, sourceType: "manual", grantedBy: "admin" }],
+      },
+      global: {
+        stubs: {
+          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+          UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' },
+        },
+      },
+    });
+    await flushPromises();
+    await wrapper.get("[data-testid='revoke-title-grant-grant-1']").trigger("click");
+    expect(wrapper.text()).toContain("回收后，该称号将不再计入玩家当前称号；历史记录会保留。");
+    await wrapper.get("form#revoke-player-title").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/grant-1/revoke", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
+    expect(toastAdd).toHaveBeenCalledWith({ title: "已回收全局称号", color: "success" });
   });
 });

@@ -8,7 +8,7 @@ type TitleOption = Title & { mapName?: string; value: string };
 type TitleMenuItem = { label: string; value: string };
 
 const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDetail["titleGrants"]; loading?: boolean }>();
-const emit = defineEmits<{ granted: [] }>();
+const emit = defineEmits<{ granted: []; revoked: [] }>();
 const api = useAdminApi();
 const toast = useToast();
 const maps = shallowRef<Array<{ mapId: string; mapName: string }>>([]);
@@ -20,6 +20,9 @@ const grantOpen = shallowRef(false);
 const loadingOptions = shallowRef(true);
 const saving = shallowRef(false);
 const errorMessage = shallowRef("");
+const revokeTarget = shallowRef<AdminPlayerDetail["titleGrants"][number] | null>(null);
+const revokeReason = shallowRef("");
+const revoking = shallowRef(false);
 const titleLabel = (title: TitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
 const selectedTitleLabel = (title: TitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
 const globalTitleItems = computed(() => titles.value.filter((title) => title.scope === "global").map((title) => ({ label: titleLabel(title), value: title.value })));
@@ -34,6 +37,10 @@ const activeTab = shallowRef<"global" | "map">("global");
 const globalGrants = computed(() => props.titleGrants.filter((g) => g.scope === "global"));
 const mapGrants = computed(() => props.titleGrants.filter((g) => g.scope === "map"));
 const activeGrants = computed(() => activeTab.value === "global" ? globalGrants.value : mapGrants.value);
+const revokeDescription = computed(() => {
+  if (!revokeTarget.value) return undefined;
+  return `${revokeTarget.value.label}${revokeTarget.value.mapName ? ` · ${revokeTarget.value.mapName}` : ""}`;
+});
 
 async function loadOptions() {
   loadingOptions.value = true;
@@ -82,6 +89,39 @@ async function grant() {
   }
 }
 
+function requestRevoke(grant: AdminPlayerDetail["titleGrants"][number]) {
+  revokeReason.value = "";
+  revokeTarget.value = grant;
+}
+
+function closeRevoke(force = false) {
+  if (revoking.value && !force) return;
+  revokeTarget.value = null;
+  revokeReason.value = "";
+}
+
+async function revoke() {
+  const target = revokeTarget.value;
+  if (!target) return;
+  revoking.value = true;
+  errorMessage.value = "";
+  try {
+    const reasonValue = revokeReason.value.trim();
+    await api(`/v1/title-grants/${encodeURIComponent(target.grantId)}/revoke`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: { contractVersion: "1", ...(reasonValue ? { reason: reasonValue } : {}) },
+    });
+    toast.add({ title: `已回收${target.label}`, color: "success" });
+    closeRevoke(true);
+    emit("revoked");
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法回收称号，请稍后重试。").description;
+  } finally {
+    revoking.value = false;
+  }
+}
+
 onMounted(() => { void loadOptions(); });
 </script>
 
@@ -95,10 +135,10 @@ onMounted(() => { void loadOptions(); });
     </nav>
     <div v-if="activeGrants.length" class="title-table-wrap">
       <table class="title-table">
-        <thead v-if="activeTab === 'global'"><tr><th>称号</th><th>来源</th><th>授予时间</th></tr></thead>
-        <thead v-else><tr><th>称号</th><th>地图 · 称号槽位</th><th>来源</th><th>授予时间</th></tr></thead>
-        <tbody v-if="activeTab === 'global'"><tr v-for="grant in globalGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td></tr></tbody>
-        <tbody v-else><tr v-for="grant in mapGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td class="table-map">{{ grant.mapName ?? "未知地图" }}{{ grant.slot ? ` · ${slotLabels[grant.slot]}` : "" }}</td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td></tr></tbody>
+        <thead v-if="activeTab === 'global'"><tr><th>称号</th><th>来源</th><th>授予时间</th><th>操作</th></tr></thead>
+        <thead v-else><tr><th>称号</th><th>地图 · 称号槽位</th><th>来源</th><th>授予时间</th><th>操作</th></tr></thead>
+        <tbody v-if="activeTab === 'global'"><tr v-for="grant in globalGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td><td class="table-action-cell"><UButton :data-testid="`revoke-title-grant-${grant.grantId}`" label="回收" color="error" variant="link" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(grant)" /></td></tr></tbody>
+        <tbody v-else><tr v-for="grant in mapGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td class="table-map">{{ grant.mapName ?? "未知地图" }}{{ grant.slot ? ` · ${slotLabels[grant.slot]}` : "" }}</td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td><td class="table-action-cell"><UButton :data-testid="`revoke-title-grant-${grant.grantId}`" label="回收" color="error" variant="link" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(grant)" /></td></tr></tbody>
       </table>
     </div>
     <UEmpty v-else-if="!props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
@@ -122,13 +162,22 @@ onMounted(() => { void loadOptions(); });
       </template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /></template>
     </AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="revokeTarget !== null" title="回收玩家称号" :description="revokeDescription" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
+      <template #body>
+        <form id="revoke-player-title" class="revoke-form" @submit.prevent="revoke">
+          <p class="revoke-note">回收后，该称号将不再计入玩家当前称号；历史记录会保留。</p>
+          <UFormField label="回收原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：误授或资格变更" :disabled="revoking" /></UFormField>
+        </form>
+      </template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke()" /><UButton label="确认回收" color="error" type="submit" form="revoke-player-title" :loading="revoking" /></template>
+    </AdminResponsiveDialog>
   </section>
 </template>
 
 <style scoped>
 .player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
 .grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
-.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 480px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.table-map { max-width: 200px; white-space: normal; }
+.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.table-map { max-width: 200px; white-space: normal; }.table-action-cell { text-align: right !important; }.revoke-form { display: grid; gap: 16px; }.revoke-note { margin: 0; color: var(--muted); line-height: 1.55; }
 .grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
 @media (max-width: 520px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .grants-tab { transition: color 140ms ease, background 140ms ease; } }

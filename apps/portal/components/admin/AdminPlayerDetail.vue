@@ -75,7 +75,7 @@ const submissionStatusLabel = (status: string) => submissionStatusText[status] ?
         <UEmpty v-else title="暂无提交记录" variant="naked" />
       </section>
 
-      <AdminPlayerTitles id="titles" class="detail-card detail-card--wide" :player-account-id="props.player.playerAccountId" :title-grants="props.player.titleGrants" :loading="props.loading" @granted="emit('grantCompleted')" />
+      <AdminPlayerTitles id="titles" class="detail-card detail-card--wide" :player-account-id="props.player.playerAccountId" :title-grants="props.player.titleGrants" :loading="props.loading" @granted="emit('grantCompleted')" @revoked="emit('grantCompleted')" />
     </div>
   </section>
 </template>
