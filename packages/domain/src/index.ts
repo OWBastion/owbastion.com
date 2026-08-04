@@ -17,6 +17,7 @@ import type {
   AdminPlayerDetail,
   AdminPlayerListResponse,
   AdminPlayerStatusRequest,
+  AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
@@ -144,6 +145,7 @@ export type PlatformServices = {
   listAdminPlayers(input: { query?: string; status?: "active" | "banned"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminPlayerListResponse>;
   getAdminPlayer(input: { playerAccountId: string }, auth: AuthContext): Promise<AdminPlayerDetail>;
   setAdminPlayerStatus(input: { playerAccountId: string; status: "active" | "banned"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  updateAdminPlayerIdentity(input: AdminPlayerIdentityRequest & { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   logoutPortalSession(input: { sessionToken: string }): Promise<void>;

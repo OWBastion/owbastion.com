@@ -2191,6 +2191,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordAudit(db, auth, `admin.player.${input.status}`, "player_account", input.playerAccountId, { status: input.status, reason: input.reason ?? null });
     },
 
+    async updateAdminPlayerIdentity(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.player.identity", idempotencyKey, input);
+      if (replay) return;
+      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
+      if (!account) throw new Error("PLAYER_NOT_FOUND");
+      const playerName = input.playerName.trim();
+      const normalizedPlayerName = normalizePlayerName(playerName);
+      const conflict = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, normalizedPlayerName), eq(playerAccounts.playerId, account.playerId), ne(playerAccounts.id, account.id))).get();
+      if (conflict) throw new Error("PLAYER_BATTLETAG_CONFLICT");
+      const timestamp = now();
+      await db.update(playerAccounts).set({ playerName, normalizedPlayerName, updatedAt: timestamp }).where(eq(playerAccounts.id, input.playerAccountId));
+      await recordIdempotency(db, auth.subject, "admin.player.identity", idempotencyKey, input, {});
+      await recordAudit(db, auth, "admin.player.identity.update", "player_account", input.playerAccountId, { previousPlayerName: account.playerName, playerName, playerId: account.playerId });
+    },
+
     async removeAdminBinding(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.binding.remove", idempotencyKey, input);
       if (replay) return;

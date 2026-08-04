@@ -139,6 +139,7 @@ export const adminPlayerSummarySchema = z.object({
 });
 export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
+export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64) });
 
 const attachmentSchema = z.object({
   externalAttachmentId: externalId,
@@ -643,6 +644,7 @@ export type AdminPlayerSummary = z.infer<typeof adminPlayerSummarySchema>;
 export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;
+export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;
 export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;

@@ -43,6 +43,7 @@
     "/v1/admin/player-accounts": { "get": { "operationId": "listAdminPlayers", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/player-accounts/{playerAccountId}": { "get": { "operationId": "getAdminPlayer", "parameters": [{ "$ref": "#/components/parameters/playerAccountId" }], "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/player-accounts/{playerAccountId}/status": { "put": { "operationId": "updateAdminPlayerStatus", "parameters": [{ "$ref": "#/components/parameters/playerAccountId" }], "responses": { "204": { "description": "Updated" } } } },
+    "/v1/admin/player-accounts/{playerAccountId}/identity": { "put": { "operationId": "updateAdminPlayerIdentity", "parameters": [{ "$ref": "#/components/parameters/playerAccountId" }], "responses": { "204": { "description": "Updated" } } } },
     "/v1/admin/achievements": { "get": { "operationId": "listAdminAchievements", "responses": { "200": { "$ref": "#/components/responses/Json" } } }, "post": { "operationId": "createAdminAchievement", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/maps": { "get": { "operationId": "listAdminMaps", "responses": { "200": { "$ref": "#/components/responses/Json" } } } },
     "/v1/admin/map-title-rules": { "get": { "operationId": "listAdminMapTitleRules", "responses": { "200": { "$ref": "#/components/responses/Json" } } }, "post": { "operationId": "createAdminMapTitleRule", "responses": { "201": { "$ref": "#/components/responses/Json" } } } },

@@ -7,6 +7,7 @@ import {
   qqGroupAccessRequestSchema,
   qqGroupRegistrationRequestSchema,
   adminPlayerStatusRequestSchema,
+  adminPlayerIdentityRequestSchema,
   adminSubmissionReviewRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
   adminTitleGrantRequestSchema,
@@ -901,6 +902,25 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).setAdminPlayerStatus({ playerAccountId: c.req.param("playerAccountId"), status: parsed.data.status, reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { if (error instanceof Error && error.message === "PLAYER_NOT_FOUND") return errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist"); if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, "IDEMPOTENCY_CONFLICT", "The idempotency key was used with a different request"); throw error; }
+  });
+
+  app.put("/v1/admin/player-accounts/:playerAccountId/identity", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminPlayerIdentityRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      await dependencies.services(c.env).updateAdminPlayerIdentity({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
+      return c.body(null, 204);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "PLAYER_IDENTITY_UPDATE_FAILED";
+      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player does not exist");
+      if (code === "PLAYER_BATTLETAG_CONFLICT") return errorResponse(c, 409, code, "The BattleTag is already used by another player");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.delete("/v1/admin/bindings/:bindingId", async (c) => {

@@ -85,6 +85,7 @@ const services: PlatformServices = {
   listAdminPlayers: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 25, total: 0, hasMore: false }),
   getAdminPlayer: async () => { throw new Error("PLAYER_NOT_FOUND"); },
   setAdminPlayerStatus: async () => {},
+  updateAdminPlayerIdentity: async () => {},
   removeAdminBinding: async () => {},
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
@@ -868,6 +869,17 @@ describe("API", () => {
     const allowed = await adminApp.request("http://localhost/v1/admin/player-accounts", { headers: { cookie: "owb_session=admin-session" } }, env);
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toMatchObject({ contractVersion: "1", items: [], page: 1 });
+  });
+
+  it("updates a player's BattleTag through the maintainer route", async () => {
+    const updates: Array<{ playerAccountId: string; playerName: string; key: string }> = [];
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, updateAdminPlayerIdentity: async (input, _auth, key) => { updates.push({ playerAccountId: input.playerAccountId, playerName: input.playerName, key }); } }),
+    });
+    const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/identity", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "identity-1" }, body: JSON.stringify({ contractVersion: "1", playerName: "新名称" }) }, env);
+    expect(response.status).toBe(204);
+    expect(updates).toEqual([{ playerAccountId: "player-1", playerName: "新名称", key: "identity-1" }]);
   });
 
   it("pages administrative lists and accepts a comma-separated submission status filter", async () => {
