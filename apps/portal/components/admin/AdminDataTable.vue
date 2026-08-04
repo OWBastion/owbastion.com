@@ -64,6 +64,8 @@ const sorting = defineModel<SortingState>("sorting", { default: () => [] });
 const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
 const columnPinning = defineModel<ColumnPinningState>("columnPinning", { default: () => ({ left: [], right: [] }) });
 const columnVisibility = useTableColumnVisibility(props.tableKey);
+type TableHandle = { tableApi: { getRowModel: () => { rows: Array<{ original: TData }> } } };
+const table = useTemplateRef<TableHandle>("table");
 const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
@@ -121,6 +123,14 @@ const mobilePrimaryColumns = computed(() => mobileColumns.value.filter((item) =>
 const mobileDetailColumns = computed(() => mobileColumns.value.filter((item) => item.priority === "detail"));
 const mobileHasDetails = computed(() => mobileDetailColumns.value.length > 0);
 const mobileExpanded = ref<Record<number, boolean>>({});
+const mobileData = computed(() => {
+  const sourceData = props.data;
+  globalFilter.value;
+  columnFilters.value;
+  sorting.value;
+  grouping.value;
+  return table.value?.tableApi.getRowModel().rows.map((row) => row.original) ?? sourceData;
+});
 const mobileRow = (original: TData) => ({
   original,
   getIsGrouped: () => false,
@@ -196,6 +206,7 @@ onBeforeUnmount(() => {
   <div class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll admin-data-table__scroll--bounded" :style="{ height: tableScrollHeight }">
       <UTable
+        ref="table"
         v-model:column-visibility="columnVisibility"
         v-model:column-filters="columnFilters"
         v-model:global-filter="globalFilter"
@@ -235,9 +246,9 @@ onBeforeUnmount(() => {
       </div>
       <div class="admin-data-table__mobile-list" :aria-busy="loading">
         <div v-if="loading" class="admin-data-table__mobile-loading" aria-label="正在加载"><USkeleton v-for="index in 3" :key="index" class="admin-data-table__mobile-skeleton" /></div>
-        <p v-else-if="!data.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
+        <p v-else-if="!mobileData.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
         <ul v-else class="admin-data-table__mobile-records">
-          <li v-for="(item, index) in data" :key="index" class="admin-data-table__mobile-record">
+          <li v-for="(item, index) in mobileData" :key="index" class="admin-data-table__mobile-record">
             <div class="admin-data-table__mobile-primary">
               <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
                 <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>

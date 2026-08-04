@@ -5,7 +5,7 @@ import AchievementAdminPage from "./achievements.vue";
 import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue";
 
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
-const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋" };
+const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", status: "scheduled" };
 const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
 const map = { challengeId: "map-1", family: "map", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
@@ -113,6 +113,19 @@ describe("achievement admin page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("内部称号");
     expect(wrapper.text()).toContain("开发保留");
+  });
+
+  it("applies the status filter to the mobile record list", async () => {
+    const wrapper = await mountPage();
+    const mobileRecords = () => wrapper.findAll(".admin-data-table__mobile-record");
+
+    expect(mobileRecords()).toHaveLength(2);
+    await wrapper.get('select[aria-label="筛选成就状态"]').setValue("scheduled");
+    await flushPromises();
+
+    expect(mobileRecords()).toHaveLength(1);
+    expect(mobileRecords()[0]!.text()).toContain("游戏先锋");
+    expect(mobileRecords()[0]!.text()).not.toContain("守望先锋");
   });
 
   it("opens status editing for catalog titles regardless of their lifecycle status", async () => {
