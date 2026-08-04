@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { hasSafeReturnTo, safeReturnTo as normalizeReturnTo } from "~/utils/safeReturnTo";
+import { qqVerificationCommand } from "~/utils/binding-invite";
 
 useSeoMeta({ title: "登录 · 躲避堡垒 3" });
 definePageMeta({ middleware: "guest" });
@@ -47,9 +48,9 @@ async function handleLocalLogin() {
 
       <div v-else-if="state === 'waiting' && attempt" class="challenge-panel">
         <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
-        <p class="login-code">@E54机器人 /验证 {{ attempt.code }}</p>
+        <p class="login-code">{{ qqVerificationCommand(attempt.code) }}</p>
         <div class="challenge-actions"><button class="secondary-button" type="button" @click="copy">{{ copied ? '已复制' : '复制指令' }}</button><button class="text-button" type="button" @click="cancel">取消</button></div>
-        <p class="hint">成功后进入玩家中心。验证码仅保存在当前标签页。</p>
+        <p class="hint">请手动输入 @，从列表选择机器人，再发送上方指令。成功后进入玩家中心；验证码仅保存在当前标签页。</p>
       </div>
 
       <div v-else class="action-panel"><p class="notice">确认登录中…</p></div>

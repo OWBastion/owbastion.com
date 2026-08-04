@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { bindingInviteCopyText } from "~/utils/binding-invite";
+import { bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -30,22 +30,20 @@ const parsed = computed(() => {
     const line = rawLine.trim();
     if (!line) return;
 
-    const match = line.match(/^(.+)#(\d{1,10})$/);
-    const playerName = match?.[1]?.trim();
-    const playerId = match?.[2];
-    if (!playerName || !playerId || playerName.length > 64) {
+    const player = parseBattleTag(line);
+    if (!player) {
       errors.push(`第 ${index + 1} 行格式无效`);
       return;
     }
 
-    const key = `${playerName.toLocaleLowerCase()}#${playerId}`;
+    const key = `${player.playerName.toLocaleLowerCase()}#${player.playerId}`;
     if (seen.has(key)) {
       errors.push(`第 ${index + 1} 行重复`);
       return;
     }
 
     seen.add(key);
-    invitations.push({ playerName, playerId });
+    invitations.push(player);
   });
 
   if (invitations.length > 100) errors.push("一次最多生成 100 个邀请码");

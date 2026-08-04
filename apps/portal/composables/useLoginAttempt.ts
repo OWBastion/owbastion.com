@@ -1,4 +1,5 @@
 import { safeReturnTo } from "~/utils/safeReturnTo";
+import { qqVerificationCommand } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 type LoginState = "idle" | "creating" | "waiting" | "verified" | "session-establishing" | "expired" | "failed" | "cancelled";
@@ -111,7 +112,7 @@ export function useLoginAttempt() {
 
   const copyCode = async () => {
     if (!attempt.value || !navigator.clipboard) return;
-    await navigator.clipboard.writeText(`@E54机器人 /验证 ${attempt.value.code}`);
+    await navigator.clipboard.writeText(qqVerificationCommand(attempt.value.code));
   };
 
   onBeforeUnmount(stopTimers);

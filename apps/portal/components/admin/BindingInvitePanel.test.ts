@@ -16,9 +16,7 @@ describe("BindingInvitePanel", () => {
   it("requires explicit holder selection and sends selected historical record ids", async () => {
     const wrapper = await mountSuspended(BindingInvitePanel);
     await flushPromises();
-    const inputs = wrapper.findAll("input");
-    await inputs[0]!.setValue("Player");
-    await inputs[1]!.setValue("1234");
+    await wrapper.find("input").setValue("Player#1234");
     await wrapper.get(".historical-holder").trigger("click");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
