@@ -681,12 +681,15 @@ describe("map title rule model – locked invariants", () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
+      seedMap(sqlite, "map.hanamura");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.ambiguous', 'binding.1', 'ocr_review_required', 'unknown', '地图 map.paris', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, match_json, created_at) VALUES ('ocr.ambiguous', 'submission.ambiguous', 1, 'review_required', ?, ?)").run(JSON.stringify({ candidates: [{ challengeId: "map.paris.conqueror", mapId: "map.paris", targetMapName: "地图 map.paris", titleName: "称号 CONQUEROR", match: { achievement: true } }] }), now);
       const services = createPlatformServices(database);
+      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.hanamura.conqueror", mapId: "map.hanamura" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-cross-map")).rejects.toThrow("CHALLENGE_NOT_FOUND");
       const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.paris.conqueror", mapId: "map.paris" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.1");
 
       expect(result).toMatchObject({ submissionId: "submission.ambiguous", status: "ready_for_review", challengeId: "map.paris.conqueror" });
@@ -704,7 +707,11 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.achievement', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, match_json, created_at) VALUES ('ocr.achievement', 'submission.achievement', 1, 'review_required', ?, ?)").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", titleName: "称号 HERO", match: { achievement: true } }] }), now);
       const services = createPlatformServices(database);
+      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", titleName: "称号 HERO", match: { achievement: false } }] }));
+      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-no-evidence")).rejects.toThrow("CHALLENGE_NOT_SELECTABLE");
+      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", titleName: "称号 HERO", match: { achievement: true } }] }));
       const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.2");
 
       expect(result).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });

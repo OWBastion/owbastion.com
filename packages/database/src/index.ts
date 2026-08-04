@@ -1777,6 +1777,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (["approved", "rejected"].includes(row.status)) throw new Error("SUBMISSION_NOT_SELECTABLE");
 
+      const latestOcr = await db.select({ matchJson: ocrResults.matchJson }).from(ocrResults)
+        .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      type StoredMatchCandidate = { challengeId?: unknown; mapId?: unknown; targetMapName?: unknown; titleName?: unknown; match?: { achievement?: unknown } };
+      let matchCandidates: StoredMatchCandidate[] = [];
+      try {
+        const parsed = latestOcr?.matchJson ? JSON.parse(latestOcr.matchJson) as { candidates?: unknown } : null;
+        matchCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates.filter((candidate): candidate is StoredMatchCandidate => Boolean(candidate) && typeof candidate === "object") : [];
+      } catch {
+        matchCandidates = [];
+      }
+      const matchedCandidate = matchCandidates.find((candidate) => candidate.challengeId === input.challengeId && (typeof candidate.mapId !== "string" || candidate.mapId === input.mapId));
+      if (!matchedCandidate) throw new Error("CHALLENGE_NOT_FOUND");
+      if (matchedCandidate.titleName && matchedCandidate.match?.achievement !== true) throw new Error("CHALLENGE_NOT_SELECTABLE");
+
       const challenge = (await fetchAllAutoMatchChallenges()).find((candidate): candidate is Challenge => candidate.challengeId === input.challengeId && (candidate.family === "map" ? candidate.mapId === input.mapId : !input.mapId));
       if (!challenge) throw new Error("CHALLENGE_NOT_FOUND");
       if (challenge.submissionMode === "automatic") throw new Error("CHALLENGE_AUTOMATIC");

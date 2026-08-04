@@ -29,7 +29,7 @@ const normalized = (value: unknown) => typeof value === "string" ? value.trim().
 const recognizedMapName = computed(() => normalized(ocrPayload.value?.data?.map_name) || normalized(props.submission.mapName));
 const visibleCandidates = computed(() => candidates.value.filter((candidate) => {
   if (candidate.titleName && candidate.match?.achievement !== true) return false;
-  if (candidate.mapId && candidate.targetMapName && recognizedMapName.value) return normalized(candidate.targetMapName) === recognizedMapName.value;
+  if (candidate.mapId) return Boolean(recognizedMapName.value) && Boolean(candidate.targetMapName) && normalized(candidate.targetMapName) === recognizedMapName.value;
   return true;
 }));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);

@@ -1040,7 +1040,7 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "CHALLENGE_SELECTION_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (["CHALLENGE_NOT_FOUND", "CHALLENGE_AUTOMATIC", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
+      if (["CHALLENGE_NOT_FOUND", "CHALLENGE_AUTOMATIC", "CHALLENGE_NOT_SELECTABLE", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
