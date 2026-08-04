@@ -69,9 +69,10 @@ describe("matchOcrResult", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: " player#9999 " }).player).toBe(true);
   });
 
-  it("requires the classic map variant only when the challenge declares it", () => {
+  it("matches classic and formal map challenges to their corresponding OCR variant", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic", requiredMapVariant: "classic" }).variant).toBe(true);
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: null, requiredMapVariant: "classic" }).variant).toBe(false);
-    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic" }).variant).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: null }).variant).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic" }).variant).toBe(false);
   });
 });

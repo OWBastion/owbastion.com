@@ -201,9 +201,10 @@ the planned release version. Retiring a challenge prevents new upload sessions
 while preserving submissions that already exist. Those submissions continue
 through OCR and review under the ordinary submission lifecycle. Reopening
 clears the retirement version. Map-scoped title challenges may declare
-`map_variant = classic`; the platform persists the effective requirement in the
-upload snapshot, passes it to OCR matching, and exposes both the required and
-recognized variants in admin review details. Administrator changes require maintainer
+`map_variant = classic`; an empty `map_variant` means the formal map version. The
+platform persists the effective requirement in the upload snapshot, matches only
+the corresponding recognized version, and exposes both the required and recognized
+variants in admin review details. Administrator changes require maintainer
 authorization, an idempotency key, and an audit record.
 
 ### Map title rule model

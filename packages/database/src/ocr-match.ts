@@ -26,6 +26,12 @@ export type OcrMatch = {
 
 const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
 
+const matchesMapVariant = (recognized: string | null | undefined, required: string | null | undefined) => {
+  const recognizedVariant = normalized(recognized);
+  const requiredVariant = normalized(required);
+  return requiredVariant ? recognizedVariant === requiredVariant : recognizedVariant === "";
+};
+
 const difficultyLevels = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 
 const normalizedDifficulty = (value: string | null | undefined) => {
@@ -73,9 +79,7 @@ export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
     variant: isTitleChallenge
       ? true
-      : input.requiredMapVariant
-        ? normalized(input.mapVariant) === normalized(input.requiredMapVariant)
-        : true,
+      : matchesMapVariant(input.mapVariant, input.requiredMapVariant),
     achievement: isTitleChallenge ? matchAchievementEvidence(input.titleName, input.achievementTitles, input.achievementPanelText) : true,
   };
   return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : isMapTitleChallenge && !input.targetDifficulty ? ["difficulty"] : [] };

@@ -43,7 +43,7 @@ describe("matchOcrAgainstChallenges", () => {
       fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 }, achievement_titles: { status: "ok", confidence: 0.98 } },
       data: { ...response.data, difficulty: "地狱", map_variant: "classic", achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" },
     };
-    const mapTitleChallenge = { ...mapChallenge("map.samoa.dominator"), kind: "map_title_achievement" as const, name: "主宰", difficulty: "地狱", titleKey: "DOMINATOR", mapTitleRule: { ruleId: "rule.dominator", kind: "dominator", displayKind: "map_name_suffix" as const, slot: "dominator" as const, dynamic: true as const } };
+    const mapTitleChallenge = { ...mapChallenge("map.samoa.dominator"), kind: "map_title_achievement" as const, name: "主宰", difficulty: "地狱", titleKey: "DOMINATOR", mapVariant: "classic" as const, mapTitleRule: { ruleId: "rule.dominator", kind: "dominator", displayKind: "map_name_suffix" as const, slot: "dominator" as const, dynamic: true as const } };
     const globalTitleChallenge = {
       challengeId: "title.conqueror", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const,
       titleKey: "CONQUEROR", titleName: "征服者", category: "挑战", condition: "完成挑战", evidenceRule: "左侧成就面板显示称号和勾选", gameVersion: "1",
@@ -102,5 +102,29 @@ describe("matchOcrAgainstChallenges", () => {
     const result = matchOcrAgainstChallenges([classicChallenge], classicResponse, "Player#1234");
     expect(result.outcome).toBe("automatic");
     expect(result.exact[0]).toMatchObject({ titleName: null, requiredMapVariant: "classic", match: { achievement: true } });
+  });
+
+  it("selects the classic challenge when formal and classic variants share a map reward", () => {
+    const classicResponse = {
+      ...response,
+      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 } },
+      data: { ...response.data, map_variant: "classic" },
+    };
+    const formalChallenge = mapChallenge("map.samoa.formal");
+    const classicChallenge = { ...mapChallenge("map.samoa.classic"), kind: "classic_completion" as const, name: "经典版通关" };
+    const result = matchOcrAgainstChallenges([formalChallenge, classicChallenge], classicResponse, "Player#1234");
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.classic"]);
+  });
+
+  it("does not grant a formal challenge from classic OCR evidence", () => {
+    const classicResponse = {
+      ...response,
+      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 } },
+      data: { ...response.data, map_variant: "classic" },
+    };
+    const result = matchOcrAgainstChallenges([mapChallenge("map.samoa.formal")], classicResponse, "Player#1234");
+    expect(result.exact).toHaveLength(0);
+    expect(result.outcome).toBe("resubmit");
   });
 });
