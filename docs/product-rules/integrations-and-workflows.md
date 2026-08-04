@@ -131,10 +131,10 @@ upload_pending
 When an ambiguous automatic match enters `ocr_review_required`, a maintainer
 may select a general achievement with checked title evidence or a challenge
 belonging to the map identified in that submission's OCR evidence. The
-platform rejects challenges outside that candidate set, persists the selected
-challenge, records an audit event, and moves the submission to
-`ready_for_review`; the final approval still uses the ordinary review and Grant
-transaction.
+platform rejects challenges outside that candidate set; it must not fall back
+to the full active challenge catalog. It persists the selected challenge,
+records an audit event, and moves the submission to `ready_for_review`; the
+final approval still uses the ordinary review and Grant transaction.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,

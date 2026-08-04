@@ -28,6 +28,10 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("OCRKit");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("98%");
+    expect(wrapper.text()).toContain("已识别");
+    expect(wrapper.text()).toContain("左侧成就面板");
+    expect(wrapper.text()).toContain("无");
+    expect(wrapper.text()).not.toContain("98% · ok");
     expect(wrapper.text()).toContain("查看原始识别数据");
     expect(wrapper.findAll(".actions button")).toHaveLength(3);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);

@@ -33,12 +33,21 @@ const visibleCandidates = computed(() => candidates.value.filter((candidate) => 
   return true;
 }));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
-const panelText = computed(() => typeof ocrPayload.value?.data?.achievement_panel_text === "string" ? ocrPayload.value.data.achievement_panel_text.trim() : "");
-const hasCheckedTitle = computed(() => checkedTitles.value.length > 0 || /[✓✔√☑]/u.test(panelText.value));
+const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
 const selectedCandidateId = ref("");
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
 const ocrConfidence = (value: unknown) => typeof value === "number" ? `${Math.round(value * 100)}%` : "—";
+const hasOcrConfidence = (value: unknown) => typeof value === "number";
+const ocrFieldStatusLabel = (status: unknown) => {
+  if (status === "ok") return "已识别";
+  if (status === "missing") return "未识别";
+  if (status === "low_confidence") return "置信度低";
+  if (status === "unreadable") return "无法识别";
+  if (status === "error") return "识别失败";
+  return "需核对";
+};
+const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
 const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "已自动判定" : outcome === "review" ? "转人工核对" : outcome === "resubmit" ? "需重新提交" : "已记录判定";
 const candidateResultLabel = (candidate: MatchCandidate) => {
   const label = candidate.titleName || candidate.targetDifficulty && `${candidate.targetMapName} · ${candidate.targetDifficulty}` || candidate.targetMapName || candidate.challengeId || "候选挑战";
@@ -107,9 +116,9 @@ const saveSelectedCandidate = () => {
       </dl>
       <template v-if="ocrPayload">
         <dl class="ocr-fields">
-          <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd>{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }} <small>{{ ocrConfidence(field.confidence) }} · {{ field.status ?? "unknown" }}</small></dd></div>
-          <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd>{{ ocrValue(ocrPayload.data.map_variant) }} <small>OCR 数据</small></dd></div>
-          <div class="ocr-achievement-evidence"><dt>称号证据</dt><dd><strong>{{ checkedTitles.length ? checkedTitles.join("、") : "未检测到带勾称号" }}</strong><StatusBadge :label="hasCheckedTitle ? '有勾选证据' : '无勾选证据'" :tone="hasCheckedTitle ? 'success' : 'warning'" /></dd></div>
+          <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd><strong class="ocr-field-value">{{ ocrValue(field.value ?? ocrPayload.data?.[name]) }}</strong><span class="ocr-field-meta"><span v-if="hasOcrConfidence(field.confidence)" class="ocr-confidence">{{ ocrConfidence(field.confidence) }}</span><StatusBadge :label="ocrFieldStatusLabel(field.status)" :tone="ocrFieldStatusTone(field.status)" /></span></dd></div>
+          <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd><strong class="ocr-field-value">{{ ocrValue(ocrPayload.data.map_variant) }}</strong><span class="ocr-field-meta"><span class="ocr-source">OCR 数据</span></span></dd></div>
+          <div class="ocr-achievement-evidence"><dt>左侧成就面板</dt><dd><strong class="ocr-field-value">{{ achievementPanelLabel }}</strong></dd></div>
         </dl>
         <p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
         <details><summary>查看原始识别数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
@@ -147,9 +156,12 @@ const saveSelectedCandidate = () => {
 .signal-meta > div:last-child, .ocr-fields > div:last-child { border-bottom: 0; }
 .signal-meta dt, .ocr-fields dt { color: var(--muted); font-size: .75rem; }
 .signal-meta dd, .ocr-fields dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: .78rem; text-align: right; }
-.ocr-fields small { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; }
+.ocr-fields dd { display: grid; justify-items: end; gap: 5px; }
+.ocr-field-value { display: block; color: var(--text); font-weight: 680; }
+.ocr-field-meta { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.ocr-confidence, .ocr-source { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--surface); font-size: .7rem; font-weight: 680; white-space: nowrap; }
+.ocr-confidence { color: var(--text); }
 .ocr-achievement-evidence dd { display: grid; justify-items: end; gap: 5px; }
-.ocr-achievement-evidence dd strong { display: block; color: var(--text); font-weight: 680; }
 .ocr-panel details { margin-top: 12px; }
 .ocr-panel pre { max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 10px; color: var(--muted); background: var(--surface); font-size: .68rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 900px) { .signals-grid { grid-template-columns: 1fr; } }
