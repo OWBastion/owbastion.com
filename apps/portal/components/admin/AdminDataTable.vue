@@ -21,6 +21,7 @@ type TableVirtualizeOptions = {
 type MobileColumnPriority = "primary" | "detail" | "hidden";
 type MobileColumn = { id: string; priority: MobileColumnPriority; order?: number };
 type AdminTableColumn<TData> = TableColumn<TData>;
+type RowKey<TData> = keyof TData | ((row: TData) => string | number);
 
 type Props = {
   columns: AdminTableColumn<TData>[];
@@ -36,6 +37,8 @@ type Props = {
   scrollHeight?: string;
   tableMinWidth?: string;
   tableKey: string;
+  rowKey: RowKey<TData>;
+  mobileRowLink?: (row: TData) => string;
   resetScrollKey?: string | number;
   sticky?: boolean | "header" | "footer";
   virtualize?: boolean | TableVirtualizeOptions;
@@ -52,6 +55,7 @@ const props = withDefaults(defineProps<Props>(), {
   scrollHeight: undefined,
   tableMinWidth: undefined,
   resetScrollKey: undefined,
+  mobileRowLink: undefined,
   sticky: "header",
   virtualize: false,
 });
@@ -69,7 +73,7 @@ const table = useTemplateRef<TableHandle>("table");
 const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const slots = useSlots();
-const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => name !== "filters"));
+const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !["filters", "mobile-primary", "mobile-secondary"].includes(name)));
 const tableUi = { root: "overflow-visible" };
 const tableVirtualize = computed<boolean | TableVirtualizeOptions>(() => {
   if (!props.virtualize) return false;
@@ -122,7 +126,13 @@ const mobileColumns = computed(() => props.columns
 const mobilePrimaryColumns = computed(() => mobileColumns.value.filter((item) => item.priority === "primary"));
 const mobileDetailColumns = computed(() => mobileColumns.value.filter((item) => item.priority === "detail"));
 const mobileHasDetails = computed(() => mobileDetailColumns.value.length > 0);
-const mobileExpanded = ref<Record<number, boolean>>({});
+const mobileHasSecondaryControls = computed(() => Boolean(props.sortingOptions.length || props.groupingOptions.length || slots["mobile-secondary"]));
+const mobileExpanded = reactive<Record<string, boolean>>({});
+const rowIdentity = (row: TData) => {
+  const value = typeof props.rowKey === "function" ? props.rowKey(row) : row[props.rowKey];
+  if (typeof value !== "string" && typeof value !== "number") throw new Error(`AdminDataTable row key must resolve to a string or number for ${props.tableKey}`);
+  return String(value);
+};
 const mobileData = computed(() => {
   const sourceData = props.data;
   globalFilter.value;
@@ -185,7 +195,7 @@ onMounted(() => {
   }
   if (typeof window.matchMedia === "function") {
     mobileControlsMediaQuery = window.matchMedia("(max-width: 620px)");
-    mobileControlsChangeHandler = () => { secondaryControlsOpen.value = !mobileControlsMediaQuery?.matches; };
+    mobileControlsChangeHandler = () => { if (mobileControlsMediaQuery?.matches) secondaryControlsOpen.value = false; };
     mobileControlsChangeHandler();
     mobileControlsMediaQuery.addEventListener("change", mobileControlsChangeHandler);
   } else {
@@ -228,12 +238,10 @@ onBeforeUnmount(() => {
         </template>
       </UTable>
       <div ref="controls" class="admin-data-table__controls">
-        <div v-if="$slots.filters" class="admin-data-table__filters"><slot name="filters" /></div>
-        <div class="admin-data-table__secondary-controls">
-          <button class="admin-data-table__secondary-controls-trigger" type="button" :aria-expanded="secondaryControlsOpen" :aria-controls="`admin-table-settings-${props.tableKey}`" @click="secondaryControlsOpen = !secondaryControlsOpen">
-            <span>表格设置</span><span aria-hidden="true">⌄</span>
-          </button>
-          <div :id="`admin-table-settings-${props.tableKey}`" class="admin-data-table__secondary-controls-content" :hidden="!secondaryControlsOpen">
+        <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
+        <div v-if="$slots['mobile-primary']" class="admin-data-table__mobile-primary-controls"><slot name="mobile-primary" /></div>
+        <div class="admin-data-table__secondary-controls admin-data-table__secondary-controls--desktop">
+          <div class="admin-data-table__secondary-controls-content">
             <div v-if="props.sortingOptions.length" class="admin-data-table__sort-control">
               <USelect v-model="sortingSelection" class="w-full" aria-label="排序方式" size="md" :items="sortingItems" :ui="{ content: 'min-w-64', itemLabel: 'whitespace-nowrap overflow-visible text-clip' }" />
             </div>
@@ -243,13 +251,32 @@ onBeforeUnmount(() => {
             </UDropdownMenu>
           </div>
         </div>
+        <UDrawer v-if="mobileHasSecondaryControls" v-model:open="secondaryControlsOpen" direction="bottom" title="筛选与排序" description="调整当前列表的显示顺序与筛选条件。" close :ui="{ content: 'admin-data-table__mobile-drawer glass-heavy elevation-3', header: 'glass-segment', body: 'admin-data-table__mobile-drawer-body' }">
+          <UButton class="admin-data-table__mobile-controls-trigger" label="筛选与排序" color="neutral" variant="outline" size="md" icon="i-lucide-sliders-horizontal" aria-label="打开筛选与排序" />
+          <template #body>
+            <div class="admin-data-table__mobile-controls-content">
+              <div v-if="$slots['mobile-secondary']" class="admin-data-table__mobile-secondary-filters"><slot name="mobile-secondary" /></div>
+              <USelect v-if="props.sortingOptions.length" v-model="sortingSelection" aria-label="排序方式" size="md" :items="sortingItems" />
+              <USelect v-if="props.groupingOptions.length" v-model="groupingSelection" aria-label="分组方式" size="md" :items="groupingItems" />
+            </div>
+          </template>
+        </UDrawer>
       </div>
       <div class="admin-data-table__mobile-list" :aria-busy="loading">
         <div v-if="loading" class="admin-data-table__mobile-loading" aria-label="正在加载"><USkeleton v-for="index in 3" :key="index" class="admin-data-table__mobile-skeleton" /></div>
         <p v-else-if="!mobileData.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
         <ul v-else class="admin-data-table__mobile-records">
-          <li v-for="(item, index) in mobileData" :key="index" class="admin-data-table__mobile-record">
-            <div class="admin-data-table__mobile-primary">
+          <li v-for="item in mobileData" :key="rowIdentity(item)" class="admin-data-table__mobile-record">
+            <NuxtLink v-if="props.mobileRowLink" class="admin-data-table__mobile-primary-link" :to="props.mobileRowLink(item)">
+              <div class="admin-data-table__mobile-primary">
+                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
+                  <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
+                  <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
+                  <span v-else>{{ mobileValue(item, field.column) }}</span>
+                </div>
+              </div>
+            </NuxtLink>
+            <div v-else class="admin-data-table__mobile-primary">
               <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
                 <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                 <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
@@ -257,10 +284,10 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div v-if="mobileHasDetails" class="admin-data-table__mobile-disclosure">
-              <button class="admin-data-table__mobile-disclosure-trigger" type="button" :aria-expanded="Boolean(mobileExpanded[index])" @click="mobileExpanded[index] = !mobileExpanded[index]">
-                <span>{{ mobileExpanded[index] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
+              <button class="admin-data-table__mobile-disclosure-trigger" type="button" :aria-expanded="Boolean(mobileExpanded[rowIdentity(item)])" :aria-controls="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" @click="mobileExpanded[rowIdentity(item)] = !mobileExpanded[rowIdentity(item)]">
+                <span>{{ mobileExpanded[rowIdentity(item)] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
               </button>
-              <div v-if="mobileExpanded[index]" class="admin-data-table__mobile-details">
+              <div v-if="mobileExpanded[rowIdentity(item)]" :id="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" class="admin-data-table__mobile-details">
                 <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                   <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
@@ -268,8 +295,15 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div v-if="tableSlots['actions-cell']" class="admin-data-table__mobile-actions">
-              <slot name="actions-cell" :row="mobileRow(item)" />
+            <div v-if="tableSlots['actions-cell'] && !props.mobileRowLink" class="admin-data-table__mobile-actions">
+              <UDropdownMenu :items="[]" :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }" :ui="{ content: 'admin-data-table__mobile-action-menu elevation-2' }">
+                <UButton icon="i-lucide-ellipsis" square color="neutral" variant="outline" class="hit-44" aria-label="打开更多操作" />
+                <template #content-bottom>
+                  <div class="admin-data-table__mobile-action-menu-content" role="group" aria-label="记录操作">
+                    <slot name="actions-cell" :row="mobileRow(item)" />
+                  </div>
+                </template>
+              </UDropdownMenu>
             </div>
           </li>
         </ul>
@@ -282,10 +316,9 @@ onBeforeUnmount(() => {
 .admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
 .admin-data-table__controls { position: sticky; z-index: 2; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
-.admin-data-table__secondary-controls-trigger { display: none; }
 .admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: 10px; }
-.admin-data-table__secondary-controls-content[hidden] { display: none; }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
 .admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
@@ -299,6 +332,8 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-records { margin: 0; padding: 0; list-style: none; }
 .admin-data-table__mobile-record { padding: 14px; border-bottom: 1px solid var(--line); }
 .admin-data-table__mobile-record:last-child { border-bottom: 0; }
+.admin-data-table__mobile-primary-link { display: block; color: inherit; text-decoration: none; border-radius: 10px; }
+.admin-data-table__mobile-primary-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: 12px; }
 .admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .admin-data-table__mobile-field { display: grid; gap: 4px; min-width: 0; }
@@ -309,24 +344,34 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-disclosure-trigger[aria-expanded="true"] > span:last-child { transform: rotate(180deg) translateY(-2px); }
 .admin-data-table__mobile-details { padding: 12px 0 2px; }
 .admin-data-table__mobile-actions { display: flex; justify-content: flex-end; gap: 8px; min-height: 44px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.admin-data-table__mobile-actions :deep(.table-actions) { justify-content: flex-end; }
+.admin-data-table__mobile-action-menu-content { display: grid; gap: 6px; min-width: 10rem; padding: 8px; }
+.admin-data-table__mobile-action-menu-content :deep(.table-actions) { display: grid; gap: 6px; }
+.admin-data-table__mobile-action-menu-content :deep(button), .admin-data-table__mobile-action-menu-content :deep(a) { min-height: 44px; }
 .admin-data-table__mobile-empty { margin: 0; padding: 32px 16px; color: var(--quiet); text-align: center; }
 .admin-data-table__mobile-loading { display: grid; gap: 1px; padding: 14px; }
 .admin-data-table__mobile-skeleton { height: 72px; }
 @media (max-width: 620px) {
-  .admin-data-table { margin-inline: -2px; }
-  .admin-data-table__scroll--bounded { height: auto !important; max-height: min(70dvh, 42rem); overflow-y: auto; }
+  .admin-data-table { margin-inline: -2px; overflow: visible; }
+  .admin-data-table__scroll--bounded { height: auto !important; max-height: none; overflow: visible; overscroll-behavior: auto; }
   .admin-data-table__controls { align-items: center; flex-wrap: wrap; justify-content: flex-start; }
-  .admin-data-table__filters { width: 100%; flex: 1 1 100%; }
-  .admin-data-table__secondary-controls { display: block; flex: 1 1 auto; min-width: 0; }
-  .admin-data-table__secondary-controls-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: var(--surface-raised); font: inherit; font-size: .86rem; font-weight: 650; cursor: pointer; }
-  .admin-data-table__secondary-controls-trigger > span:last-child { color: var(--quiet); font-size: 1.1rem; line-height: 1; transform: translateY(-2px); }
-  .admin-data-table__secondary-controls-trigger[aria-expanded="true"] > span:last-child { transform: rotate(180deg) translateY(-2px); }
-  .admin-data-table__secondary-controls-content { display: grid; gap: 8px; padding-top: 8px; }
-  .admin-data-table__sort-control { width: 100%; min-width: 0; flex: 0 0 auto; }
-  .admin-data-table__filters > :first-child { flex: 1; }
+  .admin-data-table__filters--desktop, .admin-data-table__secondary-controls--desktop { display: none; }
+  .admin-data-table__mobile-primary-controls { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; }
+  .admin-data-table__mobile-primary-controls > :first-child { flex: 1 1 auto; min-width: 0; }
+  .admin-data-table__mobile-controls-trigger { display: inline-flex; flex: 0 0 auto; min-height: 44px; }
+  .admin-data-table__mobile-drawer { width: 100%; max-height: calc(100dvh - 1rem); border-radius: 20px 20px 0 0; }
+  .admin-data-table__mobile-drawer-body { padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
+  .admin-data-table__mobile-controls-content, .admin-data-table__mobile-secondary-filters { display: grid; gap: 12px; }
+  .admin-data-table__mobile-secondary-filters { padding-bottom: 4px; }
   .admin-data-table__controls { position: relative; }
   .admin-data-table :deep(table[data-slot="base"]) { display: none; }
   .admin-data-table__mobile-list { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-data-table__mobile-primary-link { transition: none; }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .admin-data-table__mobile-drawer { background: var(--surface); backdrop-filter: none; }
 }
 </style>

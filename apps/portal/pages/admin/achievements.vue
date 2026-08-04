@@ -510,8 +510,9 @@ onMounted(() => void load());
         <template #generic>
         <section class="catalog-section" aria-labelledby="title-achievements-title">
           <div class="section-heading"><div><p class="eyebrow">通用成就</p><h3 id="title-achievements-title">称号挑战</h3></div><span>{{ titleChallengeItems.length }} 项</span></div>
-          <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" table-key="achievement-titles" class="admin-table achievement-table">
+          <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" class="admin-table achievement-table">
             <template #filters><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
+            <template #mobile-secondary><USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></template>
             <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
             <template #titleName-cell="{ row }"><strong>{{ itemTitleName(row.original) }}</strong><small class="table-meta">{{ isChallengeTitle(row.original) ? `${row.original.mapVariant === 'classic' ? '经典版地图 · ' : ''}引入版本 ${row.original.introducedVersion}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small></template>
             <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
@@ -547,8 +548,9 @@ onMounted(() => void load());
         <template #catalog>
           <section class="catalog-section" aria-labelledby="title-catalog-title">
             <div class="section-heading"><div><p class="eyebrow">称号目录</p><h3 id="title-catalog-title">称号定义</h3></div><span>{{ catalogItems.length }} 项</span></div>
-            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无称号目录记录。" table-key="achievement-title-catalog" class="admin-table achievement-table">
+            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" class="admin-table achievement-table">
               <template #filters><USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" /></template>
+              <template #mobile-secondary><USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" /></template>
               <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">目录称号</small></template>
               <template #icon-cell="{ row }"><span class="table-meta">{{ row.original.icon }}</span></template>
               <template #category-cell="{ row }"><span class="table-meta">{{ row.original.category }}</span></template>

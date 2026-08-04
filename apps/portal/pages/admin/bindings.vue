@@ -277,7 +277,7 @@ onMounted(load);
     <section class="binding-section" aria-label="绑定记录">
       <UTabs v-model="activeTab" :items="bindingTabs" variant="link" aria-label="绑定记录类型" class="binding-tabs">
         <template #claims>
-          <AdminDataTable v-model:sorting="claimSorting" :data="claims" :columns="columns" :loading="loading" :sorting-options="claimSortingOptions" :default-sorting="defaultClaimSorting" empty="暂无绑定申请。" table-key="binding-claims">
+          <AdminDataTable v-model:sorting="claimSorting" :data="claims" :columns="columns" :loading="loading" :sorting-options="claimSortingOptions" :default-sorting="defaultClaimSorting" empty="暂无绑定申请。" row-key="claimId" table-key="binding-claims">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #operationType-cell="{ row }"><StatusBadge :label="operationTypeLabel(row.original.operationType)" :tone="operationTypeTone(row.original.operationType)" /></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedClaimIds.has(row.original.claimId) ? 'row-update-flash' : undefined" :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
@@ -294,7 +294,7 @@ onMounted(load);
           </AdminDataTable>
         </template>
         <template #invitations>
-          <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" table-key="binding-invites">
+          <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" row-key="inviteId" table-key="binding-invites">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #historicalMigration-cell="{ row }"><StatusBadge :label="historicalMigrationLabel(row.original.historicalMigration)" :tone="historicalMigrationTone(row.original.historicalMigration)" /></template>
@@ -303,7 +303,7 @@ onMounted(load);
           </AdminDataTable>
         </template>
         <template #active>
-          <AdminDataTable v-model:sorting="activeBindingSorting" :data="activeBindings" :columns="activeBindingColumns" :loading="loading" :sorting-options="activeBindingSortingOptions" :default-sorting="defaultActiveBindingSorting" empty="暂无当前绑定。" table-key="active-bindings">
+          <AdminDataTable v-model:sorting="activeBindingSorting" :data="activeBindings" :columns="activeBindingColumns" :loading="loading" :sorting-options="activeBindingSortingOptions" :default-sorting="defaultActiveBindingSorting" empty="暂无当前绑定。" row-key="bindingId" table-key="active-bindings">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #memberOpenId-cell="{ row }"><span class="table-meta">{{ row.original.memberOpenId }}</span></template>
             <template #groupOpenId-cell="{ row }"><span class="table-meta">{{ row.original.groupOpenId }}</span></template>
