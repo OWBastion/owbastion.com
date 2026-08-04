@@ -25,7 +25,7 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
       <div class="queue-row queue-row--header" role="row">
         <span role="columnheader">挑战</span><span role="columnheader">玩家</span><span role="columnheader">状态</span><span role="columnheader">更新时间</span>
       </div>
-      <NuxtLink v-for="review in reviews" :key="review.submissionId" class="queue-row queue-row--item pressable-soft" role="row" to="/admin/reviews">
+      <NuxtLink v-for="review in reviews" :key="review.submissionId" class="queue-row queue-row--item pressable-soft" role="row" :to="`/admin/reviews/${encodeURIComponent(review.submissionId)}`">
         <span class="queue-challenge" role="cell"><strong>{{ review.mapName }}</strong><small>{{ review.difficulty }}</small></span>
         <span role="cell">{{ review.playerName }}</span>
         <span role="cell">{{ review.status }}</span>
