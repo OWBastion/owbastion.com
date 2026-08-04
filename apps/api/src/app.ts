@@ -772,7 +772,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminMapTitleRuleCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).createAdminMapTitleRule(parsed.data, access.auth!, key), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_CREATE_FAILED"; if (["MAP_TITLE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_CREATE_FAILED"; if (["MAP_TITLE_NOT_FOUND", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"].includes(code)) return errorResponse(c, 422, code, code === "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT" ? "Pioneer rules can only use explicit map exceptions" : "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
   });
   app.put("/v1/admin/map-title-rules/:ruleId", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
@@ -780,7 +780,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminMapTitleRuleUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).updateAdminMapTitleRule({ ...parsed.data, ruleId: c.req.param("ruleId") }, access.auth!, key)); }
-    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_UPDATE_FAILED"; if (code === "MAP_TITLE_RULE_NOT_FOUND") return errorResponse(c, 404, code, "The map title rule does not exist"); if (code === "MAP_TITLE_NOT_FOUND") return errorResponse(c, 422, code, "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_RULE_UPDATE_FAILED"; if (code === "MAP_TITLE_RULE_NOT_FOUND") return errorResponse(c, 404, code, "The map title rule does not exist"); if (["MAP_TITLE_NOT_FOUND", "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT"].includes(code)) return errorResponse(c, 422, code, code === "PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT" ? "Pioneer rules can only use explicit map exceptions" : "The map title is unavailable"); if (["MAP_TITLE_RULE_KIND_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map title rule conflicts with an existing record"); throw error; }
   });
   app.get("/v1/admin/maps/:mapId/map-title-inheritance", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;

@@ -356,6 +356,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     // Load the rule.
     const rule = await db.select().from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get();
     if (!rule || rule.status === "inactive") return null;
+    // Pioneer is a time-limited map event. It must never inherit to every
+    // active map, including while an older database is being migrated.
+    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") return null;
 
     // Step 2-3: look for an explicit exception.
     const exception = await db.select().from(mapTitleRuleExceptions)
@@ -460,6 +463,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     introducedVersion: rule.introducedVersion,
     retiredVersion: rule.retiredVersion,
   });
+
+  const assertMapTitleRuleScope = (kind: string, defaultScope: string) => {
+    if (kind.trim().toLocaleLowerCase() === "pioneer" && defaultScope !== "explicit") throw new Error("PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT");
+  };
 
 
   const toPublicTitleChallenge = (
@@ -567,6 +574,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const compatByRuleMap = new globalThis.Map(compat.map((item) => [`${item.ruleId}:${item.mapId}`, item.legacyChallengeId]));
     const items: Challenge[] = [];
     for (const { rule, title } of rows) {
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") continue;
       for (const map of activeMaps) {
         const exception = exceptionByRuleMap.get(`${rule.id}:${map.id}`);
         if (exception?.enabled === 0 || (!exception && rule.defaultScope === "explicit")) continue;
@@ -1227,6 +1235,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async createAdminMapTitleRule(input: AdminMapTitleRuleCreateRequest, auth, idempotencyKey) {
+      assertMapTitleRuleScope(input.kind, input.defaultScope);
       const replay = await replayOrConflict<AdminMapTitleRule>(db, auth.subject, "admin.map-title-rule.create", idempotencyKey, input);
       if (replay) return replay;
       const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
@@ -1243,6 +1252,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async updateAdminMapTitleRule(input: AdminMapTitleRuleUpdateRequest & { ruleId: string }, auth, idempotencyKey) {
+      assertMapTitleRuleScope(input.kind, input.defaultScope);
       const replay = await replayOrConflict<AdminMapTitleRule>(db, auth.subject, "admin.map-title-rule.update", idempotencyKey, input);
       if (replay) return replay;
       const row = await db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key)).where(eq(mapTitleRules.id, input.ruleId)).get();

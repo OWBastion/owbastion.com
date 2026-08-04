@@ -27,6 +27,13 @@ pnpm exec wrangler d1 migrations apply DB --local
 关系的有效地图写为禁用例外。它不会新增或猜测 `CLASSIC` 关系，也不会修改旧挑战、
 奖励、历史持有人、玩家权益或提交记录。
 
+`0056_restrict_pioneer_map_title_scope.sql` 是针对 `0049` 默认范围错误的必要数据修复：
+它将 `PIONEER` 规则改为 `default_scope = explicit`，因此开拓者不会随有效地图自动
+生成挑战，只能由管理员在地图重做或新地图上线期间启用对应的地图例外。它仅撤销没有
+显式地图例外快照的自动开拓者权益；手动或历史权益，以及有显式例外快照的自动权益
+不受影响。若错误权益是提交的主权益，迁移会保留原截图并将提交置为
+`resubmission_required`，管理员可重新请求 OCR；所有修复都会写入审计事件。
+
 在任何远程 migration 前后，先执行只读 reconciliation（结果只有计数，不含玩家
 姓名或标识）：
 

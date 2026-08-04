@@ -135,6 +135,9 @@ const statusTone = (status: AchievementStatus) => status === "active" ? "success
 const displayKindLabel = (displayKind: Rule["displayKind"]) => ({ fixed: "固定称号", map_pioneer: "地图名 + 开拓者", map_name_suffix: "地图名 + 后缀称号" })[displayKind];
 const submissionModeLabel = (submissionMode: Rule["submissionMode"] | null | undefined) => submissionMode === "automatic" ? "自动提交" : "手动提交";
 const scopeLabel = (scope: Rule["defaultScope"]) => scope === "all_active" ? "全部有效地图" : "仅例外地图";
+const scopeOptions = computed(() => form.kind.trim().toLocaleLowerCase() === "pioneer"
+  ? [{ label: "仅例外地图（限时开放）", value: "explicit" as const }]
+  : [{ label: "全部有效地图", value: "all_active" as const }, { label: "仅例外地图", value: "explicit" as const }]);
 const mapName = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value)?.mapName ?? "");
 const ruleSummaries = computed<RuleSummary[]>(() => rules.value.map((rule) => {
   const rows = inheritances.value.filter((item) => item.rule.ruleId === rule.ruleId);
@@ -170,6 +173,7 @@ const dialogOpen = computed({ get: () => ruleFormOpen.value, set: (open: boolean
 
 function resetForm(rule?: Rule) {
   Object.assign(form, rule ? { ...rule, retiredVersion: rule.retiredVersion ?? "" } : { titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual", displayKind: "fixed", slot: null, mapVariant: undefined, defaultScope: "all_active", status: "active", introducedVersion: "", retiredVersion: "" });
+  if (form.kind.trim().toLocaleLowerCase() === "pioneer") form.defaultScope = "explicit";
 }
 function editRule(rule?: Rule) { editingRule.value = rule ?? null; resetForm(rule); ruleFormOpen.value = true; }
 function closeRuleForm() { editingRule.value = null; ruleFormOpen.value = false; resetForm(); }
@@ -236,6 +240,7 @@ async function saveException() {
   }
 }
 
+watch(() => form.kind, (kind) => { if (kind.trim().toLocaleLowerCase() === "pioneer") form.defaultScope = "explicit"; });
 watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selectedMapId.value = props.maps[0].mapId; void load(); }, { immediate: true });
 </script>
 
@@ -275,7 +280,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     </template>
 
     <AdminResponsiveDialog v-model:open="dialogOpen" :title="editingRule ? '编辑地图称号规则' : '新建地图称号规则'" size="lg">
-      <template #body><form id="map-title-rule-editor" class="rule-editor" @submit.prevent="saveRule"><UFormField label="称号键" required><UInput v-model="form.titleKey" required :disabled="Boolean(editingRule) || saving" /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="完成条件" required><UTextarea v-model="form.condition" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" required :disabled="saving" /></UFormField><UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="[{ label: '全部有效地图', value: 'all_active' }, { label: '仅例外地图', value: 'explicit' }]" :disabled="saving" /></UFormField><UFormField label="地图版本"><USelect v-model="form.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" /></UFormField><UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无指定槽位', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField><UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :disabled="saving" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required :disabled="saving" /></UFormField><UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required :disabled="saving" /></UFormField></form></template>
+      <template #body><form id="map-title-rule-editor" class="rule-editor" @submit.prevent="saveRule"><UFormField label="称号键" required><UInput v-model="form.titleKey" required :disabled="Boolean(editingRule) || saving" /></UFormField><UFormField label="规则类型" required><UInput v-model="form.kind" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="完成条件" required><UTextarea v-model="form.condition" required :disabled="saving" /></UFormField><UFormField class="rule-editor__wide" label="截图规则" required><UTextarea v-model="form.evidenceRule" required :disabled="saving" /></UFormField><UFormField label="适用范围"><USelect v-model="form.defaultScope" :items="scopeOptions" :disabled="saving || form.kind.trim().toLocaleLowerCase() === 'pioneer'" /></UFormField><UFormField label="地图版本"><USelect v-model="form.mapVariant" :items="[{ label: '标准版', value: undefined }, { label: '经典版', value: 'classic' }]" :disabled="saving" /></UFormField><UFormField label="展示方式"><USelect v-model="form.displayKind" :items="[{ label: '固定称号', value: 'fixed' }, { label: '地图名 + 开拓者', value: 'map_pioneer' }, { label: '地图名 + 后缀称号', value: 'map_name_suffix' }]" :disabled="saving" /></UFormField><UFormField label="提交方式"><USelect v-model="form.submissionMode" :items="[{ label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="称号槽位"><USelect v-model="form.slot" :items="[{ label: '无指定槽位', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField><UFormField label="状态"><USelect v-model="form.status" :items="[{ label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" :disabled="saving" /></UFormField><UFormField label="引入版本" required><UInput v-model="form.introducedVersion" required :disabled="saving" /></UFormField><UFormField v-if="form.status === 'sunsetting'" label="计划下线版本" required><UInput v-model="form.retiredVersion" required :disabled="saving" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeRuleForm" /><UButton label="保存规则" type="submit" form="map-title-rule-editor" :loading="saving" /></template>
     </AdminResponsiveDialog>
   </section>

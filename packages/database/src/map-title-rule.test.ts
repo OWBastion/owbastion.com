@@ -860,6 +860,21 @@ describe("map title rule model – locked invariants", () => {
       const rule = sqlite.prepare("SELECT default_scope FROM map_title_rules WHERE id = 'rule.special'").get() as { default_scope: string };
       expect(rule.default_scope).toBe("explicit");
     });
+
+    it("keeps Pioneer closed until a map exception is explicitly enabled", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "PIONEER");
+      seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
+      const services = createPlatformServices(database);
+
+      await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
+
+      sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = 'rule.pioneer'").run();
+      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris");
+      await expect(services.listChallenges({ family: "map" })).resolves.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris", mapTitleRule: expect.objectContaining({ kind: "pioneer" }) }));
+    });
   });
 
   // ─── Invariant: Slot semantics ───────────────────────────────────────────

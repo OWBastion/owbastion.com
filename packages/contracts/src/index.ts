@@ -361,6 +361,7 @@ const mapTitleRuleShape = {
 const mapTitleRuleInputSchema = z.object(mapTitleRuleShape).superRefine((value, ctx) => {
   if (value.status === "sunsetting" && value.retiredVersion === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Sunsetting rules require a retired version" });
   if (value.status !== "sunsetting" && value.retiredVersion !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["retiredVersion"], message: "Only sunsetting rules may have a retired version" });
+  if (value.kind.trim().toLocaleLowerCase() === "pioneer" && value.defaultScope !== "explicit") ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["defaultScope"], message: "Pioneer rules require explicit map exceptions" });
 });
 export const adminMapTitleRuleSchema = z.object(mapTitleRuleShape).extend({
   ruleId: externalId,
