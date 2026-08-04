@@ -588,7 +588,7 @@ describe("map title rule model – locked invariants", () => {
       }
 
       const submission = sqlite.prepare("SELECT status, rule_snapshot_json FROM submissions WHERE id = 'sub.legacy-classic'").get() as { status: string; rule_snapshot_json: string | null };
-      expect(submission.status).toBe("ready_for_review");
+      expect(submission.status).toBe("approved");
       expect(JSON.parse(submission.rule_snapshot_json!)).toMatchObject({ titleKey: "CLASSIC", mapId: "map.paris", mapVariant: "classic" });
     });
   });

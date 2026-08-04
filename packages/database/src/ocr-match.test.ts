@@ -59,18 +59,19 @@ describe("matchOcrResult", () => {
   });
 
   it("matches a map-scoped title challenge against the selected map", () => {
-    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement" }).skipped).toEqual(["difficulty"]);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement" }).skipped).toEqual([]);
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapName: "釜山" }).map).toBe(false);
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", difficulty: "地狱" }).difficulty).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", targetDifficulty: null, titleName: "主宰", mapVariant: "classic" }).achievement).toBe(true);
   });
 
   it("normalizes player names before comparing them", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "title_achievement", player: " player#9999 " }).player).toBe(true);
   });
 
-  it("requires the classic map variant when the challenge declares it", () => {
+  it("requires the classic map variant only when the challenge declares it", () => {
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic", requiredMapVariant: "classic" }).variant).toBe(true);
     expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: null, requiredMapVariant: "classic" }).variant).toBe(false);
-    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic" }).variant).toBe(false);
+    expect(matchOcrResult({ ...baseInput, challengeType: "map_title_achievement", mapVariant: "classic" }).variant).toBe(true);
   });
 });

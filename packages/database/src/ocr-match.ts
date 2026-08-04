@@ -68,15 +68,15 @@ export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
   const isMapTitleChallenge = input.challengeType === "map_title_achievement";
   const match = {
     map: isTitleChallenge ? true : normalized(input.mapName) === normalized(input.targetMapName),
-    difficulty: isTitleChallenge || isMapTitleChallenge ? true : difficultyCovers(input.difficulty, input.targetDifficulty),
+    difficulty: isTitleChallenge || !input.targetDifficulty ? true : difficultyCovers(input.difficulty, input.targetDifficulty),
     completed: input.challengeCompleted === true,
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
     variant: isTitleChallenge
       ? true
       : input.requiredMapVariant
         ? normalized(input.mapVariant) === normalized(input.requiredMapVariant)
-        : normalized(input.mapVariant) !== "classic",
-    achievement: !input.titleName || matchAchievementEvidence(input.titleName, input.achievementTitles, input.achievementPanelText),
+        : true,
+    achievement: isTitleChallenge ? matchAchievementEvidence(input.titleName, input.achievementTitles, input.achievementPanelText) : true,
   };
-  return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : isMapTitleChallenge ? ["difficulty"] : [] };
+  return { ...match, skipped: isTitleChallenge ? ["map", "difficulty"] : isMapTitleChallenge && !input.targetDifficulty ? ["difficulty"] : [] };
 };

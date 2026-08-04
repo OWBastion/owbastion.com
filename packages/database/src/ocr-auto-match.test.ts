@@ -37,6 +37,23 @@ describe("matchOcrAgainstChallenges", () => {
     expect(result.automaticCandidates.map(({ targetDifficulty }) => targetDifficulty)).toEqual(["地狱"]);
   });
 
+  it("matches a classic map challenge without generic achievement evidence", () => {
+    const classicResponse = {
+      ...response,
+      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 }, achievement_titles: { status: "ok", confidence: 0.98 } },
+      data: { ...response.data, difficulty: "地狱", map_variant: "classic", achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" },
+    };
+    const mapTitleChallenge = { ...mapChallenge("map.samoa.dominator"), kind: "map_title_achievement" as const, name: "主宰", difficulty: "地狱", titleKey: "DOMINATOR", mapTitleRule: { ruleId: "rule.dominator", kind: "dominator", displayKind: "map_name_suffix" as const, slot: "dominator" as const, dynamic: true as const } };
+    const globalTitleChallenge = {
+      challengeId: "title.conqueror", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const,
+      titleKey: "CONQUEROR", titleName: "征服者", category: "挑战", condition: "完成挑战", evidenceRule: "左侧成就面板显示称号和勾选", gameVersion: "1",
+      status: "active" as const, submissionMode: "manual" as const,
+    };
+    const result = matchOcrAgainstChallenges([mapTitleChallenge, globalTitleChallenge], classicResponse, "Player#1234");
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact[0]).toMatchObject({ targetDifficulty: "地狱", titleName: "主宰", match: { variant: true, achievement: true }, quality: { accepted: true } });
+  });
+
   it("only evaluates map challenges for the map recognized in the screenshot", () => {
     const result = matchOcrAgainstChallenges([
       mapChallenge("map.samoa.conqueror"),

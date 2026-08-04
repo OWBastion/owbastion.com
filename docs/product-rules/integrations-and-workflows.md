@@ -379,10 +379,11 @@ components.
 OCRKit remains the recognition-only service. The platform accepts only response
 schema version `1`, `ok: true`, and required field evidence at or above its
 configured confidence gate before value matching. For map challenges, this covers
-`map_name`, `difficulty`, `challenge_completed`, and `player`; map-title
-matches also require structured title evidence or panel-text evidence. For
-title challenges, it covers `challenge_completed`, `player`, and title
-evidence.
+`map_name`, `difficulty` when the map rule declares a difficulty target,
+`challenge_completed`, `player`, and an explicitly required map variant. Map
+challenges, including map-title projections, do not use generic achievement
+titles or the left achievement panel as evidence. For title challenges, it
+covers `challenge_completed`, `player`, and title evidence.
 
 Difficulty values follow a fixed hierarchy
 (`简单` < `一般` < `困难` < `专家` < `传奇` < `地狱`): a recognized harder
@@ -398,8 +399,10 @@ or above the gate — and map challenges are evaluated only for the map named in
 the screenshot. A statistics panel without a checked title (for example, one
 listing only aggregate counters) is not treated as checked achievement
 evidence; title evidence requires a matching `achievement_titles` entry or a
-title followed by a checked mark in the panel text. Classic map-completion
-challenges require the `classic` map variant and do not need title evidence.
+title followed by a checked mark in the panel text. `classic` identifies the
+classic version of the recognized map: it satisfies map challenges that do not
+declare another variant, while classic-specific map challenges require the
+`classic` map variant. Neither kind of map challenge needs title evidence.
 
 The platform owns candidate selection, rule-snapshot evaluation,
 approval, Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous
