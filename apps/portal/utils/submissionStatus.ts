@@ -11,3 +11,13 @@ export const submissionStatusText: Record<string, string> = {
   rejected: "未通过",
   resubmission_required: "需重新提交",
 };
+
+export type SubmissionStatusTone = "default" | "info" | "success" | "warning" | "error";
+
+export const submissionStatusTone = (status: string): SubmissionStatusTone => {
+  if (status === "approved") return "success";
+  if (status === "rejected") return "error";
+  if (status === "resubmission_required") return "warning";
+  if (["ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required"].includes(status)) return "info";
+  return "default";
+};

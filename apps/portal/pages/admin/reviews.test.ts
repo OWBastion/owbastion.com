@@ -23,6 +23,7 @@ describe("admin reviews page", () => {
     expect(wrapper.text()).toContain("等待确认挑战");
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("成就挑战：守望先锋");
+    expect(wrapper.text()).not.toContain("面板：");
     expect(wrapper.text()).toContain("地图 98%");
     expect(wrapper.text()).toContain("成就 94%");
     expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toContain("查看");

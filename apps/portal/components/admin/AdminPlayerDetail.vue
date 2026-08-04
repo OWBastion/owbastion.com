@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
-import { submissionStatusText } from "~/utils/submissionStatus";
+import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; grantCompleted: []; editIdentity: [] }>();
@@ -8,7 +8,6 @@ const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateSty
 const battleTag = computed(() => `${props.player.playerName}#${props.player.playerId}`);
 const initials = computed(() => props.player.playerName.slice(0, 2));
 const statusLabel = computed(() => props.player.status === "active" ? "正常" : "已封禁");
-const submissionStatusTone = (status: string) => status === "approved" || status === "ready_for_review" ? "success" : status === "rejected" || status === "resubmission_required" || status === "ocr_review_required" ? "warning" : "default";
 const submissionStatusLabel = (status: string) => submissionStatusText[status] ?? status;
 </script>
 

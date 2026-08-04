@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminSubmission } from "~/composables/useAdminApi";
-import { submissionStatusText } from "~/utils/submissionStatus";
+import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -26,7 +26,6 @@ const emit = defineEmits<{
 
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
-const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.challengeSelectionLoading || props.ocrRetryLoading));
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
@@ -69,7 +68,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         <span class="detail-meta__sep" aria-hidden="true">·</span>
         <span class="detail-meta__label">截图审核</span>
       </p>
-      <StatusBadge :label="formatStatus(submission.status)" :tone="statusTone(submission.status)" />
+      <StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" />
     </header>
 
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
@@ -160,7 +159,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
         </section>
 
         <UCard class="overview-card elevation-2">
-          <template #header><div class="card-heading"><h3>提交概览</h3><StatusBadge :label="formatStatus(submission.status)" :tone="statusTone(submission.status)" /></div></template>
+          <template #header><div class="card-heading"><h3>提交概览</h3><StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" /></div></template>
           <dl class="detail-list">
             <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
             <div><dt>玩家</dt><dd>{{ submission.playerName }}</dd></div>

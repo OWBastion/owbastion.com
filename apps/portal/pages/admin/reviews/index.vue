@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
-import { submissionStatusText } from "~/utils/submissionStatus";
+import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -15,10 +15,7 @@ const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
 type OcrField = { confidence?: unknown };
-type OcrPayload = {
-  data?: { map_name?: unknown; achievement_titles?: unknown; achievement_panel_text?: unknown };
-  fields?: Record<string, OcrField>;
-};
+type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown }; fields?: Record<string, OcrField> };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 type ReviewStatus = "all" | keyof typeof submissionStatusText;
@@ -26,7 +23,6 @@ const reviewStatus = shallowRef<ReviewStatus>("all");
 const reviewStatusOptions = [{ label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).map(([value, label]) => ({ label, value }))];
 const spotCheckFilter = shallowRef<"all" | "pending" | "confirmed" | "revoked">("all");
 const spotCheckOptions = [{ label: "全部抽检", value: "all" }, { label: "待抽检", value: "pending" }, { label: "已确认", value: "confirmed" }, { label: "已撤销", value: "revoked" }];
-const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
 const spotCheckLabel = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "待抽检" : submission.spotCheck?.status === "confirmed" ? "已确认" : submission.spotCheck?.status === "revoked" ? "已撤销" : "—";
 const spotCheckTone = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "warning" : "default";
 const ocrPayload = (submission: AdminSubmission) => submission.ocr as OcrPayload | null;
@@ -41,10 +37,6 @@ const ocrAchievementTitles = (submission: AdminSubmission) => {
   if (!Array.isArray(titles)) return "未识别";
   const names = titles.filter((title): title is string => typeof title === "string" && Boolean(title.trim()));
   return names.length ? names.join("、") : "无";
-};
-const ocrAchievementPanelText = (submission: AdminSubmission) => {
-  const text = ocrPayload(submission)?.data?.achievement_panel_text;
-  return typeof text === "string" && text.trim() ? text.trim() : "未识别";
 };
 const ocrConfidence = (submission: AdminSubmission, field: string) => {
   const confidence = ocrPayload(submission)?.fields?.[field]?.confidence;
@@ -94,10 +86,10 @@ onMounted(() => { void load(); });
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'primary', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'spotCheck', priority: 'detail', order: 5 }, { id: 'updatedAt', priority: 'detail', order: 6 }]" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>
-      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small><small class="table-meta">面板：{{ ocrAchievementPanelText(row.original) }}</small></template>
+      <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
-      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="statusTone(row.original.status)" /></template>
+      <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
       <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
