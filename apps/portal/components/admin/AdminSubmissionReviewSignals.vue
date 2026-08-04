@@ -26,10 +26,18 @@ const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).
 const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: MatchCandidate[] } | undefined | null);
 const candidates = computed(() => matchPayload.value?.candidates ?? []);
 const normalized = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
+const normalizedDifficulty = (value: unknown) => {
+  const label = normalized(value);
+  return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
+};
 const recognizedMapName = computed(() => normalized(ocrPayload.value?.data?.map_name) || normalized(props.submission.mapName));
+const recognizedDifficulty = computed(() => normalizedDifficulty(ocrPayload.value?.data?.difficulty) || normalizedDifficulty(props.submission.difficulty));
+const isMapCandidate = (candidate: MatchCandidate) => candidate.challengeType !== "title_achievement";
 const visibleCandidates = computed(() => candidates.value.filter((candidate) => {
   if (candidate.titleName && candidate.match?.achievement !== true) return false;
-  if (candidate.mapId) return Boolean(recognizedMapName.value) && Boolean(candidate.targetMapName) && normalized(candidate.targetMapName) === recognizedMapName.value;
+  if (!isMapCandidate(candidate)) return true;
+  if (!candidate.mapId || !recognizedMapName.value || !candidate.targetMapName || normalized(candidate.targetMapName) !== recognizedMapName.value) return false;
+  if (candidate.targetDifficulty !== null && candidate.targetDifficulty !== undefined) return Boolean(recognizedDifficulty.value) && normalizedDifficulty(candidate.targetDifficulty) === recognizedDifficulty.value;
   return true;
 }));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
@@ -56,7 +64,7 @@ const candidateResultLabel = (candidate: MatchCandidate) => {
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
 const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}`;
 watch([() => props.submission.challengeId, visibleCandidates], ([challengeId, candidates]) => {
-  const currentCandidate = candidates.find((candidate) => candidate.challengeId === challengeId && (!candidate.mapId || normalized(candidate.targetMapName) === normalized(props.submission.mapName)));
+  const currentCandidate = candidates.find((candidate) => candidate.challengeId === challengeId);
   selectedCandidateId.value = currentCandidate ? candidateKey(currentCandidate) : challengeId || "";
 }, { immediate: true });
 const candidateStatusLabel = (candidate: MatchCandidate) => {
@@ -68,7 +76,7 @@ const candidateStatusLabel = (candidate: MatchCandidate) => {
 };
 const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
 const selectedCandidate = computed(() => visibleCandidates.value.find((candidate) => candidateKey(candidate) === selectedCandidateId.value) ?? null);
-const isCurrentCandidate = (candidate: MatchCandidate) => candidate.challengeId === props.submission.challengeId && (!candidate.mapId || normalized(candidate.targetMapName) === normalized(props.submission.mapName));
+const isCurrentCandidate = (candidate: MatchCandidate) => candidate.challengeId === props.submission.challengeId && visibleCandidates.value.includes(candidate);
 const selectCandidate = (candidate: MatchCandidate) => { selectedCandidateId.value = candidateKey(candidate); };
 const saveSelectedCandidate = () => {
   if (!selectedCandidate.value?.challengeId || props.challengeSelectionLoading) return;

@@ -26,6 +26,21 @@ export type OcrMatch = {
 
 const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
 
+const difficultyLevels = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
+
+const normalizedDifficulty = (value: string | null | undefined) => {
+  const label = normalized(value);
+  return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
+};
+
+export const difficultyRank = (value: string | null | undefined) => difficultyLevels.indexOf(normalizedDifficulty(value) as typeof difficultyLevels[number]);
+
+export const difficultyCovers = (actual: string | null | undefined, target: string | null | undefined) => {
+  const actualIndex = difficultyRank(actual);
+  const targetIndex = difficultyRank(target);
+  return actualIndex >= 0 && targetIndex >= 0 ? actualIndex >= targetIndex : normalizedDifficulty(actual) === normalizedDifficulty(target);
+};
+
 const panelContainsCheckedTitle = (panelText: string | null | undefined, titleName: string | null | undefined) => {
   const panel = normalized(panelText);
   const title = normalized(titleName);
@@ -53,7 +68,7 @@ export const matchOcrResult = (input: OcrMatchInput): OcrMatch => {
   const isMapTitleChallenge = input.challengeType === "map_title_achievement";
   const match = {
     map: isTitleChallenge ? true : normalized(input.mapName) === normalized(input.targetMapName),
-    difficulty: isTitleChallenge || isMapTitleChallenge ? true : normalized(input.difficulty) === normalized(input.targetDifficulty),
+    difficulty: isTitleChallenge || isMapTitleChallenge ? true : difficultyCovers(input.difficulty, input.targetDifficulty),
     completed: input.challengeCompleted === true,
     player: normalized(input.player).split("#")[0] === normalized(input.targetPlayerName).split("#")[0],
     variant: isTitleChallenge

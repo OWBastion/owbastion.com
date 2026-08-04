@@ -9,6 +9,11 @@ import { matchOcrAgainstChallenges } from "./ocr-auto-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
 
 const now = () => Date.now();
+const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
+const normalizedOcrDifficulty = (value: unknown) => {
+  const label = normalizedOcrLabel(value);
+  return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
+};
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
@@ -737,25 +742,34 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     attempt: number;
     responseJson: string;
     matchJson: string;
-    snapshot: MapTitleRuleSnapshot;
-    titleKey: string;
-    mapId: string | null;
-    slot: string | null;
-    alreadyOwned: boolean;
+    grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean }>;
     sample: boolean;
   }) => {
     const timestamp = now();
     const reviewId = crypto.randomUUID();
-    const grantId = crypto.randomUUID();
     const spotCheckId = crypto.randomUUID();
+    const grants = input.grants.map((grant) => ({ ...grant, grantId: crypto.randomUUID() }));
+    const primaryGrant = grants[0];
+    if (!primaryGrant) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+    const grantId = primaryGrant.grantId;
     const statements: D1PreparedStatement[] = [
       database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, match_json, created_at) SELECT ?, ?, ?, ?, 'matched', ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(crypto.randomUUID(), input.submissionId, input.requestId, input.attempt, input.responseJson, input.matchJson, timestamp, input.submissionId),
       database.prepare("INSERT OR IGNORE INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, ?, 'approved', NULL, 'system:ocr', ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(reviewId, input.submissionId, timestamp, input.submissionId),
-      database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, b.player_account_id, ?, ?, ?, 'active', 'automatic', s.id, 'system:ocr', ? FROM submissions s INNER JOIN bindings b ON b.id = s.binding_id WHERE s.id = ? AND s.status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(grantId, input.titleKey, input.mapId, input.slot, timestamp, input.submissionId, reviewId),
-      database.prepare("UPDATE submissions SET status = 'approved', review_reason = NULL, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND g.status = 'active' AND (g.map_id = ? OR (g.map_id IS NULL AND ? IS NULL)), rule_snapshot_json = ?, updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(input.titleKey, input.mapId, input.mapId, JSON.stringify(input.snapshot), timestamp, input.submissionId, reviewId),
-      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_review', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ requestId: input.requestId, attempt: input.attempt, decision: "approved", titleKey: input.titleKey, mapId: input.mapId, slot: input.slot, alreadyOwned: input.alreadyOwned, match: JSON.parse(input.matchJson), ruleSnapshot: input.snapshot }), timestamp, input.submissionId),
-      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_grant', 'player_title_grant', grant_id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ submissionId: input.submissionId, sourceType: "automatic", sourceId: input.submissionId, titleKey: input.titleKey, mapId: input.mapId, ruleSnapshot: input.snapshot }), timestamp, input.submissionId),
     ];
+    for (const grant of grants) {
+      statements.push(
+        database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, b.player_account_id, ?, ?, ?, 'active', 'automatic', s.id, 'system:ocr', ? FROM submissions s INNER JOIN bindings b ON b.id = s.binding_id WHERE s.id = ? AND s.status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(grant.grantId, grant.titleKey, grant.mapId, grant.slot, timestamp, input.submissionId, reviewId),
+      );
+    }
+    statements.push(
+      database.prepare("UPDATE submissions SET status = 'approved', review_reason = NULL, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND g.status = 'active' AND (g.map_id = ? OR (g.map_id IS NULL AND ? IS NULL)), rule_snapshot_json = ?, updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(primaryGrant.titleKey, primaryGrant.mapId, primaryGrant.mapId, JSON.stringify(primaryGrant.snapshot), timestamp, input.submissionId, reviewId),
+      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_review', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ requestId: input.requestId, attempt: input.attempt, decision: "approved", grants: grants.map(({ titleKey, mapId, slot, alreadyOwned }) => ({ titleKey, mapId, slot, alreadyOwned })), match: JSON.parse(input.matchJson), ruleSnapshot: primaryGrant.snapshot }), timestamp, input.submissionId),
+    );
+    for (const grant of grants) {
+      statements.push(
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_grant', 'player_title_grant', ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved') AND EXISTS (SELECT 1 FROM player_title_grants WHERE id = ?)").bind(crypto.randomUUID(), input.requestId, grant.grantId, JSON.stringify({ submissionId: input.submissionId, sourceType: "automatic", sourceId: input.submissionId, titleKey: grant.titleKey, mapId: grant.mapId, alreadyOwned: grant.alreadyOwned, ruleSnapshot: grant.snapshot }), timestamp, input.submissionId, grant.grantId),
+      );
+    }
     if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(spotCheckId, input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
@@ -1777,17 +1791,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (["approved", "rejected"].includes(row.status)) throw new Error("SUBMISSION_NOT_SELECTABLE");
 
-      const latestOcr = await db.select({ matchJson: ocrResults.matchJson }).from(ocrResults)
+      const latestOcr = await db.select({ matchJson: ocrResults.matchJson, responseJson: ocrResults.responseJson }).from(ocrResults)
         .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
-      type StoredMatchCandidate = { challengeId?: unknown; mapId?: unknown; targetMapName?: unknown; titleName?: unknown; match?: { achievement?: unknown } };
+      type StoredMatchCandidate = { challengeId?: unknown; mapId?: unknown; challengeType?: unknown; targetMapName?: unknown; targetDifficulty?: unknown; titleName?: unknown; match?: { achievement?: unknown } };
       let matchCandidates: StoredMatchCandidate[] = [];
+      let ocrData: { map_name?: unknown; difficulty?: unknown } = {};
       try {
         const parsed = latestOcr?.matchJson ? JSON.parse(latestOcr.matchJson) as { candidates?: unknown } : null;
         matchCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates.filter((candidate): candidate is StoredMatchCandidate => Boolean(candidate) && typeof candidate === "object") : [];
+        const response = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as { data?: unknown } : null;
+        if (response?.data && typeof response.data === "object" && !Array.isArray(response.data)) ocrData = response.data as { map_name?: unknown; difficulty?: unknown };
       } catch {
         matchCandidates = [];
+        ocrData = {};
       }
-      const matchedCandidate = matchCandidates.find((candidate) => candidate.challengeId === input.challengeId && (typeof candidate.mapId !== "string" || candidate.mapId === input.mapId));
+      const recognizedMapName = normalizedOcrLabel(ocrData.map_name);
+      const recognizedDifficulty = normalizedOcrDifficulty(ocrData.difficulty);
+      const matchedCandidate = matchCandidates.find((candidate) => {
+        if (candidate.challengeId !== input.challengeId) return false;
+        if (candidate.challengeType === "title_achievement") return !input.mapId && typeof candidate.titleName === "string";
+        if (typeof candidate.mapId !== "string" || !input.mapId || candidate.mapId !== input.mapId) return false;
+        if (typeof candidate.targetMapName !== "string" || !recognizedMapName || normalizedOcrLabel(candidate.targetMapName) !== recognizedMapName) return false;
+        return candidate.targetDifficulty === null || candidate.targetDifficulty === undefined || Boolean(recognizedDifficulty) && normalizedOcrDifficulty(candidate.targetDifficulty) === recognizedDifficulty;
+      });
       if (!matchedCandidate) throw new Error("CHALLENGE_NOT_FOUND");
       if (matchedCandidate.titleName && matchedCandidate.match?.achievement !== true) throw new Error("CHALLENGE_NOT_SELECTABLE");
 
@@ -2094,14 +2120,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, ...(challenge.family === "map" ? { mapId: challenge.mapId } : {}), challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
           const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates });
           if (decision.outcome === "automatic") {
-            const candidate = decision.exact[0];
-            const snapshot = automaticSnapshot(candidate);
-            const mapId = candidate.challenge.family === "map" ? candidate.challenge.mapId : null;
-            const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId))).get();
+            const candidate = decision.automaticCandidates[0];
+            if (!candidate) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+            const grantCandidates = [candidate, ...decision.exact.filter((item) => item !== candidate && item.challengeType === "difficulty_completion" && item.targetDifficulty && item.grantable && item.quality.accepted)];
+            const uniqueGrantCandidates = [...new Map(grantCandidates.map((item) => [`${item.challenge.titleKey ?? ""}:${item.challenge.family === "map" ? item.challenge.mapId : ""}`, item])).values()];
+            const grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean }> = [];
+            for (const grantCandidate of uniqueGrantCandidates) {
+              const snapshot = automaticSnapshot(grantCandidate);
+              const mapId = grantCandidate.challenge.family === "map" ? grantCandidate.challenge.mapId : null;
+              const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId))).get();
+              grants.push({ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing) });
+            }
             const sample = await shouldSampleAutomaticDecision(row.id);
             stage = "persist_automatic_decision";
-            await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing), sample });
-            logOcrEvent("job_completed", { ...context, outcome: "automatic", titleKey: snapshot.titleKey, spotCheck: sample, durationMs: Date.now() - startedAt });
+            await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, grants, sample });
+            logOcrEvent("job_completed", { ...context, outcome: "automatic", titleKey: grants[0]?.titleKey ?? null, grantCount: grants.length, spotCheck: sample, durationMs: Date.now() - startedAt });
             return;
           }
           stage = "persist_auto_routing";
@@ -2156,7 +2189,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           const mapId = snapshot.mapId;
           const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId))).get();
           const sample = await shouldSampleAutomaticDecision(row.id);
-          await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "automatic" }), snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing), sample });
+          await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "automatic" }), grants: [{ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing) }], sample });
         } else if (matched) {
           await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "matched", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "review" }), nextStatus: "ready_for_review", reviewReason: "挑战已匹配，等待管理员核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual) });
         } else {

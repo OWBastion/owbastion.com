@@ -23,7 +23,8 @@ describe("matchOcrResult", () => {
       skipped: [],
     });
     expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", mapName: "釜山" }).map).toBe(false);
-    expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", difficulty: "地狱" }).difficulty).toBe(false);
+    expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", difficulty: "地狱" }).difficulty).toBe(true);
+    expect(matchOcrResult({ ...baseInput, challengeType: "difficulty_completion", difficulty: "传奇", targetDifficulty: "地狱" }).difficulty).toBe(false);
   });
 
   it("skips map and difficulty checks for title challenges", () => {

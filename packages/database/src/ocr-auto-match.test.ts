@@ -27,6 +27,16 @@ describe("matchOcrAgainstChallenges", () => {
     expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
   });
 
+  it("uses the highest recognized difficulty for automatic matching while retaining covered lower challenges", () => {
+    const result = matchOcrAgainstChallenges([
+      mapChallenge("map.samoa.conqueror"),
+      { ...mapChallenge("map.samoa.dominator"), name: "地狱通关", difficulty: "地狱", titleKey: "DOMINATOR" },
+    ], { ...response, data: { ...response.data, difficulty: "地狱" } }, "Player#1234");
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact.map(({ targetDifficulty }) => targetDifficulty)).toEqual(["传奇", "地狱"]);
+    expect(result.automaticCandidates.map(({ targetDifficulty }) => targetDifficulty)).toEqual(["地狱"]);
+  });
+
   it("only evaluates map challenges for the map recognized in the screenshot", () => {
     const result = matchOcrAgainstChallenges([
       mapChallenge("map.samoa.conqueror"),

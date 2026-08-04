@@ -130,9 +130,12 @@ upload_pending
 
 When an ambiguous automatic match enters `ocr_review_required`, a maintainer
 may select a general achievement with checked title evidence or a challenge
-belonging to the map identified in that submission's OCR evidence. The
-platform rejects challenges outside that candidate set; it must not fall back
-to the full active challenge catalog. It persists the selected challenge,
+belonging to the map identified in that submission's OCR evidence. A map
+candidate must carry the persisted map identity and match the OCR map name;
+when OCR has recognized a difficulty, a manual map candidate must also carry
+that same difficulty. The platform rejects challenges outside that candidate
+set, including legacy candidates with missing scope data; it must not fall
+back to the full active challenge catalog. It persists the selected challenge,
 records an audit event, and moves the submission to `ready_for_review`; the
 final approval still uses the ordinary review and Grant transaction.
 
@@ -148,6 +151,15 @@ evidence can become `approved` directly; ambiguity or low confidence enters
 `ocr_review_required`, and an explicit mismatch becomes
 `resubmission_required`. `ocr_review_required` therefore represents a usable
 but non-automatic record that a maintainer must inspect.
+Automatic matching evaluates map challenges only for the map recognized in the
+screenshot and requires reliable map-name evidence; without a recognized map or
+with low-confidence map evidence the record stays in maintainer review instead
+of auto-approving. Difficulty coverage follows the hierarchy described in
+[OCR integration](#ocr-integration): a recognized higher difficulty covers
+lower map difficulty challenges for automatic approval and can issue each
+covered rewardable map title in the same decision. The maintainer candidate
+list remains exact to the recognized difficulty so that manual processing does
+not present lower difficulty alternatives.
 
 Approval and title issuance are one D1 batch: `approved` is written only when
 the Submission has an active Grant. Title challenges use their direct

@@ -1,5 +1,5 @@
 import type { Challenge } from "@owbastion/contracts";
-import { matchOcrResult, type OcrMatch } from "./ocr-match";
+import { difficultyRank, matchOcrResult, type OcrMatch } from "./ocr-match";
 import { assessOcrQuality, type OcrQualityGate, type OcrResponse } from "./ocr-response";
 
 export type AutoMatchCandidate = {
@@ -18,6 +18,7 @@ export type AutoMatchCandidate = {
 export type AutoMatchDecision = {
   candidates: AutoMatchCandidate[];
   exact: AutoMatchCandidate[];
+  automaticCandidates: AutoMatchCandidate[];
   lowConfidence: AutoMatchCandidate[];
   outcome: "automatic" | "review" | "resubmit";
 };
@@ -94,13 +95,16 @@ export const matchOcrAgainstChallenges = (challenges: Challenge[], response: Ocr
     .filter((challenge) => challenge.family !== "map" || Boolean(currentMapName) && normalized(challenge.mapName) === normalized(currentMapName))
     .map((challenge) => evaluateCandidate(challenge, response, playerName));
   const exact = candidates.filter((candidate) => Object.values(candidate.match).filter((value) => typeof value === "boolean").every(Boolean));
+  const difficultyCandidates = exact.filter((candidate) => candidate.challengeType === "difficulty_completion" && candidate.targetDifficulty);
+  const highestDifficultyRank = Math.max(...difficultyCandidates.map((candidate) => difficultyRank(candidate.targetDifficulty)), -1);
+  const automaticCandidates = exact.filter((candidate) => candidate.challengeType !== "difficulty_completion" || difficultyRank(candidate.targetDifficulty) === highestDifficultyRank);
   const lowConfidence = exact.filter((candidate) => !candidate.quality.accepted);
-  const grantableExact = exact.filter((candidate) => candidate.grantable && candidate.quality.accepted);
+  const grantableExact = automaticCandidates.filter((candidate) => candidate.grantable && candidate.quality.accepted);
   const mapEvidenceUnresolved = mapChallenges.length > 0 && (!currentMapName || !isReliableMapEvidence(response));
-  const outcome = grantableExact.length === 1 && exact.length === 1 && !mapEvidenceUnresolved
+  const outcome = grantableExact.length === 1 && automaticCandidates.length === 1 && !mapEvidenceUnresolved
     ? "automatic"
     : exact.length > 0 || candidates.some((candidate) => !candidate.quality.accepted) || mapEvidenceUnresolved
       ? "review"
       : "resubmit";
-  return { candidates, exact, lowConfidence, outcome };
+  return { candidates, exact, automaticCandidates, lowConfidence, outcome };
 };
