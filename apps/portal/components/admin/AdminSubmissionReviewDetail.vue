@@ -11,11 +11,14 @@ const props = defineProps<{
   evidenceError?: boolean;
   reviewError?: string;
   actionLoading?: boolean;
+  challengeSelectionError?: string;
+  challengeSelectionLoading?: boolean;
   ocrRetryError?: string;
   ocrRetryLoading?: boolean;
 }>();
 const emit = defineEmits<{
   review: [decision: ReviewDecision];
+  "select-challenge": [selection: { challengeId: string; mapId?: string }];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "retry-ocr": [];
@@ -24,7 +27,7 @@ const emit = defineEmits<{
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const statusTone = (status: string) => status === "ready_for_review" ? "success" : status === "ocr_review_required" ? "warning" : "default";
-const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
+const actionsLoading = computed(() => Boolean(props.actionLoading || props.challengeSelectionLoading || props.ocrRetryLoading));
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
@@ -190,7 +193,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       </div>
     </div>
 
-    <AdminSubmissionReviewSignals :submission="submission" />
+    <AdminSubmissionReviewSignals :submission="submission" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" @select-challenge="emit('select-challenge', $event)" />
   </section>
 </template>
 

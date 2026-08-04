@@ -50,6 +50,7 @@ const services: PlatformServices = {
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
+  selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => ({ contractVersion: "1", submissionId, status: "ready_for_review", challengeId }),
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
@@ -851,6 +852,14 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(requests).toEqual(["00000000-0000-4000-8000-000000000000"]);
     expect(await response.json()).toMatchObject({ status: "ocr_pending" });
+  });
+
+  it("lets maintainers select a submission challenge", async () => {
+    const selections: string[] = [];
+    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => { selections.push(`${submissionId}:${challengeId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
+    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso" }) }, env);
+    expect(response.status).toBe(200);
+    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell"]);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

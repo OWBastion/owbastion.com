@@ -677,6 +677,40 @@ describe("map title rule model – locked invariants", () => {
       expect(agents.items).toContainEqual(expect.objectContaining(expected));
     });
 
+    it("lets a maintainer select a projected challenge for an ambiguous submission", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.ambiguous', 'binding.1', 'ocr_review_required', 'unknown', '地图 map.paris', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
+      const services = createPlatformServices(database);
+      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.paris.conqueror", mapId: "map.paris" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.1");
+
+      expect(result).toMatchObject({ submissionId: "submission.ambiguous", status: "ready_for_review", challengeId: "map.paris.conqueror" });
+      const submission = sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, rule_snapshot_json FROM submissions WHERE id = 'submission.ambiguous'").get() as { status: string; challenge_type: string; challenge_id: string; target_map_id: string; rule_snapshot_json: string };
+      expect(submission).toMatchObject({ status: "ready_for_review", challenge_type: "map_title_achievement", challenge_id: "map.paris.conqueror", target_map_id: "map.paris" });
+      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", titleKey: "CONQUEROR", mapId: "map.paris" });
+      expect(sqlite.prepare("SELECT operation FROM audit_events WHERE entity_id = 'submission.ambiguous'").get()).toMatchObject({ operation: "submission.challenge.select" });
+    });
+
+    it("lets a maintainer select a global achievement candidate", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedTitle(sqlite, "HERO");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'HERO'").run();
+      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.achievement', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
+      const services = createPlatformServices(database);
+      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.2");
+
+      expect(result).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
+      expect(sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, map_name FROM submissions WHERE id = 'submission.achievement'").get()).toMatchObject({ status: "ready_for_review", challenge_type: "title_achievement", challenge_id: "title.hero", target_map_id: null, map_name: "成就挑战" });
+    });
+
     it("does not expose a legacy map-title row alongside its rule projection", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);

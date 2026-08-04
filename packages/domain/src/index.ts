@@ -21,6 +21,8 @@ import type {
   CurrentPlayerResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
+  AdminSubmissionChallengeRequest,
+  AdminSubmissionChallengeResponse,
   AdminSubmissionReviewRequest,
   AdminSubmissionReviewResponse,
   AdminSubmissionOcrRetryResponse,
@@ -110,6 +112,7 @@ export type PlatformServices = {
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; spotCheck?: "pending" | "confirmed" | "revoked"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
+  selectAdminSubmissionChallenge(input: AdminSubmissionChallengeRequest & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionChallengeResponse>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
   processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;

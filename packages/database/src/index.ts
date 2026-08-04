@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -1770,6 +1770,59 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
     },
 
+    async selectAdminSubmissionChallenge(input, auth, idempotencyKey): Promise<AdminSubmissionChallengeResponse> {
+      const replay = await replayOrConflict<AdminSubmissionChallengeResponse>(db, auth.subject, "submission.challenge.select", idempotencyKey, input);
+      if (replay) return replay;
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      if (["approved", "rejected"].includes(row.status)) throw new Error("SUBMISSION_NOT_SELECTABLE");
+
+      const challenge = (await fetchAllAutoMatchChallenges()).find((candidate): candidate is Challenge => candidate.challengeId === input.challengeId && (candidate.family === "map" ? candidate.mapId === input.mapId : !input.mapId));
+      if (!challenge) throw new Error("CHALLENGE_NOT_FOUND");
+      if (challenge.submissionMode === "automatic") throw new Error("CHALLENGE_AUTOMATIC");
+
+      let challengeType: string;
+      let targetMapId: string | null = null;
+      let mapName = "成就挑战";
+      let difficulty: string | null = null;
+      let snapshot: MapTitleRuleSnapshot | null = null;
+      if (challenge.family === "achievement") {
+        const titleChallenge = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
+        if (!titleChallenge || titleChallenge.challenge.scope === "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now())) throw new Error("CHALLENGE_NOT_FOUND");
+        challengeType = "title_achievement";
+      } else {
+        targetMapId = challenge.mapId;
+        mapName = challenge.mapName;
+        difficulty = challenge.difficulty ?? null;
+        challengeType = challenge.kind === "map_title_achievement" ? "map_title_achievement" : challenge.kind;
+        if (challenge.mapTitleRule) {
+          snapshot = await resolveMapTitleProjection(challenge.mapTitleRule.ruleId, challenge.mapId);
+          if (!snapshot) throw new Error("CHALLENGE_NOT_FOUND");
+        } else if (challengeType === "map_title_achievement") {
+          const titleChallenge = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
+          if (titleChallenge) {
+            if (titleChallenge.challenge.scope !== "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now()) || titleChallenge.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_NOT_FOUND");
+            const target = await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(and(eq(achievementChallengeMaps.challengeId, titleChallenge.challenge.id), eq(achievementChallengeMaps.mapId, challenge.mapId))).get();
+            if (!target) throw new Error("MAP_NOT_IN_CHALLENGE");
+            snapshot = snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, challenge.mapId);
+          }
+        }
+      }
+
+      const timestamp = now();
+      const response: AdminSubmissionChallengeResponse = { contractVersion: "1", submissionId: row.id, status: "ready_for_review", challengeId: input.challengeId };
+      const requestHash = await hashRequest(input);
+      const idempotencyKeyId = `${auth.subject}:submission.challenge.select:${idempotencyKey}`;
+      await database.batch([
+        database.prepare("UPDATE submissions SET status = 'ready_for_review', challenge_type = ?, challenge_id = ?, target_map_id = ?, map_name = ?, difficulty = ?, rule_snapshot_json = ?, review_reason = NULL, updated_at = ? WHERE id = ? AND status NOT IN ('approved', 'rejected')").bind(challengeType, input.challengeId, targetMapId, mapName, difficulty, snapshot ? JSON.stringify(snapshot) : null, timestamp, row.id),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.challenge.select', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.challenge.select', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ challengeId: input.challengeId, mapId: targetMapId, challengeType }), timestamp),
+      ]);
+      const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
+      if (!keyRow) throw new Error("SUBMISSION_NOT_SELECTABLE");
+      return response;
+    },
+
     async getAdminEvidence(input) {
       if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
       const attachment = await db.select().from(attachments).where(eq(attachments.submissionId, input.submissionId)).orderBy(desc(attachments.createdAt)).limit(1).get();
@@ -2024,7 +2077,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (row.challengeType === "unknown") {
           stage = "resolve_auto_candidates";
           const decision = matchOcrAgainstChallenges(await fetchAllAutoMatchChallenges(), result, row.playerName ?? "");
-          const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
+          const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, ...(challenge.family === "map" ? { mapId: challenge.mapId } : {}), challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
           const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates });
           if (decision.outcome === "automatic") {
             const candidate = decision.exact[0];

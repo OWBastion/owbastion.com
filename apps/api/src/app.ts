@@ -8,6 +8,7 @@ import {
   qqGroupRegistrationRequestSchema,
   adminPlayerStatusRequestSchema,
   adminPlayerIdentityRequestSchema,
+  adminSubmissionChallengeRequestSchema,
   adminSubmissionReviewRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
   adminTitleGrantRequestSchema,
@@ -1026,6 +1027,23 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason }, access.auth!, idempotencyKey)); }
     catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+  });
+
+  app.post("/v1/admin/submissions/:submissionId/challenge", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminSubmissionChallengeRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).selectAdminSubmissionChallenge({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "CHALLENGE_SELECTION_FAILED";
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
+      if (["CHALLENGE_NOT_FOUND", "CHALLENGE_AUTOMATIC", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {

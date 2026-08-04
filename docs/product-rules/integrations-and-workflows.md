@@ -128,6 +128,12 @@ upload_pending
   └→ resubmission_required
 ~~~
 
+When an ambiguous automatic match enters `ocr_review_required`, a maintainer
+may select one of the current map or title candidates from the recognition
+evidence. The platform persists that challenge selection, records an audit
+event, and moves the submission to `ready_for_review`; the final approval still
+uses the ordinary review and Grant transaction.
+
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
 size, content type, and private object ownership are verified. The Portal waits

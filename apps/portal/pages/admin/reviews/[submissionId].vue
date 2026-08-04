@@ -10,9 +10,11 @@ const toast = useToast();
 const submission = shallowRef<AdminSubmission | null>(null);
 const loading = ref(true);
 const actionLoading = ref(false);
+const challengeSelectionLoading = ref(false);
 const ocrRetryLoading = ref(false);
 const errorMessage = ref("");
 const reviewError = ref("");
+const challengeSelectionError = ref("");
 const ocrRetryError = ref("");
 const spotCheckError = ref("");
 const evidenceImageUrl = ref<string | null>(null);
@@ -61,6 +63,20 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   } finally { actionLoading.value = false; }
 }
 
+async function selectChallenge(selection: { challengeId: string; mapId?: string }) {
+  if (!submission.value || challengeSelectionLoading.value || actionLoading.value) return;
+  challengeSelectionLoading.value = true;
+  challengeSelectionError.value = "";
+  try {
+    await api(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/challenge`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", ...selection } });
+    toast.add({ title: "已选择挑战", color: "success" });
+    await load();
+  } catch (error) {
+    const details = portalErrorDetails(error, "挑战选择失败，请稍后重试。");
+    challengeSelectionError.value = details.code === "CHALLENGE_NOT_FOUND" ? "该挑战已不可用，请刷新页面。" : details.code ? `挑战选择失败（${details.code}）：${details.description}` : details.description;
+  } finally { challengeSelectionLoading.value = false; }
+}
+
 async function resolveSpotCheck(decision: "confirmed" | "revoked") {
   if (!submission.value || actionLoading.value) return;
   actionLoading.value = true;
@@ -103,7 +119,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton to="/admin/reviews" label="返回审核管理" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @select-challenge="selectChallenge" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" description="提交记录可能已不存在或链接无效。" />
   </AdminWorkspace>
 </template>
