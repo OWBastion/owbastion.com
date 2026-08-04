@@ -24,7 +24,8 @@ describe("admin review detail page", () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
     expect(wrapper.text()).toContain("守望先锋");
-    expect(wrapper.text()).toContain("申请挑战");
+    expect(wrapper.text()).toContain("申请目标");
+    expect(wrapper.text()).toContain("审核决定");
     expect(wrapper.text()).toContain("OCRKit");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("98%");
@@ -33,7 +34,9 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("无");
     expect(wrapper.text()).not.toContain("98% · ok");
     expect(wrapper.text()).toContain("查看原始识别数据");
+    expect(wrapper.text()).toContain("提交信息");
     expect(wrapper.findAll(".actions button")).toHaveLength(3);
+    expect(wrapper.find(".claim-card").exists()).toBe(true);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 

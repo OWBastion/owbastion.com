@@ -36,7 +36,10 @@ const pendingSpotCheck = ref<SpotCheckDecision | null>(null);
 watch(
   () => props.actionLoading,
   (loading) => {
-    if (!loading) { pendingDecision.value = null; pendingSpotCheck.value = null; }
+    if (!loading) {
+      pendingDecision.value = null;
+      pendingSpotCheck.value = null;
+    }
   },
 );
 
@@ -59,32 +62,96 @@ function emitSpotCheck(decision: SpotCheckDecision) {
 function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
+
+const challengeSummary = computed(() => {
+  const challenge = props.submission.challenge;
+  if (!challenge) return null;
+  if (challenge.family === "achievement") {
+    return {
+      kind: "成就挑战",
+      title: challenge.titleName,
+      meta: [challenge.category, challenge.mapVariant === "classic" ? mapVariantLabel(challenge.mapVariant) : null].filter(Boolean).join(" · "),
+      condition: challenge.condition,
+      evidenceRule: challenge.evidenceRule,
+    };
+  }
+  return {
+    kind: "地图挑战",
+    title: challenge.name,
+    meta: [challenge.mapName, mapVariantLabel(challenge.mapVariant), challenge.difficulty ?? "地图通关"].filter(Boolean).join(" · "),
+    condition: null as string | null,
+    evidenceRule: null as string | null,
+  };
+});
 </script>
 
 <template>
   <section class="review-detail" aria-live="polite" aria-label="审核详情">
+    <!-- 1. Context: who / status / when -->
     <header class="detail-meta-bar">
       <p class="detail-meta">
         <NuxtLink class="detail-meta__player" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink>
         <span class="detail-meta__sep" aria-hidden="true">·</span>
         <span class="detail-meta__label">截图审核</span>
+        <span class="detail-meta__sep" aria-hidden="true">·</span>
+        <time class="detail-meta__time" :datetime="new Date(submission.updatedAt).toISOString()">{{ formatTime(submission.updatedAt) }}</time>
       </p>
       <StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" />
     </header>
 
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
 
+    <!--
+      Desktop: evidence | decision rail (claim → decide → verify)
+      Mobile: claim → evidence → verify → meta; decisions docked for thumb reach
+    -->
     <div class="detail-grid">
-      <div class="evidence-col">
+      <div class="evidence-col flow-evidence">
         <UCard class="evidence-card elevation-3">
-          <template #header><div class="card-heading"><h3>提交截图</h3><span>私有证据</span></div></template>
-          <img v-if="!evidenceError" class="evidence-image" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
+          <template #header>
+            <div class="card-heading">
+              <h3>提交截图</h3>
+              <span>私有证据</span>
+            </div>
+          </template>
+          <img
+            v-if="!evidenceError"
+            class="evidence-image"
+            :src="evidenceSrc"
+            alt="玩家提交的挑战截图"
+            @error="emit('evidence-error')"
+          />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
         </UCard>
       </div>
 
-      <div class="info-col">
-        <section class="actions-card glass elevation-2" aria-label="审核操作" :aria-busy="actionLoading || undefined">
+      <div class="decision-rail">
+        <!-- Claim first: what is being reviewed -->
+        <section class="claim-card elevation-2 flow-claim" aria-labelledby="claim-title">
+          <header class="claim-card__header">
+            <div>
+              <p class="rail-kicker">申请目标</p>
+              <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
+            </div>
+            <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
+          </header>
+          <template v-if="challengeSummary">
+            <p v-if="challengeSummary.meta" class="claim-meta">{{ challengeSummary.meta }}</p>
+            <dl v-if="challengeSummary.condition || challengeSummary.evidenceRule" class="claim-facts">
+              <div v-if="challengeSummary.condition"><dt>完成条件</dt><dd>{{ challengeSummary.condition }}</dd></div>
+              <div v-if="challengeSummary.evidenceRule"><dt>截图规则</dt><dd>{{ challengeSummary.evidenceRule }}</dd></div>
+            </dl>
+          </template>
+          <p v-else class="claim-empty">请在自动判定中选择挑战后再通过。</p>
+        </section>
+
+        <!-- Decision chrome: sticky while scrolling verification -->
+        <section
+          class="actions-card glass elevation-2 flow-actions"
+          aria-label="审核操作"
+          :aria-busy="actionLoading || undefined"
+        >
+          <p class="rail-kicker">审核决定</p>
           <div class="actions" role="group" aria-label="审核决定">
             <UButton
               class="action-btn action-btn--primary pressable"
@@ -118,10 +185,33 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           </div>
 
           <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
-            <div><h4 id="spot-check-title">自动判定抽检</h4><p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p></div>
+            <div>
+              <h4 id="spot-check-title">自动判定抽检</h4>
+              <p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p>
+            </div>
             <div class="spot-check-actions">
-              <UButton class="action-btn pressable" type="button" block label="确认抽检" color="neutral" variant="outline" :loading="spotCheckLoading('confirmed')" :disabled="actionsLoading" @click="emitSpotCheck('confirmed')" />
-              <UButton class="action-btn pressable" type="button" block label="撤销称号" color="error" variant="soft" :loading="spotCheckLoading('revoked')" :disabled="actionsLoading" @click="emitSpotCheck('revoked')" />
+              <UButton
+                class="action-btn pressable"
+                type="button"
+                block
+                label="确认抽检"
+                color="neutral"
+                variant="outline"
+                :loading="spotCheckLoading('confirmed')"
+                :disabled="actionsLoading"
+                @click="emitSpotCheck('confirmed')"
+              />
+              <UButton
+                class="action-btn pressable"
+                type="button"
+                block
+                label="撤销称号"
+                color="error"
+                variant="soft"
+                :loading="spotCheckLoading('revoked')"
+                :disabled="actionsLoading"
+                @click="emitSpotCheck('revoked')"
+              />
             </div>
           </div>
 
@@ -142,47 +232,46 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           </div>
         </section>
 
-        <UCard class="overview-card elevation-2">
-          <template #header><div class="card-heading"><h3>提交概览</h3><StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" /></div></template>
-          <dl class="detail-list">
+        <!-- Verify: match + OCR stacked beside evidence -->
+        <div class="flow-signals">
+          <AdminSubmissionReviewSignals
+            stacked
+            :submission="submission"
+            :challenge-selection-error="challengeSelectionError"
+            :challenge-selection-loading="challengeSelectionLoading"
+            @select-challenge="emit('select-challenge', $event)"
+          />
+        </div>
+
+        <!-- Traceability (low priority) -->
+        <details class="meta-disclosure flow-meta">
+          <summary>提交信息</summary>
+          <dl class="detail-list meta-list">
             <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-            <div><dt>玩家</dt><dd><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink></dd></div>
+            <div>
+              <dt>玩家</dt>
+              <dd>
+                <NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">
+                  {{ submission.playerName }}
+                </NuxtLink>
+              </dd>
+            </div>
             <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
             <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
           </dl>
-        </UCard>
-
-        <UCard v-if="submission.challenge" class="challenge-card elevation-2">
-          <template #header><div class="card-heading"><h3>申请挑战</h3></div></template>
-          <dl class="detail-list">
-            <template v-if="submission.challenge.family === 'achievement'">
-              <div><dt>类型</dt><dd>称号挑战</dd></div>
-              <div><dt>称号</dt><dd>{{ submission.challenge.titleName }}</dd></div>
-              <div v-if="submission.challenge.mapVariant === 'classic'"><dt>地图版本</dt><dd>{{ mapVariantLabel(submission.challenge.mapVariant) }}</dd></div>
-              <div><dt>系列</dt><dd>{{ submission.challenge.category }}</dd></div>
-              <div><dt>完成条件</dt><dd>{{ submission.challenge.condition }}</dd></div>
-              <div><dt>截图规则</dt><dd>{{ submission.challenge.evidenceRule }}</dd></div>
-            </template>
-            <template v-else>
-              <div><dt>类型</dt><dd>地图挑战</dd></div>
-              <div><dt>挑战</dt><dd>{{ submission.challenge.name }}</dd></div>
-              <div><dt>地图</dt><dd>{{ submission.challenge.mapName }}</dd></div>
-              <div><dt>地图版本</dt><dd>{{ mapVariantLabel(submission.challenge.mapVariant) }}</dd></div>
-              <div><dt>难度</dt><dd>{{ submission.challenge.difficulty ?? "地图通关" }}</dd></div>
-            </template>
-          </dl>
-        </UCard>
-
+        </details>
       </div>
     </div>
-
-    <AdminSubmissionReviewSignals :submission="submission" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" @select-challenge="emit('select-challenge', $event)" />
   </section>
 </template>
 
 <style scoped>
-.review-detail { display: grid; gap: 20px; }
-/* Compact identity strip — page h1 lives in AdminWorkspace */
+.review-detail {
+  display: grid;
+  gap: 18px;
+}
+
+/* Context strip */
 .detail-meta-bar {
   display: flex;
   align-items: center;
@@ -207,31 +296,75 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-.detail-meta__player:hover, .detail-meta__player:focus-visible {
+.detail-meta__player:hover,
+.detail-meta__player:focus-visible {
   color: var(--accent);
   text-decoration: underline;
 }
-.player-link { color: var(--accent); font-weight: 650; text-decoration: none; }
-.player-link:hover, .player-link:focus-visible { text-decoration: underline; }
-.detail-meta__sep { color: var(--quiet); }
-.detail-meta__label { color: var(--quiet); }
-.detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr); align-items: start; gap: clamp(18px, 2.4vw, 28px); }
-.evidence-col { position: sticky; top: 24px; min-width: 0; }
-.info-col { display: grid; gap: 16px; min-width: 0; }
-.overview-card,
-.challenge-card,
-.evidence-card { border-color: var(--line); }
-.evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
-.evidence-message { margin: 0; padding: 96px 0; color: var(--muted); text-align: center; }
+.detail-meta__sep,
+.detail-meta__label,
+.detail-meta__time {
+  color: var(--quiet);
+}
+.player-link {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+.player-link:hover,
+.player-link:focus-visible {
+  text-decoration: underline;
+}
 
-/* Review decision chrome — compact material layer (Apple materials hierarchy) */
+/* Desktop workspace: evidence | decision rail */
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, .95fr);
+  align-items: start;
+  gap: clamp(16px, 2.2vw, 26px);
+}
+.evidence-col {
+  position: sticky;
+  top: 20px;
+  min-width: 0;
+}
+.decision-rail {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.evidence-card {
+  border-color: var(--line);
+}
+.evidence-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.evidence-message {
+  margin: 0;
+  padding: 96px 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.rail-kicker {
+  margin: 0 0 6px;
+  color: var(--text-on-glass-quiet);
+  font-size: .68rem;
+  font-weight: 720;
+  letter-spacing: .06em;
+}
+
+/* Decision material */
 .actions-card {
   display: grid;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
   border-radius: 14px;
-  /* bright top edge = light catching the material */
   box-shadow:
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
@@ -249,7 +382,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   letter-spacing: -.01em;
 }
 .actions :deep(.action-btn--primary) {
-  min-height: 36px;
   font-weight: 700;
 }
 .ocr-retry-actions {
@@ -265,32 +397,194 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   font-size: .76rem;
   font-weight: 650;
 }
-.ocr-retry-error { margin: 0; color: var(--danger); font-size: .78rem; }
+.ocr-retry-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: .78rem;
+}
+.spot-check-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
+}
+.spot-check-panel h4 {
+  margin: 0;
+  font-size: .82rem;
+}
+.spot-check-panel p {
+  margin: 4px 0 0;
+  color: var(--text-on-glass-quiet);
+  font-size: .75rem;
+  line-height: 1.5;
+}
+.spot-check-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
 
-.spot-check-panel { display:grid; gap:10px; padding-top:12px; border-top:1px solid color-mix(in oklch, var(--line) 80%, transparent); }
-.spot-check-panel h4 { margin:0; font-size:.82rem; }
-.spot-check-panel p { margin:4px 0 0; color:var(--text-on-glass-quiet); font-size:.75rem; line-height:1.5; }
-.spot-check-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+/* Claim */
+.claim-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow: var(--elevation-1);
+}
+.claim-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.claim-card__header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 720;
+  letter-spacing: -.02em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.claim-kind {
+  flex: 0 0 auto;
+  margin-top: 18px;
+  color: var(--quiet);
+  font-size: .72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.claim-meta {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.4;
+}
+.claim-facts {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.claim-facts > div {
+  display: grid;
+  gap: 3px;
+}
+.claim-facts dt {
+  color: var(--quiet);
+  font-size: .72rem;
+}
+.claim-facts dd {
+  margin: 0;
+  color: var(--text);
+  font-size: .82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.claim-empty {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+  line-height: 1.5;
+}
+
+/* Traceability */
+.meta-disclosure {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.meta-disclosure > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  color: var(--quiet);
+  font-size: .78rem;
+  font-weight: 650;
+  user-select: none;
+}
+.meta-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.meta-disclosure > summary::after {
+  content: "▸";
+  float: right;
+  color: var(--quiet);
+}
+.meta-disclosure[open] > summary::after {
+  content: "▾";
+}
+.meta-disclosure .meta-list {
+  padding: 0 14px 12px;
+}
+
+/* Desktop: keep decisions available while scrolling the rail */
+@media (min-width: 821px) {
+  .flow-actions {
+    position: sticky;
+    top: 20px;
+    z-index: 5;
+  }
+}
+
+/*
+ * Tablet: single column.
+ * Visual order: claim → actions → evidence → signals → meta
+ * (decision-rail uses display:contents so children reorder with evidence)
+ */
 @media (max-width: 820px) {
-  .detail-grid { grid-template-columns: 1fr; }
-  .evidence-col { position: static; }
-  /* Stick decision chrome under the header once it reaches the viewport */
-  .actions-card {
+  .detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .decision-rail {
+    display: contents;
+  }
+  .flow-claim {
+    order: 0;
+  }
+  .flow-actions {
+    order: 1;
     position: sticky;
     z-index: 4;
     top: 12px;
   }
+  .flow-evidence {
+    order: 2;
+    position: static;
+  }
+  .flow-signals {
+    order: 3;
+  }
+  .flow-meta {
+    order: 4;
+  }
 }
 
+/* Phone: bottom decision dock in thumb reach */
 @media (max-width: 620px) {
-  .detail-meta-bar { align-items: flex-start; }
-  /*
-   * Bottom dock: decisions stay in thumb reach while scrolling tall evidence.
-   * Fixed (not sticky-bottom) so the bar remains available after leaving its
-   * natural flow position at the top of the info column.
-   */
+  .detail-meta-bar {
+    align-items: flex-start;
+  }
   .review-detail {
-    padding-bottom: calc(240px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(220px + env(safe-area-inset-bottom, 0px));
+  }
+  .flow-claim {
+    order: 0;
+  }
+  .flow-evidence {
+    order: 1;
+  }
+  .flow-signals {
+    order: 2;
+  }
+  .flow-meta {
+    order: 3;
+  }
+  .flow-actions {
+    order: 5;
   }
   .actions-card {
     position: fixed;
@@ -309,31 +603,35 @@ function spotCheckLoading(decision: SpotCheckDecision) {
     min-height: 44px;
     font-size: .84rem;
   }
-  .spot-check-actions { grid-template-columns: 1fr 1fr; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .overview-card,
-  .challenge-card,
-  .actions-card,
-  .evidence-card { box-shadow: none; }
   .actions-card {
     background: var(--glass-bg-solid-raised);
     border-color: var(--line-strong);
+    box-shadow: none;
+  }
+  .claim-card,
+  .evidence-card {
+    box-shadow: none;
   }
 }
 
 @media (prefers-contrast: more) {
-  .overview-card,
-  .challenge-card,
   .actions-card,
-  .evidence-card { border-color: var(--text); }
+  .claim-card,
+  .evidence-card,
+  .meta-disclosure {
+    border-color: var(--text);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .actions-card {
-    /* Keep material; suppress any residual spatial chrome motion */
-    transition: background-color var(--theme-transition), border-color var(--theme-transition), color var(--theme-transition);
+    transition:
+      background-color var(--theme-transition),
+      border-color var(--theme-transition),
+      color var(--theme-transition);
   }
 }
 </style>
