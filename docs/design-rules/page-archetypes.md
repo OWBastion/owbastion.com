@@ -33,10 +33,38 @@
 ## Admin list and table
 
 - `AdminWorkspace` owns title, count, messages, and toolbar.
-- `AdminDataTable` owns filters, table scrolling, pagination context, and row
-  actions.
-- Mobile may collapse secondary controls and scroll the table region
-  horizontally.
+- `AdminDataTable` owns filters, sorting, grouping, table/list presentation,
+  pagination context, stable row identity, and row actions.
+- Desktop uses the full table workspace and may keep bounded internal scrolling,
+  sticky controls, sticky headers, column controls, and virtualization where
+  they improve data-dense operation.
+- Intermediate widths may reduce visible columns and move low-frequency actions
+  into a contextual menu. Horizontal scrolling is reserved for data that still
+  needs a matrix presentation.
+- Mobile normally renders the same records as a semantic record list in normal
+  document flow. Desktop and mobile share data, state, pagination, permission,
+  and action contracts; they do not need identical table markup.
+- Ordinary server-paginated mobile lists must not create a nested vertical
+  scroller. The page scrolls continuously through the toolbar, current records,
+  and pagination controls.
+- Continuous document scrolling does not replace server pagination and must not
+  become infinite scrolling.
+- Mobile records prioritize status and primary identity, then the two or three
+  facts needed for the next decision, compact metadata, and an accessible
+  overflow action. Do not mechanically render every desktop column as a repeated
+  label/value block.
+- Keep primary search and at most one primary page action visible on mobile.
+  Move secondary filters, sorting, and grouping into an appropriate Nuxt UI menu
+  or drawer; hide desktop-only column controls when they do not affect the mobile
+  record presentation.
+- Prefer the record body as the detail/navigation target. Move low-frequency row
+  actions into a contextual menu and use `AdminResponsiveDialog` for edit,
+  decision, and confirmation surfaces.
+- Expansion, selection, menu targets, and async actions use stable record IDs,
+  never array indexes.
+- A horizontally scrolling mobile table is an explicit exception for a genuine
+  data matrix that cannot be converted into actionable records without losing
+  meaning or operability.
 
 ## Admin master and detail
 
