@@ -59,6 +59,10 @@ The current API implements versioned v1 QQ flows:
   Global titles have no map context; map titles require a configured
   `map_title_rewards` association. Retired catalog titles remain eligible when
   explicitly selected by a maintainer;
+- maintainers can update a player's BattleTag display name while keeping the
+  numeric player ID stable; the update is idempotent, rejects a normalized-name
+  conflict with another account sharing the same numeric ID, and records an
+  audit event;
 - a versioned Queue message invokes OCRKit and persists the raw result and match
   evidence. For an unselected challenge, the platform compares the response
   with the current active catalog and auto-approves exactly one complete,
@@ -83,8 +87,11 @@ The current API implements versioned v1 QQ flows:
   titles from `map_title_rules` once per applicable active map. Each instance
   keeps its stable `map.<map>.<kind>` compatibility ID and exposes its source
   rule ID, title key, display kind, and explicit slot semantics; it is not an
-  independently editable challenge record. Legacy map-completion rows, including
-  CLASSIC, remain direct read projections;
+  independently editable challenge record. Legacy map-completion rows are
+  deduplicated against `map_title_rule_compat`: a row with a compat mapping is
+  excluded from the directories so the rule projection is the single source,
+  while rows without a mapping (including CLASSIC) remain direct read
+  projections;
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.
@@ -296,12 +303,17 @@ map-title meaning from a nullable slot.
 
 QQBot is a channel adapter. Binding starts from a Portal invitation link whose
 target BattleTag is resolved from the administrator-issued invitation. The
-player sends the existing `/验证 CODE` command in an enabled group; QQBot
-forwards only the stable group/member identity and code. A clean first binding
+player manually types `@`, selects the robot from the group member list, and
+sends `/验证 CODE` in an enabled group; QQBot
+forwards only the stable group/member identity and code. The binding page
+offers a copy-command action that copies the full `/验证 <code>` command. A
+clean first binding
 is activated atomically after verification and records an automatic audit
 decision. Rebinds, transfers, conflicts, and ambiguous recovery cases remain
 pending for maintainer approval; uncompleted claims cannot log in, submit, or
-read player data.
+read player data. An expired confirmation code does not invalidate the binding
+link: the player can regenerate a fresh code from the same original invitation
+link without maintainer action.
 Maintainers may issue up to 100 BattleTag-targeted invitations in one
 idempotent batch. The Portal presents a per-player copy action for the binding
 link, code, and player instructions. The link carries the invitation code; the
@@ -370,7 +382,26 @@ configured confidence gate before value matching. For map challenges, this cover
 `map_name`, `difficulty`, `challenge_completed`, and `player`; map-title
 matches also require structured title evidence or panel-text evidence. For
 title challenges, it covers `challenge_completed`, `player`, and title
-evidence. The platform owns candidate selection, rule-snapshot evaluation,
+evidence.
+
+Difficulty values follow a fixed hierarchy
+(`简单` < `一般` < `困难` < `专家` < `传奇` < `地狱`): a recognized harder
+difficulty satisfies an easier challenge target, `普通` is normalized to
+`一般`, and a `地狱：`-prefixed label counts as `地狱`. When several
+map-difficulty challenges match exactly, automatic matching selects only the
+highest recognized difficulty as the decision, but the single approval batch
+creates or reuses grants for every covered grantable exact match so a harder
+clear awards the covered lower-difficulty titles too. Automatic decisions
+additionally require reliable map-name evidence — the field status must be
+`ok` with confidence at
+or above the gate — and map challenges are evaluated only for the map named in
+the screenshot. A statistics panel without a checked title (for example, one
+listing only aggregate counters) is not treated as checked achievement
+evidence; title evidence requires a matching `achievement_titles` entry or a
+title followed by a checked mark in the panel text. Classic map-completion
+challenges require the `classic` map variant and do not need title evidence.
+
+The platform owns candidate selection, rule-snapshot evaluation,
 approval, Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous
 results are routed to maintainers; OCRKit does not decide eligibility or
 approval. Bastion implementation and build changes remain reviewable,
