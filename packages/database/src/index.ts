@@ -647,12 +647,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
     const snapshotTitleKeys = [...new Set(snapshots.map(({ snapshot }) => snapshot.titleKey))];
     const submissionIds = submissionRows.map((row) => row.id);
-    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows] = await Promise.all([
+    const bindingIds = [...new Set(submissionRows.map((row) => row.bindingId))];
+    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, bindingRows] = await Promise.all([
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
       submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
+      bindingIds.length ? db.select({ id: bindings.id, playerAccountId: bindings.playerAccountId }).from(bindings).where(inArray(bindings.id, bindingIds)) : [],
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
@@ -664,7 +666,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (title) challenges.set(challengeId, { family: "achievement", titleName: title.label, category: title.category, condition: snapshot.condition, evidenceRule: snapshot.evidenceRule, ...(snapshot.mapVariant ? { mapVariant: snapshot.mapVariant } : {}) });
     }
     for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
-    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])) };
+    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), playerAccountByBinding: new Map(bindingRows.map((binding) => [binding.id, binding.playerAccountId])) };
   };
 
   const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
@@ -680,6 +682,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       challenge: row.challengeId ? details.challenges.get(row.challengeId) ?? null : null,
       mapName: row.mapName,
       difficulty: row.difficulty ?? "",
+      playerAccountId: details.playerAccountByBinding.get(row.bindingId) ?? "",
       playerName: row.playerName ?? "",
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,

@@ -84,12 +84,12 @@ onMounted(() => { void load(); });
 <template>
   <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'primary', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'spotCheck', priority: 'detail', order: 5 }, { id: 'updatedAt', priority: 'detail', order: 6 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
+    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'spotCheck', priority: 'detail', order: 5 }, { id: 'updatedAt', priority: 'detail', order: 6 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="page" class="admin-table">
       <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>
       <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
-      <template #playerName-cell="{ row }"><span>{{ row.original.playerName }}</span></template>
+      <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
       <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
@@ -100,6 +100,6 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.review-filters { display:flex; flex-wrap:wrap; gap:8px; }.table-meta { display:block; color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:10px; }
+.review-filters { display:flex; flex-wrap:wrap; gap:8px; }.table-meta { display:block; color:var(--quiet); font-size:.78rem; }.player-link { color:var(--accent); font-weight:650; text-decoration:none; }.player-link:hover, .player-link:focus-visible { text-decoration:underline; }.pagination { display:flex; justify-content:center; margin-top:10px; }
 @media (max-width: 620px) { .review-filters { display:grid; grid-template-columns:1fr; width:100%; } }
 </style>

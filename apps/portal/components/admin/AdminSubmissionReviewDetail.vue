@@ -65,7 +65,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   <section class="review-detail" aria-live="polite" aria-label="审核详情">
     <header class="detail-meta-bar">
       <p class="detail-meta">
-        <span class="detail-meta__player">{{ submission.playerName }}</span>
+        <NuxtLink class="detail-meta__player" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink>
         <span class="detail-meta__sep" aria-hidden="true">·</span>
         <span class="detail-meta__label">截图审核</span>
       </p>
@@ -163,7 +163,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
           <template #header><div class="card-heading"><h3>提交概览</h3><StatusBadge :label="formatStatus(submission.status)" :tone="submissionStatusTone(submission.status)" /></div></template>
           <dl class="detail-list">
             <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-            <div><dt>玩家</dt><dd>{{ submission.playerName }}</dd></div>
+            <div><dt>玩家</dt><dd><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink></dd></div>
             <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
             <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
           </dl>
@@ -222,7 +222,14 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   color: var(--text);
   font-weight: 650;
   overflow-wrap: anywhere;
+  text-decoration: none;
 }
+.detail-meta__player:hover, .detail-meta__player:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.player-link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.player-link:hover, .player-link:focus-visible { text-decoration: underline; }
 .detail-meta__sep { color: var(--quiet); }
 .detail-meta__label { color: var(--quiet); }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr); align-items: start; gap: clamp(18px, 2.4vw, 28px); }

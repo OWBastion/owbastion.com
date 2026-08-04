@@ -506,6 +506,7 @@ export const adminSubmissionSchema = z.object({
   ]).nullable().optional(),
   mapName: z.string(),
   difficulty: z.string(),
+  playerAccountId: z.string().uuid(),
   playerName: z.string(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
