@@ -86,10 +86,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       <div class="info-col">
         <section class="actions-card glass elevation-2" aria-labelledby="review-actions-title">
           <header class="actions-card__header">
-            <div class="actions-card__heading">
-              <h3 id="review-actions-title">审核操作</h3>
-              <p class="actions-card__subtitle glass-text-quiet">决定结果</p>
-            </div>
+            <h3 id="review-actions-title">审核操作</h3>
             <span v-if="actionLoading" class="action-status" role="status">提交中…</span>
           </header>
 
@@ -97,40 +94,32 @@ function spotCheckLoading(decision: SpotCheckDecision) {
             <UButton
               class="action-btn action-btn--primary pressable"
               type="button"
-              block
-              size="lg"
               icon="i-lucide-check"
               label="通过"
               :loading="decisionLoading('approved')"
               :disabled="actionsLoading"
               @click="emitReview('approved')"
             />
-            <div class="actions-secondary">
-              <UButton
-                class="action-btn pressable"
-                type="button"
-                block
-                icon="i-lucide-rotate-cw"
-                label="要求重传"
-                color="neutral"
-                variant="outline"
-                :loading="decisionLoading('resubmission_required')"
-                :disabled="actionsLoading"
-                @click="emitReview('resubmission_required')"
-              />
-              <UButton
-                class="action-btn pressable"
-                type="button"
-                block
-                icon="i-lucide-x"
-                label="驳回"
-                color="error"
-                variant="soft"
-                :loading="decisionLoading('rejected')"
-                :disabled="actionsLoading"
-                @click="emitReview('rejected')"
-              />
-            </div>
+            <UButton
+              class="action-btn pressable"
+              type="button"
+              label="要求重传"
+              color="neutral"
+              variant="outline"
+              :loading="decisionLoading('resubmission_required')"
+              :disabled="actionsLoading"
+              @click="emitReview('resubmission_required')"
+            />
+            <UButton
+              class="action-btn pressable"
+              type="button"
+              label="驳回"
+              color="error"
+              variant="soft"
+              :loading="decisionLoading('rejected')"
+              :disabled="actionsLoading"
+              @click="emitReview('rejected')"
+            />
           </div>
 
           <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
@@ -146,16 +135,15 @@ function spotCheckLoading(decision: SpotCheckDecision) {
             <UButton
               class="action-btn action-btn--utility pressable"
               type="button"
-              block
               icon="i-lucide-refresh-cw"
               label="重新发送 OCRKit 请求"
               color="neutral"
               variant="ghost"
+              size="sm"
               :loading="ocrRetryLoading"
               :disabled="actionsLoading"
               @click="emit('retry-ocr')"
             />
-            <span v-if="ocrRetryLoading" class="action-status" role="status">发送中…</span>
           </div>
         </section>
 
@@ -241,13 +229,13 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message { margin: 0; padding: 96px 0; color: var(--muted); text-align: center; }
 
-/* Review decision chrome — interactive material layer (Apple materials hierarchy) */
+/* Review decision chrome — compact material layer (Apple materials hierarchy) */
 .actions-card {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
-  border-radius: 16px;
+  border-radius: 14px;
   /* bright top edge = light catching the material */
   box-shadow:
     var(--elevation-2),
@@ -255,50 +243,45 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 }
 .actions-card__header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.actions-card__heading { min-width: 0; }
-.actions-card__heading h3 {
+.actions-card__header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: .9rem;
   font-weight: 720;
   letter-spacing: -.02em;
   color: var(--text-on-glass);
 }
-.actions-card__subtitle {
-  margin: 4px 0 0;
-  font-size: .72rem;
-  font-weight: 650;
-  letter-spacing: .01em;
-  line-height: 1.35;
-}
 .actions {
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
-.actions-secondary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.actions :deep(.action-btn),
-.ocr-retry-actions :deep(.action-btn) {
-  min-height: 44px;
+.actions :deep(.action-btn) {
+  min-height: 36px;
+  padding-inline: 6px;
+  font-size: .82rem;
   font-weight: 680;
   letter-spacing: -.01em;
 }
 .actions :deep(.action-btn--primary) {
-  min-height: 48px;
-  font-size: .95rem;
+  min-height: 36px;
   font-weight: 700;
 }
 .ocr-retry-actions {
   display: grid;
-  gap: 8px;
-  padding-top: 12px;
+  gap: 4px;
+  padding-top: 8px;
   border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
+}
+.ocr-retry-actions :deep(.action-btn) {
+  justify-self: start;
+  min-height: 28px;
+  padding-inline: 8px;
+  font-size: .76rem;
+  font-weight: 650;
 }
 .ocr-retry-error { margin: 0; color: var(--danger); font-size: .78rem; }
 .action-status {
@@ -332,7 +315,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
    * natural flow position at the top of the info column.
    */
   .review-detail {
-    padding-bottom: calc(300px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(240px + env(safe-area-inset-bottom, 0px));
   }
   .actions-card {
     position: fixed;
@@ -347,7 +330,10 @@ function spotCheckLoading(decision: SpotCheckDecision) {
       var(--elevation-3),
       inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
   }
-  .actions-secondary { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .actions :deep(.action-btn) {
+    min-height: 44px;
+    font-size: .84rem;
+  }
   .spot-check-actions { grid-template-columns: 1fr 1fr; }
 }
 
