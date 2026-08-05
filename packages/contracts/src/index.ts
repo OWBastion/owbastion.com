@@ -496,14 +496,16 @@ export const playerUploadSessionResponseSchema = z.object({
 
 export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
 
+export const adminSubmissionChallengeSchema = z.union([
+  z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), mapVariant: z.literal("classic").optional() }),
+  z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
+]);
+
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
-  challenge: z.union([
-    z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), mapVariant: z.literal("classic").optional() }),
-    z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
-  ]).nullable().optional(),
+  challenge: adminSubmissionChallengeSchema.nullable().optional(),
   mapName: z.string(),
   difficulty: z.string(),
   playerAccountId: z.string().uuid(),
@@ -591,9 +593,13 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
   titleGrant: z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapName: z.string().optional() }).optional(),
 });
 
+export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.omit({ contractVersion: true }).extend({
+  challenge: adminSubmissionChallengeSchema.nullable().optional(),
+});
+
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
-  recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(10),
+  recentSubmissions: z.array(adminPlayerRecentSubmissionSchema).max(10),
   titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string() })),
 });
 
@@ -646,6 +652,7 @@ export type QqGroupAccessResponse = z.infer<typeof qqGroupAccessResponseSchema>;
 export type QqGroupRegistrationRequest = z.infer<typeof qqGroupRegistrationRequestSchema>;
 export type AdminPlayerSummary = z.infer<typeof adminPlayerSummarySchema>;
 export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
+export type AdminPlayerRecentSubmission = z.infer<typeof adminPlayerRecentSubmissionSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;
 export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;

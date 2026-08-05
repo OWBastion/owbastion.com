@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -55,6 +55,30 @@ describe("v1 platform contracts", () => {
 
   it("keeps legacy submission states visible in the admin contract", () => {
     expect(adminSubmissionSchema.safeParse({ submissionId: "00000000-0000-4000-8000-000000000003", status: "evidence_stored", challengeId: "map.test", challenge: null, mapName: "测试地图", difficulty: "困难", playerAccountId: "11111111-1111-4111-8111-111111111111", playerName: "Player", createdAt: 1, updatedAt: 2, ocrStatus: "not_started", ocrAttempt: null, ocrErrorCode: null, ocr: null, evidenceUrl: "https://api.example.com/evidence" }).success).toBe(true);
+  });
+
+  it("includes resolved challenge detail on admin player recent submissions", () => {
+    const base = {
+      submissionId: "00000000-0000-4000-8000-000000000003",
+      status: "approved",
+      mapName: "釜山",
+      createdAt: 1,
+      updatedAt: 2,
+    };
+    expect(adminPlayerDetailSchema.safeParse({
+      playerAccountId: "11111111-1111-4111-8111-111111111111",
+      playerId: "1234",
+      playerName: "Player",
+      status: "active",
+      bindingCount: 1,
+      updatedAt: 2,
+      bindings: [],
+      recentSubmissions: [
+        { ...base, challengeId: "map.busan.hell", difficulty: "地狱", challenge: { family: "map", name: "釜山 地狱", mapName: "釜山", difficulty: "地狱" } },
+        { ...base, submissionId: "00000000-0000-4000-8000-000000000004", mapName: "成就挑战", challenge: { family: "achievement", titleName: "钢门", category: "传奇系列", condition: "完成挑战", evidenceRule: "完整截图" } },
+      ],
+      titleGrants: [],
+    }).success).toBe(true);
   });
 
   it("validates the single-image portal upload contract", () => {

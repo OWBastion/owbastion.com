@@ -12,7 +12,17 @@ export type AdminPlayer = {
 
 export type AdminPlayerDetail = AdminPlayer & {
   bindings: Array<{ bindingId: string; provider: "qq"; groupOpenId: string; memberOpenId: string; createdAt: number }>;
-  recentSubmissions: Array<{ submissionId: string; status: string; mapName: string; createdAt: number; updatedAt: number }>;
+  recentSubmissions: Array<{
+    submissionId: string;
+    status: string;
+    mapName: string;
+    challengeId?: string;
+    difficulty?: string;
+    reason?: string;
+    challenge?: { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null;
+    createdAt: number;
+    updatedAt: number;
+  }>;
   titleGrants: Array<{ grantId: string; titleKey: string; label: string; icon: string; iconUrl?: string | null; category: string; condition: string; scope: "global" | "map"; mapName?: string; slot?: "pioneer" | "conqueror" | "dominator"; grantedAt: number; sourceType: "historical" | "submission" | "manual" | "automatic"; grantedBy: string }>;
 };
 

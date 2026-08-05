@@ -92,5 +92,5 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.back-link { color:var(--accent); font-size:.8rem; font-weight:650; text-decoration:none; }.back-link:hover { text-decoration:underline; }.player-detail-page { max-width:960px; }.detail-loading { width:100%; height:120px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
+.back-link { color:var(--accent); font-size:.8rem; font-weight:650; text-decoration:none; }.back-link:hover { text-decoration:underline; }.player-detail-page { max-width:1180px; }.detail-loading { width:100%; height:120px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
 </style>
