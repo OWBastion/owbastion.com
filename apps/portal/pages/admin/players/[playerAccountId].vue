@@ -78,7 +78,7 @@ onMounted(() => { void load(); });
 </script>
 
 <template>
-  <AdminWorkspace :title="player ? `${player.playerName}#${player.playerId}` : '玩家详情'" :count="player ? (player.status === 'banned' ? '已封禁' : '正常') : undefined">
+  <AdminWorkspace :title="player ? `${player.playerName}#${player.playerId}` : '玩家详情'">
     <template #actions><NuxtLink class="back-link" to="/admin/players">返回玩家列表</NuxtLink></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
     <section v-if="player" class="player-detail-page"><AdminPlayerDetail :player="player" :loading="actionLoading || identityLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="load" @edit-identity="identityEditorOpen = true" /></section>
