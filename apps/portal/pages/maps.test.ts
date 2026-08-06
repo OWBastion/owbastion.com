@@ -52,6 +52,7 @@ describe("maps page", () => {
     await flushPromises();
     expect(document.body.textContent).toContain("最快通关");
     expect(document.body.textContent).toContain("暂无记录");
+    wrapper.unmount();
   });
 
   it("shows the factual error state when either public catalog request fails", async () => {
