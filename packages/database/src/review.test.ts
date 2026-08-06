@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
+import { adminReviewDetailResponseSchema, adminReviewListResponseSchema, playerReviewResponseSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema } from "@owbastion/contracts";
 import { createPlatformServices } from "./index";
 
 const createD1 = () => {
@@ -124,6 +125,17 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
 `);
 
 const auth = (subject: string) => ({ actorType: "user" as const, subject, roles: [] as string[], provider: "test" });
+
+const playerReviewView = (review: Awaited<ReturnType<ReturnType<typeof createPlatformServices>["getPlayerReview"]>>) => review && {
+  reviewId: review.reviewId,
+  targetType: review.targetType,
+  targetId: review.targetId,
+  rating: review.rating,
+  comment: review.comment,
+  anonymous: review.anonymous,
+  createdAt: review.createdAt,
+  updatedAt: review.updatedAt,
+};
 
 describe("review persistence and domain rules", () => {
   it("accepts active event/map targets and aggregates valid ratings", async () => {
@@ -280,5 +292,102 @@ describe("review persistence and domain rules", () => {
     await services.invalidateReview({ reviewId: review.reviewId }, auth("admin"), "invalidate-admin-view");
     await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_type = 'review' AND operation = 'review.invalidate'").get()).toEqual({ count: 1 });
+  });
+
+  it("covers the event and map player-to-public-to-maintainer chain with contract, privacy, and replay checks", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES
+        ('11111111-1111-4111-8111-111111111111', '101', 'Event Player', 'event player', 1, 1),
+        ('22222222-2222-4222-8222-222222222222', '202', 'Map Player', 'map player', 1, 1);
+      INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES
+        ('map.integration', 'Integration map', '1', 'active', '1', 1, 1);
+      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES
+        ('event.integration', 'Integration event', 'test', 'common', 'Integration', '1', 'implemented', 1, 1);
+    `);
+    const services = createPlatformServices(database);
+    const player = auth("101");
+    const mapPlayer = auth("202");
+    const maintainer = auth("maintainer");
+    const targets = [
+      { targetType: "event" as const, targetId: "event.integration", player, createKey: "integration-event-create", updateKey: "integration-event-update", initialRating: 5 as const, updatedRating: 4 as const, anonymous: false },
+      { targetType: "map" as const, targetId: "map.integration", player: mapPlayer, createKey: "integration-map-create", updateKey: "integration-map-recreate", initialRating: 3 as const, updatedRating: 2 as const, anonymous: true },
+    ];
+
+    const created = await Promise.all(targets.map((target) => services.upsertReview({ ...target, rating: target.initialRating, comment: `${target.targetType} initial`, anonymous: target.anonymous }, target.player, target.createKey)));
+    expect(created[0]!.reviewId).not.toBe(created[1]!.reviewId);
+    expect(await services.upsertReview({ ...targets[0]!, rating: 5, comment: "event initial", anonymous: false }, player, targets[0]!.createKey)).toEqual(created[0]);
+
+    const initialPublic = await Promise.all(targets.map(async ({ targetType, targetId }) => ({
+      summary: await services.getReviewSummary({ targetType, targetId }),
+      comments: await services.listPublicReviewComments({ targetType, targetId, page: 1, pageSize: 20 }),
+    })));
+    for (const [index, target] of targets.entries()) {
+      publicReviewSummaryResponseSchema.parse({ contractVersion: "1", summary: initialPublic[index]!.summary });
+      publicReviewCommentPageSchema.parse({ contractVersion: "1", ...initialPublic[index]!.comments });
+      expect(initialPublic[index]!.summary).toMatchObject({ targetType: target.targetType, reviewCount: 1, averageRating: target.initialRating });
+      expect(JSON.stringify(initialPublic[index])).not.toMatch(/playerAccountId|playerId|playerName|status|audit|reason|session/i);
+    }
+
+    const eventUpdated = await services.upsertReview({ targetType: "event", targetId: "event.integration", rating: 4, comment: "event updated", anonymous: false }, player, targets[0]!.updateKey);
+    expect(eventUpdated.reviewId).toBe(created[0]!.reviewId);
+    expect(await services.upsertReview({ targetType: "event", targetId: "event.integration", rating: 4, comment: "event updated", anonymous: false }, player, targets[0]!.updateKey)).toEqual(eventUpdated);
+    const mapWithdrawn = await services.withdrawReview({ reviewId: created[1]!.reviewId }, mapPlayer, "integration-map-withdraw");
+    expect(mapWithdrawn.status).toBe("withdrawn");
+    expect(await services.withdrawReview({ reviewId: created[1]!.reviewId }, mapPlayer, "integration-map-withdraw")).toEqual(mapWithdrawn);
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.integration" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    const mapRecreated = await services.upsertReview({ targetType: "map", targetId: "map.integration", rating: 2, comment: "map restored", anonymous: true }, mapPlayer, targets[1]!.updateKey);
+    expect(mapRecreated.reviewId).toBe(created[1]!.reviewId);
+
+    const activePlayerReview = await services.getPlayerReview({ targetType: "event", targetId: "event.integration" }, player);
+    const playerResponse = { contractVersion: "1" as const, review: playerReviewView(activePlayerReview) };
+    playerReviewResponseSchema.parse(playerResponse);
+    expect(playerResponse.review).not.toHaveProperty("playerAccountId");
+    expect(playerResponse.review).not.toHaveProperty("status");
+    expect(playerResponse.review).not.toHaveProperty("commentStatus");
+    expect(playerResponse.review).not.toHaveProperty("invalidationReason");
+
+    const adminList = await services.listAdminReviews({ page: 1, pageSize: 20 }, maintainer);
+    adminReviewListResponseSchema.parse(adminList);
+    expect(adminList.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reviewId: created[0]!.reviewId, playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "101" }),
+      expect.objectContaining({ reviewId: created[1]!.reviewId, playerAccountId: "22222222-2222-4222-8222-222222222222", playerId: "202" }),
+    ]));
+
+    for (const [index, target] of targets.entries()) {
+      const review = created[index]!;
+      const hideInput = { reviewId: review.reviewId, reason: `hide ${target.targetType}` };
+      const hidden = await services.hideReviewComment(hideInput, maintainer, `integration-${target.targetType}-hide`);
+      expect(await services.hideReviewComment(hideInput, maintainer, `integration-${target.targetType}-hide`)).toEqual(hidden);
+      await expect(services.getReviewSummary(target)).resolves.toMatchObject({ reviewCount: 1, averageRating: target.targetType === "event" ? 4 : 2 });
+      await expect(services.listPublicReviewComments({ ...target, page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 0, items: [] });
+
+      const restoredComment = await services.restoreReviewComment({ reviewId: review.reviewId }, maintainer, `integration-${target.targetType}-restore-comment`);
+      expect(await services.restoreReviewComment({ reviewId: review.reviewId }, maintainer, `integration-${target.targetType}-restore-comment`)).toEqual(restoredComment);
+      await expect(services.listPublicReviewComments({ ...target, page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1 });
+
+      const invalidated = await services.invalidateReview({ reviewId: review.reviewId, reason: `invalidate ${target.targetType}` }, maintainer, `integration-${target.targetType}-invalidate`);
+      expect(await services.invalidateReview({ reviewId: review.reviewId, reason: `invalidate ${target.targetType}` }, maintainer, `integration-${target.targetType}-invalidate`)).toEqual(invalidated);
+      await expect(services.getReviewSummary(target)).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+      await expect(services.listPublicReviewComments({ ...target, page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 0, items: [] });
+
+      const restoredReview = await services.restoreReview({ reviewId: review.reviewId }, maintainer, `integration-${target.targetType}-restore-review`);
+      expect(await services.restoreReview({ reviewId: review.reviewId }, maintainer, `integration-${target.targetType}-restore-review`)).toEqual(restoredReview);
+      await expect(services.getReviewSummary(target)).resolves.toMatchObject({ reviewCount: 1, averageRating: target.targetType === "event" ? 4 : 2 });
+      await expect(services.listPublicReviewComments({ ...target, page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1 });
+    }
+
+    const detail = await services.getAdminReview({ reviewId: created[0]!.reviewId }, maintainer);
+    adminReviewDetailResponseSchema.parse(detail);
+    expect(detail.review).toMatchObject({ status: "active", commentStatus: "visible", playerAccountId: "11111111-1111-4111-8111-111111111111" });
+    expect(detail.audit).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: "review.comment.hide", reason: "hide event" }),
+      expect.objectContaining({ operation: "review.invalidate", reason: "invalidate event" }),
+    ]));
+
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviews").get()).toEqual({ count: 2 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys").get()).toEqual({ count: 13 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_type = 'review'").get()).toEqual({ count: 13 });
   });
 });

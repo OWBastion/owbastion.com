@@ -160,6 +160,11 @@ player-facing title result.
   integrations are introduced.
 - Queue redelivery, review, grant, and end-to-end tests for the implemented
   submission approval flow, including rollback and idempotent replay.
+- Review integration tests must cover both event and map targets through the
+  D1-backed player, public, and maintainer projections, including update,
+  withdrawal, comment moderation, whole-review invalidation/restore, aggregate
+  changes, privacy-negative responses, and idempotent replay without duplicate
+  rows or audit effects.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
 
