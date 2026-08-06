@@ -84,6 +84,21 @@ export type ReviewSummary = ReviewTarget & {
   ratingDistribution: Record<ReviewRating, number>;
   sampleInsufficient: boolean;
 };
+export type ReviewSummaryBatchInput = { targetType: ReviewTargetType; targetIds: string[] };
+export type PublicReviewComment = {
+  rating: ReviewRating;
+  comment: string;
+  author: { displayName: string } | null;
+  createdAt: number;
+};
+export type PublicReviewCommentQuery = ReviewTarget & { page: number; pageSize: number };
+export type PublicReviewCommentPage = ReviewTarget & {
+  items: PublicReviewComment[];
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+};
 
 export type AgentPageInput = { page: number; pageSize: number };
 export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string };
@@ -180,6 +195,8 @@ export type PlatformServices = {
   updateAdminPlayerIdentity(input: AdminPlayerIdentityRequest & { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
+  getReviewSummaries(input: ReviewSummaryBatchInput): Promise<ReviewSummary[]>;
+  listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage>;
   getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null>;
   upsertReview(input: ReviewUpsertInput, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   withdrawReview(input: { reviewId: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;

@@ -238,6 +238,33 @@ export const adminRandomEventImportPreviewSchema = z.object({ sourceHash: z.stri
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.object({ targetType: reviewTargetTypeSchema, targetId: externalId }).strict();
 const reviewComment = z.string().trim().refine((value) => Array.from(value).length <= 500, "The review comment is too long");
+const reviewRatingDistributionSchema = z.object({ 1: z.number().int().nonnegative(), 2: z.number().int().nonnegative(), 3: z.number().int().nonnegative(), 4: z.number().int().nonnegative(), 5: z.number().int().nonnegative() }).strict();
+export const publicReviewSummarySchema = z.object({
+  targetType: reviewTargetTypeSchema,
+  targetId: externalId,
+  averageRating: z.number().min(1).max(5).nullable(),
+  reviewCount: z.number().int().nonnegative(),
+  ratingDistribution: reviewRatingDistributionSchema,
+  sampleInsufficient: z.boolean(),
+}).strict();
+export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
+export const publicReviewSummaryBatchResponseSchema = z.object({ contractVersion, targetType: reviewTargetTypeSchema, items: z.array(publicReviewSummarySchema).max(100) }).strict();
+export const publicReviewCommentSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: reviewComment,
+  author: z.object({ displayName: z.string().trim().min(1).max(64) }).strict().nullable(),
+  createdAt: z.number().int(),
+}).strict();
+export const publicReviewCommentPageSchema = z.object({
+  contractVersion,
+  targetType: reviewTargetTypeSchema,
+  targetId: externalId,
+  items: z.array(publicReviewCommentSchema).max(50),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(50),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
 export const playerReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
@@ -693,6 +720,11 @@ export type MapListResponse = z.infer<typeof mapListResponseSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
+export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
+export type PublicReviewSummaryBatchResponse = z.infer<typeof publicReviewSummaryBatchResponseSchema>;
+export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
+export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
 export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type PlayerReviewUpsertRequest = z.infer<typeof playerReviewUpsertRequestSchema>;

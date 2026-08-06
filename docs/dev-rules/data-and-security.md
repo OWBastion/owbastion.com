@@ -56,6 +56,14 @@ removes the internal account association. Rating aggregates exclude withdrawn
 and invalidated rows, while comment hiding does not remove a rating from the
 aggregate.
 
+Public review reads use separate summary and comment projections. Single-target
+summaries, bounded batches, and paginated comments return only rating facts,
+comment text, creation time, and either an approved public display name or no
+author for anonymous reviews. They never return review IDs, player account or
+numeric game IDs, QQ identities, session fields, moderation state, or audit
+payloads. These responses remain `private, no-store` because review state is
+not shared through public HTTP cache boundaries.
+
 ## Private login and player data
 
 QQ login codes, attempt tokens, session tokens, group OpenIDs, and member

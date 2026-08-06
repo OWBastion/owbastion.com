@@ -21,7 +21,7 @@ import {
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
-  reviewTargetSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
+  reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
@@ -258,6 +258,9 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:targetType/:targetId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:reviewId/withdraw", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/reviews/summaries", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/reviews/:targetType/:targetId/summary", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/reviews/:targetType/:targetId/comments", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -610,6 +613,58 @@ export const createApp = (dependencies: AppDependencies) => {
     const cacheable = hasNoQuery(c.req.raw);
     setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
     return cachePublicResponse(c, "catalog_public_achievements", publicCacheKey(c.req.raw), cacheable, async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }), decoratePortalCacheHit(c));
+  });
+
+  const parsePublicReviewPage = (c: any) => {
+    const page = Number(c.req.query("page") ?? "1");
+    const pageSize = Number(c.req.query("pageSize") ?? "20");
+    return Number.isInteger(page) && page >= 1 && Number.isInteger(pageSize) && pageSize >= 1 && pageSize <= 50 ? { page, pageSize } : null;
+  };
+
+  app.get("/v1/public/reviews/summaries", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const targetType = reviewTargetTypeSchema.safeParse(c.req.query("targetType"));
+    const targetIds = (c.req.query("targetIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
+    if (!targetType.success || !targetIds.length || targetIds.length > 100 || new Set(targetIds).size !== targetIds.length || targetIds.some((targetId: string) => !reviewTargetSchema.safeParse({ targetType: targetType.data, targetId }).success)) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The review summary targets are invalid");
+    }
+    try {
+      const items = await logServiceOperation(c, "review_public_summary_batch", () => dependencies.services(c.env).getReviewSummaries({ targetType: targetType.data, targetIds }));
+      return c.json({ contractVersion: "1", targetType: targetType.data, items });
+    } catch (error) {
+      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      throw error;
+    }
+  });
+
+  app.get("/v1/public/reviews/:targetType/:targetId/summary", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const target = parseReviewTarget(c);
+    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
+    try {
+      const summary = await logServiceOperation(c, "review_public_summary", () => dependencies.services(c.env).getReviewSummary(target.data));
+      return c.json({ contractVersion: "1", summary });
+    } catch (error) {
+      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      throw error;
+    }
+  });
+
+  app.get("/v1/public/reviews/:targetType/:targetId/comments", async (c) => {
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const target = parseReviewTarget(c);
+    const page = parsePublicReviewPage(c);
+    if (!target.success || !page) return errorResponse(c, 422, "INVALID_REQUEST", "The review comment request is invalid");
+    try {
+      const comments = await logServiceOperation(c, "review_public_comments", () => dependencies.services(c.env).listPublicReviewComments({ ...target.data, ...page }));
+      return c.json({ contractVersion: "1", ...comments });
+    } catch (error) {
+      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      throw error;
+    }
   });
 
   app.get("/v1/public/achievement-icons/:titleKey", async (c) => {

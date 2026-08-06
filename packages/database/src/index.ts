@@ -1,6 +1,6 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, ReviewRating, ReviewRecord, ReviewSummary, ReviewTarget, ReviewTargetType, ReviewUpsertInput } from "@owbastion/domain";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
@@ -855,6 +855,58 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(spotCheckId, input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+  };
+
+  const getReviewSummaries = async (input: ReviewSummaryBatchInput): Promise<ReviewSummary[]> => {
+    const targetIds = [...new Set(input.targetIds)];
+    if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
+    const targetRows = input.targetType === "event"
+      ? await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds))
+      : await db.select({ id: maps.id }).from(maps).where(inArray(maps.id, targetIds));
+    if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
+    const placeholders = targetIds.map(() => "?").join(", ");
+    const aggregateResult = await database.prepare(`
+      SELECT
+        target_id,
+        COUNT(*) AS review_count,
+        AVG(rating) AS average_rating,
+        SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+        SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+        SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+        SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+        SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+      FROM reviews
+      WHERE target_type = ? AND target_id IN (${placeholders}) AND status = 'active'
+      GROUP BY target_id
+    `).bind(input.targetType, ...targetIds).all<{
+      target_id: string;
+      review_count: number;
+      average_rating: number | null;
+      rating_1: number | null;
+      rating_2: number | null;
+      rating_3: number | null;
+      rating_4: number | null;
+      rating_5: number | null;
+    }>();
+    const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
+    return targetIds.map((targetId) => {
+      const aggregate = aggregates.get(targetId);
+      const reviewCount = Number(aggregate?.review_count ?? 0);
+      return {
+        targetType: input.targetType,
+        targetId,
+        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
+        reviewCount,
+        ratingDistribution: {
+          1: Number(aggregate?.rating_1 ?? 0),
+          2: Number(aggregate?.rating_2 ?? 0),
+          3: Number(aggregate?.rating_3 ?? 0),
+          4: Number(aggregate?.rating_4 ?? 0),
+          5: Number(aggregate?.rating_5 ?? 0),
+        },
+        sampleInsufficient: reviewCount < reviewSampleThreshold,
+      };
+    });
   };
 
   return {
@@ -3013,42 +3065,56 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {
+      const summaries = await getReviewSummaries({ targetType: input.targetType, targetIds: [input.targetId] });
+      return summaries[0]!;
+    },
+
+    getReviewSummaries,
+
+    async listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage> {
       const target = await findReviewTarget(input);
       if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const aggregate = await database.prepare(`
+      const page = Math.max(1, Math.floor(input.page));
+      const pageSize = Math.min(50, Math.max(1, Math.floor(input.pageSize)));
+      const result = await database.prepare(`
         SELECT
-          COUNT(*) AS review_count,
-          AVG(rating) AS average_rating,
-          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
-        FROM reviews
-        WHERE target_type = ? AND target_id = ? AND status = 'active'
-      `).bind(input.targetType, input.targetId).first<{
-        review_count: number;
-        average_rating: number | null;
-        rating_1: number | null;
-        rating_2: number | null;
-        rating_3: number | null;
-        rating_4: number | null;
-        rating_5: number | null;
+          r.rating,
+          r.comment,
+          r.anonymous,
+          r.created_at,
+          p.player_name,
+          COUNT(*) OVER () AS total_count
+        FROM reviews r
+        INNER JOIN player_accounts p ON p.id = r.player_account_id
+        WHERE r.target_type = ?
+          AND r.target_id = ?
+          AND r.status = 'active'
+          AND r.comment_status = 'visible'
+          AND r.comment IS NOT NULL
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT ? OFFSET ?
+      `).bind(input.targetType, input.targetId, pageSize, (page - 1) * pageSize).all<{
+        rating: number;
+        comment: string;
+        anonymous: number;
+        created_at: number;
+        player_name: string;
+        total_count: number;
       }>();
-      const reviewCount = Number(aggregate?.review_count ?? 0);
+      const total = Number(result.results[0]?.total_count ?? 0);
       return {
         targetType: input.targetType,
         targetId: input.targetId,
-        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
-        reviewCount,
-        ratingDistribution: {
-          1: Number(aggregate?.rating_1 ?? 0),
-          2: Number(aggregate?.rating_2 ?? 0),
-          3: Number(aggregate?.rating_3 ?? 0),
-          4: Number(aggregate?.rating_4 ?? 0),
-          5: Number(aggregate?.rating_5 ?? 0),
-        },
-        sampleInsufficient: reviewCount < reviewSampleThreshold,
+        items: result.results.map((row) => ({
+          rating: asReviewRating(row.rating),
+          comment: row.comment,
+          author: row.anonymous === 1 ? null : { displayName: row.player_name },
+          createdAt: row.created_at,
+        })),
+        page,
+        pageSize,
+        total,
+        hasMore: page * pageSize < total,
       };
     },
 

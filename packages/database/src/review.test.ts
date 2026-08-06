@@ -5,20 +5,24 @@ import { createPlatformServices } from "./index";
 const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
+  let statementCount = 0;
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
     const statement = {
       bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
+      async first<T>() { statementCount += 1; return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
       async all<T>() {
+        statementCount += 1;
         const results = sqlite.prepare(sql).all(...bound) as T[];
         return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
       },
       async run() {
+        statementCount += 1;
         const info = sqlite.prepare(sql).run(...bound);
         return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
       },
       async raw<T extends unknown[] = unknown[]>() {
+        statementCount += 1;
         const prepared = sqlite.prepare(sql);
         prepared.setReturnArrays(true);
         return prepared.all(...bound) as T[];
@@ -33,10 +37,10 @@ const createD1 = () => {
       for (const statement of statements) results.push(await statement.all());
       return results;
     },
-    async exec(sql: string) { sqlite.exec(sql); return []; },
+    async exec(sql: string) { statementCount += 1; sqlite.exec(sql); return []; },
     withSession() { return database; },
   } as unknown as D1Database;
-  return { database, sqlite };
+  return { database, sqlite, resetCount: () => { statementCount = 0; }, getCount: () => statementCount };
 };
 
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
@@ -138,6 +142,52 @@ describe("review persistence and domain rules", () => {
 
     await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true });
     await expect(services.getReviewSummary({ targetType: "event", targetId: "event.test" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 1 });
+  });
+
+  it("batches public summaries and filters public comments without exposing private identity", async () => {
+    const { database, sqlite, resetCount, getCount } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account-1', '1', 'One', 'one', 1, 1), ('account-2', '2', 'Two', 'two', 1, 1);
+      INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1), ('map.empty', 'Empty map', '1', 'active', '1', 1, 1);
+    `);
+    const services = createPlatformServices(database);
+    const named = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "公开评论" }, auth("1"), "public-1");
+    await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 3, comment: "匿名评论", anonymous: true }, auth("2"), "public-2");
+
+    resetCount();
+    await expect(services.getReviewSummaries({ targetType: "map", targetIds: ["map.test", "map.empty"] })).resolves.toEqual([
+      { targetType: "map", targetId: "map.test", averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true },
+      { targetType: "map", targetId: "map.empty", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true },
+    ]);
+    const smallBatchCount = getCount();
+    expect(smallBatchCount).toBeLessThanOrEqual(3);
+    for (let index = 0; index < 40; index += 1) sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, '1', 'active', '1', 1, 1)").run(`map.batch.${index}`, `Batch map ${index}`);
+    resetCount();
+    await services.getReviewSummaries({ targetType: "map", targetIds: ["map.test", "map.empty", ...Array.from({ length: 40 }, (_, index) => `map.batch.${index}`)] });
+    expect(getCount()).toBeLessThanOrEqual(smallBatchCount + 1);
+
+    resetCount();
+    const comments = await services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 });
+    expect(comments).toMatchObject({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20, total: 2, hasMore: false });
+    expect(comments.items).toEqual(expect.arrayContaining([
+      { rating: 3, comment: "匿名评论", author: null, createdAt: expect.any(Number) },
+      { rating: 5, comment: "公开评论", author: { displayName: "One" }, createdAt: expect.any(Number) },
+    ]));
+    expect(getCount()).toBeLessThanOrEqual(3);
+
+    await services.hideReviewComment({ reviewId: named.reviewId, reason: "检查" }, auth("admin"), "hide-public");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 2, averageRating: 4 });
+    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: null, comment: "匿名评论" }] });
+
+    const anonymous = await services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("2"));
+    await services.withdrawReview({ reviewId: anonymous!.reviewId }, auth("2"), "withdraw-public");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
+    await services.invalidateReview({ reviewId: named.reviewId, reason: "无效" }, auth("admin"), "invalidate-public");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    await services.restoreReview({ reviewId: named.reviewId }, auth("admin"), "restore-public");
+    await services.restoreReviewComment({ reviewId: named.reviewId }, auth("admin"), "restore-comment-public");
+    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: { displayName: "One" }, comment: "公开评论" }] });
   });
 
   it("updates one row, replays idempotently, and preserves the hidden-comment boundary", async () => {

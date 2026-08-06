@@ -89,6 +89,8 @@ const services: PlatformServices = {
   updateAdminPlayerIdentity: async () => {},
   removeAdminBinding: async () => {},
   getReviewSummary: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
+  getReviewSummaries: async () => [],
+  listPublicReviewComments: async ({ targetType, targetId, page, pageSize }) => ({ targetType, targetId, items: [], page, pageSize, total: 0, hasMore: false }),
   getPlayerReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   upsertReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   withdrawReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
@@ -619,6 +621,51 @@ describe("API", () => {
     expect(invalid.status).toBe(422);
     const invalidTarget = await app.request("http://localhost/v1/me/reviews/not-a-target/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(invalidTarget.status).toBe(422);
+  });
+
+  it("serves privacy-safe public review summaries and comments", async () => {
+    const calls: Array<{ operation: string; input: unknown }> = [];
+    const publicApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        getReviewSummary: async (input) => {
+          calls.push({ operation: "summary", input });
+          return { targetType: input.targetType, targetId: input.targetId, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true };
+        },
+        getReviewSummaries: async (input) => {
+          calls.push({ operation: "batch", input });
+          return input.targetIds.map((targetId) => ({ targetType: input.targetType, targetId, averageRating: 4, reviewCount: 3, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2 }, sampleInsufficient: false }));
+        },
+        listPublicReviewComments: async (input) => {
+          calls.push({ operation: "comments", input });
+          return { ...input, items: [{ rating: 5 as const, comment: "很好", author: null, createdAt: 3 }, { rating: 4 as const, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], total: 2, hasMore: false };
+        },
+      }),
+    });
+
+    const summary = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/summary", {}, env);
+    expect(summary.status).toBe(200);
+    expect(summary.headers.get("cache-control")).toBe("private, no-store");
+    expect(await summary.json()).toEqual({ contractVersion: "1", summary: { targetType: "map", targetId: "map.test", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } });
+
+    const batch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.empty", {}, env);
+    expect(batch.status).toBe(200);
+    expect(await batch.json()).toMatchObject({ contractVersion: "1", targetType: "map", items: [{ targetId: "map.test", reviewCount: 3 }, { targetId: "map.empty", reviewCount: 3 }] });
+
+    const comments = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?page=1&pageSize=2", {}, env);
+    expect(comments.status).toBe(200);
+    const commentBody = await comments.json() as Record<string, unknown>;
+    expect(commentBody).toEqual({ contractVersion: "1", targetType: "map", targetId: "map.test", items: [{ rating: 5, comment: "很好", author: null, createdAt: 3 }, { rating: 4, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], page: 1, pageSize: 2, total: 2, hasMore: false });
+    expect(JSON.stringify(commentBody)).not.toMatch(/playerAccountId|playerId|qq|audit|moderation|session|reviewId/);
+
+    expect((await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?page=0", {}, env)).status).toBe(422);
+    expect((await publicApp.request("http://localhost/v1/public/reviews/not-a-target/map.test/summary", {}, env)).status).toBe(422);
+    expect(calls).toEqual([
+      { operation: "summary", input: { targetType: "map", targetId: "map.test" } },
+      { operation: "batch", input: { targetType: "map", targetIds: ["map.test", "map.empty"] } },
+      { operation: "comments", input: { targetType: "map", targetId: "map.test", page: 1, pageSize: 2 } },
+    ]);
   });
 
   it("returns a signed-in player's private submission detail and evidence", async () => {

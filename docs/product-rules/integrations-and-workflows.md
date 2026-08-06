@@ -117,9 +117,18 @@ maps. Withdrawn and invalidated rows remain auditable; comment hiding is
 independent from whole-review invalidation, so a hidden comment can retain its
 rating while an invalidated review is excluded from all aggregates. Ratings
 are feedback only: they do not change map difficulty metadata, event weights,
-release state, Agents projections, or Bastion build data. HTTP, Portal,
-public-comment reads, and maintainer list behavior are subsequent review
-workflow slices.
+release state, Agents projections, or Bastion build data.
+
+The public read slice exposes one summary, a bounded batch of summaries, and a
+paginated comment feed for an event or map. Summaries include the average,
+valid-review count, 1–5 distribution, and the shared three-review
+`sampleInsufficient` rule. Public comments exclude hidden, withdrawn, and
+invalidated rows; hidden comments do not remove a still-valid rating from the
+summary. Anonymous comments have no author projection, while other comments
+carry only the current public display name. The API keeps these review reads
+private and uncached, and the batch query resolves directory targets in a
+bounded operation rather than issuing one query per card. Portal rendering and
+maintainer moderation remain separate slices.
 
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
