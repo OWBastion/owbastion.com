@@ -56,6 +56,35 @@ export type AuthContext = {
   provider: string;
 };
 
+export const reviewTargetTypes = ["event", "map"] as const;
+export type ReviewTargetType = (typeof reviewTargetTypes)[number];
+export type ReviewRating = 1 | 2 | 3 | 4 | 5;
+export type ReviewStatus = "active" | "withdrawn" | "invalidated";
+export type ReviewCommentStatus = "visible" | "hidden";
+export type ReviewTarget = { targetType: ReviewTargetType; targetId: string };
+export type ReviewUpsertInput = ReviewTarget & { rating: ReviewRating; comment?: string | null; anonymous?: boolean };
+export type ReviewRecord = ReviewTarget & {
+  reviewId: string;
+  playerAccountId: string;
+  rating: ReviewRating;
+  comment: string | null;
+  commentStatus: ReviewCommentStatus;
+  anonymous: boolean;
+  status: ReviewStatus;
+  createdAt: number;
+  updatedAt: number;
+  withdrawnAt: number | null;
+  invalidatedAt: number | null;
+  invalidatedBy: string | null;
+  invalidationReason: string | null;
+};
+export type ReviewSummary = ReviewTarget & {
+  averageRating: number | null;
+  reviewCount: number;
+  ratingDistribution: Record<ReviewRating, number>;
+  sampleInsufficient: boolean;
+};
+
 export type AgentPageInput = { page: number; pageSize: number };
 export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string };
 export type AgentMapQuery = AgentPageInput & { query?: string; mechanic?: string };
@@ -150,6 +179,14 @@ export type PlatformServices = {
   setAdminPlayerStatus(input: { playerAccountId: string; status: "active" | "banned"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   updateAdminPlayerIdentity(input: AdminPlayerIdentityRequest & { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
+  getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null>;
+  upsertReview(input: ReviewUpsertInput, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  withdrawReview(input: { reviewId: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  hideReviewComment(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  restoreReviewComment(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  invalidateReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  restoreReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   logoutPortalSession(input: { sessionToken: string }): Promise<void>;
   listLocalDevAccounts(): Promise<LocalDevAccount[]>;

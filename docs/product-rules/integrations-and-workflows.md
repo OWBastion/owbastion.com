@@ -102,6 +102,25 @@ The current API implements versioned v1 QQ flows:
   directory; player authentication remains required for submissions, titles,
   and player-specific data.
 
+### Player review foundation
+
+Issue #44 establishes the platform-owned D1 and domain foundation for player
+ratings of existing events and maps. A review stores only the stable target
+type and ID, the authenticated player account, a 1–5 rating, an optional
+comment, anonymous-display preference, lifecycle state, and timestamps; it
+does not copy catalog names or other event/map facts. One player has one
+current review row per target, and retries or later submissions update that
+row rather than creating parallel records.
+
+New reviews are accepted only for implemented, non-archived events and active
+maps. Withdrawn and invalidated rows remain auditable; comment hiding is
+independent from whole-review invalidation, so a hidden comment can retain its
+rating while an invalidated review is excluded from all aggregates. Ratings
+are feedback only: they do not change map difficulty metadata, event weights,
+release state, Agents projections, or Bastion build data. HTTP, Portal,
+public-comment reads, and maintainer list behavior are subsequent review
+workflow slices.
+
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
 public object URL. User screenshot objects use the shared `uploads/` namespace,

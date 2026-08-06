@@ -1,8 +1,8 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices } from "@owbastion/domain";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, ReviewRating, ReviewRecord, ReviewSummary, ReviewTarget, ReviewTargetType, ReviewUpsertInput } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -57,6 +57,8 @@ const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const uploadTtlMs = 10 * 60 * 1000;
 const maxUploadBytes = 10 * 1024 * 1024;
 const maxTitleIconBytes = 512 * 1024;
+export const maxReviewCommentLength = 500;
+export const reviewSampleThreshold = 3;
 const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"]]);
 export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number) => {
   if (status !== "scheduled") return status === "active" || status === "sunsetting" ? status : null;
@@ -153,6 +155,35 @@ const recordAudit = async (db: ReturnType<typeof drizzle>, auth: AuthContext, op
   });
 };
 
+const asReviewRating = (value: number): ReviewRating => {
+  if (!Number.isInteger(value) || value < 1 || value > 5) throw new Error("REVIEW_RATING_INVALID");
+  return value as ReviewRating;
+};
+
+const normalizeReviewComment = (value: string | null | undefined) => {
+  const comment = value?.trim() ?? "";
+  if (Array.from(comment).length > maxReviewCommentLength) throw new Error("REVIEW_COMMENT_TOO_LONG");
+  return comment || null;
+};
+
+const asReviewRecord = (row: typeof reviews.$inferSelect): ReviewRecord => ({
+  reviewId: row.id,
+  playerAccountId: row.playerAccountId,
+  targetType: row.targetType as ReviewTargetType,
+  targetId: row.targetId,
+  rating: asReviewRating(row.rating),
+  comment: row.comment,
+  commentStatus: row.commentStatus as ReviewRecord["commentStatus"],
+  anonymous: row.anonymous === 1,
+  status: row.status as ReviewRecord["status"],
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  withdrawnAt: row.withdrawnAt,
+  invalidatedAt: row.invalidatedAt,
+  invalidatedBy: row.invalidatedBy,
+  invalidationReason: row.invalidationReason,
+});
+
 const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase();
 
 const titleColor = (value: string) => JSON.parse(value) as { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
@@ -205,6 +236,47 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
+
+  const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
+  const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
+    ? await db.select().from(randomEvents).where(eq(randomEvents.id, input.targetId)).get()
+    : await db.select().from(maps).where(eq(maps.id, input.targetId)).get();
+
+  const mutateReviewComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
+    const operation = nextStatus === "hidden" ? "review.comment.hide" : "review.comment.restore";
+    const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
+    if (replay) return replay;
+    const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
+    if (!row) throw new Error("REVIEW_NOT_FOUND");
+    if (!row.comment) throw new Error("REVIEW_COMMENT_NOT_FOUND");
+    const timestamp = now();
+    if (row.commentStatus !== nextStatus) await db.update(reviews).set({ commentStatus: nextStatus, updatedAt: timestamp }).where(eq(reviews.id, row.id));
+    const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
+    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+    await recordAudit(db, auth, operation, "review", row.id, { reason: input.reason ?? null, previousCommentStatus: row.commentStatus, commentStatus: response.commentStatus });
+    return response;
+  };
+
+  const mutateReviewState = async (input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string, nextStatus: "active" | "invalidated"): Promise<ReviewRecord> => {
+    const operation = nextStatus === "invalidated" ? "review.invalidate" : "review.restore";
+    const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
+    if (replay) return replay;
+    const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
+    if (!row) throw new Error("REVIEW_NOT_FOUND");
+    if (nextStatus === "invalidated" && row.status === "invalidated" || nextStatus === "active" && row.status !== "invalidated") {
+      const response = asReviewRecord(row);
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+      return response;
+    }
+    const timestamp = now();
+    await db.update(reviews).set(nextStatus === "invalidated"
+      ? { status: "invalidated", invalidatedAt: timestamp, invalidatedBy: auth.subject, invalidationReason: input.reason ?? null, updatedAt: timestamp }
+      : { status: "active", invalidatedAt: null, invalidatedBy: null, invalidationReason: null, updatedAt: timestamp }).where(eq(reviews.id, row.id));
+    const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
+    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+    await recordAudit(db, auth, operation, "review", row.id, { reason: input.reason ?? null, previousStatus: row.status, status: response.status });
+    return response;
+  };
 
   const performAuthorizedHistoricalTitleMigration = async (input: { inviteId: string; playerAccountId: string; claimId: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
     const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
@@ -2938,6 +3010,135 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordAudit(db, auth, "qq.binding.create", "binding", bindingId, { provider: input.provider });
       return response;
       */
+    },
+
+    async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {
+      const target = await findReviewTarget(input);
+      if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
+      const aggregate = await database.prepare(`
+        SELECT
+          COUNT(*) AS review_count,
+          AVG(rating) AS average_rating,
+          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+        FROM reviews
+        WHERE target_type = ? AND target_id = ? AND status = 'active'
+      `).bind(input.targetType, input.targetId).first<{
+        review_count: number;
+        average_rating: number | null;
+        rating_1: number | null;
+        rating_2: number | null;
+        rating_3: number | null;
+        rating_4: number | null;
+        rating_5: number | null;
+      }>();
+      const reviewCount = Number(aggregate?.review_count ?? 0);
+      return {
+        targetType: input.targetType,
+        targetId: input.targetId,
+        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
+        reviewCount,
+        ratingDistribution: {
+          1: Number(aggregate?.rating_1 ?? 0),
+          2: Number(aggregate?.rating_2 ?? 0),
+          3: Number(aggregate?.rating_3 ?? 0),
+          4: Number(aggregate?.rating_4 ?? 0),
+          5: Number(aggregate?.rating_5 ?? 0),
+        },
+        sampleInsufficient: reviewCount < reviewSampleThreshold,
+      };
+    },
+
+    async getPlayerReview(input: ReviewTarget, auth: AuthContext): Promise<ReviewRecord | null> {
+      const account = await findReviewAccount(auth.subject);
+      if (!account) throw new Error("PLAYER_NOT_FOUND");
+      if (!await findReviewTarget(input)) throw new Error("REVIEW_TARGET_NOT_FOUND");
+      const row = await db.select().from(reviews).where(and(eq(reviews.playerAccountId, account.id), eq(reviews.targetType, input.targetType), eq(reviews.targetId, input.targetId))).get();
+      return row ? asReviewRecord(row) : null;
+    },
+
+    async upsertReview(input: ReviewUpsertInput, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord> {
+      const operation = "review.upsert";
+      const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return replay;
+      const account = await findReviewAccount(auth.subject);
+      if (!account) throw new Error("PLAYER_NOT_FOUND");
+      if (account.status === "banned") throw new Error("PLAYER_BANNED");
+      const target = await findReviewTarget(input);
+      if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
+      const canAccept = input.targetType === "event"
+        ? (target as typeof randomEvents.$inferSelect).releaseStatus === "implemented" && (target as typeof randomEvents.$inferSelect).archivedAt === null
+        : (target as typeof maps.$inferSelect).status === "active";
+      if (!canAccept) throw new Error("REVIEW_TARGET_NOT_RATEABLE");
+      const rating = asReviewRating(input.rating);
+      const comment = normalizeReviewComment(input.comment);
+      const existing = await db.select().from(reviews).where(and(eq(reviews.playerAccountId, account.id), eq(reviews.targetType, input.targetType), eq(reviews.targetId, input.targetId))).get();
+      if (existing?.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
+      const timestamp = now();
+      const reviewId = existing?.id ?? crypto.randomUUID();
+      await db.insert(reviews).values({
+        id: reviewId,
+        playerAccountId: account.id,
+        targetType: input.targetType,
+        targetId: input.targetId,
+        rating,
+        comment,
+        commentStatus: existing?.commentStatus ?? "visible",
+        anonymous: input.anonymous ? 1 : 0,
+        status: "active",
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+        withdrawnAt: null,
+        invalidatedAt: null,
+        invalidatedBy: null,
+        invalidationReason: null,
+      }).onConflictDoUpdate({
+        target: [reviews.playerAccountId, reviews.targetType, reviews.targetId],
+        set: { rating, comment, anonymous: input.anonymous ? 1 : 0, status: "active", updatedAt: timestamp, withdrawnAt: null },
+      });
+      const row = await db.select().from(reviews).where(eq(reviews.id, reviewId)).get();
+      if (!row || row.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
+      const response = asReviewRecord(row);
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+      await recordAudit(db, auth, existing ? "review.update" : "review.create", "review", response.reviewId, { targetType: response.targetType, targetId: response.targetId, rating: response.rating, commentProvided: Boolean(response.comment), anonymous: response.anonymous, previousStatus: existing?.status ?? null });
+      return response;
+    },
+
+    async withdrawReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
+      const operation = "review.withdraw";
+      const replay = await replayOrConflict<ReviewRecord>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return replay;
+      const account = await findReviewAccount(auth.subject);
+      if (!account) throw new Error("PLAYER_NOT_FOUND");
+      const row = await db.select().from(reviews).where(eq(reviews.id, input.reviewId)).get();
+      if (!row) throw new Error("REVIEW_NOT_FOUND");
+      if (row.playerAccountId !== account.id) throw new Error("REVIEW_NOT_OWNED");
+      if (row.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
+      const timestamp = now();
+      if (row.status === "active") await db.update(reviews).set({ status: "withdrawn", withdrawnAt: timestamp, updatedAt: timestamp }).where(and(eq(reviews.id, row.id), eq(reviews.status, "active")));
+      const response = asReviewRecord((await db.select().from(reviews).where(eq(reviews.id, row.id)).get())!);
+      await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+      await recordAudit(db, auth, operation, "review", row.id, { previousStatus: row.status, status: response.status });
+      return response;
+    },
+
+    async hideReviewComment(input, auth, idempotencyKey): Promise<ReviewRecord> {
+      return mutateReviewComment(input, auth, idempotencyKey, "hidden");
+    },
+
+    async restoreReviewComment(input, auth, idempotencyKey): Promise<ReviewRecord> {
+      return mutateReviewComment(input, auth, idempotencyKey, "visible");
+    },
+
+    async invalidateReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
+      return mutateReviewState(input, auth, idempotencyKey, "invalidated");
+    },
+
+    async restoreReview(input, auth, idempotencyKey): Promise<ReviewRecord> {
+      return mutateReviewState(input, auth, idempotencyKey, "active");
     },
 
     async createSubmission(input: SubmissionRequest, auth, idempotencyKey) {

@@ -48,6 +48,14 @@ authorization mechanism. The
 player-facing OCR summary contains only recognized map, difficulty, player, and
 completion values; raw OCR output and internal match details remain private.
 
+Player ratings are D1-owned records keyed by the authenticated player account
+and a stable event/map target. The account association, audit events, hidden
+comment state, withdrawn rows, and invalidated rows remain private platform
+data. Anonymous display is only a public presentation preference; it never
+removes the internal account association. Rating aggregates exclude withdrawn
+and invalidated rows, while comment hiding does not remove a rating from the
+aggregate.
+
 ## Private login and player data
 
 QQ login codes, attempt tokens, session tokens, group OpenIDs, and member
