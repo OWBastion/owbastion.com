@@ -149,19 +149,26 @@ const saveSelectedCandidate = () => {
 <style scoped>
 .signals-grid {
   display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
   gap: 14px;
+  box-sizing: border-box;
 }
 .signals-grid--stacked {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 .signal-panel {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface-raised);
   box-shadow: var(--elevation-1);
+  box-sizing: border-box;
 }
 .signal-panel__header {
   display: flex;
@@ -191,14 +198,17 @@ const saveSelectedCandidate = () => {
 }
 .match-candidates {
   display: grid;
+  width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .signals-grid--stacked .match-candidates {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 .match-candidate {
   display: grid;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   gap: 8px;
   padding: 10px 12px;
@@ -207,6 +217,7 @@ const saveSelectedCandidate = () => {
   color: var(--text);
   background: var(--surface);
   text-align: left;
+  box-sizing: border-box;
 }
 .match-candidate:hover,
 .match-candidate--selected {
@@ -254,10 +265,12 @@ const saveSelectedCandidate = () => {
 .candidate-selection {
   display: flex;
   justify-content: flex-end;
+  width: 100%;
   margin-top: 12px;
 }
 .candidate-selection :deep(button) {
   min-height: 42px;
+  max-width: 100%;
 }
 .signal-empty {
   margin: 0;
@@ -362,15 +375,35 @@ const saveSelectedCandidate = () => {
 }
 @media (max-width: 900px) {
   .signals-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 620px) {
   .match-candidates {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .signal-panel {
     padding: 14px;
+  }
+  .signal-meta > div,
+  .ocr-fields > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .signal-meta dd,
+  .ocr-fields dd {
+    text-align: left;
+    justify-items: start;
+  }
+  .ocr-field-meta {
+    justify-content: flex-start;
+  }
+  .candidate-selection {
+    justify-content: stretch;
+  }
+  .candidate-selection :deep(button) {
+    width: 100%;
+    min-height: 44px;
   }
 }
 </style>

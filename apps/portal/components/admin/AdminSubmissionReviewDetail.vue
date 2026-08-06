@@ -102,12 +102,13 @@ const challengeSummary = computed(() => {
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
 
     <!--
-      Desktop: evidence | decision rail (claim → decide → verify)
-      Mobile: claim → evidence → verify → meta; decisions docked for thumb reach
+      Desktop: evidence | rail (claim → decide → verify → meta)
+      Mobile single column: claim → evidence → verify → meta;
+      decisions docked for thumb reach below 620px
     -->
     <div class="detail-grid">
       <div class="evidence-col flow-evidence">
-        <UCard class="evidence-card elevation-3">
+        <UCard class="evidence-card surface-panel elevation-3">
           <template #header>
             <div class="card-heading">
               <h3>提交截图</h3>
@@ -125,142 +126,140 @@ const challengeSummary = computed(() => {
         </UCard>
       </div>
 
-      <div class="decision-rail">
-        <!-- Claim first: what is being reviewed -->
-        <section class="claim-card elevation-2 flow-claim" aria-labelledby="claim-title">
-          <header class="claim-card__header">
-            <div>
-              <p class="rail-kicker">申请目标</p>
-              <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
-            </div>
-            <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
-          </header>
-          <template v-if="challengeSummary">
-            <p v-if="challengeSummary.meta" class="claim-meta">{{ challengeSummary.meta }}</p>
-            <dl v-if="challengeSummary.condition || challengeSummary.evidenceRule" class="claim-facts">
-              <div v-if="challengeSummary.condition"><dt>完成条件</dt><dd>{{ challengeSummary.condition }}</dd></div>
-              <div v-if="challengeSummary.evidenceRule"><dt>截图规则</dt><dd>{{ challengeSummary.evidenceRule }}</dd></div>
-            </dl>
-          </template>
-          <p v-else class="claim-empty">请在自动判定中选择挑战后再通过。</p>
-        </section>
-
-        <!-- Decision chrome: sticky while scrolling verification -->
-        <section
-          class="actions-card glass elevation-2 flow-actions"
-          aria-label="审核操作"
-          :aria-busy="actionLoading || undefined"
-        >
-          <p class="rail-kicker">审核决定</p>
-          <div class="actions" role="group" aria-label="审核决定">
-            <UButton
-              class="action-btn action-btn--primary pressable"
-              type="button"
-              icon="i-lucide-check"
-              label="通过"
-              :loading="decisionLoading('approved')"
-              :disabled="actionsLoading"
-              @click="emitReview('approved')"
-            />
-            <UButton
-              class="action-btn pressable"
-              type="button"
-              label="要求重传"
-              color="neutral"
-              variant="outline"
-              :loading="decisionLoading('resubmission_required')"
-              :disabled="actionsLoading"
-              @click="emitReview('resubmission_required')"
-            />
-            <UButton
-              class="action-btn pressable"
-              type="button"
-              label="驳回"
-              color="error"
-              variant="soft"
-              :loading="decisionLoading('rejected')"
-              :disabled="actionsLoading"
-              @click="emitReview('rejected')"
-            />
+      <!-- Claim first: what is being reviewed -->
+      <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
+        <header class="claim-card__header">
+          <div class="claim-card__title-block">
+            <p class="rail-kicker">申请目标</p>
+            <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
           </div>
+          <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
+        </header>
+        <template v-if="challengeSummary">
+          <p v-if="challengeSummary.meta" class="claim-meta">{{ challengeSummary.meta }}</p>
+          <dl v-if="challengeSummary.condition || challengeSummary.evidenceRule" class="claim-facts">
+            <div v-if="challengeSummary.condition"><dt>完成条件</dt><dd>{{ challengeSummary.condition }}</dd></div>
+            <div v-if="challengeSummary.evidenceRule"><dt>截图规则</dt><dd>{{ challengeSummary.evidenceRule }}</dd></div>
+          </dl>
+        </template>
+        <p v-else class="claim-empty">请在自动判定中选择挑战后再通过。</p>
+      </section>
 
-          <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
-            <div>
-              <h4 id="spot-check-title">自动判定抽检</h4>
-              <p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p>
-            </div>
-            <div class="spot-check-actions">
-              <UButton
-                class="action-btn pressable"
-                type="button"
-                block
-                label="确认抽检"
-                color="neutral"
-                variant="outline"
-                :loading="spotCheckLoading('confirmed')"
-                :disabled="actionsLoading"
-                @click="emitSpotCheck('confirmed')"
-              />
-              <UButton
-                class="action-btn pressable"
-                type="button"
-                block
-                label="撤销称号"
-                color="error"
-                variant="soft"
-                :loading="spotCheckLoading('revoked')"
-                :disabled="actionsLoading"
-                @click="emitSpotCheck('revoked')"
-              />
-            </div>
-          </div>
-
-          <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || undefined">
-            <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
-            <UButton
-              class="action-btn action-btn--utility pressable"
-              type="button"
-              icon="i-lucide-refresh-cw"
-              label="重新发送 OCRKit 请求"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :loading="ocrRetryLoading"
-              :disabled="actionsLoading"
-              @click="emit('retry-ocr')"
-            />
-          </div>
-        </section>
-
-        <!-- Verify: match + OCR stacked beside evidence -->
-        <div class="flow-signals">
-          <AdminSubmissionReviewSignals
-            stacked
-            :submission="submission"
-            :challenge-selection-error="challengeSelectionError"
-            :challenge-selection-loading="challengeSelectionLoading"
-            @select-challenge="emit('select-challenge', $event)"
+      <!-- Decision chrome: sticky while scrolling verification -->
+      <section
+        class="actions-card glass surface-panel elevation-2 flow-actions"
+        aria-label="审核操作"
+        :aria-busy="actionLoading || undefined"
+      >
+        <p class="rail-kicker">审核决定</p>
+        <div class="actions" role="group" aria-label="审核决定">
+          <UButton
+            class="action-btn action-btn--primary pressable"
+            type="button"
+            icon="i-lucide-check"
+            label="通过"
+            :loading="decisionLoading('approved')"
+            :disabled="actionsLoading"
+            @click="emitReview('approved')"
+          />
+          <UButton
+            class="action-btn pressable"
+            type="button"
+            label="要求重传"
+            color="neutral"
+            variant="outline"
+            :loading="decisionLoading('resubmission_required')"
+            :disabled="actionsLoading"
+            @click="emitReview('resubmission_required')"
+          />
+          <UButton
+            class="action-btn pressable"
+            type="button"
+            label="驳回"
+            color="error"
+            variant="soft"
+            :loading="decisionLoading('rejected')"
+            :disabled="actionsLoading"
+            @click="emitReview('rejected')"
           />
         </div>
 
-        <!-- Traceability (low priority) -->
-        <details class="meta-disclosure flow-meta">
-          <summary>提交信息</summary>
-          <dl class="detail-list meta-list">
-            <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-            <div>
-              <dt>玩家</dt>
-              <dd>
-                <NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">
-                  {{ submission.playerName }}
-                </NuxtLink>
-              </dd>
-            </div>
-            <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
-            <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
-          </dl>
-        </details>
+        <div v-if="submission.spotCheck?.status === 'pending'" class="spot-check-panel" aria-labelledby="spot-check-title">
+          <div>
+            <h4 id="spot-check-title">自动判定抽检</h4>
+            <p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p>
+          </div>
+          <div class="spot-check-actions">
+            <UButton
+              class="action-btn pressable"
+              type="button"
+              block
+              label="确认抽检"
+              color="neutral"
+              variant="outline"
+              :loading="spotCheckLoading('confirmed')"
+              :disabled="actionsLoading"
+              @click="emitSpotCheck('confirmed')"
+            />
+            <UButton
+              class="action-btn pressable"
+              type="button"
+              block
+              label="撤销称号"
+              color="error"
+              variant="soft"
+              :loading="spotCheckLoading('revoked')"
+              :disabled="actionsLoading"
+              @click="emitSpotCheck('revoked')"
+            />
+          </div>
+        </div>
+
+        <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || undefined">
+          <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
+          <UButton
+            class="action-btn action-btn--utility pressable"
+            type="button"
+            icon="i-lucide-refresh-cw"
+            label="重新发送 OCRKit 请求"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            :loading="ocrRetryLoading"
+            :disabled="actionsLoading"
+            @click="emit('retry-ocr')"
+          />
+        </div>
+      </section>
+
+      <!-- Verify: match + OCR stacked beside evidence -->
+      <div class="flow-signals">
+        <AdminSubmissionReviewSignals
+          stacked
+          :submission="submission"
+          :challenge-selection-error="challengeSelectionError"
+          :challenge-selection-loading="challengeSelectionLoading"
+          @select-challenge="emit('select-challenge', $event)"
+        />
       </div>
+
+      <!-- Traceability (low priority) -->
+      <details class="meta-disclosure surface-panel flow-meta">
+        <summary>提交信息</summary>
+        <dl class="detail-list meta-list">
+          <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
+          <div>
+            <dt>玩家</dt>
+            <dd>
+              <NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">
+                {{ submission.playerName }}
+              </NuxtLink>
+            </dd>
+          </div>
+          <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
+          <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
+        </dl>
+      </details>
     </div>
   </section>
 </template>
@@ -269,6 +268,8 @@ const challengeSummary = computed(() => {
 .review-detail {
   display: grid;
   gap: 18px;
+  width: 100%;
+  min-width: 0;
 }
 
 /* Context strip */
@@ -277,6 +278,7 @@ const challengeSummary = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   min-width: 0;
 }
 .detail-meta {
@@ -316,29 +318,57 @@ const challengeSummary = computed(() => {
   text-decoration: underline;
 }
 
-/* Desktop workspace: evidence | decision rail */
+/*
+ * Shared surface shell: every card in the stack shares the same edge geometry
+ * so mobile widths read as one consistent column (Apple spatial consistency).
+ */
+.surface-panel,
+.flow-evidence,
+.flow-claim,
+.flow-actions,
+.flow-signals,
+.flow-meta {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Desktop: evidence | rail via named areas (no display:contents) */
 .detail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(300px, .95fr);
+  width: 100%;
+  min-width: 0;
   align-items: start;
-  gap: clamp(16px, 2.2vw, 26px);
+  gap: clamp(14px, 2vw, 20px);
+  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .95fr);
+  grid-template-areas:
+    "evidence claim"
+    "evidence actions"
+    "evidence signals"
+    "evidence meta";
 }
+.flow-evidence { grid-area: evidence; }
+.flow-claim { grid-area: claim; }
+.flow-actions { grid-area: actions; }
+.flow-signals { grid-area: signals; }
+.flow-meta { grid-area: meta; }
+
 .evidence-col {
   position: sticky;
   top: 20px;
   min-width: 0;
 }
-.decision-rail {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
 .evidence-card {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   border-color: var(--line);
 }
 .evidence-image {
   display: block;
   width: 100%;
+  max-width: 100%;
   height: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -373,13 +403,17 @@ const challengeSummary = computed(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
+  width: 100%;
 }
 .actions :deep(.action-btn) {
+  width: 100%;
+  min-width: 0;
   min-height: 36px;
   padding-inline: 6px;
   font-size: .82rem;
   font-weight: 680;
   letter-spacing: -.01em;
+  justify-content: center;
 }
 .actions :deep(.action-btn--primary) {
   font-weight: 700;
@@ -392,6 +426,7 @@ const challengeSummary = computed(() => {
 }
 .ocr-retry-actions :deep(.action-btn) {
   justify-self: start;
+  max-width: 100%;
   min-height: 28px;
   padding-inline: 6px;
   font-size: .76rem;
@@ -401,10 +436,12 @@ const challengeSummary = computed(() => {
   margin: 0;
   color: var(--danger);
   font-size: .78rem;
+  overflow-wrap: anywhere;
 }
 .spot-check-panel {
   display: grid;
   gap: 10px;
+  width: 100%;
   padding-top: 12px;
   border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
 }
@@ -422,6 +459,11 @@ const challengeSummary = computed(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  width: 100%;
+}
+.spot-check-actions :deep(.action-btn) {
+  width: 100%;
+  min-width: 0;
 }
 
 /* Claim */
@@ -437,6 +479,11 @@ const challengeSummary = computed(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
+}
+.claim-card__title-block {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .claim-card__header h3 {
   margin: 0;
@@ -459,6 +506,7 @@ const challengeSummary = computed(() => {
   color: var(--muted);
   font-size: .8rem;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .claim-facts {
   display: grid;
@@ -470,6 +518,7 @@ const challengeSummary = computed(() => {
 .claim-facts > div {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 .claim-facts dt {
   color: var(--quiet);
@@ -492,7 +541,7 @@ const challengeSummary = computed(() => {
 /* Traceability */
 .meta-disclosure {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--surface);
 }
 .meta-disclosure > summary {
@@ -529,79 +578,97 @@ const challengeSummary = computed(() => {
 }
 
 /*
- * Tablet: single column.
- * Visual order: claim → actions → evidence → signals → meta
- * (decision-rail uses display:contents so children reorder with evidence)
+ * Tablet / phone: one full-width column.
+ * Order: claim → actions → evidence → signals → meta
+ * (phone docks actions to the bottom for thumb reach)
  */
 @media (max-width: 820px) {
   .detail-grid {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "claim"
+      "actions"
+      "evidence"
+      "signals"
+      "meta";
     gap: 14px;
   }
-  .decision-rail {
-    display: contents;
-  }
-  .flow-claim {
-    order: 0;
+  .evidence-col {
+    position: static;
   }
   .flow-actions {
-    order: 1;
     position: sticky;
     z-index: 4;
     top: 12px;
   }
-  .flow-evidence {
-    order: 2;
-    position: static;
-  }
-  .flow-signals {
-    order: 3;
-  }
-  .flow-meta {
-    order: 4;
+  .claim-card,
+  .actions-card,
+  .meta-disclosure {
+    border-radius: 14px;
   }
 }
 
-/* Phone: bottom decision dock in thumb reach */
+/* Phone: bottom decision dock aligned to page-shell gutters */
 @media (max-width: 620px) {
   .detail-meta-bar {
     align-items: flex-start;
+    flex-wrap: wrap;
   }
   .review-detail {
-    padding-bottom: calc(220px + env(safe-area-inset-bottom, 0px));
+    /* room for fixed dock + safe area */
+    padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
   }
-  .flow-claim {
-    order: 0;
-  }
-  .flow-evidence {
-    order: 1;
-  }
-  .flow-signals {
-    order: 2;
-  }
-  .flow-meta {
-    order: 3;
+  .detail-grid {
+    grid-template-areas:
+      "claim"
+      "evidence"
+      "signals"
+      "meta"
+      "actions";
+    gap: 12px;
   }
   .flow-actions {
-    order: 5;
-  }
-  .actions-card {
     position: fixed;
     top: auto;
+    /* Match .page-shell mobile gutter (100% - 24px → 12px each side) */
     right: max(12px, env(safe-area-inset-right, 0px));
     bottom: max(10px, env(safe-area-inset-bottom, 0px));
     left: max(12px, env(safe-area-inset-left, 0px));
     z-index: 30;
-    margin-inline: 0;
-    border-radius: 18px;
+    width: auto;
+    max-width: none;
+  }
+  .actions-card {
+    width: 100%;
+    margin: 0;
+    border-radius: 16px;
     box-shadow:
       var(--elevation-3),
       inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
   }
+  .actions {
+    gap: 8px;
+  }
   .actions :deep(.action-btn) {
     min-height: 44px;
     font-size: .84rem;
+  }
+  .claim-card {
+    padding: 14px;
+  }
+  .claim-kind {
+    margin-top: 2px;
+  }
+  .spot-check-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Very narrow: stack primary decisions for readable labels */
+@media (max-width: 380px) {
+  .actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -612,7 +679,8 @@ const challengeSummary = computed(() => {
     box-shadow: none;
   }
   .claim-card,
-  .evidence-card {
+  .evidence-card,
+  .meta-disclosure {
     box-shadow: none;
   }
 }
