@@ -1,9 +1,14 @@
 # OWBastion Design Rules Index
 
-The Portal design rules are split by responsibility under
-[`docs/design-rules/`](docs/design-rules/). The topic index is
-[`docs/design-rules/DESIGN.md`](docs/design-rules/DESIGN.md); use it to select
-the corresponding authoritative document.
+The Portal design system is maintained under
+[`docs/design-rules/`](docs/design-rules/).
 
-For the directory index and supporting Portal guidance, see
-[`docs/design-rules/README.md`](docs/design-rules/README.md).
+- **Charter + topic routing:** [`docs/design-rules/DESIGN.md`](docs/design-rules/DESIGN.md)
+- **Directory index / doc status:** [`docs/design-rules/README.md`](docs/design-rules/README.md)
+
+Pillars (authoritative): visual foundation, layout and spacing, components and
+patterns, interaction and accessibility, motion and feedback, page archetypes,
+CSS ownership, content/state, plus Portal UI / copy / terminology guides.
+
+Agents changing Portal UI must follow those documents over legacy
+implementations; large design-system alignment is a separate refactor track.

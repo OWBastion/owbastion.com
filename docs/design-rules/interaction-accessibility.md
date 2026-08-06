@@ -1,12 +1,18 @@
 # Interaction, Layout and Accessibility
 
-本文档负责 Portal 的共享交互反馈、动效边界、响应式布局和无障碍基线。
+本文档负责 Portal 的共享**交互行为**、响应式与无障碍基线。
+
+- **布局单位、栅格、sticky/fixed、溢出**：权威文档为
+  [`layout-and-spacing.md`](layout-and-spacing.md)（本文件只保留与交互相关的摘要）。
+- **动效、按压、反馈类型**：权威文档为
+  [`motion-and-feedback.md`](motion-and-feedback.md)。
+- **组件选型**：[`components-and-patterns.md`](components-and-patterns.md)。
 
 ## Interaction baseline
 
 - Use `pressable` for controls and `pressable-soft` for cards and rows. Pair
   hover affordances with visible press feedback; do not rely on hover-only
-  movement.
+  movement. Details: [`motion-and-feedback.md`](motion-and-feedback.md).
 - Reuse Nuxt UI and existing domain components for menus, dialogs, drawers,
   forms, tables, and upload controls. New interaction patterns need a clear
   domain reason.
@@ -19,20 +25,28 @@
   border, or background changes. Springs, haptics, and decorative entrance
   animations are never release requirements.
 
-## Layout and accessibility
+## Layout summary (see layout-and-spacing for full rules)
 
-- Design for `320px` width first; prefer the existing `620px`, `760px`, and
-  `820px` breakpoints.
-- Keep mobile primary controls at least `44px` high and icon controls at least
-  `44×44px`. Admin table and record-list actions must remain operable without
-  bare text links.
+- Design for `320px` / ~`20rem` width first; prefer system breakpoints
+  (`620` / `760` / `820` CSS px baselines, rem-equivalent allowed).
+- Structural spacing and columns: prefer `rem`, `fr`, `minmax`, `clamp` —
+  not hard-coded `px` stacks. Touch floor: `2.75rem` / `.hit-44`.
+- Feature decision surfaces stay **in document flow** or **sticky**; do not
+  use growing `position: fixed` action docks (review bars, expandable forms).
+- Collapse grids to one full-width column on narrow screens; stacked cards
+  share the same width (`width: 100%`, `min-width: 0`).
+- Admin table and record-list actions must remain operable without bare text
+  links.
+
+## Accessibility baseline
+
 - Use semantic headings, readable `aria-label` values for icon-only controls,
   visible focus states, and Nuxt UI focus management for dialogs and menus.
 - Express loading, failure, empty, unavailable, and completed states with text
   or accessible status semantics; never use color, icon, or position alone.
 - Preserve `prefers-reduced-motion`, `prefers-reduced-transparency`, and
   `prefers-contrast` behavior. Do not reintroduce component-local transforms
-  without an explicit fallback.
+  without an explicit fallback (see motion doc).
 
 ## Responsive admin lists
 

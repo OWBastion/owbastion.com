@@ -1,7 +1,9 @@
 # Page Archetypes
 
 本文档负责 Portal 页面级结构和主要工作区范式。组件选型、表单细节和实现
-工作流见 [`portal-ui-guidelines.md`](portal-ui-guidelines.md)。
+工作流见 [`portal-ui-guidelines.md`](portal-ui-guidelines.md)；布局单位与
+定位见 [`layout-and-spacing.md`](layout-and-spacing.md)；组件库边界见
+[`components-and-patterns.md`](components-and-patterns.md)。
 
 ## Public directory
 

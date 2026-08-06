@@ -2,10 +2,20 @@
 
 This document is for AI agents and developers modifying `apps/portal`. It turns the Portal's existing layout, component, state, and business-boundary conventions into executable rules. Before adding a page or component, check whether an existing pattern can express the requirement. Add a new variation only when the existing patterns cannot.
 
-Shared visual foundation, interaction and accessibility, page archetypes, CSS
-ownership, and content/state boundaries are indexed in
-[`DESIGN.md`](DESIGN.md). This document owns the Portal-specific implementation
-details and workflow for applying those rules.
+Shared design pillars are indexed in [`DESIGN.md`](DESIGN.md). **Authoritative
+topic docs** (do not re-derive conflicting rules here):
+
+| Concern | Document |
+| --- | --- |
+| Color, type, material, elevation | [visual-foundation.md](visual-foundation.md) |
+| Units, grid, sticky/fixed, overflow | [layout-and-spacing.md](layout-and-spacing.md) |
+| Component selection, Nuxt UI / Tailwind | [components-and-patterns.md](components-and-patterns.md) |
+| Motion and press feedback | [motion-and-feedback.md](motion-and-feedback.md) |
+| A11y and admin list behavior | [interaction-accessibility.md](interaction-accessibility.md) |
+| CSS ownership | [css-ownership.md](css-ownership.md) |
+
+This document owns Portal-specific **page skeletons**, admin/table workflow, form
+requiredness, and the agent completion checklist.
 
 ## Goals and boundaries
 
@@ -139,37 +149,28 @@ the generated route shape and a direct browser load of the detail URL.
 
 Button rules: use the default/primary button for the primary action; use `color="neutral"` with `outline` or `soft` for secondary actions; use `color="error"` for dangerous actions; prefer `variant="link"` or a compact button with an explicit `aria-label` for table-row view/edit actions. Use `NuxtLink` or `UButton to` for navigation; do not simulate navigation with click handlers.
 
-## Visual tokens and layout
+## Visual tokens and layout (summary)
 
-Use the semantic tokens in `apps/portal/assets/css/main.css` instead of introducing raw colors:
+Full rules: [`visual-foundation.md`](visual-foundation.md),
+[`layout-and-spacing.md`](layout-and-spacing.md).
 
-- Page background: `var(--page)`; regular surface: `var(--surface)`; raised surface: `var(--surface-raised)`.
-- Primary text: `var(--text)`; supporting text: `var(--muted)`; quiet text: `var(--quiet)`.
-- Divider: `var(--line)`; emphasized border: `var(--line-strong)`.
-- Brand action and successful/completed states: `var(--accent)` / `var(--accent-surface)`; error and warning: `var(--danger)` / `var(--warning)`. Keep one semantic color per state across Portal components; do not reintroduce hardcoded success colors.
-- Glass materials: `glass` (chrome), `glass-heavy` (modals/drawers/menus), `glass-chip` (small badges). Prefer these classes over one-off `backdrop-filter`. Header/footer segments on glass shells use `glass-segment` (no second blur). `prefers-reduced-transparency` solidifies all glass classes globally.
-- Elevation: `elevation-1` (sticky chrome), `elevation-2` (cards/menus), `elevation-3` (modals/drawers) — maps to `--elevation-1/2/3`.
-- Theme: page background/text ease over `--theme-transition` (~200ms); disabled under reduced-motion.
-- Type scale: prefer `type-display` / `type-title` (alias `page-title`) / `type-headline` / `type-body` (alias `body-copy`) / `type-caption` / `type-kicker` (and `eyebrow` for section labels). Do not invent new letter-spacing per heading.
-- Glass text: interactive chrome uses `var(--text-on-glass)` / `--text-on-glass-secondary` rather than flat `--muted` over blur.
-- Sticky chrome: add `scroll-edge` under floating sticky bars, or `scroll-edge-sticky` for sticky control chips sitting over scrolling content (soft bottom fade, not a hard divider alone).
-- Route changes use the shared Nuxt `page` opacity transition; do not add per-page slide/parallax transitions.
-- Interactive cards: `interactive-card` + `pressable-soft` for hover border/elevation and press scale; static placeholders use `interactive-card--static` (no hover lift).
-- Use `page-shell` for regular pages and `surface-card` for cards. Do not redefine container width, radius, button height, or the font system per page.
-- Press feedback: add `pressable` (controls, scale `0.97`) or `pressable-soft` (cards/rows, scale `0.985`) from `main.css` instead of one-off `:active { transform }` rules. `primary-button` / `secondary-button` and Nuxt UI `UButton` roots already press. Prefer hover border/shadow over hover-only translate; always pair interactive cards with active press. Under `prefers-reduced-motion: reduce`, spatial press and enter/leave transforms are suppressed globally—do not reintroduce component-local scale/slide transitions without a reduce fallback that is opacity/color only.
-- Touch targets: icon controls use `hit-44` (min 44×44). Desktop nav and primary login actions use min-height ≥40; mobile primary chrome uses ≥44. Admin table row actions use `.table-actions` / `.table-action` (min 40) or `UButton` `size="sm"` outline—not bare text links or `size="xs"` in data tables.
+- Use semantic tokens in `apps/portal/assets/css/main.css`; no raw palette colors for meaning.
+- Type: `type-display` / `type-title` / `type-headline` / `type-body` / `type-caption` / `type-kicker` (`eyebrow`).
+- Materials: `glass*` + `elevation-1/2/3`. Interactive cards: `interactive-card` + `pressable-soft`.
+- Containers: `page-shell` / `page-shell--narrow` / `page-shell--wide` + `surface-card`. Do not redefine max-width or gutters per page.
+- Structural spacing and columns: prefer `rem` / `fr` / `minmax` / `clamp` over hard-coded `px` stacks.
+- Decision/action surfaces: in-flow or sticky — not growing `position: fixed` docks.
+- Touch: `.hit-44` / `2.75rem` floor for primary mobile controls; admin table actions use `.table-actions` / `UButton` `sm` outline — not bare text links.
 
-Current baselines are approximately `1100px` maximum page width, `24–28px` horizontal page padding, and `44px` minimum height for primary buttons. These are system baselines; do not drift from them in a single page. If a global rule needs to change, update the token or shared component and describe the impact.
+## Interaction and motion baseline (summary)
 
-## Interaction and motion baseline
+Full rules: [`motion-and-feedback.md`](motion-and-feedback.md),
+[`interaction-accessibility.md`](interaction-accessibility.md).
 
-These are durable behavior rules, not a task checklist:
-
-- Give feedback at the start of an interaction. Use `pressable` for controls and `pressable-soft` for cards or rows; do not add hover-only lifts or one-off active transforms.
-- Enter and leave along the same spatial path. Menus, drawers, and dialogs should remain interruptible through the existing Nuxt UI primitives; do not add page-local spatial transitions.
-- Use custom Pointer Events, momentum, rubber-banding, or a spring dependency only when a surface genuinely requires direct manipulation. A gesture surface must track the grab point, hand off release velocity, and have a reduced-motion fallback. Haptics are optional and never a release requirement.
-- Keep decoration subordinate to content. Static cards do not receive entrance or looping motion merely to make the page feel animated.
-- Treat `elevation-1/2/3`, `glass`/`glass-heavy`, and semantic tokens as the complete material system. New surfaces must reuse those tokens instead of introducing a parallel shadow, blur, or color vocabulary.
+- Feedback on activation via `pressable` / `pressable-soft`; route changes use shared opacity only.
+- Overlays stay on Nuxt UI / `AdminResponsiveDialog`; no page-local spatial route transitions.
+- Custom gesture/spring stacks only for true direct-manipulation surfaces with reduced-motion fallbacks.
+- Decoration and entrance loops are not release requirements.
 
 ## State, permission, and data presentation
 
@@ -203,24 +204,33 @@ Permission boundary: public pages must not render QQ OpenIDs, private screenshot
 
 Before modifying Portal UI:
 
-1. Read [`DESIGN.md`](DESIGN.md), the relevant topic documents, this document,
-   `portal-copy-guidelines.md`, and the neighboring pages/shared components.
-2. Identify whether the page is a public directory, player center, submission flow, or admin panel, and confirm its data/permission boundary.
-3. Search for reusable domain or Nuxt UI components. Do not start by creating a new CSS system.
-4. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.
-5. For admin tables, verify that `AdminDataTable` is used. Any exception must be explicit and justified.
-6. Check mobile layout, keyboard behavior, ARIA, private fields, and status wording.
-7. Check every form label: required fields are explicitly marked; optional fields have no optional marker or explanatory suffix.
-8. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
+1. Read [`DESIGN.md`](DESIGN.md) and the pillar docs for the change (visual /
+   layout / components / motion as applicable), then this document,
+   `portal-copy-guidelines.md`, and neighboring pages/shared components.
+2. Treat design-rules docs as **normative over legacy code**. Do not copy fixed
+   `px` layouts or fixed feature docks from old pages when the docs forbid them.
+3. Identify whether the page is a public directory, player center, submission flow, or admin panel, and confirm its data/permission boundary.
+4. Search for reusable domain or Nuxt UI components. Do not start by creating a new CSS system.
+5. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.
+6. For admin tables, verify that `AdminDataTable` is used. Any exception must be explicit and justified.
+7. Check mobile layout (single-column full-width stacks, no horizontal page overflow), keyboard behavior, ARIA, private fields, and status wording.
+8. Check every form label: required fields are explicitly marked; optional fields have no optional marker or explanatory suffix.
+9. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
+
+Large visual/layout/component alignment to the design system is a **separate
+refactor task** (see DESIGN.md Refactor contract). Do not expand a bugfix into
+an unscoped restyle of unrelated pages.
 
 ## Completion checklist
 
 - [ ] Page structure matches the business scenario and has clear heading/section hierarchy.
 - [ ] Existing domain components and semantic tokens are reused; no one-off generic abstraction was added.
+- [ ] Layout follows layout-and-spacing (units, full-width stacks, no illegal fixed docks).
 - [ ] Admin data tables use `AdminDataTable`, or an explicit documented exception exists.
 - [ ] Loading, failure, empty, permission, and in-progress states have clear UI.
 - [ ] Copy follows the Portal copy guidelines and does not present future capability as current capability.
 - [ ] Form labels mark required fields only; optional fields do not contain `（可选）` or equivalent text.
 - [ ] Mobile, keyboard, focus, ARIA, and non-color state expression were checked.
+- [ ] Motion/press uses shared patterns; reduced-motion path remains valid.
 - [ ] Private evidence, QQ identifiers, and internal fields are not exposed to unauthorized users.
 - [ ] Affected tests and Portal typecheck were run, and any unavailable validation is recorded.
