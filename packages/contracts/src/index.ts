@@ -235,6 +235,30 @@ export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion })
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) });
 export const adminRandomEventImportPreviewSchema = z.object({ sourceHash: z.string(), validRowCount: z.number().int().nonnegative(), errors: z.array(z.object({ row: z.number().int().positive(), message: z.string() })), rows: z.array(z.object({ name: z.string(), category: z.string(), releaseStatus: randomEventStatus })).max(20) });
 
+export const reviewTargetTypeSchema = z.enum(["event", "map"]);
+export const reviewTargetSchema = z.object({ targetType: reviewTargetTypeSchema, targetId: externalId }).strict();
+const reviewComment = z.string().trim().refine((value) => Array.from(value).length <= 500, "The review comment is too long");
+export const playerReviewSchema = z.object({
+  reviewId: z.string().uuid(),
+  targetType: reviewTargetTypeSchema,
+  targetId: externalId,
+  rating: z.number().int().min(1).max(5),
+  comment: reviewComment.nullable(),
+  anonymous: z.boolean(),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+}).strict();
+export const playerReviewResponseSchema = z.object({ contractVersion, review: playerReviewSchema.nullable() }).strict();
+export const playerReviewUpsertRequestSchema = z.object({
+  contractVersion,
+  rating: z.number().int().min(1).max(5),
+  comment: reviewComment.nullable().optional(),
+  anonymous: z.boolean().default(false),
+}).strict();
+export const playerReviewUpsertResponseSchema = z.object({ contractVersion, review: playerReviewSchema }).strict();
+export const playerReviewWithdrawRequestSchema = z.object({ contractVersion }).strict();
+export const playerReviewWithdrawResponseSchema = z.object({ contractVersion, review: z.null() }).strict();
+
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
@@ -668,6 +692,13 @@ export type Map = z.infer<typeof mapSchema>;
 export type MapListResponse = z.infer<typeof mapListResponseSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+export type PlayerReview = z.infer<typeof playerReviewSchema>;
+export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
+export type PlayerReviewUpsertRequest = z.infer<typeof playerReviewUpsertRequestSchema>;
+export type PlayerReviewUpsertResponse = z.infer<typeof playerReviewUpsertResponseSchema>;
+export type PlayerReviewWithdrawRequest = z.infer<typeof playerReviewWithdrawRequestSchema>;
+export type PlayerReviewWithdrawResponse = z.infer<typeof playerReviewWithdrawResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;

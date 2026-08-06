@@ -21,6 +21,7 @@ import {
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
+  reviewTargetSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
@@ -255,6 +256,8 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/reviews/:targetType/:targetId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/reviews/:reviewId/withdraw", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -282,6 +285,27 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
   };
+
+  const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>) => ({
+    actorType: "user" as const,
+    subject: player.player.playerId,
+    roles: [] as const,
+    provider: "portal-session",
+  });
+
+  type PlayerReviewRecord = NonNullable<Awaited<ReturnType<PlatformServices["getPlayerReview"]>>>;
+  const playerReviewView = (review: PlayerReviewRecord) => ({
+    reviewId: review.reviewId,
+    targetType: review.targetType,
+    targetId: review.targetId,
+    rating: review.rating,
+    comment: review.comment,
+    anonymous: review.anonymous,
+    createdAt: review.createdAt,
+    updatedAt: review.updatedAt,
+  });
+
+  const parseReviewTarget = (c: any) => reviewTargetSchema.safeParse({ targetType: c.req.param("targetType"), targetId: c.req.param("targetId") });
 
   app.post("/v1/public/binding-invites/redeem", async (c) => {
     allowPortal(c);
@@ -481,6 +505,73 @@ export const createApp = (dependencies: AppDependencies) => {
     const items = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken });
     if (!items) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", items });
+  });
+
+  app.get("/v1/me/reviews/:targetType/:targetId", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const target = parseReviewTarget(c);
+    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
+    try {
+      const review = await dependencies.services(c.env).getPlayerReview(target.data, portalPlayerAuth(access.player!));
+      return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_READ_FAILED";
+      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
+      throw error;
+    }
+  });
+
+  app.put("/v1/me/reviews/:targetType/:targetId", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const target = parseReviewTarget(c);
+    if (!target.success) return errorResponse(c, 422, "INVALID_REVIEW_TARGET", "The review target is invalid");
+    const parsed = playerReviewUpsertRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The review content does not match contract v1");
+    const { contractVersion: _contractVersion, ...reviewInput } = parsed.data;
+    try {
+      const review = await dependencies.services(c.env).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, portalPlayerAuth(access.player!), idempotencyKey);
+      return c.json({ contractVersion: "1", review: playerReviewView(review) });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_UPSERT_FAILED";
+      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+      if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned");
+      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
+      if (code === "REVIEW_TARGET_NOT_RATEABLE") return errorResponse(c, 409, code, "The review target is closed to new reviews");
+      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be updated");
+      if (["REVIEW_RATING_INVALID", "REVIEW_COMMENT_TOO_LONG"].includes(code)) return errorResponse(c, 422, code, "The review content is invalid");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/me/reviews/:reviewId/withdraw", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const reviewId = c.req.param("reviewId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
+    const parsed = playerReviewWithdrawRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      await dependencies.services(c.env).withdrawReview({ reviewId }, portalPlayerAuth(access.player!), idempotencyKey);
+      return c.json({ contractVersion: "1", review: null });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_WITHDRAW_FAILED";
+      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+      if (["REVIEW_NOT_FOUND", "REVIEW_NOT_OWNED"].includes(code)) return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist");
+      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be withdrawn");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/me/submissions/:submissionId", async (c) => {

@@ -144,11 +144,12 @@ describe("review persistence and domain rules", () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     sqlite.exec(`
-      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account-1', '1', 'One', 'one', 1, 1);
+      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account-1', '1', 'One', 'one', 1, 1), ('account-2', '2', 'Two', 'two', 1, 1);
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
     `);
     const services = createPlatformServices(database);
     const first = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 4, comment: "原评论" }, auth("1"), "same-key");
+    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("2"))).resolves.toBeNull();
     const replay = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 4, comment: "原评论" }, auth("1"), "same-key");
     expect(replay).toEqual(first);
     const updated = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "新评论" }, auth("1"), "update-key");
@@ -189,12 +190,13 @@ describe("review persistence and domain rules", () => {
     sqlite.exec(`
       INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account-1', '1', 'One', 'one', 1, 1);
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.retired', 'Retired map', '1', 'retired', '1', 1, 1);
-      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES ('event.dev', 'Dev event', 'test', 'common', 'Test', '1', 'development', 1, 1);
+      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES ('event.dev', 'Dev event', 'test', 'common', 'Test', '1', 'development', 1, 1), ('event.removed', 'Removed event', 'test', 'common', 'Test', '1', 'removed', 1, 1);
     `);
     const services = createPlatformServices(database);
     await expect(services.upsertReview({ targetType: "map", targetId: "missing", rating: 4 }, auth("1"), "missing")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");
     await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", rating: 4 }, auth("1"), "retired")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     await expect(services.upsertReview({ targetType: "event", targetId: "event.dev", rating: 4 }, auth("1"), "dev")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
+    await expect(services.upsertReview({ targetType: "event", targetId: "event.removed", rating: 4 }, auth("1"), "removed")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", rating: 6 as 1 }, auth("1"), "rating")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     const longComment = "x".repeat(501);
     await expect(services.upsertReview({ targetType: "map", targetId: "missing", rating: 4, comment: longComment }, auth("1"), "long")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");

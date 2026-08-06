@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -44,6 +44,17 @@ describe("v1 platform contracts", () => {
 
   it("accepts a player response without QQ identifiers", () => {
     expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] }).success).toBe(true);
+  });
+
+  it("keeps player review contracts limited to current-review fields", () => {
+    const review = { reviewId: "00000000-0000-4000-8000-000000000003", targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 };
+    expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 4, comment: "很好", anonymous: true }).success).toBe(true);
+    expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 6 }).success).toBe(false);
+    expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 4, comment: "中".repeat(501) }).success).toBe(false);
+    expect(playerReviewUpsertResponseSchema.safeParse({ contractVersion: "1", review }).success).toBe(true);
+    expect(playerReviewResponseSchema.safeParse({ contractVersion: "1", review: null }).success).toBe(true);
+    expect(playerReviewWithdrawRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
+    expect(playerReviewWithdrawResponseSchema.safeParse({ contractVersion: "1", review: null }).success).toBe(true);
   });
 
   it("accepts player OCR summaries without raw recognition output", () => {

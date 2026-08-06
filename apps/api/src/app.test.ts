@@ -543,6 +543,84 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
   });
 
+  it("reads and writes only the signed-in player's current review", async () => {
+    const calls: Array<{ operation: string; subject?: string; target?: unknown; key?: string }> = [];
+    let currentStatus: "active" | "withdrawn" = "active";
+    const review = {
+      reviewId: "00000000-0000-4000-8000-000000000003",
+      playerAccountId: "11111111-1111-4111-8111-111111111111",
+      targetType: "map" as const,
+      targetId: "map.test",
+      rating: 4 as const,
+      comment: "很好",
+      commentStatus: "visible" as const,
+      anonymous: true,
+      status: "active" as const,
+      createdAt: 1,
+      updatedAt: 2,
+      withdrawnAt: null,
+      invalidatedAt: null,
+      invalidatedBy: null,
+      invalidationReason: null,
+    };
+    const reviewApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        getPlayerReview: async (target, currentAuth) => { calls.push({ operation: "read", subject: currentAuth.subject, target }); return { ...review, status: currentStatus }; },
+        upsertReview: async (input, currentAuth, key) => { calls.push({ operation: "upsert", subject: currentAuth.subject, target: input, key }); return review; },
+        withdrawReview: async (input, currentAuth, key) => { currentStatus = "withdrawn"; calls.push({ operation: "withdraw", subject: currentAuth.subject, target: input, key }); return { ...review, status: "withdrawn" as const, withdrawnAt: 3 }; },
+      }),
+    });
+
+    expect((await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", {}, env)).status).toBe(401);
+    const read = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(read.status).toBe(200);
+    const readBody = await read.json() as Record<string, unknown>;
+    expect(readBody).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
+    expect(JSON.stringify(readBody)).not.toContain("playerAccountId");
+    expect(JSON.stringify(readBody)).not.toMatch(/commentStatus|invalidatedBy|invalidationReason|status/);
+
+    const missingKey = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", rating: 4 }) }, env);
+    expect(missingKey.status).toBe(422);
+    const write = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", rating: 4, comment: "很好", anonymous: true }) }, env);
+    expect(write.status).toBe(200);
+    expect(await write.json()).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
+    const withdraw = await reviewApp.request(`http://localhost/v1/me/reviews/${review.reviewId}/withdraw`, { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-withdraw-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    expect(withdraw.status).toBe(200);
+    expect(await withdraw.json()).toEqual({ contractVersion: "1", review: null });
+    const afterWithdraw = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(await afterWithdraw.json()).toEqual({ contractVersion: "1", review: null });
+    expect(calls).toEqual([
+      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test" } },
+      { operation: "upsert", subject: "1234", target: { targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true }, key: "review-1" },
+      { operation: "withdraw", subject: "1234", target: { reviewId: review.reviewId }, key: "review-withdraw-1" },
+      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test" } },
+    ]);
+  });
+
+  it("returns actionable player review target, content, and idempotency errors", async () => {
+    const notFoundApp = createApp({ authenticate: auth, services: () => ({ ...services, upsertReview: async () => { throw new Error("REVIEW_TARGET_NOT_FOUND"); } }) });
+    const notFound = await notFoundApp.request("http://localhost/v1/me/reviews/event/missing", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-2" }, body: JSON.stringify({ contractVersion: "1", rating: 3 }) }, env);
+    expect(notFound.status).toBe(404);
+    expect((await notFound.json() as { error: { code: string } }).error.code).toBe("REVIEW_TARGET_NOT_FOUND");
+
+    const closedApp = createApp({ authenticate: auth, services: () => ({ ...services, upsertReview: async () => { throw new Error("REVIEW_TARGET_NOT_RATEABLE"); } }) });
+    const closed = await closedApp.request("http://localhost/v1/me/reviews/event/removed", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-3" }, body: JSON.stringify({ contractVersion: "1", rating: 3 }) }, env);
+    expect(closed.status).toBe(409);
+    expect((await closed.json() as { error: { code: string } }).error.code).toBe("REVIEW_TARGET_NOT_RATEABLE");
+
+    const conflictApp = createApp({ authenticate: auth, services: () => ({ ...services, upsertReview: async () => { throw new Error("IDEMPOTENCY_CONFLICT"); } }) });
+    const conflict = await conflictApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-5" }, body: JSON.stringify({ contractVersion: "1", rating: 3 }) }, env);
+    expect(conflict.status).toBe(409);
+    expect((await conflict.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_CONFLICT");
+
+    const invalid = await app.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-4" }, body: JSON.stringify({ contractVersion: "1", rating: 6 }) }, env);
+    expect(invalid.status).toBe(422);
+    const invalidTarget = await app.request("http://localhost/v1/me/reviews/not-a-target/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(invalidTarget.status).toBe(422);
+  });
+
   it("returns a signed-in player's private submission detail and evidence", async () => {
     expect((await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", {}, env)).status).toBe(401);
 
