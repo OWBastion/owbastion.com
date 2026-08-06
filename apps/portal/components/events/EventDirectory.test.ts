@@ -1,6 +1,13 @@
-import { mountSuspended } from "@nuxt/test-utils/runtime";
-import { describe, expect, it } from "vitest";
+import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
+import { describe, expect, it, vi } from "vitest";
 import EventDirectory from "./EventDirectory.vue";
+
+const portalApi = vi.fn(async (path: string) => {
+  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1" as const, targetType: "event" as const, items: [{ targetType: "event" as const, targetId: "event.alpha", averageRating: 4.5, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 }, sampleInsufficient: false }] };
+  throw new Error(`Unexpected request: ${path}`);
+});
+
+mockNuxtImport("usePortalApi", () => () => portalApi);
 
 const event = (overrides: Partial<RandomEvent> = {}) => ({
   eventId: "event.default",
@@ -33,6 +40,8 @@ const global = {
     UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
     UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
     UAccordion: { props: ["items"], template: "<div><template v-for=\"item in items\" :key=\"item.label\"><slot :name=\"item.slot || 'probability'\" :item=\"item\" /></template></div>" },
+    PlayerReviewPanel: { template: "<div class=\"stub-review-panel\" />" },
+    ReviewSummaryBadge: { props: ["summary"], template: "<span class=\"review-summary-badge\">{{ summary?.averageRating ?? '暂无评分' }}</span>" },
   },
 };
 
@@ -46,6 +55,7 @@ describe("EventDirectory", () => {
           event({ eventId: "event.removed", name: "已移除事件", releaseStatus: "removed" }),
           event({ eventId: "event.old", name: "旧版本事件", gameVersion: "26.0717.1" }),
         ],
+        authenticated: false,
       },
       global,
     });
@@ -54,6 +64,9 @@ describe("EventDirectory", () => {
     expect(wrapper.text()).toContain("26.0717.1");
     expect(wrapper.findAll(".event-card h3").map((heading) => heading.text())).not.toContain("已移除事件");
     expect(wrapper.findAll(".event-card h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
+    expect(portalApi.mock.calls.filter(([path]) => path.startsWith("/v1/public/reviews/summaries?")).length).toBe(1);
+    expect(portalApi.mock.calls.find(([path]) => path.startsWith("/v1/public/reviews/summaries?"))?.[0]).toContain("event.removed");
+    expect(wrapper.text()).toContain("暂无评分");
 
     await wrapper.get('select[aria-label="筛选事件状态"]').setValue("removed");
     expect(wrapper.text()).toContain("已移除事件");
@@ -64,6 +77,7 @@ describe("EventDirectory", () => {
     const wrapper = await mountSuspended(EventDirectory, {
       props: {
         events: [event({ eventId: "event.alpha", name: "Alpha 事件", description: "详情说明" })],
+        authenticated: false,
       },
       global,
     });

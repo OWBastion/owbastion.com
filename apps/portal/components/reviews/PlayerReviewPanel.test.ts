@@ -138,6 +138,19 @@ describe("PlayerReviewPanel", () => {
     expect(wrapper.text()).toContain("评价已撤回");
   });
 
+  it("uses the shared review flow for event targets", async () => {
+    setupApi(true);
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "event", targetId: "event.alpha", authenticated: true }, global });
+    await flushPromises();
+
+    await wrapper.get("textarea").setValue("事件体验");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+
+    expect(api).toHaveBeenCalledWith("/v1/me/reviews/event/event.alpha", expect.objectContaining({ method: "PUT" }));
+    expect(wrapper.text()).toContain("评价已保存");
+  });
+
   it("shows a retryable error without losing the current editor", async () => {
     setupApi(true, { "/v1/public/reviews/map/map.samoa/summary": Object.assign(new Error("unavailable"), { statusCode: 503 }) });
     const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });

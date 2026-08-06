@@ -10,6 +10,7 @@ const props = defineProps<{
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
+const emit = defineEmits<{ "review-changed": [] }>();
 const mapChallenges = computed(() => props.map ? props.challenges.filter((challenge) => challenge.mapId === props.map?.mapId) : []);
 const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
 const hydrated = shallowRef(false);
@@ -27,7 +28,7 @@ onMounted(() => { hydrated.value = true; });
       <div class="detail-content">
         <section class="detail-section" aria-labelledby="map-overview-title"><div class="section-title"><h3 id="map-overview-title">地图概览</h3><span>{{ mapChallenges.length }} 项挑战</span></div><dl class="detail-facts"><div><dt>地图评级</dt><dd>{{ map.difficultyRating ?? "暂无记录" }}</dd></div><div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div><div><dt>通关难度</dt><dd class="muted">{{ authenticated ? "未开放" : "登录后查看" }}</dd></div></dl><div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div><div class="progress-row"><div><span>挑战进度</span><strong>{{ authenticated ? "未开放" : "登录后查看" }}</strong></div><UProgress :model-value="0" aria-label="挑战进度" /></div></section>
         <section class="detail-section split-section" aria-labelledby="fastest-title"><div class="section-title"><h3 id="fastest-title">最快通关</h3><UBadge label="暂无记录" color="neutral" variant="subtle" /></div><div class="empty-stat-grid"><div><span>传奇最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div><div><span>地狱最快</span><strong>暂无记录</strong><small>暂无对应玩家</small></div></div></section>
-        <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :authenticated="authenticated" />
+        <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
     </div>
   </DefineDetailContent>

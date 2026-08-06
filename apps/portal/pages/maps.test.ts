@@ -9,6 +9,7 @@ const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const portalApi = vi.fn(async (path: string) => {
   if (path === "/v1/maps") return { items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1", difficultyRating: "T3", mechanics: ["动态掩体"], coverUrl: "https://cdn.example.com/samoa-cover.png", backgroundUrl: "https://cdn.example.com/samoa-background.jpg" }] };
   if (path === "/v1/challenges?family=map") return { items: [{ challengeId: "map.samoa.hell", family: "map", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "地狱", gameVersion: "26.0713.1", status: "active" }] };
+  if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1", targetType: "map", items: [{ targetType: "map", targetId: "map.samoa", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 

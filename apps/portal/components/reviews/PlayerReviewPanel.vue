@@ -9,6 +9,8 @@ const props = defineProps<{
   authenticated: boolean;
 }>();
 
+const emit = defineEmits<{ "review-changed": [] }>();
+
 const route = useRoute();
 const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated);
 const loginPath = computed(() => "/login?returnTo=" + encodeURIComponent(route.fullPath));
@@ -29,6 +31,8 @@ const draftComment = computed({ get: () => review.draftComment.value, set: (valu
 const draftAnonymous = computed({ get: () => review.draftAnonymous.value, set: (value) => { review.draftAnonymous.value = value; } });
 
 const retry = () => review.load(1, true);
+const save = async () => { if (await review.save()) emit("review-changed"); };
+const withdraw = async () => { if (await review.withdraw()) emit("review-changed"); };
 </script>
 
 <template>
@@ -40,7 +44,7 @@ const retry = () => review.load(1, true);
       <UAlert v-if="error && !loading && !props.authenticated" color="error" variant="subtle" :description="error" role="alert" />
       <UAlert v-if="success" color="success" variant="subtle" :description="success" aria-live="polite" />
       <div v-if="!props.authenticated" class="review-guest"><p>登录后可以提交或修改你的评价。</p><NuxtLink class="secondary-button review-login" :to="loginPath">登录后评分</NuxtLink></div>
-      <ReviewEditor v-else-if="!loading" :current-review="currentReview" :rating="draftRating" :comment="draftComment" :anonymous="draftAnonymous" :saving="saving" :error="error" @update:rating="draftRating = $event" @update:comment="draftComment = $event" @update:anonymous="draftAnonymous = $event" @save="review.save" @withdraw="review.withdraw" />
+      <ReviewEditor v-else-if="!loading" :current-review="currentReview" :rating="draftRating" :comment="draftComment" :anonymous="draftAnonymous" :saving="saving" :error="error" @update:rating="draftRating = $event" @update:comment="draftComment = $event" @update:anonymous="draftAnonymous = $event" @save="save" @withdraw="withdraw" />
       <button v-if="error && !unavailable" class="secondary-button review-retry" type="button" :disabled="loading" @click="retry">重新读取评价</button>
     </template>
   </section>

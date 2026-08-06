@@ -2,6 +2,7 @@
 import type { Map, MapChallenge } from "../../composables/useSubmissionUpload";
 import MapCard from "./MapCard.vue";
 import MapDetailModal from "./MapDetailModal.vue";
+import { useReviewSummaries } from "~/composables/useReviewSummaries";
 
 const props = defineProps<{
   maps: Map[];
@@ -11,6 +12,10 @@ const props = defineProps<{
 
 const selectedMap = shallowRef<Map | null>(null);
 const modalOpen = shallowRef(false);
+const reviewSummaries = useReviewSummaries("map", () => props.maps.map((map) => map.mapId));
+const reviewLoading = computed(() => reviewSummaries.loading.value);
+const reviewError = computed(() => reviewSummaries.error.value);
+const refreshReviewSummaries = () => reviewSummaries.refresh();
 
 const openMap = (map: Map) => {
   selectedMap.value = map;
@@ -20,9 +25,9 @@ const openMap = (map: Map) => {
 
 <template>
   <section class="map-directory" aria-label="地图列表">
-    <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :authenticated="props.authenticated" @select="openMap(map)" /></div>
+    <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :authenticated="props.authenticated" :review-summary="reviewSummaries.summaryFor(map.mapId)" :review-loading="reviewLoading" :review-error="reviewError" @select="openMap(map)" /></div>
     <UEmpty v-else title="暂无地图" description="当前没有可展示的地图。" variant="naked" />
-    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" />
+    <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
   </section>
 </template>
 

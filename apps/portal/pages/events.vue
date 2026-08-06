@@ -3,8 +3,14 @@ import type { RandomEvent } from "~/types/random-event";
 import EventDirectory from "~/components/events/EventDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 useSeoMeta({ title: "随机事件 · 躲避堡垒 3", description: "查看当前随机事件与开放挑战。" });
-const api = usePortalApi(); const events = ref<RandomEvent[]>([]); const loading = shallowRef(true); const error = shallowRef("");
-onMounted(async () => { try { events.value = (await api<{ items: RandomEvent[] }>("/v1/events")).items; } catch (cause) { error.value = portalErrorDetails(cause, "请稍后重试。").description; } finally { loading.value = false; } });
+const api = usePortalApi(); const { player, refresh } = useCurrentPlayer(); const events = ref<RandomEvent[]>([]); const loading = shallowRef(true); const error = shallowRef("");
+onMounted(async () => {
+  const [eventResult, playerResult] = await Promise.allSettled([api<{ items: RandomEvent[] }>("/v1/events"), refresh()]);
+  if (eventResult.status === "fulfilled") events.value = eventResult.value.items;
+  if (playerResult.status === "rejected") player.value = null;
+  error.value = eventResult.status === "rejected" ? portalErrorDetails(eventResult.reason, "请稍后重试。").description : "";
+  loading.value = false;
+});
 </script>
 <template>
   <main class="events-page page-shell">
@@ -19,7 +25,7 @@ onMounted(async () => { try { events.value = (await api<{ items: RandomEvent[] }
         </div>
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取事件" :description="error" />
-      <EventDirectory v-else :events="events" />
+      <EventDirectory v-else :events="events" :authenticated="Boolean(player)" />
     </section>
   </main>
 </template>

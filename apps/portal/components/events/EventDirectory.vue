@@ -2,9 +2,11 @@
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
 import type { RandomEvent } from "~/types/random-event";
 import EffectGlossaryTooltip from "~/components/events/EffectGlossaryTooltip.vue";
+import PlayerReviewPanel from "~/components/reviews/PlayerReviewPanel.vue";
+import { useReviewSummaries } from "~/composables/useReviewSummaries";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 
-const props = defineProps<{ events: RandomEvent[] }>();
+const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
 const query = shallowRef("");
 const category = shallowRef("all");
 const rarity = shallowRef("all");
@@ -35,6 +37,10 @@ const statusText = (value: RandomEvent["releaseStatus"]) => value === "implement
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";
 const unannotatedEffectTags = (event: RandomEvent) => event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value));
 const probability = (event: RandomEvent) => calculateEventProbabilities(event, props.events);
+const reviewSummaries = useReviewSummaries("event", () => props.events.map((event) => event.eventId));
+const reviewLoading = computed(() => reviewSummaries.loading.value);
+const reviewError = computed(() => reviewSummaries.error.value);
+const refreshReviewSummaries = () => reviewSummaries.refresh();
 
 onMounted(() => { hydrated.value = true; });
 </script>
@@ -65,15 +71,18 @@ onMounted(() => { hydrated.value = true; });
             </div>
             <h3>{{ event.name }}</h3>
             <p>{{ event.description }}</p>
-            <div class="event-tags">
-              <EffectGlossaryTooltip v-for="annotation in event.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
-              <UBadge
-                v-for="tag in event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value))"
-                :key="`raw-${tag}`"
-                :label="tag"
-                color="neutral"
-                variant="subtle"
-              />
+            <div class="event-card-footer">
+              <div class="event-tags">
+                <EffectGlossaryTooltip v-for="annotation in event.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
+                <UBadge
+                  v-for="tag in event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value))"
+                  :key="`raw-${tag}`"
+                  :label="tag"
+                  color="neutral"
+                  variant="subtle"
+                />
+              </div>
+              <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
             </div>
           </button>
         </div>
@@ -120,6 +129,7 @@ onMounted(() => { hydrated.value = true; });
             <span>查看成就 →</span>
           </NuxtLink>
         </section>
+        <PlayerReviewPanel target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
       </div>
     </DefineDetailContent>
 
@@ -200,7 +210,7 @@ onMounted(() => { hydrated.value = true; });
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.event-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.event-card-footer { display: grid; gap: 9px; align-items: end; }.event-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .detail { display: grid; gap: 18px; }
 .detail-header-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .description { margin: 0; color: var(--text); line-height: 1.65; }
@@ -241,6 +251,7 @@ onMounted(() => { hydrated.value = true; });
   .detail dl, .probability-dl { grid-template-columns: 1fr; }
   .detail dl div:nth-child(odd), .probability-dl div:nth-child(odd) { padding-right: 0; }
 }
+@media (max-width: 360px) { .event-card-footer :deep(.review-summary-badge) { width: fit-content; max-width: 100%; } }
 @media (prefers-reduced-transparency: reduce) {
   .event-card { background: var(--surface-raised); }
 }
