@@ -22,6 +22,7 @@ import {
   adminMapMetadataUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
+  adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
@@ -261,6 +262,10 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/public/reviews/summaries", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/reviews/:targetType/:targetId/summary", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/reviews/:targetType/:targetId/comments", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/reviews", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/reviews/:reviewId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/reviews/:reviewId/comment", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/reviews/:reviewId/state", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -1135,6 +1140,86 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_REVOKE_FAILED"; if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+  });
+
+  app.get("/v1/admin/reviews", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const pageValue = Number(c.req.query("page") ?? 1);
+    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
+    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
+    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 50 ? pageSizeValue : 0;
+    const targetTypeValue = c.req.query("targetType");
+    const targetType = targetTypeValue ? reviewTargetTypeSchema.safeParse(targetTypeValue) : null;
+    const status = c.req.query("status");
+    const commentStatus = c.req.query("commentStatus");
+    const ratingValue = c.req.query("rating");
+    const rating = ratingValue === undefined ? undefined : Number(ratingValue);
+    const fromValue = c.req.query("from");
+    const toValue = c.req.query("to");
+    const from = fromValue === undefined ? undefined : Number(fromValue);
+    const to = toValue === undefined ? undefined : Number(toValue);
+    const allowedStatuses = ["active", "withdrawn", "invalidated"] as const;
+    const allowedCommentStatuses = ["visible", "hidden"] as const;
+    const targetId = c.req.query("targetId")?.trim() || undefined;
+    if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || (targetId && !reviewTargetSchema.shape.targetId.safeParse(targetId).success)) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
+    }
+    return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, access.auth!));
+  });
+
+  app.get("/v1/admin/reviews/:reviewId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const reviewId = c.req.param("reviewId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
+    try { return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/reviews/:reviewId/comment", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const reviewId = c.req.param("reviewId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminReviewCommentModerationRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
+      if (parsed.data.action === "hide") await dependencies.services(c.env).hideReviewComment(input, access.auth!, idempotencyKey);
+      else await dependencies.services(c.env).restoreReviewComment(input, access.auth!, idempotencyKey);
+      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "REVIEW_COMMENT_MODERATION_FAILED";
+      if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
+      if (code === "REVIEW_COMMENT_NOT_FOUND") return errorResponse(c, 422, code, "The review has no comment");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/reviews/:reviewId/state", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const reviewId = c.req.param("reviewId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminReviewStateModerationRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
+      if (parsed.data.action === "invalidate") await dependencies.services(c.env).invalidateReview(input, access.auth!, idempotencyKey);
+      else await dependencies.services(c.env).restoreReview(input, access.auth!, idempotencyKey);
+      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "REVIEW_STATE_MODERATION_FAILED";
+      if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/admin/submissions", async (c) => {

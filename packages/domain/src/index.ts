@@ -40,6 +40,7 @@ import type {
   PlayerUploadSessionResponse,
   PlayerSubmissionChallengeRequest,
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
+  AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
 
 export type LocalDevAccount = {
@@ -99,6 +100,18 @@ export type PublicReviewCommentPage = ReviewTarget & {
   total: number;
   hasMore: boolean;
 };
+export type AdminReviewQuery = {
+  targetType?: ReviewTargetType;
+  targetId?: string;
+  status?: ReviewStatus;
+  commentStatus?: ReviewCommentStatus;
+  rating?: ReviewRating;
+  from?: number;
+  to?: number;
+  page: number;
+  pageSize: number;
+};
+export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
 
 export type AgentPageInput = { page: number; pageSize: number };
 export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string };
@@ -194,6 +207,8 @@ export type PlatformServices = {
   setAdminPlayerStatus(input: { playerAccountId: string; status: "active" | "banned"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   updateAdminPlayerIdentity(input: AdminPlayerIdentityRequest & { playerAccountId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   removeAdminBinding(input: { bindingId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  listAdminReviews(input: AdminReviewQuery, auth: AuthContext): Promise<AdminReviewListResponse>;
+  getAdminReview(input: { reviewId: string }, auth: AuthContext): Promise<AdminReviewDetail>;
   getReviewSummary(input: ReviewTarget): Promise<ReviewSummary>;
   getReviewSummaries(input: ReviewSummaryBatchInput): Promise<ReviewSummary[]>;
   listPublicReviewComments(input: PublicReviewCommentQuery): Promise<PublicReviewCommentPage>;

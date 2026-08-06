@@ -88,6 +88,8 @@ const services: PlatformServices = {
   setAdminPlayerStatus: async () => {},
   updateAdminPlayerIdentity: async () => {},
   removeAdminBinding: async () => {},
+  listAdminReviews: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  getAdminReview: async () => { throw new Error("REVIEW_NOT_FOUND"); },
   getReviewSummary: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   getReviewSummaries: async () => [],
   listPublicReviewComments: async ({ targetType, targetId, page, pageSize }) => ({ targetType, targetId, items: [], page, pageSize, total: 0, hasMore: false }),
@@ -621,6 +623,42 @@ describe("API", () => {
     expect(invalid.status).toBe(422);
     const invalidTarget = await app.request("http://localhost/v1/me/reviews/not-a-target/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(invalidTarget.status).toBe(422);
+  });
+
+  it("limits review identity and moderation operations to maintainers", async () => {
+    const reviewId = "00000000-0000-4000-8000-000000000003";
+    const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", targetName: "测试地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", rating: 4 as const, comment: "很好", anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
+    const detail = { contractVersion: "1" as const, review: adminReview, audit: [{ operation: "review.create", actorType: "user", actorId: "1234", reason: null, createdAt: 1 }] };
+    const calls: Array<{ operation: string; input: unknown; key: string }> = [];
+    const reviewApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        listAdminReviews: async (input) => ({ contractVersion: "1" as const, items: [adminReview], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
+        getAdminReview: async () => detail,
+        hideReviewComment: async (input, _auth, key) => { calls.push({ operation: "comment", input, key }); return { ...adminReview, commentStatus: "hidden" as const }; },
+        invalidateReview: async (input, _auth, key) => { calls.push({ operation: "state", input, key }); return { ...adminReview, status: "invalidated" as const }; },
+      }),
+    });
+    const unauthenticated = createApp({ authenticate: async () => null, services: () => services });
+    expect((await unauthenticated.request("http://localhost/v1/admin/reviews", {}, env)).status).toBe(401);
+    expect((await app.request("http://localhost/v1/admin/reviews", {}, env)).status).toBe(403);
+
+    const list = await reviewApp.request("http://localhost/v1/admin/reviews?targetType=map&status=active&commentStatus=visible&rating=4&targetId=map.test&page=2&pageSize=10", {}, env);
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ items: [{ playerName: "Player", playerId: "1234", anonymous: true }] });
+    const detailResponse = await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}`, {}, env);
+    expect(detailResponse.status).toBe(200);
+    expect(await detailResponse.json()).toMatchObject({ review: { playerAccountId: adminReview.playerAccountId }, audit: [{ actorId: "1234" }] });
+
+    const action = await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}/comment`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "admin-hide-1" }, body: JSON.stringify({ contractVersion: "1", action: "hide" }) }, env);
+    expect(action.status).toBe(200);
+    expect(calls).toEqual([{ operation: "comment", input: { reviewId }, key: "admin-hide-1" }]);
+    expect(JSON.stringify(await action.clone().json())).toContain("playerAccountId");
+    expect((await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}/comment`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", action: "hide" }) }, env)).status).toBe(422);
+    const state = await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}/state`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "admin-invalidate-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate", reason: "内容不符合规范" }) }, env);
+    expect(state.status).toBe(200);
+    expect(calls).toContainEqual({ operation: "state", input: { reviewId, reason: "内容不符合规范" }, key: "admin-invalidate-1" });
   });
 
   it("serves privacy-safe public review summaries and comments", async () => {

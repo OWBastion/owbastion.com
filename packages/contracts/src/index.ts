@@ -286,6 +286,40 @@ export const playerReviewUpsertResponseSchema = z.object({ contractVersion, revi
 export const playerReviewWithdrawRequestSchema = z.object({ contractVersion }).strict();
 export const playerReviewWithdrawResponseSchema = z.object({ contractVersion, review: z.null() }).strict();
 
+const reviewStatusSchema = z.enum(["active", "withdrawn", "invalidated"]);
+const reviewCommentStatusSchema = z.enum(["visible", "hidden"]);
+export const adminReviewSchema = z.object({
+  reviewId: z.string().uuid(),
+  targetType: reviewTargetTypeSchema,
+  targetId: externalId,
+  targetName: z.string().trim().min(1).max(256),
+  playerAccountId: z.string().uuid(),
+  playerId,
+  playerName: z.string().trim().min(1).max(64),
+  rating: z.number().int().min(1).max(5),
+  comment: reviewComment.nullable(),
+  anonymous: z.boolean(),
+  commentStatus: reviewCommentStatusSchema,
+  status: reviewStatusSchema,
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+  withdrawnAt: z.number().int().nullable(),
+  invalidatedAt: z.number().int().nullable(),
+  invalidatedBy: z.string().nullable(),
+  invalidationReason: z.string().nullable(),
+}).strict();
+export const adminReviewAuditSchema = z.object({
+  operation: z.string().trim().min(1).max(128),
+  actorType: z.string().trim().min(1).max(32),
+  actorId: z.string().trim().min(1).max(256),
+  reason: z.string().nullable(),
+  createdAt: z.number().int(),
+}).strict();
+export const adminReviewListResponseSchema = z.object({ contractVersion, items: z.array(adminReviewSchema).max(50), page: z.number().int().positive(), pageSize: z.number().int().positive().max(50), total: z.number().int().nonnegative(), hasMore: z.boolean() }).strict();
+export const adminReviewDetailResponseSchema = z.object({ contractVersion, review: adminReviewSchema, audit: z.array(adminReviewAuditSchema).max(50) }).strict();
+export const adminReviewCommentModerationRequestSchema = z.object({ contractVersion, action: z.enum(["hide", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
+export const adminReviewStateModerationRequestSchema = z.object({ contractVersion, action: z.enum(["invalidate", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
+
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
@@ -731,6 +765,12 @@ export type PlayerReviewUpsertRequest = z.infer<typeof playerReviewUpsertRequest
 export type PlayerReviewUpsertResponse = z.infer<typeof playerReviewUpsertResponseSchema>;
 export type PlayerReviewWithdrawRequest = z.infer<typeof playerReviewWithdrawRequestSchema>;
 export type PlayerReviewWithdrawResponse = z.infer<typeof playerReviewWithdrawResponseSchema>;
+export type AdminReview = z.infer<typeof adminReviewSchema>;
+export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
+export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
+export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
+export type AdminReviewCommentModerationRequest = z.infer<typeof adminReviewCommentModerationRequestSchema>;
+export type AdminReviewStateModerationRequest = z.infer<typeof adminReviewStateModerationRequestSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;

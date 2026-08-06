@@ -257,4 +257,28 @@ describe("review persistence and domain rules", () => {
     await expect(services.upsertReview({ targetType: "map", targetId: "map.active", rating: 5 }, auth("1"), "conflict")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
     await expect(services.upsertReview({ targetType: "map", targetId: "map.active", rating: 4, comment: longComment }, auth("1"), "long-valid-target")).rejects.toThrow("REVIEW_COMMENT_TOO_LONG");
   });
+
+  it("lists maintainer review identity and audit context without changing aggregate boundaries", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('11111111-1111-4111-8111-111111111111', '1', 'One', 'one', 1, 1);
+      INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
+    `);
+    const services = createPlatformServices(database);
+    const review = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "可追溯", anonymous: true }, auth("1"), "create-admin-view");
+
+    const list = await services.listAdminReviews({ targetType: "map", targetId: "map.test", status: "active", commentStatus: "visible", rating: 5, page: 1, pageSize: 20 }, auth("admin"));
+    expect(list).toMatchObject({ total: 1, items: [{ reviewId: review.reviewId, targetName: "Test map", playerId: "1", playerName: "One", anonymous: true }] });
+    const detail = await services.getAdminReview({ reviewId: review.reviewId }, auth("admin"));
+    expect(detail.review.playerAccountId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(detail.audit).toEqual(expect.arrayContaining([{ operation: "review.create", actorType: "user", actorId: "1", reason: null, createdAt: expect.any(Number) }]));
+
+    await services.hideReviewComment({ reviewId: review.reviewId, reason: "检查内容" }, auth("admin"), "hide-admin-view");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
+    await expect(services.listAdminReviews({ commentStatus: "hidden", page: 1, pageSize: 20 }, auth("admin"))).resolves.toMatchObject({ total: 1, items: [{ commentStatus: "hidden" }] });
+    await services.invalidateReview({ reviewId: review.reviewId }, auth("admin"), "invalidate-admin-view");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_type = 'review' AND operation = 'review.invalidate'").get()).toEqual({ count: 1 });
+  });
 });

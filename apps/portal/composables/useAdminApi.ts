@@ -28,6 +28,28 @@ export type AdminPlayerDetail = AdminPlayer & {
 
 export type AdminGroup = { groupOpenId: string; displayName: string; environment: "production" | "test"; status: "pending" | "active" | "legacy" | "disconnected"; bindEnabled: boolean; verifyEnabled: boolean; updatedAt: number };
 export type AdminSubmission = { submissionId: string; status: string; challengeId: string; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null };
+export type AdminReview = {
+  reviewId: string;
+  targetType: "event" | "map";
+  targetId: string;
+  targetName: string;
+  playerAccountId: string;
+  playerId: string;
+  playerName: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  comment: string | null;
+  anonymous: boolean;
+  commentStatus: "visible" | "hidden";
+  status: "active" | "withdrawn" | "invalidated";
+  createdAt: number;
+  updatedAt: number;
+  withdrawnAt: number | null;
+  invalidatedAt: number | null;
+  invalidatedBy: string | null;
+  invalidationReason: string | null;
+};
+export type AdminReviewAudit = { operation: string; actorType: string; actorId: string; reason: string | null; createdAt: number };
+export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

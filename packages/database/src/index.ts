@@ -1,7 +1,7 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery } from "@owbastion/domain";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -241,6 +241,61 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
     ? await db.select().from(randomEvents).where(eq(randomEvents.id, input.targetId)).get()
     : await db.select().from(maps).where(eq(maps.id, input.targetId)).get();
+  type AdminReviewRow = {
+    review_id: string;
+    target_type: string;
+    target_id: string;
+    target_name: string | null;
+    player_account_id: string;
+    player_id: string;
+    player_name: string;
+    rating: number;
+    comment: string | null;
+    anonymous: number;
+    comment_status: string;
+    status: string;
+    created_at: number;
+    updated_at: number;
+    withdrawn_at: number | null;
+    invalidated_at: number | null;
+    invalidated_by: string | null;
+    invalidation_reason: string | null;
+  };
+  const asAdminReview = (row: AdminReviewRow): AdminReview => {
+    if (!row.target_name) throw new Error("REVIEW_TARGET_NOT_FOUND");
+    return {
+      reviewId: row.review_id,
+      targetType: row.target_type as AdminReview["targetType"],
+      targetId: row.target_id,
+      targetName: row.target_name,
+      playerAccountId: row.player_account_id,
+      playerId: row.player_id,
+      playerName: row.player_name,
+      rating: asReviewRating(row.rating),
+      comment: row.comment,
+      anonymous: row.anonymous === 1,
+      commentStatus: row.comment_status as AdminReview["commentStatus"],
+      status: row.status as AdminReview["status"],
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      withdrawnAt: row.withdrawn_at,
+      invalidatedAt: row.invalidated_at,
+      invalidatedBy: row.invalidated_by,
+      invalidationReason: row.invalidation_reason,
+    };
+  };
+  const adminReviewQuery = `
+    FROM reviews r
+    INNER JOIN player_accounts p ON p.id = r.player_account_id
+    WHERE 1 = 1`;
+  const adminReviewSelect = `
+    SELECT r.id AS review_id, r.target_type, r.target_id,
+      CASE WHEN r.target_type = 'event' THEN (SELECT name FROM random_events WHERE id = r.target_id)
+           ELSE (SELECT name FROM maps WHERE id = r.target_id) END AS target_name,
+      r.player_account_id, p.player_id, p.player_name, r.rating, r.comment,
+      r.anonymous, r.comment_status, r.status, r.created_at, r.updated_at,
+      r.withdrawn_at, r.invalidated_at, r.invalidated_by, r.invalidation_reason
+    ${adminReviewQuery}`;
 
   const mutateReviewComment = async (input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string, nextStatus: "visible" | "hidden"): Promise<ReviewRecord> => {
     const operation = nextStatus === "hidden" ? "review.comment.hide" : "review.comment.restore";
@@ -2422,6 +2477,59 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           updatedAt: submission.updatedAt,
         })),
         titleGrants: titleGrants.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy })),
+      };
+    },
+
+    async listAdminReviews(input: AdminReviewQuery, _auth: AuthContext) {
+      const clauses: string[] = [];
+      const values: unknown[] = [];
+      const add = (clause: string, value: unknown) => { clauses.push(` AND ${clause}`); values.push(value); };
+      if (input.targetType) add("r.target_type = ?", input.targetType);
+      if (input.targetId) add("r.target_id = ?", input.targetId);
+      if (input.status) add("r.status = ?", input.status);
+      if (input.commentStatus) add("r.comment_status = ?", input.commentStatus);
+      if (input.rating) add("r.rating = ?", input.rating);
+      if (input.from !== undefined) add("r.created_at >= ?", input.from);
+      if (input.to !== undefined) add("r.created_at <= ?", input.to);
+      const page = Math.max(1, Math.floor(input.page));
+      const pageSize = Math.min(50, Math.max(1, Math.floor(input.pageSize)));
+      const where = clauses.join("");
+      const [totalRow, result] = await Promise.all([
+        database.prepare(`SELECT COUNT(*) AS total ${adminReviewQuery}${where}`).bind(...values).first<{ total: number }>(),
+        database.prepare(`${adminReviewSelect}${where} ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?`).bind(...values, pageSize + 1, (page - 1) * pageSize).all<AdminReviewRow>(),
+      ]);
+      const hasMore = result.results.length > pageSize;
+      return {
+        contractVersion: "1" as const,
+        items: result.results.slice(0, pageSize).map(asAdminReview),
+        page,
+        pageSize,
+        total: Number(totalRow?.total ?? 0),
+        hasMore,
+      };
+    },
+
+    async getAdminReview(input: { reviewId: string }, _auth: AuthContext): Promise<AdminReviewDetail> {
+      const row = await database.prepare(`${adminReviewSelect} AND r.id = ?`).bind(input.reviewId).first<AdminReviewRow>();
+      if (!row) throw new Error("REVIEW_NOT_FOUND");
+      const auditRows = await database.prepare(`SELECT operation, actor_type, actor_id, payload_json, created_at FROM audit_events WHERE entity_type = 'review' AND entity_id = ? ORDER BY created_at DESC LIMIT 50`).bind(input.reviewId).all<{
+        operation: string;
+        actor_type: string;
+        actor_id: string;
+        payload_json: string;
+        created_at: number;
+      }>();
+      return {
+        contractVersion: "1",
+        review: asAdminReview(row),
+        audit: auditRows.results.map((audit) => {
+          let reason: string | null = null;
+          try {
+            const payload = JSON.parse(audit.payload_json) as { reason?: unknown };
+            if (typeof payload.reason === "string") reason = payload.reason;
+          } catch { /* Ignore malformed historical audit payloads. */ }
+          return { operation: audit.operation, actorType: audit.actor_type, actorId: audit.actor_id, reason, createdAt: audit.created_at };
+        }),
       };
     },
 

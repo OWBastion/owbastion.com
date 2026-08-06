@@ -130,6 +130,19 @@ private and uncached, and the batch query resolves directory targets in a
 bounded operation rather than issuing one query per card. Portal rendering and
 maintainer moderation remain separate slices.
 
+### Maintainer review moderation
+
+Maintainer review routes are private administrative reads and writes. The
+paginated list and detail response may include the platform player account,
+numeric player ID, public-anonymous preference, review lifecycle fields, and
+review audit context; player and public review routes continue to omit these
+fields. Comment hide/restore changes only the comment projection, while
+whole-review invalidation/restore changes the valid aggregate boundary. Both
+operations retain the review row, record an audit event, accept an optional
+reason, and use the existing actor-scoped idempotency records. The Portal uses
+the shared admin workspace/table/dialog patterns and keeps mobile records in
+document flow with stable review IDs.
+
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
 public object URL. User screenshot objects use the shared `uploads/` namespace,
