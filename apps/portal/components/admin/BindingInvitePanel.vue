@@ -5,7 +5,8 @@ import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
 type Grant = { grantId: string; label: string; category: string; mapName?: string; holderName: string; status: "unclaimed" | "active" | "revoked" };
-type Holder = { holderName: string; grants: Grant[]; totalCount: number };
+type HolderSummary = { holderName: string; totalCount: number; unclaimedCount: number };
+type Holder = HolderSummary & { grants: Grant[] };
 type Invitation = { inviteId: string; code: string; playerName: string; playerId: string; expiresAt: number; historicalMigration: { requestedCount: number } };
 
 const emit = defineEmits<{ created: [] }>();
@@ -13,33 +14,55 @@ const api = useAdminApi();
 const toast = useToast();
 const battleTag = shallowRef("");
 const query = shallowRef("");
-const grants = shallowRef<Grant[]>([]);
+const holders = shallowRef<HolderSummary[]>([]);
 const selectedHolderName = shallowRef("");
+const selectedHolderDetail = shallowRef<Holder | null>(null);
 const submitting = shallowRef(false);
 const loading = shallowRef(false);
+const detailLoading = shallowRef(false);
 const errorMessage = shallowRef("");
 const invitations = ref<Invitation[]>([]);
 const copiedInviteId = shallowRef<string | null>(null);
 
-const holders = computed<Holder[]>(() => {
-  const grouped = new Map<string, Grant[]>();
-  for (const grant of grants.value) {
-    if (grant.status !== "unclaimed") continue;
-    grouped.set(grant.holderName, [...(grouped.get(grant.holderName) ?? []), grant]);
-  }
-  return [...grouped].map(([holderName, holderGrants]) => ({ holderName, grants: holderGrants, totalCount: holderGrants.length }));
-});
-const selectedHolder = computed(() => holders.value.find((holder) => holder.holderName === selectedHolderName.value) ?? null);
+const selectedHolder = computed(() => selectedHolderDetail.value?.holderName === selectedHolderName.value ? selectedHolderDetail.value : null);
 const selectedGrantIds = computed(() => selectedHolder.value?.grants.map((grant) => grant.grantId) ?? []);
 const parsedPlayer = computed(() => parseBattleTag(battleTag.value));
 const canSubmit = computed(() => Boolean(parsedPlayer.value) && !submitting.value);
 
+async function loadHolderDetail(holderName: string) {
+  detailLoading.value = true;
+  try {
+    const response = await api<{ holder: HolderSummary; items: Grant[] }>(`/v1/title-grants/holder?holderName=${encodeURIComponent(holderName)}&grantStatus=unclaimed&page=1&pageSize=100`);
+    selectedHolderDetail.value = { ...response.holder, totalCount: response.holder.unclaimedCount, grants: response.items };
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法读取未关联称号，请稍后重试。").description;
+    selectedHolderDetail.value = null;
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+async function selectHolder(holderName: string) {
+  if (selectedHolderName.value === holderName) {
+    selectedHolderName.value = "";
+    selectedHolderDetail.value = null;
+    return;
+  }
+  selectedHolderName.value = holderName;
+  await loadHolderDetail(holderName);
+}
+
 async function loadCandidates() {
   loading.value = true;
   try {
-    const response = await api<{ items: Grant[] }>(`/v1/title-grants?query=${encodeURIComponent(query.value.trim())}&page=1&pageSize=50`);
-    grants.value = response.items;
-    if (!holders.value.some((holder) => holder.holderName === selectedHolderName.value)) selectedHolderName.value = "";
+    const response = await api<{ holders: HolderSummary[] }>(`/v1/title-grants?query=${encodeURIComponent(query.value.trim())}&filter=pending&page=1&pageSize=50`);
+    holders.value = response.holders.map((holder) => ({ ...holder, totalCount: holder.unclaimedCount }));
+    if (!holders.value.some((holder) => holder.holderName === selectedHolderName.value)) {
+      selectedHolderName.value = "";
+      selectedHolderDetail.value = null;
+    } else if (selectedHolderName.value) {
+      await loadHolderDetail(selectedHolderName.value);
+    }
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取未关联称号，请稍后重试。").description;
   } finally {
@@ -93,9 +116,10 @@ onMounted(() => { void loadCandidates(); });
         <div v-if="loading" class="historical-state" role="status">读取中…</div>
         <div v-else-if="!holders.length" class="historical-state">暂无未关联称号。</div>
         <div v-else class="historical-holders" role="listbox" aria-label="选择历史持有者">
-          <button v-for="holder in holders" :key="holder.holderName" type="button" class="historical-holder" :class="{ 'historical-holder--selected': selectedHolderName === holder.holderName }" role="option" :aria-selected="selectedHolderName === holder.holderName" @click="selectedHolderName = selectedHolderName === holder.holderName ? '' : holder.holderName"><strong>{{ holder.holderName }}</strong><small>{{ holder.totalCount }} 项未关联</small></button>
+          <button v-for="holder in holders" :key="holder.holderName" type="button" class="historical-holder" :class="{ 'historical-holder--selected': selectedHolderName === holder.holderName }" role="option" :aria-selected="selectedHolderName === holder.holderName" @click="selectHolder(holder.holderName)"><strong>{{ holder.holderName }}</strong><small>{{ holder.unclaimedCount }} 项未关联</small></button>
         </div>
-        <div v-if="selectedHolder" class="historical-preview" aria-live="polite"><strong>{{ selectedHolder.holderName }}</strong><ul><li v-for="grant in selectedHolder.grants.slice(0, 6)" :key="grant.grantId"><span>{{ grant.label }}</span><small>{{ grant.mapName || grant.category }}</small></li><li v-if="selectedHolder.grants.length > 6" class="historical-preview__more">另有 {{ selectedHolder.grants.length - 6 }} 项</li></ul></div>
+        <div v-if="detailLoading" class="historical-state" role="status">读取持有者详情…</div>
+        <div v-else-if="selectedHolder" class="historical-preview" aria-live="polite"><strong>{{ selectedHolder.holderName }}</strong><ul><li v-for="grant in selectedHolder.grants.slice(0, 6)" :key="grant.grantId"><span>{{ grant.label }}</span><small>{{ grant.mapName || grant.category }}</small></li><li v-if="selectedHolder.grants.length > 6" class="historical-preview__more">另有 {{ selectedHolder.grants.length - 6 }} 项</li></ul></div>
       </section>
       <div class="invite-panel__actions"><p class="invite-panel__hint">创建后，历史称号授权会在绑定成功后执行。</p><UButton type="submit" label="生成邀请码" :loading="submitting" :disabled="!canSubmit" /></div>
     </form>

@@ -17,14 +17,69 @@ const normalizedOcrDifficulty = (value: unknown) => {
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
+export type HistoricalHolderFilter = "all" | "pending" | "completed";
+export type HistoricalGrantStatusFilter = "all" | "unclaimed" | "active" | "revoked";
+
 export const paginateHistoricalHolderNames = (holderNames: string[], page: number, pageSize: number) => {
   const safePage = Math.max(1, page);
   const safePageSize = Math.min(50, Math.max(1, pageSize));
   return { holderNames: holderNames.slice((safePage - 1) * safePageSize, safePage * safePageSize), page: safePage, pageSize: safePageSize, total: holderNames.length, hasMore: safePage * safePageSize < holderNames.length };
 };
+
 export const summarizeHistoricalTitleGrantStatuses = (rows: Array<{ holderName: string; grantId: string | null }>) => {
   const pendingHolders = new Set(rows.filter(({ grantId }) => !grantId).map(({ holderName }) => holderName));
   return { pendingHolderCount: pendingHolders.size, unclaimedGrantCount: rows.filter(({ grantId }) => !grantId).length, migratedGrantCount: rows.filter(({ grantId }) => Boolean(grantId)).length };
+};
+
+export const summarizeHistoricalHolders = (rows: Array<{ holderName: string; grantId: string | null; grantStatus: string | null }>) => {
+  const holders = new Map<string, { holderName: string; totalCount: number; unclaimedCount: number }>();
+  for (const row of rows) {
+    const current = holders.get(row.holderName) ?? { holderName: row.holderName, totalCount: 0, unclaimedCount: 0 };
+    current.totalCount += 1;
+    if (!row.grantId) current.unclaimedCount += 1;
+    holders.set(row.holderName, current);
+  }
+  return [...holders.values()]
+    .sort((left, right) => left.holderName.localeCompare(right.holderName))
+    .map((holder) => ({
+      ...holder,
+      status: holder.unclaimedCount > 0 ? "pending" as const : "completed" as const,
+    }));
+};
+
+export const filterHistoricalHolders = <T extends { unclaimedCount: number }>(holders: T[], filter: HistoricalHolderFilter = "all") => {
+  if (filter === "pending") return holders.filter((holder) => holder.unclaimedCount > 0);
+  if (filter === "completed") return holders.filter((holder) => holder.unclaimedCount === 0);
+  return holders;
+};
+
+export const paginateHistoricalHolders = <T>(holders: T[], page: number, pageSize: number) => {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.min(50, Math.max(1, pageSize));
+  return {
+    items: holders.slice((safePage - 1) * safePageSize, safePage * safePageSize),
+    page: safePage,
+    pageSize: safePageSize,
+    total: holders.length,
+    hasMore: safePage * safePageSize < holders.length,
+  };
+};
+
+export const paginateHistoricalGrants = <T>(grants: T[], page: number, pageSize: number) => {
+  const safePage = Math.max(1, page);
+  const safePageSize = Math.min(100, Math.max(1, pageSize));
+  return {
+    items: grants.slice((safePage - 1) * safePageSize, safePage * safePageSize),
+    page: safePage,
+    pageSize: safePageSize,
+    total: grants.length,
+    hasMore: safePage * safePageSize < grants.length,
+  };
+};
+
+export const filterHistoricalGrantsByStatus = <T extends { status: string }>(grants: T[], grantStatus: HistoricalGrantStatusFilter = "all") => {
+  if (grantStatus === "all") return grants;
+  return grants.filter((grant) => grant.status === grantStatus);
 };
 
 type HistoricalMigrationItem = { status: string };
@@ -1729,19 +1784,85 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listHistoricalTitleGrants(input) {
+      const filter = input.filter ?? "all";
       const query = input.query ? `%${input.query}%` : undefined;
       const match = query ? or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)) : undefined;
-      const matchedHolders = await db.select({ holderName: historicalTitleGrants.holderName }).from(historicalTitleGrants)
-        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).where(match).groupBy(historicalTitleGrants.holderName).orderBy(historicalTitleGrants.holderName);
-      const pagination = paginateHistoricalHolderNames(matchedHolders.map(({ holderName }) => holderName), input.page, input.pageSize);
-      const { holderNames, page, pageSize } = pagination;
-      const rows = holderNames.length ? await db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
-        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id)).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .where(inArray(historicalTitleGrants.holderName, holderNames)).orderBy(historicalTitleGrants.holderName, titleCatalog.category, titleCatalog.label) : [];
+      const matchedRows = await db.select({
+        holderName: historicalTitleGrants.holderName,
+        grantId: playerTitleGrants.id,
+        grantStatus: playerTitleGrants.status,
+      }).from(historicalTitleGrants)
+        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+        .where(match);
+      const allHolders = summarizeHistoricalHolders(matchedRows);
+      const filteredHolders = filterHistoricalHolders(allHolders, filter);
+      const pagination = paginateHistoricalHolders(filteredHolders, input.page, input.pageSize);
       const allStatuses = await db.select({ holderName: historicalTitleGrants.holderName, grantId: playerTitleGrants.id }).from(historicalTitleGrants)
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)));
       const stats = summarizeHistoricalTitleGrantStatuses(allStatuses);
-      return { contractVersion: "1" as const, items: rows.map(({ historical, grant, title, mapName, player }) => ({ grantId: grant?.id ?? historical.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: historical.scope as "global" | "map", mapName: mapName ?? undefined, slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant?.grantedAt ?? 0, holderName: historical.holderName, playerAccountId: grant?.playerAccountId, playerName: player?.playerName, playerId: player?.playerId, status: grant ? grant.status as "active" | "revoked" : "unclaimed", revokeReason: grant?.revokeReason ?? undefined })), page, pageSize, total: pagination.total, hasMore: pagination.hasMore, stats };
+      return {
+        contractVersion: "1" as const,
+        holders: pagination.items,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        total: pagination.total,
+        hasMore: pagination.hasMore,
+        filter,
+        stats,
+      };
+    },
+
+    async getHistoricalTitleHolder(input) {
+      const holderName = input.holderName.trim();
+      if (!holderName) throw new Error("HISTORICAL_HOLDER_NOT_FOUND");
+      const grantStatus = input.grantStatus ?? "all";
+      const rows = await db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
+        .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key))
+        .leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+        .leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
+        .where(eq(historicalTitleGrants.holderName, holderName))
+        .orderBy(titleCatalog.category, titleCatalog.label);
+      if (!rows.length) throw new Error("HISTORICAL_HOLDER_NOT_FOUND");
+      const items = rows.map(({ historical, grant, title, mapName, player }) => ({
+        grantId: grant?.id ?? historical.id,
+        titleKey: title.key,
+        label: title.label,
+        icon: title.icon,
+        iconUrl: title.iconUrl,
+        category: title.category,
+        condition: title.condition,
+        scope: historical.scope as "global" | "map",
+        mapName: mapName ?? undefined,
+        slot: historical.slot as "pioneer" | "conqueror" | "dominator" | undefined,
+        grantedAt: grant?.grantedAt ?? 0,
+        holderName: historical.holderName,
+        playerAccountId: grant?.playerAccountId,
+        playerName: player?.playerName,
+        playerId: player?.playerId,
+        status: (grant ? grant.status as "active" | "revoked" : "unclaimed") as "unclaimed" | "active" | "revoked",
+        revokeReason: grant?.revokeReason ?? undefined,
+      }));
+      const unclaimedCount = items.filter((item) => item.status === "unclaimed").length;
+      const holder = {
+        holderName,
+        totalCount: items.length,
+        unclaimedCount,
+        status: unclaimedCount > 0 ? "pending" as const : "completed" as const,
+      };
+      const filtered = filterHistoricalGrantsByStatus(items, grantStatus);
+      const pagination = paginateHistoricalGrants(filtered, input.page, input.pageSize);
+      return {
+        contractVersion: "1" as const,
+        holder,
+        items: pagination.items,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        total: pagination.total,
+        hasMore: pagination.hasMore,
+        grantStatus,
+      };
     },
 
     async createAdminTitleGrant(input, auth, idempotencyKey) {
@@ -1796,22 +1917,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async createAdminTitleGrantBulk(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<{ contractVersion: "1"; grantedCount: number }>(db, auth.subject, "admin.title.grant.bulk", idempotencyKey, input);
+      const replay = await replayOrConflict<{ contractVersion: "1"; grantedCount: number; skippedClaimedCount: number }>(db, auth.subject, "admin.title.grant.bulk", idempotencyKey, input);
       if (replay) return replay;
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!player) throw new Error("PLAYER_NOT_FOUND");
-      const historical = await db.select({ id: historicalTitleGrants.id, titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, slot: historicalTitleGrants.slot }).from(historicalTitleGrants)
+      const holderRows = await db.select({ id: historicalTitleGrants.id, titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, slot: historicalTitleGrants.slot, grantId: playerTitleGrants.id }).from(historicalTitleGrants)
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
-        .where(and(eq(historicalTitleGrants.holderName, input.holderName), isNull(playerTitleGrants.id)));
+        .where(eq(historicalTitleGrants.holderName, input.holderName));
+      const unclaimed = holderRows.filter((row) => !row.grantId);
+      const skippedClaimedCount = holderRows.length - unclaimed.length;
       const timestamp = now();
-      const grants = historical.map((item) => ({ id: crypto.randomUUID(), historical: item }));
-      const response = { contractVersion: "1" as const, grantedCount: grants.length };
+      const grants = unclaimed.map((item) => ({ id: crypto.randomUUID(), historical: item }));
+      const response = { contractVersion: "1" as const, grantedCount: grants.length, skippedClaimedCount };
       const statements = [
         ...grants.map((grant) => db.insert(playerTitleGrants).values({ id: grant.id, playerAccountId: player.id, titleKey: grant.historical.titleKey, mapId: grant.historical.mapId, slot: grant.historical.slot, status: "active", sourceType: "historical", sourceId: grant.historical.id, grantedBy: auth.subject, grantedAt: timestamp })),
         ...grants.map((grant) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: grant.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: grant.historical.id, holderName: input.holderName }), createdAt: timestamp })),
         db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.title.grant.bulk:${idempotencyKey}`, actorId: auth.subject, operation: "admin.title.grant.bulk", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
       ];
-      await db.batch(statements as [typeof statements[number], ...typeof statements]);
+      if (statements.length === 1) {
+        await db.batch(statements as [typeof statements[number]]);
+      } else {
+        await db.batch(statements as [typeof statements[number], ...typeof statements]);
+      }
       return response;
     },
 

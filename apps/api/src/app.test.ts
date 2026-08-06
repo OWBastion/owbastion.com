@@ -29,9 +29,10 @@ const services: PlatformServices = {
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
   getPublicTitleIcon: async () => null,
   listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
-  listHistoricalTitleGrants: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false, stats: { pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 } }),
+  listHistoricalTitleGrants: async () => ({ contractVersion: "1", holders: [], page: 1, pageSize: 20, total: 0, hasMore: false, filter: "all", stats: { pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 } }),
+  getHistoricalTitleHolder: async () => ({ contractVersion: "1", holder: { holderName: "Cold", totalCount: 0, unclaimedCount: 0, status: "completed" }, items: [], page: 1, pageSize: 50, total: 0, hasMore: false, grantStatus: "all" }),
   createAdminTitleGrant: async () => {},
-  createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0 }),
+  createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0, skippedClaimedCount: 0 }),
   revokeAdminTitleGrant: async () => {},
   createAdminManualTitleGrant: async () => ({ contractVersion: "1", grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: false }),
   listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
@@ -739,13 +740,32 @@ describe("API", () => {
   });
 
   it("returns paginated historical title migration data with global stats", async () => {
-    const calls: Array<{ query?: string; page: number; pageSize: number }> = [];
-    const listResponse = { contractVersion: "1" as const, items: [], page: 2, pageSize: 10, total: 25, hasMore: true, stats: { pendingHolderCount: 3, unclaimedGrantCount: 12, migratedGrantCount: 28 } };
+    const calls: Array<{ query?: string; filter?: string; page: number; pageSize: number }> = [];
+    const listResponse = { contractVersion: "1" as const, holders: [{ holderName: "Cold", totalCount: 3, unclaimedCount: 2, status: "pending" as const }], page: 2, pageSize: 10, total: 25, hasMore: true, filter: "pending" as const, stats: { pendingHolderCount: 3, unclaimedGrantCount: 12, migratedGrantCount: 28 } };
     const adminApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listHistoricalTitleGrants: async (input) => { calls.push(input); return listResponse; } }) });
-    const response = await adminApp.request("http://localhost/v1/admin/title-grants?query=Cold&page=2&pageSize=10", {}, env);
+    const response = await adminApp.request("http://localhost/v1/admin/title-grants?query=Cold&filter=pending&page=2&pageSize=10", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(listResponse);
-    expect(calls).toEqual([{ query: "Cold", page: 2, pageSize: 10 }]);
+    expect(calls).toEqual([{ query: "Cold", filter: "pending", page: 2, pageSize: 10 }]);
+  });
+
+  it("returns complete historical holder detail with grant pagination", async () => {
+    const calls: Array<{ holderName: string; page: number; pageSize: number; grantStatus?: string }> = [];
+    const detailResponse = {
+      contractVersion: "1" as const,
+      holder: { holderName: "Cold", totalCount: 3, unclaimedCount: 2, status: "pending" as const },
+      items: [{ grantId: "historical-1", titleKey: "TITLE", label: "传奇挑战者", icon: "star", category: "难度挑战", condition: "通关", scope: "global" as const, grantedAt: 0, holderName: "Cold", status: "unclaimed" as const }],
+      page: 1,
+      pageSize: 1,
+      total: 2,
+      hasMore: true,
+      grantStatus: "unclaimed" as const,
+    };
+    const adminApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, getHistoricalTitleHolder: async (input) => { calls.push(input); return detailResponse; } }) });
+    const response = await adminApp.request("http://localhost/v1/admin/title-grants/holder?holderName=Cold&page=1&pageSize=1&grantStatus=unclaimed", {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(detailResponse);
+    expect(calls).toEqual([{ holderName: "Cold", page: 1, pageSize: 1, grantStatus: "unclaimed" }]);
   });
 
   it("exposes manual title grants only to maintainers", async () => {
@@ -760,7 +780,7 @@ describe("API", () => {
 
   it("bulk-links every unclaimed title held by one exact historical player name", async () => {
     const requests: Array<{ holderName: string; playerAccountId: string; idempotencyKey: string }> = [];
-    const responses = new Map<string, { contractVersion: "1"; grantedCount: number }>();
+    const responses = new Map<string, { contractVersion: "1"; grantedCount: number; skippedClaimedCount: number }>();
     const adminApp = createApp({
       authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
       services: () => ({ ...services, createAdminTitleGrantBulk: async (input, _auth, idempotencyKey) => {
@@ -771,7 +791,7 @@ describe("API", () => {
           return existing;
         }
         requests.push({ ...input, idempotencyKey });
-        const response = { contractVersion: "1" as const, grantedCount: input.holderName === "Cold" ? 42 : 0 };
+        const response = { contractVersion: "1" as const, grantedCount: input.holderName === "Cold" ? 42 : 0, skippedClaimedCount: input.holderName === "Cold" ? 1 : 0 };
         responses.set(idempotencyKey, response);
         return response;
       } }),
@@ -781,9 +801,9 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env)).status).toBe(403);
     const first = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env);
     expect(first.status).toBe(200);
-    expect(await first.json()).toEqual({ contractVersion: "1", grantedCount: 42 });
+    expect(await first.json()).toEqual({ contractVersion: "1", grantedCount: 42, skippedClaimedCount: 1 });
     const replay = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env);
-    expect(await replay.json()).toEqual({ contractVersion: "1", grantedCount: 42 });
+    expect(await replay.json()).toEqual({ contractVersion: "1", grantedCount: 42, skippedClaimedCount: 1 });
     const conflict = await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body: JSON.stringify({ contractVersion: "1", holderName: "Boo", playerAccountId: "11111111-1111-4111-8111-111111111111" }) }, env);
     expect(conflict.status).toBe(409);
     expect(requests).toEqual([{ contractVersion: "1", holderName: "Cold", playerAccountId: "11111111-1111-4111-8111-111111111111", idempotencyKey: "bulk-1" }]);

@@ -1089,7 +1089,26 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? "20") || 20));
-    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, page, pageSize }, access.auth!));
+    const filter = c.req.query("filter")?.trim() || "all";
+    if (filter !== "all" && filter !== "pending" && filter !== "completed") return errorResponse(c, 422, "INVALID_REQUEST", "The filter is invalid");
+    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, access.auth!));
+  });
+
+  app.get("/v1/admin/title-grants/holder", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const holderName = c.req.query("holderName")?.trim() || "";
+    if (!holderName) return errorResponse(c, 422, "INVALID_REQUEST", "holderName is required");
+    const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize") ?? "50") || 50));
+    const grantStatus = c.req.query("grantStatus")?.trim() || "all";
+    if (grantStatus !== "all" && grantStatus !== "unclaimed" && grantStatus !== "active" && grantStatus !== "revoked") return errorResponse(c, 422, "INVALID_REQUEST", "The grantStatus is invalid");
+    try {
+      return c.json(await dependencies.services(c.env).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, access.auth!));
+    } catch (error) {
+      if (error instanceof Error && error.message === "HISTORICAL_HOLDER_NOT_FOUND") return errorResponse(c, 404, "HISTORICAL_HOLDER_NOT_FOUND", "The historical holder does not exist");
+      throw error;
+    }
   });
 
   app.post("/v1/admin/title-grants", async (c) => {
