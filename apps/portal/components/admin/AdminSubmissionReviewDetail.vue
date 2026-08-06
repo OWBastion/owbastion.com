@@ -103,8 +103,9 @@ const challengeSummary = computed(() => {
 
     <!--
       Desktop: evidence | rail (claim → decide → verify → meta)
-      Mobile single column: claim → evidence → verify → meta;
-      decisions docked for thumb reach below 620px
+      Narrow: single column claim → decide → evidence → verify → meta
+      Decisions stay in document flow (sticky), never fixed — fixed docks
+      overflow when spot-check / OCR retry expand the control surface.
     -->
     <div class="detail-grid">
       <div class="evidence-col flow-evidence">
@@ -126,7 +127,6 @@ const challengeSummary = computed(() => {
         </UCard>
       </div>
 
-      <!-- Claim first: what is being reviewed -->
       <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
@@ -145,7 +145,6 @@ const challengeSummary = computed(() => {
         <p v-else class="claim-empty">请在自动判定中选择挑战后再通过。</p>
       </section>
 
-      <!-- Decision chrome: sticky while scrolling verification -->
       <section
         class="actions-card glass surface-panel elevation-2 flow-actions"
         aria-label="审核操作"
@@ -156,6 +155,7 @@ const challengeSummary = computed(() => {
           <UButton
             class="action-btn action-btn--primary pressable"
             type="button"
+            block
             icon="i-lucide-check"
             label="通过"
             :loading="decisionLoading('approved')"
@@ -165,6 +165,7 @@ const challengeSummary = computed(() => {
           <UButton
             class="action-btn pressable"
             type="button"
+            block
             label="要求重传"
             color="neutral"
             variant="outline"
@@ -175,6 +176,7 @@ const challengeSummary = computed(() => {
           <UButton
             class="action-btn pressable"
             type="button"
+            block
             label="驳回"
             color="error"
             variant="soft"
@@ -265,19 +267,28 @@ const challengeSummary = computed(() => {
 </template>
 
 <style scoped>
+/*
+ * Layout uses fr / minmax / rem / clamp / container queries — avoid fixed px
+ * docks. Touch floor follows shared hit target (2.75rem ≈ 44px at 16px root).
+ */
 .review-detail {
+  --review-gap: clamp(0.75rem, 2.2vw, 1.25rem);
+  --review-inset: clamp(0.75rem, 2vw, 1rem);
+  --review-radius: clamp(0.75rem, 1.5vw, 0.875rem);
+  --review-sticky-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  --review-touch: 2.75rem;
+
   display: grid;
-  gap: 18px;
+  gap: var(--review-gap);
   width: 100%;
   min-width: 0;
 }
 
-/* Context strip */
 .detail-meta-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   width: 100%;
   min-width: 0;
 }
@@ -285,11 +296,11 @@ const challengeSummary = computed(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 8px;
+  gap: 0.35rem 0.5rem;
   margin: 0;
   min-width: 0;
   color: var(--quiet);
-  font-size: .84rem;
+  font-size: 0.84rem;
   line-height: 1.35;
 }
 .detail-meta__player {
@@ -318,10 +329,6 @@ const challengeSummary = computed(() => {
   text-decoration: underline;
 }
 
-/*
- * Shared surface shell: every card in the stack shares the same edge geometry
- * so mobile widths read as one consistent column (Apple spatial consistency).
- */
 .surface-panel,
 .flow-evidence,
 .flow-claim,
@@ -334,14 +341,14 @@ const challengeSummary = computed(() => {
   box-sizing: border-box;
 }
 
-/* Desktop: evidence | rail via named areas (no display:contents) */
+/* Desktop: evidence | rail */
 .detail-grid {
   display: grid;
   width: 100%;
   min-width: 0;
   align-items: start;
-  gap: clamp(14px, 2vw, 20px);
-  grid-template-columns: minmax(0, 1.55fr) minmax(280px, .95fr);
+  gap: var(--review-gap);
+  grid-template-columns: minmax(0, 1.55fr) minmax(min(100%, 17.5rem), 0.95fr);
   grid-template-areas:
     "evidence claim"
     "evidence actions"
@@ -356,7 +363,7 @@ const challengeSummary = computed(() => {
 
 .evidence-col {
   position: sticky;
-  top: 20px;
+  top: var(--review-sticky-top);
   min-width: 0;
 }
 .evidence-card {
@@ -371,48 +378,51 @@ const challengeSummary = computed(() => {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: calc(var(--review-radius) - 0.125rem);
 }
 .evidence-message {
   margin: 0;
-  padding: 96px 0;
+  padding: 4rem 0;
   color: var(--muted);
   text-align: center;
 }
 
 .rail-kicker {
-  margin: 0 0 6px;
+  margin: 0 0 0.35rem;
   color: var(--text-on-glass-quiet);
-  font-size: .68rem;
+  font-size: 0.68rem;
   font-weight: 720;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
 }
 
-/* Decision material */
 .actions-card {
   display: grid;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 0.5rem;
+  padding: var(--review-inset);
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
-  border-radius: 14px;
+  border-radius: var(--review-radius);
   box-shadow:
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
 }
+/*
+ * auto-fit: 3-up when each button still has ≥ ~5.5rem; otherwise collapse to
+ * one column so labels never clip or push the card past the viewport.
+ */
 .actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr));
+  gap: 0.5rem;
   width: 100%;
 }
 .actions :deep(.action-btn) {
   width: 100%;
   min-width: 0;
-  min-height: 36px;
-  padding-inline: 6px;
-  font-size: .82rem;
+  min-height: var(--review-touch);
+  padding-inline: 0.5rem;
+  font-size: 0.84rem;
   font-weight: 680;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
   justify-content: center;
 }
 .actions :deep(.action-btn--primary) {
@@ -420,57 +430,57 @@ const challengeSummary = computed(() => {
 }
 .ocr-retry-actions {
   display: grid;
-  gap: 4px;
-  padding-top: 8px;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
   border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
 }
 .ocr-retry-actions :deep(.action-btn) {
   justify-self: start;
   max-width: 100%;
-  min-height: 28px;
-  padding-inline: 6px;
-  font-size: .76rem;
+  min-height: 2rem;
+  padding-inline: 0.35rem;
+  font-size: 0.76rem;
   font-weight: 650;
 }
 .ocr-retry-error {
   margin: 0;
   color: var(--danger);
-  font-size: .78rem;
+  font-size: 0.78rem;
   overflow-wrap: anywhere;
 }
 .spot-check-panel {
   display: grid;
-  gap: 10px;
+  gap: 0.65rem;
   width: 100%;
-  padding-top: 12px;
+  padding-top: 0.75rem;
   border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
 }
 .spot-check-panel h4 {
   margin: 0;
-  font-size: .82rem;
+  font-size: 0.82rem;
 }
 .spot-check-panel p {
-  margin: 4px 0 0;
+  margin: 0.25rem 0 0;
   color: var(--text-on-glass-quiet);
-  font-size: .75rem;
+  font-size: 0.75rem;
   line-height: 1.5;
 }
 .spot-check-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: 0.5rem;
   width: 100%;
 }
 .spot-check-actions :deep(.action-btn) {
   width: 100%;
   min-width: 0;
+  min-height: var(--review-touch);
 }
 
-/* Claim */
 .claim-card {
-  padding: 14px 16px;
+  padding: var(--review-inset);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--review-radius);
   background: var(--surface-raised);
   box-shadow: var(--elevation-1);
 }
@@ -478,7 +488,7 @@ const challengeSummary = computed(() => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   min-width: 0;
 }
 .claim-card__title-block {
@@ -489,67 +499,66 @@ const challengeSummary = computed(() => {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 720;
-  letter-spacing: -.02em;
+  letter-spacing: -0.02em;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .claim-kind {
   flex: 0 0 auto;
-  margin-top: 18px;
+  margin-top: 1.1rem;
   color: var(--quiet);
-  font-size: .72rem;
+  font-size: 0.72rem;
   font-weight: 650;
   white-space: nowrap;
 }
 .claim-meta {
-  margin: 8px 0 0;
+  margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: .8rem;
+  font-size: 0.8rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .claim-facts {
   display: grid;
-  gap: 8px;
-  margin: 12px 0 0;
-  padding-top: 12px;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--line);
 }
 .claim-facts > div {
   display: grid;
-  gap: 3px;
+  gap: 0.2rem;
   min-width: 0;
 }
 .claim-facts dt {
   color: var(--quiet);
-  font-size: .72rem;
+  font-size: 0.72rem;
 }
 .claim-facts dd {
   margin: 0;
   color: var(--text);
-  font-size: .82rem;
+  font-size: 0.82rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .claim-empty {
-  margin: 8px 0 0;
+  margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: .8rem;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
-/* Traceability */
 .meta-disclosure {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--review-radius);
   background: var(--surface);
 }
 .meta-disclosure > summary {
   cursor: pointer;
   list-style: none;
-  padding: 12px 14px;
+  padding: 0.75rem var(--review-inset);
   color: var(--quiet);
-  font-size: .78rem;
+  font-size: 0.78rem;
   font-weight: 650;
   user-select: none;
 }
@@ -565,26 +574,19 @@ const challengeSummary = computed(() => {
   content: "▾";
 }
 .meta-disclosure .meta-list {
-  padding: 0 14px 12px;
+  padding: 0 var(--review-inset) 0.75rem;
 }
 
-/* Desktop: keep decisions available while scrolling the rail */
-@media (min-width: 821px) {
-  .flow-actions {
-    position: sticky;
-    top: 20px;
-    z-index: 5;
-  }
+/* Sticky decisions stay in flow — never position:fixed */
+.flow-actions {
+  position: sticky;
+  top: var(--review-sticky-top);
+  z-index: 5;
 }
 
-/*
- * Tablet / phone: one full-width column.
- * Order: claim → actions → evidence → signals → meta
- * (phone docks actions to the bottom for thumb reach)
- */
-@media (max-width: 820px) {
+/* Narrow: one column; claim then decide, then evidence for verification */
+@media (max-width: 51.25rem) {
   .detail-grid {
-    display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "claim"
@@ -592,83 +594,16 @@ const challengeSummary = computed(() => {
       "evidence"
       "signals"
       "meta";
-    gap: 14px;
   }
   .evidence-col {
     position: static;
   }
-  .flow-actions {
-    position: sticky;
-    z-index: 4;
-    top: 12px;
-  }
-  .claim-card,
-  .actions-card,
-  .meta-disclosure {
-    border-radius: 14px;
-  }
-}
-
-/* Phone: bottom decision dock aligned to page-shell gutters */
-@media (max-width: 620px) {
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
   }
-  .review-detail {
-    /* room for fixed dock + safe area */
-    padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
-  }
-  .detail-grid {
-    grid-template-areas:
-      "claim"
-      "evidence"
-      "signals"
-      "meta"
-      "actions";
-    gap: 12px;
-  }
-  .flow-actions {
-    position: fixed;
-    top: auto;
-    /* Match .page-shell mobile gutter (100% - 24px → 12px each side) */
-    right: max(12px, env(safe-area-inset-right, 0px));
-    bottom: max(10px, env(safe-area-inset-bottom, 0px));
-    left: max(12px, env(safe-area-inset-left, 0px));
-    z-index: 30;
-    width: auto;
-    max-width: none;
-  }
-  .actions-card {
-    width: 100%;
-    margin: 0;
-    border-radius: 16px;
-    box-shadow:
-      var(--elevation-3),
-      inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
-  }
-  .actions {
-    gap: 8px;
-  }
-  .actions :deep(.action-btn) {
-    min-height: 44px;
-    font-size: .84rem;
-  }
-  .claim-card {
-    padding: 14px;
-  }
   .claim-kind {
-    margin-top: 2px;
-  }
-  .spot-check-actions {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Very narrow: stack primary decisions for readable labels */
-@media (max-width: 380px) {
-  .actions {
-    grid-template-columns: minmax(0, 1fr);
+    margin-top: 0.15rem;
   }
 }
 
