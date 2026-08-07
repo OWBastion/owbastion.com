@@ -22,6 +22,7 @@ export default defineNuxtConfig({
       owner: "OWBastion",
       repo: "owbastion.com",
       branch: "main",
+      rootDir: "apps/portal",
       private: false,
     },
   },
