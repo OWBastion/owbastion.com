@@ -8,7 +8,12 @@ export default defineNuxtConfig({
       enabled: true
     }
   },
-  modules: ["@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
+  modules: ["@nuxt/content", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
+  content: {
+    experimental: {
+      sqliteConnector: "native",
+    },
+  },
   css: ["~/assets/css/main.css"],
   colorMode: {
     preference: "light",

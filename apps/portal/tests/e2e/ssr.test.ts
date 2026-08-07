@@ -25,4 +25,24 @@ describe("Portal SSR", async () => {
     expect(html).toContain("了解规则，完成挑战，查看公开记录。");
     expect(html).toContain('href="/achievements"');
   });
+
+  it("queries both built editorial collections", async () => {
+    const [blogRows, changelogRows] = await Promise.all([
+      $fetch("/__nuxt_content/blog/query", {
+        method: "POST",
+        body: { sql: "SELECT \"title\", \"publishedAt\" FROM _content_blog ORDER BY \"title\" ASC" },
+      }),
+      $fetch("/__nuxt_content/changelog/query", {
+        method: "POST",
+        body: { sql: "SELECT \"title\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"version\" DESC" },
+      }),
+    ]);
+
+    expect(blogRows).toEqual([
+      expect.objectContaining({ title: "Nuxt Content 基础", publishedAt: expect.any(String) }),
+    ]);
+    expect(changelogRows).toEqual([
+      expect.objectContaining({ title: "Portal 内容基础", version: "26.0808.1", releasedAt: expect.any(String) }),
+    ]);
+  });
 });

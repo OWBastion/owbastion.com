@@ -63,6 +63,16 @@ The Portal proxies administrator requests server-side so the platform session
 cookie is forwarded to the Worker. Public responses do not expose private evidence,
 QQ OpenIDs, review notes, or unapproved drafts.
 
+Portal editorial content is a separate Git-backed surface under
+`apps/portal/content/`, with future media assets rooted at
+`apps/portal/public/content/`. Nuxt Content indexes Blog development logs and
+Changelog player-facing notes from Markdown during development and builds. Blog
+entries may describe work in progress; Changelog entries describe changes that
+have already been released. Editorial metadata and a Changelog `version` value
+do not replace platform D1 facts or Bastion's authoritative implementation,
+build, release, and published-artifact state. This content foundation does not
+add D1, R2, or an editorial API.
+
 Achievement catalog management changes platform-owned title and challenge
 metadata. It does not edit Bastion's game implementation or build artifacts;
 Bastion consumes the resulting metadata through the Agents API. Title Grants
