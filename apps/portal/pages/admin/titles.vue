@@ -26,6 +26,11 @@ const playerOptions = shallowRef<Player[]>([]);
 const playerQuery = shallowRef("");
 const playerLoading = shallowRef(false);
 const playerError = shallowRef("");
+const playerPage = shallowRef(1);
+const playerPageSize = 20;
+const playerHasMore = shallowRef(false);
+const playerTotal = shallowRef(0);
+
 const selectedHolderName = shallowRef("");
 const selectedHolder = shallowRef<HolderDetail | null>(null);
 const filter = shallowRef<"all" | "pending" | "completed">("all");
@@ -112,25 +117,40 @@ async function selectHolder(holder: { holderName: string }) {
   await loadHolderDetail(holder.holderName, 1);
 }
 
-async function loadPlayers(search = playerQuery.value) {
+async function loadPlayers(options: { search?: string; page?: number; append?: boolean } = {}) {
+  const search = options.search ?? playerQuery.value;
+  const nextPage = options.page ?? 1;
+  const append = options.append === true;
   playerLoading.value = true;
   playerError.value = "";
   try {
-    const response = await api<{ items: Player[] }>(`/v1/player-accounts?query=${encodeURIComponent(search.trim())}&page=1&pageSize=20`);
-    playerOptions.value = response.items;
-    if (selectedPlayerId.value && !response.items.some((player) => player.playerAccountId === selectedPlayerId.value) && selectedPlayer.value) {
-      playerOptions.value = [selectedPlayer.value, ...response.items.filter((player) => player.playerAccountId !== selectedPlayer.value!.playerAccountId)];
-    }
+    const response = await api<{ items: Player[]; total: number; hasMore: boolean; page: number; pageSize: number }>(
+      `/v1/player-accounts?query=${encodeURIComponent(search.trim())}&page=${nextPage}&pageSize=${playerPageSize}`,
+    );
+    playerPage.value = response.page;
+    playerHasMore.value = response.hasMore;
+    playerTotal.value = response.total;
+    const merged = append
+      ? [...playerOptions.value, ...response.items.filter((player) => !playerOptions.value.some((existing) => existing.playerAccountId === player.playerAccountId))]
+      : response.items;
+    playerOptions.value = selectedPlayer.value && !merged.some((player) => player.playerAccountId === selectedPlayer.value!.playerAccountId)
+      ? [selectedPlayer.value, ...merged]
+      : merged;
   } catch (error) {
     playerError.value = portalErrorDetails(error, "无法读取玩家帐号，请稍后重试。").description;
-    playerOptions.value = selectedPlayer.value ? [selectedPlayer.value] : [];
+    if (!append) playerOptions.value = selectedPlayer.value ? [selectedPlayer.value] : [];
+    playerHasMore.value = false;
   } finally {
     playerLoading.value = false;
   }
 }
 
 const debouncedLoadHolders = useDebounceFn(() => { page.value = 1; void loadHolders({ resetSelection: true }); }, 300);
-const debouncedLoadPlayers = useDebounceFn((value: string) => { void loadPlayers(value); }, 300);
+const debouncedLoadPlayers = useDebounceFn((value: string) => {
+  playerPage.value = 1;
+  playerHasMore.value = false;
+  void loadPlayers({ search: value, page: 1, append: false });
+}, 300);
 
 function handleSearchInput(value: string) {
   query.value = value;
@@ -162,6 +182,11 @@ function updateSelectedPlayerId(value: string) {
 function handlePlayerSearch(value: string) {
   playerQuery.value = value;
   debouncedLoadPlayers(value);
+}
+
+function loadMorePlayers() {
+  if (playerLoading.value || !playerHasMore.value) return;
+  void loadPlayers({ page: playerPage.value + 1, append: true });
 }
 
 async function openBulk() {
@@ -271,7 +296,7 @@ async function grantAll() {
 
 onMounted(() => {
   void loadHolders({ resetSelection: true });
-  void loadPlayers("");
+  void loadPlayers({ search: "", page: 1, append: false });
 });
 </script>
 
@@ -304,6 +329,8 @@ onMounted(() => {
         :player-loading="playerLoading"
         :player-error="playerError"
         :player-query="playerQuery"
+        :player-has-more="playerHasMore"
+        :player-total="playerTotal"
         :loading="loading || detailLoading"
         :saving="saving || bulkLoading"
         :grant-page="grantPage"
@@ -311,10 +338,12 @@ onMounted(() => {
         @update:selected-player-id="updateSelectedPlayerId"
         @update:player-query="handlePlayerSearch"
         @update:grant-page="updateGrantPage"
+        @load-more-players="loadMorePlayers"
         @grant="grant"
         @revoke="revoke"
         @bulk="openBulk"
       />
+
     </section>
     <UEmpty v-if="!loading && !total" class="migration-empty" title="暂无匹配记录" description="没有找到符合条件的历史称号。" variant="naked" />
     <AdminResponsiveDialog v-model:open="panelOpen" title="确认称号迁移" size="sm" :dismissible="!saving">

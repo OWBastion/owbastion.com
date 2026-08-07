@@ -14,6 +14,8 @@ const props = defineProps<{
   playerLoading?: boolean;
   playerError?: string;
   playerQuery?: string;
+  playerHasMore?: boolean;
+  playerTotal?: number;
   loading?: boolean;
   saving?: boolean;
   grantPage?: number;
@@ -23,10 +25,12 @@ const emit = defineEmits<{
   "update:selectedPlayerId": [value: string];
   "update:playerQuery": [value: string];
   "update:grantPage": [value: number];
+  "load-more-players": [];
   grant: [grant: Grant];
   revoke: [grant: Grant];
   bulk: [];
 }>();
+
 
 const UButton = resolveComponent("UButton");
 const UBadge = resolveComponent("UBadge");
@@ -83,9 +87,22 @@ function onPlayerSearch(term: string) {
             />
           </UFormField>
           <p v-if="playerError" class="player-state player-state--error" role="alert">{{ playerError }}</p>
-          <p v-else-if="playerLoading" class="player-state" role="status">正在搜索玩家…</p>
+          <p v-else-if="playerLoading && !players.length" class="player-state" role="status">正在搜索玩家…</p>
           <p v-else-if="!players.length" class="player-state" role="status">未找到可关联玩家</p>
+          <div v-else-if="playerHasMore" class="player-load-more">
+            <p class="player-state" role="status">已显示 {{ players.length }} / {{ playerTotal ?? players.length }} 位玩家</p>
+            <UButton
+              label="加载更多玩家"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :loading="playerLoading"
+              :disabled="playerLoading"
+              @click="emit('load-more-players')"
+            />
+          </div>
           <UButton label="关联全部未关联项" :disabled="!selectedPlayerId || !holder.unclaimedCount || saving" :loading="saving" @click="emit('bulk')" />
+
         </div>
       </div>
     </template>
@@ -140,6 +157,8 @@ function onPlayerSearch(term: string) {
 .detail-action :deep(.form-field) { gap: 5px; }
 .player-state { margin: 0; width: 100%; color: var(--quiet); font-size: .74rem; }
 .player-state--error { color: var(--error, #b42318); }
+.player-load-more { display: grid; gap: 6px; width: 100%; }
+
 .grant-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px 4px; }
 .grant-pagination__meta { margin: 0; color: var(--quiet); font-size: .74rem; }
 .detail-panel--empty { display: grid; min-height: 360px; place-items: center; }

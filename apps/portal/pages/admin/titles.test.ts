@@ -50,11 +50,23 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
     return Promise.resolve(listResponse(holders.filter((holder) => holder.holderName === "Cold")));
   }
   if (path.includes("/v1/title-grants?query=")) return Promise.resolve(listResponse());
-  if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: players, total: 1, hasMore: false });
+  if (path.startsWith("/v1/player-accounts?")) {
+    const params = new URLSearchParams(path.split("?")[1]);
+    const page = Number(params.get("page") ?? "1");
+    const pageSize = Number(params.get("pageSize") ?? "20");
+    const allPlayers = [
+      ...players,
+      { playerAccountId: "22222222-2222-4222-8222-222222222222", playerName: "第二页玩家", playerId: "9999" },
+    ];
+    const start = (page - 1) * pageSize;
+    const items = allPlayers.slice(start, start + pageSize);
+    return Promise.resolve({ items, page, pageSize, total: allPlayers.length, hasMore: start + pageSize < allPlayers.length });
+  }
   if (path === "/v1/title-grants/bulk" && options?.method === "POST") return Promise.resolve({ grantedCount: 2, skippedClaimedCount: 0 });
   if (path === "/v1/title-grants" && options?.method === "POST") return Promise.resolve(undefined);
   throw new Error(`Unexpected request: ${path}`);
 });
+
 const toastAdd = vi.fn();
 mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
 mockNuxtImport("useAdminApi", () => () => adminApi);
@@ -116,6 +128,44 @@ describe("title migration page", () => {
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("/v1/player-accounts?query="));
     expect(adminApi.mock.calls.some(([path]) => String(path).includes("pageSize=20"))).toBe(true);
   });
+
+  it("loads additional target players when more pages exist", async () => {
+    adminApi.mockImplementation((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
+      if (path.includes("/v1/title-grants/holder?")) return Promise.resolve(detailResponse());
+      if (path.includes("/v1/title-grants?query=")) return Promise.resolve(listResponse());
+      if (path.startsWith("/v1/player-accounts?")) {
+        const params = new URLSearchParams(path.split("?")[1]);
+        const page = Number(params.get("page") ?? "1");
+        if (page === 1) {
+          return Promise.resolve({
+            items: players,
+            page: 1,
+            pageSize: 1,
+            total: 2,
+            hasMore: true,
+          });
+        }
+        return Promise.resolve({
+          items: [{ playerAccountId: "22222222-2222-4222-8222-222222222222", playerName: "第二页玩家", playerId: "9999" }],
+          page: 2,
+          pageSize: 1,
+          total: 2,
+          hasMore: false,
+        });
+      }
+      if (path === "/v1/title-grants/bulk" && options?.method === "POST") return Promise.resolve({ grantedCount: 2, skippedClaimedCount: 0 });
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    const wrapper = await mountPage();
+    expect(wrapper.text()).toContain("已显示");
+    const loadMore = wrapper.findAll("button").find((button) => button.text() === "加载更多玩家");
+    expect(loadMore).toBeDefined();
+    await loadMore!.trigger("click");
+    await flushPromises();
+    expect(adminApi.mock.calls.some(([path]) => String(path).includes("/v1/player-accounts?") && String(path).includes("page=2"))).toBe(true);
+    expect(wrapper.text()).toContain("第二页玩家");
+  });
+
 
   it("confirms bulk migration using authoritative unclaimed scope", async () => {
     const wrapper = await mountPage();

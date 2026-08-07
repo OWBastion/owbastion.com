@@ -64,4 +64,19 @@ describe("title migration query helpers", () => {
       hasMore: true,
     });
   });
+
+  it("keeps holder totals complete when only one title label matches the query", () => {
+    const matchingRows = [{ holderName: "Cold", grantId: null, grantStatus: null }];
+    const allRows = [
+      { holderName: "Cold", grantId: null, grantStatus: null },
+      { holderName: "Cold", grantId: "g-1", grantStatus: "active" },
+      { holderName: "Cold", grantId: null, grantStatus: null },
+      { holderName: "Boo", grantId: null, grantStatus: null },
+    ];
+    const matchingNames = new Set(matchingRows.map((row) => row.holderName));
+    const expanded = allRows.filter((row) => matchingNames.has(row.holderName));
+    expect(summarizeHistoricalHolders(expanded)).toEqual([
+      { holderName: "Cold", totalCount: 3, unclaimedCount: 2, status: "pending" },
+    ]);
+  });
 });
