@@ -63,11 +63,9 @@ describe("submission detail page", () => {
     expect(columns[0]).toContain("info-col");
     expect(columns[1]).toContain("evidence-col");
     expect(wrapper.find(".detail-grid").attributes("aria-live")).toBeUndefined();
-    expect(wrapper.find(".status-stack").exists()).toBe(true);
-    expect(wrapper.find(".status-stack").attributes("aria-live")).toBeUndefined();
-    const live = wrapper.find("[aria-live='polite']");
-    expect(live.exists()).toBe(true);
-    expect(live.classes()).toContain("sr-only");
+    expect(wrapper.find(".status-alert").exists()).toBe(true);
+    expect(wrapper.find(".status-alert").attributes("aria-live")).toBeUndefined();
+    expect(wrapper.find(".status-live").exists()).toBe(false);
     expect(wrapper.find(".evidence-frame").exists()).toBe(false);
     expect(wrapper.get(".evidence-image").attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
 
@@ -150,7 +148,8 @@ describe("submission detail page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("无法申请人工核对");
     expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(true);
-    expect(wrapper.findAll(".status-stack .alert, .status-stack [class*='alert']").length + (wrapper.text().match(/已提交申请/g)?.length ?? 0)).toBeGreaterThanOrEqual(0);
+    expect(wrapper.find(".status-live").attributes("aria-live")).toBe("polite");
+    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.text().match(/已提交申请/g)?.length ?? 0).toBe(0);
   });
 
@@ -167,11 +166,17 @@ describe("submission detail page", () => {
     const wrapper = await mountSubmission("/submissions/submission-manual-ok");
     await wrapper.get('[aria-label="申请人工核对"]').trigger("click");
     await flushPromises();
-    expect(wrapper.find(".status-stack").text()).toContain("已提交申请，请等待核对结果。");
-    expect(wrapper.find(".status-stack").text().match(/已提交申请/g)?.length).toBe(1);
+    const live = wrapper.find(".status-live");
+    expect(live.attributes("aria-live")).toBe("polite");
+    expect(live.text()).toContain("已提交申请，请等待核对结果。");
+    expect(live.text().match(/已提交申请/g)?.length).toBe(1);
+    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
-    expect(wrapper.find("[aria-live='polite']").text()).toContain("已提交申请");
+    // Steady status alert remains outside the live region and does not repeat the action success copy.
+    expect(wrapper.find(".status-alert").text()).not.toContain("已提交申请");
+    expect(wrapper.findAll("[aria-live='polite']")).toHaveLength(1);
   });
+
 
 
   it("places challenge confirmation before overview and surfaces confirmation failures", async () => {
@@ -202,9 +207,11 @@ describe("submission detail page", () => {
     expect(confirmButton).toBeDefined();
     await confirmButton!.trigger("click");
     await flushPromises();
-    expect(wrapper.text()).toContain("无法确认挑战");
+    expect(wrapper.find(".status-live").text()).toContain("无法确认挑战");
+    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find(".confirm-catalog").attributes("aria-busy")).toBeUndefined();
   });
+
 
   it("shows approved grant state distinctly", async () => {
     api.mockImplementation(() => Promise.resolve({
@@ -253,6 +260,9 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("截图已上传，等待识别");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
-    expect(wrapper.text()).toContain("无法刷新状态");
+    expect(wrapper.find(".status-live").text()).toContain("无法刷新状态");
+    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
+    expect(wrapper.text()).toContain("截图已上传，等待识别");
   });
 });
+

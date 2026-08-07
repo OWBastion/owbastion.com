@@ -65,16 +65,8 @@ const statusAlert = computed(() => {
   if (data.value?.status === "approved") return { title: "已通过", description: "提交已通过。", color: "success" as const };
   return null;
 });
-// Only ephemeral mutation feedback is announced; steady status alerts are visible-only.
-const liveAnnouncement = computed(() => {
-  if (confirmError.value) return `无法确认挑战。${confirmError.value}`;
-  if (manualReviewError.value) return `无法申请人工核对。${manualReviewError.value}`;
-  if (refreshError.value) return `无法刷新状态。${refreshError.value}`;
-  if (actionMessage.value) return actionMessage.value;
-  return "";
-});
-
 const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceState.value === "ready" || evidenceState.value === "loading" ? evidenceUrl : null));
+
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
 
 const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
@@ -204,22 +196,27 @@ onBeforeUnmount(() => {
     <p v-if="error && !data" class="message" role="alert">找不到这条提交记录。</p>
     <p v-else-if="fetchStatus === 'pending' && !data" class="message" role="status">读取提交详情…</p>
     <template v-else-if="data">
-      <!-- Live region only announces ephemeral changes; visible alerts stay outside to avoid duplicate AT speech. -->
-      <p class="sr-only" aria-live="polite" aria-atomic="true">{{ liveAnnouncement }}</p>
-      <div class="status-stack">
-        <UAlert
-          v-if="statusAlert"
-          class="status-alert"
-          :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : statusAlert.color === 'success' ? 'i-lucide-badge-check' : 'i-lucide-scan-line'"
-          :color="statusAlert.color"
-          variant="subtle"
-          :title="statusAlert.title"
-          :description="statusAlert.description"
-        />
-        <UAlert v-if="confirmError" color="error" variant="subtle" title="无法确认挑战" :description="confirmError" role="alert" />
-        <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" role="alert" />
-        <UAlert v-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" role="alert" />
-        <UAlert v-if="actionMessage && !confirmError && !manualReviewError && !refreshError" color="success" variant="subtle" :title="actionMessage" />
+      <!-- Steady submission state: visible only, never live-announced on poll/refresh. -->
+      <UAlert
+        v-if="statusAlert"
+        class="status-alert"
+        :icon="statusAlert.color === 'warning' ? 'i-lucide-triangle-alert' : statusAlert.color === 'success' ? 'i-lucide-badge-check' : 'i-lucide-scan-line'"
+        :color="statusAlert.color"
+        variant="subtle"
+        :title="statusAlert.title"
+        :description="statusAlert.description"
+      />
+      <!-- Single live region for ephemeral mutation feedback only (one visible + announced path). -->
+      <div
+        v-if="confirmError || manualReviewError || refreshError || actionMessage"
+        class="status-live"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <UAlert v-if="confirmError" color="error" variant="subtle" title="无法确认挑战" :description="confirmError" />
+        <UAlert v-else-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
+        <UAlert v-else-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" />
+        <UAlert v-else-if="actionMessage" color="success" variant="subtle" :title="actionMessage" />
       </div>
 
       <section class="detail-grid">
@@ -411,7 +408,9 @@ onBeforeUnmount(() => {
 .page-heading .eyebrow { margin-bottom: 10px; }
 .page-heading .page-title { max-width: 14ch; }
 .page-description { margin: 12px 0 0; color: var(--muted); font-size: .92rem; }
-.status-stack { display: grid; gap: 10px; margin-bottom: 16px; }
+.status-alert { margin-bottom: 12px; }
+.status-live { display: grid; gap: 10px; margin-bottom: 16px; }
+.status-alert + .status-live { margin-top: -4px; }
 .status-alert { margin: 0; }
 .sr-only {
   position: absolute;
