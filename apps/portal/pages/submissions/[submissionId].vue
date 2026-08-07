@@ -65,13 +65,15 @@ const statusAlert = computed(() => {
   if (data.value?.status === "approved") return { title: "已通过", description: "提交已通过。", color: "success" as const };
   return null;
 });
+// Only ephemeral mutation feedback is announced; steady status alerts are visible-only.
 const liveAnnouncement = computed(() => {
-  if (confirmError.value) return confirmError.value;
-  if (manualReviewError.value) return manualReviewError.value;
-  if (refreshError.value) return refreshError.value;
+  if (confirmError.value) return `无法确认挑战。${confirmError.value}`;
+  if (manualReviewError.value) return `无法申请人工核对。${manualReviewError.value}`;
+  if (refreshError.value) return `无法刷新状态。${refreshError.value}`;
   if (actionMessage.value) return actionMessage.value;
-  return statusAlert.value?.title ?? "";
+  return "";
 });
+
 const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceState.value === "ready" || evidenceState.value === "loading" ? evidenceUrl : null));
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
 
@@ -108,7 +110,7 @@ const handleRequestManualReview = async () => {
   try {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/manual-review`, { method: "POST" });
     manualReviewRequested.value = true;
-    actionMessage.value = "已提交申请。";
+    actionMessage.value = "已提交申请，请等待核对结果。";
     await refresh();
   } catch (cause) {
     manualReviewError.value = portalErrorDetails(cause, "无法申请人工核对，请稍后重试。").description;
@@ -123,7 +125,8 @@ const refreshSubmission = async () => {
   refreshError.value = "";
   actionMessage.value = "";
   try {
-    await refresh();
+    // Explicit refresh keeps the current detail on failure instead of replacing the page with the route error state.
+    data.value = await api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`);
   } catch (cause) {
     refreshError.value = portalErrorDetails(cause, "无法刷新状态，请稍后重试。").description;
   } finally {
@@ -198,10 +201,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <p v-if="error" class="message" role="alert">找不到这条提交记录。</p>
+    <p v-if="error && !data" class="message" role="alert">找不到这条提交记录。</p>
+    <p v-else-if="fetchStatus === 'pending' && !data" class="message" role="status">读取提交详情…</p>
     <template v-else-if="data">
-      <div class="status-live" aria-live="polite" aria-atomic="true">
-        <span class="sr-only">{{ liveAnnouncement }}</span>
+      <!-- Live region only announces ephemeral changes; visible alerts stay outside to avoid duplicate AT speech. -->
+      <p class="sr-only" aria-live="polite" aria-atomic="true">{{ liveAnnouncement }}</p>
+      <div class="status-stack">
         <UAlert
           v-if="statusAlert"
           class="status-alert"
@@ -211,9 +216,9 @@ onBeforeUnmount(() => {
           :title="statusAlert.title"
           :description="statusAlert.description"
         />
-        <UAlert v-if="confirmError" color="error" variant="subtle" title="无法确认挑战" :description="confirmError" />
-        <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
-        <UAlert v-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" />
+        <UAlert v-if="confirmError" color="error" variant="subtle" title="无法确认挑战" :description="confirmError" role="alert" />
+        <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" role="alert" />
+        <UAlert v-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" role="alert" />
         <UAlert v-if="actionMessage && !confirmError && !manualReviewError && !refreshError" color="success" variant="subtle" :title="actionMessage" />
       </div>
 
@@ -269,7 +274,7 @@ onBeforeUnmount(() => {
                 block
               />
               <UButton
-                v-if="manualReviewEligible"
+                v-if="manualReviewEligible && !manualReviewRequested"
                 label="申请人工核对"
                 icon="i-lucide-user-check"
                 color="neutral"
@@ -280,7 +285,6 @@ onBeforeUnmount(() => {
                 @click="handleRequestManualReview"
                 block
               />
-              <UAlert v-if="manualReviewRequested" color="success" variant="subtle" icon="i-lucide-check-circle" title="已提交申请" description="申请已提交，请等待核对结果。" />
               <UButton
                 label="刷新状态"
                 icon="i-lucide-refresh-cw"
@@ -407,7 +411,7 @@ onBeforeUnmount(() => {
 .page-heading .eyebrow { margin-bottom: 10px; }
 .page-heading .page-title { max-width: 14ch; }
 .page-description { margin: 12px 0 0; color: var(--muted); font-size: .92rem; }
-.status-live { display: grid; gap: 10px; margin-bottom: 16px; }
+.status-stack { display: grid; gap: 10px; margin-bottom: 16px; }
 .status-alert { margin: 0; }
 .sr-only {
   position: absolute;
