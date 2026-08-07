@@ -247,14 +247,20 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 
 <template>
   <section class="map-achievement-workspace" aria-labelledby="map-achievements-title">
-    <div class="section-heading"><div><p class="eyebrow">地图成就</p><h2 id="map-achievements-title">规则与有效结果</h2></div><span>{{ loadingRules ? "读取中…" : `${rules.length} 条规则` }}</span></div>
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">地图成就</p>
+        <h2 id="map-achievements-title" class="type-headline">规则与有效结果</h2>
+      </div>
+      <span class="type-caption">{{ loadingRules ? "读取中…" : `${rules.length} 条规则` }}</span>
+    </div>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     <UTabs v-model="viewMode" :items="[{ label: '按规则', value: 'rules' }, { label: '按地图查看', value: 'map' }]" variant="link" aria-label="地图成就视图" />
 
     <template v-if="viewMode === 'rules'">
-      <div class="section-toolbar"><p class="table-meta">规则是地图称号的唯一编辑入口；有效结果只读。</p><UButton label="新建规则" size="sm" @click="editRule()" /></div>
+      <div class="section-toolbar"><p class="type-caption">规则是地图称号的唯一编辑入口；有效结果只读。</p><UButton label="新建规则" size="sm" @click="editRule()" /></div>
       <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="ruleSummaries" :columns="ruleColumns" :loading="loadingRules" empty="暂无地图称号规则。" row-key="ruleId" table-key="unified-map-achievement-rules" table-min-width="900px" class="admin-table">
-        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.kind }} · {{ scopeLabel(row.original.defaultScope) }}</small></template>
+        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ row.original.kind }} · {{ scopeLabel(row.original.defaultScope) }}</small></template>
         <template #effectiveMapCount-cell="{ row }"><span>{{ row.original.effectiveMapCount }} 张</span></template>
         <template #exceptionCount-cell="{ row }"><span>{{ row.original.exceptionCount }} 项</span></template>
         <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
@@ -265,9 +271,9 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     </template>
 
     <template v-else>
-      <div class="section-toolbar"><USelect v-model="selectedMapId" aria-label="选择地图" :items="props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /><span class="table-meta">{{ mapName }} · {{ mapRows.length }} 项</span></div>
+      <div class="section-toolbar"><USelect v-model="selectedMapId" aria-label="选择地图" :items="props.maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /><span class="type-caption">{{ mapName }} · {{ mapRows.length }} 项</span></div>
       <AdminDataTable v-model:sorting="mapSorting" :sorting-options="mapSortingOptions" :default-sorting="defaultMapSorting" :data="mapRows" :columns="mapColumns" :loading="loadingRules || props.loading" empty="暂无地图成就。" :row-key="(row) => row.rowId" :table-key="`unified-map-achievements-${selectedMapId}`" table-min-width="860px" class="admin-table">
-        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">{{ row.original.rowType === 'projection' ? `${mapVariantLabel(row.original.rule?.mapVariant)} · ${row.original.inheritance?.projected ? '有效结果' : '未启用规则'}` : `${mapVariantLabel(row.original.challenge?.mapVariant)} · 真实单图挑战` }}</small></template>
+        <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ row.original.rowType === 'projection' ? `${mapVariantLabel(row.original.rule?.mapVariant)} · ${row.original.inheritance?.projected ? '有效结果' : '未启用规则'}` : `${mapVariantLabel(row.original.challenge?.mapVariant)} · 真实单图挑战` }}</small></template>
         <template #source-cell="{ row }"><span>{{ row.original.source }}</span></template>
         <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition || '暂无记录' }}</span></template>
         <template #submissionMode-cell="{ row }"><span>{{ row.original.submissionMode }}</span></template>
@@ -288,7 +294,15 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 </template>
 
 <style scoped>
-.map-achievement-workspace { display: grid; gap: 16px; }.section-heading, .section-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h2 { margin: 3px 0 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.035em; }.section-heading .eyebrow { margin: 0; }.table-meta { color: var(--quiet); font-size: .78rem; }.section-toolbar { align-items: center; }.section-toolbar > :first-child { min-width: min(18rem, 100%); }.table-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.map-achievement-workspace { display: grid; gap: 16px; }
+.section-heading,
+.section-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+.section-heading .type-headline { margin: 3px 0 0; }
+.section-heading .eyebrow { margin: 0; }
+.section-toolbar { align-items: center; }
+.section-toolbar > :first-child { min-width: min(18rem, 100%); }
+.table-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+
 .map-achievement-workspace :deep(table[data-slot="base"]) { min-width: 860px; }
 .map-achievement-workspace :deep(.table-actions [data-slot="base"]),
 .map-achievement-workspace :deep(.table-actions [data-slot="base"]:hover),
