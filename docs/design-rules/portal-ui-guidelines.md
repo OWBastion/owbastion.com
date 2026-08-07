@@ -23,6 +23,7 @@ requiredness, and the agent completion checklist.
 - Pages show only facts the current user is allowed to see. Keep unavailable, in-progress, and future functionality distinct.
 - Player-facing UI uses concise, restrained, factual Chinese. Admin UI may describe operations and data fields more precisely.
 - Optimize for clear hierarchy, operability, and mobile usability. Do not add a separate visual system for decoration.
+- **Self-explanatory UI is the default.** Let hierarchy, layout, labels, data, status, and actions explain the interface; keep supporting copy only when it adds information that cannot be inferred from the UI (see [content-and-state.md](content-and-state.md)).
 
 ## Choose the page skeleton first
 
@@ -34,7 +35,7 @@ Use this pattern for public events, maps, achievements, and similar content:
 <main class="<page-name>-page page-shell">
   <section class="page-intro" aria-labelledby="<title-id>">
     <h1 id="<title-id>" class="page-title">Page title</h1>
-    <p class="body-copy">Only add scope or purpose.</p>
+    <p class="body-copy">Only add scope or a required next action; no default description.</p>
   </section>
   <section class="<directory>-panel surface-card" aria-label="Content list">
     <!-- loading / error / directory component -->
@@ -78,6 +79,7 @@ Use this pattern for `/admin`:
 - Use `AdminResponsiveDialog` for every admin detail, edit, and confirmation overlay: it renders a centered `UModal` at `768px` and above and a bottom `UDrawer` below that breakpoint. `UPopover` is only for a small, contextual form that remains next to its trigger, such as a one-field scheduling action.
 - Use `color="error"` for dangerous actions and state the consequence clearly. Save, retire, ban, and similar actions need loading and disabled states.
 - Admin copy should prioritize labels, values, statuses, and actions. Do not add explanatory paragraphs for facts an administrator already understands, such as what a grant or map scope is. Keep helper text only when it states a constraint, a consequence, or the next action needed to continue.
+- Admin UI is optimized for **scan → locate → judge → act**: compact labels, values, statuses, filters, and actions. Do not add overview, preview, summary, onboarding, or explanatory cards unless they materially improve an actual operational decision; reject decorative layers that reduce information density without improving a decision.
 - Optional admin fields are unmarked by default; do not append “（可选）” to labels. Keep limits such as character counts out of the primary flow unless they prevent an imminent validation error.
 
 ### Admin master/detail and batch actions
@@ -215,7 +217,8 @@ Before modifying Portal UI:
 6. For admin tables, verify that `AdminDataTable` is used. Any exception must be explicit and justified.
 7. Check mobile layout (single-column full-width stacks, no horizontal page overflow), keyboard behavior, ARIA, private fields, and status wording.
 8. Check every form label: required fields are explicitly marked; optional fields have no optional marker or explanatory suffix.
-9. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
+9. Apply the explanatory-copy review: identify each visible sentence that is not a label, value, status, error, or action; run the deletion test; check whether any status/fact is represented more than once; prefer a clearer heading, label, grouping, or control before adding explanatory text; for admin UI, reject decorative overview/summary layers that reduce information density without improving a decision.
+10. Run affected Portal tests and `pnpm --dir apps/portal exec nuxt typecheck`; run the Portal build when shared styles or build-sensitive code changes.
 
 Large visual/layout/component alignment to the design system is a **separate
 refactor task** (see DESIGN.md Refactor contract). Do not expand a bugfix into
@@ -230,6 +233,8 @@ an unscoped restyle of unrelated pages.
 - [ ] Loading, failure, empty, permission, and in-progress states have clear UI.
 - [ ] Copy follows the Portal copy guidelines and does not present future capability as current capability.
 - [ ] Form labels mark required fields only; optional fields do not contain `（可选）` or equivalent text.
+- [ ] No page eyebrow, page description, card kicker, helper text, badge, or `UAlert` was added by default; every visible supporting sentence passes the deletion test and no status/fact is duplicated across hierarchy levels.
+- [ ] Admin UI follows scan → locate → judge → act and adds no decorative overview/summary layer that does not improve a decision.
 - [ ] Mobile, keyboard, focus, ARIA, and non-color state expression were checked.
 - [ ] Motion/press uses shared patterns; reduced-motion path remains valid.
 - [ ] Private evidence, QQ identifiers, and internal fields are not exposed to unauthorized users.
