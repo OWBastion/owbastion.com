@@ -156,7 +156,7 @@ function onPlayerSearch(term: string) {
 .detail-action :deep(.portal-control), .detail-action :deep([data-slot="base"]) { min-width: 220px; }
 .detail-action :deep(.form-field) { gap: 5px; }
 .player-state { margin: 0; width: 100%; color: var(--quiet); font-size: .74rem; }
-.player-state--error { color: var(--error, #b42318); }
+.player-state--error { color: var(--danger); }
 .player-load-more { display: grid; gap: 6px; width: 100%; }
 
 .grant-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px 4px; }
