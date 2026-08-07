@@ -7,8 +7,12 @@
 
 ## Public directory
 
-- Page title and scope first, filters at the top of the directory, then
+- Page title and, only when not self-evident, a scope sentence or required next
+  action come first; filters at the top of the directory, then
   loading/error/empty/content states in one `surface-card` region.
+- No page eyebrow/kicker or page description by default; keep them only when the
+  heading and visible content cannot communicate scope, a constraint, or the
+  required next action (see [`content-and-state.md`](content-and-state.md)).
 - Use the directory components and `UEmpty`.
 
 ## Player center

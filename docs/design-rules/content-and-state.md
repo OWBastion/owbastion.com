@@ -14,6 +14,47 @@
   paragraph, or expose internal terms such as review, distribution, or OCR
   unless the user needs them to act.
 
+## Self-explanatory UI
+
+The interface should explain itself through hierarchy, layout, labels, data,
+status, and actions. Supporting copy is retained only when it adds information
+that cannot be inferred from the UI itself.
+
+Default information hierarchy:
+
+**object/field → value/data → real status → action → section heading → supporting copy**
+
+Supporting copy must not become the primary mechanism for making an otherwise
+ambiguous layout understandable.
+
+### Deletion test and duplicate-fact test
+
+Before keeping a visible supporting sentence, apply the deletion test:
+
+> If this text is removed, can the intended user still correctly identify the
+> content/state and complete the current task?
+
+If yes, remove it. A second check rejects duplicate facts: one fact normally has
+one primary visible representation. Repeating `QQ 已绑定`, `未开放`, a submission
+status, or the page purpose across multiple hierarchy levels requires a concrete
+reason.
+
+### Defaults for explanatory elements
+
+These are defaults, not absolute bans. Accessibility text and hidden semantic
+labels remain valid even when visible explanatory copy is removed.
+
+| Element | Default |
+| --- | --- |
+| Page eyebrow / kicker | Do not add by default. |
+| Page description / subtitle | Do not add by default; retain only for non-obvious scope, a constraint, or a required next action. |
+| Card kicker | Do not add by default. |
+| Card / section description | Retain only when the heading and visible content cannot communicate an important business distinction. |
+| Helper text | Use only for format requirements, constraints, consequences, risk, or information required to continue. |
+| Badge / status | Attach it to the object it describes; do not duplicate the same status in a separate "status" region without a distinct purpose. |
+| `UAlert` | Reserve for exceptional state, risk, failure, or action-required information; do not use it as routine descriptive copy. |
+| Tooltip / popover help | Use for low-frequency clarification, not to compensate for weak labels or layout. |
+
 ## State presentation
 
 - Express loading, failure, empty, unavailable, and completed states with
