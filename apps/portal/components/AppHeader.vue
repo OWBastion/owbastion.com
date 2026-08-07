@@ -8,6 +8,7 @@ const route = useRoute();
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminNavigationItems = [
   { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin" },
+  { label: "内容编辑", icon: "i-lucide-file-pen-line", to: "/admin/content" },
   { label: "玩家", icon: "i-lucide-users", to: "/admin/players" },
   { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings" },
   {
