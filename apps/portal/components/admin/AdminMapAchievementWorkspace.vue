@@ -288,5 +288,24 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 </template>
 
 <style scoped>
-.map-achievement-workspace { display: grid; gap: 16px; }.section-heading, .section-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h2 { margin: 3px 0 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.035em; }.section-heading .eyebrow { margin: 0; }.table-meta { color: var(--quiet); font-size: .78rem; }.section-toolbar { align-items: center; }.section-toolbar > :first-child { min-width: min(18rem, 100%); }.table-actions { display: flex; flex-wrap: wrap; gap: 4px; }.map-achievement-workspace :deep(table[data-slot="base"]) { min-width: 860px; }.condition-cell { display: -webkit-box; overflow: hidden; color: var(--muted); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.rule-editor, .exception-editor { display: grid; gap: 16px; }.rule-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 24px; gap: 20px; }.rule-editor__wide { grid-column: 1 / -1; }.exception-editor { padding: 24px; }.map-achievement-workspace :deep(.portal-button) { min-height: 40px; }.map-achievement-workspace :deep(.admin-data-table__sort-control) { min-width: 15rem; }@media (max-width: 560px) { .section-heading, .section-toolbar { align-items: flex-start; flex-wrap: wrap; }.rule-editor { grid-template-columns: 1fr; }.rule-editor__wide { grid-column: auto; }.section-toolbar > :first-child { width: 100%; } }
+.map-achievement-workspace { display: grid; gap: 16px; }.section-heading, .section-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; }.section-heading h2 { margin: 3px 0 0; font-size: clamp(1.25rem, 2vw, 1.6rem); letter-spacing: -.035em; }.section-heading .eyebrow { margin: 0; }.table-meta { color: var(--quiet); font-size: .78rem; }.section-toolbar { align-items: center; }.section-toolbar > :first-child { min-width: min(18rem, 100%); }.table-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.map-achievement-workspace :deep(table[data-slot="base"]) { min-width: 860px; }
+.map-achievement-workspace :deep(.table-actions [data-slot="base"]),
+.map-achievement-workspace :deep(.table-actions [data-slot="base"]:hover),
+.map-achievement-workspace :deep(.table-actions [data-slot="base"]:focus-visible),
+.map-achievement-workspace :deep(.table-actions [data-slot="base"]:active) {
+  transform: none !important;
+}
+.condition-cell { display: -webkit-box; overflow: hidden; color: var(--muted); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rule-editor, .exception-editor { display: grid; gap: 16px; }
+.rule-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 24px; gap: 20px; }
+.rule-editor__wide { grid-column: 1 / -1; }
+.exception-editor { padding: 24px; }
+.map-achievement-workspace :deep(.admin-data-table__sort-control) { min-width: 15rem; }
+@media (max-width: 560px) {
+  .section-heading, .section-toolbar { align-items: flex-start; flex-wrap: wrap; }
+  .rule-editor { grid-template-columns: 1fr; }
+  .rule-editor__wide { grid-column: auto; }
+  .section-toolbar > :first-child { width: 100%; }
+}
 </style>

@@ -406,12 +406,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .table-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
 }
+/* Fixed geometry icon controls — hover only changes color/fill, never size or transform. */
 .table-action {
   display: inline-grid;
+  box-sizing: border-box;
   width: 40px;
   height: 40px;
   min-width: 40px;
@@ -423,18 +425,49 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: var(--muted);
   background: transparent;
   cursor: pointer;
+  transform: none;
+  transition: color 160ms ease, background 160ms ease, opacity 160ms ease;
 }
 .table-action:hover,
 .table-action:focus-visible {
   color: var(--text);
   background: var(--surface-raised);
+  transform: none;
+}
+.table-action:active {
+  transform: none;
 }
 .table-action:disabled {
   cursor: wait;
   opacity: .5;
 }
+.table-action svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.table-action-danger {
+  color: var(--danger);
+}
+.table-action-danger:hover,
+.table-action-danger:focus-visible {
+  color: var(--danger);
+  background: color-mix(in oklch, var(--danger) 12%, transparent);
+}
+/* Labeled UButtons in row actions must not scale or reflow on hover/press. */
 .table-actions :where(button, a, [role="button"]):not(.table-action) {
   min-height: 40px;
+  flex: 0 0 auto;
+}
+.table-actions :where(button, a)[data-slot="base"],
+.table-actions :where(button, a)[data-slot="base"]:hover,
+.table-actions :where(button, a)[data-slot="base"]:focus-visible,
+.table-actions :where(button, a)[data-slot="base"]:active {
+  transform: none !important;
 }
 
 /* Account / theme UDropdownMenu: fix item hover highlight alignment */

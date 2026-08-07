@@ -454,9 +454,13 @@ onMounted(() => void load());
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
-                  <UButton icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" square class="hit-44" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
+                  <button class="table-action" type="button" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>
                   <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
-                    <UButton icon="i-lucide-calendar-clock" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="计划下线" :disabled="isSaving(row.original)" />
+                    <button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg>
+                    </button>
                     <template #content>
                       <UCard class="plan-popover-card">
                         <form class="plan-popover" @submit.prevent="planSunsetting(row.original)">
@@ -468,8 +472,12 @@ onMounted(() => void load());
                       </UCard>
                     </template>
                   </UPopover>
-                  <UButton v-if="row.original.status !== 'retired'" icon="i-lucide-square" size="sm" color="error" variant="ghost" square class="hit-44" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
-                  <UButton v-else icon="i-lucide-rotate-ccw" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
+                  <button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg>
+                  </button>
+                  <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+                  </button>
                 </div>
               </template>
             </AdminDataTable>
@@ -503,9 +511,15 @@ onMounted(() => void load());
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
-                  <UButton icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
-                  <UButton v-if="row.original.status === 'active'" icon="i-lucide-square" size="sm" color="error" variant="ghost" square class="hit-44" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
-                  <UButton v-else icon="i-lucide-rotate-ccw" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
+                  <button class="table-action" type="button" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </button>
+                  <button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg>
+                  </button>
+                  <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+                  </button>
                 </div>
               </template>
             </AdminDataTable>
@@ -578,7 +592,7 @@ onMounted(() => void load());
 .achievement-table--titles :deep(.achievement-col-title) { width: 20%; }
 .achievement-table--titles :deep(.achievement-col-condition) { width: 34%; }
 .achievement-table--titles :deep(.achievement-col-status) { width: 12%; }
-.achievement-table--titles :deep(.achievement-col-actions) { width: 10.5rem; min-width: 10.5rem; }
+.achievement-table--titles :deep(.achievement-col-actions) { width: 8.5rem; min-width: 8.5rem; }
 
 .achievement-table--catalog :deep(.catalog-col-title) { width: 14%; }
 .achievement-table--catalog :deep(.catalog-col-icon) { width: 8%; }
@@ -588,7 +602,7 @@ onMounted(() => void load());
 .achievement-table--catalog :deep(.catalog-col-color) { width: 8%; }
 .achievement-table--catalog :deep(.catalog-col-linkage) { width: 14%; }
 .achievement-table--catalog :deep(.catalog-col-status) { width: 10%; }
-.achievement-table--catalog :deep(.catalog-col-actions) { width: 7.5rem; min-width: 7.5rem; }
+.achievement-table--catalog :deep(.catalog-col-actions) { width: 6.5rem; min-width: 6.5rem; }
 
 .condition-cell {
   display: -webkit-box;
@@ -601,8 +615,4 @@ onMounted(() => void load());
 .plan-popover { display: grid; gap: 12px; }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
-.achievement-table :deep(.table-actions) {
-  flex-wrap: nowrap;
-  justify-content: flex-start;
-}
 </style>
