@@ -1,16 +1,14 @@
-import { fileURLToPath } from "node:url";
-import { $fetch, setup } from "@nuxt/test-utils/e2e";
+import { $fetch } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
+import { setupPortalE2E } from "./helpers/setup";
 
-const rootDir = fileURLToPath(new URL("../..", import.meta.url));
-
+/**
+ * SSR smoke stays on the shared e2e harness (same built server as browser tests).
+ * Vitest runs e2e files sequentially (`fileParallelism: false`); setup is registered
+ * per file and reuses the Nuxt build when options match.
+ */
 describe("Portal SSR", async () => {
-  await setup({
-    rootDir,
-    build: true,
-    server: true,
-    setupTimeout: 120_000,
-  });
+  await setupPortalE2E();
 
   it("renders the home page from the built Nuxt server", async () => {
     const html = await $fetch("/");
