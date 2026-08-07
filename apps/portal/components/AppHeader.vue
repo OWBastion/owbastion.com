@@ -27,88 +27,35 @@ const adminNavigationItems = [
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
+/** Disclosure close. Only restore focus when the menu was closed while focus was inside the panel. */
 function closeMenu(returnFocus = false) {
+  if (!menuOpen.value) return;
   menuOpen.value = false;
   if (returnFocus) nextTick(() => menuButton.value?.focus());
 }
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
-  if (menuOpen.value) focusFirstNavItem();
-}
-
-/* N-03 — move focus to the first item once the panel settles. LazyUNavigationMenu
-   hydrates asynchronously, so retry on the next tick until an item exists. */
-function focusFirstNavItem() {
-  if (!menuOpen.value) return;
-  const panel = menuPanel.value;
-  if (!panel) { nextTick(focusFirstNavItem); return; }
-  const target = panel.querySelector<HTMLElement>("a[href], [data-slot='link'], [data-slot='trigger']");
-  if (target) target.focus();
-  else nextTick(focusFirstNavItem);
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
-  if (menuOpen.value && !(event.target instanceof Node && menuPanel.value?.parentElement?.contains(event.target))) closeMenu();
+  if (!menuOpen.value) return;
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  const root = menuButton.value?.parentElement;
+  if (root?.contains(target)) return;
+  closeMenu(false);
 }
 
 function handleDocumentKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape" && menuOpen.value) closeMenu(true);
+  if (event.key !== "Escape" || !menuOpen.value) return;
+  // Escape always closes; restore focus to the trigger so keyboard users leave the disclosure predictably.
+  closeMenu(true);
 }
 
-/* N-03 — roving keyboard navigation + focus trap inside the mobile panel.
-   Track the focused item via focusin so roving works without trusting
-   document.activeElement (which can point outside during transitions).
-   Children like UNavigationMenu handle their own arrow keys; skip those events. */
-const focusedItem = ref<HTMLElement | null>(null);
-
-function handlePanelFocusin(event: FocusEvent) {
-  const target = event.target;
-  if (target instanceof HTMLElement && menuPanel.value?.contains(target)) focusedItem.value = target;
-}
-
-function getMobileNavItems(): HTMLElement[] {
-  if (!menuPanel.value) return [];
-  return Array.from(
-    menuPanel.value.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-slot="link"], [data-slot="trigger"], [tabindex]:not([tabindex="-1"])',
-    ),
-  );
-}
-
-function handleMobileNavKeydown(event: KeyboardEvent) {
-  if (!menuOpen.value || event.defaultPrevented) return;
-  const items = getMobileNavItems();
-  if (items.length === 0) return;
-  const current = focusedItem.value ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
-  const currentIndex = current ? items.indexOf(current) : -1;
-  const moveFocus = (index: number) => {
-    event.preventDefault();
-    items[((index % items.length) + items.length) % items.length]?.focus();
-  };
-
-  switch (event.key) {
-    case "ArrowDown":
-      moveFocus(currentIndex === -1 ? 0 : currentIndex + 1);
-      break;
-    case "ArrowUp":
-      moveFocus(currentIndex === -1 ? items.length - 1 : currentIndex - 1);
-      break;
-    case "Home":
-      moveFocus(0);
-      break;
-    case "End":
-      moveFocus(items.length - 1);
-      break;
-    case "Tab": {
-      // Trap focus inside the open panel; wrap instead of leaking to the page.
-      if (currentIndex === -1) break;
-      event.preventDefault();
-      moveFocus(event.shiftKey ? currentIndex - 1 : currentIndex + 1);
-      break;
-    }
-  }
-}
+watch(() => route.fullPath, () => {
+  if (menuOpen.value) closeMenu(false);
+});
 
 onMounted(() => {
   document.addEventListener("pointerdown", handleDocumentPointerDown);
@@ -134,24 +81,59 @@ async function signOut() {
 <template>
   <header class="app-header-wrap scroll-edge">
     <div class="app-header glass elevation-1">
-      <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页"><span class="brand-mark" aria-hidden="true">O</span><span>躲避堡垒 3</span></NuxtLink>
-      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'"><template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" /></template><template v-else><NuxtLink to="/events">事件</NuxtLink><NuxtLink to="/maps">地图</NuxtLink><NuxtLink to="/achievements">成就</NuxtLink><NuxtLink to="/#rankings" class="hash-nav-link">天梯排名</NuxtLink><NuxtLink to="/#rotation" class="hash-nav-link">轮换挑战</NuxtLink></template></nav>
+      <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页">
+        <span class="brand-mark" aria-hidden="true">O</span>
+        <span>躲避堡垒 3</span>
+      </NuxtLink>
+      <nav class="main-nav" :aria-label="isAdminPage ? '管理导航' : '主导航'">
+        <template v-if="isAdminPage">
+          <LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" />
+        </template>
+        <template v-else>
+          <NuxtLink to="/events" class="pressable">事件</NuxtLink>
+          <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
+          <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
+          <NuxtLink to="/#rankings" class="hash-nav-link pressable">天梯排名</NuxtLink>
+          <NuxtLink to="/#rotation" class="hash-nav-link pressable">轮换挑战</NuxtLink>
+        </template>
+      </nav>
       <div class="account-actions">
         <ThemeMenu />
         <LazyAccountMenu v-if="player" :player="player.player" @logout="signOut" />
         <NuxtLink v-else to="/login" class="login-link pressable">登录</NuxtLink>
       </div>
-      <button ref="menuButton" class="mobile-menu-toggle pressable" type="button" :aria-label="menuOpen ? '关闭菜单' : '打开菜单'" :aria-expanded="menuOpen" :aria-controls="menuOpen ? 'mobile-nav' : undefined" @click="toggleMenu"><svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" /><path v-else d="M6 6l12 12M18 6L6 18" /></svg></button>
-      <!-- No mode="out-in": leave can be interrupted mid-flight when reopening (N-04). -->
+      <button
+        ref="menuButton"
+        class="mobile-menu-toggle pressable"
+        type="button"
+        :aria-label="menuOpen ? '关闭菜单' : '打开菜单'"
+        :aria-expanded="menuOpen"
+        aria-controls="mobile-nav"
+        @click="toggleMenu"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" />
+          <path v-else d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+      <!-- No mode="out-in": leave can be interrupted mid-flight when reopening. -->
       <Transition name="mobile-nav">
-        <nav v-if="menuOpen" id="mobile-nav" ref="menuPanel" class="mobile-nav glass-heavy elevation-2" :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'" @focusin="handlePanelFocusin" @keydown="handleMobileNavKeydown">
-          <template v-if="isAdminPage"><LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" /></template>
+        <nav
+          v-if="menuOpen"
+          id="mobile-nav"
+          ref="menuPanel"
+          class="mobile-nav glass-heavy elevation-2"
+          :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
+        >
+          <template v-if="isAdminPage">
+            <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
+          </template>
           <template v-else>
-            <NuxtLink to="/events" @click="closeMenu()">事件</NuxtLink>
-            <NuxtLink to="/maps" @click="closeMenu()">地图</NuxtLink>
-            <NuxtLink to="/achievements" @click="closeMenu()">成就</NuxtLink>
-            <NuxtLink to="/#rankings" class="hash-nav-link" @click="closeMenu()">天梯排名</NuxtLink>
-            <NuxtLink to="/#rotation" class="hash-nav-link" @click="closeMenu()">轮换挑战</NuxtLink>
+            <NuxtLink to="/events" class="pressable" @click="closeMenu()">事件</NuxtLink>
+            <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
+            <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
+            <NuxtLink to="/#rankings" class="hash-nav-link pressable" @click="closeMenu()">天梯排名</NuxtLink>
+            <NuxtLink to="/#rotation" class="hash-nav-link pressable" @click="closeMenu()">轮换挑战</NuxtLink>
           </template>
         </nav>
       </Transition>
@@ -168,8 +150,17 @@ async function signOut() {
 .main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
 .main-nav :deep(ul) { gap: 2px; }
 .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 40px; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
-.main-nav a { display: inline-flex; min-height: 40px; align-items: center; padding: 0 11px; border-radius: 9px; color: var(--text-on-glass-secondary); text-decoration: none; white-space: nowrap; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
-.main-nav a:active { transform: scale(var(--press-scale)); }
+.main-nav a {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 11px;
+  border-radius: 9px;
+  color: var(--text-on-glass-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 160ms ease, background 160ms ease;
+}
 .main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link),
 .main-nav :deep([data-slot="link"]:hover), .main-nav :deep([data-slot="link"]:focus-visible),
 .main-nav :deep([data-slot="trigger"]:hover), .main-nav :deep([data-slot="trigger"]:focus-visible),
@@ -186,8 +177,27 @@ async function signOut() {
   .main-nav { display: none; }
   .account-actions { margin-left: auto; }
   .login-link { min-height: 44px; }
-  .mobile-menu-toggle { display: inline-grid; flex: 0 0 44px; width: 44px; height: 44px; place-items: center; padding: 0; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text); background: var(--surface-raised); }
-  .mobile-menu-toggle svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+  .mobile-menu-toggle {
+    display: inline-grid;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--line-strong);
+    border-radius: 9px;
+    color: var(--text);
+    background: var(--surface-raised);
+  }
+  .mobile-menu-toggle svg {
+    width: 19px;
+    height: 19px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+  }
   .mobile-nav {
     position: absolute;
     z-index: 2;
@@ -199,14 +209,37 @@ async function signOut() {
     border-radius: 14px;
     transform-origin: top center;
   }
-  .mobile-nav a { display: flex; min-height: 44px; align-items: center; padding: 0 12px; border-radius: 8px; color: var(--text-on-glass-secondary); font-weight: 650; text-decoration: none; transition: color 160ms ease, background 160ms ease, transform var(--press-duration) ease-out; }
-  .mobile-nav a:hover, .mobile-nav a:focus-visible, .mobile-nav a.router-link-exact-active:not(.hash-nav-link) { color: var(--text-on-glass); background: var(--surface); }
-  .mobile-nav a:active { transform: scale(var(--press-scale)); color: var(--text-on-glass); background: var(--surface); }
+  .mobile-nav a {
+    display: flex;
+    min-height: 44px;
+    align-items: center;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--text-on-glass-secondary);
+    font-weight: 650;
+    text-decoration: none;
+    transition: color 160ms ease, background 160ms ease;
+  }
+  .mobile-nav a:hover,
+  .mobile-nav a:focus-visible,
+  .mobile-nav a.router-link-exact-active:not(.hash-nav-link) {
+    color: var(--text-on-glass);
+    background: var(--surface);
+  }
   .mobile-nav :deep(ul) { display: grid; gap: 3px; }
-  .mobile-nav :deep([data-slot="link"]), .mobile-nav :deep([data-slot="trigger"]) { min-height: 44px; border-radius: 8px; color: var(--text-on-glass-secondary); font-weight: 650; }
-  .mobile-nav :deep([data-slot="link"]:hover), .mobile-nav :deep([data-active="true"]) { color: var(--text-on-glass); }
+  .mobile-nav :deep([data-slot="link"]),
+  .mobile-nav :deep([data-slot="trigger"]) {
+    min-height: 44px;
+    border-radius: 8px;
+    color: var(--text-on-glass-secondary);
+    font-weight: 650;
+  }
+  .mobile-nav :deep([data-slot="link"]:hover),
+  .mobile-nav :deep([data-active="true"]) {
+    color: var(--text-on-glass);
+  }
 }
-/* Symmetric enter/leave path; CSS transitions restart from live values when interrupted. */
+/* Symmetric enter/leave; no spatial transform under reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
   .mobile-nav-enter-active {
     transition: opacity 160ms ease, transform 160ms cubic-bezier(.2, .7, .2, 1);
@@ -236,5 +269,18 @@ async function signOut() {
     transform: none;
   }
 }
-@media (max-width: 380px) { .app-header { gap: 6px; }.account-actions { gap: 8px; }.brand { gap: 7px; font-size: .82rem; }.brand-mark { width: 26px; height: 26px; } }
+@media (max-width: 380px) {
+  .app-header { gap: 6px; }
+  .account-actions { gap: 8px; }
+  .brand { gap: 7px; font-size: .82rem; }
+  .brand-mark { width: 26px; height: 26px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .mobile-nav { background: var(--surface); }
+}
+@media (prefers-contrast: more) {
+  .mobile-menu-toggle,
+  .mobile-nav,
+  .login-link { border-color: var(--text); }
+}
 </style>

@@ -143,6 +143,16 @@ reason, and use the existing actor-scoped idempotency records. The Portal uses
 the shared admin workspace/table/dialog patterns and keeps mobile records in
 document flow with stable review IDs.
 
+The local integration chain in `packages/database/src/review.test.ts` runs the
+same D1-backed service boundary for one event and one map. It covers player
+creation, update, withdrawal, and replay; public summary/comment projections;
+anonymous author omission; maintainer comment and whole-review transitions;
+aggregate changes; shared contract parsing; and replay checks for idempotency
+and audit cardinality. This is local integration evidence only. A health check,
+deployment result, or API reachability check is not production review evidence;
+production verification requires a separately approved, sanitized event and
+map trace after the dependent deployment is live.
+
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
 public object URL. User screenshot objects use the shared `uploads/` namespace,

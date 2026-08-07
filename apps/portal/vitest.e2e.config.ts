@@ -5,6 +5,10 @@ export default defineConfig({
     include: ["tests/e2e/**/*.test.ts"],
     environment: "node",
     testTimeout: 120_000,
-    hookTimeout: 120_000,
+    hookTimeout: 240_000,
+    // One worker avoids double Nuxt build for the SSR smoke server.
+    fileParallelism: false,
+    maxWorkers: 1,
+    pool: "forks",
   },
 });

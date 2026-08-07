@@ -379,11 +379,37 @@ export const ownedTitleSchema = z.object({
 export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema) });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
-export const adminTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean(), stats: adminTitleGrantStatsSchema });
+export const adminHistoricalTitleHolderFilterSchema = z.enum(["all", "pending", "completed"]);
+export const adminHistoricalTitleHolderSchema = z.object({
+  holderName: z.string().min(1).max(256),
+  totalCount: z.number().int().nonnegative(),
+  unclaimedCount: z.number().int().nonnegative(),
+  status: z.enum(["pending", "completed"]),
+});
+export const adminTitleGrantListResponseSchema = z.object({
+  contractVersion,
+  holders: z.array(adminHistoricalTitleHolderSchema),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+  filter: adminHistoricalTitleHolderFilterSchema,
+  stats: adminTitleGrantStatsSchema,
+});
+export const adminTitleGrantHolderDetailResponseSchema = z.object({
+  contractVersion,
+  holder: adminHistoricalTitleHolderSchema,
+  items: z.array(historicalTitleGrantSchema),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+  grantStatus: z.enum(["all", "unclaimed", "active", "revoked"]).optional(),
+});
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
-export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative() });
+export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative(), skippedClaimedCount: z.number().int().nonnegative().default(0) });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
 export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), titleKey: externalId, mapId: externalId.optional(), reason: z.string().trim().min(1).max(512).optional() });
 export const adminManualTitleGrantResponseSchema = z.object({ contractVersion, grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapId: externalId.nullable(), slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), alreadyOwned: z.boolean() });
@@ -791,7 +817,10 @@ export type OwnedTitle = z.infer<typeof ownedTitleSchema>;
 export type OwnedTitleListResponse = z.infer<typeof ownedTitleListResponseSchema>;
 export type HistoricalTitleGrant = z.infer<typeof historicalTitleGrantSchema>;
 export type HistoricalTitleGrantListResponse = z.infer<typeof historicalTitleGrantListResponseSchema>;
+export type AdminHistoricalTitleHolder = z.infer<typeof adminHistoricalTitleHolderSchema>;
+export type AdminHistoricalTitleHolderFilter = z.infer<typeof adminHistoricalTitleHolderFilterSchema>;
 export type AdminTitleGrantListResponse = z.infer<typeof adminTitleGrantListResponseSchema>;
+export type AdminTitleGrantHolderDetailResponse = z.infer<typeof adminTitleGrantHolderDetailResponseSchema>;
 export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema>;
 export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;

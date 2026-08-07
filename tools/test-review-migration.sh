@@ -17,7 +17,7 @@ apply_migrations() {
 
 apply_migrations "$empty_database"
 [[ "$(sqlite3 "$empty_database" "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'reviews';")" == "1" ]]
-[[ "$(sqlite3 "$empty_database" "PRAGMA index_list('reviews');" | rg -c 'reviews_(player_target|target_status)_idx')" == "2" ]]
+[[ "$(sqlite3 "$empty_database" "PRAGMA index_list('reviews');" | grep -Ec 'reviews_(player_target|target_status)_idx')" == "2" ]]
 
 apply_migrations "$representative_database" true
 sqlite3 -bail "$representative_database" <<'SQL'

@@ -4,12 +4,18 @@ import { describe, expect, it } from "vitest";
 
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 
+/**
+ * Built-server SSR smoke only. Real browser regression is out of the code-level
+ * suite; use agent computer-use when a live viewport/focus check is needed.
+ */
 describe("Portal SSR", async () => {
   await setup({
     rootDir,
     build: true,
     server: true,
-    setupTimeout: 120_000,
+    browser: false,
+    setupTimeout: 240_000,
+    serverStartTimeout: 120_000,
   });
 
   it("renders the home page from the built Nuxt server", async () => {

@@ -12,16 +12,18 @@ const portalApi = vi.fn(async (path: string) => {
 mockNuxtImport("usePortalApi", () => () => portalApi);
 
 describe("new submission page privacy statement", () => {
-  it("renders a restrained screenshot privacy notice", async () => {
+  it("renders verified screenshot privacy facts", async () => {
     const wrapper = await mountSuspended(NewSubmissionPage, {
       route: "/submissions/new",
     });
 
     const text = wrapper.text();
-    expect(text).toContain("截图仅用于核对与改进识别服务，你的隐私会得到严格保护");
-    expect(text).toContain("截图将用于改进识别服务，不会用于其他用途");
-    expect(text).toContain("识别处理在独立环境完成，不经过任何第三方");
-    expect(text).toContain("数据不会对外公开，识别服务仅用于本项目");
+    expect(text).toContain("截图用途");
+    expect(text).toContain("截图仅用于挑战核对与截图识别");
+    expect(text).toContain("提交截图不会对外公开");
+    expect(text).toContain("原始识别结果仅平台内部使用");
+    expect(text).not.toContain("默认 F9");
+    expect(text).toContain("优先使用游戏内截图，避免裁剪或二次压缩。");
   });
 
   it("does not use internal model-training or OCR wording on the player page", async () => {
@@ -32,5 +34,6 @@ describe("new submission page privacy statement", () => {
     const text = wrapper.text();
     expect(text).not.toContain("模型训练");
     expect(text).not.toContain("OCR");
+    expect(text).not.toContain("第三方");
   });
 });

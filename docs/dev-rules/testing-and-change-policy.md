@@ -160,12 +160,37 @@ player-facing title result.
   integrations are introduced.
 - Queue redelivery, review, grant, and end-to-end tests for the implemented
   submission approval flow, including rollback and idempotent replay.
+- Review integration tests must cover both event and map targets through the
+  D1-backed player, public, and maintainer projections, including update,
+  withdrawal, comment moderation, whole-review invalidation/restore, aggregate
+  changes, privacy-negative responses, and idempotent replay without duplicate
+  rows or audit effects.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
+- Portal built-server SSR smoke (`pnpm test:portal-e2e`): home HTML from the
+  Nuxt production build via `@nuxt/test-utils/e2e` with `browser: false`.
+- Portal UI interaction and responsive behavior: prefer Vitest + happy-dom
+  component/page tests. Real browser checks (viewport overflow, Tab/Escape/focus,
+  Modal/Drawer, reduced preferences) are manual or agent computer-use against
+  local fixtures — not a code-level Playwright suite.
 
 Normal unit tests must not depend on live external services. Run pnpm check
 (which executes pnpm run check:migrations, pnpm test, pnpm run typecheck, and
 pnpm run build) for repository changes.
+
+## Portal SSR smoke
+
+`pnpm test:portal-e2e` / `apps/portal` `test:e2e` builds the Nuxt app once and
+asserts the home page SSR HTML. It does not launch a browser and does not
+depend on Playwright.
+
+```bash
+pnpm test:portal-e2e
+```
+
+Do not reintroduce Playwright or a full browser regression runner in-repo
+unless product requirements change; use component tests and computer-use for
+viewport/focus/dialog checks.
 
 ## Definition of done
 
