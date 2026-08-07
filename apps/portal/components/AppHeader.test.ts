@@ -149,4 +149,16 @@ describe("AppHeader", () => {
     }
     focusSpy.mockRestore();
   });
+
+  it("exposes one concise update route on public navigation", async () => {
+    route.path = "/";
+    route.fullPath = "/";
+    const wrapper = await mountHeader();
+
+    expect(wrapper.findAll(".main-nav a").filter((link) => link.text() === "版本记录")).toHaveLength(1);
+    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本记录")).toHaveLength(1);
+    expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
+    focusSpy.mockRestore();
+  });
 });

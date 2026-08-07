@@ -24,6 +24,7 @@ describe("Portal SSR", async () => {
     expect(html).toMatch(/<h1[^>]*id="hero-title"[^>]*>躲避堡垒 3<\/h1>/);
     expect(html).toContain("了解规则，完成挑战，查看公开记录。");
     expect(html).toContain('href="/achievements"');
+    expect(html).toContain('href="/changelog"');
   });
 
   it("queries both built editorial collections", async () => {

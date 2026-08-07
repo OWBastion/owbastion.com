@@ -1,0 +1,50 @@
+<script setup lang="ts">
+const { data: entries, status, error, refresh } = await useAsyncData(
+  "public-changelog-list",
+  () => queryCollection("changelog").order("releasedAt", "DESC").all(),
+  { default: () => [] },
+);
+
+useSeoMeta({
+  title: "版本记录 · 躲避堡垒 3",
+  description: "查看已发布的 Portal 内容与规则变化。",
+});
+
+const changelogVersions = computed(() => entries.value.map((entry) => ({
+  title: entry.title,
+  description: entry.description,
+  date: entry.releasedAt,
+  badge: `版本 ${entry.version}`,
+  to: entry.path,
+})));
+</script>
+
+<template>
+  <main class="editorial-page page-shell">
+    <section class="page-intro" aria-labelledby="changelog-title">
+      <h1 id="changelog-title" class="page-title">版本记录</h1>
+      <p class="body-copy">查看已发布的内容与规则变化。</p>
+    </section>
+
+    <section class="editorial-directory surface-card" aria-label="版本记录列表">
+      <div v-if="status === 'pending'" class="editorial-loading" role="status">正在读取版本记录…</div>
+      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取版本记录" description="内容暂时不可用，请稍后重试。">
+        <template #actions>
+          <UButton label="重试" color="neutral" variant="outline" @click="refresh()" />
+        </template>
+      </UAlert>
+      <UEmpty v-else-if="!changelogVersions.length" title="暂无版本记录" variant="naked" />
+      <UChangelogVersions v-else :versions="changelogVersions" :indicator-motion="false" class="editorial-changelog-list" />
+    </section>
+  </main>
+</template>
+
+<style scoped>
+.editorial-page { padding-block: clamp(64px, 9vh, 104px) 72px; }
+.page-intro { max-width: 690px; margin-bottom: 32px; }
+.editorial-directory { min-width: 0; padding: clamp(20px, 4vw, 36px); }
+.editorial-loading { min-height: 170px; display: grid; place-items: center; color: var(--muted); }
+.editorial-changelog-list :deep(article) { min-width: 0; }
+@media (max-width: 620px) { .editorial-page { padding-block: 48px; }.page-intro { margin-bottom: 20px; }.editorial-directory { padding: 16px; } }
+@media (max-width: 360px) { .editorial-directory { padding: 10px; } }
+</style>
