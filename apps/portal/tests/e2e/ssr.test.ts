@@ -1,14 +1,22 @@
-import { $fetch } from "@nuxt/test-utils/e2e";
+import { fileURLToPath } from "node:url";
+import { $fetch, setup } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
-import { setupPortalE2E } from "./helpers/setup";
+
+const rootDir = fileURLToPath(new URL("../../..", import.meta.url));
 
 /**
- * SSR smoke stays on the shared e2e harness (same built server as browser tests).
- * Vitest runs e2e files sequentially (`fileParallelism: false`); setup is registered
- * per file and reuses the Nuxt build when options match.
+ * Built-server SSR smoke only. Real browser regression is out of the code-level
+ * suite; use agent computer-use when a live viewport/focus check is needed.
  */
 describe("Portal SSR", async () => {
-  await setupPortalE2E();
+  await setup({
+    rootDir,
+    build: true,
+    server: true,
+    browser: false,
+    setupTimeout: 240_000,
+    serverStartTimeout: 120_000,
+  });
 
   it("renders the home page from the built Nuxt server", async () => {
     const html = await $fetch("/");

@@ -6,7 +6,7 @@ export default defineConfig({
     environment: "node",
     testTimeout: 120_000,
     hookTimeout: 240_000,
-    // Nuxt build + browser suite: one worker avoids double-build and browser contention.
+    // One worker avoids double Nuxt build for the SSR smoke server.
     fileParallelism: false,
     maxWorkers: 1,
     pool: "forks",

@@ -167,69 +167,30 @@ player-facing title result.
   rows or audit effects.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
-- Portal browser regression (see below): representative viewport, focus, scroll,
-  and dialog behavior without full-page visual snapshots.
+- Portal built-server SSR smoke (`pnpm test:portal-e2e`): home HTML from the
+  Nuxt production build via `@nuxt/test-utils/e2e` with `browser: false`.
+- Portal UI interaction and responsive behavior: prefer Vitest + happy-dom
+  component/page tests. Real browser checks (viewport overflow, Tab/Escape/focus,
+  Modal/Drawer, reduced preferences) are manual or agent computer-use against
+  local fixtures — not a code-level Playwright suite.
 
 Normal unit tests must not depend on live external services. Run pnpm check
 (which executes pnpm run check:migrations, pnpm test, pnpm run typecheck, and
 pnpm run build) for repository changes.
 
-## Portal browser regression suite
+## Portal SSR smoke
 
-The Portal e2e suite (`pnpm test:portal-e2e` / `apps/portal` `test:e2e`) uses
-`@nuxt/test-utils/e2e` with Playwright Chromium (`browser: true`, `createPage`).
-This reuses the existing Vitest e2e config and SSR home assertion; it does not
-add a separate hosted browser service.
-
-**Why this approach:** `@nuxt/test-utils` already powers Portal e2e SSR checks,
-peer-depends on Playwright, and can launch a real browser against a built Nuxt
-server. That is the smallest maintainable path relative to introducing a second
-runner (standalone Playwright Test or Cypress) while still asserting real
-viewport geometry, focus, and dialog behavior that happy-dom unit tests cannot
-prove.
-
-**Commands**
+`pnpm test:portal-e2e` / `apps/portal` `test:e2e` builds the Nuxt app once and
+asserts the home page SSR HTML. It does not launch a browser and does not
+depend on Playwright.
 
 ```bash
-# One-time (or CI) browser binary
-pnpm --filter @owbastion/portal run test:e2e:install
-
-# Full Portal e2e (SSR + browser regression); builds the Nuxt app once per run
 pnpm test:portal-e2e
 ```
 
-**Fixtures:** when `NUXT_PORTAL_E2E_FIXTURES=1` (set by the e2e harness),
-`apps/portal/server/middleware/e2e-fixtures.ts` serves deterministic public-safe
-JSON and deterministic PNG fixtures for `/api/portal/**` and `/api/admin/**`. Scenarios (auth
-role, intentional failures) are selected via the `owbastion-e2e-scenario`
-cookie from `apps/portal/tests/e2e/helpers/`. Tests never call production APIs,
-R2, or real QQ identities. The middleware is inert unless that env flag is set.
-
-**Viewports covered:** 320px, 375px, 430px, drawer/modal boundary (767/768),
-tablet (834), desktop (1280).
-
-**Representative surfaces:** home/mobile nav, public maps directory, player
-center (`/me`), submission new/detail, admin maps table +
-`AdminResponsiveDialog`.
-
-**Assertions prefer:** roles/labels, keyboard reachability, focus containment and
-restoration, Escape, document-level horizontal overflow, mobile scroll ownership,
-evidence natural dimensions / non-cover object-fit, mutation busy and error
-visibility in the active region, and
-`prefers-reduced-motion` match plus reduced-transparency/contrast stylesheet
-fallback presence. Full-page screenshots and Nuxt UI internal class names are
-not the primary contract.
-
-**Environment limits (documented, not release-blocked):**
-
-- `prefers-reduced-transparency` and `prefers-contrast: more` are enforced in CSS
-  and covered by stylesheet/presence checks where the browser cannot fully emulate
-  the media feature; behavioral emulation is asserted for `prefers-reduced-motion`.
-- Pixel-perfect decoration, every directory page, and live backend business rules
-  remain out of scope (unit/component tests cover those layers).
-
-Keep the browser suite bounded for CI; extend only when a remediated interaction
-cannot be proven with component tests.
+Do not reintroduce Playwright or a full browser regression runner in-repo
+unless product requirements change; use component tests and computer-use for
+viewport/focus/dialog checks.
 
 ## Definition of done
 
