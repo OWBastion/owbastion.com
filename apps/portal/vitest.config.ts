@@ -4,6 +4,6 @@ export default defineVitestConfig({
   test: {
     environment: "nuxt",
     environmentOptions: { nuxt: { domEnvironment: "happy-dom" } },
-    include: ["pages/**/*.test.ts", "components/**/*.test.ts", "tests/content/**/*.test.ts"],
+    include: ["pages/**/*.test.ts", "components/**/*.test.ts", "tests/content/**/*.test.ts", "tests/studio/**/*.test.ts"],
   },
 });
