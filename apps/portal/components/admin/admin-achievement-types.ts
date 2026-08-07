@@ -72,6 +72,7 @@ export type CatalogTitle = {
 
 export type AdminAchievement = TitleAchievement | MapAchievement | CatalogTitle;
 export type AdminMap = { mapId: string; mapName: string };
+export type StatusTone = "default" | "info" | "success" | "warning" | "error";
 
 export const isTitle = (item: AdminAchievement): item is TitleAchievement | CatalogTitle => item.family === "achievement" || item.family === "title_catalog";
 export const isChallengeTitle = (item: AdminAchievement): item is TitleAchievement => item.family === "achievement";
@@ -81,3 +82,16 @@ export const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发
 export const itemIdentity = (item: AdminAchievement) => isMap(item) ? `${item.mapId}:${item.challengeId}` : item.challengeId;
 export const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
 export const DEFAULT_EVIDENCE_RULE = "上传包含结算画面、称号条件与玩家信息的完整截图。";
+
+/** Canonical player/admin lifecycle labels for challenge-like entities. */
+export const achievementStatusLabel = (status: AchievementStatus) =>
+  status === "scheduled" ? "未开放"
+    : status === "active" ? "已开放"
+      : status === "sunsetting" ? "即将结束"
+        : "已下线";
+
+export const achievementStatusTone = (status: AchievementStatus): StatusTone =>
+  status === "active" ? "success"
+    : status === "scheduled" ? "info"
+      : status === "sunsetting" ? "warning"
+        : "default";

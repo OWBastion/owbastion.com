@@ -13,6 +13,8 @@ import {
   type MapAchievement,
   type TitleAchievement,
   DEFAULT_EVIDENCE_RULE,
+  achievementStatusLabel,
+  achievementStatusTone,
   isCatalog,
   isChallengeTitle,
   isDeveloperOnly,
@@ -30,8 +32,6 @@ type TableCell<Item> = {
   row: { id: string; original: Item };
   getContext(): { table: { getRowModel(): { rows: Array<{ id: string; original: Item }> } } };
 };
-
-export type { AdminAchievement };
 
 const api = useAdminApi();
 const items = ref<AdminAchievement[]>([]);
@@ -92,8 +92,6 @@ const itemScope = (item: AdminAchievement) => isTitle(item) && item.family === "
 const catalogScopeLabel = (scope: CatalogTitle["scope"]) => scope === "map" ? "地图称号" : "全局称号";
 const catalogDisplayKindLabel = (displayKind: CatalogTitle["displayKind"]) => ({ fixed: "固定称号", map_pioneer: "地图名 + 开拓者", map_name_suffix: "地图名 + 后缀称号" })[displayKind];
 const catalogColorLabel = (color: CatalogTitle["color"]) => color?.kind === "palette" ? color.name : color?.kind === "rgb" ? `RGB ${color.value.join(", ")}` : color?.kind === "heroColor" ? `英雄色 ${color.index}` : "未设置";
-const statusText = (value: AchievementStatus) => value === "scheduled" ? "未开放" : value === "active" ? "已开放" : value === "sunsetting" ? "即将结束" : "已下线";
-const statusTone = (value: AchievementStatus) => value === "active" ? "success" : "warning";
 const isSaving = (item: AdminAchievement) => savingId.value === itemIdentity(item);
 const statusColumnFilters = computed({
   get: () => status.value === "all" ? [] : [{ id: "status", value: status.value }],
@@ -110,8 +108,14 @@ const editorOpen = computed({
   get: () => editingItem.value !== null,
   set: (open: boolean) => { if (!open) closeEditing(); },
 });
-const achievementStatusText = (item: AdminAchievement) => isChallengeTitle(item) ? statusText(item.status) : isCatalog(item) && isDeveloperOnly(item) ? item.status === "active" ? "开发保留" : "已下线" : item.status === "active" ? "已开放" : "已下线";
-const achievementStatusTone = (item: AdminAchievement) => isChallengeTitle(item) ? statusTone(item.status) : "warning";
+const achievementStatusText = (item: AdminAchievement) =>
+  isChallengeTitle(item)
+    ? achievementStatusLabel(item.status)
+    : isCatalog(item) && isDeveloperOnly(item)
+      ? item.status === "active" ? "开发保留" : "已下线"
+      : item.status === "active" ? "已开放" : "已下线";
+const achievementItemStatusTone = (item: AdminAchievement) =>
+  isChallengeTitle(item) ? achievementStatusTone(item.status) : "warning";
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);
@@ -450,7 +454,7 @@ onMounted(() => void load());
               </template>
               <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
               <template #status-cell="{ row }">
-                <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" />
+                <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementItemStatusTone(row.original)" />
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
@@ -507,7 +511,7 @@ onMounted(() => void load());
               <template #color-cell="{ row }"><span>{{ catalogColorLabel(row.original.color) }}</span></template>
               <template #linkage-cell><span class="table-meta">无挑战，可单独授予</span></template>
               <template #status-cell="{ row }">
-                <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementStatusTone(row.original)" />
+                <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementItemStatusTone(row.original)" />
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
