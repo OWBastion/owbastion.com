@@ -27,13 +27,20 @@ const copiedInviteId = shallowRef<string | null>(null);
 const selectedHolder = computed(() => selectedHolderDetail.value?.holderName === selectedHolderName.value ? selectedHolderDetail.value : null);
 const selectedGrantIds = computed(() => selectedHolder.value?.grants.map((grant) => grant.grantId) ?? []);
 const parsedPlayer = computed(() => parseBattleTag(battleTag.value));
-const canSubmit = computed(() => Boolean(parsedPlayer.value) && !submitting.value);
+const canSubmit = computed(() => Boolean(parsedPlayer.value) && !submitting.value && !detailLoading.value && (!selectedHolderName.value || Boolean(selectedHolder.value)));
 
 async function loadHolderDetail(holderName: string) {
   detailLoading.value = true;
   try {
-    const response = await api<{ holder: HolderSummary; items: Grant[] }>(`/v1/title-grants/holder?holderName=${encodeURIComponent(holderName)}&grantStatus=unclaimed&page=1&pageSize=100`);
-    selectedHolderDetail.value = { ...response.holder, totalCount: response.holder.unclaimedCount, grants: response.items };
+    const grants: Grant[] = [];
+    let page = 1;
+    let response: { holder: HolderSummary; items: Grant[]; hasMore: boolean };
+    do {
+      response = await api<{ holder: HolderSummary; items: Grant[]; hasMore: boolean }>(`/v1/title-grants/holder?holderName=${encodeURIComponent(holderName)}&grantStatus=unclaimed&page=${page}&pageSize=100`);
+      grants.push(...response.items);
+      page += 1;
+    } while (response.hasMore);
+    selectedHolderDetail.value = { ...response.holder, totalCount: response.holder.unclaimedCount, grants };
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取未关联称号，请稍后重试。").description;
     selectedHolderDetail.value = null;

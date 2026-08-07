@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { $fetch, setup } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
 
-const rootDir = fileURLToPath(new URL("../../..", import.meta.url));
+const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 
 /**
  * Built-server SSR smoke only. Real browser regression is out of the code-level

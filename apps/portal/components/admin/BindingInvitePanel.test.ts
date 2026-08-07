@@ -1,17 +1,21 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import BindingInvitePanel from "./BindingInvitePanel.vue";
+
+let detailResponseOverride: Promise<unknown> | null = null;
 
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path.startsWith("/v1/title-grants/holder?")) {
+    if (detailResponseOverride) return detailResponseOverride;
+    const page = new URLSearchParams(path.split("?")[1]).get("page");
     return Promise.resolve({
-      holder: { holderName: "历史玩家", totalCount: 1, unclaimedCount: 1, status: "pending" },
-      items: [{ grantId: "hist.1", label: "征服者", category: "地图称号", mapName: "测试地图", holderName: "历史玩家", status: "unclaimed" }],
-      page: 1,
+      holder: { holderName: "历史玩家", totalCount: 2, unclaimedCount: 2, status: "pending" },
+      items: [page === "2" ? { grantId: "hist.2", label: "先锋", category: "地图称号", mapName: "测试地图", holderName: "历史玩家", status: "unclaimed" } : { grantId: "hist.1", label: "征服者", category: "地图称号", mapName: "测试地图", holderName: "历史玩家", status: "unclaimed" }],
+      page: Number(page ?? "1"),
       pageSize: 100,
-      total: 1,
-      hasMore: false,
+      total: 2,
+      hasMore: page !== "2",
     });
   }
   if (path.startsWith("/v1/title-grants?")) {
@@ -42,8 +46,12 @@ mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("BindingInvitePanel", () => {
-  it("loads pending holders and authorizes complete unclaimed grants for the selected holder", async () => {
+  beforeEach(() => {
     adminApi.mockClear();
+    detailResponseOverride = null;
+  });
+
+  it("loads pending holders and authorizes complete unclaimed grants for the selected holder", async () => {
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("filter=pending"));
@@ -55,7 +63,24 @@ describe("BindingInvitePanel", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/binding-invites", expect.objectContaining({
       method: "POST",
-      body: expect.objectContaining({ historicalTitleGrantIds: ["hist.1"] }),
+      body: expect.objectContaining({ historicalTitleGrantIds: ["hist.1", "hist.2"] }),
     }));
+  });
+
+  it("disables invite submission while holder details are loading", async () => {
+    let resolveDetail!: (value: unknown) => void;
+    detailResponseOverride = new Promise((resolve) => { resolveDetail = resolve; });
+    const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.get(".historical-holder").trigger("click");
+    await wrapper.get('input[aria-label="目标 BattleTag"]').setValue("玩家#1234");
+    expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeDefined();
+    resolveDetail({
+      holder: { holderName: "历史玩家", totalCount: 1, unclaimedCount: 1, status: "pending" },
+      items: [{ grantId: "hist.1", label: "征服者", category: "地图称号", holderName: "历史玩家", status: "unclaimed" }],
+      hasMore: false,
+    });
+    await flushPromises();
+    expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeUndefined();
   });
 });

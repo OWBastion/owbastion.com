@@ -1795,7 +1795,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key))
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
         .where(match);
-      const allHolders = summarizeHistoricalHolders(matchedRows);
+      const matchingHolderNames = [...new Set(matchedRows.map((row) => row.holderName))];
+      const holderRows = query
+        ? matchingHolderNames.length === 0
+          ? []
+          : await db.select({
+              holderName: historicalTitleGrants.holderName,
+              grantId: playerTitleGrants.id,
+              grantStatus: playerTitleGrants.status,
+            }).from(historicalTitleGrants)
+              .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+              .where(inArray(historicalTitleGrants.holderName, matchingHolderNames))
+        : matchedRows;
+      const allHolders = summarizeHistoricalHolders(holderRows);
       const filteredHolders = filterHistoricalHolders(allHolders, filter);
       const pagination = paginateHistoricalHolders(filteredHolders, input.page, input.pageSize);
       const allStatuses = await db.select({ holderName: historicalTitleGrants.holderName, grantId: playerTitleGrants.id }).from(historicalTitleGrants)
