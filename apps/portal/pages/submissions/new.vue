@@ -48,15 +48,13 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 <template>
   <main class="submit-page page-shell">
     <section class="submit-intro" aria-labelledby="submit-title">
-      <p class="eyebrow">挑战提交</p>
       <h1 id="submit-title" class="page-title">提交完成截图</h1>
-      <p class="body-copy">上传一张完整截图，识别后再确认对应的挑战。</p>
     </section>
 
     <UCard class="submission-card elevation-2" variant="subtle">
       <div class="submission-columns">
         <section class="upload-section" aria-labelledby="upload-title">
-          <SubmissionSectionHeading number="1." title="上传截图" description="请确保截图清晰，包含必要信息" heading-id="upload-title" />
+          <SubmissionSectionHeading number="1." title="上传截图" heading-id="upload-title" />
           <UForm :state="state" :validate="validate" :disabled="loading" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
               <UFileUpload
@@ -106,7 +104,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 <style scoped>
 .submit-page { padding-block: clamp(56px, 8vw, 88px) 72px; }
 .submit-intro { max-width: 650px; margin-bottom: 28px; }
-.submit-intro .body-copy { margin-bottom: 0; }
 .submission-card { border-color: var(--line); padding: clamp(20px, 3vw, 30px); }
 .submission-columns {
   display: grid;

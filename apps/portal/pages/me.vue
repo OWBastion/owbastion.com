@@ -165,10 +165,6 @@ onMounted(() => {
           <USkeleton class="me-skeleton-identity-label" />
           <USkeleton class="me-skeleton-identity-name" />
         </div>
-        <div class="me-skeleton-identity-status">
-          <USkeleton class="me-skeleton-identity-status-label" />
-          <USkeleton class="me-skeleton-identity-status-value" />
-        </div>
       </div>
 
       <section class="me-skeleton-section" aria-hidden="true">
@@ -278,9 +274,6 @@ onMounted(() => {
 .me-skeleton-identity-copy { display: grid; flex: 1; gap: 8px; min-width: 0; }
 .me-skeleton-identity-label { width: 54px; height: 12px; }
 .me-skeleton-identity-name { width: min(44%, 220px); height: 25px; }
-.me-skeleton-identity-status { display: grid; flex: 0 0 auto; gap: 8px; justify-items: end; }
-.me-skeleton-identity-status-label { width: 48px; height: 12px; }
-.me-skeleton-identity-status-value { width: 58px; height: 22px; border-radius: 999px; }
 .me-skeleton-section { display: grid; gap: 16px; margin-top: clamp(56px, 8vw, 88px); }
 .me-skeleton-section.titles-section { margin-top: clamp(52px, 8vw, 86px); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -339,9 +332,7 @@ onMounted(() => {
   .me-skeleton-intro { align-items: stretch; flex-direction: column; gap: 22px; margin-bottom: 20px; }
   .me-skeleton-intro-action { width: 100%; }
   .me-skeleton-heading { width: 76%; height: 38px; }
-  .me-skeleton-identity { align-items: flex-start; flex-wrap: wrap; padding: 18px; }
-  .me-skeleton-identity-copy { flex-basis: calc(100% - 63px); }
-  .me-skeleton-identity-status { flex-basis: 100%; justify-items: start; padding-top: 17px; border-top: 1px solid var(--line); }
+  .me-skeleton-identity { padding: 18px; }
   .me-skeleton-section-heading { align-items: flex-start; }
   .me-skeleton-section-title { width: 128px; }
   .me-skeleton-action { width: 102px; height: 38px; }

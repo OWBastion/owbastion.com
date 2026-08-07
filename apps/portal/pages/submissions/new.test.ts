@@ -18,12 +18,18 @@ describe("new submission page privacy statement", () => {
     });
 
     const text = wrapper.text();
+    expect(text).toContain("提交完成截图");
     expect(text).toContain("截图用途");
     expect(text).toContain("截图仅用于挑战核对与截图识别");
     expect(text).toContain("提交截图不会对外公开");
     expect(text).toContain("原始识别结果仅平台内部使用");
     expect(text).not.toContain("默认 F9");
     expect(text).toContain("优先使用游戏内截图，避免裁剪或二次压缩。");
+    // The upload task is stated once: one direct heading + the upload control, no eyebrow/description stack.
+    expect(wrapper.find(".submit-intro .eyebrow").exists()).toBe(false);
+    expect(text).not.toContain("挑战提交");
+    expect(text).not.toContain("上传一张完整截图");
+    expect(text).not.toContain("请确保截图清晰");
   });
 
   it("does not use internal model-training or OCR wording on the player page", async () => {

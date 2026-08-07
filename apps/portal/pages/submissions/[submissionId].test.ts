@@ -55,6 +55,10 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("识别摘要");
     expect(wrapper.text()).toContain("提交编号");
     expect(wrapper.text()).toContain("最后更新");
+    // Breadcrumb and status alert carry context; no eyebrow/description stack or card secondary labels remain.
+    expect(wrapper.find(".page-heading .eyebrow").exists()).toBe(false);
+    expect(wrapper.find(".page-description").exists()).toBe(false);
+    expect(wrapper.find(".ocr-card .card-heading span").exists()).toBe(false);
     expect(wrapper.get('a[href="/submissions/new"]').text()).toContain("重新提交截图");
     expect(wrapper.get(".resubmission-card").text()).toContain("重新提交建议");
     expect(wrapper.get(".progress-card").text()).toContain("处理未通过");
@@ -201,6 +205,7 @@ describe("submission detail page", () => {
     expect(infoCards[0]).toContain("confirm-card");
     expect(infoCards[1]).toContain("overview-card");
     expect(wrapper.text()).toContain("等待确认挑战");
+    expect(wrapper.find(".confirm-copy").exists()).toBe(false);
 
     await wrapper.get('[data-testid="catalog-option"]').trigger("click");
     const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认挑战");

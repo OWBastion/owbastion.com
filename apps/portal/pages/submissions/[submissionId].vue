@@ -51,7 +51,6 @@ const resubmissionTips = [
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
-const pageDescription = computed(() => data.value?.status === "resubmission_required" ? "截图未通过识别，请查看原因后重新提交。" : data.value?.titleGrant ? "称号已获得。" : "查看截图、识别结果与提交状态。");
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
 const needsChallengeConfirmation = computed(() => Boolean(data.value && !data.value.challengeId && data.value.status === "awaiting_player_confirmation"));
 const mutationBusy = computed(() => confirming.value || requestingManualReview.value || refreshingStatus.value);
@@ -186,11 +185,7 @@ onBeforeUnmount(() => {
     </nav>
 
     <div class="page-heading">
-      <div>
-        <p class="eyebrow">提交详情</p>
-        <h1 class="page-title">{{ data?.mapName ?? "提交进度" }}</h1>
-        <p class="page-description">{{ pageDescription }}</p>
-      </div>
+      <h1 class="page-title">{{ data?.mapName ?? "提交进度" }}</h1>
     </div>
 
     <p v-if="error && !data" class="message" role="alert">找不到这条提交记录。</p>
@@ -228,7 +223,6 @@ onBeforeUnmount(() => {
                 <span>识别结果仅供参考</span>
               </div>
             </template>
-            <p class="confirm-copy">请选择这张截图对应的地图通关或成就挑战，确认后进入核对。</p>
             <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
             <div v-else-if="catalogLoading" class="message catalog-loading" role="status">读取挑战目录…</div>
             <template v-else>
@@ -300,10 +294,7 @@ onBeforeUnmount(() => {
 
           <UCard v-if="data.ocr" class="ocr-card elevation-2">
             <template #header>
-              <div class="card-heading">
-                <h2>识别摘要</h2>
-                <span>截图识别</span>
-              </div>
+              <div class="card-heading"><h2>识别摘要</h2></div>
             </template>
             <dl class="detail-list">
               <div><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
@@ -405,9 +396,7 @@ onBeforeUnmount(() => {
 .breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: clamp(28px, 4vw, 44px); color: var(--quiet); font-size: var(--type-caption-size); }
 .breadcrumb-link { margin: 0; padding-inline: 0; }
 .page-heading { margin-bottom: 24px; }
-.page-heading .eyebrow { margin-bottom: 10px; }
 .page-heading .page-title { max-width: 14ch; }
-.page-description { margin: 12px 0 0; color: var(--muted); font-size: .92rem; }
 .status-alert { margin-bottom: 12px; }
 .status-live { display: grid; gap: 10px; margin-bottom: 16px; }
 .status-alert + .status-live { margin-top: -4px; }
@@ -437,7 +426,6 @@ onBeforeUnmount(() => {
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message, .message { margin: 0; padding: 72px 0; color: var(--muted); font-size: .88rem; text-align: center; }
 .catalog-loading { padding: 28px 0; }
-.confirm-copy { margin: 0 0 18px; color: var(--muted); }
 .confirm-card :deep(.catalog) { margin-bottom: 20px; }
 .confirm-catalog--busy { opacity: .72; }
 .resubmission-card { display: grid; margin-top: clamp(18px, 2.4vw, 28px); }

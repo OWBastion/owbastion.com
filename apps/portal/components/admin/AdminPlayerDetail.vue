@@ -90,7 +90,6 @@ onBeforeUnmount(() => {
             <div class="identity-card__main">
               <div class="identity-avatar" aria-hidden="true">{{ initials }}</div>
               <div class="identity-card__copy">
-                <p class="eyebrow">平台玩家</p>
                 <div class="identity-card__title-row">
                   <h2 id="player-identity-title">{{ battleTag }}</h2>
                   <UButton
@@ -106,7 +105,6 @@ onBeforeUnmount(() => {
                   />
                   <StatusBadge :label="statusLabel" :tone="props.player.status === 'active' ? 'success' : 'warning'" />
                 </div>
-                <p class="identity-card__id">账号 ID · {{ props.player.playerAccountId }}</p>
               </div>
             </div>
             <div class="identity-card__actions">
@@ -123,7 +121,6 @@ onBeforeUnmount(() => {
             <div><span>有效称号</span><strong>{{ props.player.titleGrants.length }}</strong></div>
             <div><span>最近提交</span><strong>{{ props.player.recentSubmissions.length }}</strong></div>
             <div><span>QQ 绑定</span><strong>{{ props.player.bindings.length }}</strong></div>
-            <div><span>最近更新</span><strong>{{ formatTime(props.player.updatedAt) }}</strong></div>
           </div>
 
           <div class="identity-card__meta">
@@ -145,7 +142,6 @@ onBeforeUnmount(() => {
             <div class="bindings-inline" aria-labelledby="bindings-title">
               <div class="bindings-inline__heading">
                 <h3 id="bindings-title">QQ 绑定</h3>
-                <UBadge :label="`${props.player.bindings.length}`" color="neutral" variant="subtle" size="sm" />
               </div>
               <div v-if="props.player.bindings.length" class="player-binding-list">
                 <div v-for="binding in props.player.bindings" :key="binding.bindingId" class="player-binding-list__item">
@@ -174,11 +170,7 @@ onBeforeUnmount(() => {
 
       <aside id="submissions" class="detail-card detail-card--activity" aria-labelledby="submissions-title">
         <div class="detail-card__heading">
-          <div>
-            <p class="card-kicker">Activity</p>
-            <h3 id="submissions-title">最近提交</h3>
-          </div>
-          <UBadge :label="`${props.player.recentSubmissions.length} 条`" color="neutral" variant="subtle" />
+          <h3 id="submissions-title">最近提交</h3>
         </div>
         <div v-if="props.player.recentSubmissions.length" class="submission-list">
           <NuxtLink
@@ -322,10 +314,6 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.identity-card__copy .eyebrow {
-  margin-bottom: 5px;
-}
-
 .identity-card__title-row {
   display: flex;
   flex-wrap: wrap;
@@ -352,14 +340,6 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
-.identity-card__id {
-  margin: 6px 0 0;
-  overflow-wrap: anywhere;
-  color: var(--quiet);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.72rem;
-}
-
 .identity-card__actions {
   display: flex;
   flex-wrap: wrap;
@@ -370,7 +350,7 @@ onBeforeUnmount(() => {
 
 .identity-card__metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
@@ -392,8 +372,7 @@ onBeforeUnmount(() => {
   border-right: 0;
 }
 
-.identity-card__metrics span,
-.card-kicker {
+.identity-card__metrics span {
   color: var(--quiet);
   font-size: 0.68rem;
   font-weight: 700;
@@ -539,10 +518,6 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--line);
 }
 
-.card-kicker {
-  margin: 0 0 5px;
-}
-
 .detail-card__heading h3 {
   margin: 0;
   font-size: 1.08rem;
@@ -641,10 +616,6 @@ onBeforeUnmount(() => {
   .identity-card__metrics div:nth-child(-n + 2) {
     padding-bottom: 12px;
     border-bottom: 1px solid var(--line);
-  }
-
-  .identity-card__metrics div:nth-child(4) {
-    padding-right: 0;
   }
 
   .info-grid {
