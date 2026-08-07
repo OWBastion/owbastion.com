@@ -99,7 +99,7 @@ describe("achievement admin page", () => {
 
     expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);
     expect(wrapper.find('td[rowspan="2"]').text()).toBe("战绩");
-    expect(wrapper.findAll("td.hidden")).toHaveLength(1);
+    expect(wrapper.findAll("td.achievement-group-cell--continued")).toHaveLength(1);
 
     await wrapper.get('button[aria-label="地图成就"]').trigger("click");
     await flushPromises();

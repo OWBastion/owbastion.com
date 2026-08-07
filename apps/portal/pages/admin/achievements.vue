@@ -56,10 +56,21 @@ const defaultTitleSorting: SortingState = [
   { id: "category", desc: false },
   { id: "titleName", desc: false },
 ];
+const defaultCatalogSorting: SortingState = [
+  { id: "category", desc: false },
+  { id: "titleName", desc: false },
+];
 const titleSorting = shallowRef<SortingState>([...defaultTitleSorting]);
+const catalogSorting = shallowRef<SortingState>([...defaultCatalogSorting]);
 const titleSortingOptions = [
   { id: "category", label: "系列" },
   { id: "titleName", label: "称号" },
+  { id: "status", label: "状态" },
+];
+const catalogSortingOptions = [
+  { id: "category", label: "系列" },
+  { id: "titleName", label: "称号" },
+  { id: "scope", label: "称号范围" },
   { id: "status", label: "状态" },
 ];
 /* A-04 — briefly flash a row after an in-place update so the change is
@@ -108,7 +119,8 @@ function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Ite
 }
 
 function getGroupRowSpan<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
-  if (isGroupContinuation(cell, groupValue)) return "1";
+  // Continuation cells are fully suppressed; only the lead cell keeps a rowspan.
+  if (isGroupContinuation(cell, groupValue)) return undefined;
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);
   const value = groupValue(cell.row.original);
@@ -117,37 +129,41 @@ function getGroupRowSpan<Item>(cell: TableCell<Item>, groupValue: (item: Item) =
     if (groupValue(rows[index]!.original) !== value) break;
     span++;
   }
-  return `${span}`;
+  return span > 1 ? String(span) : undefined;
 }
 
 function getGroupCellClass<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
-  return isGroupContinuation(cell, groupValue) ? "hidden" : "align-middle";
+  return isGroupContinuation(cell, groupValue) ? "achievement-group-cell achievement-group-cell--continued" : "achievement-group-cell";
 }
 
-const titleColumns: TableColumn<TitleAchievement | CatalogTitle>[] = [
+const titleColumns: TableColumn<TitleAchievement>[] = [
   {
     accessorKey: "category",
     header: "系列",
     meta: {
-      rowspan: { td: (cell) => getGroupRowSpan(cell, itemCategory) },
-      class: { td: (cell) => getGroupCellClass(cell, itemCategory) },
+      // Nuxt UI types require string; empty string omits a meaningful rowspan in the DOM.
+      rowspan: { td: (cell) => getGroupRowSpan(cell, itemCategory) ?? "" },
+      class: {
+        th: "achievement-col-category",
+        td: (cell) => `${getGroupCellClass(cell, itemCategory)} achievement-col-category`,
+      },
     },
   },
-  { accessorKey: "titleName", header: "称号" },
-  { accessorKey: "condition", header: "完成条件" },
-  { accessorKey: "status", header: "状态" },
-  { id: "actions", header: "操作", enableHiding: false },
+  { accessorKey: "titleName", header: "称号", meta: { class: { th: "achievement-col-title", td: "achievement-col-title" } } },
+  { accessorKey: "condition", header: "完成条件", meta: { class: { th: "achievement-col-condition", td: "achievement-col-condition" } } },
+  { accessorKey: "status", header: "状态", meta: { class: { th: "achievement-col-status", td: "achievement-col-status" } } },
+  { id: "actions", header: "操作", enableHiding: false, meta: { class: { th: "achievement-col-actions", td: "achievement-col-actions" } } },
 ];
 const catalogColumns: TableColumn<CatalogTitle>[] = [
-  { accessorKey: "titleName", header: "称号" },
-  { accessorKey: "icon", header: "图标" },
-  { accessorKey: "category", header: "系列" },
-  { accessorKey: "scope", header: "称号范围" },
-  { accessorKey: "displayKind", header: "展示方式" },
-  { accessorKey: "color", header: "颜色" },
-  { id: "linkage", header: "挑战关联", enableHiding: false },
-  { accessorKey: "status", header: "状态" },
-  { id: "actions", header: "操作", enableHiding: false },
+  { accessorKey: "titleName", header: "称号", meta: { class: { th: "catalog-col-title", td: "catalog-col-title" } } },
+  { accessorKey: "icon", header: "图标", meta: { class: { th: "catalog-col-icon", td: "catalog-col-icon" } } },
+  { accessorKey: "category", header: "系列", meta: { class: { th: "catalog-col-category", td: "catalog-col-category" } } },
+  { accessorKey: "scope", header: "称号范围", meta: { class: { th: "catalog-col-scope", td: "catalog-col-scope" } } },
+  { accessorKey: "displayKind", header: "展示方式", meta: { class: { th: "catalog-col-display", td: "catalog-col-display" } } },
+  { accessorKey: "color", header: "颜色", meta: { class: { th: "catalog-col-color", td: "catalog-col-color" } } },
+  { id: "linkage", header: "挑战关联", enableHiding: false, meta: { class: { th: "catalog-col-linkage", td: "catalog-col-linkage" } } },
+  { accessorKey: "status", header: "状态", meta: { class: { th: "catalog-col-status", td: "catalog-col-status" } } },
+  { id: "actions", header: "操作", enableHiding: false, meta: { class: { th: "catalog-col-actions", td: "catalog-col-actions" } } },
 ];
 async function load() {
   loading.value = true;
@@ -420,7 +436,7 @@ onMounted(() => void load());
         <template #generic>
           <section class="catalog-section" aria-labelledby="title-achievements-title">
             <PageSectionHeader title="称号挑战" eyebrow="通用成就" heading-id="title-achievements-title" :count="`${titleChallengeItems.length} 项`" />
-            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" class="admin-table achievement-table">
+            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
               <template #filters>
                 <USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
@@ -438,28 +454,22 @@ onMounted(() => void load());
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
-                  <UButton icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" square class="hit-44" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : isChallengeTitle(row.original) ? '编辑规则' : '编辑状态'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
-                  <template v-if="isChallengeTitle(row.original)">
-                    <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
-                      <UButton icon="i-lucide-calendar-clock" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="计划下线" :disabled="isSaving(row.original)" />
-                      <template #content>
-                        <UCard class="plan-popover-card">
-                          <form class="plan-popover" @submit.prevent="planSunsetting(row.original)">
-                            <UFormField label="计划下线版本" required>
-                              <UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" />
-                            </UFormField>
-                            <UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" />
-                          </form>
-                        </UCard>
-                      </template>
-                    </UPopover>
-                    <UButton v-if="row.original.status !== 'retired'" icon="i-lucide-square" size="sm" color="error" variant="ghost" square class="hit-44" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
-                    <UButton v-else icon="i-lucide-rotate-ccw" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
-                  </template>
-                  <template v-else>
-                    <UButton v-if="row.original.status === 'active'" icon="i-lucide-square" size="sm" color="error" variant="ghost" square class="hit-44" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
-                    <UButton v-else icon="i-lucide-rotate-ccw" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
-                  </template>
+                  <UButton icon="i-lucide-pencil" size="sm" color="neutral" variant="ghost" square class="hit-44" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
+                  <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
+                    <UButton icon="i-lucide-calendar-clock" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="计划下线" :disabled="isSaving(row.original)" />
+                    <template #content>
+                      <UCard class="plan-popover-card">
+                        <form class="plan-popover" @submit.prevent="planSunsetting(row.original)">
+                          <UFormField label="计划下线版本" required>
+                            <UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" />
+                          </UFormField>
+                          <UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" />
+                        </form>
+                      </UCard>
+                    </template>
+                  </UPopover>
+                  <UButton v-if="row.original.status !== 'retired'" icon="i-lucide-square" size="sm" color="error" variant="ghost" square class="hit-44" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
+                  <UButton v-else icon="i-lucide-rotate-ccw" size="sm" color="neutral" variant="ghost" square class="hit-44" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
                 </div>
               </template>
             </AdminDataTable>
@@ -474,7 +484,7 @@ onMounted(() => void load());
           <section class="catalog-section" aria-labelledby="title-catalog-title">
             <PageSectionHeader title="称号定义" eyebrow="称号目录" heading-id="title-catalog-title" :count="`${catalogItems.length} 项`" />
             <p class="catalog-note">目录称号为权威定义，可单独授予；与可提交挑战不同。</p>
-            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" class="admin-table achievement-table">
+            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
                 <USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
               </template>
@@ -540,9 +550,46 @@ onMounted(() => void load());
 .catalog-section { display: grid; gap: 12px; }
 .catalog-note { margin: -4px 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
-.achievement-table :deep([data-slot="base"]) { min-width: 780px; table-layout: auto; }
-.achievement-table :deep(strong), .achievement-table :deep(small) { display: block; }
+
+/* Keep fixed layout from AdminDataTable but pin column tracks so header/body stay aligned. */
+.achievement-table :deep(table[data-slot="base"]) {
+  width: 100%;
+  table-layout: fixed;
+}
+.achievement-table :deep([data-slot="th"]),
+.achievement-table :deep([data-slot="td"]) {
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.achievement-table :deep(strong),
+.achievement-table :deep(small) { display: block; }
 .achievement-table :deep(small) { margin-top: 4px; }
+
+/* Rowspan continuations must not consume a column track. */
+.achievement-table :deep(td.achievement-group-cell--continued) {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+
+.achievement-table--titles :deep(.achievement-col-category) { width: 14%; }
+.achievement-table--titles :deep(.achievement-col-title) { width: 20%; }
+.achievement-table--titles :deep(.achievement-col-condition) { width: 34%; }
+.achievement-table--titles :deep(.achievement-col-status) { width: 12%; }
+.achievement-table--titles :deep(.achievement-col-actions) { width: 10.5rem; min-width: 10.5rem; }
+
+.achievement-table--catalog :deep(.catalog-col-title) { width: 14%; }
+.achievement-table--catalog :deep(.catalog-col-icon) { width: 8%; }
+.achievement-table--catalog :deep(.catalog-col-category) { width: 12%; }
+.achievement-table--catalog :deep(.catalog-col-scope) { width: 10%; }
+.achievement-table--catalog :deep(.catalog-col-display) { width: 14%; }
+.achievement-table--catalog :deep(.catalog-col-color) { width: 8%; }
+.achievement-table--catalog :deep(.catalog-col-linkage) { width: 14%; }
+.achievement-table--catalog :deep(.catalog-col-status) { width: 10%; }
+.achievement-table--catalog :deep(.catalog-col-actions) { width: 7.5rem; min-width: 7.5rem; }
+
 .condition-cell {
   display: -webkit-box;
   overflow: hidden;
@@ -554,7 +601,8 @@ onMounted(() => void load());
 .plan-popover { display: grid; gap: 12px; }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
-@media (max-width: 560px) {
-  .achievement-table :deep([data-slot="base"]) { min-width: 0; }
+.achievement-table :deep(.table-actions) {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
 }
 </style>
