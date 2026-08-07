@@ -10,7 +10,6 @@ export type MockApiOptions = {
   titlesFail?: boolean;
   submissionFail?: boolean;
   mapSaveFail?: boolean;
-  /** @deprecated Delays are not applied by Nitro fixtures; kept for call-site compatibility. */
   mutationDelayMs?: number;
   submission?: unknown;
 };
@@ -28,6 +27,7 @@ export async function installApiMocks(page: Page, options: MockApiOptions = {}) 
     titlesFail: Boolean(options.titlesFail),
     submissionFail: Boolean(options.submissionFail),
     mapSaveFail: Boolean(options.mapSaveFail),
+    mutationDelayMs: options.mutationDelayMs ?? 0,
   };
   const value = encodeURIComponent(JSON.stringify(scenario));
   const origin = new URL(url("/"));
@@ -52,6 +52,35 @@ export async function installApiMocks(page: Page, options: MockApiOptions = {}) 
     };
     await route.continue({ headers });
   });
+
+  if (options.mutationDelayMs) {
+    await page.route(`${origin.origin}/api/portal/v1/player/uploads/session`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, options.mutationDelayMs));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ uploadId: "upload_fixture_1", uploadUrl: "/api/portal/uploads/upload_fixture_1", submissionId: "sub_fixture_new" }),
+      });
+    });
+    await page.route(`${origin.origin}/api/portal/v1/player/uploads/**/complete`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, options.mutationDelayMs));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ submissionId: "sub_fixture_new", status: "ocr_pending" }) });
+    });
+    await page.route(`${origin.origin}/api/portal/uploads/**`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, options.mutationDelayMs));
+      await route.fulfill({ status: 204, body: "" });
+    });
+  }
+
+  if (options.mapSaveFail) {
+    await page.route(`${origin.origin}/api/admin/v1/maps/**/metadata`, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "upstream_error", message: "save failed" } }),
+      });
+    });
+  }
 }
 
 function mergeCookie(existing: string | undefined, name: string, value: string) {

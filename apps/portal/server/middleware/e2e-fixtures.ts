@@ -9,8 +9,8 @@ import { getHeader, getRequestURL, getQuery, readBody, setResponseHeader, setRes
 
 const enabled = () => process.env.NUXT_PORTAL_E2E_FIXTURES === "1";
 
-const PNG_1X1 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+const PNG_PORTRAIT = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAMCAYAAABfnvydAAAAFElEQVR4nGPQqLjzHx9mGFVALwUArVXuIUUIHRUAAAAASUVORK5CYII=",
   "base64",
 );
 
@@ -145,6 +145,7 @@ type Scenario = {
   titlesFail?: boolean;
   submissionFail?: boolean;
   mapSaveFail?: boolean;
+  mutationDelayMs?: number;
 };
 
 function scenarioFromCookie(cookieHeader: string | undefined): Scenario {
@@ -205,12 +206,26 @@ export default defineEventHandler(async (event) => {
     if (portalPath.match(/^\/submissions\/.+\/evidence$/) && method === "GET") {
       setResponseStatus(event, 200);
       setResponseHeader(event, "content-type", "image/png");
-      return PNG_1X1;
+      return PNG_PORTRAIT;
+    }
+    if (portalPath.startsWith("/uploads/") && method === "PUT") {
+      if (scenario.mutationDelayMs) await new Promise((resolve) => setTimeout(resolve, scenario.mutationDelayMs));
+      setResponseStatus(event, 204);
+      return;
+    }
+    if (portalPath === "/v1/player/uploads/session" && method === "POST") {
+      if (scenario.mutationDelayMs) await new Promise((resolve) => setTimeout(resolve, scenario.mutationDelayMs));
+      return sendJson(event, { uploadId: "upload_fixture_1", uploadUrl: "/api/portal/uploads/upload_fixture_1", submissionId: "sub_fixture_new" });
+    }
+    if (portalPath.match(/^\/v1\/player\/uploads\/[^/]+\/complete$/) && method === "POST") {
+      if (scenario.mutationDelayMs) await new Promise((resolve) => setTimeout(resolve, scenario.mutationDelayMs));
+      return sendJson(event, { submissionId: "sub_fixture_new", status: "ocr_pending" });
     }
     if (
       (portalPath.startsWith("/v1/uploads") || portalPath.startsWith("/v1/player/submissions") || portalPath.startsWith("/v1/me/submissions"))
       && (method === "POST" || method === "PUT")
     ) {
+      if (scenario.mutationDelayMs) await new Promise((resolve) => setTimeout(resolve, scenario.mutationDelayMs));
       return sendJson(event, { submissionId: "sub_fixture_new", status: "ocr_pending", contractVersion: "1" });
     }
     if (portalPath.startsWith("/v1/achievements") && method === "GET") return sendJson(event, { items: [] });

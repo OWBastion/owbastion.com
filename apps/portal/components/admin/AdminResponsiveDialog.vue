@@ -19,6 +19,7 @@ const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
 const allowMotion = computed(() => reducedMotion.value !== "reduce");
+const previouslyFocused = shallowRef<HTMLElement | null>(null);
 const sizeClasses: Record<DialogSize, string> = {
   sm: "max-w-lg",
   md: "max-w-2xl",
@@ -27,6 +28,23 @@ const sizeClasses: Record<DialogSize, string> = {
 };
 
 onMounted(() => { hydrated.value = true; });
+
+watch(open, async (value) => {
+  if (!import.meta.client) return;
+  if (value) {
+    previouslyFocused.value = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    await nextTick();
+    const surface = document.querySelector<HTMLElement>(".admin-responsive-dialog__modal, .admin-responsive-dialog__drawer");
+    const target = surface?.querySelector<HTMLElement>("button, input, select, textarea, [href], [tabindex]:not([tabindex='-1'])") ?? surface;
+    target?.focus();
+    return;
+  }
+
+  await nextTick();
+  const target = previouslyFocused.value;
+  previouslyFocused.value = null;
+  if (target?.isConnected) target.focus();
+});
 </script>
 
 <template>

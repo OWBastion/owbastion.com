@@ -134,16 +134,10 @@ export const FIXTURE_SUBMISSION_DETAIL = {
   },
 };
 
-/** Minimal 1×1 PNG (public fixture image). */
-export const FIXTURE_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-
-export function fixturePngBuffer(): Buffer {
-  return Buffer.from(FIXTURE_PNG_BASE64, "base64");
-}
-
 /** Larger synthetic PNG (8×12) for natural-aspect evidence checks. */
+export const FIXTURE_PORTRAIT_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAMCAYAAABfnvydAAAAFElEQVR4nGPQqLjzHx9mGFVALwUArVXuIUUIHRUAAAAASUVORK5CYII=";
+
 export function fixturePortraitPngBuffer(): Buffer {
-  // 8×12 solid PNG is awkward to hand-author; reuse 1×1 and assert object-fit / height:auto contract via CSS instead.
-  return fixturePngBuffer();
+  return Buffer.from(FIXTURE_PORTRAIT_PNG_BASE64, "base64");
 }

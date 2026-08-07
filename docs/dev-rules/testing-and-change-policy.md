@@ -200,7 +200,7 @@ pnpm test:portal-e2e
 
 **Fixtures:** when `NUXT_PORTAL_E2E_FIXTURES=1` (set by the e2e harness),
 `apps/portal/server/middleware/e2e-fixtures.ts` serves deterministic public-safe
-JSON and a 1×1 PNG for `/api/portal/**` and `/api/admin/**`. Scenarios (auth
+JSON and deterministic PNG fixtures for `/api/portal/**` and `/api/admin/**`. Scenarios (auth
 role, intentional failures) are selected via the `owbastion-e2e-scenario`
 cookie from `apps/portal/tests/e2e/helpers/`. Tests never call production APIs,
 R2, or real QQ identities. The middleware is inert unless that env flag is set.
@@ -212,11 +212,13 @@ tablet (834), desktop (1280).
 center (`/me`), submission new/detail, admin maps table +
 `AdminResponsiveDialog`.
 
-**Assertions prefer:** roles/labels, focus restoration, Escape, document-level
-horizontal overflow, mobile scroll ownership, evidence `height:auto` / non-cover
-object-fit, mutation error visibility in the open overlay, and
-`prefers-reduced-motion` match. Full-page screenshots and Nuxt UI internal class
-names are not the primary contract.
+**Assertions prefer:** roles/labels, keyboard reachability, focus containment and
+restoration, Escape, document-level horizontal overflow, mobile scroll ownership,
+evidence natural dimensions / non-cover object-fit, mutation busy and error
+visibility in the active region, and
+`prefers-reduced-motion` match plus reduced-transparency/contrast stylesheet
+fallback presence. Full-page screenshots and Nuxt UI internal class names are
+not the primary contract.
 
 **Environment limits (documented, not release-blocked):**
 
