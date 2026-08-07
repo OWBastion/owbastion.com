@@ -40,10 +40,10 @@ describe("Portal SSR", async () => {
     ]);
 
     expect(blogRows).toEqual([
-      expect.objectContaining({ title: "Nuxt Content 基础", publishedAt: expect.any(String) }),
+      expect.objectContaining({ title: "开发日志 #8：轮换挑战与地图精通", publishedAt: expect.any(String) }),
     ]);
     expect(changelogRows).toEqual([
-      expect.objectContaining({ title: "Portal 内容基础", version: "26.0808.1", releasedAt: expect.any(String) }),
+      expect.objectContaining({ title: "随机事件调整", version: "26.0801.1", releasedAt: expect.any(String) }),
     ]);
   });
 });

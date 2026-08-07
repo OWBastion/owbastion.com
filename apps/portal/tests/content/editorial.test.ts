@@ -4,7 +4,7 @@ import { blogFrontmatterSchema, changelogFrontmatterSchema } from "../../content
 describe("editorial content collections", () => {
   it("validates Blog metadata", () => {
     const result = blogFrontmatterSchema.safeParse({
-      title: "Nuxt Content 基础",
+      title: "开发日志 #8：轮换挑战与地图精通",
       description: "开发日志摘要",
       publishedAt: new Date("2026-08-08"),
     });
@@ -14,10 +14,10 @@ describe("editorial content collections", () => {
 
   it("validates Changelog metadata", () => {
     const result = changelogFrontmatterSchema.safeParse({
-      title: "Portal 内容基础",
+      title: "随机事件调整",
       description: "已发布变更摘要",
       releasedAt: new Date("2026-08-08"),
-      version: "26.0808.1",
+      version: "26.0801.1",
     });
 
     expect(result.success).toBe(true);
