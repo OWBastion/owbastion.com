@@ -44,7 +44,7 @@ const statusDescription = computed(() => {
         </div>
       </header>
 
-      <div ref="studioMount" class="studio-editor-frame" aria-label="内容编辑器"></div>
+      <div ref="studioMount" class="studio-editor-frame" :class="{ 'studio-editor-frame--active': isEditorOpen }" aria-label="内容编辑器"></div>
     </section>
   </AdminWorkspace>
 </template>
@@ -87,6 +87,13 @@ const statusDescription = computed(() => {
   background: var(--surface-raised);
 }
 
+/* Bounded editing viewport: the embedded editor scrolls inside a stable
+   frame so long documents never stretch the page or push the toolbar away. */
+.studio-editor-frame--active {
+  height: clamp(26rem, 62vh, 40rem);
+  overflow-y: auto;
+}
+
 @media (max-width: 620px) {
   .editor-toolbar {
     display: grid;
@@ -101,8 +108,8 @@ const statusDescription = computed(() => {
     justify-content: center;
   }
 
-  .studio-editor-frame {
-    min-height: 28rem;
+  .studio-editor-frame--active {
+    height: clamp(26rem, 68vh, 42rem);
   }
 }
 </style>
