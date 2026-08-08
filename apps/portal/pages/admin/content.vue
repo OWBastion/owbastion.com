@@ -36,7 +36,7 @@ const statusDescription = computed(() => {
         </div>
       </header>
 
-      <div ref="studioMount" class="studio-editor-frame" :class="{ 'studio-editor-frame--active': isEditorOpen }" aria-label="内容编辑器"></div>
+      <div ref="studioMount" class="studio-editor-frame" :class="{ 'studio-editor-frame--active': isEditorOpen }" role="region" aria-label="内容编辑器"></div>
     </section>
   </AdminWorkspace>
 </template>
