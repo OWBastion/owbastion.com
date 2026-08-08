@@ -42,8 +42,8 @@ const date = computed(() => {
 
 <style scoped>
 .editorial-article { padding: clamp(24px, 5vw, 56px); }
-.editorial-article-header { display: grid; gap: 18px; padding-bottom: clamp(28px, 5vw, 48px); border-bottom: 1px solid var(--line); }
-.editorial-article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
+.editorial-article-header { display: grid; gap: 1.125rem; padding-bottom: clamp(28px, 5vw, 48px); border-bottom: 1px solid var(--line); }
+.editorial-article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem 1rem; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
 .editorial-kind { color: var(--accent); }
 .editorial-article-description { max-width: 62ch; margin: 0; color: var(--muted); font-size: 1.06rem; line-height: 1.7; }
 .editorial-article-body { max-width: 68ch; padding-top: clamp(28px, 5vw, 48px); color: var(--text); font-size: 1rem; line-height: 1.8; overflow-wrap: anywhere; }
@@ -55,6 +55,6 @@ const date = computed(() => {
 .editorial-article-body :deep(code) { padding: .12em .35em; border-radius: 5px; background: var(--surface-raised); font-size: .9em; }
 .editorial-article-body :deep(pre) { max-width: 100%; overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); }
 .editorial-article-body :deep(pre code) { padding: 0; background: transparent; }
-@media (max-width: 620px) { .editorial-article { padding: 20px 16px; }.editorial-article-description { font-size: 1rem; } }
+@media (max-width: 620px) { .editorial-article { padding: 1.25rem 1rem; }.editorial-article-description { font-size: 1rem; } }
 @media (prefers-contrast: more) { .editorial-article { border-color: var(--text); } }
 </style>
