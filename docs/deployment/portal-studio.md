@@ -12,7 +12,7 @@ Portal 的 Nuxt Studio 使用现有平台 session 做 custom-auth bridge。`play
 
 ## 外部部署前置条件
 
-Nuxt Studio 1.7 的 `setStudioUserSession` 需要 Git provider access token 才能创建可写 Studio session。Portal 在响应返回前移除该 token，并将 Studio 的 Git 请求改由 `/api/studio/git/**` 服务端代理完成；`STUDIO_GITHUB_TOKEN` 由独立的发布安全工作负责在部署环境注入，不得写入仓库、`.dev.vars` 提交内容或浏览器代码。
+Nuxt Studio 1.7 的 `setStudioUserSession` 需要 Git provider access token 才能创建可写 Studio session。Portal 在响应返回前将真实 token 替换为固定的无权限 sentinel，并将 Studio 的 Git 请求改由 `/api/studio/git/**` 服务端代理完成；`STUDIO_GITHUB_TOKEN` 由独立的发布安全工作负责在部署环境注入，不得写入仓库、`.dev.vars` 提交内容或浏览器代码。
 
 Portal 本地开发也关闭 Studio 的 filesystem dev mode。没有部署所需的外部 token 时，管理员入口会返回“服务端配置”错误，不会降级为匿名编辑或本地第二套授权。
 

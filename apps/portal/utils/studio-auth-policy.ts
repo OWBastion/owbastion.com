@@ -1,3 +1,5 @@
+import { studioServerProxyAccessToken } from "./studio-git-proxy";
+
 export type StudioPlatformPlayer = {
   player: {
     playerName: string;
@@ -116,7 +118,7 @@ export const sanitizeStudioSessionResponse = (body: unknown) => {
   if (!session.user || typeof session.user !== "object" || Array.isArray(session.user)) return body;
   const user = { ...(session.user as Record<string, unknown>) };
   delete user.accessToken;
-  const sanitized = { ...session, user };
+  const sanitized = { ...session, user: { ...user, accessToken: studioServerProxyAccessToken } };
   return typeof body === "string" ? JSON.stringify(sanitized) : sanitized;
 };
 

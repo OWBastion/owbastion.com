@@ -132,9 +132,9 @@ describe("Studio platform authorization bridge", () => {
 
   it("removes Git credentials from the Studio session response", () => {
     const response = { user: { name: "Maintainer", accessToken: "server-only" }, id: "session-id" };
-    expect(sanitizeStudioSessionResponse(response)).toEqual({ user: { name: "Maintainer" }, id: "session-id" });
+    expect(sanitizeStudioSessionResponse(response)).toEqual({ user: { name: "Maintainer", accessToken: "studio-server-proxy" }, id: "session-id" });
     expect(response.user).toHaveProperty("accessToken");
-    expect(sanitizeStudioSessionResponse(JSON.stringify(response))).toBe(JSON.stringify({ user: { name: "Maintainer" }, id: "session-id" }));
+    expect(sanitizeStudioSessionResponse(JSON.stringify(response))).toBe(JSON.stringify({ user: { name: "Maintainer", accessToken: "studio-server-proxy" }, id: "session-id" }));
   });
 
   it("accepts only same-origin relative redirects", () => {
