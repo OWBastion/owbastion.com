@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useStudioEditorWorkspace } from "~/composables/useStudioEditorWorkspace";
 
 definePageMeta({ middleware: ["auth", "studio-admin"] });
 useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow" });
 
-const { status, errorMessage, isEditorOpen, start } = useStudioEditorWorkspace();
+const studioMount = ref<HTMLElement | null>(null);
+const { status, errorMessage, isEditorOpen, start, close } = useStudioEditorWorkspace(studioMount);
 
 const statusTitle = computed(() => {
   if (status.value === "loading") return "正在载入内容编辑器";
@@ -17,8 +18,8 @@ const statusTitle = computed(() => {
 const statusDescription = computed(() => {
   if (status.value === "loading") return "正在准备当前管理员会话和内容工作区。";
   if (status.value === "error") return errorMessage.value;
-  if (isEditorOpen.value) return "编辑器已接管当前窗口；关闭编辑器后可以返回管理后台。";
-  return "进入此页面会直接打开内容编辑器。";
+  if (isEditorOpen.value) return "在当前管理工作区内编辑内容；保存后通过版本更新入口发布。";
+  return "选择内容文件后在此处编辑，不离开管理侧。";
 });
 </script>
 
@@ -28,57 +29,80 @@ const statusDescription = computed(() => {
       <UButton to="/admin" color="neutral" variant="outline" label="返回管理概览" icon="i-lucide-arrow-left" />
     </template>
 
-    <section
-      class="editor-state surface-card"
-      :aria-busy="status === 'loading'"
-      :aria-labelledby="status === 'error' ? 'studio-editor-error-title' : 'studio-editor-state-title'"
-    >
-      <div>
-        <p class="eyebrow">内容工作区</p>
-        <h2 :id="status === 'error' ? 'studio-editor-error-title' : 'studio-editor-state-title'">{{ statusTitle }}</h2>
-        <p v-if="status === 'error'" class="body-copy" role="alert">{{ statusDescription }}</p>
-        <p v-else class="body-copy" role="status" aria-live="polite">{{ statusDescription }}</p>
-      </div>
+    <section class="editor-workspace surface-card" :aria-busy="status === 'loading'" aria-labelledby="studio-editor-state-title">
+      <header class="editor-toolbar">
+        <div>
+          <p class="eyebrow">内容工作区</p>
+          <h2 id="studio-editor-state-title">{{ statusTitle }}</h2>
+          <p v-if="status === 'error'" class="body-copy" role="alert">{{ statusDescription }}</p>
+          <p v-else class="body-copy" role="status" aria-live="polite">{{ statusDescription }}</p>
+        </div>
 
-      <UButton
-        v-if="status === 'closed' || status === 'error'"
-        :label="status === 'error' ? '重新载入编辑器' : '打开内容编辑器'"
-        :icon="status === 'error' ? 'i-lucide-refresh-cw' : 'i-lucide-file-pen-line'"
-        size="lg"
-        @click="start"
-      />
+        <div class="editor-actions">
+          <UButton v-if="isEditorOpen" label="关闭编辑器" icon="i-lucide-x" color="neutral" variant="outline" @click="close" />
+          <UButton v-else-if="status === 'closed' || status === 'error'" :label="status === 'error' ? '重新载入编辑器' : '打开内容编辑器'" :icon="status === 'error' ? 'i-lucide-refresh-cw' : 'i-lucide-file-pen-line'" @click="start" />
+        </div>
+      </header>
+
+      <div ref="studioMount" class="studio-editor-frame" aria-label="内容编辑器"></div>
     </section>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.editor-state {
+.editor-workspace {
   display: grid;
-  align-content: center;
-  gap: 1.5rem;
-  min-height: min(52vh, 34rem);
-  padding: clamp(1.5rem, 4vw, 3rem);
+  gap: 1.25rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
 }
 
-.editor-state h2 {
+.editor-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.editor-toolbar h2 {
   margin: 0;
-  max-width: 24ch;
+  max-width: 32ch;
 }
 
-.editor-state .body-copy {
-  max-width: 52ch;
+.editor-toolbar .body-copy {
+  max-width: 64ch;
   margin: 0.75rem 0 0;
 }
 
+.editor-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+}
+
+.studio-editor-frame {
+  min-height: 34rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface-raised);
+}
+
 @media (max-width: 620px) {
-  .editor-state {
-    min-height: min(58vh, 30rem);
-    padding: 1.25rem;
+  .editor-toolbar {
+    display: grid;
   }
 
-  .editor-state :deep(button) {
+  .editor-actions,
+  .editor-actions :deep(button) {
     width: 100%;
+  }
+
+  .editor-actions :deep(button) {
     justify-content: center;
+  }
+
+  .studio-editor-frame {
+    min-height: 28rem;
   }
 }
 </style>

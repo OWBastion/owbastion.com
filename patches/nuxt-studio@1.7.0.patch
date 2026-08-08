@@ -2,7 +2,7 @@ diff --git a/dist/app/main.js b/dist/app/main.js
 index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14fb1b3b51 100644
 --- a/dist/app/main.js
 +++ b/dist/app/main.js
-@@ -1 +1,109 @@
+@@ -1 +1,105 @@
 -import{A as t,b as a,C as s,c as e,D as i,I as o,S as n,d,e as u,T as r,V as I,m as S}from"./main-CcK4joxm.js";export{t as AI_LIMITS,a as AudioFileExtension,s as COMMAND_KEYS,e as ContentFileExtension,i as DraftStatus,o as ImageFileExtension,n as StudioBranchActionId,d as StudioFeature,u as StudioItemActionId,r as TreeStatus,I as VideoFileExtension,S as default};
 +const upstreamFetch = globalThis.fetch;
 +const proxyAccessToken = "nuxt-studio-server-proxy";
@@ -48,20 +48,6 @@ index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14
 +const studioModule = await import("./main-CcK4joxm.js");
 +
 +const observedStudioRoots = new WeakSet();
-+const openingStudioRoots = new WeakSet();
-+
-+const syncStudioLayout = (root) => {
-+  if (!document.body.hasAttribute("data-studio-fullscreen") || !document.body.hasAttribute("data-expand-sidebar")) {
-+    openingStudioRoots.delete(root);
-+    return;
-+  }
-+  const panel = root.querySelector(".fixed.top-0.bottom-0.left-0");
-+  if (panel || openingStudioRoots.has(root)) return;
-+  const toggle = root.querySelector("button");
-+  if (!toggle) return;
-+  openingStudioRoots.add(root);
-+  toggle.click();
-+};
 +
 +const installStudioLayoutBridge = () => {
 +  const element = document.querySelector("nuxt-studio");
@@ -71,33 +57,43 @@ index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14
 +    const style = document.createElement("style");
 +    style.setAttribute("data-studio-layout-bridge", "");
 +    style.textContent = `
-+      :host-context(body[data-studio-fullscreen]) .fixed.top-0.bottom-0.left-0 {
-+        width: 100vw !important;
++      :host([data-studio-embedded]) {
++        display: block !important;
++        width: 100% !important;
++        height: min(72dvh, 52rem) !important;
++        min-height: 34rem !important;
++      }
++      :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 {
++        position: relative !important;
++        inset: auto !important;
++        width: 100% !important;
 +        max-width: none !important;
-+        z-index: 50 !important;
++        height: 100% !important;
++        min-height: 0 !important;
++        z-index: auto !important;
++        transform: none !important;
++      }
++      @media (max-width: 620px) {
++        :host([data-studio-embedded]) {
++          height: min(70dvh, 42rem) !important;
++          min-height: 28rem !important;
++        }
 +      }
 +      @media (prefers-reduced-motion: reduce) {
-+        :host-context(body[data-studio-fullscreen]) .fixed.top-0.bottom-0.left-0 {
++        :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 {
 +          transition: none !important;
 +        }
 +      }
 +    `;
 +    root.appendChild(style);
 +  }
-+  if (!observedStudioRoots.has(root)) {
-+    observedStudioRoots.add(root);
-+    const observer = new MutationObserver(() => syncStudioLayout(root));
-+    observer.observe(root, { childList: true, subtree: true });
-+  }
-+  syncStudioLayout(root);
++  if (!observedStudioRoots.has(root)) observedStudioRoots.add(root);
 +  return true;
 +};
 +
 +const bodyObserver = new MutationObserver(installStudioLayoutBridge);
 +bodyObserver.observe(document.body, {
 +  childList: true,
-+  attributes: true,
-+  attributeFilter: ["data-studio-fullscreen", "data-expand-sidebar"],
 +});
 +installStudioLayoutBridge();
 +
@@ -143,28 +139,17 @@ diff --git a/dist/module/runtime/utils/sidebar.js b/dist/module/runtime/utils/si
 index 51689a6bfc23f537f751f621e4e0e5d057f9366d..51689a6bfc23f537f751f621e4e0e5d057f9366d 100644
 --- a/dist/module/runtime/utils/sidebar.js
 +++ b/dist/module/runtime/utils/sidebar.js
-@@ -23,11 +23,17 @@ export function getHostStyles() {
+@@ -23,10 +23,5 @@ export function getHostStyles() {
  export function getHostStyles() {
    const currentWidth = getSidebarWidth();
    return {
 -    "body[data-studio-active]": {
 -      transition: "margin 0.2s ease"
-+    "body[data-studio-active] #__nuxt": {
-+      transition: "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)"
-     },
+-    },
 -    "body[data-studio-active][data-expand-sidebar]": {
 -      marginLeft: `${currentWidth}px`
-+    "body[data-studio-active][data-expand-sidebar] #__nuxt": {
-+      transform: `translateX(${currentWidth}px)`
 -    }
-+    },
-+    "body[data-studio-active][data-studio-fullscreen][data-expand-sidebar] #__nuxt": {
-+      transform: "none"
-+    },
-+    "body[data-studio-fullscreen]": {
-+      overflow: "hidden"
-+    }
-   };
++  };
  }
 diff --git a/dist/module/runtime/host.js b/dist/module/runtime/host.js
 index 337d7ec64c8080d1f1ddd33e011341aaf87eee0b..337d7ec64c8080d1f1ddd33e011341aaf87eee0b 100644

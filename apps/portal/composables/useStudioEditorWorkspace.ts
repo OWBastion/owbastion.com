@@ -1,4 +1,21 @@
-import { onBeforeUnmount, onMounted, shallowRef } from "vue";
+import { onBeforeUnmount, onMounted, shallowRef, type Ref } from "vue";
+
+type StudioRoute = { path: string };
+
+type StudioDocument = {
+  fsPath?: string;
+  path?: string;
+  routePath?: string;
+};
+
+type StudioRouter = {
+  beforeEach?: (guard: (to: StudioRoute, from: StudioRoute) => Promise<boolean | void> | boolean | void) => () => void;
+};
+
+type StudioNuxtApp = {
+  $router?: StudioRouter;
+  callHook?: (name: string, payload?: unknown) => Promise<unknown>;
+};
 
 type StudioHost = {
   ui?: {
@@ -6,6 +23,9 @@ type StudioHost = {
     deactivateStudio?: () => void;
     expandSidebar?: () => void;
     collapseSidebar?: () => void;
+  };
+  document?: {
+    db?: { list?: () => Promise<StudioDocument[]> };
   };
   on?: { mounted?: (fn: () => void) => void };
 };
@@ -17,10 +37,13 @@ type StudioSession = {
 export type StudioEditorStatus = "loading" | "open" | "closed" | "error";
 
 const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
+const adminContentPath = "/admin/content";
 
 const getStudioHost = () => (window as Window & { useStudioHost?: () => StudioHost }).useStudioHost?.();
 
-export function useStudioEditorWorkspace() {
+const getNuxtApp = () => (window as Window & { useNuxtApp?: () => StudioNuxtApp }).useNuxtApp?.();
+
+export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
   const status = shallowRef<StudioEditorStatus>("loading");
   const errorMessage = shallowRef("");
   const isEditorOpen = shallowRef(false);
@@ -29,45 +52,66 @@ export function useStudioEditorWorkspace() {
   let requestId = 0;
   let isCleaningUp = false;
   let studioActiveForWorkspace = false;
+  let removeRouteGuard: (() => void) | undefined;
 
-  const setPagePresentation = (editorOpen: boolean) => {
-    const appRoot = document.getElementById("__nuxt");
-    if (editorOpen) {
-      document.body.setAttribute("data-studio-fullscreen", "true");
-      if (appRoot) {
-        appRoot.setAttribute("inert", "");
-        appRoot.setAttribute("aria-hidden", "true");
-      }
-      return;
-    }
+  const getStudioElement = () => document.querySelector("nuxt-studio") as HTMLElement | null;
 
-    document.body.removeAttribute("data-studio-fullscreen");
-    if (appRoot) {
-      appRoot.removeAttribute("inert");
-      appRoot.removeAttribute("aria-hidden");
-    }
+  const mountStudioElement = () => {
+    const element = getStudioElement();
+    const target = mountTarget.value;
+    if (!element || !target) return false;
+    if (element.parentElement !== target) target.appendChild(element);
+    element.setAttribute("data-studio-embedded", "true");
+    return true;
+  };
+
+  const restoreStudioElement = () => {
+    const element = getStudioElement();
+    if (!element || element.parentElement === document.body) return;
+    element.removeAttribute("data-studio-embedded");
+    document.body.appendChild(element);
+  };
+
+  const clearLegacyStudioLayoutStyles = () => {
+    const style = document.querySelector("[data-studio-style]");
+    if (style) style.textContent = "";
   };
 
   const syncEditorState = () => {
     const editorOpen = document.body.hasAttribute("data-expand-sidebar");
-    const wasEditorOpen = isEditorOpen.value;
     isEditorOpen.value = editorOpen;
 
     if (editorOpen) {
-      setPagePresentation(true);
       status.value = "open";
       return;
     }
 
-    if (!isCleaningUp && !editorOpen && wasEditorOpen && studioActiveForWorkspace && status.value === "open") {
-      setPagePresentation(false);
+    if (!isCleaningUp && studioActiveForWorkspace && status.value === "open") {
       status.value = "closed";
       studioActiveForWorkspace = false;
+      removeRouteGuard?.();
+      removeRouteGuard = undefined;
       getStudioHost()?.ui?.deactivateStudio?.();
       return;
     }
 
-    if (!editorOpen) setPagePresentation(false);
+    if (!editorOpen && status.value !== "error" && status.value !== "loading") status.value = "closed";
+  };
+
+  const interceptDocumentRoutes = (host: StudioHost) => {
+    const router = getNuxtApp()?.$router;
+    if (!router?.beforeEach || removeRouteGuard) return;
+
+    removeRouteGuard = router.beforeEach(async (to) => {
+      if (isCleaningUp || !studioActiveForWorkspace || to.path === adminContentPath || to.path.startsWith("/admin/")) return;
+      const documents = await host.document?.db?.list?.() ?? [];
+      const document = documents.find((item) => (item.routePath === to.path || item.path === to.path) && item.fsPath);
+      if (!document?.fsPath) return;
+
+      const callHook = getNuxtApp()?.callHook as unknown as ((name: string, payload: unknown) => Promise<unknown>) | undefined;
+      await callHook?.("studio:document:edit", document.fsPath);
+      return false;
+    });
   };
 
   const openHost = (host: StudioHost, currentRequestId: number) => {
@@ -78,15 +122,33 @@ export function useStudioEditorWorkspace() {
       return;
     }
 
-    setPagePresentation(true);
+    if (!mountStudioElement()) {
+      hostReadyObserver?.disconnect();
+      hostReadyObserver = new MutationObserver(() => {
+        if (!mountStudioElement()) return;
+        hostReadyObserver?.disconnect();
+        hostReadyObserver = undefined;
+        openHost(host, currentRequestId);
+      });
+      hostReadyObserver.observe(document.body, { childList: true });
+      return;
+    }
+
     studioActiveForWorkspace = true;
+    interceptDocumentRoutes(host);
     host.ui.activateStudio?.();
+    host.ui.expandSidebar();
+    clearLegacyStudioLayoutStyles();
     if (host.on?.mounted) {
       host.on.mounted(() => {
-        if (currentRequestId === requestId && !isCleaningUp) host.ui?.expandSidebar?.();
+        if (currentRequestId === requestId && !isCleaningUp) {
+          host.ui?.expandSidebar?.();
+          clearLegacyStudioLayoutStyles();
+        }
       });
     } else {
       host.ui.expandSidebar();
+      clearLegacyStudioLayoutStyles();
     }
   };
 
@@ -149,6 +211,16 @@ export function useStudioEditorWorkspace() {
     }
   };
 
+  const close = () => {
+    studioActiveForWorkspace = false;
+    removeRouteGuard?.();
+    removeRouteGuard = undefined;
+    getStudioHost()?.ui?.deactivateStudio?.();
+    clearLegacyStudioLayoutStyles();
+    isEditorOpen.value = false;
+    status.value = "closed";
+  };
+
   onMounted(() => {
     syncEditorState();
     editorStateObserver = new MutationObserver(syncEditorState);
@@ -161,6 +233,8 @@ export function useStudioEditorWorkspace() {
     requestId += 1;
     hostReadyObserver?.disconnect();
     editorStateObserver?.disconnect();
+    removeRouteGuard?.();
+    removeRouteGuard = undefined;
     const host = getStudioHost();
     if (studioActiveForWorkspace) {
       studioActiveForWorkspace = false;
@@ -168,8 +242,9 @@ export function useStudioEditorWorkspace() {
     } else if (document.body.hasAttribute("data-expand-sidebar")) {
       host?.ui?.collapseSidebar?.();
     }
-    setPagePresentation(false);
+    clearLegacyStudioLayoutStyles();
+    restoreStudioElement();
   });
 
-  return { status, errorMessage, isEditorOpen, start, redirectToLogin };
+  return { status, errorMessage, isEditorOpen, start, close, redirectToLogin };
 }

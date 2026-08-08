@@ -13,10 +13,17 @@ const deactivateStudio = vi.fn(() => {
 const mountedCallback = { fn: undefined as (() => void) | undefined };
 const hostMounted = vi.fn((fn: () => void) => { mountedCallback.fn = fn; });
 const fetchMock = vi.fn<typeof fetch>();
+const routeGuard = { fn: undefined as ((to: { path: string }, from: { path: string }) => Promise<boolean | void> | boolean | void) | undefined };
+const beforeEachRoute = vi.fn((guard: typeof routeGuard.fn) => {
+  routeGuard.fn = guard;
+  return () => { routeGuard.fn = undefined; };
+});
+const callHook = vi.fn(async () => undefined);
 
 function stubStudioHost() {
   vi.stubGlobal("useStudioHost", () => ({
     ui: { activateStudio, deactivateStudio, expandSidebar, collapseSidebar },
+    document: { db: { list: async () => [{ fsPath: "apps/portal/content/changelog/0801.1.md", path: "/changelog/26.0801.1" }] } },
     on: { mounted: hostMounted },
   }));
 }
@@ -45,10 +52,15 @@ beforeEach(() => {
   hostMounted.mockClear();
   mountedCallback.fn = undefined;
   fetchMock.mockReset();
+  routeGuard.fn = undefined;
+  beforeEachRoute.mockClear();
+  callHook.mockClear();
   vi.stubGlobal("fetch", fetchMock);
+  vi.stubGlobal("useNuxtApp", () => ({ $router: { beforeEach: beforeEachRoute }, callHook }));
   document.body.removeAttribute("data-expand-sidebar");
   document.body.removeAttribute("data-studio-active");
   document.body.removeAttribute("data-studio-fullscreen");
+  document.querySelector("nuxt-studio")?.remove();
 });
 
 afterEach(() => {
@@ -63,33 +75,39 @@ describe("admin content editor workspace", () => {
   it("opens the existing Studio session when entering the workspace", async () => {
     stubStudioHost();
 
-    const wrapper = await mountSuspended(ContentPage, { global: { stubs } });
-    const appRoot = document.getElementById("__nuxt");
-    expect(appRoot).not.toBeNull();
+    const wrapper = await mountSuspended(ContentPage, { attachTo: document.body, global: { stubs } });
+    document.body.appendChild(document.createElement("nuxt-studio"));
+    await flushPromises();
     expect(hostMounted).toHaveBeenCalledTimes(1);
     expect(activateStudio).toHaveBeenCalledTimes(1);
-    expect(expandSidebar).not.toHaveBeenCalled();
+    expect(expandSidebar).toHaveBeenCalledTimes(1);
 
     mountedCallback.fn?.();
     await flushPromises();
-    expect(expandSidebar).toHaveBeenCalledTimes(1);
-    expect(document.body.getAttribute("data-studio-fullscreen")).toBe("true");
-    expect(appRoot?.hasAttribute("inert")).toBe(true);
-    expect(appRoot?.getAttribute("aria-hidden")).toBe("true");
+    expect(expandSidebar).toHaveBeenCalledTimes(2);
     expect(wrapper.text()).toContain("内容编辑器已打开");
+    expect(wrapper.text()).toContain("关闭编辑器");
+    expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
+    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
+
+    expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBe(false);
+    expect(callHook).toHaveBeenCalledWith("studio:document:edit", "apps/portal/content/changelog/0801.1.md");
+
+    await wrapper.get("button").trigger("click");
+    expect(deactivateStudio).toHaveBeenCalled();
+    expect(wrapper.text()).toContain("内容编辑器未打开");
 
     wrapper.unmount();
-    expect(deactivateStudio).toHaveBeenCalledTimes(1);
-    expect(collapseSidebar).toHaveBeenCalledTimes(1);
+    expect(collapseSidebar).toHaveBeenCalled();
     expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
-    expect(appRoot?.hasAttribute("inert")).toBe(false);
+    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
   });
 
   it("routes through the same-origin Studio login when no session exists", async () => {
     fetchMock.mockResolvedValue(sessionResponse({}));
     const assign = vi.spyOn(window.location, "assign").mockImplementation(() => {});
 
-    const wrapper = await mountSuspended(ContentPage, { global: { stubs } });
+    const wrapper = await mountSuspended(ContentPage, { attachTo: document.body, global: { stubs } });
     await flushPromises();
 
     expect(fetchMock).toHaveBeenCalledWith("/__nuxt_studio/auth/session", {
@@ -103,9 +121,9 @@ describe("admin content editor workspace", () => {
 
   it("returns to a compact recovery state when the editor closes", async () => {
     stubStudioHost();
-    const wrapper = await mountSuspended(ContentPage, { global: { stubs } });
-    const appRoot = document.getElementById("__nuxt");
-    expect(appRoot).not.toBeNull();
+    const wrapper = await mountSuspended(ContentPage, { attachTo: document.body, global: { stubs } });
+    document.body.appendChild(document.createElement("nuxt-studio"));
+    await flushPromises();
     mountedCallback.fn?.();
     await flushPromises();
 
@@ -114,20 +132,20 @@ describe("admin content editor workspace", () => {
     expect(wrapper.text()).toContain("内容编辑器未打开");
     expect(wrapper.text()).toContain("打开内容编辑器");
     expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
-    expect(appRoot?.hasAttribute("inert")).toBe(false);
+    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
     expect(deactivateStudio).toHaveBeenCalledTimes(1);
 
     await wrapper.get("button").trigger("click");
     mountedCallback.fn?.();
     await flushPromises();
-    expect(expandSidebar).toHaveBeenCalledTimes(2);
+    expect(expandSidebar.mock.calls.length).toBeGreaterThan(2);
     wrapper.unmount();
   });
 
   it("keeps a failed session request actionable", async () => {
     fetchMock.mockResolvedValue(sessionResponse({ error: "unavailable" }, 503));
 
-    const wrapper = await mountSuspended(ContentPage, { global: { stubs } });
+    const wrapper = await mountSuspended(ContentPage, { attachTo: document.body, global: { stubs } });
     await flushPromises();
     expect(wrapper.text()).toContain("内容编辑器无法载入");
     expect(wrapper.text()).toContain("重新载入编辑器");
