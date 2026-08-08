@@ -1,6 +1,6 @@
 import { onBeforeUnmount, onMounted, shallowRef, type Ref } from "vue";
 
-type StudioRoute = { path: string };
+type StudioRoute = { path: string; fullPath?: string };
 
 type StudioDocument = {
   fsPath?: string;
@@ -84,6 +84,8 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
   let isCleaningUp = false;
   let studioActiveForWorkspace = false;
   let removeRouteGuard: (() => void) | undefined;
+  let previewNavigationPath: string | null = null;
+  const toast = useToast();
 
   const getStudioElement = () => document.querySelector("nuxt-studio") as HTMLElement | null;
 
@@ -119,6 +121,15 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
   const clearLegacyStudioLayoutStyles = () => {
     const style = document.querySelector("[data-studio-style]");
     if (style) style.textContent = "";
+    // The pristine Studio host also shifts fixed elements (toasts, overlays) by
+    // the sidebar width through inline `left`. The embedded workspace must not
+    // keep that offset, so reset any Studio-applied left on fixed elements.
+    document.querySelectorAll("*").forEach((el) => {
+      const element = el as HTMLElement;
+      if (window.getComputedStyle(element).position === "fixed" && element.style.left) {
+        element.style.left = "";
+      }
+    });
   };
 
   const syncEditorState = () => {
@@ -148,12 +159,27 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
 
     removeRouteGuard = router.beforeEach(async (to) => {
       if (isCleaningUp || !studioActiveForWorkspace || to.path === adminContentPath || to.path.startsWith("/admin/")) return;
+      if (previewNavigationPath === to.path) {
+        previewNavigationPath = null;
+        return;
+      }
       const documents = await host.document?.db?.list?.() ?? [];
       const document = documents.find((item) => (item.routePath === to.path || item.path === to.path) && item.fsPath);
       if (!document?.fsPath) return;
 
       const callHook = getNuxtApp()?.callHook as unknown as ((name: string, payload: unknown) => Promise<unknown>) | undefined;
       await callHook?.("studio:document:edit", document.fsPath);
+      toast.add({
+        title: "已在编辑器中打开该文档",
+        description: to.path,
+        actions: [{
+          label: "在页面中预览",
+          onClick: () => {
+            previewNavigationPath = to.path;
+            void navigateTo(to.fullPath ?? to.path);
+          },
+        }],
+      });
       return false;
     });
   };

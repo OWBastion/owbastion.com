@@ -1,4 +1,4 @@
-import { mountSuspended } from "@nuxt/test-utils/runtime";
+import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ContentPage from "./content.vue";
@@ -13,12 +13,18 @@ const deactivateStudio = vi.fn(() => {
 const mountedCallback = { fn: undefined as (() => void) | undefined };
 const hostMounted = vi.fn((fn: () => void) => { mountedCallback.fn = fn; });
 const fetchMock = vi.fn<typeof fetch>();
-const routeGuard = { fn: undefined as ((to: { path: string }, from: { path: string }) => Promise<boolean | void> | boolean | void) | undefined };
+const routeGuard = { fn: undefined as ((to: { path: string; fullPath?: string }, from: { path: string }) => Promise<boolean | void> | boolean | void) | undefined };
 const beforeEachRoute = vi.fn((guard: typeof routeGuard.fn) => {
   routeGuard.fn = guard;
   return () => { routeGuard.fn = undefined; };
 });
 const callHook = vi.fn(async () => undefined);
+const { toastAdd, navigateToMock } = vi.hoisted(() => ({
+  toastAdd: vi.fn(),
+  navigateToMock: vi.fn(() => Promise.resolve()),
+}));
+mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
+mockNuxtImport("navigateTo", () => navigateToMock);
 
 function stubStudioHost() {
   vi.stubGlobal("useStudioHost", () => ({
@@ -55,6 +61,8 @@ beforeEach(() => {
   routeGuard.fn = undefined;
   beforeEachRoute.mockClear();
   callHook.mockClear();
+  toastAdd.mockClear();
+  navigateToMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("useNuxtApp", () => ({ $router: { beforeEach: beforeEachRoute }, callHook }));
   document.body.removeAttribute("data-expand-sidebar");
@@ -87,8 +95,16 @@ describe("admin content editor workspace", () => {
     expect(wrapper.text()).toContain("编辑器已打开");
     expect(wrapper.text()).toContain("关闭编辑器");
 
-    expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBe(false);
+    expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1", fullPath: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBe(false);
     expect(callHook).toHaveBeenCalledWith("studio:document:edit", "apps/portal/content/changelog/0801.1.md");
+    expect(toastAdd).toHaveBeenCalledWith(expect.objectContaining({ title: "已在编辑器中打开该文档" }));
+
+    // The interception reports itself and offers an explicit preview escape.
+    const previewAction = toastAdd.mock.calls[0]?.[0]?.actions?.[0];
+    expect(previewAction?.label).toBe("在页面中预览");
+    previewAction?.onClick?.();
+    expect(navigateToMock).toHaveBeenCalledWith("/changelog/26.0801.1");
+    expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1", fullPath: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBeUndefined();
 
     await wrapper.get("button").trigger("click");
     expect(deactivateStudio).toHaveBeenCalled();
