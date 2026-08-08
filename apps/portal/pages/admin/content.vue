@@ -1,61 +1,12 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
-
 definePageMeta({ middleware: ["auth", "studio-admin"] });
 useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow" });
 
 const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
-let studioExpandTimer: ReturnType<typeof setInterval> | undefined;
 
 const openStudio = () => {
-  const studioElement = document.querySelector("nuxt-studio");
-  const studioControl = studioElement?.shadowRoot?.querySelector<HTMLButtonElement>(".fixed.bottom-2.left-2 button");
-  if (studioControl) {
-    studioControl.click();
-    return;
-  }
   window.location.assign(studioLoginUrl);
 };
-
-onMounted(() => {
-  const showStudioSidebar = () => {
-    const studioElement = document.querySelector("nuxt-studio");
-    const sidebar = studioElement?.shadowRoot?.querySelector<HTMLElement>(".fixed.top-0.bottom-0.left-0");
-    sidebar?.style.setProperty("z-index", "50", "important");
-  };
-
-  let attempts = 0;
-  const tryExpandStudio = () => {
-    const studioWindow = window as Window & {
-      useStudioHost?: () => { ui?: { activateStudio?: () => void; expandSidebar?: () => void } };
-    };
-    const host = studioWindow.useStudioHost?.();
-    const studioElement = document.querySelector("nuxt-studio");
-    if (host?.ui?.expandSidebar && studioElement) {
-      host.ui.activateStudio?.();
-      if (!document.body.hasAttribute("data-studio-auto-expanded")) {
-        host.ui.expandSidebar();
-        document.body.setAttribute("data-studio-auto-expanded", "true");
-      }
-      showStudioSidebar();
-      if (studioExpandTimer) clearInterval(studioExpandTimer);
-      studioExpandTimer = undefined;
-      return;
-    }
-    attempts += 1;
-    if (attempts >= 100 && studioExpandTimer) {
-      clearInterval(studioExpandTimer);
-      studioExpandTimer = undefined;
-    }
-  };
-
-  tryExpandStudio();
-  studioExpandTimer = setInterval(tryExpandStudio, 100);
-});
-
-onBeforeUnmount(() => {
-  if (studioExpandTimer) clearInterval(studioExpandTimer);
-});
 </script>
 
 <template>

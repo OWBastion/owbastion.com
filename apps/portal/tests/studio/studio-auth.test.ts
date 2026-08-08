@@ -7,7 +7,7 @@ import {
   studioGitProxyTarget,
   studioRequestDecision,
   studioUserForAdmin,
-} from "../../server/utils/studio-auth";
+} from "../../utils/studio-auth-policy";
 
 const anonymous = null;
 const player = { player: { playerName: "Player", isAdmin: false } };
