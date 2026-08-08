@@ -1,8 +1,55 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from "vue";
+
 definePageMeta({ middleware: ["auth", "studio-admin"] });
 useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow" });
 
 const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
+let studioExpandTimer: ReturnType<typeof setInterval> | undefined;
+let studioSidebarObserver: MutationObserver | undefined;
+
+const openStudio = () => {
+  window.location.assign(studioLoginUrl);
+};
+
+onMounted(() => {
+  const showStudioSidebar = () => {
+    const studioElement = document.querySelector("nuxt-studio");
+    const sidebar = studioElement?.shadowRoot?.querySelector<HTMLElement>(".fixed.top-0.bottom-0.left-0");
+    sidebar?.style.setProperty("z-index", "50", "important");
+  };
+
+  let attempts = 0;
+  const tryExpandStudio = () => {
+    const studioWindow = window as Window & {
+      useStudioHost?: () => { ui?: { expandSidebar?: () => void } };
+    };
+    const host = studioWindow.useStudioHost?.();
+    if (host?.ui?.expandSidebar) {
+      host.ui.expandSidebar();
+      showStudioSidebar();
+      if (studioExpandTimer) clearInterval(studioExpandTimer);
+      studioExpandTimer = undefined;
+      return;
+    }
+    attempts += 1;
+    if (attempts >= 20 && studioExpandTimer) {
+      clearInterval(studioExpandTimer);
+      studioExpandTimer = undefined;
+    }
+  };
+
+  studioSidebarObserver = new MutationObserver(showStudioSidebar);
+  studioSidebarObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  tryExpandStudio();
+  studioExpandTimer = setInterval(tryExpandStudio, 100);
+});
+
+onBeforeUnmount(() => {
+  if (studioExpandTimer) clearInterval(studioExpandTimer);
+  studioSidebarObserver?.disconnect();
+  studioSidebarObserver = undefined;
+});
 </script>
 
 <template>
@@ -13,7 +60,7 @@ const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
         <h2 id="studio-launch-title" class="type-headline">编辑 Portal 内容</h2>
         <p class="body-copy">使用当前平台管理员会话进入内容编辑器。编辑器保持在 Portal 同源页面；平台退出或管理员权限失效后，Studio 请求会立即被拒绝。</p>
       </div>
-      <UButton :to="studioLoginUrl" external label="打开内容编辑器" icon="i-lucide-file-pen-line" size="lg" />
+      <UButton @click="openStudio" label="打开内容编辑器" icon="i-lucide-file-pen-line" size="lg" />
     </section>
   </AdminWorkspace>
 </template>
@@ -24,6 +71,6 @@ const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
 .studio-launch .body-copy { max-width: 58ch; margin: .75rem 0 0; }
 @media (max-width: 620px) {
   .studio-launch { align-items: stretch; flex-direction: column; gap: 1.25rem; }
-  .studio-launch :deep(a) { width: 100%; justify-content: center; }
+  .studio-launch :deep(button) { width: 100%; justify-content: center; }
 }
 </style>
