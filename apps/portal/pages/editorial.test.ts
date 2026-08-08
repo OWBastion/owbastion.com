@@ -74,7 +74,7 @@ describe("public editorial surfaces", () => {
     const wrapper = await mountSuspended(ChangelogListPage, { global: { stubs } });
     await flushPromises();
 
-    expect(wrapper.get("h1").text()).toBe("版本记录");
+    expect(wrapper.get("h1").text()).toBe("版本更新");
     expect(wrapper.get("[data-testid='changelog-versions']").text()).toContain("版本 26.0801.1");
     expect(wrapper.get("[data-testid='changelog-versions'] a").attributes("href")).toBe("/changelog/26.0801.1");
   });

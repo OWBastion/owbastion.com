@@ -33,7 +33,7 @@ useSeoMeta({
         <article id="events" class="content-card content-card-wide interactive-card--static"><p class="card-label type-kicker">事件</p><h3 class="type-headline">随机事件</h3><p>已发布的随机事件与规则变化。</p></article>
         <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">成就</p><h3 class="type-headline">成就挑战</h3><p>查看已发布的目标与完成条件。</p></NuxtLink>
         <article id="rankings" class="content-card content-card-emphasis interactive-card--static"><p class="card-label type-kicker">天梯排名</p><h3 class="type-headline">公开记录</h3><p>挑战、完成时间与玩家排名。</p></article>
-        <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">版本记录</p><h3 class="type-headline">版本变化</h3><p>已发布的内容与规则变化。</p></NuxtLink>
+        <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">版本更新</p><h3 class="type-headline">版本变化</h3><p>已发布的内容与规则变化。</p></NuxtLink>
       </div>
     </section>
 

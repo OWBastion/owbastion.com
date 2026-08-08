@@ -94,7 +94,7 @@ async function signOut() {
           <NuxtLink to="/events" class="pressable">事件</NuxtLink>
           <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
           <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
-          <NuxtLink to="/changelog" class="pressable">版本记录</NuxtLink>
+          <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
           <NuxtLink to="/#rankings" class="hash-nav-link pressable">天梯排名</NuxtLink>
           <NuxtLink to="/#rotation" class="hash-nav-link pressable">轮换挑战</NuxtLink>
         </template>
@@ -134,7 +134,7 @@ async function signOut() {
             <NuxtLink to="/events" class="pressable" @click="closeMenu()">事件</NuxtLink>
             <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
             <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
-            <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本记录</NuxtLink>
+            <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
             <NuxtLink to="/#rankings" class="hash-nav-link pressable" @click="closeMenu()">天梯排名</NuxtLink>
             <NuxtLink to="/#rotation" class="hash-nav-link pressable" @click="closeMenu()">轮换挑战</NuxtLink>
           </template>

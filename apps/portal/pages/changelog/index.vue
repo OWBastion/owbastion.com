@@ -6,7 +6,7 @@ const { data: entries, status, error, refresh } = await useAsyncData(
 );
 
 useSeoMeta({
-  title: "版本记录 · 躲避堡垒 3",
+  title: "版本更新 · 躲避堡垒 3",
   description: "查看已发布的 Portal 内容与规则变化。",
 });
 
@@ -22,18 +22,18 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
 <template>
   <main class="editorial-page page-shell">
     <section class="page-intro" aria-labelledby="changelog-title">
-      <h1 id="changelog-title" class="page-title">版本记录</h1>
+      <h1 id="changelog-title" class="page-title">版本更新</h1>
       <p class="body-copy">查看已发布的内容与规则变化。</p>
     </section>
 
-    <section class="editorial-directory surface-card" aria-label="版本记录列表">
-      <div v-if="status === 'pending'" class="editorial-loading" role="status">正在读取版本记录…</div>
-      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取版本记录" description="内容暂时不可用，请稍后重试。">
+    <section class="editorial-directory surface-card" aria-label="版本更新列表">
+      <div v-if="status === 'pending'" class="editorial-loading" role="status">正在读取版本更新…</div>
+      <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取版本更新" description="内容暂时不可用，请稍后重试。">
         <template #actions>
           <UButton label="重试" color="neutral" variant="outline" @click="refresh()" />
         </template>
       </UAlert>
-      <UEmpty v-else-if="!changelogVersions.length" title="暂无版本记录" variant="naked" />
+      <UEmpty v-else-if="!changelogVersions.length" title="暂无版本更新" variant="naked" />
       <UChangelogVersions v-else :versions="changelogVersions" :indicator-motion="false" class="editorial-changelog-list" />
     </section>
   </main>
