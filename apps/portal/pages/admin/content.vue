@@ -6,9 +6,14 @@ useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow
 
 const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
 let studioExpandTimer: ReturnType<typeof setInterval> | undefined;
-let studioSidebarObserver: MutationObserver | undefined;
 
 const openStudio = () => {
+  const studioElement = document.querySelector("nuxt-studio");
+  const studioControl = studioElement?.shadowRoot?.querySelector<HTMLButtonElement>(".fixed.bottom-2.left-2 button");
+  if (studioControl) {
+    studioControl.click();
+    return;
+  }
   window.location.assign(studioLoginUrl);
 };
 
@@ -22,33 +27,34 @@ onMounted(() => {
   let attempts = 0;
   const tryExpandStudio = () => {
     const studioWindow = window as Window & {
-      useStudioHost?: () => { ui?: { expandSidebar?: () => void } };
+      useStudioHost?: () => { ui?: { activateStudio?: () => void; expandSidebar?: () => void } };
     };
     const host = studioWindow.useStudioHost?.();
-    if (host?.ui?.expandSidebar) {
-      host.ui.expandSidebar();
+    const studioElement = document.querySelector("nuxt-studio");
+    if (host?.ui?.expandSidebar && studioElement) {
+      host.ui.activateStudio?.();
+      if (!document.body.hasAttribute("data-studio-auto-expanded")) {
+        host.ui.expandSidebar();
+        document.body.setAttribute("data-studio-auto-expanded", "true");
+      }
       showStudioSidebar();
       if (studioExpandTimer) clearInterval(studioExpandTimer);
       studioExpandTimer = undefined;
       return;
     }
     attempts += 1;
-    if (attempts >= 20 && studioExpandTimer) {
+    if (attempts >= 100 && studioExpandTimer) {
       clearInterval(studioExpandTimer);
       studioExpandTimer = undefined;
     }
   };
 
-  studioSidebarObserver = new MutationObserver(showStudioSidebar);
-  studioSidebarObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
   tryExpandStudio();
   studioExpandTimer = setInterval(tryExpandStudio, 100);
 });
 
 onBeforeUnmount(() => {
   if (studioExpandTimer) clearInterval(studioExpandTimer);
-  studioSidebarObserver?.disconnect();
-  studioSidebarObserver = undefined;
 });
 </script>
 
