@@ -28,7 +28,7 @@ useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 
 <template>
   <main class="editorial-detail-page page-shell--narrow">
-    <NuxtLink to="/blog" class="editorial-back-link pressable">返回开发日志</NuxtLink>
+    <NuxtLink to="/blog" class="editorial-back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />返回开发日志</NuxtLink>
     <div v-if="status === 'pending'" class="editorial-detail-state surface-card" role="status">读取中…</div>
     <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取开发日志" description="内容暂时不可用，请稍后重试。" />
     <UAlert v-else-if="!post" color="neutral" variant="subtle" role="alert" title="找不到这篇开发日志" description="该地址对应的内容不存在或已移除。">
@@ -40,7 +40,7 @@ useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 
 <style scoped>
 .editorial-detail-page { padding-block: clamp(48px, 8vh, 88px) 4.5rem; }
-.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; margin-bottom: 1.125rem; color: var(--muted); font-size: var(--type-caption-size); font-weight: 650; text-decoration: none; }
+.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: 0.5rem; margin-bottom: 1.125rem; color: var(--muted); font-size: var(--type-caption-size); font-weight: 650; text-decoration: none; }
 .editorial-detail-state { min-height: 260px; display: grid; place-items: center; color: var(--muted); }
 @media (max-width: 620px) { .editorial-detail-page { padding-block: 2.375rem 3rem; } }
 </style>

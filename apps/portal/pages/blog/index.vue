@@ -15,6 +15,7 @@ const blogPosts = computed(() => posts.value.map((post) => ({
   description: post.description,
   date: post.publishedAt,
   to: post.path,
+  class: "pressable-soft",
 })));
 </script>
 

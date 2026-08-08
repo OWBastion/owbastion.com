@@ -16,6 +16,7 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
   date: entry.releasedAt,
   badge: `版本 ${entry.version}`,
   to: entry.path,
+  class: "pressable-soft",
 })));
 </script>
 
