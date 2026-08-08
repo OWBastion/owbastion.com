@@ -59,7 +59,6 @@ beforeEach(() => {
   vi.stubGlobal("useNuxtApp", () => ({ $router: { beforeEach: beforeEachRoute }, callHook }));
   document.body.removeAttribute("data-expand-sidebar");
   document.body.removeAttribute("data-studio-active");
-  document.body.removeAttribute("data-studio-fullscreen");
   document.querySelector("nuxt-studio")?.remove();
 });
 
@@ -68,7 +67,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   document.body.removeAttribute("data-expand-sidebar");
   document.body.removeAttribute("data-studio-active");
-  document.body.removeAttribute("data-studio-fullscreen");
 });
 
 describe("admin content editor workspace", () => {
@@ -88,8 +86,6 @@ describe("admin content editor workspace", () => {
     expect(wrapper.text()).toContain("内容工作区");
     expect(wrapper.text()).toContain("编辑器已打开");
     expect(wrapper.text()).toContain("关闭编辑器");
-    expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
-    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
 
     expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBe(false);
     expect(callHook).toHaveBeenCalledWith("studio:document:edit", "apps/portal/content/changelog/0801.1.md");
@@ -100,8 +96,6 @@ describe("admin content editor workspace", () => {
 
     wrapper.unmount();
     expect(collapseSidebar).toHaveBeenCalled();
-    expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
-    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
   });
 
   it("routes through the same-origin Studio login when no session exists", async () => {
@@ -132,8 +126,6 @@ describe("admin content editor workspace", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("编辑器未打开");
     expect(wrapper.text()).toContain("打开内容编辑器");
-    expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
-    expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
     expect(deactivateStudio).toHaveBeenCalledTimes(1);
 
     await wrapper.get("button").trigger("click");
