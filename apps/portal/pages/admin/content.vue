@@ -33,7 +33,7 @@ const statusDescription = computed(() => {
       <header class="editor-toolbar">
         <div>
           <p class="eyebrow">内容工作区</p>
-          <h2 id="studio-editor-state-title">{{ statusTitle }}</h2>
+          <h2 id="studio-editor-state-title" class="type-headline">{{ statusTitle }}</h2>
           <p v-if="status === 'error'" class="body-copy" role="alert">{{ statusDescription }}</p>
           <p v-else class="body-copy" role="status" aria-live="polite">{{ statusDescription }}</p>
         </div>
