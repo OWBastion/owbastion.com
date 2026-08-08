@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   isStudioCapabilityPath,
   safeStudioRedirect,
+  sanitizeStudioSessionResponse,
   studioAccessForPlayer,
+  studioGitProxyTarget,
   studioRequestDecision,
   studioUserForAdmin,
 } from "../../server/utils/studio-auth";
@@ -45,9 +47,25 @@ describe("Studio platform authorization bridge", () => {
     expect(studioRequestDecision("/admin/content", admin)).toBe("ignore");
   });
 
+  it("protects the server Git proxy with the admin Studio boundary", () => {
+    expect(isStudioCapabilityPath("/api/studio/git/repos/OWBastion/owbastion.com/git/trees")).toBe(true);
+    expect(studioRequestDecision("/api/studio/git/repos/OWBastion/owbastion.com/git/trees", admin)).toBe("allow");
+    expect(studioRequestDecision("/api/studio/git/repos/OWBastion/owbastion.com/git/trees", player)).toBe("deny");
+    expect(studioGitProxyTarget("repos/OWBastion/owbastion.com/contents/apps/portal/content/blog/post.md", "GET", new URLSearchParams("ref=main"))).toBe("/repos/OWBastion/owbastion.com/contents/apps/portal/content/blog/post.md");
+    expect(studioGitProxyTarget("repos/OWBastion/owbastion.com/contents/apps/api/src/private.ts", "GET", new URLSearchParams("ref=main"))).toBeNull();
+    expect(studioGitProxyTarget("repos/OWBastion/owbastion.com/git/trees", "POST", new URLSearchParams())).toBe("/repos/OWBastion/owbastion.com/git/trees");
+  });
+
   it("keeps the bridge identity free of platform-private identifiers", () => {
     expect(studioUserForAdmin(admin)).toEqual({ name: "Maintainer", email: "content-editor@owbastion.local", providerId: "platform-admin" });
     expect(studioUserForAdmin(admin)).not.toHaveProperty("playerId");
+  });
+
+  it("removes Git credentials from the Studio session response", () => {
+    const response = { user: { name: "Maintainer", accessToken: "server-only" }, id: "session-id" };
+    expect(sanitizeStudioSessionResponse(response)).toEqual({ user: { name: "Maintainer" }, id: "session-id" });
+    expect(response.user).toHaveProperty("accessToken");
+    expect(sanitizeStudioSessionResponse(JSON.stringify(response))).toBe(JSON.stringify({ user: { name: "Maintainer" }, id: "session-id" }));
   });
 
   it("accepts only same-origin relative redirects", () => {

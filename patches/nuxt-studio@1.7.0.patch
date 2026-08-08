@@ -1,0 +1,87 @@
+diff --git a/dist/app/main.js b/dist/app/main.js
+index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14fb1b3b51 100644
+--- a/dist/app/main.js
++++ b/dist/app/main.js
+@@ -1 +1,55 @@
+-import{A as t,b as a,C as s,c as e,D as i,I as o,S as n,d,e as u,T as r,V as I,m as S}from"./main-CcK4joxm.js";export{t as AI_LIMITS,a as AudioFileExtension,s as COMMAND_KEYS,e as ContentFileExtension,i as DraftStatus,o as ImageFileExtension,n as StudioBranchActionId,d as StudioFeature,u as StudioItemActionId,r as TreeStatus,I as VideoFileExtension,S as default};
++const upstreamFetch = globalThis.fetch;
++const proxyAccessToken = "nuxt-studio-server-proxy";
++
++const isGitHubApiRequest = (url) => url.hostname === "api.github.com" || (url.hostname === "github.com" && url.pathname.startsWith("/api/v3/"));
++
++const toRequest = (input, init) => input instanceof Request ? input : new Request(input, init);
++
++globalThis.fetch = async (input, init) => {
++  const request = toRequest(input, init);
++  const url = new URL(request.url);
++
++  if (url.pathname === "/__nuxt_studio/auth/session" && request.method === "GET") {
++    const response = await upstreamFetch(request);
++    if (!response.ok) return response;
++    const session = await response.json();
++    if (session?.user) session.user.accessToken = proxyAccessToken;
++    const headers = new Headers(response.headers);
++    headers.delete("content-length");
++    headers.delete("content-encoding");
++    return new Response(JSON.stringify(session), {
++      status: response.status,
++      statusText: response.statusText,
++      headers,
++    });
++  }
++
++  if (isGitHubApiRequest(url)) {
++    const proxyUrl = new URL(`/api/studio/git${url.pathname}${url.search}`, window.location.origin);
++    const headers = new Headers(request.headers);
++    headers.delete("authorization");
++    return upstreamFetch(new Request(proxyUrl, {
++      method: request.method,
++      headers,
++      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
++      credentials: "same-origin",
++    }));
++  }
++
++  return upstreamFetch(request);
++};
++
++const studioModule = await import("./main-CcK4joxm.js");
++
++export const AI_LIMITS = studioModule.AI_LIMITS;
++export const AudioFileExtension = studioModule.AudioFileExtension;
++export const COMMAND_KEYS = studioModule.COMMAND_KEYS;
++export const ContentFileExtension = studioModule.ContentFileExtension;
++export const DraftStatus = studioModule.DraftStatus;
++export const ImageFileExtension = studioModule.ImageFileExtension;
++export const StudioBranchActionId = studioModule.StudioBranchActionId;
++export const StudioFeature = studioModule.StudioFeature;
++export const StudioItemActionId = studioModule.StudioItemActionId;
++export const TreeStatus = studioModule.TreeStatus;
++export const VideoFileExtension = studioModule.VideoFileExtension;
++export default studioModule.default;
+diff --git a/dist/module/runtime/plugins/studio.client.dev.js b/dist/module/runtime/plugins/studio.client.dev.js
+index f47b3ba9bcfe529a62fa0db1033ee0fb5f24ffbf..896547258e224ab4048e4556df0f2824e8770793 100644
+--- a/dist/module/runtime/plugins/studio.client.dev.js
++++ b/dist/module/runtime/plugins/studio.client.dev.js
+@@ -14,7 +14,7 @@ export default defineNuxtPlugin(() => {
+   \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D   \u255A\u2550\u255D    \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u255D     \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D  \u255A\u2550\u2550\u2550\u255D
+     `);
+     const host = await import("../host.dev.js").then((m) => m.useStudioHost);
+-    const hostInstance = host(user, config.public.studio.repository);
++    const hostInstance = host({ ...user, accessToken: "nuxt-studio-server-proxy" }, config.public.studio.repository);
+     window.useStudioHost = () => hostInstance;
+     const el = document.createElement("script");
+     el.src = `${config.public.studio?.development?.server}/src/main.ts`;
+diff --git a/dist/module/runtime/plugins/studio.client.js b/dist/module/runtime/plugins/studio.client.js
+index e330e276339b1c9ec2442666e4feb5a5e89aca11..e231bb314fe54d2aa1a9591362a30c8c80ab0673 100644
+--- a/dist/module/runtime/plugins/studio.client.js
++++ b/dist/module/runtime/plugins/studio.client.js
+@@ -4,7 +4,7 @@ export default defineNuxtPlugin(() => {
+   defineStudioActivationPlugin(async (user) => {
+     const config = useRuntimeConfig();
+     const host = await (config.public.studio.dev ? import("../host.dev") : import("../host")).then((m) => m.useStudioHost);
+-    const hostInstance = host(user, config.public.studio.repository);
++    const hostInstance = host({ ...user, accessToken: "nuxt-studio-server-proxy" }, config.public.studio.repository);
+     window.useStudioHost = () => hostInstance;
+     await import("nuxt-studio/app");
+     document.body.appendChild(document.createElement("nuxt-studio"));
