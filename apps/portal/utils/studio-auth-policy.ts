@@ -10,6 +10,65 @@ export type StudioRequestDecision = "ignore" | "allow" | "clear-session" | "deny
 
 const studioRepositoryPrefix = "repos/OWBastion/owbastion.com/";
 const studioContentRoot = "apps/portal";
+const studioEditorialMutationRoots = ["apps/portal/content/", "apps/portal/public/content/"] as const;
+const studioGitShaPattern = /^[0-9a-f]{40}$/i;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const hasOnlyKeys = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every((key) => keys.includes(key));
+
+const isNonEmptyString = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+
+export const isStudioGitSha = (value: unknown): value is string => typeof value === "string" && studioGitShaPattern.test(value);
+
+const isSafePortalPath = (path: unknown): path is string => {
+  if (typeof path !== "string" || !path.startsWith(`${studioContentRoot}/`) || path.includes("\\")) return false;
+  return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+};
+
+export const isStudioEditorialMutationPath = (path: unknown): path is string => {
+  if (!isSafePortalPath(path)) return false;
+  return studioEditorialMutationRoots.some((root) => path.startsWith(root));
+};
+
+export const isStudioGitBlobPayload = (payload: unknown) => {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ["content", "encoding"])) return false;
+  return typeof payload.content === "string" && (payload.encoding === "utf-8" || payload.encoding === "base64");
+};
+
+export const isStudioGitTreePayload = (payload: unknown, expectedBaseTreeSha: string) => {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ["base_tree", "tree"]) || payload.base_tree !== expectedBaseTreeSha || !isStudioGitSha(expectedBaseTreeSha) || !Array.isArray(payload.tree) || payload.tree.length === 0) return false;
+  return payload.tree.every((entry) => {
+    if (!isRecord(entry) || !hasOnlyKeys(entry, ["path", "mode", "type", "sha"])) return false;
+    return isStudioEditorialMutationPath(entry.path) && entry.mode === "100644" && entry.type === "blob" && (entry.sha === null || isStudioGitSha(entry.sha));
+  });
+};
+
+export const isStudioGitCommitPayload = (payload: unknown, expectedTreeSha: string, expectedParentSha: string) => {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ["message", "tree", "parents", "author"]) || !isStudioGitSha(expectedTreeSha) || !isStudioGitSha(expectedParentSha)) return false;
+  if (!isNonEmptyString(payload.message) || payload.tree !== expectedTreeSha || !Array.isArray(payload.parents) || payload.parents.length !== 1 || payload.parents[0] !== expectedParentSha) return false;
+  if (!isRecord(payload.author) || !hasOnlyKeys(payload.author, ["name", "email", "date"])) return false;
+  return isNonEmptyString(payload.author.name) && isNonEmptyString(payload.author.email) && isNonEmptyString(payload.author.date) && !Number.isNaN(Date.parse(payload.author.date as string));
+};
+
+export const isStudioGitRefUpdatePayload = (payload: unknown, expectedCommitSha: string) => {
+  if (!isRecord(payload) || !hasOnlyKeys(payload, ["sha", "force"]) || !isStudioGitSha(expectedCommitSha) || payload.sha !== expectedCommitSha) return false;
+  return payload.force === undefined || payload.force === false;
+};
+
+export const isStudioGitRefResponse = (payload: unknown): payload is { object: { type: "commit"; sha: string } } => {
+  if (!isRecord(payload) || !isRecord(payload.object)) return false;
+  return payload.object.type === "commit" && isStudioGitSha(payload.object.sha);
+};
+
+export const isStudioGitTreeResponse = (payload: unknown): payload is { sha: string } => isRecord(payload) && isStudioGitSha(payload.sha);
+
+export const isStudioGitCommitResponse = (payload: unknown, expectedCommitSha: string, expectedTreeSha: string, expectedParentSha: string) => {
+  if (!isRecord(payload) || !isStudioGitSha(expectedCommitSha) || !isStudioGitSha(expectedTreeSha) || !isStudioGitSha(expectedParentSha)) return false;
+  if (payload.sha !== expectedCommitSha || !isRecord(payload.tree) || payload.tree.sha !== expectedTreeSha || !Array.isArray(payload.parents) || payload.parents.length !== 1) return false;
+  const parent = payload.parents[0];
+  return isRecord(parent) && parent.sha === expectedParentSha;
+};
 
 export const studioAccessForPlayer = (player: StudioPlatformPlayer | null): StudioAccess => {
   if (!player) return "anonymous";
@@ -75,16 +134,16 @@ export const studioGitProxyTarget = (path: string, method: string, search: URLSe
     } catch {
       return null;
     }
-    const segments = contentPath.split("/");
-    if (!contentPath.startsWith(`${studioContentRoot}/`) || segments.includes("..") || segments.includes(".")) return null;
+    if (!isSafePortalPath(contentPath)) return null;
     if (normalizedMethod !== "GET") return null;
     return `/repos/OWBastion/owbastion.com/${operation}`;
   }
 
+  if (search.toString() !== "") return null;
   if (operation === "git/refs/heads/main") {
     return normalizedMethod === "GET" || normalizedMethod === "PATCH" ? `/repos/OWBastion/owbastion.com/${operation}` : null;
   }
-  if (/^git\/commits\/[0-9a-f]{7,64}$/i.test(operation)) {
+  if (/^git\/commits\/[0-9a-f]{40}$/i.test(operation)) {
     return normalizedMethod === "GET" ? `/repos/OWBastion/owbastion.com/${operation}` : null;
   }
   if (operation === "git/blobs" || operation === "git/trees" || operation === "git/commits") {
