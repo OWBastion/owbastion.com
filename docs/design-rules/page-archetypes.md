@@ -78,6 +78,29 @@
 - Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
   shrinking data below operable sizes.
 
+## Admin content workspace
+
+The content editor (`/admin/content`) embeds the third-party Studio editor
+inside the Portal admin shell instead of overlaying a separate surface:
+
+- Structure: `AdminWorkspace` title + `#actions` (escape to the admin overview),
+  then one `surface-card` workspace with a toolbar and the editor frame.
+- The toolbar keeps a **stable heading** (the region name) and expresses the
+  editor state as a separate status line (`role="status"`/`role="alert"`), with
+  open/close/reload actions next to it. Loading uses short labels with an
+  ellipsis.
+- The editor frame is a **labelled region** (`role="region"` + `aria-label`) and
+  renders a **bounded editing viewport** when open: `height` in `clamp()` with
+  internal scroll, so long documents never stretch the page or push the toolbar
+  out of reach. This bounded scroll is an explicit exception to the
+  no-bounded-scroll rule, which targets server-paginated data lists.
+- The embed mechanics (moving the `nuxt-studio` element into the frame,
+  injecting the embedded shadow layout, session check and cleanup) live in
+  `useStudioEditorWorkspace`; do not re-implement them per page.
+- Opening a published content route while the workspace is active stays inside
+  the admin: the route guard opens the document in the editor and reports it
+  with visible feedback plus an explicit "preview in page" escape.
+
 ## Admin batch confirmation
 
 - Show selection, affected count, consequence, and the confirm/cancel actions
