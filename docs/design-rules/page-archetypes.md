@@ -90,9 +90,10 @@ inside the Portal admin shell instead of overlaying a separate surface:
   open/close/reload actions next to it. Loading uses short labels with an
   ellipsis.
 - The editor frame is a **labelled region** (`role="region"` + `aria-label`) and
-  renders a **bounded editing viewport** when open: `height` in `clamp()` with
-  internal scroll, so long documents never stretch the page or push the toolbar
-  out of reach. This bounded scroll is an explicit exception to the
+  renders a **bounded editing viewport** when open: natural content height up to
+  a `max-height` in `clamp()` with internal scroll after the cap, so short
+  directory views do not reserve empty space while long documents never push the
+  toolbar out of reach. This bounded scroll is an explicit exception to the
   no-bounded-scroll rule, which targets server-paginated data lists.
 - The embed mechanics (moving the `nuxt-studio` element into the frame,
   injecting the embedded shadow layout, session check and cleanup) live in

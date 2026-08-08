@@ -79,10 +79,11 @@ const statusDescription = computed(() => {
   background: var(--surface-raised);
 }
 
-/* Bounded editing viewport: the embedded editor scrolls inside a stable
-   frame so long documents never stretch the page or push the toolbar away. */
+/* Bounded editing viewport: the embedded editor grows with its current content
+   and scrolls internally only after reaching the viewport cap. */
 .studio-editor-frame--active {
-  height: clamp(26rem, 62vh, 40rem);
+  height: auto;
+  max-height: clamp(26rem, 62dvh, 40rem);
   overflow-y: auto;
 }
 
@@ -101,7 +102,7 @@ const statusDescription = computed(() => {
   }
 
   .studio-editor-frame--active {
-    height: clamp(26rem, 68vh, 42rem);
+    max-height: clamp(26rem, 68dvh, 42rem);
   }
 }
 </style>
