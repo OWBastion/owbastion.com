@@ -74,6 +74,12 @@ const embeddedStudioLayout = `
   }
 `;
 
+const embeddedStudioShellLayout = `
+  body[data-studio-active][data-expand-sidebar] {
+    margin-left: 0 !important;
+  }
+`;
+
 export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
   const status = shallowRef<StudioEditorStatus>("loading");
   const errorMessage = shallowRef("");
@@ -130,6 +136,20 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
         element.style.left = "";
       }
     });
+  };
+
+  const installEmbeddedStudioShellLayout = () => {
+    let style = document.head.querySelector<HTMLStyleElement>("[data-portal-studio-shell-layout]");
+    if (!style) {
+      style = document.createElement("style");
+      style.setAttribute("data-portal-studio-shell-layout", "");
+      document.head.appendChild(style);
+    }
+    style.textContent = embeddedStudioShellLayout;
+  };
+
+  const removeEmbeddedStudioShellLayout = () => {
+    document.head.querySelector("[data-portal-studio-shell-layout]")?.remove();
   };
 
   const syncEditorState = () => {
@@ -208,16 +228,19 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
     interceptDocumentRoutes(host);
     host.ui.activateStudio?.();
     host.ui.expandSidebar();
+    installEmbeddedStudioShellLayout();
     clearLegacyStudioLayoutStyles();
     if (host.on?.mounted) {
       host.on.mounted(() => {
         if (currentRequestId === requestId && !isCleaningUp) {
           host.ui?.expandSidebar?.();
+          installEmbeddedStudioShellLayout();
           clearLegacyStudioLayoutStyles();
         }
       });
     } else {
       host.ui.expandSidebar();
+      installEmbeddedStudioShellLayout();
       clearLegacyStudioLayoutStyles();
     }
   };
@@ -286,6 +309,7 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
     removeRouteGuard?.();
     removeRouteGuard = undefined;
     getStudioHost()?.ui?.deactivateStudio?.();
+    removeEmbeddedStudioShellLayout();
     clearLegacyStudioLayoutStyles();
     isEditorOpen.value = false;
     status.value = "closed";
@@ -312,6 +336,7 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
     } else if (document.body.hasAttribute("data-expand-sidebar")) {
       host?.ui?.collapseSidebar?.();
     }
+    removeEmbeddedStudioShellLayout();
     clearLegacyStudioLayoutStyles();
     restoreStudioElement();
   });

@@ -67,6 +67,7 @@ beforeEach(() => {
   vi.stubGlobal("useNuxtApp", () => ({ $router: { beforeEach: beforeEachRoute }, callHook }));
   document.body.removeAttribute("data-expand-sidebar");
   document.body.removeAttribute("data-studio-active");
+  document.head.querySelector("[data-portal-studio-shell-layout]")?.remove();
   document.querySelector("nuxt-studio")?.remove();
 });
 
@@ -75,6 +76,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   document.body.removeAttribute("data-expand-sidebar");
   document.body.removeAttribute("data-studio-active");
+  document.head.querySelector("[data-portal-studio-shell-layout]")?.remove();
 });
 
 describe("admin content editor workspace", () => {
@@ -94,6 +96,7 @@ describe("admin content editor workspace", () => {
     expect(wrapper.text()).toContain("内容工作区");
     expect(wrapper.text()).toContain("编辑器已打开");
     expect(wrapper.text()).toContain("关闭编辑器");
+    expect(document.head.querySelector("[data-portal-studio-shell-layout]")?.textContent).toContain("margin-left: 0");
 
     expect(await routeGuard.fn?.({ path: "/changelog/26.0801.1", fullPath: "/changelog/26.0801.1" }, { path: "/admin/content" })).toBe(false);
     expect(callHook).toHaveBeenCalledWith("studio:document:edit", "apps/portal/content/changelog/0801.1.md");
@@ -108,10 +111,12 @@ describe("admin content editor workspace", () => {
 
     await wrapper.get("button").trigger("click");
     expect(deactivateStudio).toHaveBeenCalled();
+    expect(document.head.querySelector("[data-portal-studio-shell-layout]")).toBeNull();
     expect(wrapper.text()).toContain("编辑器未打开");
 
     wrapper.unmount();
     expect(collapseSidebar).toHaveBeenCalled();
+    expect(document.head.querySelector("[data-portal-studio-shell-layout]")).toBeNull();
   });
 
   it("routes through the same-origin Studio login when no session exists", async () => {
