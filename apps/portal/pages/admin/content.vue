@@ -13,7 +13,7 @@ const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
         <h2 id="studio-launch-title" class="type-headline">编辑 Portal 内容</h2>
         <p class="body-copy">使用当前平台管理员会话进入内容编辑器。编辑器保持在 Portal 同源页面；平台退出或管理员权限失效后，Studio 请求会立即被拒绝。</p>
       </div>
-      <UButton :to="studioLoginUrl" label="打开内容编辑器" icon="i-lucide-file-pen-line" size="lg" />
+      <UButton :to="studioLoginUrl" external label="打开内容编辑器" icon="i-lucide-file-pen-line" size="lg" />
     </section>
   </AdminWorkspace>
 </template>
