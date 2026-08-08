@@ -48,6 +48,8 @@ const stubs = {
     props: ["label", "icon", "to", "size", "color", "variant"],
     template: "<a v-if='to' :href='to'>{{ label }}</a><button v-else type='button' @click='$emit(\"click\")'>{{ label }}</button>",
   },
+  UAlert: { props: ["title", "description"], template: "<div role='alert'><strong>{{ title }}</strong><p>{{ description }}</p><slot name='actions' /></div>" },
+  UEmpty: { props: ["title"], template: "<div data-testid='editor-empty'>{{ title }}</div>" },
 };
 
 beforeEach(() => {
@@ -93,8 +95,7 @@ describe("admin content editor workspace", () => {
     mountedCallback.fn?.();
     await flushPromises();
     expect(expandSidebar).toHaveBeenCalledTimes(2);
-    expect(wrapper.text()).toContain("内容工作区");
-    expect(wrapper.text()).toContain("编辑器已打开");
+    expect(wrapper.find(".studio-editor-frame--active").exists()).toBe(true);
     expect(wrapper.text()).toContain("关闭编辑器");
     expect(document.head.querySelector("[data-portal-studio-shell-layout]")?.textContent).toContain("margin-left: 0");
 
@@ -112,7 +113,8 @@ describe("admin content editor workspace", () => {
     await wrapper.get("button").trigger("click");
     expect(deactivateStudio).toHaveBeenCalled();
     expect(document.head.querySelector("[data-portal-studio-shell-layout]")).toBeNull();
-    expect(wrapper.text()).toContain("编辑器未打开");
+    expect(wrapper.find(".studio-editor-frame--active").exists()).toBe(false);
+    expect(wrapper.text()).toContain("编辑器已关闭");
 
     wrapper.unmount();
     expect(collapseSidebar).toHaveBeenCalled();
@@ -145,7 +147,8 @@ describe("admin content editor workspace", () => {
 
     document.body.removeAttribute("data-expand-sidebar");
     await flushPromises();
-    expect(wrapper.text()).toContain("编辑器未打开");
+    expect(wrapper.find(".studio-editor-frame--active").exists()).toBe(false);
+    expect(wrapper.text()).toContain("编辑器已关闭");
     expect(wrapper.text()).toContain("打开内容编辑器");
     expect(deactivateStudio).toHaveBeenCalledTimes(1);
 

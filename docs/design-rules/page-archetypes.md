@@ -83,14 +83,14 @@
 The content editor (`/admin/content`) embeds the third-party Studio editor
 inside the Portal admin shell instead of overlaying a separate surface:
 
-- Structure: `AdminWorkspace` title + `#actions` (escape to the admin overview),
-  then one `surface-card` workspace with a toolbar and the editor frame.
-- The toolbar keeps a **stable heading** (the region name) and expresses the
-  editor state as a separate status line (`role="status"`/`role="alert"`), with
-  open/close/reload actions next to it. Loading uses short labels with an
-  ellipsis.
-- The editor frame is a **labelled region** (`role="region"` + `aria-label`) and
-  renders a **bounded editing viewport** when open: natural content height up to
+- Structure: `AdminWorkspace` title + `#actions` carrying the escape to the
+  admin overview and the editor controls (open/close). The workspace itself is
+  one `surface-card`; entering the page opens the editor automatically, so no
+  redundant toolbar heading or status line is added around it.
+- Loading, failure, and closed states render inside the card (short loading
+  label with an ellipsis, an `UAlert` with a reload action, and a compact empty
+  state) — the states that are not self-evident from the visible editor.
+- The editor frame is a **bounded editing viewport** when open: natural content height up to
   a `max-height` in `clamp()` with internal scroll after the cap, so short
   directory views do not reserve empty space while long documents never push the
   toolbar out of reach. This bounded scroll is an explicit exception to the
