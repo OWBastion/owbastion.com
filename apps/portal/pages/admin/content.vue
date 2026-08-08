@@ -80,7 +80,7 @@ const statusDescription = computed(() => {
 }
 
 .studio-editor-frame {
-  min-height: 34rem;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0.75rem;

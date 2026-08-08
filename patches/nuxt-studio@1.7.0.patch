@@ -48,6 +48,54 @@ index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14
 +const studioModule = await import("./main-CcK4joxm.js");
 +
 +const observedStudioRoots = new WeakSet();
++const studioRootObservers = new WeakMap();
++const embeddedStyleSnapshots = new WeakMap();
++
++const setEmbeddedStyles = (element, styles) => {
++  if (!embeddedStyleSnapshots.has(element)) embeddedStyleSnapshots.set(element, element.getAttribute("style"));
++  for (const [property, value] of Object.entries(styles)) element.style.setProperty(property, value);
++};
++
++const restoreEmbeddedStyles = (element) => {
++  if (!embeddedStyleSnapshots.has(element)) return;
++  const style = embeddedStyleSnapshots.get(element);
++  if (style === null) element.removeAttribute("style");
++  else element.setAttribute("style", style);
++  embeddedStyleSnapshots.delete(element);
++};
++
++const applyEmbeddedStudioLayout = (element, root) => {
++  const panel = root.querySelector(".fixed.top-0.bottom-0.left-0");
++  const content = root.querySelector(".fixed.top-0.bottom-0.left-0 .flex-1.overflow-y-auto.relative");
++  if (!element.hasAttribute("data-studio-embedded")) {
++    if (panel instanceof HTMLElement) restoreEmbeddedStyles(panel);
++    if (content instanceof HTMLElement) restoreEmbeddedStyles(content);
++    return;
++  }
++  if (panel instanceof HTMLElement) {
++    setEmbeddedStyles(panel, {
++      position: "relative",
++      top: "auto",
++      right: "auto",
++      bottom: "auto",
++      left: "auto",
++      width: "100%",
++      "max-width": "none",
++      height: "auto",
++      "min-height": "0",
++      "z-index": "auto",
++      transform: "none",
++    });
++  }
++  if (content instanceof HTMLElement) {
++    setEmbeddedStyles(content, {
++      flex: "none",
++      height: "auto",
++      "min-height": "0",
++      overflow: "visible",
++    });
++  }
++};
 +
 +const installStudioLayoutBridge = () => {
 +  const element = document.querySelector("nuxt-studio");
@@ -60,23 +108,29 @@ index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14
 +      :host([data-studio-embedded]) {
 +        display: block !important;
 +        width: 100% !important;
-+        height: min(72dvh, 52rem) !important;
-+        min-height: 34rem !important;
++        height: auto !important;
++        min-height: 0 !important;
 +      }
 +      :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 {
 +        position: relative !important;
 +        inset: auto !important;
 +        width: 100% !important;
 +        max-width: none !important;
-+        height: 100% !important;
++        height: auto !important;
 +        min-height: 0 !important;
 +        z-index: auto !important;
 +        transform: none !important;
 +      }
++      :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 > .flex-1.overflow-y-auto.relative {
++        flex: none !important;
++        height: auto !important;
++        min-height: 0 !important;
++        overflow: visible !important;
++      }
 +      @media (max-width: 620px) {
 +        :host([data-studio-embedded]) {
-+          height: min(70dvh, 42rem) !important;
-+          min-height: 28rem !important;
++          height: auto !important;
++          min-height: 0 !important;
 +        }
 +      }
 +      @media (prefers-reduced-motion: reduce) {
@@ -86,6 +140,12 @@ index ec00bdb46a20f056f1198117dc75dac1b2442d27..3562c91ccb3192cf95d42c7ef943db14
 +      }
 +    `;
 +    root.appendChild(style);
++  }
++  applyEmbeddedStudioLayout(element, root);
++  if (!studioRootObservers.has(root)) {
++    const rootObserver = new MutationObserver(() => applyEmbeddedStudioLayout(element, root));
++    rootObserver.observe(root, { childList: true, subtree: true });
++    studioRootObservers.set(root, rootObserver);
 +  }
 +  if (!observedStudioRoots.has(root)) observedStudioRoots.add(root);
 +  return true;

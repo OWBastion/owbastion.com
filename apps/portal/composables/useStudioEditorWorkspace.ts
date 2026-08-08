@@ -43,6 +43,25 @@ const getStudioHost = () => (window as Window & { useStudioHost?: () => StudioHo
 
 const getNuxtApp = () => (window as Window & { useNuxtApp?: () => StudioNuxtApp }).useNuxtApp?.();
 
+const embeddedStudioLayout = `
+  :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    z-index: auto !important;
+    transform: none !important;
+  }
+  :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 .flex-1.overflow-y-auto.relative {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+`;
+
 export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
   const status = shallowRef<StudioEditorStatus>("loading");
   const errorMessage = shallowRef("");
@@ -56,12 +75,25 @@ export function useStudioEditorWorkspace(mountTarget: Ref<HTMLElement | null>) {
 
   const getStudioElement = () => document.querySelector("nuxt-studio") as HTMLElement | null;
 
+  const syncEmbeddedStudioLayout = (element: HTMLElement) => {
+    const root = element.shadowRoot;
+    if (!root) return;
+    let style = root.querySelector<HTMLStyleElement>("[data-portal-embedded-layout]");
+    if (!style) {
+      style = document.createElement("style");
+      style.setAttribute("data-portal-embedded-layout", "");
+      root.appendChild(style);
+    }
+    style.textContent = embeddedStudioLayout;
+  };
+
   const mountStudioElement = () => {
     const element = getStudioElement();
     const target = mountTarget.value;
     if (!element || !target) return false;
     if (element.parentElement !== target) target.appendChild(element);
     element.setAttribute("data-studio-embedded", "true");
+    syncEmbeddedStudioLayout(element);
     return true;
   };
 
