@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isStudioGitProviderUrl, studioGitProxyUrl, studioServerProxyAccessToken } from "./studio-git-proxy";
+import { isStudioGitProviderUrl, studioGitProxyUrl, studioServerProxyAccessToken } from "../../utils/studio-git-proxy";
 
 describe("Studio Git client proxy", () => {
   it("uses a non-credential sentinel for the Studio client session", () => {
