@@ -1,12 +1,49 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted } from "vue";
+
 definePageMeta({ middleware: ["auth", "studio-admin"] });
 useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow" });
 
-const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent";
+const route = useRoute();
+const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent%3Fstudio%3Dopen";
+
+type StudioHostUI = { expandSidebar?: () => void; collapseSidebar?: () => void };
+const studioHostUI = () => (window as Window & { useStudioHost?: () => { ui?: StudioHostUI } }).useStudioHost?.()?.ui;
 
 const openStudio = () => {
   window.location.assign(studioLoginUrl);
 };
+
+let studioExpandTimer: ReturnType<typeof setInterval> | undefined;
+
+onMounted(() => {
+  // The login round-trip returns to /admin/content?studio=open; open the
+  // editor sidebar automatically once the Studio host is available.
+  if (route.query.studio !== "open") return;
+  let attempts = 0;
+  const tryExpand = () => {
+    if (studioHostUI()?.expandSidebar) {
+      studioHostUI()?.expandSidebar?.();
+      if (studioExpandTimer) clearInterval(studioExpandTimer);
+      studioExpandTimer = undefined;
+      return;
+    }
+    attempts += 1;
+    if (attempts >= 50 && studioExpandTimer) {
+      clearInterval(studioExpandTimer);
+      studioExpandTimer = undefined;
+    }
+  };
+  tryExpand();
+  studioExpandTimer = setInterval(tryExpand, 100);
+});
+
+onBeforeUnmount(() => {
+  if (studioExpandTimer) clearInterval(studioExpandTimer);
+  studioExpandTimer = undefined;
+  // Close the editor sidebar when leaving the content page.
+  studioHostUI()?.collapseSidebar?.();
+});
 </script>
 
 <template>
