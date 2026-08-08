@@ -44,6 +44,12 @@ const getStudioHost = () => (window as Window & { useStudioHost?: () => StudioHo
 const getNuxtApp = () => (window as Window & { useNuxtApp?: () => StudioNuxtApp }).useNuxtApp?.();
 
 const embeddedStudioLayout = `
+  :host([data-studio-embedded]) {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
   :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 {
     position: relative !important;
     inset: auto !important;
@@ -55,6 +61,12 @@ const embeddedStudioLayout = `
     transform: none !important;
   }
   :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 .flex-1.overflow-y-auto.relative {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  :host([data-studio-embedded]) .fixed.top-0.bottom-0.left-0 > .flex-1.overflow-y-auto.relative {
     flex: none !important;
     height: auto !important;
     min-height: 0 !important;
