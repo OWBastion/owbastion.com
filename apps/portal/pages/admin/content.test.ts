@@ -85,7 +85,8 @@ describe("admin content editor workspace", () => {
     mountedCallback.fn?.();
     await flushPromises();
     expect(expandSidebar).toHaveBeenCalledTimes(2);
-    expect(wrapper.text()).toContain("内容编辑器已打开");
+    expect(wrapper.text()).toContain("内容工作区");
+    expect(wrapper.text()).toContain("编辑器已打开");
     expect(wrapper.text()).toContain("关闭编辑器");
     expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
     expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
@@ -95,7 +96,7 @@ describe("admin content editor workspace", () => {
 
     await wrapper.get("button").trigger("click");
     expect(deactivateStudio).toHaveBeenCalled();
-    expect(wrapper.text()).toContain("内容编辑器未打开");
+    expect(wrapper.text()).toContain("编辑器未打开");
 
     wrapper.unmount();
     expect(collapseSidebar).toHaveBeenCalled();
@@ -129,7 +130,7 @@ describe("admin content editor workspace", () => {
 
     document.body.removeAttribute("data-expand-sidebar");
     await flushPromises();
-    expect(wrapper.text()).toContain("内容编辑器未打开");
+    expect(wrapper.text()).toContain("编辑器未打开");
     expect(wrapper.text()).toContain("打开内容编辑器");
     expect(document.body.hasAttribute("data-studio-fullscreen")).toBe(false);
     expect(document.getElementById("__nuxt")?.hasAttribute("inert")).toBe(false);
@@ -147,7 +148,7 @@ describe("admin content editor workspace", () => {
 
     const wrapper = await mountSuspended(ContentPage, { attachTo: document.body, global: { stubs } });
     await flushPromises();
-    expect(wrapper.text()).toContain("内容编辑器无法载入");
+    expect(wrapper.text()).toContain("内容编辑器暂时无法载入");
     expect(wrapper.text()).toContain("重新载入编辑器");
     wrapper.unmount();
   });

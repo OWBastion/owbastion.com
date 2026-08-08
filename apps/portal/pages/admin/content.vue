@@ -8,18 +8,11 @@ useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow
 const studioMount = ref<HTMLElement | null>(null);
 const { status, errorMessage, isEditorOpen, start, close } = useStudioEditorWorkspace(studioMount);
 
-const statusTitle = computed(() => {
-  if (status.value === "loading") return "正在载入内容编辑器";
-  if (status.value === "error") return "内容编辑器无法载入";
-  if (isEditorOpen.value) return "内容编辑器已打开";
-  return "内容编辑器未打开";
-});
-
 const statusDescription = computed(() => {
-  if (status.value === "loading") return "正在准备当前管理员会话和内容工作区。";
+  if (status.value === "loading") return "正在载入内容编辑器…";
   if (status.value === "error") return errorMessage.value;
-  if (isEditorOpen.value) return "在当前管理工作区内编辑内容；保存后通过版本更新入口发布。";
-  return "选择内容文件后在此处编辑，不离开管理侧。";
+  if (isEditorOpen.value) return "编辑器已打开，在当前管理工作区内编辑内容；保存后通过版本更新入口发布。";
+  return "编辑器未打开，打开后可在此编辑，不离开管理侧。";
 });
 </script>
 
@@ -32,8 +25,7 @@ const statusDescription = computed(() => {
     <section class="editor-workspace surface-card" :aria-busy="status === 'loading'" aria-labelledby="studio-editor-state-title">
       <header class="editor-toolbar">
         <div>
-          <p class="eyebrow">内容工作区</p>
-          <h2 id="studio-editor-state-title" class="type-headline">{{ statusTitle }}</h2>
+          <h2 id="studio-editor-state-title" class="type-headline">内容工作区</h2>
           <p v-if="status === 'error'" class="body-copy" role="alert">{{ statusDescription }}</p>
           <p v-else class="body-copy" role="status" aria-live="polite">{{ statusDescription }}</p>
         </div>
