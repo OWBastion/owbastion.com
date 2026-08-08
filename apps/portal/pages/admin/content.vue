@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
 definePageMeta({ middleware: ["auth", "studio-admin"] });
 useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow" });
@@ -7,42 +7,77 @@ useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow
 const route = useRoute();
 const studioLoginUrl = "/api/studio/login?redirect=%2Fadmin%2Fcontent%3Fstudio%3Dopen";
 
-type StudioHostUI = { expandSidebar?: () => void; collapseSidebar?: () => void };
-const studioHostUI = () => (window as Window & { useStudioHost?: () => { ui?: StudioHostUI } }).useStudioHost?.()?.ui;
+type StudioHost = {
+  ui?: { expandSidebar?: () => void; collapseSidebar?: () => void };
+  on?: { mounted?: (fn: () => void) => void };
+};
+const studioHost = () => (window as Window & { useStudioHost?: () => StudioHost }).useStudioHost?.();
 
+const isEditorOpen = ref(false);
+let editorStateObserver: MutationObserver | undefined;
+let hostReadyObserver: MutationObserver | undefined;
+
+const syncEditorState = () => {
+  isEditorOpen.value = document.body.hasAttribute("data-expand-sidebar");
+};
+
+const expandEditor = () => studioHost()?.ui?.expandSidebar?.();
+const collapseEditor = () => studioHost()?.ui?.collapseSidebar?.();
+
+/** Open the editor in place when a Studio session exists; otherwise log in first. */
 const openStudio = () => {
+  if (studioHost()?.ui?.expandSidebar) {
+    expandEditor();
+    return;
+  }
   window.location.assign(studioLoginUrl);
 };
 
-let studioExpandTimer: ReturnType<typeof setInterval> | undefined;
+/** Toggle the editor; falls back to the login round-trip when no session exists. */
+const toggleEditor = () => {
+  if (!studioHost()?.ui?.collapseSidebar) {
+    openStudio();
+    return;
+  }
+  if (document.body.hasAttribute("data-expand-sidebar")) {
+    collapseEditor();
+  } else {
+    expandEditor();
+  }
+};
+
+/** Expand once the Studio host is ready; event-driven, no polling timer. */
+function expandWhenReady() {
+  const host = studioHost();
+  if (!host?.ui?.expandSidebar) return false;
+  if (host.on?.mounted) {
+    host.on.mounted(() => host.ui?.expandSidebar?.());
+  } else {
+    host.ui.expandSidebar();
+  }
+  return true;
+}
 
 onMounted(() => {
-  // The login round-trip returns to /admin/content?studio=open; open the
-  // editor sidebar automatically once the Studio host is available.
+  syncEditorState();
+  editorStateObserver = new MutationObserver(syncEditorState);
+  editorStateObserver.observe(document.body, { attributes: true, attributeFilter: ["data-expand-sidebar"] });
+
   if (route.query.studio !== "open") return;
-  let attempts = 0;
-  const tryExpand = () => {
-    if (studioHostUI()?.expandSidebar) {
-      studioHostUI()?.expandSidebar?.();
-      if (studioExpandTimer) clearInterval(studioExpandTimer);
-      studioExpandTimer = undefined;
-      return;
-    }
-    attempts += 1;
-    if (attempts >= 50 && studioExpandTimer) {
-      clearInterval(studioExpandTimer);
-      studioExpandTimer = undefined;
-    }
-  };
-  tryExpand();
-  studioExpandTimer = setInterval(tryExpand, 100);
+  // The login round-trip returns to /admin/content?studio=open; the Studio host
+  // activates asynchronously, so expand once its <nuxt-studio> element appears.
+  if (expandWhenReady()) return;
+  hostReadyObserver = new MutationObserver(() => {
+    if (expandWhenReady()) hostReadyObserver?.disconnect();
+  });
+  hostReadyObserver.observe(document.body, { childList: true });
 });
 
 onBeforeUnmount(() => {
-  if (studioExpandTimer) clearInterval(studioExpandTimer);
-  studioExpandTimer = undefined;
+  hostReadyObserver?.disconnect();
+  editorStateObserver?.disconnect();
   // Close the editor sidebar when leaving the content page.
-  studioHostUI()?.collapseSidebar?.();
+  collapseEditor();
 });
 </script>
 
@@ -54,7 +89,7 @@ onBeforeUnmount(() => {
         <h2 id="studio-launch-title" class="type-headline">编辑 Portal 内容</h2>
         <p class="body-copy">使用当前平台管理员会话进入内容编辑器。编辑器保持在 Portal 同源页面；平台退出或管理员权限失效后，Studio 请求会立即被拒绝。</p>
       </div>
-      <UButton @click="openStudio" label="打开内容编辑器" icon="i-lucide-file-pen-line" size="lg" />
+      <UButton @click="toggleEditor" :label="isEditorOpen ? '收起编辑器' : '打开内容编辑器'" :icon="isEditorOpen ? 'i-lucide-panel-left-close' : 'i-lucide-file-pen-line'" size="lg" />
     </section>
   </AdminWorkspace>
 </template>

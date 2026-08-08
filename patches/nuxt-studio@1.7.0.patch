@@ -85,3 +85,45 @@ index e330e276339b1c9ec2442666e4feb5a5e89aca11..e231bb314fe54d2aa1a9591362a30c8c
      window.useStudioHost = () => hostInstance;
      await import("nuxt-studio/app");
      document.body.appendChild(document.createElement("nuxt-studio"));
+diff --git a/dist/module/runtime/utils/sidebar.js b/dist/module/runtime/utils/sidebar.js
+index 51689a6bfc23f537f751f621e4e0e5d057f9366d..51689a6bfc23f537f751f621e4e0e5d057f9366d 100644
+--- a/dist/module/runtime/utils/sidebar.js
++++ b/dist/module/runtime/utils/sidebar.js
+@@ -23,11 +23,11 @@ export function getHostStyles() {
+ export function getHostStyles() {
+   const currentWidth = getSidebarWidth();
+   return {
+-    "body[data-studio-active]": {
+-      transition: "margin 0.2s ease"
++    "body[data-studio-active] #__nuxt": {
++      transition: "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)"
+     },
+-    "body[data-studio-active][data-expand-sidebar]": {
+-      marginLeft: `${currentWidth}px`
++    "body[data-studio-active][data-expand-sidebar] #__nuxt": {
++      transform: `translateX(${currentWidth}px)`
+     }
+   };
+ }
+diff --git a/dist/module/runtime/host.js b/dist/module/runtime/host.js
+index 337d7ec64c8080d1f1ddd33e011341aaf87eee0b..337d7ec64c8080d1f1ddd33e011341aaf87eee0b 100644
+--- a/dist/module/runtime/host.js
++++ b/dist/module/runtime/host.js
+@@ -2,7 +2,7 @@
+ import { ensure } from "./utils/ensure.js";
+ import { getCollectionByFilePath, generateIdFromFsPath, generateRecordDeletion, generateRecordInsert, generateFsPathFromId, getCollectionById } from "./utils/collection.js";
+ import { applyCollectionSchema, isDocumentMatchingContent, generateDocumentFromContent, generateContentFromDocument, areDocumentsEqual, pickReservedKeysFromDocument, cleanDataKeys, sanitizeDocumentTree } from "./utils/document/index.js";
+-import { getHostStyles, getSidebarWidth, adjustFixedElements } from "./utils/sidebar.js";
++import { getHostStyles } from "./utils/sidebar.js";
+ import { clearError, getAppManifest, queryCollection, queryCollectionItemSurroundings, queryCollectionNavigation, queryCollectionSearchSections, useRuntimeConfig } from "#imports";
+ import { collections } from "#content/preview";
+ import { publicAssetsStorage, externalAssetsStorage } from "#build/studio-assets";
+@@ -162,8 +162,6 @@
+           document.head.appendChild(styleElement);
+         }
+         styleElement.textContent = styles;
+-        const isSidebarExpanded = document.body.hasAttribute("data-expand-sidebar");
+-        adjustFixedElements(isSidebarExpanded ? getSidebarWidth() : 0);
+       }
+     },
+     repository,
