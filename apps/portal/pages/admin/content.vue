@@ -11,8 +11,7 @@ const { status, errorMessage, isEditorOpen, start, close } = useStudioEditorWork
 const statusDescription = computed(() => {
   if (status.value === "loading") return "正在载入内容编辑器…";
   if (status.value === "error") return errorMessage.value;
-  if (isEditorOpen.value) return "编辑器已打开，在当前管理工作区内编辑内容；保存后通过版本更新入口发布。";
-  return "编辑器未打开，打开后可在此编辑，不离开管理侧。";
+  return isEditorOpen.value ? "编辑器已打开" : "编辑器未打开";
 });
 </script>
 
