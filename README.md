@@ -49,6 +49,8 @@ pnpm dev:local
 
 `pnpm dev:local` 会自动启用本地登录 fixture；该模式只用于本地调试，不代表生产环境的 QQ 身份认证，也不会在生产环境启用。
 
+如果需要在本地打开内容编辑器，请将仅用于本地的 `STUDIO_GITHUB_TOKEN` 写入被 `.gitignore` 忽略的 `.dev.vars`。`pnpm dev:local` 只将它传给 Portal 服务端，不会放入 `NUXT_PUBLIC_*` 配置或浏览器代码；缺少该变量时，内容编辑器会保持不可用。
+
 也可以分别启动服务：
 
 ```bash

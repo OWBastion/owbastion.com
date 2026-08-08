@@ -11,6 +11,31 @@ export PORTAL_ORIGIN="http://localhost:3000"
 export LOCAL_DEV_AUTH=true
 export NUXT_PUBLIC_LOCAL_DEV_AUTH=true
 
+load_dev_var() {
+  local key="$1"
+  local line
+  local value
+  if [[ -n "${!key:-}" || ! -f .dev.vars ]]; then
+    return
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "$key="*)
+        value="${line#"$key="}"
+        if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+          value="${value:1:${#value}-2}"
+        elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+          value="${value:1:${#value}-2}"
+        fi
+        export "$key=$value"
+        return
+        ;;
+    esac
+  done < .dev.vars
+}
+
+load_dev_var STUDIO_GITHUB_TOKEN
+
 pnpm exec wrangler d1 migrations apply DB --local
 pnpm run db:seed:local
 
