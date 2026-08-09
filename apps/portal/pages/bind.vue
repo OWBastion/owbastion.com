@@ -20,7 +20,7 @@ async function copyCommand() {
 </script>
 
 <template>
-  <main class="binding-page page-shell">
+  <main class="binding-page page-shell--narrow">
     <section class="binding-intro page-intro" aria-labelledby="binding-title">
       <p class="eyebrow">邀请绑定</p>
       <h1 id="binding-title" class="page-title">绑定 QQ</h1>
@@ -55,7 +55,6 @@ async function copyCommand() {
 
 <style scoped>
 .binding-page { padding-block: clamp(72px, 11vh, 130px) 56px; }
-.binding-intro, .binding-card { max-width: 680px; }
 .binding-card { margin-top: 32px; }
 .binding-state, .binding-confirmation { display: grid; gap: 12px; }
 .binding-heading { margin: 0 0 8px; font-size: clamp(1.7rem, 5vw, 2.4rem); letter-spacing: -.035em; overflow-wrap: anywhere; }

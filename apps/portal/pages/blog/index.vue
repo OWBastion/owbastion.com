@@ -20,7 +20,7 @@ const blogPosts = computed(() => posts.value.map((post) => ({
 </script>
 
 <template>
-  <main class="editorial-page page-shell">
+  <main class="editorial-page page-shell--readable">
     <section class="page-intro" aria-labelledby="blog-title">
       <h1 id="blog-title" class="page-title">开发日志</h1>
     </section>

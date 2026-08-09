@@ -49,9 +49,15 @@ Rules:
 
 ## Containers and gutters
 
-- Use `page-shell` (default content), `page-shell--narrow` (forms / focused
-  detail), `page-shell--wide` (admin data workspaces). Approximate max widths:
-  `1100px`, `760px`, `1440px` — these baselines live in `main.css`.
+- Use `page-shell` (broad default workspaces), `page-shell--readable`
+  (editorial reading surfaces), `page-shell--narrow` (forms / focused detail),
+  `page-shell--wide` (admin data workspaces). Approximate max widths:
+  `1440px`, `1100px`, `760px`, `1440px` — these baselines live in `main.css`.
+- Default to `page-shell` for card/grid directories, dashboards, and
+  side-by-side detail workspaces; it sits just inside the global header
+  measure. Reserve `page-shell--narrow` for focused forms and prose detail,
+  and `page-shell--readable` for editorial reading surfaces. Do not push
+  every page to `1100px` or compensate with page-local widths.
 - Horizontal gutters are owned by `page-shell` (`100% - 48px` desktop,
   `100% - 24px` mobile). Do not re-implement page margins with local
   `padding-inline: 12px` on every card stack.
