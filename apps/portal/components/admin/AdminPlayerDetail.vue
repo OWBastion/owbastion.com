@@ -307,7 +307,6 @@ onBeforeUnmount(() => {
   background: var(--accent-surface);
   font-size: 1.2rem;
   font-weight: 750;
-  letter-spacing: -0.08em;
 }
 
 .identity-card__copy {
@@ -326,7 +325,7 @@ onBeforeUnmount(() => {
   margin: 0;
   overflow-wrap: anywhere;
   font-size: clamp(1.35rem, 2.8vw, 1.85rem);
-  letter-spacing: -0.05em;
+  letter-spacing: var(--type-headline-tracking);
   line-height: 1.08;
 }
 

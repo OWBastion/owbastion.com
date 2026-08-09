@@ -42,7 +42,7 @@ defineProps<{
 .admin-alert { color: color-mix(in oklch, var(--danger) 82%, var(--text)); background: color-mix(in oklch, var(--danger) 16%, var(--surface)); }
 .admin-feedback { background: var(--accent-surface); }
 .admin-empty { margin: 0; padding: 28px; color: var(--quiet); text-align: center; }
-.admin-detail h2 { margin: 0; font-size: 2.25rem; letter-spacing: -.05em; overflow-wrap: anywhere; }
+.admin-detail h2 { margin: 0; font-size: 2.25rem; letter-spacing: var(--type-title-tracking); overflow-wrap: anywhere; }
 .admin-detail__meta { margin: 9px 0 22px; color: var(--quiet); font-size: .8rem; }
 @media (max-width: 620px) { .admin-workspace { gap: 12px; padding-block: 20px 24px; }.admin-workspace__header { align-items: end; flex-direction: row; gap: 12px; }.admin-workspace__header > div:first-child { min-width: 0; }.admin-workspace__meta { width: auto; flex: 0 0 auto; align-self: end; }.admin-toolbar { align-items: stretch; flex-direction: column; }.admin-toolbar > :first-child, .admin-toolbar > :not(:first-child) { flex: 1 1 auto; max-width: none; } }
 </style>
