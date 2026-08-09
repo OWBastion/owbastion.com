@@ -50,21 +50,38 @@
 
 ## Responsive admin lists
 
-- Ordinary mobile admin lists use document-level vertical scrolling. Do not
-  place a server-paginated record list inside a bounded `max-height` region with
-  its own vertical scrollbar.
-- Desktop may retain bounded table scrolling, sticky controls, sticky headers,
-  and virtualization where the data-dense workspace benefits from them. These
-  desktop behaviors must not constrain the mobile document-flow renderer.
+- Ordinary server-paginated admin lists use **document-level vertical scrolling
+  on desktop and mobile by default**. The page owns vertical scrolling; the
+  list/table height is content-driven for the current page, and pagination
+  follows the records in document flow. Do not place a server-paginated record
+  list inside a bounded `max-height` region with its own vertical scrollbar.
+- Filters, sorting, grouping, count, row actions, and loading/error/empty states
+  remain part of the same workspace as the list and pagination. Changing page,
+  filter, or sort should restore a useful workspace position, normally the list
+  start, rather than an arbitrary global page top.
 - Desktop table and mobile record-list presentations share records, loading and
   error states, filters, sorting, server pagination, permissions, actions, and
   stable identity. Shared behavior does not require identical markup.
 - Preserve server pagination and make its controls naturally reachable after the
-  current mobile record list. Do not reinterpret continuous page scrolling as
-  infinite scrolling.
-- Prevent overall page horizontal overflow. Use a horizontally scrolling mobile
-  table only for a genuine matrix whose meaning or operability would be damaged
-  by conversion to records.
+  current record list. Document scrolling is not infinite scrolling: the server
+  page remains authoritative and pagination stays explicit.
+- **Bounded internal vertical scrolling is opt-in, not a default.** It requires
+  an explicit configuration and a concrete operational reason, such as
+  virtualization that needs a stable scroll element, a real data matrix where
+  persistent header/row context materially improves operation, a master/detail
+  workspace that must keep both panes simultaneously operable, or another
+  documented case where page-level scrolling causes an actual workflow
+  regression. Visual compactness, viewport filling, and historical
+  implementation are not sufficient reasons.
+- Sticky filters and sticky headers are optional, not automatically required
+  when a table uses document flow. Prefer the simplest continuous
+  reading/operation model unless persistent controls materially improve the
+  workflow.
+- Prevent overall page horizontal overflow. Local horizontal containment is
+  allowed only for a genuine data matrix and is separate from vertical scroll
+  ownership: containing horizontal overflow must not create an internal vertical
+  scrollbar. A horizontally scrolling mobile table is reserved for a matrix
+  whose meaning or operability would be damaged by conversion to records.
 - Mobile record actions use accessible touch targets and contextual menus. Nuxt
   UI menus, drawers, and dialogs must restore focus to the originating record or
   control when they close.

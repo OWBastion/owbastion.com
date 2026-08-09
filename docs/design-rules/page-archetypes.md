@@ -41,17 +41,26 @@
 - `AdminWorkspace` owns title, count, messages, and toolbar.
 - `AdminDataTable` owns filters, sorting, grouping, table/list presentation,
   pagination context, stable row identity, and row actions.
-- Desktop uses the full table workspace and may keep bounded internal scrolling,
-  sticky controls, sticky headers, column controls, and virtualization where
-  they improve data-dense operation.
+- Ordinary server-paginated admin lists are **document-flow by default on
+  desktop and mobile**: the page owns vertical scrolling, the list/table height
+  is content-driven for the current page, and pagination follows the records in
+  document flow. Changing page, filter, or sort should restore the
+  list/workspace start rather than an arbitrary global page top.
+- Bounded internal vertical scrolling is **opt-in**: enable it only with an
+  explicit configuration and a concrete operational reason, such as
+  virtualization needing a stable scroll element, a real data matrix whose
+  persistent header/row context materially improves operation, or a
+  master/detail workspace that must keep both panes operable. Visual
+  compactness or viewport filling is not a reason. Sticky controls/headers are
+  likewise optional and justified by workflow need, not assumed.
 - Intermediate widths may reduce visible columns and move low-frequency actions
   into a contextual menu. Horizontal scrolling is reserved for data that still
-  needs a matrix presentation.
+  needs a matrix presentation and does not imply a nested vertical scroller.
 - Mobile normally renders the same records as a semantic record list in normal
   document flow. Desktop and mobile share data, state, pagination, permission,
   and action contracts; they do not need identical table markup.
-- Ordinary server-paginated mobile lists must not create a nested vertical
-  scroller. The page scrolls continuously through the toolbar, current records,
+- Ordinary server-paginated lists must not create a nested vertical scroller on
+  any width. The page scrolls continuously through the toolbar, current records,
   and pagination controls.
 - Continuous document scrolling does not replace server pagination and must not
   become infinite scrolling.

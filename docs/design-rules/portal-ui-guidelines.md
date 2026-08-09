@@ -80,6 +80,9 @@ Use this pattern for `/admin`:
 
 - Use `AdminWorkspace` as the page root. Put the page title, count, messages, and toolbar in its corresponding props/slots.
 - **Every admin data table must use `AdminDataTable` by default.** This includes searchable, filterable, paginated, and column-configurable admin tables. Put filters in its `filters` slot and row/column actions in table slots.
+- Ordinary server-paginated admin lists use **document-flow vertical scrolling by default on desktop and mobile**: the page owns vertical scrolling, the list height follows the current page of records, and pagination comes after the records in document flow. Do not copy a `scrollHeight`, viewport-relative table height, or nested Y-scroll container from a neighboring page.
+- Bounded internal vertical scrolling and virtualization are **opt-in**: enable them only through explicit component configuration and with a concrete operational reason (a stable scroll element for virtualization, a true data matrix that needs persistent header/row context, or a master/detail workspace that must keep both panes operable). Visual compactness or viewport filling is not a reason; state the justification in the change description.
+- Sticky filters/headers are optional, not automatic; prefer plain document flow unless persistent controls materially improve the workflow.
 - Do not replace `AdminDataTable` with a raw `UTable`, custom HTML table, or one-off list that is functionally a table. If a table genuinely cannot use `AdminDataTable`, document the reason in the change description before introducing the exception.
 - Server-paginated data must retain pagination controls and current-page state. Do not turn server pagination into infinite scrolling.
 - Use `UAlert` or the `AdminWorkspace` messages area for feedback. Do not communicate success, errors, or dangerous actions through color alone.
@@ -221,7 +224,7 @@ Before modifying Portal UI:
 3. Identify whether the page is a public directory, player center, submission flow, or admin panel, and confirm its data/permission boundary.
 4. Search for reusable domain or Nuxt UI components. Do not start by creating a new CSS system.
 5. Preserve loading, failure, empty, in-progress, success, and permission-restricted states. If a state does not apply, explain why in the change description.
-6. For admin tables, verify that `AdminDataTable` is used. Any exception must be explicit and justified.
+6. For admin tables, verify that `AdminDataTable` is used, ordinary paginated lists use document-flow vertical scrolling, and any bounded/virtualized mode or table exception is explicit and justified.
 7. Check mobile layout (single-column full-width stacks, no horizontal page overflow), keyboard behavior, ARIA, private fields, and status wording.
 8. Check every form label: required fields are explicitly marked; optional fields have no optional marker or explanatory suffix.
 9. Apply the explanatory-copy review: identify each visible sentence that is not a label, value, status, error, or action; run the deletion test; check whether any status/fact is represented more than once; prefer a clearer heading, label, grouping, or control before adding explanatory text; for admin UI, reject decorative overview/summary layers that reduce information density without improving a decision.
@@ -236,7 +239,7 @@ an unscoped restyle of unrelated pages.
 - [ ] Page structure matches the business scenario and has clear heading/section hierarchy.
 - [ ] Existing domain components and semantic tokens are reused; no one-off generic abstraction was added.
 - [ ] Layout follows layout-and-spacing (units, full-width stacks, no illegal fixed docks).
-- [ ] Admin data tables use `AdminDataTable`, or an explicit documented exception exists.
+- [ ] Admin data tables use `AdminDataTable` with document-flow scrolling by default; bounded/virtualized mode or a table exception is explicit and justified.
 - [ ] Loading, failure, empty, permission, and in-progress states have clear UI.
 - [ ] Copy follows the Portal copy guidelines and does not present future capability as current capability.
 - [ ] Form labels mark required fields only; optional fields do not contain `（可选）` or equivalent text.

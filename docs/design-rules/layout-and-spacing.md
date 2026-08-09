@@ -108,8 +108,15 @@ confirm, multi-step submit):
 ## Overflow
 
 - The **page** must not scroll horizontally at supported widths (`320px` first).
-- Nested horizontal scroll is allowed only for genuine data matrices (see
-  admin list rules in [`interaction-accessibility.md`](interaction-accessibility.md)).
+- **Vertical scroll ownership**: the page/document owns vertical scrolling for
+  ordinary server-paginated admin lists on desktop and mobile; the list/table
+  height is content-driven for the current page. Internal vertical scrolling is
+  opt-in, requires explicit configuration, and needs a documented operational
+  reason (see
+  [`interaction-accessibility.md`](interaction-accessibility.md)).
+- **Horizontal and vertical scroll are separate**: local horizontal containment
+  for a genuine data matrix must not create a nested vertical scrollbar, and is
+  not permission for internal vertical scrolling.
 - Long identifiers and titles use `overflow-wrap: anywhere` / `min-width: 0`,
   not forced single-line truncation of primary identity without access to full
   text.
