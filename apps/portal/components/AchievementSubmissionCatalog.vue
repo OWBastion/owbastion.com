@@ -37,7 +37,7 @@ const mapManualGroups = computed(() => {
     <div class="catalog-heading"><h2 id="achievement-catalog-title">选择成就目标</h2></div>
     <section v-if="mapChallenges.length" class="achievement-section"><div class="group-heading"><div><p class="card-kicker">地图范围挑战</p><h3>选择地图后查看可用目标</h3></div></div><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="mapItems" /></section>
     <section v-if="automaticChallenges.length" class="automatic-section" aria-labelledby="automatic-title">
-      <div class="group-heading"><div><p class="card-kicker">自动获得</p><h3 id="automatic-title">自动获得</h3></div><span>{{ automaticChallenges.length }} 个称号</span></div>
+      <div class="group-heading"><div><h3 id="automatic-title">自动获得</h3></div><span>{{ automaticChallenges.length }} 个称号</span></div>
       <div class="achievement-grid">
         <article v-for="challenge in automaticChallenges" :key="challenge.scope === 'map' ? `${selectedMapId}:${challenge.challengeId}` : challenge.challengeId" class="achievement-card automatic"><span class="card-kicker">{{ challenge.category }}</span><strong>{{ challenge.titleName }}</strong><span v-if="challenge.scope === 'map'" class="card-kicker">{{ mapVariantLabel(challenge.mapVariant) }}</span><span>{{ challenge.condition }}</span><small>满足条件后自动获得，无需提交截图。</small></article>
       </div>
