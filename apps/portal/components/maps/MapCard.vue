@@ -38,7 +38,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 <style scoped>
 .map-card { display: grid; min-width: 0; padding: 0; overflow: hidden; border-radius: 17px; font: inherit; text-align: left; }
 .map-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.map-card-visual { position: relative; display: grid; min-height: 138px; place-items: center; overflow: hidden; color: color-mix(in oklch, var(--accent) 70%, var(--text)); background: radial-gradient(circle at 70% 25%, color-mix(in oklch, var(--accent-surface) 74%, var(--surface-raised)), transparent 38%), linear-gradient(135deg, var(--surface-raised), color-mix(in oklch, var(--surface-raised) 64%, var(--accent-surface))); }
+.map-card-visual { position: relative; display: grid; min-height: 138px; place-items: center; overflow: hidden; color: color-mix(in oklch, var(--accent) 70%, var(--text)); background: color-mix(in oklch, var(--accent-surface) 55%, var(--surface-raised)); }
 .map-card-visual::before, .map-card-visual::after { position: absolute; width: 140%; height: 1px; background: color-mix(in oklch, var(--accent) 20%, transparent); content: ""; transform: rotate(-19deg); }
 .map-card-visual::after { transform: rotate(22deg) translateY(34px); }
 .map-card-visual i, .map-card-visual b { position: absolute; border: 1px solid color-mix(in oklch, var(--accent) 28%, transparent); border-radius: 50%; }
