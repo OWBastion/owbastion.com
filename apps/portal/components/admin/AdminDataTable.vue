@@ -57,7 +57,7 @@ const props = withDefaults(defineProps<Props>(), {
   tableMinWidth: undefined,
   resetScrollKey: undefined,
   mobileRowLink: undefined,
-  sticky: "header",
+  sticky: false,
   virtualize: false,
 });
 const defaultScrollHeight = "clamp(14rem, calc(100dvh - 18rem), 42rem)";
@@ -224,7 +224,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="tableRoot" class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
-      <div ref="controls" class="admin-data-table__controls">
+      <div ref="controls" class="admin-data-table__controls scroll-edge-sticky">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
         <div v-if="$slots['mobile-primary']" class="admin-data-table__mobile-primary-controls"><slot name="mobile-primary" /></div>
         <div class="admin-data-table__secondary-controls admin-data-table__secondary-controls--desktop">
@@ -324,16 +324,22 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.admin-data-table__controls { position: sticky; z-index: 2; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
+.admin-data-table__controls { position: sticky; z-index: 2; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; background: var(--surface); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
 .admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: 10px; }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
-.admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow-x: clip; overflow-y: auto; overscroll-behavior-y: contain; }
-.admin-data-table__scroll--bounded .admin-data-table__table-viewport { flex: 0 0 auto; }
+/* Bounded mode owns both axes on the single virtualization scroll element; the
+   table viewport must NOT become a scroll container here, or the sticky thead
+   would anchor to it instead of the bounded scroller. */
+.admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
+.admin-data-table__scroll--bounded .admin-data-table__table-viewport { flex: 0 0 auto; overflow: visible; }
+/* Inside the bounded scroller the controls stick to the container top rather
+   than below the global header. */
+.admin-data-table__scroll--bounded .admin-data-table__controls { top: 0; }
 .admin-data-table__table-viewport { min-width: 0; overflow-x: auto; overflow-y: clip; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
 .admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }

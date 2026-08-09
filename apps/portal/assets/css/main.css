@@ -57,6 +57,12 @@
   --text-on-glass-secondary: color-mix(in oklch, var(--text) 82%, var(--muted));
   --text-on-glass-quiet: color-mix(in oklch, var(--text) 58%, var(--quiet));
 
+  /* S-01 sticky page chrome clears the floating app header (AppHeader.vue):
+     top 14px + min-height 54px, plus an 8px gap; below 900px: max(8px,
+     safe-area-inset-top) + 52px, plus a 4px gap. Keep in sync with
+     AppHeader.vue. */
+  --sticky-chrome-top: calc(14px + 54px + 8px);
+
   /* G-05 type scale (size + tracking + leading as a set) */
   --type-display-size: clamp(3.2rem, 8vw, 6.5rem);
   --type-display-tracking: -0.052em;
@@ -86,6 +92,12 @@
   --ui-error: var(--danger);
   --ui-warning: var(--warning);
   --ui-radius: 0.7rem;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --sticky-chrome-top: calc(max(8px, env(safe-area-inset-top)) + 52px + 4px);
+  }
 }
 
 html.dark {

@@ -46,18 +46,19 @@ describe("AdminDataTable mobile presentation", () => {
     { accessorKey: "status", header: "状态" },
     { id: "actions", header: "操作", enableHiding: false },
   ];
-  const createTableStub = (onVirtualize?: (value: unknown) => void) => defineComponent({
+  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown }) => void) => defineComponent({
     props: {
       data: { type: Array, default: () => [] },
       virtualize: { default: false },
+      sticky: { default: false },
     },
     setup(props, { expose }) {
-      onVirtualize?.(props.virtualize);
+      onProps?.({ virtualize: props.virtualize, sticky: props.sticky });
       expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
       return () => h("div");
     },
   });
-  const mountTable = (extraProps: Record<string, unknown> = {}, onVirtualize?: (value: unknown) => void) => mount(AdminDataTable, {
+  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown }) => void) => mount(AdminDataTable, {
     props: {
       data: rows,
       columns,
@@ -76,7 +77,7 @@ describe("AdminDataTable mobile presentation", () => {
     },
     global: {
       stubs: {
-        UTable: createTableStub(onVirtualize),
+        UTable: createTableStub(onProps),
         UDrawer: defineComponent({ template: "<div><slot /><slot name=\"body\" /></div>" }),
         UButton: defineComponent({ template: "<button><slot /></button>" }),
         USelect: defineComponent({ template: "<select />" }),
@@ -100,7 +101,7 @@ describe("AdminDataTable mobile presentation", () => {
 
   it("keeps explicit bounded mode and virtualization on the same scroll element", async () => {
     let virtualize: unknown;
-    const wrapper = mountTable({ scrollHeight: "30rem", virtualize: { estimateSize: 65, overscan: 8 } }, (value) => { virtualize = value; });
+    const wrapper = mountTable({ scrollHeight: "30rem", virtualize: { estimateSize: 65, overscan: 8 } }, (props) => { virtualize = props.virtualize; });
     await nextTick();
     const scroll = wrapper.get(".admin-data-table__scroll");
 
@@ -108,6 +109,18 @@ describe("AdminDataTable mobile presentation", () => {
     expect(scroll.attributes("style")).toContain("height: 30rem");
     expect(virtualize).toEqual(expect.objectContaining({ estimateSize: 65, overscan: 8 }));
     expect((virtualize as { getScrollElement: () => HTMLElement | null }).getScrollElement()).toBe(scroll.element);
+  });
+
+  it("keeps the sticky header opt-in for bounded mode instead of a flow default", async () => {
+    let flowProps: { virtualize: unknown; sticky: unknown } | undefined;
+    mountTable({}, (props) => { flowProps = props; });
+    await nextTick();
+    expect(flowProps?.sticky).toBeFalsy();
+
+    let boundedProps: { virtualize: unknown; sticky: unknown } | undefined;
+    mountTable({ scrollHeight: "30rem", sticky: "header" }, (props) => { boundedProps = props; });
+    await nextTick();
+    expect(boundedProps?.sticky).toBe("header");
   });
 
   it("returns flow resets to the workspace start and bounded resets its internal scroll", async () => {
