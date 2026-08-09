@@ -4,7 +4,7 @@
 [![Publish Portal image](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/publish-portal.yml)
 [![Deploy Portal](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml/badge.svg)](https://github.com/OWBastion/owbastion.com/actions/workflows/deploy-portal.yml)
 
-OWBastion 平台是一个基于 Cloudflare Workers 的 pnpm TypeScript workspace，提供 Bastion 生态的 Web Portal、HTTP API、业务数据存储和外部服务集成。本仓库 `owbastion.codes` 保存平台代码，并拥有当前事件、地图、称号、挑战元数据及平台业务状态。
+OWBastion 平台运行在 Cloudflare Workers 上，为 Bastion 提供 Web Portal、HTTP API、业务数据存储和外部服务集成。本仓库维护当前事件、地图、称号和挑战元数据，以及玩家和管理流程使用的平台状态。
 
 ## 技术栈
 
@@ -29,9 +29,13 @@ tools/       本地开发、数据导入和部署辅助脚本
 docs/        架构、开发、部署和 API 文档
 ```
 
-Portal 通过服务端 API 访问平台数据；业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 保存私有提交证据，Queue 驱动 OCR 处理，公共目录在 HTTP 边界使用短期缓存。QQBot 负责 QQ 绑定、验证、群策略和通知，不创建当前 Portal 截图提交；OCRKit 只负责识别，Bastion 在构建时通过 Agents API 读取平台元数据。
+Portal 通过服务端 API 访问平台数据。业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 保存私有提交证据，Queue 驱动 OCR 处理，公共目录在 HTTP 边界使用短期缓存。QQBot 负责 QQ 绑定、验证、群策略和通知，不创建 Portal 截图提交。OCRKit 只负责识别，Bastion 在构建时通过 Agents API 读取平台元数据。
 
-平台当前包含公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的 `/admin` 管理面。称号授予、审核、地图称号规则和随机事件目录由平台维护；能力实现和验证状态由平台内部规则统一维护。
+Portal 提供公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的管理面。博客和版本更新使用 Nuxt Content；管理员从 `/admin` 进入 `/studio` 内容编辑器，编辑权限由平台 Admin session 控制，Git 凭据留在 Portal 服务端。称号授予、审核、地图称号规则和随机事件目录由平台维护。实现和验证状态见[功能状态矩阵](docs/product-rules/feature-status.md)。
+
+## 文档
+
+从[文档索引](docs/README.md)开始。Portal Studio 的认证、Git 代理和发布边界见[部署说明](docs/deployment/portal-studio.md)。
 
 ## 开始开发
 
@@ -49,7 +53,7 @@ pnpm dev:local
 
 `pnpm dev:local` 会自动启用本地登录 fixture；该模式只用于本地调试，不代表生产环境的 QQ 身份认证，也不会在生产环境启用。
 
-如果需要在本地打开内容编辑器，请将仅用于本地的 `STUDIO_GITHUB_TOKEN` 写入被 `.gitignore` 忽略的 `.dev.vars`。`pnpm dev:local` 只将它传给 Portal 服务端，不会放入 `NUXT_PUBLIC_*` 配置或浏览器代码；缺少该变量时，内容编辑器会保持不可用。
+本地开发需要 Studio 时，先将仅用于本地的 `STUDIO_GITHUB_TOKEN` 写入被 `.gitignore` 忽略的 `.dev.vars`。`pnpm dev:local` 只将它传给 Portal 服务端；token 不会进入 `NUXT_PUBLIC_*` 配置或浏览器代码。缺少该变量时，Studio 保持不可用。
 
 也可以分别启动服务：
 
