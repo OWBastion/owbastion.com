@@ -80,7 +80,8 @@ migrations, validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker
 secret, deploys the Worker, publishes the API URL, and submits the OpenAPI
 endpoint inventory to Cloudflare API Shield Endpoint Management. The API token must also have `Account API Gateway` or
 `Domain API Gateway` write permission. Endpoint deployment is additive and
-idempotent; it does not delete operations already managed in Cloudflare.
+idempotent; it first reads the paginated zone inventory and submits only missing
+operations, and it does not delete operations already managed in Cloudflare.
 
 The source inventory is [`docs/api/openapi.json`](../api/openapi.json). To run
 the same deployment locally:
