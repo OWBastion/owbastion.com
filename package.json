@@ -25,7 +25,7 @@
     "typecheck:api": "pnpm --filter @owbastion/api typecheck",
     "test:unit": "pnpm --filter @owbastion/portal exec nuxi prepare && vitest run",
     "test": "pnpm run test:unit && pnpm run test:portal-ui --run && pnpm run test:portal-e2e",
-    "test:portal-ui": "pnpm --filter @owbastion/portal run test:ui",
+    "test:portal-ui": "pnpm --filter @owbastion/portal exec nuxi prepare && pnpm --filter @owbastion/portal run test:ui",
     "test:portal-e2e": "pnpm run build:portal && pnpm run test:portal-e2e:built",
     "test:portal-e2e:built": "pnpm --filter @owbastion/portal run test:e2e",
     "test:api": "pnpm exec vitest run apps/api",
