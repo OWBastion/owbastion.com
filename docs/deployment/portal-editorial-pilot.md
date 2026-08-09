@@ -17,12 +17,14 @@ Feishu document identifiers or expiring links.
 | Blog | `开发日志 #6：事件抽取算法的优化与改进` (`2026-02-15`) | The article retains event de-duplication, probability rebalance, and event-pool rotation plans. | No media was selected; no Feishu attachment URL was copied. |
 | Blog | `开发日志 #7：成就挑战系统的优化改进与周年庆` (`2026-07-17`) | The article retains the post-5.0 optimization, achievement, screenshot workflow, and anniversary DLC direction. | No media was selected; no Feishu attachment URL was copied. |
 | Blog | `开发日志 #8：轮换挑战与地图精通` (`2026-08-09`) | The article remains explicitly in development. It records the five-slot rotation model, activity priority, the temporary rotation-out of 「钢门」, and the still-designed map-mastery and leaderboard direction. | No media was selected for this pilot; no Feishu attachment URL was copied. |
-| Changelog | `26.0801.1` — `随机事件调整` | The released version identifier and source theme are retained as historical facts. The migration does not invent unverified event rules. | No media was selected for this pilot; no Feishu attachment URL was copied. |
+| Changelog | 23 released entries from the Feishu 3.0–5.0 folders (`25.1223.1` through `26.0801.1`) | The released version identifiers and source themes are retained as historical facts. The migration does not invent or silently rewrite event rules. | Feishu-hosted images and document links were removed; no private attachment URL was copied. |
 
 The entries use the typed collections under `apps/portal/content/`. The Blog
-entries keep their source in-progress warnings. The dates for the downloaded
-historical entries use the dates shown in the source folder because the
-exported Markdown does not contain a publication field.
+entries keep their source in-progress warnings. The Changelog entries remove
+the source's in-development disclaimer because they are being presented as
+released history. Their `releasedAt` values use the `YY.MMDD` portion of each
+version identifier because the exported Markdown does not contain a separate
+publication field.
 
 ## Local verification
 

@@ -55,8 +55,32 @@ describe("Portal SSR", async () => {
       "开发日志 #8：轮换挑战与地图精通",
     ]);
     expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
-    expect(changelogRows).toEqual([
-      expect.objectContaining({ title: "随机事件调整", version: "26.0801.1", releasedAt: expect.any(String) }),
+    expect(changelogRows).toHaveLength(23);
+    expect(changelogRows.map((row) => row.version)).toEqual([
+      "26.0801.1",
+      "26.0729.1",
+      "26.0710.1",
+      "26.0704.1",
+      "26.0628.1",
+      "26.0513.1",
+      "26.0501.1",
+      "26.0417.1",
+      "26.0406.10",
+      "26.0401.1",
+      "26.0325.1",
+      "26.0321.1",
+      "26.0317.1",
+      "26.0227.1",
+      "26.0212.1",
+      "26.0201.1",
+      "26.0131.1",
+      "26.0123.3",
+      "26.0123.1",
+      "26.0117.1",
+      "26.0107.2",
+      "25.1225.1",
+      "25.1223.1",
     ]);
+    expect(changelogRows.every((row) => typeof row.releasedAt === "string")).toBe(true);
   });
 });
