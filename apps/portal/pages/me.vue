@@ -136,14 +136,12 @@ onMounted(() => {
         <p id="upcoming-status" class="upcoming-status">未开放</p>
         <div class="upcoming-grid">
           <article class="upcoming-card surface-card" aria-disabled="true">
-            <span class="upcoming-index" aria-hidden="true">01</span>
             <div>
               <p class="upcoming-kicker type-kicker">限时目标</p>
               <h3 class="type-headline">轮换挑战</h3>
             </div>
           </article>
           <article class="upcoming-card surface-card" aria-disabled="true">
-            <span class="upcoming-index" aria-hidden="true">02</span>
             <div>
               <p class="upcoming-kicker type-kicker">地图记录</p>
               <h3 class="type-headline">地图挑战进度</h3>
@@ -205,7 +203,6 @@ onMounted(() => {
         </div>
         <div class="me-skeleton-upcoming-grid">
           <article v-for="card in 2" :key="`upcoming-${card}`" class="me-skeleton-upcoming-card surface-card">
-            <USkeleton class="me-skeleton-upcoming-index" />
             <div class="me-skeleton-upcoming-copy">
               <USkeleton class="me-skeleton-upcoming-kicker" />
               <USkeleton class="me-skeleton-upcoming-title" />
@@ -258,7 +255,6 @@ onMounted(() => {
   pointer-events: none;
   user-select: none;
 }
-.upcoming-index { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 720; letter-spacing: .08em; }
 .upcoming-kicker { margin: 0 0 8px; color: var(--quiet); }
 .upcoming-card .type-headline {
   margin: 0;
@@ -322,7 +318,6 @@ onMounted(() => {
   justify-content: space-between;
   padding: 20px;
 }
-.me-skeleton-upcoming-index { width: 20px; height: 12px; }
 .me-skeleton-upcoming-copy { display: grid; gap: 10px; }
 .me-skeleton-upcoming-kicker { width: 72px; height: 12px; }
 .me-skeleton-upcoming-title { width: 124px; height: 24px; }
