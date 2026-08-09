@@ -43,6 +43,7 @@ describe("AppHeader", () => {
 
     expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
     expect(wrapper.text()).toContain("概览");
+    expect(wrapper.text()).toContain("内容编辑");
     expect(wrapper.text()).toContain("玩家");
     expect(wrapper.text()).toContain("绑定");
     expect(wrapper.text()).toContain("成就与称号");
@@ -52,6 +53,10 @@ describe("AppHeader", () => {
     const toggle = wrapper.get(".mobile-menu-toggle");
     expect(toggle.attributes("aria-controls")).toBe("mobile-nav");
     expect(toggle.attributes("aria-expanded")).toBe("false");
+    const studioLink = wrapper.find(".main-nav a[href=\"/api/studio/login?redirect=%2Fstudio\"]");
+    expect(studioLink.exists()).toBe(true);
+    expect(studioLink.attributes("target")).toBe("_blank");
+    expect(studioLink.attributes("rel")).toBe("noopener");
     await toggle.trigger("click");
     expect(toggle.attributes("aria-expanded")).toBe("true");
     expect(wrapper.get("#mobile-nav").attributes("aria-label")).toBe("移动端管理导航");
@@ -147,6 +152,18 @@ describe("AppHeader", () => {
     for (const link of links) {
       expect(link.classes()).toContain("pressable");
     }
+    focusSpy.mockRestore();
+  });
+
+  it("exposes one concise update route on public navigation", async () => {
+    route.path = "/";
+    route.fullPath = "/";
+    const wrapper = await mountHeader();
+
+    expect(wrapper.findAll(".main-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
+    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
+    expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
     focusSpy.mockRestore();
   });
 });

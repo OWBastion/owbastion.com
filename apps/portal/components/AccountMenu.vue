@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CurrentPlayer } from "~/composables/usePortalApi";
 import type { DropdownMenuItem } from "@nuxt/ui";
+import { studioEntryLink } from "~/utils/studio-entry";
 
 const props = defineProps<{ player: CurrentPlayer["player"] }>();
 const emit = defineEmits<{ logout: [] }>();
@@ -11,6 +12,7 @@ const items = computed<DropdownMenuItem[][]>(() => {
   ];
   if (props.player.isAdmin) {
     links.push({ label: "管理后台", icon: "i-lucide-settings-2", to: "/admin" });
+    links.push({ label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink });
   }
   links.push({ label: "设置", icon: "i-lucide-sliders-horizontal", to: "/me#appearance", exactHash: true });
   links.push({

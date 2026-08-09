@@ -78,6 +78,24 @@
 - Use `AdminResponsiveDialog` for overlays and collapse the columns rather than
   shrinking data below operable sizes.
 
+## Admin Studio navigation entry
+
+The management navigation launches third-party Studio as a standalone
+same-origin workspace:
+
+- The **内容编辑** item is a normal new-context link to the server-side Studio
+  bridge. The current admin page remains available while the new context enters
+  the same-origin `/studio` route and Studio's native full-screen layout.
+- There is no intermediate `/admin/content` page or reserved editor viewport;
+  the navigation item is the single entry point.
+- Studio owns its own navigation, review, editor, and responsive layout. Portal
+  must not reparent `<nuxt-studio>`, inject Shadow DOM CSS, depend on Studio
+  internal Tailwind selectors/body attributes/sidebar state, or intercept Studio
+  document routing to preserve an embedded presentation.
+- The standalone route remains same-origin and server-protected by the existing
+  platform Admin → Studio session bridge. The browser entry is an affordance,
+  not the authorization boundary.
+
 ## Admin batch confirmation
 
 - Show selection, affected count, consequence, and the confirm/cancel actions

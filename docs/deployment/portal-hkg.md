@@ -20,6 +20,10 @@ The public hostname for the Portal is `owbastion.com`. The platform API is
 served at `api.owbastion.com` and is not part of this Compose deployment.
 
 The Portal container sets `NUXT_PUBLIC_API_BASE_URL=https://api.owbastion.com`.
+The Portal Compose service also requires the server-only `STUDIO_GITHUB_TOKEN`
+environment value when Nuxt Studio publishing is enabled; it is resolved from
+the operator-managed environment file and is never placed in a `NUXT_PUBLIC_*`
+variable.
 The Worker allows credentialed browser requests only from `https://owbastion.com`.
 For local browser development, run the Worker with `PORTAL_ORIGIN=http://localhost:3000`;
 the Portal defaults to `http://localhost:8787` and the API omits the `Secure`
@@ -80,6 +84,14 @@ matching immutable `sha-<commit>` tag. The deployment uses the GitHub
 - `SSH_PRIVATE_KEY`
 - `SSH_KNOWN_HOSTS`
 - `DEPLOY_PATH` (normally `/opt/owbastion-portal`)
+
+The server operator must also provision `STUDIO_GITHUB_TOKEN` outside the
+repository. It must be a GitHub fine-grained token limited to
+`OWBastion/owbastion.com` with only `Contents: Read and write`, stored in the
+Compose environment file with service-user-only permissions. The token is not
+passed through GitHub Actions, committed to this repository, or printed by the
+deployment workflow. Compose intentionally refuses to start the Portal when
+the value is absent.
 
 The server operator must provide the SSH key's matching public key on the
 server and keep the `SSH_KNOWN_HOSTS` value current. The workflow does not use
