@@ -1,4 +1,4 @@
-import { isStudioGitProviderUrl, studioGitProxyUrl } from "~/utils/studio-git-proxy";
+import { isStudioGitProviderUrl, studioGitProxyRequestInit, studioGitProxyUrl } from "~/utils/studio-git-proxy";
 
 export default defineNuxtPlugin(() => {
   const upstreamFetch = globalThis.fetch;
@@ -10,11 +10,6 @@ export default defineNuxtPlugin(() => {
 
     const headers = new Headers(request.headers);
     headers.delete("authorization");
-    return upstreamFetch(new Request(studioGitProxyUrl(url, window.location.origin), {
-      method: request.method,
-      headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-      credentials: "same-origin",
-    }));
+    return upstreamFetch(new Request(studioGitProxyUrl(url, window.location.origin), studioGitProxyRequestInit(request, headers)));
   };
 });
