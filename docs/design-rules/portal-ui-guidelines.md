@@ -30,9 +30,9 @@ requiredness, and the agent completion checklist.
 Pick the shared shell tier by page archetype before composing content:
 card/grid directories, the player center, editorial directories (blog /
 changelog lists), and side-by-side submission workspaces use the default
-`page-shell`; focused auth forms and prose detail use `page-shell--narrow`.
-Shell widths and gutters are owned by `main.css` — do not add page-local
-max-width overrides.
+`page-shell`; prose-heavy single-article pages use `page-shell--readable`;
+focused auth forms use `page-shell--narrow`. Shell widths and gutters are
+owned by `main.css` — do not add page-local max-width overrides.
 
 ### Public directory pages
 
@@ -166,7 +166,7 @@ Full rules: [`visual-foundation.md`](visual-foundation.md),
 - Use semantic tokens in `apps/portal/assets/css/main.css`; no raw palette colors for meaning.
 - Type: `type-display` / `type-title` / `type-headline` / `type-body` / `type-caption` / `type-kicker` (`eyebrow`).
 - Materials: `glass*` + `elevation-1/2/3`. Interactive cards: `interactive-card` + `pressable-soft`.
-- Containers: `page-shell` / `page-shell--narrow` / `page-shell--wide` + `surface-card`. Do not redefine max-width or gutters per page.
+- Containers: `page-shell` / `page-shell--readable` / `page-shell--narrow` / `page-shell--wide` + `surface-card`. Do not redefine max-width or gutters per page.
 - Structural spacing and columns: prefer `rem` / `fr` / `minmax` / `clamp` over hard-coded `px` stacks.
 - Decision/action surfaces: in-flow or sticky — not growing `position: fixed` docks.
 - Touch: `.hit-44` / `2.75rem` floor for primary mobile controls; admin table actions use `.table-actions` / `UButton` `sm` outline — not bare text links.

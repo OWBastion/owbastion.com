@@ -27,7 +27,7 @@ useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 </script>
 
 <template>
-  <main class="editorial-detail-page page-shell--narrow">
+  <main class="editorial-detail-page page-shell--readable">
     <NuxtLink to="/blog" class="editorial-back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />返回开发日志</NuxtLink>
     <div v-if="status === 'pending'" class="editorial-detail-state surface-card" role="status">读取中…</div>
     <UAlert v-else-if="error" color="error" variant="subtle" role="alert" title="无法读取开发日志" description="内容暂时不可用，请稍后重试。" />
