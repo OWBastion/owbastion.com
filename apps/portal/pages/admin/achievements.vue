@@ -459,11 +459,11 @@ onMounted(() => void load());
               <template #actions-cell="{ row }">
                 <div class="table-actions">
                   <button class="table-action" type="button" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    <UIcon name="i-lucide-pencil" aria-hidden="true" />
                   </button>
                   <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
                     <button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2v4M16 2v4M3 10h18" /><rect width="18" height="18" x="3" y="4" rx="2" /><circle cx="16" cy="16" r="3" /><path d="M16 14.5v1.7l1.1.7" /></svg>
+                      <UIcon name="i-lucide-calendar-clock" aria-hidden="true" />
                     </button>
                     <template #content>
                       <UCard class="plan-popover-card">
@@ -477,10 +477,10 @@ onMounted(() => void load());
                     </template>
                   </UPopover>
                   <button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg>
+                    <UIcon name="i-lucide-square-stop" aria-hidden="true" />
                   </button>
                   <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+                    <UIcon name="i-lucide-rotate-ccw" aria-hidden="true" />
                   </button>
                 </div>
               </template>
@@ -516,13 +516,13 @@ onMounted(() => void load());
               <template #actions-cell="{ row }">
                 <div class="table-actions">
                   <button class="table-action" type="button" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                    <UIcon name="i-lucide-pencil" aria-hidden="true" />
                   </button>
                   <button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 9h6v6H9z" /></svg>
+                    <UIcon name="i-lucide-square-stop" aria-hidden="true" />
                   </button>
                   <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>
+                    <UIcon name="i-lucide-rotate-ccw" aria-hidden="true" />
                   </button>
                 </div>
               </template>

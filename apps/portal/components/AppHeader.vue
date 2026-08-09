@@ -115,10 +115,7 @@ async function signOut() {
         aria-controls="mobile-nav"
         @click="toggleMenu"
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path v-if="!menuOpen" d="M4 7h16M4 12h16M4 17h16" />
-          <path v-else d="M6 6l12 12M18 6L6 18" />
-        </svg>
+        <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" aria-hidden="true" />
       </button>
       <!-- No mode="out-in": leave can be interrupted mid-flight when reopening. -->
       <Transition name="mobile-nav">
@@ -194,7 +191,8 @@ async function signOut() {
     color: var(--text);
     background: var(--surface-raised);
   }
-  .mobile-menu-toggle svg {
+  .mobile-menu-toggle svg,
+  .mobile-menu-toggle [class*="i-lucide-"] {
     width: 19px;
     height: 19px;
     fill: none;

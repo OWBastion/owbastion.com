@@ -443,7 +443,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   cursor: wait;
   opacity: .5;
 }
-.table-action svg {
+.table-action svg,
+.table-action [class*="i-lucide-"] {
   width: 16px;
   height: 16px;
   fill: none;
