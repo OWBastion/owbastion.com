@@ -34,6 +34,7 @@ type Props = {
   groupingOptions?: TableControlOption[];
   defaultSorting?: SortingState;
   tableGroupingOptions?: GroupingOptions;
+  /** Providing a height opts this table into bounded vertical scrolling. */
   scrollHeight?: string;
   tableMinWidth?: string;
   tableKey: string;
@@ -60,7 +61,8 @@ const props = withDefaults(defineProps<Props>(), {
   virtualize: false,
 });
 const defaultScrollHeight = "clamp(14rem, calc(100dvh - 18rem), 42rem)";
-const tableScrollHeight = computed(() => props.scrollHeight ?? defaultScrollHeight);
+const boundedScroll = computed(() => Boolean(props.scrollHeight || props.virtualize));
+const tableScrollHeight = computed(() => props.scrollHeight ?? (props.virtualize ? defaultScrollHeight : undefined));
 
 const globalFilter = defineModel<string>("globalFilter", { default: "" });
 const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("columnFilters", { default: () => [] });
@@ -69,9 +71,11 @@ const grouping = defineModel<GroupingState>("grouping", { default: () => [] });
 const columnPinning = defineModel<ColumnPinningState>("columnPinning", { default: () => ({ left: [], right: [] }) });
 const columnVisibility = useTableColumnVisibility(props.tableKey);
 type TableHandle = { tableApi: { getRowModel: () => { rows: Array<{ original: TData }> } } };
+const tableRoot = useTemplateRef<HTMLElement>("tableRoot");
 const table = useTemplateRef<TableHandle>("table");
 const controls = useTemplateRef<HTMLElement>("controls");
 const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
+const tableViewport = useTemplateRef<HTMLElement>("tableViewport");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !["filters", "mobile-primary", "mobile-secondary"].includes(name)));
 const tableUi = { root: "overflow-visible" };
@@ -182,7 +186,12 @@ const columnMenuItems = computed(() => props.columns
   }));
 
 watch(() => props.resetScrollKey, () => {
-  scrollContainer.value?.scrollTo({ top: 0, left: 0 });
+  tableViewport.value?.scrollTo?.({ top: 0, left: 0 });
+  if (boundedScroll.value) {
+    scrollContainer.value?.scrollTo?.({ top: 0, left: 0 });
+    return;
+  }
+  tableRoot.value?.scrollIntoView?.({ block: "start", inline: "nearest", behavior: "auto" });
 });
 
 onMounted(() => {
@@ -213,30 +222,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
-    <div ref="scrollContainer" class="admin-data-table__scroll admin-data-table__scroll--bounded" :style="{ height: tableScrollHeight }">
-      <UTable
-        ref="table"
-        v-model:column-visibility="columnVisibility"
-        v-model:column-filters="columnFilters"
-        v-model:global-filter="globalFilter"
-        v-model:sorting="sorting"
-        v-model:grouping="grouping"
-        v-model:column-pinning="columnPinning"
-        :columns="columns"
-        :data="data"
-        :empty="empty"
-        :loading="loading"
-        :manual-filtering="manualFiltering"
-        :grouping-options="props.tableGroupingOptions"
-        :ui="tableUi"
-        :sticky="props.sticky"
-        :virtualize="tableVirtualize"
-      >
-        <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
-          <slot :name="name" v-bind="slotProps" />
-        </template>
-      </UTable>
+  <div ref="tableRoot" class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
+    <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
       <div ref="controls" class="admin-data-table__controls">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
         <div v-if="$slots['mobile-primary']" class="admin-data-table__mobile-primary-controls"><slot name="mobile-primary" /></div>
@@ -261,6 +248,30 @@ onBeforeUnmount(() => {
             </div>
           </template>
         </UDrawer>
+      </div>
+      <div ref="tableViewport" class="admin-data-table__table-viewport">
+        <UTable
+          ref="table"
+          v-model:column-visibility="columnVisibility"
+          v-model:column-filters="columnFilters"
+          v-model:global-filter="globalFilter"
+          v-model:sorting="sorting"
+          v-model:grouping="grouping"
+          v-model:column-pinning="columnPinning"
+          :columns="columns"
+          :data="data"
+          :empty="empty"
+          :loading="loading"
+          :manual-filtering="manualFiltering"
+          :grouping-options="props.tableGroupingOptions"
+          :ui="tableUi"
+          :sticky="props.sticky"
+          :virtualize="tableVirtualize"
+        >
+          <template v-for="(_, name) in tableSlots" :key="name" #[name]="slotProps">
+            <slot :name="name" v-bind="slotProps" />
+          </template>
+        </UTable>
       </div>
       <div class="admin-data-table__mobile-list" :aria-busy="loading">
         <div v-if="loading" class="admin-data-table__mobile-loading" aria-label="正在加载"><USkeleton v-for="index in 3" :key="index" class="admin-data-table__mobile-skeleton" /></div>
@@ -321,8 +332,8 @@ onBeforeUnmount(() => {
 .admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: 10px; }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
-.admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow: auto; overscroll-behavior: contain; }
-.admin-data-table__scroll--bounded > .admin-data-table__controls { order: -1; }
+.admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow-x: clip; overflow-y: auto; overscroll-behavior-y: contain; }
+.admin-data-table__table-viewport { min-width: 0; overflow-x: auto; overflow-y: clip; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
 .admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }
 .admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }

@@ -1,6 +1,6 @@
 import { defineComponent, h, nextTick, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useTableColumnVisibility } from "~/composables/useTableColumnVisibility";
 import AdminDataTable from "./AdminDataTable.vue";
 
@@ -46,7 +46,18 @@ describe("AdminDataTable mobile presentation", () => {
     { accessorKey: "status", header: "状态" },
     { id: "actions", header: "操作", enableHiding: false },
   ];
-  const mountTable = () => mount(AdminDataTable, {
+  const createTableStub = (onVirtualize?: (value: unknown) => void) => defineComponent({
+    props: {
+      data: { type: Array, default: () => [] },
+      virtualize: { default: false },
+    },
+    setup(props, { expose }) {
+      onVirtualize?.(props.virtualize);
+      expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
+      return () => h("div");
+    },
+  });
+  const mountTable = (extraProps: Record<string, unknown> = {}, onVirtualize?: (value: unknown) => void) => mount(AdminDataTable, {
     props: {
       data: rows,
       columns,
@@ -58,19 +69,14 @@ describe("AdminDataTable mobile presentation", () => {
         { id: "status", priority: "detail", order: 1 },
       ],
       sortingOptions: [{ id: "name", label: "记录" }],
+      ...extraProps,
     },
     slots: {
       "actions-cell": ({ row }: { row: { original: { id: string } } }) => h("button", { type: "button" }, `操作 ${row.original.id}`),
     },
     global: {
       stubs: {
-        UTable: defineComponent({
-          props: { data: { type: Array, default: () => [] } },
-          setup(props, { expose }) {
-            expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
-            return () => h("div");
-          },
-        }),
+        UTable: createTableStub(onVirtualize),
         UDrawer: defineComponent({ template: "<div><slot /><slot name=\"body\" /></div>" }),
         UButton: defineComponent({ template: "<button><slot /></button>" }),
         USelect: defineComponent({ template: "<select />" }),
@@ -79,6 +85,55 @@ describe("AdminDataTable mobile presentation", () => {
         NuxtLink: defineComponent({ template: "<a><slot /></a>" }),
       },
     },
+  });
+
+  it("uses document flow by default and keeps controls before the table", () => {
+    const wrapper = mountTable();
+    const scroll = wrapper.get(".admin-data-table__scroll");
+    const controls = wrapper.get(".admin-data-table__controls").element;
+    const tableViewport = wrapper.get(".admin-data-table__table-viewport").element;
+
+    expect(scroll.classes()).not.toContain("admin-data-table__scroll--bounded");
+    expect(scroll.element.style.height).toBe("");
+    expect(controls.compareDocumentPosition(tableViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("keeps explicit bounded mode and virtualization on the same scroll element", async () => {
+    let virtualize: unknown;
+    const wrapper = mountTable({ scrollHeight: "30rem", virtualize: { estimateSize: 65, overscan: 8 } }, (value) => { virtualize = value; });
+    await nextTick();
+    const scroll = wrapper.get(".admin-data-table__scroll");
+
+    expect(scroll.classes()).toContain("admin-data-table__scroll--bounded");
+    expect(scroll.attributes("style")).toContain("height: 30rem");
+    expect(virtualize).toEqual(expect.objectContaining({ estimateSize: 65, overscan: 8 }));
+    expect((virtualize as { getScrollElement: () => HTMLElement | null }).getScrollElement()).toBe(scroll.element);
+  });
+
+  it("returns flow resets to the workspace start and bounded resets its internal scroll", async () => {
+    const flow = mountTable();
+    const flowRoot = flow.get(".admin-data-table").element;
+    const flowViewport = flow.get(".admin-data-table__table-viewport").element;
+    const flowScrollIntoView = vi.fn();
+    const flowHorizontalScroll = vi.fn();
+    Object.defineProperty(flowRoot, "scrollIntoView", { configurable: true, value: flowScrollIntoView });
+    Object.defineProperty(flowViewport, "scrollTo", { configurable: true, value: flowHorizontalScroll });
+
+    await flow.setProps({ resetScrollKey: "next-page" });
+    await nextTick();
+
+    expect(flowHorizontalScroll).toHaveBeenCalledWith({ top: 0, left: 0 });
+    expect(flowScrollIntoView).toHaveBeenCalledWith({ block: "start", inline: "nearest", behavior: "auto" });
+
+    const bounded = mountTable({ scrollHeight: "30rem" });
+    const boundedScroll = bounded.get(".admin-data-table__scroll").element;
+    const boundedScrollTo = vi.fn();
+    Object.defineProperty(boundedScroll, "scrollTo", { configurable: true, value: boundedScrollTo });
+
+    await bounded.setProps({ resetScrollKey: "next-page" });
+    await nextTick();
+
+    expect(boundedScrollTo).toHaveBeenCalledWith({ top: 0, left: 0 });
   });
 
   it("renders stable record ids, mobile control disclosure, and an overflow action trigger", async () => {
