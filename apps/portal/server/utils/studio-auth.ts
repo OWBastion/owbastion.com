@@ -1,5 +1,5 @@
 import type { H3Event } from "h3";
-import { createError, getRequestHeader } from "h3";
+import { createError, getRequestHeader, getRequestProtocol, useSession } from "h3";
 import { useRuntimeConfig } from "#imports";
 import type { CurrentPlayer } from "~/composables/usePortalApi";
 
@@ -35,4 +35,22 @@ export async function getPlatformCurrentPlayer(event: H3Event): Promise<CurrentP
   if (response.status === 401 || response.status === 403) return null;
   if (!response.ok) throw createError({ statusCode: 502, statusMessage: "平台登录状态暂不可用。" });
   return await response.json() as CurrentPlayer;
+}
+
+export async function hasStudioUserSession(event: H3Event) {
+  const session = await useSession(event, {
+    name: "studio-session",
+    password: useRuntimeConfig(event).studio?.auth?.sessionSecret,
+    cookie: {
+      secure: getRequestProtocol(event) === "https",
+      path: "/",
+    },
+  });
+  const user = session.data.user;
+  if (!user || typeof user !== "object" || Array.isArray(user)) return false;
+  const userRecord = user as Record<string, unknown>;
+  return typeof userRecord.name === "string"
+    && userRecord.name.trim().length > 0
+    && typeof userRecord.email === "string"
+    && userRecord.email.trim().length > 0;
 }

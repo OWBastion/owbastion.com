@@ -77,7 +77,7 @@ export const studioAccessForPlayer = (player: StudioPlatformPlayer | null): Stud
   return player.player.isAdmin ? "admin" : "non-admin";
 };
 
-export const isStudioCapabilityPath = (pathname: string) => pathname === "/_studio" || pathname.startsWith("/__nuxt_studio/") || pathname === "/api/studio/git" || pathname.startsWith("/api/studio/git/");
+export const isStudioCapabilityPath = (pathname: string) => pathname === "/_studio" || pathname === "/studio" || pathname.startsWith("/__nuxt_studio/") || pathname === "/api/studio/git" || pathname.startsWith("/api/studio/git/");
 
 export const isStudioSessionPath = (pathname: string) => pathname === "/__nuxt_studio/auth/session";
 
@@ -89,7 +89,7 @@ export const studioRequestDecision = (pathname: string, player: StudioPlatformPl
 };
 
 export const safeStudioRedirect = (redirect: unknown) => {
-  const fallback = "/admin/content";
+  const fallback = "/studio";
   if (typeof redirect !== "string" || !redirect.startsWith("/") || redirect.startsWith("//") || redirect.includes("\\")) return fallback;
   try {
     const url = new URL(redirect, "http://portal.invalid");

@@ -33,6 +33,7 @@ describe("Studio platform authorization bridge", () => {
 
   it("allows an admin across the editor and server write paths", () => {
     expect(studioRequestDecision("/_studio", admin)).toBe("allow");
+    expect(studioRequestDecision("/studio", admin)).toBe("allow");
     expect(studioRequestDecision("/__nuxt_studio/auth/session", admin)).toBe("allow");
     expect(studioRequestDecision("/__nuxt_studio/meta", admin)).toBe("allow");
     expect(studioRequestDecision("/__nuxt_studio/medias/blog/cover.png", admin)).toBe("allow");
@@ -41,6 +42,7 @@ describe("Studio platform authorization bridge", () => {
   it("denies editor and write access to anonymous and non-admin sessions", () => {
     for (const currentPlayer of [anonymous, player]) {
       expect(studioRequestDecision("/_studio", currentPlayer)).toBe("deny");
+      expect(studioRequestDecision("/studio", currentPlayer)).toBe("deny");
       expect(studioRequestDecision("/__nuxt_studio/meta", currentPlayer)).toBe("deny");
       expect(studioRequestDecision("/__nuxt_studio/medias/blog/cover.png", currentPlayer)).toBe("deny");
     }
@@ -139,8 +141,9 @@ describe("Studio platform authorization bridge", () => {
 
   it("accepts only same-origin relative redirects", () => {
     expect(safeStudioRedirect("/admin/content?from=nav")).toBe("/admin/content?from=nav");
-    expect(safeStudioRedirect("https://example.com/steal")).toBe("/admin/content");
-    expect(safeStudioRedirect("//example.com/steal")).toBe("/admin/content");
-    expect(safeStudioRedirect(undefined)).toBe("/admin/content");
+    expect(safeStudioRedirect("/_studio")).toBe("/_studio");
+    expect(safeStudioRedirect("https://example.com/steal")).toBe("/studio");
+    expect(safeStudioRedirect("//example.com/steal")).toBe("/studio");
+    expect(safeStudioRedirect(undefined)).toBe("/studio");
   });
 });
