@@ -39,9 +39,17 @@ describe("Portal SSR", async () => {
       }),
     ]);
 
-    expect(blogRows).toEqual([
-      expect.objectContaining({ title: "开发日志 #8：轮换挑战与地图精通", publishedAt: expect.any(String) }),
+    expect(blogRows.map((row) => row.title)).toEqual([
+      "开发日志 #1：随机系统底层重构——从“随机”到“算法加权”",
+      "开发日志 #2：4.0 事件预览与 SSR 获取期望",
+      "开发日志 #3：老事件的“新生”——权重系统下的再平衡 🎮",
+      "开发日志 #4：称号系统重构计划",
+      "开发日志 #5：技术层的优化与改进",
+      "开发日志 #6：事件抽取算法的优化与改进",
+      "开发日志 #7：成就挑战系统的优化改进与周年庆",
+      "开发日志 #8：轮换挑战与地图精通",
     ]);
+    expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
     expect(changelogRows).toEqual([
       expect.objectContaining({ title: "随机事件调整", version: "26.0801.1", releasedAt: expect.any(String) }),
     ]);
