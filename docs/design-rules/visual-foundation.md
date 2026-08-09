@@ -80,9 +80,9 @@ the token table.
 
 ## Containers (visual role)
 
-- `page-shell` / `page-shell--readable` / `page-shell--narrow` / `page-shell--wide`
-  own readable measure and gutters (approx. max widths `1440` / `1100` / `760` /
-  `1440` CSS px baselines in `main.css`). Do not redefine container width per page.
+- `page-shell` / `page-shell--narrow` / `page-shell--wide` own readable measure
+  and gutters (approx. max widths `1440` / `760` / `1440` CSS px baselines in
+  `main.css`). Do not redefine container width per page.
 - `surface-card` and established panel/card classes own default surface fill
   and border language. Layout structure of multi-card pages is governed by
   [`layout-and-spacing.md`](layout-and-spacing.md).
