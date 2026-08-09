@@ -1,6 +1,6 @@
 # AI Agent Guide
 
-> Repository: OWBastion/owbastion.codes  
+> Repository: OWBastion/owbastion.com
 > Role: Bastion web platform and operational control plane
 
 ## Repository identity
@@ -9,10 +9,11 @@
 - For issue work, verify `git remote get-url origin` and use `gh issue view <number> --repo OWBastion/owbastion.com`; do not infer repository ownership from the local directory name. When the implementation resolves an issue in this repository, use `Fixes #<number>` in the commit message; use `Refs` only for related, non-closing work.
 
 This repository contains an implemented pnpm TypeScript workspace: a Hono
-Cloudflare Worker API, a Nuxt Portal, platform contracts/domain/database/auth
-packages, and forward-only D1 migrations. Inspect source and tests before
-claiming any behavior; documentation distinguishes implemented slices from
-future milestones.
+Cloudflare Worker API, a Nuxt Portal with Git-backed editorial content and an
+admin-gated Studio, platform contracts/domain/database/auth packages, and
+forward-only D1 migrations. Inspect source and tests before claiming any
+behavior; documentation distinguishes implemented slices from future
+milestones.
 
 ## Rule organization
 
@@ -38,7 +39,8 @@ future milestones.
 | Architecture, ownership, or repository shape | `docs/dev-rules/` index |
 | QQBot, OCRKit, Bastion, submissions, or state transitions | `docs/product-rules/` index |
 | Authentication, privacy, storage, or security | `docs/dev-rules/` index |
-| Portal UI, components, layout, or visual changes | `DESIGN.md`, `docs/design-rules/` index |
+| Portal UI, components, layout, visual, or copy changes | `DESIGN.md`, `docs/design-rules/` index |
+| Nuxt Content, Studio, or editorial publishing | `docs/dev-rules/` index, `DESIGN.md`, applicable `docs/deployment/` runbook |
 | Capability implementation or verification status | `docs/product-rules/` index |
 | Tests, migrations, queues, release, or implementation changes | `docs/dev-rules/` index |
 
@@ -55,7 +57,7 @@ maintained solely in the Feature Status Matrix identified by the
 
 ## Ownership and working rules
 
-- This repository owns current event, map, title, and challenge metadata, plus platform business data, API and Portal behavior, private evidence, and review/grant orchestration.
+- This repository owns current event, map, title, and challenge metadata, Git-backed Portal editorial content, platform business data, API and Portal behavior, private evidence, and review/grant orchestration.
 - OWBastion/Bastion owns game implementation, builds, releases, and published game artifacts; Bastion reads platform metadata through the Agents API and does not export a formal content snapshot to this repository.
 - OWBastion/qqbot owns QQ ingress, deterministic command UX, and channel notifications.
 - OWBastion/ocrkit owns stateless screenshot recognition and model lifecycle.
@@ -63,7 +65,8 @@ maintained solely in the Feature Status Matrix identified by the
 Keep one authoritative owner for each fact. Preserve idempotency, audit records,
 private/public separation, and QQ member-identity semantics. Do not add
 business rules to HTTP or Portal adapters, expose credentials or private
-identifiers, or make browser clients access D1, R2, OCRKit, or Bastion directly.
+identifiers, or make browser clients access D1, R2, OCRKit, Bastion, or Git
+providers directly.
 
 ## Admin decision constraints
 
@@ -88,19 +91,3 @@ production logs, or copied private payloads.
 Before handoff, run applicable tests, typechecks, and builds; update the
 relevant documentation for contract, data-owner, security-boundary, or
 operational changes. Use local fakes for external services in normal tests.
-
-## Portal copy guidelines
-
-- Before adding or modifying any Portal copy, read `docs/design-rules/terminology.md` first and reuse its canonical terms.
-- For detailed rules, status terminology, and examples, follow the
-  `docs/design-rules/` index; check the authoritative topic document there before
-  modifying Portal UI or copy.
-- Use concise, restrained, and specific Chinese for player-facing copy, maintaining an editorial tone consistent with `apps/portal/pages/index.vue` and `apps/portal/pages/me.vue`.
-- Prefer short labels, noun phrases, and direct statuses; reuse the established copy vocabulary instead of adding explanatory sentences when a short status label is sufficient.
-- Focus on describing what players can do and see rather than internal process or implementation terms like review, distribution, or publishing.
-- Empty states should default to stating current status; provide guidance only when a clear, actionable next step exists.
-- Clearly distinguish active, in-progress, unavailable, and future planned features; never describe future features as current capabilities.
-- Let headings carry the narrative while body copy adds scope, conditions, or status, avoiding duplicate messaging between heading and body text.
-- Use factual descriptions for status copy; avoid exaggerated promises, vague marketing language, or unconfirmed timeline commitments.
-- Avoid generic patterns like "Here... will...", "Will be displayed here once available...", or "Record every...", and do not repeat information already clear on the page.
-- When adding or modifying Portal copy, reference the existing tone of the home and player center pages to maintain consistent terminology and status boundaries.
