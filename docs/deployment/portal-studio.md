@@ -4,8 +4,8 @@ Portal 的 Nuxt Studio 使用现有平台 session 做 custom-auth bridge。`play
 
 ## 路由与边界
 
-- 管理员从 `/admin/content` 进入，入口使用当前 Portal origin。
-- `/admin/content` 只提供简洁的启动入口；点击后通过 `/api/studio/login?redirect=/studio` 在新标签页打开 Studio，原管理页面保持可用。
+- 管理员从管理导航的“内容编辑”进入，入口使用当前 Portal origin。
+- 管理导航直接通过 `/api/studio/login?redirect=/studio` 在新标签页打开 Studio，原管理页面保持可用；Portal 不再保留中间内容编辑页。
 - `/studio` 是 Portal 提供的无管理导航 standalone route；它只承载 Studio 原生全屏工作区。服务端验证平台 Admin session，并在缺少 Studio session 时建立 bridge session 后回到 `/studio`。
 - `/_studio` 保留为 Nuxt Studio 的兼容认证入口；通过 bridge 后重定向到 `/studio`，不直接把 Nuxt Studio 的 OAuth handler 当成编辑页。
 - Portal 不 reparent `<nuxt-studio>`，不注入 Shadow DOM 样式，不操纵 Studio sidebar/body 状态，也不拦截 Studio 内部文档路由；Studio 自己拥有导航、Review、编辑和响应式布局。

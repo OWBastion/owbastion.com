@@ -54,8 +54,8 @@ describe("Studio platform authorization bridge", () => {
   });
 
   it("does not turn unrelated Portal requests into Studio requests", () => {
-    expect(isStudioCapabilityPath("/admin/content")).toBe(false);
-    expect(studioRequestDecision("/admin/content", admin)).toBe("ignore");
+    expect(isStudioCapabilityPath("/admin/players")).toBe(false);
+    expect(studioRequestDecision("/admin/players", admin)).toBe("ignore");
   });
 
   it("protects the server Git proxy with the admin Studio boundary", () => {
@@ -84,9 +84,9 @@ describe("Studio platform authorization bridge", () => {
 
     for (const path of [
       "apps/portal/server/runtime-secret.ts",
-      "apps/portal/pages/admin/content.vue",
+      "apps/portal/pages/studio.vue",
       "apps/portal/nuxt.config.ts",
-      "pages/admin/content.vue",
+      "pages/studio.vue",
       "apps/portal/content/../server/runtime-secret.ts",
       "apps/portal/public/robots.txt",
     ]) {
@@ -140,7 +140,7 @@ describe("Studio platform authorization bridge", () => {
   });
 
   it("accepts only same-origin relative redirects", () => {
-    expect(safeStudioRedirect("/admin/content?from=nav")).toBe("/admin/content?from=nav");
+    expect(safeStudioRedirect("/admin?from=nav")).toBe("/admin?from=nav");
     expect(safeStudioRedirect("/_studio")).toBe("/_studio");
     expect(safeStudioRedirect("https://example.com/steal")).toBe("/studio");
     expect(safeStudioRedirect("//example.com/steal")).toBe("/studio");

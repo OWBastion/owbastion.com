@@ -35,7 +35,7 @@ URLs.
 | --- | --- | --- |
 | Anonymous Blog list/detail | Public list and one detail URL return the pilot entry | Not run; no deployment performed |
 | Anonymous Changelog list/detail | Public list and one released-version detail URL return the pilot entry | Not run; no deployment performed |
-| Non-admin and expired session | `/admin/content`, `/_studio`, and Studio write routes deny access | Local auth tests only; production not run |
+| Non-admin and expired session | `/studio`, `/_studio`, and Studio write routes deny access | Local auth tests only; production not run |
 | Admin entry | Existing platform Admin session reaches Studio without GitHub OAuth | Production not run |
 | Pilot edit and publish | Studio edit creates the intended content-only Git commit on `main` | Not run; requires an authorized production session and server token |
 | CI and deploy | Existing Portal checks, image publication, and immutable deployment complete | Not run; push and deployment intentionally skipped |
