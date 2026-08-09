@@ -30,14 +30,37 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PNPM_VERSION: 11.11.0
   NODE_VERSION: 26
 
 jobs:
-  verify:
-    name: Verify platform
+  validate:
+    name: Validate (${{ matrix.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: migration checks
+            command: pnpm run check:migrations
+          - name: unit tests
+            command: pnpm run test:unit
+          - name: Portal UI tests
+            command: pnpm run test:portal-ui --run
+          - name: typecheck
+            command: pnpm run typecheck
+          - name: API build
+            command: pnpm run build:api
+          - name: Portal build and SSR smoke
+            command: >-
+              pnpm run build:portal && NUXT_TEST_PORT=3000
+              pnpm run test:portal-e2e:built
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -56,17 +79,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run migration checks
-        run: pnpm run check:migrations
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.command }}
 
-      - name: Run tests
-        run: pnpm test
-
-      - name: Run typecheck
-        run: pnpm run typecheck
-
-      - name: Run build
-        run: pnpm run build
+  verify:
+    name: Verify platform
+    if: always()
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all validation checks to pass
+        run: test "${{ needs.validate.result }}" = success
 
   publish:
     name: Publish Portal image

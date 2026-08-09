@@ -1,8 +1,11 @@
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { $fetch, setup } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
 
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));
+const outputDir = resolve(rootDir, ".output");
+const testPort = process.env.NUXT_TEST_PORT ? Number(process.env.NUXT_TEST_PORT) : undefined;
 
 /**
  * Built-server SSR smoke only. Real browser regression is out of the code-level
@@ -11,9 +14,11 @@ const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 describe("Portal SSR", async () => {
   await setup({
     rootDir,
-    build: true,
+    build: false,
     server: true,
     browser: false,
+    nuxtConfig: { nitro: { output: { dir: outputDir } } },
+    port: testPort,
     setupTimeout: 240_000,
     serverStartTimeout: 120_000,
   });

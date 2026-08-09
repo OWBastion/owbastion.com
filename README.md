@@ -66,9 +66,12 @@ pnpm dev:portal:local
 
 ```bash
 pnpm test          # 单元、契约、Portal UI 和 E2E 测试
+pnpm test:unit     # 单元与契约测试
+pnpm test:portal-ui
+pnpm build:portal && pnpm test:portal-e2e:built  # 复用已有 Portal 产物执行 SSR smoke
 pnpm typecheck     # 全 workspace 类型检查
 pnpm build         # 构建 API 与 Portal
-pnpm check         # check:migrations + test + typecheck + build
+pnpm check         # check:migrations + unit/UI + typecheck + build + built SSR smoke
 
 pnpm check:migrations
 pnpm db:seed:local
