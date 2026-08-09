@@ -144,7 +144,7 @@ async function signOut() {
 </template>
 
 <style scoped>
-.app-header-wrap { position: sticky; z-index: 10; top: 14px; width: min(100% - 28px, 1480px); margin: 0 auto; }
+.app-header-wrap { position: sticky; z-index: 10; top: 14px; width: min(100% - 1.75rem, 92.5rem); margin: 0 auto; }
 .app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; }
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }

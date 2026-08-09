@@ -51,17 +51,18 @@ Rules:
 
 - Use `page-shell` (broad default workspaces), `page-shell--readable`
   (prose detail / reading surfaces), `page-shell--narrow` (forms / focused
-  detail), `page-shell--wide` (admin data workspaces). Approximate max
-  widths: `1440px`, `1100px`, `760px`, `1440px` — these baselines live in
+  detail), `page-shell--wide` (admin data workspaces). Max widths use `rem`
+  so they scale with the root font size: `90rem` (≈1440px), `68.75rem`
+  (≈1100px), `47.5rem` (≈760px), `90rem` — these baselines live in
   `main.css`.
 - Default to `page-shell` for card/grid directories, dashboards, editorial
   directories, and side-by-side detail workspaces; it sits just inside the
   global header measure. Reserve `page-shell--readable` for prose-heavy
   single-article pages and `page-shell--narrow` for focused forms. Do not
   compensate for the shared default with page-local widths.
-- Horizontal gutters are owned by `page-shell` (`100% - 48px` desktop,
-  `100% - 24px` mobile). Do not re-implement page margins with local
-  `padding-inline: 12px` on every card stack.
+- Horizontal gutters are owned by `page-shell` (`100% - 3rem` desktop,
+  `100% - 1.5rem` mobile). Do not re-implement page margins with local
+  `padding-inline: 0.75rem` on every card stack.
 - Full-bleed chrome (header, fixed system bars) must still keep interactive
   content inside the same readable measure or document the exception.
 - Cards and panels in a vertical stack must share **one column width**:

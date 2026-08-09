@@ -233,7 +233,7 @@ onMounted(() => {
 .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
 .intro-copy { min-width: 0; max-width: 690px; }
 .intro-copy .page-title { overflow-wrap: anywhere; }
-.intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; }
+.intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.75rem; }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: 20px; }
 .section-block, .upcoming-section { margin-top: clamp(56px, 8vw, 88px); }
