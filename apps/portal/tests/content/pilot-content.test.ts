@@ -47,9 +47,21 @@ describe("editorial content boundary", () => {
     expect(changelogVersions).toHaveLength(23);
     expect(documents).toHaveLength(31);
     const combined = documents.join("\n");
+    const changelogDocuments = documents.slice(8);
+    const combinedChangelog = changelogDocuments.join("\n");
     expect(combined).not.toMatch(/https?:\/\/[^\s)]*feishu\.(cn|com)/i);
     expect(documents.every((document) => document.startsWith("---\ntitle:"))).toBe(true);
     expect(documents.some((document) => /^# /m.test(document))).toBe(false);
+    expect(changelogDocuments.every((document) => /^---[\s\S]*?---\n\n/u.test(document))).toBe(true);
+    expect(combinedChangelog).not.toMatch(/^# /m);
+    expect(combinedChangelog).not.toMatch(/^#{5,}/m);
+    expect(combinedChangelog).not.toMatch(/^#{1,6}\s*$/m);
+    expect(changelogDocuments.every((document) => !/\n---\s*$/u.test(document.trimEnd()))).toBe(true);
+    for (const document of changelogDocuments) {
+      const body = document.replace(/^---[\s\S]*?---\n\n/u, "");
+      const levels = [...body.matchAll(/^(#{1,6})\s+/gmu)].map((match) => match[1].length);
+      expect(levels.every((level, index) => index === 0 || level <= levels[index - 1] + 1)).toBe(true);
+    }
     expect(combined).not.toMatch(/\\[.(){}[\]*_+\-|~%&<>]/);
     expect(combined).toContain("轮换挑战与地图精通");
     expect(combined).toContain("26.0801.1");
