@@ -22,7 +22,7 @@ Portal 本地开发也关闭 Studio 的 filesystem dev mode。没有部署所需
 
 Nuxt Studio 的 Git provider 使用 `OWBastion/owbastion.com` 的 `main` 分支，工作区 root 收窄为 `apps/portal`；Phase 1 的正常内容与媒体写入因此落在 Portal 内容边界内。GitHub fine-grained token 只允许这个仓库的 `Contents: Read and write`，不授予 Issues、Actions、Packages、Secrets、Administration 或 pull-request 权限。GitHub 仓库级 Contents 权限仍不是目录 ACL：若编辑管理员范围扩大到不应持有仓库邻近发布能力的人员，应将内容提取到专用仓库，而不是继续扩大 token 范围。
 
-生产服务器在 Compose 使用的外部环境文件中保存 `STUDIO_GITHUB_TOKEN`，文件必须由服务器运维创建并限制为服务用户可读；轮换时先创建新的同权限 fine-grained token，再更新外部环境文件并重建 Portal 容器，确认发布后撤销旧 token。Compose 对缺少 token 的配置直接失败，实际 token 不进入 `NUXT_PUBLIC_*` 配置、Studio session 响应、浏览器 bundle、文章内容或日志。Studio Git 客户端的本地 patch 和 Portal 代理只允许固定仓库的 `main` 分支 Git 数据接口；内容读取仍限于 `apps/portal/**`，写入只允许 `apps/portal/content/**` 与 `apps/portal/public/content/**`。
+生产服务器在 Compose 使用的外部环境文件中保存 `STUDIO_GITHUB_TOKEN`，文件必须由服务器运维创建并限制为服务用户可读；轮换时先创建新的同权限 fine-grained token，再更新外部环境文件并重建 Portal 容器，确认发布后撤销旧 token。Compose 对缺少 token 的配置直接失败，实际 token 不进入 `NUXT_PUBLIC_*` 配置、Studio session 响应、浏览器 bundle、文章内容或日志。Studio 的 Git 客户端通过同源 fetch 兼容适配层把 GitHub 请求改写到 Portal 代理；代理只允许固定仓库的 `main` 分支 Git 数据接口；内容读取仍限于 `apps/portal/**`，写入只允许 `apps/portal/content/**` 与 `apps/portal/public/content/**`。
 
 代理为一次 Studio 发布保存签名的、仅服务端使用的 ref/tree/commit 状态。`PATCH main` 前会重新读取当前 `main`、目标 commit 以及前后完整 Git tree，要求目标 commit 只有一个 parent 且 parent 是当前 `main`，并要求所有变更文件都落在上述两个编辑根目录内。过期 parent、非快进提交、merge commit、`force` 更新、源代码/配置/页面/服务端路径和不完整的 Git provider 响应都会被拒绝。
 
