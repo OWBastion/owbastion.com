@@ -34,10 +34,18 @@ useSeoMeta({
         <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">成就</p><h3 class="type-headline">成就挑战</h3><p>查看已发布的目标与完成条件。</p></NuxtLink>
         <article id="rankings" class="content-card content-card-emphasis interactive-card--static"><p class="card-label type-kicker">天梯排名</p><h3 class="type-headline">公开记录</h3><p>挑战、完成时间与玩家排名。</p></article>
         <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">版本更新</p><h3 class="type-headline">版本变化</h3><p>已发布的内容与规则变化。</p></NuxtLink>
+        <NuxtLink to="/blog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">开发日志</p><h3 class="type-headline">开发进展</h3><p>阅读开发进展与设计记录。</p></NuxtLink>
       </div>
     </section>
 
-    <footer class="footer"><span>躲避堡垒 3 社区</span><span>活动 · 成就 · 天梯排名</span><span>© {{ new Date().getFullYear() }} 躲避堡垒 3</span></footer>
+    <footer class="footer">
+      <span>躲避堡垒 3 社区</span>
+      <nav class="footer-nav" aria-label="页脚导航">
+        <NuxtLink to="/changelog" class="footer-link pressable">版本更新</NuxtLink>
+        <NuxtLink to="/blog" class="footer-link pressable">开发日志</NuxtLink>
+      </nav>
+      <span>© {{ new Date().getFullYear() }} 躲避堡垒 3</span>
+    </footer>
   </main>
 </template>
 
@@ -59,5 +67,8 @@ h1 { margin: 0 0 10px; font-size: clamp(3.6rem, 8.1vw, 7.2rem); line-height: .94
   background: color-mix(in oklch, var(--surface) 88%, var(--accent-surface));
 }
 .footer { display: flex; justify-content: space-between; gap: 18px; max-width: 1280px; margin: 0 auto; padding-top: 25px; border-top: 1px solid var(--line); color: var(--quiet); font-size: .66rem; letter-spacing: .07em; }
+.footer-nav { display: flex; align-items: center; gap: 18px; }
+.footer-link { color: var(--quiet); text-decoration: none; }
+.footer-link:hover, .footer-link:focus-visible { color: var(--text); }
 @media (max-width: 820px) { .hero, .rotation-feature, .section-heading { grid-template-columns: 1fr; }.hero { gap: 36px; min-height: auto; }.focus-panel { max-width: 520px; }.feature-detail { padding: 22px 0 0; border-top: 1px solid var(--line-strong); border-left: 0; } } @media (max-width: 620px) { .site-shell { padding-inline: 14px; }.hero { padding-top: 70px; }.hero-copy { max-width: 35rem; }h1 { font-size: clamp(3.2rem, 16vw, 5rem); }.hero-topic { font-size: 1.65rem; }.rotation-feature { gap: 26px; padding: 25px; }.content-grid { grid-template-columns: 1fr; }.content-card-wide { grid-column: auto; }.content-card { min-height: 0; padding: 23px; }.card-label { margin-bottom: 38px; }.footer { flex-direction: column; align-items: flex-start; gap: 9px; } }
 </style>

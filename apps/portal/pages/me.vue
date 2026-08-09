@@ -78,7 +78,10 @@ onMounted(() => {
           <p class="eyebrow">玩家中心</p>
           <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
         </div>
-        <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
+        <div class="intro-actions">
+          <UButton to="/blog" label="开发日志" color="neutral" variant="outline" size="lg" class="intro-action" />
+          <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
+        </div>
       </section>
 
       <UAlert
@@ -233,6 +236,7 @@ onMounted(() => {
 .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
 .intro-copy { min-width: 0; max-width: 690px; }
 .intro-copy .page-title { overflow-wrap: anywhere; }
+.intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: 20px; }
 .section-block, .upcoming-section { margin-top: clamp(56px, 8vw, 88px); }
@@ -328,6 +332,7 @@ onMounted(() => {
 }
 @media (max-width: 620px) {
   .intro { align-items: stretch; flex-direction: column; gap: 22px; }
+  .intro-actions { width: 100%; flex-direction: column; align-items: stretch; }
   .intro-action { width: 100%; justify-content: center; }
   .me-skeleton-intro { align-items: stretch; flex-direction: column; gap: 22px; margin-bottom: 20px; }
   .me-skeleton-intro-action { width: 100%; }
@@ -341,6 +346,6 @@ onMounted(() => {
 }
 @media (max-width: 360px) {
   .me-page { padding-block: 48px 48px; }
-  .intro-action, .me-state :deep(button) { width: 100%; justify-content: center; }
+  .me-state :deep(button) { width: 100%; justify-content: center; }
 }
 </style>

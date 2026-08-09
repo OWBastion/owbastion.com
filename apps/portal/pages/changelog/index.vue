@@ -21,7 +21,7 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
 </script>
 
 <template>
-  <main class="editorial-page page-shell">
+  <main class="editorial-page page-shell--readable">
     <section class="page-intro" aria-labelledby="changelog-title">
       <h1 id="changelog-title" class="page-title">版本更新</h1>
     </section>
