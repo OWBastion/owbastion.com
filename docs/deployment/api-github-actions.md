@@ -78,10 +78,21 @@ first applies migrations to the isolated staging D1 database and verifies the
 submission/review schema there, then applies forward-only production D1
 migrations, validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker
 secret, deploys the Worker, publishes the API URL, and submits the OpenAPI
-endpoint inventory to Cloudflare API Shield Endpoint Management. The API token must also have `Account API Gateway` or
-`Domain API Gateway` write permission. Endpoint deployment is additive and
-idempotent; it first reads the paginated zone inventory and submits only missing
-operations, and it does not delete operations already managed in Cloudflare.
+endpoint inventory to Cloudflare API Shield Endpoint Management. The API token must also have
+`Account API Gateway` or `Domain API Gateway` read and write permission. The source
+OpenAPI document remains the complete API contract, but API Shield intentionally
+manages only its public and integration routes: `/v1/admin/**` and
+`/v1/internal/**` are excluded because they are private control-plane surfaces.
+The selected operation set has an 80-operation deployment budget to preserve
+headroom under the Free plan's 100 saved-endpoint limit.
+
+Endpoint deployment is a local desired-state reconciliation for the API host. It
+first reads the complete paginated zone inventory, deletes stale operations on
+the managed API host, and then submits only missing operations. Operations for
+other hosts in the same zone are preserved. Deletions happen one at a time so
+stale operations free capacity before new operations are added; a missing
+Cloudflare operation ID stops the deployment rather than attempting an unsafe
+delete.
 
 The source inventory is [`docs/api/openapi.json`](../api/openapi.json). To run
 the same deployment locally:

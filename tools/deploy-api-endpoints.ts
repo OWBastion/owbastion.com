@@ -10,9 +10,11 @@ type CloudflareOperationsResponse = CloudflareResponse & {
   result?: CloudflareStoredOperation[];
   result_info?: { page?: number; total_pages?: number };
 };
-type DeploymentResult = CloudflareResponse & { created: number; skipped: number };
+type DeploymentResult = CloudflareResponse & { selected: number; created: number; deleted: number; kept: number };
 
 const supportedMethods = new Set(["get", "post", "put", "patch", "delete", "head", "options", "connect", "trace"]);
+const apiShieldExcludedPrefixes = ["/v1/admin", "/v1/internal"];
+export const API_SHIELD_OPERATION_BUDGET = 80;
 const apiGatewayOperationsUrl = (zoneId: string) => `https://api.cloudflare.com/client/v4/zones/${encodeURIComponent(zoneId)}/api_gateway/operations`;
 const authorizationHeaders = (token: string) => ({ Authorization: `Bearer ${token}`, "Content-Type": "application/json" });
 
@@ -41,6 +43,16 @@ const operationKey = (operation: CloudflareOperation) => {
   return `${operation.host.toLowerCase()} ${operation.method.toUpperCase()} ${endpoint}`;
 };
 
+const uniqueOperations = (operations: CloudflareOperation[]) => [...new Map(operations.map((operation) => [operationKey(operation), operation])).values()];
+
+export const selectApiShieldOperations = (operations: CloudflareOperation[], maxOperations = API_SHIELD_OPERATION_BUDGET) => {
+  const selected = uniqueOperations(operations.filter((operation) => !apiShieldExcludedPrefixes.some((prefix) => operation.endpoint === prefix || operation.endpoint.startsWith(`${prefix}/`))));
+  if (selected.length > maxOperations) {
+    throw new Error(`API Shield operation selection contains ${selected.length} operations, exceeding the configured budget of ${maxOperations}`);
+  }
+  return selected;
+};
+
 export const listOperations = async (zoneId: string, token: string, fetcher = fetch) => {
   const operations: CloudflareStoredOperation[] = [];
   const perPage = 50;
@@ -59,15 +71,32 @@ export const listOperations = async (zoneId: string, token: string, fetcher = fe
 };
 
 export const deployOperations = async (zoneId: string, token: string, operations: CloudflareOperation[], fetcher = fetch): Promise<DeploymentResult> => {
+  const desiredOperations = uniqueOperations(operations);
+  if (desiredOperations.length > API_SHIELD_OPERATION_BUDGET) {
+    throw new Error(`API Shield operation selection contains ${desiredOperations.length} operations, exceeding the configured budget of ${API_SHIELD_OPERATION_BUDGET}`);
+  }
   const existingOperations = await listOperations(zoneId, token, fetcher);
+  const desiredKeys = new Set(desiredOperations.map(operationKey));
+  const managedHosts = new Set(desiredOperations.map((operation) => operation.host.toLowerCase()));
+  const staleOperations = existingOperations.filter((operation) => managedHosts.has(operation.host.toLowerCase()) && !desiredKeys.has(operationKey(operation)));
+  const staleWithoutId = staleOperations.find((operation) => !operation.operation_id);
+  if (staleWithoutId) throw new Error(`Cloudflare operation inventory entry ${operationKey(staleWithoutId)} has no operation_id; cannot delete it safely`);
+  for (const operation of staleOperations) {
+    const response = await fetcher(`${apiGatewayOperationsUrl(zoneId)}/${encodeURIComponent(operation.operation_id!)}`, {
+      method: "DELETE",
+      headers: authorizationHeaders(token),
+    });
+    await parseCloudflareResponse<CloudflareResponse>(response, "operation deletion");
+  }
+
   const existingKeys = new Set(existingOperations.map(operationKey));
-  const missingOperations = operations.filter((operation) => {
+  const missingOperations = desiredOperations.filter((operation) => {
     const key = operationKey(operation);
     if (existingKeys.has(key)) return false;
     existingKeys.add(key);
     return true;
   });
-  if (missingOperations.length === 0) return { success: true, created: 0, skipped: operations.length };
+  if (missingOperations.length === 0) return { success: true, selected: desiredOperations.length, created: 0, deleted: staleOperations.length, kept: desiredOperations.length };
 
   const response = await fetcher(apiGatewayOperationsUrl(zoneId), {
     method: "POST",
@@ -75,7 +104,7 @@ export const deployOperations = async (zoneId: string, token: string, operations
     body: JSON.stringify(missingOperations),
   });
   const body = await parseCloudflareResponse<CloudflareResponse>(response, "deployment");
-  return { ...body, created: missingOperations.length, skipped: operations.length - missingOperations.length };
+  return { ...body, selected: desiredOperations.length, created: missingOperations.length, deleted: staleOperations.length, kept: desiredOperations.length - missingOperations.length };
 };
 
 const argumentValue = (args: string[], flag: string) => {
@@ -95,9 +124,10 @@ const main = async () => {
   if (!zoneId) throw new Error("CLOUDFLARE_ZONE_ID is required");
   if (!token) throw new Error("CLOUDFLARE_API_TOKEN is required");
   const document = JSON.parse(await fs.readFile(specPath, "utf8")) as OpenApiDocument;
-  const operations = operationsFromOpenApi(document, argumentValue(args, "--host"));
+  const sourceOperations = operationsFromOpenApi(document, argumentValue(args, "--host"));
+  const operations = selectApiShieldOperations(sourceOperations);
   const result = await deployOperations(zoneId, token, operations);
-  console.log(`Deployed ${result.created} new API Shield endpoint operations and kept ${result.skipped} existing operations from ${path.relative(process.cwd(), specPath)}.`);
+  console.log(`Reconciled ${result.selected} API Shield endpoint operations from ${path.relative(process.cwd(), specPath)}: deleted ${result.deleted}, created ${result.created}, kept ${result.kept}; excluded ${sourceOperations.length - result.selected} administrative or internal operations.`);
 };
 
 if (import.meta.main) main().catch((error) => { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; });
