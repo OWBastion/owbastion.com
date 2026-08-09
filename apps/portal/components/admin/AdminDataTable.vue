@@ -333,6 +333,7 @@ onBeforeUnmount(() => {
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
 .admin-data-table__scroll { overflow: visible; }
 .admin-data-table__scroll--bounded { display: flex; flex-direction: column; overflow-x: clip; overflow-y: auto; overscroll-behavior-y: contain; }
+.admin-data-table__scroll--bounded .admin-data-table__table-viewport { flex: 0 0 auto; }
 .admin-data-table__table-viewport { min-width: 0; overflow-x: auto; overflow-y: clip; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
 .admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }
