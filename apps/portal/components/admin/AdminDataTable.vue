@@ -57,12 +57,15 @@ const props = withDefaults(defineProps<Props>(), {
   tableMinWidth: undefined,
   resetScrollKey: undefined,
   mobileRowLink: undefined,
-  sticky: false,
+  sticky: "header",
   virtualize: false,
 });
 const defaultScrollHeight = "clamp(14rem, calc(100dvh - 18rem), 42rem)";
 const boundedScroll = computed(() => Boolean(props.scrollHeight || props.virtualize));
 const tableScrollHeight = computed(() => props.scrollHeight ?? (props.virtualize ? defaultScrollHeight : undefined));
+/** Flow mode only: enable local X scroll when the table is actually wider than its container.
+ *  Leaving overflow-x:auto on always would create a scrollport that breaks document-level sticky headers. */
+const flowHorizontalScroll = ref(false);
 
 const globalFilter = defineModel<string>("globalFilter", { default: "" });
 const columnFilters = defineModel<Array<{ id: string; value: unknown }>>("columnFilters", { default: () => [] });
@@ -86,6 +89,7 @@ const tableVirtualize = computed<boolean | TableVirtualizeOptions>(() => {
 });
 const secondaryControlsOpen = ref(false);
 let controlsResizeObserver: ResizeObserver | undefined;
+let viewportResizeObserver: ResizeObserver | undefined;
 let mobileControlsMediaQuery: MediaQueryList | undefined;
 let mobileControlsChangeHandler: (() => void) | undefined;
 
@@ -194,13 +198,34 @@ watch(() => props.resetScrollKey, () => {
   tableRoot.value?.scrollIntoView?.({ block: "start", inline: "nearest", behavior: "auto" });
 });
 
+const updateControlsHeight = () => {
+  scrollContainer.value?.style.setProperty("--admin-table-controls-height", `${controls.value?.offsetHeight ?? 0}px`);
+};
+
+const updateFlowHorizontalScroll = () => {
+  if (boundedScroll.value) {
+    flowHorizontalScroll.value = false;
+    return;
+  }
+  const el = tableViewport.value;
+  if (!el) {
+    flowHorizontalScroll.value = false;
+    return;
+  }
+  flowHorizontalScroll.value = el.scrollWidth > el.clientWidth + 1;
+};
+
 onMounted(() => {
-  const updateControlsHeight = () => {
-    scrollContainer.value?.style.setProperty("--admin-table-controls-height", `${controls.value?.offsetHeight ?? 0}px`);
-  };
-  if (controls.value && scrollContainer.value) {
-    controlsResizeObserver = new ResizeObserver(updateControlsHeight);
+  if (controls.value) {
+    controlsResizeObserver = new ResizeObserver(() => {
+      updateControlsHeight();
+      updateFlowHorizontalScroll();
+    });
     controlsResizeObserver.observe(controls.value);
+  }
+  if (tableViewport.value && typeof ResizeObserver !== "undefined") {
+    viewportResizeObserver = new ResizeObserver(() => updateFlowHorizontalScroll());
+    viewportResizeObserver.observe(tableViewport.value);
   }
   if (typeof window.matchMedia === "function") {
     mobileControlsMediaQuery = window.matchMedia("(max-width: 620px)");
@@ -211,10 +236,18 @@ onMounted(() => {
     secondaryControlsOpen.value = true;
   }
   updateControlsHeight();
+  updateFlowHorizontalScroll();
+});
+
+watch([() => props.data, () => props.tableMinWidth, () => props.columns, boundedScroll, columnVisibility], async () => {
+  await nextTick();
+  updateControlsHeight();
+  updateFlowHorizontalScroll();
 });
 
 onBeforeUnmount(() => {
   controlsResizeObserver?.disconnect();
+  viewportResizeObserver?.disconnect();
   if (mobileControlsMediaQuery && mobileControlsChangeHandler) {
     mobileControlsMediaQuery.removeEventListener("change", mobileControlsChangeHandler);
   }
@@ -249,7 +282,11 @@ onBeforeUnmount(() => {
           </template>
         </UDrawer>
       </div>
-      <div ref="tableViewport" class="admin-data-table__table-viewport">
+      <div
+        ref="tableViewport"
+        class="admin-data-table__table-viewport"
+        :class="{ 'admin-data-table__table-viewport--x': flowHorizontalScroll }"
+      >
         <UTable
           ref="table"
           v-model:column-visibility="columnVisibility"
@@ -324,14 +361,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.admin-data-table { overflow: clip; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
-.admin-data-table__controls { position: sticky; z-index: 2; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; background: var(--surface); }
+/* overflow:visible so sticky controls/thead can anchor to the document (clip
+   would create a containing block that kills page-level sticky). */
+.admin-data-table { overflow: visible; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
+.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 16px 16px 0 0; background: var(--surface); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
 .admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: 10px; }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
-.admin-data-table__scroll { overflow: visible; }
+.admin-data-table__scroll { overflow: visible; border-radius: 16px; }
 /* Bounded mode owns both axes on the single virtualization scroll element; the
    table viewport must NOT become a scroll container here, or the sticky thead
    would anchor to it instead of the bounded scroller. */
@@ -340,10 +379,27 @@ onBeforeUnmount(() => {
 /* Inside the bounded scroller the controls stick to the container top rather
    than below the global header. */
 .admin-data-table__scroll--bounded .admin-data-table__controls { top: 0; }
-.admin-data-table__table-viewport { min-width: 0; overflow-x: auto; overflow-y: clip; }
+/* Default: no scrollport so document sticky thead works. Enable X only when the
+   table is actually wider (see --x class / flowHorizontalScroll). */
+.admin-data-table__table-viewport { min-width: 0; overflow: visible; }
+.admin-data-table__table-viewport--x { overflow-x: auto; overflow-y: clip; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
-.admin-data-table :deep([data-slot="thead"]) { top: var(--admin-table-controls-height, 0px); }
-.admin-data-table :deep([data-slot="th"]) { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
+/* Flow: stick under app header + controls. Bounded: stick under controls only. */
+.admin-data-table :deep([data-slot="thead"]) {
+  top: calc(var(--sticky-chrome-top, 0px) + var(--admin-table-controls-height, 0px));
+  z-index: 2;
+  background: var(--surface);
+}
+.admin-data-table__scroll--bounded :deep([data-slot="thead"]) {
+  top: var(--admin-table-controls-height, 0px);
+}
+.admin-data-table :deep([data-slot="th"]) {
+  color: var(--quiet);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .025em;
+  background: var(--surface);
+}
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
 .admin-data-table__mobile-list { display: none; }

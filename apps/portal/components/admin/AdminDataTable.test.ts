@@ -111,16 +111,22 @@ describe("AdminDataTable mobile presentation", () => {
     expect((virtualize as { getScrollElement: () => HTMLElement | null }).getScrollElement()).toBe(scroll.element);
   });
 
-  it("keeps the sticky header opt-in for bounded mode instead of a flow default", async () => {
+  it("keeps sticky table headers enabled by default in flow and bounded modes", async () => {
     let flowProps: { virtualize: unknown; sticky: unknown } | undefined;
     mountTable({}, (props) => { flowProps = props; });
     await nextTick();
-    expect(flowProps?.sticky).toBeFalsy();
+    expect(flowProps?.sticky).toBe("header");
 
     let boundedProps: { virtualize: unknown; sticky: unknown } | undefined;
-    mountTable({ scrollHeight: "30rem", sticky: "header" }, (props) => { boundedProps = props; });
+    mountTable({ scrollHeight: "30rem" }, (props) => { boundedProps = props; });
     await nextTick();
     expect(boundedProps?.sticky).toBe("header");
+  });
+
+  it("does not create a horizontal scrollport on the table viewport by default", () => {
+    const wrapper = mountTable();
+    const viewport = wrapper.get(".admin-data-table__table-viewport");
+    expect(viewport.classes()).not.toContain("admin-data-table__table-viewport--x");
   });
 
   it("returns flow resets to the workspace start and bounded resets its internal scroll", async () => {
