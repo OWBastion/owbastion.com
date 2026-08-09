@@ -417,10 +417,16 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-disclosure-trigger > span:last-child { font-size: 1.1rem; transform: translateY(-2px); }
 .admin-data-table__mobile-disclosure-trigger[aria-expanded="true"] > span:last-child { transform: rotate(180deg) translateY(-2px); }
 .admin-data-table__mobile-details { padding: 12px 0 2px; }
-.admin-data-table__mobile-actions { display: flex; justify-content: flex-end; gap: 8px; min-height: 44px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.admin-data-table__mobile-action-menu-content { display: grid; gap: 6px; min-width: 10rem; padding: 8px; }
+.admin-data-table__mobile-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 44px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+/* The mobile action menu content is teleported to <body> (no scoped data-v), so
+   it is styled with :global. Nuxt UI renders an empty flex-1 item viewport when
+   items=[]; hiding it keeps the actions as the only child so the clipped flex
+   content cannot mis-measure or push the action buttons out of view. */
+:global(.admin-data-table__mobile-action-menu) { min-width: 10rem; }
+:global(.admin-data-table__mobile-action-menu [data-slot="viewport"]) { display: none; }
+.admin-data-table__mobile-action-menu-content { display: grid; gap: 6px; min-width: 10rem; padding: 8px; color: var(--text); }
 .admin-data-table__mobile-action-menu-content :deep(.table-actions) { display: grid; gap: 6px; }
-.admin-data-table__mobile-action-menu-content :deep(button), .admin-data-table__mobile-action-menu-content :deep(a) { min-height: 44px; }
+.admin-data-table__mobile-action-menu-content :deep(button), .admin-data-table__mobile-action-menu-content :deep(a) { width: 100%; min-height: 44px; }
 .admin-data-table__mobile-empty { margin: 0; padding: 32px 16px; color: var(--quiet); text-align: center; }
 .admin-data-table__mobile-loading { display: grid; gap: 1px; padding: 14px; }
 .admin-data-table__mobile-skeleton { height: 72px; }
