@@ -384,11 +384,12 @@ onBeforeUnmount(() => {
 .admin-data-table__table-viewport { min-width: 0; overflow: visible; }
 .admin-data-table__table-viewport--x { overflow-x: auto; overflow-y: clip; }
 .admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
-/* Flow: stick under app header + controls. Bounded: stick under controls only. */
+/* Flow: stick under app header + controls. Bounded: stick under controls only.
+   Background/blur come from Nuxt UI's thead theme (bg-default/75 backdrop-blur);
+   do not paint a solid surface here or the frosted-glass header is lost. */
 .admin-data-table :deep([data-slot="thead"]) {
   top: calc(var(--sticky-chrome-top, 0px) + var(--admin-table-controls-height, 0px));
   z-index: 2;
-  background: var(--surface);
 }
 .admin-data-table__scroll--bounded :deep([data-slot="thead"]) {
   top: var(--admin-table-controls-height, 0px);
@@ -398,7 +399,6 @@ onBeforeUnmount(() => {
   font-size: .72rem;
   font-weight: 700;
   letter-spacing: .025em;
-  background: var(--surface);
 }
 .admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
