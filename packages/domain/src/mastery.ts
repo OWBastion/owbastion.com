@@ -6,6 +6,37 @@ export type MasteryMapVariant = "classic" | null;
 export type MasteryAcceptanceSource = "submission_automatic" | "submission_review";
 export type MasteryEventCounters = Record<string, number>;
 
+/**
+ * Platform-owned compatibility policy for turning OCR evidence into a verified
+ * mastery run. OCRKit reports the raw version and layout; it does not decide
+ * whether either is eligible for XP.
+ */
+export const masteryEvidenceCompatibilityV1 = {
+  version: "v1",
+  minimumGameVersion: "26.0809.1",
+  supportedOcrLayoutVersions: ["1280x720-v6"],
+  requiredConfidence: 0.9,
+} as const;
+
+const versionParts = (value: string) => {
+  const parts = value.trim().split(".");
+  if (parts.length !== 3 || parts.some((part) => !/^\d+$/u.test(part))) return null;
+  return parts.map(Number);
+};
+
+export const isMasteryGameVersionSupported = (value: string) => {
+  const candidate = versionParts(value);
+  const minimum = versionParts(masteryEvidenceCompatibilityV1.minimumGameVersion);
+  if (!candidate || !minimum) return false;
+  for (let index = 0; index < candidate.length; index += 1) {
+    if (candidate[index] !== minimum[index]) return candidate[index] > minimum[index];
+  }
+  return true;
+};
+
+export const isMasteryOcrLayoutSupported = (value: string | null | undefined) =>
+  typeof value === "string" && masteryEvidenceCompatibilityV1.supportedOcrLayoutVersions.includes(value.trim() as typeof masteryEvidenceCompatibilityV1.supportedOcrLayoutVersions[number]);
+
 export const masteryXpRuleV1 = {
   version: "v1",
   baseDifficultyXp: {

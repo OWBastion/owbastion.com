@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateMasteryXpV1, masteryXpRuleV1, normalizeMasteryRunCode, type MasteryRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryEvidenceCompatibilityV1, masteryXpRuleV1, normalizeMasteryRunCode, type MasteryRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<MasteryRunForProjection> = {}): MasteryRunForProjection => ({
   runId: "run-1",
@@ -46,6 +46,16 @@ describe("mastery XP rule v1", () => {
   it("normalizes only the canonical three-part run code", () => {
     expect(normalizeMasteryRunCode(" 1234－5678—9012 ")).toBe("1234-5678-9012");
     expect(() => normalizeMasteryRunCode("0123-4567-8901")).toThrow("MASTERY_RUN_CODE_INVALID");
+  });
+
+  it("keeps the platform-owned game and OCR compatibility gate explicit", () => {
+    expect(masteryEvidenceCompatibilityV1).toMatchObject({ minimumGameVersion: "26.0809.1", supportedOcrLayoutVersions: ["1280x720-v6"], requiredConfidence: 0.9 });
+    expect(isMasteryGameVersionSupported("26.0809.1")).toBe(true);
+    expect(isMasteryGameVersionSupported("26.0810.1")).toBe(true);
+    expect(isMasteryGameVersionSupported("26.0808.9")).toBe(false);
+    expect(isMasteryGameVersionSupported("legacy")).toBe(false);
+    expect(isMasteryOcrLayoutSupported("1280x720-v6")).toBe(true);
+    expect(isMasteryOcrLayoutSupported("1280x720-v5")).toBe(false);
   });
 });
 
