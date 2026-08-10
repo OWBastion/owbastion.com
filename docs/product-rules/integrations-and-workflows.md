@@ -90,6 +90,11 @@ The current API implements versioned v1 QQ flows:
   an idempotent review decision. A title approval atomically creates or reuses
   the platform title Grant and links it to the Submission; a mastery-only
   approval records its accepted mastery outcome without a title Grant.
+- maintainer-only mastery-run reads list and filter verified runs by player,
+  map, difficulty, lifecycle state, accepted date, acceptance origin, and run
+  code. Detail includes the source Submission/evidence route, recognized
+  settlement facts, XP snapshot inputs, resulting map projection, lifecycle,
+  and same-player run-code conflicts; it is always private and uncached.
 - automatic approval writes the OCR result, approved review, title Grant reuse
   or creation when applicable, independent submission outcomes, submission rule
   snapshot, and audit records in one D1 batch. A deterministic sample can
@@ -256,6 +261,15 @@ different source run. A later valid OCR retry restores that source run once.
 Direct title-Grant revocation remains title-specific and never invalidates a
 mastery run. Screenshots without a reliable run code remain eligible for the
 legacy title path, but do not produce a mastery-run outcome with XP.
+
+For a same-player run-code conflict, the platform retains the original accepted
+run and the conflicting Submission/evidence separately. A maintainer may record
+that the original remains authoritative, or invalidate it with an idempotent,
+audited actor/time/reason transition that updates the source outcome and map
+projection. The corrected Submission is never merged into the original; it
+continues through the existing reviewed OCR/submission path, where it can create
+the replacement run under normal verification rules. Exact same-fact replays
+remain reuse outcomes and do not become high-priority conflict records.
 
 ## Achievement catalog management
 

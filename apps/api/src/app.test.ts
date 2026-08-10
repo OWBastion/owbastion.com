@@ -8,6 +8,10 @@ const services: PlatformServices = {
   invalidateVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
   restoreVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
   rebuildMasteryProfiles: async () => [],
+  listAdminMasteryRuns: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  getAdminMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
+  transitionAdminMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
+  resolveAdminMasteryRunConflict: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
   getCurrentPlayerMastery: async ({ sessionToken, page, pageSize }) => sessionToken === "session-token" ? { contractVersion: "1" as const, profiles: [], runs: [], page, pageSize, total: 0, hasMore: false } : null,
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
@@ -707,6 +711,83 @@ describe("API", () => {
     const state = await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}/state`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "admin-invalidate-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate", reason: "内容不符合规范" }) }, env);
     expect(state.status).toBe(200);
     expect(calls).toContainEqual({ operation: "state", input: { reviewId, reason: "内容不符合规范" }, key: "admin-invalidate-1" });
+  });
+
+  it("limits mastery-run inspection and reconciliation to maintainers", async () => {
+    const masteryRunId = "00000000-0000-4000-8000-000000000013";
+    const conflictSubmissionId = "00000000-0000-4000-8000-000000000014";
+    const run = {
+      runId: masteryRunId,
+      playerAccountId: "00000000-0000-4000-8000-000000000011",
+      playerId: "1234",
+      playerName: "Player",
+      sourceSubmissionId: "00000000-0000-4000-8000-000000000012",
+      mapId: "map.test",
+      mapName: "测试地图",
+      mapVariant: null,
+      difficulty: "困难" as const,
+      gameVersion: "26.0810.1",
+      runCode: "1234-5678-9012",
+      completionDurationSeconds: 600,
+      deaths: 1,
+      skips: 0,
+      eventCounters: {},
+      acceptanceSource: "submission_review" as const,
+      acceptedAt: 1,
+      status: "active" as const,
+      invalidatedAt: null,
+      invalidatedBy: null,
+      invalidationReason: null,
+      xpRuleVersion: "v1" as const,
+      xpInputSnapshot: { ruleVersion: "v1" as const, baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 11, performanceBonusReasons: ["no_skips" as const], challengeBonus: 0 },
+      awardedXp: 236,
+      conflictCount: 1,
+    };
+    const projection = { mapId: "map.test", totalXp: 236, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难" as const, verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 236, highestCompletedDifficulty: "困难" as const };
+    const calls: Array<{ operation: string; input: unknown; key?: string }> = [];
+    const masteryApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        listAdminMasteryRuns: async (input) => {
+          calls.push({ operation: "list", input });
+          return { contractVersion: "1" as const, items: [run], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false };
+        },
+        getAdminMasteryRun: async () => ({ contractVersion: "1" as const, run, projection, sourceSubmission: {} as never, lifecycle: [{ transition: "accepted" as const, actorType: "service" as const, actorId: "submission_review", reason: null, createdAt: 1 }], conflicts: [{ submissionId: conflictSubmissionId, submissionStatus: "ocr_review_required" as const, playerAccountId: run.playerAccountId, playerName: run.playerName, conflictFields: ["difficulty" as const], facts: { mapName: "测试地图", mapVariant: null, difficulty: "传奇" as const, gameVersion: "26.0810.1", runCode: "1234-5678-9012", completionDurationSeconds: 600, deaths: 1, skips: 0 }, resolution: null }] }),
+        transitionAdminMasteryRun: async (input, _auth, key) => {
+          calls.push({ operation: "state", input, key });
+          return { contractVersion: "1" as const, run, projection };
+        },
+        resolveAdminMasteryRunConflict: async (input, _auth, key) => {
+          calls.push({ operation: "conflict", input, key });
+          return { contractVersion: "1" as const, action: input.action, run, projection };
+        },
+      }),
+    });
+    const unauthenticated = createApp({ authenticate: async () => null, services: () => services });
+    expect((await unauthenticated.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(401);
+    expect((await app.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(403);
+
+    const list = await masteryApp.request("http://localhost/v1/admin/mastery-runs?playerAccountId=00000000-0000-4000-8000-000000000011&mapId=map.test&difficulty=%E5%9B%B0%E9%9A%BE&status=active&acceptanceSource=submission_review&runCode=1234-5678-9012&from=1&to=2&page=2&pageSize=10", {}, env);
+    expect(list.status).toBe(200);
+    expect(list.headers.get("cache-control")).toBe("private, no-store");
+    expect(await list.json()).toMatchObject({ items: [{ runCode: "1234-5678-9012", playerAccountId: run.playerAccountId }], page: 2, pageSize: 10 });
+    expect(calls[0]).toEqual({ operation: "list", input: { playerAccountId: run.playerAccountId, mapId: "map.test", difficulty: "困难", status: "active", acceptanceSource: "submission_review", runCode: "1234-5678-9012", from: 1, to: 2, page: 2, pageSize: 10 } });
+    expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs?status=unknown", {}, env)).status).toBe(422);
+
+    const detail = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}`, {}, env);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ run: { runCode: "1234-5678-9012" }, conflicts: [{ submissionId: conflictSubmissionId, conflictFields: ["difficulty"] }] });
+    expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs/not-a-uuid", {}, env)).status).toBe(422);
+
+    expect((await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/state`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate" }) }, env)).status).toBe(422);
+    const state = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/state`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "mastery-state-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate", reason: "证据不一致" }) }, env);
+    expect(state.status).toBe(200);
+    expect(calls).toContainEqual({ operation: "state", input: { masteryRunId, action: "invalidate", reason: "证据不一致", contractVersion: "1" }, key: "mastery-state-1" });
+
+    const conflict = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/conflicts/${conflictSubmissionId}`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "mastery-conflict-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate_existing", reason: "以修正截图为准" }) }, env);
+    expect(conflict.status).toBe(200);
+    expect(calls).toContainEqual({ operation: "conflict", input: { masteryRunId, submissionId: conflictSubmissionId, action: "invalidate_existing", reason: "以修正截图为准", contractVersion: "1" }, key: "mastery-conflict-1" });
   });
 
   it("serves privacy-safe public review summaries and comments", async () => {
