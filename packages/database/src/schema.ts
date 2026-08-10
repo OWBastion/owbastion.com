@@ -333,6 +333,20 @@ export const masteryRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_even
   runCreatedIdx: index("mastery_run_lifecycle_events_run_created_idx").on(table.masteryRunId, table.createdAt),
 }));
 
+export const masteryRunConflictResolutions = sqliteTable("mastery_run_conflict_resolutions", {
+  id: text("id").primaryKey(),
+  masteryRunId: text("mastery_run_id").notNull().references(() => masteryRuns.id),
+  conflictSubmissionId: text("conflict_submission_id").notNull().references(() => submissions.id),
+  action: text("action").notNull(),
+  actorType: text("actor_type").notNull(),
+  actorId: text("actor_id").notNull(),
+  reason: text("reason"),
+  resolvedAt: integer("resolved_at").notNull(),
+}, (table) => ({
+  runSubmissionIdx: uniqueIndex("mastery_run_conflict_resolutions_run_submission_idx").on(table.masteryRunId, table.conflictSubmissionId),
+  runResolvedIdx: index("mastery_run_conflict_resolutions_run_resolved_idx").on(table.masteryRunId, table.resolvedAt),
+}));
+
 export const submissionOutcomes = sqliteTable("submission_outcomes", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull().references(() => submissions.id),

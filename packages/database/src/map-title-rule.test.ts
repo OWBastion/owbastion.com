@@ -237,6 +237,17 @@ const installSchema = (sqlite: DatabaseSync) => {
       reason TEXT,
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE mastery_run_conflict_resolutions (
+      id TEXT PRIMARY KEY NOT NULL,
+      mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id),
+      conflict_submission_id TEXT NOT NULL REFERENCES submissions(id),
+      action TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_id TEXT NOT NULL,
+      reason TEXT,
+      resolved_at INTEGER NOT NULL,
+      UNIQUE (mastery_run_id, conflict_submission_id)
+    );
     CREATE TABLE submission_outcomes (
       id TEXT PRIMARY KEY NOT NULL,
       submission_id TEXT NOT NULL REFERENCES submissions(id),
@@ -1253,6 +1264,40 @@ describe("submission mastery outcomes", () => {
       conflictFields: ["difficulty"],
       masteryRunId: expect.any(String),
     });
+
+    const masteryRunId = adminConflict.masteryOutcome?.masteryRunId;
+    if (!masteryRunId) throw new Error("missing mastery conflict target");
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const listed = await publicServices.listAdminMasteryRuns({ playerAccountId: "player.one", mapId: "map.mastery", difficulty: "困难", acceptanceSource: "submission_automatic", status: "active", runCode: "1234-5678-9012", page: 1, pageSize: 20 }, maintainer);
+    expect(listed).toMatchObject({ total: 1, items: [{ runId: masteryRunId, conflictCount: 1, playerAccountId: "player.one", mapName: "地图 map.mastery", runCode: "1234-5678-9012" }] });
+
+    const inspected = await publicServices.getAdminMasteryRun({ masteryRunId }, maintainer);
+    expect(inspected).toMatchObject({
+      run: { sourceSubmissionId: "submission.first", acceptanceSource: "submission_automatic", xpRuleVersion: "v1", xpInputSnapshot: { ruleVersion: "v1" } },
+      projection: { mapId: "map.mastery", verifiedRunCount: 1 },
+      sourceSubmission: { submissionId: "submission.first", evidenceUrl: expect.stringContaining("/v1/admin/submissions/submission.first/evidence") },
+      lifecycle: [{ transition: "accepted", actorType: "service" }],
+      conflicts: [{ submissionId: "submission.conflict", conflictFields: ["difficulty"], facts: { mapName: "地图 map.mastery", difficulty: "传奇", runCode: "1234-5678-9012" }, resolution: null }],
+    });
+
+    const invalidated = await publicServices.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: "submission.conflict", action: "invalidate_existing", reason: "以修正截图为准" }, maintainer, "mastery-conflict-invalidate");
+    expect(invalidated).toMatchObject({ action: "invalidate_existing", run: { status: "invalidated", invalidationReason: "以修正截图为准" }, projection: { totalXp: 0, verifiedRunCount: 0 } });
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.first' AND outcome_key = 'mastery_run'").get()).toEqual({ status: "invalidated" });
+    expect(await publicServices.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: "submission.conflict", action: "invalidate_existing", reason: "以修正截图为准" }, maintainer, "mastery-conflict-invalidate")).toEqual(invalidated);
+    expect(sqlite.prepare("SELECT action, actor_type, actor_id, reason FROM mastery_run_conflict_resolutions").all()).toEqual([{ action: "invalidate_existing", actor_type: "user", actor_id: "admin", reason: "以修正截图为准" }]);
+    expect(sqlite.prepare("SELECT operation, COUNT(*) AS count FROM audit_events WHERE entity_type = 'mastery_run' GROUP BY operation ORDER BY operation").all()).toEqual([
+      { operation: "mastery_run.conflict.resolve", count: 1 },
+      { operation: "mastery_run.invalidate", count: 1 },
+    ]);
+
+    const restored = await publicServices.transitionAdminMasteryRun({ masteryRunId, action: "restore", reason: "保留原始记录" }, maintainer, "mastery-run-restore");
+    expect(restored).toMatchObject({ run: { status: "active", invalidatedAt: null, invalidationReason: null }, projection: { verifiedRunCount: 1 } });
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.first' AND outcome_key = 'mastery_run'").get()).toEqual({ status: "created" });
+    expect(sqlite.prepare("SELECT transition, actor_type, actor_id, reason FROM mastery_run_lifecycle_events WHERE mastery_run_id = ? ORDER BY created_at, rowid").all(masteryRunId)).toEqual([
+      { transition: "accepted", actor_type: "service", actor_id: "submission_automatic", reason: null },
+      { transition: "invalidated", actor_type: "user", actor_id: "admin", reason: "以修正截图为准" },
+      { transition: "restored", actor_type: "user", actor_id: "admin", reason: "保留原始记录" },
+    ]);
   });
 
   it("keeps a valid no-code legacy title approval separate from mastery and records combined title plus mastery outcomes", async () => {

@@ -1,10 +1,10 @@
-import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
+import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -1063,6 +1063,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     await database.batch([
       database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(nextStatus, nextStatus === "invalidated" ? timestamp : null, nextStatus === "invalidated" ? actor.actorId : null, nextStatus === "invalidated" ? reason : null, row.id),
       database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), row.id, nextStatus === "invalidated" ? "invalidated" : "restored", actor.actorType, actor.actorId, reason, timestamp),
+      masteryRunOutcomeStatusStatement({ run: row, status: nextStatus === "invalidated" ? "invalidated" : "created", timestamp }),
     ]);
     return asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, row.id)).get())!);
   };
@@ -1297,6 +1298,242 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       spotCheck: details.spotChecks.get(row.id) ? { status: details.spotChecks.get(row.id)!.status as "pending" | "confirmed" | "revoked", sampledAt: details.spotChecks.get(row.id)!.sampledAt, resolvedAt: details.spotChecks.get(row.id)!.resolvedAt, reviewer: details.spotChecks.get(row.id)!.reviewer, reason: details.spotChecks.get(row.id)!.reason } : null,
       ...(details.masteryOutcomes.get(row.id) ? { masteryOutcome: details.masteryOutcomes.get(row.id)! } : {}),
     };
+  };
+
+  const loadAdminSubmission = async (row: typeof submissions.$inferSelect) => {
+    const [details, attachment] = await Promise.all([
+      resolveAdminSubmissionDetails([row]),
+      db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
+    ]);
+    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+  };
+
+  const countMasteryRunConflicts = async (runIds: string[]) => {
+    if (!runIds.length) return new globalThis.Map<string, number>();
+    const rows = await db.select({ masteryRunId: submissionOutcomes.entityId }).from(submissionOutcomes).where(and(
+      eq(submissionOutcomes.outcomeType, "mastery_run"),
+      eq(submissionOutcomes.status, "conflict"),
+      inArray(submissionOutcomes.entityId, runIds),
+    ));
+    const counts = new globalThis.Map<string, number>();
+    for (const row of rows) if (row.masteryRunId) counts.set(row.masteryRunId, (counts.get(row.masteryRunId) ?? 0) + 1);
+    return counts;
+  };
+
+  type AdminMasteryRunJoin = {
+    run: typeof masteryRuns.$inferSelect;
+    player: typeof playerAccounts.$inferSelect;
+    map: typeof maps.$inferSelect;
+  };
+
+  const asAdminMasteryRun = (row: AdminMasteryRunJoin, conflictCount: number): AdminMasteryRun => {
+    const run = asVerifiedMasteryRun(row.run);
+    return {
+      runId: run.runId,
+      playerAccountId: run.playerAccountId,
+      playerId: row.player.playerId,
+      playerName: row.player.playerName,
+      sourceSubmissionId: run.sourceSubmissionId,
+      mapId: run.mapId,
+      mapName: row.map.name,
+      mapVariant: run.mapVariant,
+      difficulty: run.difficulty,
+      gameVersion: run.gameVersion,
+      runCode: run.runCode,
+      completionDurationSeconds: run.completionDurationSeconds,
+      deaths: run.deaths,
+      skips: run.skips,
+      eventCounters: run.eventCounters,
+      acceptanceSource: run.acceptanceSource,
+      acceptedAt: run.acceptedAt,
+      status: run.status,
+      invalidatedAt: run.invalidatedAt,
+      invalidatedBy: run.invalidatedBy,
+      invalidationReason: run.invalidationReason,
+      xpRuleVersion: run.xpRuleVersion as "v1",
+      xpInputSnapshot: run.xpInputSnapshot,
+      awardedXp: run.awardedXp,
+      conflictCount,
+    };
+  };
+
+  const loadAdminMasteryRun = async (masteryRunId: string) => {
+    const row = await db.select({ run: masteryRuns, player: playerAccounts, map: maps }).from(masteryRuns)
+      .innerJoin(playerAccounts, eq(masteryRuns.playerAccountId, playerAccounts.id))
+      .innerJoin(maps, eq(masteryRuns.mapId, maps.id))
+      .where(eq(masteryRuns.id, masteryRunId)).get();
+    if (!row) return null;
+    const conflictCounts = await countMasteryRunConflicts([row.run.id]);
+    return { row, view: asAdminMasteryRun(row, conflictCounts.get(row.run.id) ?? 0) };
+  };
+
+  const adminMasteryProjection = async (input: { playerAccountId: string; mapId: string }): Promise<AdminMasteryRunProjection> => {
+    const profile = (await activeMasteryProfiles({ playerAccountId: input.playerAccountId, mapId: input.mapId, recentLimit: 10 }))[0];
+    if (!profile) {
+      return {
+        mapId: input.mapId,
+        totalXp: 0,
+        verifiedRunCount: 0,
+        difficultyStats: [],
+        lowestDeaths: null,
+        fewestSkips: null,
+        highestSingleRunXp: null,
+        highestCompletedDifficulty: null,
+      };
+    }
+    return {
+      mapId: profile.mapId,
+      totalXp: profile.totalXp,
+      verifiedRunCount: profile.verifiedRunCount,
+      difficultyStats: profile.difficultyStats,
+      lowestDeaths: profile.lowestDeaths,
+      fewestSkips: profile.fewestSkips,
+      highestSingleRunXp: profile.highestSingleRunXp,
+      highestCompletedDifficulty: profile.highestCompletedDifficulty,
+    };
+  };
+
+  const masteryConflictFacts = (responseJson: string | null): AdminMasteryRunConflict["facts"] => {
+    let data: OcrResponse["data"] | undefined;
+    try {
+      const parsed = responseJson ? JSON.parse(responseJson) as OcrResponse : null;
+      data = parsed?.data;
+    } catch {
+      data = undefined;
+    }
+    const asText = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
+    const asCount = (value: unknown, positive = false) => typeof value === "number" && Number.isInteger(value) && (positive ? value > 0 : value >= 0) ? value : null;
+    const normalizedDifficulty = normalizedOcrDifficulty(data?.difficulty);
+    let runCode: string | null = null;
+    try { runCode = normalizeMasteryRunCode(asText(data?.run_code) ?? ""); } catch { runCode = null; }
+    return {
+      mapName: asText(data?.map_name),
+      mapVariant: data?.map_variant === "classic" ? "classic" : null,
+      difficulty: masteryDifficulties.includes(normalizedDifficulty as MasteryDifficulty) ? normalizedDifficulty as MasteryDifficulty : null,
+      gameVersion: asText(data?.version),
+      runCode,
+      completionDurationSeconds: asCount(data?.duration_seconds, true),
+      deaths: asCount(data?.deaths),
+      skips: asCount(data?.skips),
+    };
+  };
+
+  const listAdminMasteryRunConflicts = async (masteryRunId: string): Promise<AdminMasteryRunConflict[]> => {
+    const rows = await db.select({ outcome: submissionOutcomes, submission: submissions, player: playerAccounts }).from(submissionOutcomes)
+      .innerJoin(submissions, eq(submissionOutcomes.submissionId, submissions.id))
+      .innerJoin(bindings, eq(submissions.bindingId, bindings.id))
+      .innerJoin(playerAccounts, eq(bindings.playerAccountId, playerAccounts.id))
+      .where(and(eq(submissionOutcomes.outcomeType, "mastery_run"), eq(submissionOutcomes.status, "conflict"), eq(submissionOutcomes.entityId, masteryRunId)))
+      .orderBy(desc(submissionOutcomes.updatedAt));
+    if (!rows.length) return [];
+    const submissionIds = rows.map(({ submission }) => submission.id);
+    const [ocrRows, resolutions] = await Promise.all([
+      db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)),
+      db.select().from(masteryRunConflictResolutions).where(eq(masteryRunConflictResolutions.masteryRunId, masteryRunId)),
+    ]);
+    const latestOcr = new globalThis.Map<string, typeof ocrResults.$inferSelect>();
+    for (const row of ocrRows) if (!latestOcr.has(row.submissionId)) latestOcr.set(row.submissionId, row);
+    const resolutionBySubmission = new globalThis.Map(resolutions.map((resolution) => [resolution.conflictSubmissionId, resolution]));
+    return rows.map(({ outcome, submission, player }) => {
+      const outcomeDetail = asMasterySubmissionOutcome(outcome);
+      const resolution = resolutionBySubmission.get(submission.id);
+      return {
+        submissionId: submission.id,
+        submissionStatus: submission.status as AdminMasteryRunConflict["submissionStatus"],
+        playerAccountId: player.id,
+        playerName: player.playerName,
+        conflictFields: outcomeDetail.conflictFields,
+        facts: masteryConflictFacts(latestOcr.get(submission.id)?.responseJson ?? null),
+        resolution: resolution ? {
+          action: resolution.action as "keep_existing" | "invalidate_existing",
+          actorType: resolution.actorType as "service" | "user",
+          actorId: resolution.actorId,
+          reason: resolution.reason,
+          resolvedAt: resolution.resolvedAt,
+        } : null,
+      };
+    });
+  };
+
+  const masteryRunOutcomeStatusStatement = (input: { run: typeof masteryRuns.$inferSelect; status: "created" | "invalidated"; timestamp: number }) => database.prepare(
+    "UPDATE submission_outcomes SET status = ?, updated_at = ? WHERE submission_id = ? AND outcome_key = 'mastery_run' AND entity_id = ? AND status IN ('created', 'invalidated')"
+  ).bind(input.status, input.timestamp, input.run.sourceSubmissionId, input.run.id);
+
+  const transitionAdminMasteryRunState = async (input: { masteryRunId: string; action: "invalidate" | "restore"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunStateResponse> => {
+    const operation = input.action === "invalidate" ? "mastery_run.invalidate" : "mastery_run.restore";
+    const replay = await replayOrConflict<AdminMasteryRunStateResponse>(db, auth.subject, operation, idempotencyKey, input);
+    if (replay) return replay;
+    const loaded = await loadAdminMasteryRun(input.masteryRunId);
+    if (!loaded) throw new Error("MASTERY_RUN_NOT_FOUND");
+    const nextStatus = input.action === "invalidate" ? "invalidated" : "active";
+    if (loaded.row.run.status !== nextStatus) {
+      if (nextStatus === "active") {
+        const activeDuplicate = await db.select({ id: masteryRuns.id }).from(masteryRuns).where(and(
+          eq(masteryRuns.playerAccountId, loaded.row.run.playerAccountId),
+          eq(masteryRuns.runCode, loaded.row.run.runCode),
+          eq(masteryRuns.status, "active"),
+          ne(masteryRuns.id, loaded.row.run.id),
+        )).get();
+        if (activeDuplicate) throw new Error("MASTERY_RUN_CODE_CONFLICT");
+      }
+      const timestamp = now();
+      const reason = input.reason?.trim() || null;
+      await database.batch([
+        database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(nextStatus, nextStatus === "invalidated" ? timestamp : null, nextStatus === "invalidated" ? auth.subject : null, nextStatus === "invalidated" ? reason : null, loaded.row.run.id),
+        database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), loaded.row.run.id, nextStatus === "invalidated" ? "invalidated" : "restored", auth.actorType, auth.subject, reason, timestamp),
+        masteryRunOutcomeStatusStatement({ run: loaded.row.run, status: nextStatus === "invalidated" ? "invalidated" : "created", timestamp }),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'mastery_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, loaded.row.run.id, JSON.stringify({ playerAccountId: loaded.row.run.playerAccountId, sourceSubmissionId: loaded.row.run.sourceSubmissionId, previousStatus: loaded.row.run.status, status: nextStatus, reason }), timestamp),
+      ]);
+    }
+    const updated = await loadAdminMasteryRun(input.masteryRunId);
+    if (!updated) throw new Error("MASTERY_RUN_NOT_FOUND");
+    const response: AdminMasteryRunStateResponse = {
+      contractVersion: "1",
+      run: updated.view,
+      projection: await adminMasteryProjection({ playerAccountId: updated.row.run.playerAccountId, mapId: updated.row.run.mapId }),
+    };
+    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+    return response;
+  };
+
+  const resolveAdminMasteryRunConflictAction = async (input: { masteryRunId: string; submissionId: string; action: "keep_existing" | "invalidate_existing"; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunConflictResolutionResponse> => {
+    const operation = "mastery_run.conflict.resolve";
+    const replay = await replayOrConflict<AdminMasteryRunConflictResolutionResponse>(db, auth.subject, operation, idempotencyKey, input);
+    if (replay) return replay;
+    const loaded = await loadAdminMasteryRun(input.masteryRunId);
+    if (!loaded) throw new Error("MASTERY_RUN_NOT_FOUND");
+    const conflict = await db.select({ id: submissionOutcomes.id }).from(submissionOutcomes).where(and(
+      eq(submissionOutcomes.submissionId, input.submissionId),
+      eq(submissionOutcomes.outcomeKey, "mastery_run"),
+      eq(submissionOutcomes.status, "conflict"),
+      eq(submissionOutcomes.entityId, loaded.row.run.id),
+    )).get();
+    if (!conflict) throw new Error("MASTERY_RUN_CONFLICT_NOT_FOUND");
+    const timestamp = now();
+    const reason = input.reason?.trim() || null;
+    const statements: D1PreparedStatement[] = [
+      database.prepare("INSERT INTO mastery_run_conflict_resolutions (id, mastery_run_id, conflict_submission_id, action, actor_type, actor_id, reason, resolved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(mastery_run_id, conflict_submission_id) DO UPDATE SET action = excluded.action, actor_type = excluded.actor_type, actor_id = excluded.actor_id, reason = excluded.reason, resolved_at = excluded.resolved_at").bind(crypto.randomUUID(), loaded.row.run.id, input.submissionId, input.action, auth.actorType, auth.subject, reason, timestamp),
+      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'mastery_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, loaded.row.run.id, JSON.stringify({ conflictSubmissionId: input.submissionId, sourceSubmissionId: loaded.row.run.sourceSubmissionId, action: input.action, reason }), timestamp),
+    ];
+    if (input.action === "invalidate_existing" && loaded.row.run.status === "active") {
+      statements.unshift(
+        database.prepare("UPDATE mastery_runs SET status = 'invalidated', invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ? AND status = 'active'").bind(timestamp, auth.subject, reason, loaded.row.run.id),
+        database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'invalidated', ?, ?, ?, ?)").bind(crypto.randomUUID(), loaded.row.run.id, auth.actorType, auth.subject, reason, timestamp),
+        masteryRunOutcomeStatusStatement({ run: loaded.row.run, status: "invalidated", timestamp }),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'mastery_run.invalidate', 'mastery_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, loaded.row.run.id, JSON.stringify({ playerAccountId: loaded.row.run.playerAccountId, sourceSubmissionId: loaded.row.run.sourceSubmissionId, previousStatus: "active", status: "invalidated", reason, resolutionSubmissionId: input.submissionId }), timestamp),
+      );
+    }
+    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    const updated = await loadAdminMasteryRun(input.masteryRunId);
+    if (!updated) throw new Error("MASTERY_RUN_NOT_FOUND");
+    const response: AdminMasteryRunConflictResolutionResponse = {
+      contractVersion: "1",
+      action: input.action,
+      run: updated.view,
+      projection: await adminMasteryProjection({ playerAccountId: updated.row.run.playerAccountId, mapId: updated.row.run.mapId }),
+    };
+    await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);
+    return response;
   };
 
   const persistOcrResult = async (input: {
@@ -1550,6 +1787,74 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async rebuildMasteryProfiles(input) {
       return activeMasteryProfiles(input);
+    },
+
+    async listAdminMasteryRuns(input: AdminMasteryRunQuery, _auth: AuthContext) {
+      const condition = and(
+        input.playerAccountId ? eq(masteryRuns.playerAccountId, input.playerAccountId) : undefined,
+        input.mapId ? eq(masteryRuns.mapId, input.mapId) : undefined,
+        input.difficulty ? eq(masteryRuns.difficulty, input.difficulty) : undefined,
+        input.status ? eq(masteryRuns.status, input.status) : undefined,
+        input.acceptanceSource ? eq(masteryRuns.acceptanceSource, input.acceptanceSource) : undefined,
+        input.runCode ? eq(masteryRuns.runCode, input.runCode) : undefined,
+        input.from !== undefined ? gte(masteryRuns.acceptedAt, input.from) : undefined,
+        input.to !== undefined ? lte(masteryRuns.acceptedAt, input.to) : undefined,
+      );
+      const [rows, totalRows] = await Promise.all([
+        db.select({ run: masteryRuns, player: playerAccounts, map: maps }).from(masteryRuns)
+          .innerJoin(playerAccounts, eq(masteryRuns.playerAccountId, playerAccounts.id))
+          .innerJoin(maps, eq(masteryRuns.mapId, maps.id))
+          .where(condition)
+          .orderBy(desc(masteryRuns.acceptedAt), desc(masteryRuns.id))
+          .limit(input.pageSize + 1)
+          .offset((input.page - 1) * input.pageSize),
+        db.select({ total: count() }).from(masteryRuns).where(condition),
+      ]);
+      const visibleRows = rows.slice(0, input.pageSize);
+      const conflictCounts = await countMasteryRunConflicts(visibleRows.map(({ run }) => run.id));
+      return {
+        contractVersion: "1" as const,
+        items: visibleRows.map((row) => asAdminMasteryRun(row, conflictCounts.get(row.run.id) ?? 0)),
+        page: input.page,
+        pageSize: input.pageSize,
+        total: Number(totalRows[0]?.total ?? 0),
+        hasMore: rows.length > input.pageSize,
+      };
+    },
+
+    async getAdminMasteryRun(input, _auth: AuthContext): Promise<AdminMasteryRunDetailResponse> {
+      const loaded = await loadAdminMasteryRun(input.masteryRunId);
+      if (!loaded) throw new Error("MASTERY_RUN_NOT_FOUND");
+      const sourceRow = await db.select().from(submissions).where(eq(submissions.id, loaded.row.run.sourceSubmissionId)).get();
+      if (!sourceRow) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
+      const [projection, sourceSubmission, lifecycle, conflicts] = await Promise.all([
+        adminMasteryProjection({ playerAccountId: loaded.row.run.playerAccountId, mapId: loaded.row.run.mapId }),
+        loadAdminSubmission(sourceRow),
+        db.select().from(masteryRunLifecycleEvents).where(eq(masteryRunLifecycleEvents.masteryRunId, loaded.row.run.id)).orderBy(desc(masteryRunLifecycleEvents.createdAt)).limit(50),
+        listAdminMasteryRunConflicts(loaded.row.run.id),
+      ]);
+      return {
+        contractVersion: "1",
+        run: loaded.view,
+        projection,
+        sourceSubmission,
+        lifecycle: lifecycle.map((event) => ({
+          transition: event.transition as "accepted" | "invalidated" | "restored",
+          actorType: event.actorType as "service" | "user",
+          actorId: event.actorId,
+          reason: event.reason,
+          createdAt: event.createdAt,
+        })),
+        conflicts,
+      };
+    },
+
+    async transitionAdminMasteryRun(input, auth, idempotencyKey) {
+      return transitionAdminMasteryRunState(input, auth, idempotencyKey);
+    },
+
+    async resolveAdminMasteryRunConflict(input, auth, idempotencyKey) {
+      return resolveAdminMasteryRunConflictAction(input, auth, idempotencyKey);
     },
 
     async listAgentEvents(input: AgentEventQuery) {
@@ -2726,11 +3031,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async getAdminSubmission(input) {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const [details, attachment] = await Promise.all([
-        resolveAdminSubmissionDetails([row]),
-        db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
-      ]);
-      return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+      return loadAdminSubmission(row);
     },
 
     async selectAdminSubmissionChallenge(input, auth, idempotencyKey): Promise<AdminSubmissionChallengeResponse> {
