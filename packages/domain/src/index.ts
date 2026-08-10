@@ -43,6 +43,8 @@ import type {
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
 
+export * from "./mastery";
+
 export type LocalDevAccount = {
   accountId: string;
   playerId: string;
