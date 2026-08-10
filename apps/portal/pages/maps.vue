@@ -7,10 +7,16 @@ useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持
 
 const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
+const { profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery, history: masteryHistory, historyMapId, historyLoading: masteryHistoryLoading, historyError: masteryHistoryError, loadHistory: loadMasteryHistory } = usePlayerMastery();
+const route = useRoute();
 const maps = ref<Map[]>([]);
 const challenges = ref<MapChallenge[]>([]);
 const loading = shallowRef(true);
 const error = shallowRef("");
+const selectedMapId = computed(() => typeof route.query.mapId === "string" ? route.query.mapId : undefined);
+
+const refreshMapMastery = async () => { await refreshMastery(); };
+const changeMasteryHistory = async (input: { mapId: string; page: number }) => { await loadMasteryHistory(input); };
 
 onMounted(async () => {
   const [mapResult, challengeResult, playerResult] = await Promise.allSettled([
@@ -21,6 +27,7 @@ onMounted(async () => {
   if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
   if (challengeResult.status === "fulfilled") challenges.value = challengeResult.value.items;
   if (playerResult.status === "rejected") player.value = null;
+  if (playerResult.status === "fulfilled" && playerResult.value) void refreshMapMastery();
   const failed = [mapResult, challengeResult].find((result) => result.status === "rejected");
   error.value = failed?.status === "rejected" ? portalErrorDetails(failed.reason, "请稍后重试。").description : "";
   loading.value = false;
@@ -42,7 +49,7 @@ onMounted(async () => {
         </div>
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取地图" :description="error" />
-      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" />
+      <MapDirectory v-else :maps="maps" :challenges="challenges" :authenticated="Boolean(player)" :mastery-profiles="masteryProfiles" :mastery-loading="masteryLoading" :mastery-error="masteryError" :mastery-history="masteryHistory" :mastery-history-map-id="historyMapId" :mastery-history-loading="masteryHistoryLoading" :mastery-history-error="masteryHistoryError" :selected-map-id="selectedMapId" @retry-mastery="refreshMapMastery" @history-page="changeMasteryHistory" />
     </section>
   </main>
 </template>
