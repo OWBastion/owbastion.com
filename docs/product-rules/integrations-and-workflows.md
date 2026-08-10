@@ -35,8 +35,8 @@ The current API implements versioned v1 QQ flows:
   content metadata;
 - public submission status is an unauthenticated, opaque-ID lookup that exposes
   the submission ID, map, timestamps, workflow status, and when present a safe
-  mastery outcome (`created`, `reused`, `ineligible`, `conflict`, or
-  `invalidated`) with awarded XP. It returns `Cache-Control: private, no-store`,
+  mastery outcome (`created`, `reused`, `ineligible`, or `invalidated`) with
+  awarded XP. A conflict remains maintainer-only. It returns `Cache-Control: private, no-store`,
   reads D1 for every request, and excludes evidence, OCR output, player or QQ
   identity, run code, mastery-run ID, review metadata, grants, and internal
   conflict or risk signals;
@@ -49,12 +49,14 @@ The current API implements versioned v1 QQ flows:
 - an authenticated player can read only their own submission detail and
   screenshot, plus a constrained OCR summary; public submission status remains
   free of evidence and OCR fields;
-- an authenticated player can read only their own active verified mastery-run
-  projection through `/v1/me/mastery`: stable map ID, canonical difficulty,
-  settlement metrics, awarded XP, aggregate personal bests, and bounded history.
-  Run codes, source submissions, account and QQ identity, OCR/evidence, event
-  facts, XP snapshots, lifecycle/audit fields, and risk signals remain private;
-  this read does not create a run or decide submission eligibility;
+- an authenticated player can read only their own mastery projection through
+  `/v1/me/mastery`: active verified runs determine aggregate personal bests;
+  bounded history can retain an `invalidated` status without its reason. Stable
+  map IDs, canonical difficulty, settlement metrics, and awarded XP remain
+  player-facing. Run codes, source submissions, account and QQ identity,
+  OCR/evidence, event facts, XP snapshots, lifecycle/audit fields, invalidation
+  reasons, and risk signals remain private; this read does not create a run or
+  decide submission eligibility;
 - the existing submission → private evidence → Queue/OCR path can additionally
   derive a mastery outcome. The platform, not OCRKit, verifies the bound player,
   completion state, canonical active map and difficulty, supported game version

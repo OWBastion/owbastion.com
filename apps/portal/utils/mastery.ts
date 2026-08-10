@@ -10,8 +10,7 @@ export const masteryOutcomePresentation = (outcome: MasterySubmissionOutcome | u
   }
   if (outcome.status === "reused") return { title: "精通记录已保存", description: "这次通关已记录。", inline: "精通已记录" };
   if (outcome.status === "ineligible") return { title: "本次未计入精通进度", description: "", inline: "未计入精通" };
-  if (outcome.status === "invalidated") return { title: "精通记录已失效", description: "", inline: "精通记录已失效" };
-  return null;
+  return { title: "精通记录已失效", description: "", inline: "精通记录已失效" };
 };
 
 export const formatMasteryDuration = (seconds: number) => {

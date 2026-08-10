@@ -4,7 +4,7 @@ import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "upload_pending" | "ocr_pending" | "awaiting_player_confirmation" | "ready_for_review" | "ocr_review_required" | "approved" | "rejected" | "resubmission_required";
 
 export type MasterySubmissionOutcome = {
-  status: "created" | "reused" | "ineligible" | "conflict" | "invalidated";
+  status: "created" | "reused" | "ineligible" | "invalidated";
   awardedXp: number;
 };
 

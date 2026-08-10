@@ -1114,10 +1114,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return new globalThis.Map(rows.map((row) => [row.submissionId, asMasterySubmissionOutcome(row)]));
   };
 
-  const playerMasterySubmissionOutcome = (outcome: MasterySubmissionOutcome) => ({
-    status: outcome.status,
-    awardedXp: outcome.status === "created" ? outcome.awardedXp : 0,
-  });
+  const playerMasterySubmissionOutcome = (outcome: MasterySubmissionOutcome) => outcome.status === "conflict"
+    ? null
+    : { status: outcome.status, awardedXp: outcome.status === "created" ? outcome.awardedXp : 0 };
+
+  const playerMasterySubmissionOutcomeFields = (outcome: MasterySubmissionOutcome | null | undefined) => {
+    const safeOutcome = outcome ? playerMasterySubmissionOutcome(outcome) : null;
+    return safeOutcome ? { masteryOutcome: safeOutcome } : {};
+  };
 
   const masterySubmissionOutcomeStatement = (submissionId: string, outcome: MasterySubmissionOutcome) => {
     const timestamp = now();
@@ -2911,7 +2915,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         manualReviewEligible: submission.status === "resubmission_required" && submission.ocrFailCount >= ocrManualReviewThreshold,
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
         ...(grantRow?.grant.status === "active" ? { titleGrant: { grantId: grantRow.grant.id, titleKey: grantRow.title.key, titleName: grantRow.title.label, ...(grantRow.mapName ? { mapName: grantRow.mapName } : {}) } } : {}),
-        ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}),
+        ...playerMasterySubmissionOutcomeFields(masteryOutcome),
       };
     },
 
@@ -2981,11 +2985,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       const requestHash = await hashRequest(input);
       const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}) };
+      const playerMasteryOutcome = masteryOutcome ? playerMasterySubmissionOutcome(masteryOutcome) : null;
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}) };
       const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}) }
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}) }
         : input.decision === "approved"
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome!) }
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasteryOutcome! }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
       const statements: D1PreparedStatement[] = [];
@@ -3278,7 +3283,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           difficulty: submission.difficulty ?? undefined,
           reason: submission.reviewReason ?? undefined,
           challenge: submission.challengeId ? recentSubmissionDetails?.challenges.get(submission.challengeId) ?? null : null,
-          ...(recentSubmissionDetails?.masteryOutcomes.get(submission.id) ? { masteryOutcome: playerMasterySubmissionOutcome(recentSubmissionDetails.masteryOutcomes.get(submission.id)!) } : {}),
+          ...playerMasterySubmissionOutcomeFields(recentSubmissionDetails?.masteryOutcomes.get(submission.id)),
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
@@ -3520,7 +3525,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return {
         contractVersion: "1" as const,
         player: { playerId: player.playerId, playerName: player.playerName, bindingStatus: "bound" as const, isAdmin: player.isAdmin === 1 },
-        recentSubmissions: recentSubmissions.map((submission) => ({ submissionId: submission.submissionId, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reason ?? undefined, ...(masteryOutcomes.get(submission.submissionId) ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcomes.get(submission.submissionId)!) } : {}), createdAt: submission.createdAt, updatedAt: submission.updatedAt })),
+        recentSubmissions: recentSubmissions.map((submission) => {
+          const masteryOutcome = masteryOutcomes.get(submission.submissionId);
+          return { submissionId: submission.submissionId, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: masteryOutcome?.status === "conflict" ? undefined : submission.reason ?? undefined, ...playerMasterySubmissionOutcomeFields(masteryOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+        }),
       };
     },
 
@@ -4179,7 +4187,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
       const masteryOutcome = await loadMasterySubmissionOutcome(submission.id);
-      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reviewReason ?? undefined, ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: masteryOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerMasterySubmissionOutcomeFields(masteryOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
   };
 };

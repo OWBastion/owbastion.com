@@ -1229,9 +1229,22 @@ describe("submission mastery outcomes", () => {
     expect(publicOutcomes.map((submission) => submission.masteryOutcome)).toEqual([
       { status: "created", awardedXp: 236 },
       { status: "reused", awardedXp: 0 },
-      { status: "conflict", awardedXp: 0 },
+      undefined,
     ]);
+    expect(publicOutcomes[2].reason).toBeUndefined();
     expect(JSON.stringify(publicOutcomes)).not.toMatch(/conflicting_run_code_evidence|conflictFields|masteryRunId|1234-5678-9012/);
+
+    const sessionToken = "mastery-player-session";
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("mastery-player-session", "attempt.player.one", "group.player.one", "member.player.one", "test", await requestHash(sessionToken), now + 60_000, now);
+    const playerConflict = await publicServices.getPlayerSubmission({ submissionId: "submission.conflict" }, sessionToken);
+    expect(playerConflict.masteryOutcome).toBeUndefined();
+    expect(playerConflict.reason).toBe("已提交处理申请，请稍后查看结果。");
+    const player = await publicServices.getCurrentPlayer({ sessionToken });
+    const currentConflict = player?.recentSubmissions.find((submission) => submission.submissionId === "submission.conflict");
+    expect(currentConflict?.status).toBe("ocr_review_required");
+    expect(currentConflict?.masteryOutcome).toBeUndefined();
+    expect(currentConflict?.reason).toBeUndefined();
 
     const adminConflict = await publicServices.getAdminSubmission({ submissionId: "submission.conflict" }, {} as never);
     expect(adminConflict.masteryOutcome).toMatchObject({

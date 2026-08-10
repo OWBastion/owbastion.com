@@ -151,11 +151,15 @@ const attachmentSchema = z.object({
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 const masterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
+const playerMasterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "invalidated"]);
 const playerMasterySubmissionOutcomeSchema = z.object({
-  status: masterySubmissionOutcomeStatus,
+  status: playerMasterySubmissionOutcomeStatus,
   awardedXp: z.number().int().nonnegative(),
 }).strict();
-const adminMasterySubmissionOutcomeSchema = playerMasterySubmissionOutcomeSchema.extend({
+const adminMasterySubmissionOutcomeSchema = z.object({
+  status: masterySubmissionOutcomeStatus,
+  awardedXp: z.number().int().nonnegative(),
+}).extend({
   masteryRunId: z.string().uuid().nullable(),
   reason: z.string().nullable(),
   conflictFields: z.array(z.enum(["run_code", "map", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"])),
