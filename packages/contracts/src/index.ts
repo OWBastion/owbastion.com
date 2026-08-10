@@ -651,7 +651,7 @@ export const adminSubmissionReviewRequestSchema = z.object({
   reason: z.string().trim().max(512).optional(),
 });
 export const adminSubmissionReviewResponseSchema = z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(),
 }).or(z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema,
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));

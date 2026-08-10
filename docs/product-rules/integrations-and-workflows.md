@@ -34,10 +34,12 @@ The current API implements versioned v1 QQ flows:
   retrieves HTTPS image sources, writes private objects to R2, and records
   content metadata;
 - public submission status is an unauthenticated, opaque-ID lookup that exposes
-  only the submission ID, map, timestamps, and workflow status. It returns
-  `Cache-Control: private, no-store`, reads D1 for every request, and excludes
-  evidence, OCR output, player or QQ identity, review metadata, grants, and
-  internal signals;
+  the submission ID, map, timestamps, workflow status, and when present a safe
+  mastery outcome (`created`, `reused`, `ineligible`, `conflict`, or
+  `invalidated`) with awarded XP. It returns `Cache-Control: private, no-store`,
+  reads D1 for every request, and excludes evidence, OCR output, player or QQ
+  identity, run code, mastery-run ID, review metadata, grants, and internal
+  conflict or risk signals;
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
 - the Portal can create a single-image upload session without a target, upload
@@ -53,6 +55,13 @@ The current API implements versioned v1 QQ flows:
   Run codes, source submissions, account and QQ identity, OCR/evidence, event
   facts, XP snapshots, lifecycle/audit fields, and risk signals remain private;
   this read does not create a run or decide submission eligibility;
+- the existing submission → private evidence → Queue/OCR path can additionally
+  derive a mastery outcome. The platform, not OCRKit, verifies the bound player,
+  completion state, canonical active map and difficulty, supported game version
+  and OCR layout, reliable field evidence, and normalized run code before it
+  records XP. `submission_outcomes` keeps zero or more independent
+  `mastery_run`, `title_grant`, and `challenge` outcomes, so a mastery-only
+  approval can have `grant_id = NULL` without creating a fake title Grant;
 - the platform stores the current title and map metadata, and
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
   holder snapshots without linking source names to platform accounts;
@@ -76,14 +85,15 @@ The current API implements versioned v1 QQ flows:
   become `ocr_review_required`, while an explicit mismatch becomes
   `resubmission_required`;
 - the maintainer Portal can inspect private evidence and OCR output and record
-  an idempotent review decision; an approved decision atomically creates or
-  reuses the platform title Grant and links it to the Submission.
+  an idempotent review decision. A title approval atomically creates or reuses
+  the platform title Grant and links it to the Submission; a mastery-only
+  approval records its accepted mastery outcome without a title Grant.
 - automatic approval writes the OCR result, approved review, title Grant reuse
-  or creation, submission rule snapshot, and audit records in one D1 batch. A
-  deterministic sample can create a pending spot check without blocking the
-  automatic result; a maintainer can confirm the sample or revoke its active
-  automatic Grant, with the player and Agents projections then reflecting the
-  revoked state.
+  or creation when applicable, independent submission outcomes, submission rule
+  snapshot, and audit records in one D1 batch. A deterministic sample can
+  create a pending spot check without blocking the automatic result; a
+  maintainer can confirm the sample or revoke evidence-derived outcomes, with
+  the affected player and Agents projections then reflecting the revoked state.
 - maintainers can create and list achievement challenges and immediately update
   title-challenge rules, including their Portal display category override and
   optional map scope. A map-scoped title challenge uses one unique title key;
@@ -225,13 +235,25 @@ covered rewardable map title in the same decision. The maintainer candidate
 list remains exact to the recognized difficulty so that manual processing does
 not present lower difficulty alternatives.
 
-Approval and title issuance are one D1 batch: `approved` is written only when
-the Submission has an active Grant. Title challenges use their direct
-`titleKey`; map challenges use their explicit `reward_title_key` and retain
-the map context. If the player already owns the same active title in that
-scope, the Submission links to the existing Grant and records that fact in
-the audit event. Pull requests and game builds remain outside this slice;
-Bastion reads current metadata independently through the Agents API.
+Approval records one or more accepted Submission outcomes; it does not imply
+that the Submission has an active title Grant. Title issuance remains one D1
+batch: title challenges use their direct `titleKey`, map challenges use their
+explicit `reward_title_key`, and both retain map context. If the player already
+owns the same active title in that scope, the Submission links to the existing
+Grant and records reuse in the audit event. A mastery-only approval keeps
+`grant_id = NULL`; the normalized run is `created` once, while an exact
+same-player run-code reuse receives 0 XP. Public and player responses expose
+only mastery outcome status and awarded XP; maintainer detail may additionally
+show the mastery-run ID and internal reason or conflict fields. Pull requests
+and game builds remain outside this slice; Bastion reads current metadata
+independently through the Agents API.
+
+Evidence spot-check revocation invalidates the active mastery run only when the
+revoked submission created that run; a reused submission cannot invalidate a
+different source run. A later valid OCR retry restores that source run once.
+Direct title-Grant revocation remains title-specific and never invalidates a
+mastery run. Screenshots without a reliable run code remain eligible for the
+legacy title path, but do not produce a mastery-run outcome with XP.
 
 ## Achievement catalog management
 
@@ -470,8 +492,17 @@ classic version of the recognized map: it satisfies map challenges that do not
 declare another variant, while classic-specific map challenges require the
 `classic` map variant. Neither kind of map challenge needs title evidence.
 
-The platform owns candidate selection, rule-snapshot evaluation,
-approval, Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous
-results are routed to maintainers; OCRKit does not decide eligibility or
-approval. Bastion implementation and build changes remain reviewable,
-idempotent, and reconciled through Bastion's own CI and release process.
+For mastery outcomes, the current platform policy additionally requires OCR
+layout `1280x720-v6`, game version at least `26.0809.1`, and `ok` field evidence
+at confidence `>= 0.9` for completion, viewer player, map name, difficulty,
+version, run code, and completion duration. The platform normalizes and checks
+the code, resolves the map against exactly one active canonical map, and decides
+duplicate, conflict, acceptance, and XP; OCRKit supplies only evidence. Missing,
+weak, unsupported, or ambiguous mastery evidence produces no XP and does not
+block independent legacy title matching.
+
+The platform owns candidate selection, rule-snapshot evaluation, approval,
+Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous results
+are routed to maintainers; OCRKit does not decide eligibility or approval.
+Bastion implementation and build changes remain reviewable, idempotent, and
+reconciled through Bastion's own CI and release process.

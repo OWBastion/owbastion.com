@@ -1,10 +1,10 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryProfiles, calculateMasteryXpV1, normalizeMasteryRunCode } from "@owbastion/domain";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -15,6 +15,81 @@ const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value
 const normalizedOcrDifficulty = (value: unknown) => {
   const label = normalizedOcrLabel(value);
   return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
+};
+
+const masteryRequiredOcrFields = ["challenge_completed", "viewer_player", "map_name", "difficulty", "version", "run_code", "duration_seconds"] as const;
+export type MasteryOcrEvidenceAssessment =
+  | {
+    outcome: "eligible";
+    mapName: string;
+    viewerPlayer: string;
+    mapVariant: "classic" | null;
+    difficulty: MasteryDifficulty;
+    gameVersion: string;
+    runCode: string;
+    completionDurationSeconds: number;
+    deaths: number | null;
+    skips: number | null;
+  }
+  | { outcome: "ineligible"; reason: string };
+
+const hasReliableMasteryField = (response: OcrResponse, fieldName: string) => {
+  const field = response.fields?.[fieldName];
+  return field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= masteryEvidenceCompatibilityV1.requiredConfidence;
+};
+
+const ineligibleMasteryEvidence = (reason: string): MasteryOcrEvidenceAssessment => ({ outcome: "ineligible", reason });
+
+export const assessMasteryOcrEvidence = (response: OcrResponse): MasteryOcrEvidenceAssessment => {
+  if (response.schema_version !== "1") return ineligibleMasteryEvidence("unsupported_schema_version");
+  if (response.ok !== true) return ineligibleMasteryEvidence("unsuccessful_response");
+  if (!isMasteryOcrLayoutSupported(response.layout_version)) return ineligibleMasteryEvidence("unsupported_layout");
+  for (const fieldName of masteryRequiredOcrFields) {
+    if (!hasReliableMasteryField(response, fieldName)) return ineligibleMasteryEvidence(`unreliable_${fieldName}`);
+  }
+
+  const data = response.data ?? {};
+  if (data.challenge_completed !== true) return ineligibleMasteryEvidence("completion_not_confirmed");
+  const mapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
+  if (!mapName) return ineligibleMasteryEvidence("missing_map");
+  const viewerPlayer = typeof data.viewer_player === "string" ? data.viewer_player.trim() : "";
+  if (!viewerPlayer) return ineligibleMasteryEvidence("missing_viewer_player");
+  const gameVersion = typeof data.version === "string" ? data.version.trim() : "";
+  if (!isMasteryGameVersionSupported(gameVersion)) return ineligibleMasteryEvidence("unsupported_game_version");
+  const difficulty = normalizedOcrDifficulty(data.difficulty);
+  if (!masteryDifficulties.includes(difficulty as MasteryDifficulty)) return ineligibleMasteryEvidence("invalid_difficulty");
+  const completionDurationSeconds = data.duration_seconds;
+  if (typeof completionDurationSeconds !== "number" || !Number.isInteger(completionDurationSeconds) || completionDurationSeconds <= 0) return ineligibleMasteryEvidence("invalid_completion_duration");
+  let runCode: string;
+  try {
+    runCode = normalizeMasteryRunCode(typeof data.run_code === "string" ? data.run_code : "");
+  } catch {
+    return ineligibleMasteryEvidence("invalid_run_code");
+  }
+
+  const rawVariant = typeof data.map_variant === "string" ? data.map_variant.trim() : "";
+  if (rawVariant && rawVariant !== "classic") return ineligibleMasteryEvidence("invalid_map_variant");
+  if (rawVariant && !hasReliableMasteryField(response, "map_variant")) return ineligibleMasteryEvidence("unreliable_map_variant");
+  const settlementValue = (value: number | null | undefined, fieldName: "deaths" | "skips") => {
+    if (value === null || value === undefined || !hasReliableMasteryField(response, fieldName)) return null;
+    return Number.isInteger(value) && value >= 0 ? value : undefined;
+  };
+  const deaths = settlementValue(data.deaths, "deaths");
+  const skips = settlementValue(data.skips, "skips");
+  if (deaths === undefined || skips === undefined) return ineligibleMasteryEvidence("invalid_settlement_value");
+
+  return {
+    outcome: "eligible",
+    mapName,
+    viewerPlayer,
+    mapVariant: rawVariant === "classic" ? "classic" : null,
+    difficulty: difficulty as MasteryDifficulty,
+    gameVersion,
+    runCode,
+    completionDurationSeconds,
+    deaths: deaths ?? null,
+    skips: skips ?? null,
+  };
 };
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
@@ -980,6 +1055,169 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, row.id)).get())!);
   };
 
+  type MasterySubmissionOutcomeStatus = "created" | "reused" | "ineligible" | "conflict" | "invalidated";
+  type MasterySubmissionOutcome = {
+    status: MasterySubmissionOutcomeStatus;
+    masteryRunId: string | null;
+    awardedXp: number;
+    reason: string | null;
+    conflictFields: MasteryRunConflictField[];
+  };
+  const masterySubmissionOutcomeStatuses = new Set<MasterySubmissionOutcomeStatus>(["created", "reused", "ineligible", "conflict", "invalidated"]);
+  const masteryConflictFieldSet = new Set<MasteryRunConflictField>(["run_code", "map", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
+
+  const parseMasteryOutcomeDetails = (value: string) => {
+    try {
+      const details = JSON.parse(value) as { reason?: unknown; conflictFields?: unknown };
+      return {
+        reason: typeof details.reason === "string" ? details.reason : null,
+        conflictFields: Array.isArray(details.conflictFields)
+          ? details.conflictFields.filter((field): field is MasteryRunConflictField => typeof field === "string" && masteryConflictFieldSet.has(field as MasteryRunConflictField))
+          : [],
+      };
+    } catch {
+      return { reason: null, conflictFields: [] as MasteryRunConflictField[] };
+    }
+  };
+
+  const asMasterySubmissionOutcome = (row: typeof submissionOutcomes.$inferSelect): MasterySubmissionOutcome => {
+    if (row.outcomeType !== "mastery_run" || !masterySubmissionOutcomeStatuses.has(row.status as MasterySubmissionOutcomeStatus)) throw new Error("SUBMISSION_OUTCOME_DATA_INVALID");
+    const details = parseMasteryOutcomeDetails(row.detailsJson);
+    return {
+      status: row.status as MasterySubmissionOutcomeStatus,
+      masteryRunId: row.entityId,
+      awardedXp: row.awardedXp,
+      ...details,
+    };
+  };
+
+  const loadMasterySubmissionOutcome = async (submissionId: string) => {
+    const row = await db.select().from(submissionOutcomes).where(and(eq(submissionOutcomes.submissionId, submissionId), eq(submissionOutcomes.outcomeKey, "mastery_run"))).get();
+    return row ? asMasterySubmissionOutcome(row) : null;
+  };
+
+  const loadMasterySubmissionOutcomes = async (submissionIds: string[]) => {
+    if (!submissionIds.length) return new globalThis.Map<string, MasterySubmissionOutcome>();
+    const rows = await db.select().from(submissionOutcomes).where(and(inArray(submissionOutcomes.submissionId, submissionIds), eq(submissionOutcomes.outcomeKey, "mastery_run")));
+    return new globalThis.Map(rows.map((row) => [row.submissionId, asMasterySubmissionOutcome(row)]));
+  };
+
+  const playerMasterySubmissionOutcome = (outcome: MasterySubmissionOutcome) => ({
+    status: outcome.status,
+    awardedXp: outcome.status === "created" ? outcome.awardedXp : 0,
+  });
+
+  const masterySubmissionOutcomeStatement = (submissionId: string, outcome: MasterySubmissionOutcome) => {
+    const timestamp = now();
+    return database.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES (?, ?, 'mastery_run', 'mastery_run', ?, ?, ?, ?, ?, ?) ON CONFLICT(submission_id, outcome_key) DO UPDATE SET status = excluded.status, entity_id = excluded.entity_id, awarded_xp = excluded.awarded_xp, details_json = excluded.details_json, updated_at = excluded.updated_at")
+      .bind(crypto.randomUUID(), submissionId, outcome.status, outcome.masteryRunId, outcome.awardedXp, JSON.stringify({ reason: outcome.reason, conflictFields: outcome.conflictFields }), timestamp, timestamp);
+  };
+
+  const approvedSubmissionOutcomeStatement = (input: {
+    submissionId: string;
+    outcomeKey: string;
+    outcomeType: "title_grant" | "challenge";
+    status: "created" | "reused";
+    entityId: string | null;
+    details: Record<string, unknown>;
+  }) => {
+    const timestamp = now();
+    return database.prepare("INSERT OR IGNORE INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, 0, ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')")
+      .bind(crypto.randomUUID(), input.submissionId, input.outcomeKey, input.outcomeType, input.status, input.entityId, JSON.stringify(input.details), timestamp, timestamp, input.submissionId);
+  };
+
+  const existingMasteryOutcome = (outcome: MasterySubmissionOutcome) => ({ ...outcome, conflictFields: [...outcome.conflictFields] });
+
+  const requiredMasteryMapVariant = async (row: typeof submissions.$inferSelect): Promise<"classic" | null> => {
+    if (row.ruleSnapshotJson) {
+      try {
+        const snapshot = JSON.parse(row.ruleSnapshotJson) as { mapVariant?: unknown };
+        if (Object.hasOwn(snapshot, "mapVariant")) return snapshot.mapVariant === "classic" ? "classic" : null;
+      } catch {
+        // Older malformed snapshots continue through the authoritative challenge lookup below.
+      }
+    }
+    if (row.challengeType === "title_achievement" && row.challengeId) {
+      const challenge = await db.select({ mapVariant: titleChallenges.mapVariant }).from(titleChallenges).where(eq(titleChallenges.id, row.challengeId)).get();
+      return challenge?.mapVariant === "classic" ? "classic" : null;
+    }
+    if (!row.challengeId) return null;
+    if (row.targetMapId) {
+      const projection = await resolveLegacyProjection(row.challengeId, row.targetMapId);
+      if (projection) return projection.mapVariant;
+    }
+    const challenge = await db.select({ type: achievementChallenges.type }).from(achievementChallenges).where(eq(achievementChallenges.id, row.challengeId)).get();
+    return challenge?.type === "classic_completion" ? "classic" : null;
+  };
+
+  const resolveMasterySubmissionOutcome = async (
+    row: typeof submissions.$inferSelect,
+    response: OcrResponse,
+    acceptanceSource: "submission_automatic" | "submission_review",
+  ): Promise<MasterySubmissionOutcome> => {
+    const existing = await loadMasterySubmissionOutcome(row.id);
+    const evidence = assessMasteryOcrEvidence(response);
+    if (evidence.outcome === "ineligible") {
+      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
+      return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: evidence.reason, conflictFields: [] };
+    }
+
+    const requiredMapVariant = await requiredMasteryMapVariant(row);
+    if (requiredMapVariant === "classic" && evidence.mapVariant !== requiredMapVariant) {
+      return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: "required_map_variant_mismatch", conflictFields: [] };
+    }
+
+    const owner = await db.select({ playerAccountId: playerAccounts.id, playerName: playerAccounts.playerName }).from(bindings)
+      .innerJoin(playerAccounts, eq(bindings.playerAccountId, playerAccounts.id))
+      .where(and(eq(bindings.id, row.bindingId), eq(bindings.status, "active"), eq(playerAccounts.status, "active"))).get();
+    if (!owner) {
+      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
+      return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: "binding_not_active", conflictFields: [] };
+    }
+    if (normalizedOcrLabel(evidence.viewerPlayer).split("#")[0] !== normalizedOcrLabel(owner.playerName).split("#")[0]) {
+      return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: "viewer_player_mismatch", conflictFields: [] };
+    }
+
+    const matchingMaps = (await db.select().from(maps).where(eq(maps.status, "active")))
+      .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(evidence.mapName));
+    if (matchingMaps.length !== 1) return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: matchingMaps.length ? "ambiguous_map" : "canonical_map_not_found", conflictFields: [] };
+
+    const recorded = await recordVerifiedMasteryRun({
+      playerAccountId: owner.playerAccountId,
+      sourceSubmissionId: row.id,
+      mapId: matchingMaps[0].id,
+      mapVariant: evidence.mapVariant,
+      difficulty: evidence.difficulty,
+      gameVersion: evidence.gameVersion,
+      runCode: evidence.runCode,
+      completionDurationSeconds: evidence.completionDurationSeconds,
+      deaths: evidence.deaths,
+      skips: evidence.skips,
+      eventCounters: {},
+      acceptanceSource,
+    });
+    if (recorded.outcome === "conflict") {
+      return { status: "conflict", masteryRunId: recorded.run.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.conflictFields };
+    }
+    if (recorded.run.status === "invalidated") {
+      if (existing?.status === "invalidated" && recorded.run.sourceSubmissionId === row.id) {
+        const restored = await transitionVerifiedMasteryRun({ masteryRunId: recorded.run.runId, reason: "OCR evidence revalidated" }, { actorType: "service", actorId: acceptanceSource }, "active");
+        return { status: "created", masteryRunId: restored.runId, awardedXp: restored.awardedXp, reason: null, conflictFields: [] };
+      }
+      return { status: "invalidated", masteryRunId: recorded.run.runId, awardedXp: 0, reason: existing?.reason ?? "mastery_run_invalidated", conflictFields: [] };
+    }
+
+    const sourceOwnsRun = recorded.run.sourceSubmissionId === row.id;
+    const status: MasterySubmissionOutcomeStatus = recorded.outcome === "created" || sourceOwnsRun ? "created" : "reused";
+    return {
+      status,
+      masteryRunId: recorded.run.runId,
+      awardedXp: status === "created" ? recorded.run.awardedXp : 0,
+      reason: status === "reused" ? "same_player_run_code" : null,
+      conflictFields: [],
+    };
+  };
+
   type AdminSubmissionChallenge =
     | { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" }
     | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" };
@@ -994,13 +1232,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const snapshotTitleKeys = [...new Set(snapshots.map(({ snapshot }) => snapshot.titleKey))];
     const submissionIds = submissionRows.map((row) => row.id);
     const bindingIds = [...new Set(submissionRows.map((row) => row.bindingId))];
-    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, bindingRows] = await Promise.all([
+    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, bindingRows, masteryOutcomes] = await Promise.all([
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
       submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)) : [],
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
       bindingIds.length ? db.select({ id: bindings.id, playerAccountId: bindings.playerAccountId }).from(bindings).where(inArray(bindings.id, bindingIds)) : [],
+      loadMasterySubmissionOutcomes(submissionIds),
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
@@ -1012,7 +1251,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (title) challenges.set(challengeId, { family: "achievement", titleName: title.label, category: title.category, condition: snapshot.condition, evidenceRule: snapshot.evidenceRule, ...(snapshot.mapVariant ? { mapVariant: snapshot.mapVariant } : {}) });
     }
     for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
-    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), playerAccountByBinding: new Map(bindingRows.map((binding) => [binding.id, binding.playerAccountId])) };
+    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), playerAccountByBinding: new Map(bindingRows.map((binding) => [binding.id, binding.playerAccountId])), masteryOutcomes };
   };
 
   const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
@@ -1040,6 +1279,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       reason: row.reviewReason,
       evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence`,
       spotCheck: details.spotChecks.get(row.id) ? { status: details.spotChecks.get(row.id)!.status as "pending" | "confirmed" | "revoked", sampledAt: details.spotChecks.get(row.id)!.sampledAt, resolvedAt: details.spotChecks.get(row.id)!.resolvedAt, reviewer: details.spotChecks.get(row.id)!.reviewer, reason: details.spotChecks.get(row.id)!.reason } : null,
+      ...(details.masteryOutcomes.get(row.id) ? { masteryOutcome: details.masteryOutcomes.get(row.id)! } : {}),
     };
   };
 
@@ -1055,6 +1295,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     incrementFailCount: boolean;
     allowExistingStatus: boolean;
     ruleSnapshotJson?: string | null;
+    masteryOutcome?: MasterySubmissionOutcome;
   }) => {
     const timestamp = now();
     const resultInsert = input.allowExistingStatus
@@ -1067,7 +1308,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const submissionUpdate = database.prepare(
       `UPDATE submissions SET status = ?, review_reason = ?, ocr_fail_count = ocr_fail_count + ?, rule_snapshot_json = COALESCE(?, rule_snapshot_json), updated_at = ? WHERE id = ? AND ${input.allowExistingStatus ? "status = 'ocr_pending'" : "status = 'ocr_pending'"}`
     ).bind(input.nextStatus, input.reviewReason, input.incrementFailCount ? 1 : 0, input.ruleSnapshotJson ?? null, timestamp, input.submissionId);
-    await database.batch([resultInsert, submissionUpdate]);
+    await database.batch(input.masteryOutcome ? [resultInsert, submissionUpdate, masterySubmissionOutcomeStatement(input.submissionId, input.masteryOutcome)] : [resultInsert, submissionUpdate]);
   };
 
   const shouldSampleAutomaticDecision = async (submissionId: string) => {
@@ -1099,8 +1340,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     attempt: number;
     responseJson: string;
     matchJson: string;
-    grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean }>;
+    grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean; existingGrantId: string | null }>;
     sample: boolean;
+    masteryOutcome?: MasterySubmissionOutcome;
   }) => {
     const timestamp = now();
     const reviewId = crypto.randomUUID();
@@ -1122,12 +1364,61 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       database.prepare("UPDATE submissions SET status = 'approved', review_reason = NULL, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND g.status = 'active' AND (g.map_id = ? OR (g.map_id IS NULL AND ? IS NULL))), rule_snapshot_json = ?, updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(primaryGrant.titleKey, primaryGrant.mapId, primaryGrant.mapId, JSON.stringify(primaryGrant.snapshot), timestamp, input.submissionId, reviewId),
       database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_review', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NOT NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ requestId: input.requestId, attempt: input.attempt, decision: "approved", grants: grants.map(({ titleKey, mapId, slot, alreadyOwned }) => ({ titleKey, mapId, slot, alreadyOwned })), match: JSON.parse(input.matchJson), ruleSnapshot: primaryGrant.snapshot }), timestamp, input.submissionId),
     );
+    if (input.masteryOutcome) statements.push(masterySubmissionOutcomeStatement(input.submissionId, input.masteryOutcome));
+    for (const grant of grants) {
+      const grantScope = `${grant.titleKey}:${grant.mapId ?? ""}`;
+      statements.push(
+        approvedSubmissionOutcomeStatement({
+          submissionId: input.submissionId,
+          outcomeKey: `title_grant:${grantScope}`,
+          outcomeType: "title_grant",
+          status: grant.alreadyOwned ? "reused" : "created",
+          entityId: grant.existingGrantId ?? grant.grantId,
+          details: { titleKey: grant.titleKey, mapId: grant.mapId, slot: grant.slot },
+        }),
+      );
+      if (grant.snapshot.challengeId) {
+        statements.push(
+          approvedSubmissionOutcomeStatement({
+            submissionId: input.submissionId,
+            outcomeKey: `challenge:${grant.snapshot.challengeId}:${grant.mapId ?? ""}`,
+            outcomeType: "challenge",
+            status: "created",
+            entityId: grant.snapshot.challengeId,
+            details: { mapId: grant.mapId },
+          }),
+        );
+      }
+    }
     for (const grant of grants) {
       statements.push(
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_grant', 'player_title_grant', ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved') AND EXISTS (SELECT 1 FROM player_title_grants WHERE id = ?)").bind(crypto.randomUUID(), input.requestId, grant.grantId, JSON.stringify({ submissionId: input.submissionId, sourceType: "automatic", sourceId: input.submissionId, titleKey: grant.titleKey, mapId: grant.mapId, alreadyOwned: grant.alreadyOwned, ruleSnapshot: grant.snapshot }), timestamp, input.submissionId, grant.grantId),
       );
     }
     if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(spotCheckId, input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
+    await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+  };
+
+  const persistMasteryOnlyDecision = async (input: {
+    submissionId: string;
+    requestId: string;
+    attempt: number;
+    responseJson: string;
+    matchJson: string;
+    masteryOutcome: MasterySubmissionOutcome;
+    sample: boolean;
+  }) => {
+    if (!["created", "reused"].includes(input.masteryOutcome.status)) throw new Error("MASTERY_OUTCOME_NOT_ACCEPTED");
+    const timestamp = now();
+    const reviewId = crypto.randomUUID();
+    const statements: D1PreparedStatement[] = [
+      database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, match_json, created_at) SELECT ?, ?, ?, ?, 'matched', ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(crypto.randomUUID(), input.submissionId, input.requestId, input.attempt, input.responseJson, input.matchJson, timestamp, input.submissionId),
+      database.prepare("INSERT OR IGNORE INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, ?, 'approved', NULL, 'system:ocr', ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(reviewId, input.submissionId, timestamp, input.submissionId),
+      database.prepare("UPDATE submissions SET status = 'approved', review_reason = NULL, grant_id = NULL, updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(timestamp, input.submissionId, reviewId),
+      masterySubmissionOutcomeStatement(input.submissionId, input.masteryOutcome),
+      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'service', 'system:ocr', 'submission.automatic_mastery', 'submission', id, ?, ? FROM submissions WHERE id = ? AND status = 'approved' AND grant_id IS NULL").bind(crypto.randomUUID(), input.requestId, JSON.stringify({ requestId: input.requestId, attempt: input.attempt, decision: "approved", masteryOutcome: { status: input.masteryOutcome.status, awardedXp: input.masteryOutcome.awardedXp } }), timestamp, input.submissionId),
+    ];
+    if (input.sample) statements.push(database.prepare("INSERT OR IGNORE INTO submission_spot_checks (id, submission_id, status, policy_json, sampled_at) SELECT ?, ?, 'pending', ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')").bind(crypto.randomUUID(), input.submissionId, JSON.stringify({ version: "ocr-auto-v1", sampleRate: ocrAutoReviewSampleRate }), timestamp, input.submissionId));
     await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
   };
 
@@ -1183,53 +1474,55 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
   };
 
+  const recordVerifiedMasteryRun = async (input: VerifiedMasteryRunInput): Promise<RecordVerifiedMasteryRunResult> => {
+    const candidate = prepareVerifiedMasteryRun(input);
+    const source = await db.select({ playerAccountId: bindings.playerAccountId }).from(submissions)
+      .innerJoin(bindings, eq(submissions.bindingId, bindings.id))
+      .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
+    if (!source) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
+    if (source.playerAccountId !== candidate.playerAccountId) throw new Error("MASTERY_SUBMISSION_PLAYER_MISMATCH");
+    const [player, map] = await Promise.all([
+      db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
+      db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
+    ]);
+    if (!player) throw new Error("MASTERY_PLAYER_NOT_FOUND");
+    if (!map) throw new Error("MASTERY_MAP_NOT_FOUND");
+
+    const bySource = await db.select().from(masteryRuns).where(eq(masteryRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+    if (bySource) {
+      const run = asVerifiedMasteryRun(bySource);
+      const conflictFields = masteryConflictFields(run, candidate);
+      return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+    }
+
+    const activeByCode = await db.select().from(masteryRuns).where(and(
+      eq(masteryRuns.playerAccountId, candidate.playerAccountId),
+      eq(masteryRuns.runCode, candidate.runCode),
+      eq(masteryRuns.status, "active"),
+    )).get();
+    if (activeByCode) {
+      const run = asVerifiedMasteryRun(activeByCode);
+      const conflictFields = masteryConflictFields(run, candidate);
+      return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+    }
+
+    const award = calculateMasteryXpV1({
+      difficulty: candidate.difficulty,
+      mapFactor: candidate.mapFactor,
+      deaths: candidate.deaths,
+      skips: candidate.skips,
+    });
+    const runId = crypto.randomUUID();
+    await database.batch([
+      database.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.runCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
+      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'accepted', 'service', ?, NULL, ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt),
+    ]);
+    return { outcome: "created", run: asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, runId)).get())!) };
+  };
+
   return {
     dispatchPendingQqGroupPolicyEvents,
-    async recordVerifiedMasteryRun(input): Promise<RecordVerifiedMasteryRunResult> {
-      const candidate = prepareVerifiedMasteryRun(input);
-      const source = await db.select({ playerAccountId: bindings.playerAccountId }).from(submissions)
-        .innerJoin(bindings, eq(submissions.bindingId, bindings.id))
-        .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
-      if (!source) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
-      if (source.playerAccountId !== candidate.playerAccountId) throw new Error("MASTERY_SUBMISSION_PLAYER_MISMATCH");
-      const [player, map] = await Promise.all([
-        db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
-        db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
-      ]);
-      if (!player) throw new Error("MASTERY_PLAYER_NOT_FOUND");
-      if (!map) throw new Error("MASTERY_MAP_NOT_FOUND");
-
-      const bySource = await db.select().from(masteryRuns).where(eq(masteryRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
-      if (bySource) {
-        const run = asVerifiedMasteryRun(bySource);
-        const conflictFields = masteryConflictFields(run, candidate);
-        return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
-      }
-
-      const activeByCode = await db.select().from(masteryRuns).where(and(
-        eq(masteryRuns.playerAccountId, candidate.playerAccountId),
-        eq(masteryRuns.runCode, candidate.runCode),
-        eq(masteryRuns.status, "active"),
-      )).get();
-      if (activeByCode) {
-        const run = asVerifiedMasteryRun(activeByCode);
-        const conflictFields = masteryConflictFields(run, candidate);
-        return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
-      }
-
-      const award = calculateMasteryXpV1({
-        difficulty: candidate.difficulty,
-        mapFactor: candidate.mapFactor,
-        deaths: candidate.deaths,
-        skips: candidate.skips,
-      });
-      const runId = crypto.randomUUID();
-      await database.batch([
-        database.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.runCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
-        database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'accepted', 'service', ?, NULL, ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt),
-      ]);
-      return { outcome: "created", run: asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, runId)).get())!) };
-    },
+    recordVerifiedMasteryRun,
 
     async invalidateVerifiedMasteryRun(input, actor) {
       return transitionVerifiedMasteryRun(input, actor, "invalidated");
@@ -2555,16 +2848,26 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const grant = input.decision === "revoked" && row.grantId
         ? await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.id, row.grantId), eq(playerTitleGrants.status, "active"))).get()
         : null;
-      if (input.decision === "revoked" && !grant) throw new Error("TITLE_GRANT_NOT_FOUND");
-      const response: AdminSubmissionSpotCheckResponse = { contractVersion: "1", submissionId: row.id, status: input.decision, grantId: row.grantId ?? null };
+      const masteryOutcome = await loadMasterySubmissionOutcome(row.id);
+      const masteryRun = input.decision === "revoked" && masteryOutcome?.status === "created" && masteryOutcome.masteryRunId
+        ? await db.select().from(masteryRuns).where(and(eq(masteryRuns.id, masteryOutcome.masteryRunId), eq(masteryRuns.sourceSubmissionId, row.id), eq(masteryRuns.status, "active"))).get()
+        : null;
+      if (input.decision === "revoked" && !grant && !masteryOutcome) throw new Error("SUBMISSION_OUTCOME_NOT_FOUND");
+      const response: AdminSubmissionSpotCheckResponse = { contractVersion: "1", submissionId: row.id, status: input.decision, grantId: row.grantId ?? null, masteryRunId: masteryOutcome?.masteryRunId ?? null };
       const idempotencyKeyId = `${auth.subject}:submission.spot_check.resolve:${idempotencyKey}`;
       const requestHash = await hashRequest(input);
       const statements: D1PreparedStatement[] = [
-        ...(input.decision === "revoked" ? [database.prepare("UPDATE player_title_grants SET status = 'revoked', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE id = ? AND status = 'active'").bind(auth.subject, timestamp, input.reason ?? "抽检撤销自动授予的称号", row.grantId)] : []),
+        ...(input.decision === "revoked" && grant ? [database.prepare("UPDATE player_title_grants SET status = 'revoked', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE id = ? AND status = 'active'").bind(auth.subject, timestamp, input.reason ?? "抽检撤销自动授予的称号", grant.id)] : []),
+        ...(input.decision === "revoked" && masteryRun ? [
+          database.prepare("UPDATE mastery_runs SET status = 'invalidated', invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ? AND status = 'active'").bind(timestamp, auth.subject, input.reason ?? "抽检判定证据无效", masteryRun.id),
+          database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'invalidated', ?, ?, ?, ?)").bind(crypto.randomUUID(), masteryRun.id, auth.actorType, auth.subject, input.reason ?? "抽检判定证据无效", timestamp),
+          database.prepare("UPDATE submission_outcomes SET status = 'invalidated', updated_at = ? WHERE submission_id = ? AND outcome_key = 'mastery_run' AND status = 'created'").bind(timestamp, row.id),
+        ] : []),
         database.prepare("UPDATE submission_spot_checks SET status = ?, resolved_at = ?, reviewer = ?, reason = ? WHERE submission_id = ? AND status = 'pending'").bind(input.decision, timestamp, auth.subject, input.reason ?? null, row.id),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.spot_check.resolve', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, input.decision === "revoked" ? "submission.spot_check.revoked" : "submission.spot_check.confirmed", row.id, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: row.grantId }), timestamp),
-        ...(input.decision === "revoked" ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'title_grant.revoke', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.grantId, JSON.stringify({ submissionId: row.id, reason: input.reason ?? "抽检撤销自动授予的称号", sourceType: "automatic" }), timestamp)] : []),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, input.decision === "revoked" ? "submission.spot_check.revoked" : "submission.spot_check.confirmed", row.id, JSON.stringify({ decision: input.decision, reason: input.reason ?? null, grantId: grant?.id ?? null, masteryRunId: masteryOutcome?.masteryRunId ?? null, masteryInvalidated: Boolean(masteryRun) }), timestamp),
+        ...(input.decision === "revoked" && grant ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'title_grant.revoke', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grant.id, JSON.stringify({ submissionId: row.id, reason: input.reason ?? "抽检撤销自动授予的称号", sourceType: "automatic" }), timestamp)] : []),
+        ...(input.decision === "revoked" && masteryRun ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'mastery_run.invalidate', 'mastery_run', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, masteryRun.id, JSON.stringify({ submissionId: row.id, reason: input.reason ?? "抽检判定证据无效" }), timestamp)] : []),
       ];
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
       return response;
@@ -2572,12 +2875,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async getPlayerSubmission(input, sessionToken) {
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
-      const [result, attachment, grantRow] = await Promise.all([
+      const [result, attachment, grantRow, masteryOutcome] = await Promise.all([
         db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
         db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, submission.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
         submission.grantId
           ? db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name }).from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id)).where(eq(playerTitleGrants.id, submission.grantId)).get()
           : Promise.resolve(null),
+        loadMasterySubmissionOutcome(submission.id),
       ]);
       const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
       return {
@@ -2595,6 +2899,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         manualReviewEligible: submission.status === "resubmission_required" && submission.ocrFailCount >= ocrManualReviewThreshold,
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
         ...(grantRow?.grant.status === "active" ? { titleGrant: { grantId: grantRow.grant.id, titleKey: grantRow.title.key, titleName: grantRow.title.label, ...(grantRow.mapName ? { mapName: grantRow.mapName } : {}) } } : {}),
+        ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}),
       };
     },
 
@@ -2622,10 +2927,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const masteryOutcome = await loadMasterySubmissionOutcome(row.id);
 
       let reward: { titleKey: string; titleName: string; mapId: string | null; slot: string | null } | null = null;
-      if (input.decision === "approved") {
-        if (!row.challengeId) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+      if (input.decision === "approved" && row.challengeId) {
 
         // Fast path: submission was created with an immutable rule snapshot.
         if (row.ruleSnapshotJson) {
@@ -2652,6 +2957,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           }
         }
       }
+      if (input.decision === "approved" && !reward && !(masteryOutcome && ["created", "reused"].includes(masteryOutcome.status))) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
       const timestamp = now();
       const reviewId = crypto.randomUUID();
@@ -2663,10 +2969,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       const requestHash = await hashRequest(input);
       const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}) };
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}) };
       const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }
-        : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}) }
+        : input.decision === "approved"
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome!) }
+          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
       const statements: D1PreparedStatement[] = [];
       statements.push(
@@ -2685,6 +2993,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             `UPDATE submissions SET status = 'approved', review_reason = ?, grant_id = (SELECT g.id FROM player_title_grants g INNER JOIN bindings b ON b.player_account_id = g.player_account_id WHERE b.id = submissions.binding_id AND g.title_key = ? AND ${mapMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)`
           ).bind(input.reason ?? null, reward.titleKey, ...(reward.mapId ? [reward.mapId] : []), timestamp, row.id, reviewId)
         );
+        statements.push(
+          approvedSubmissionOutcomeStatement({
+            submissionId: row.id,
+            outcomeKey: `title_grant:${reward.titleKey}:${reward.mapId ?? ""}`,
+            outcomeType: "title_grant",
+            status: alreadyOwned ? "reused" : "created",
+            entityId: grantId,
+            details: { titleKey: reward.titleKey, mapId: reward.mapId, slot: reward.slot },
+          }),
+        );
+        if (row.challengeId) {
+          statements.push(
+            approvedSubmissionOutcomeStatement({
+              submissionId: row.id,
+              outcomeKey: `challenge:${row.challengeId}:${reward.mapId ?? ""}`,
+              outcomeType: "challenge",
+              status: "created",
+              entityId: row.challengeId,
+              details: { mapId: reward.mapId },
+            }),
+          );
+        }
       } else {
         statements.push(
           database.prepare(
@@ -2712,7 +3042,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
       const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
       if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-      if (reward && response.decision === "approved") {
+      if (reward && response.decision === "approved" && "grantId" in response) {
         const completed = await db.select({ grantId: submissions.grantId }).from(submissions).where(eq(submissions.id, row.id)).get();
         if (!completed?.grantId) throw new Error("SUBMISSION_NOT_REVIEWABLE");
         response.grantId = completed.grantId! as typeof response.grantId;
@@ -2754,31 +3084,43 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       let stage = "load_submission";
       try {
         const data = result.data ?? {};
+        const masteryOutcome = await resolveMasterySubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic");
+        const masteryAccepted = masteryOutcome.status === "created" || masteryOutcome.status === "reused";
+        if (masteryOutcome.status === "conflict") {
+          stage = "persist_mastery_conflict";
+          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ masteryOutcome: { status: masteryOutcome.status, conflictFields: masteryOutcome.conflictFields } }), nextStatus: "ocr_review_required", reviewReason: "通关码与已验证记录存在冲突，请人工核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual), masteryOutcome });
+          logOcrEvent("job_completed", { ...context, outcome: "mastery_conflict", conflictFields: masteryOutcome.conflictFields, durationMs: Date.now() - startedAt });
+          return;
+        }
         if (row.challengeType === "unknown") {
           stage = "resolve_auto_candidates";
           const decision = matchOcrAgainstChallenges(await fetchAllAutoMatchChallenges(), result, row.playerName ?? "");
           const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, ...(challenge.family === "map" ? { mapId: challenge.mapId } : {}), challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
-          const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates });
+          const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates, masteryOutcome: { status: masteryOutcome.status } });
           if (decision.outcome === "automatic") {
             const candidate = decision.automaticCandidates[0];
             if (!candidate) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
             const grantCandidates = [...decision.automaticCandidates, ...decision.exact.filter((item) => item.challenge.family === "map" && item.targetDifficulty && item.grantable && item.quality.accepted)];
             const uniqueGrantCandidates = [...new Map(grantCandidates.map((item) => [`${item.challenge.titleKey ?? ""}:${item.challenge.family === "map" ? item.challenge.mapId : ""}`, item])).values()];
-            const grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean }> = [];
+            const grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean; existingGrantId: string | null }> = [];
             for (const grantCandidate of uniqueGrantCandidates) {
               const snapshot = automaticSnapshot(grantCandidate);
               const mapId = grantCandidate.challenge.family === "map" ? grantCandidate.challenge.mapId : null;
               const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId))).get();
-              grants.push({ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing) });
+              grants.push({ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing), existingGrantId: existing?.id ?? null });
             }
             const sample = await shouldSampleAutomaticDecision(row.id);
             stage = "persist_automatic_decision";
-            await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, grants, sample });
+            await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, grants, sample, masteryOutcome });
             logOcrEvent("job_completed", { ...context, outcome: "automatic", titleKey: grants[0]?.titleKey ?? null, grantCount: grants.length, spotCheck: sample, durationMs: Date.now() - startedAt });
             return;
           }
           stage = "persist_auto_routing";
-          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: decision.outcome === "review" ? "review_required" : "mismatch", responseJson: JSON.stringify(result), matchJson, nextStatus: decision.outcome === "review" ? "ocr_review_required" : "resubmission_required", reviewReason: decision.outcome === "review" ? "无法唯一判断挑战，请人工核对" : "截图与当前挑战目录不匹配，请重新提交", incrementFailCount: decision.outcome === "resubmit", allowExistingStatus: Boolean(input.manual) });
+          if (masteryAccepted && decision.outcome === "resubmit") {
+            await persistMasteryOnlyDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, masteryOutcome, sample: await shouldSampleAutomaticDecision(row.id) });
+          } else {
+            await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: decision.outcome === "review" ? "review_required" : "mismatch", responseJson: JSON.stringify(result), matchJson, nextStatus: decision.outcome === "review" ? "ocr_review_required" : "resubmission_required", reviewReason: decision.outcome === "review" ? "无法唯一判断挑战，请人工核对" : "截图与当前挑战目录不匹配，请重新提交", incrementFailCount: decision.outcome === "resubmit", allowExistingStatus: Boolean(input.manual), masteryOutcome });
+          }
           logOcrEvent("job_completed", { ...context, outcome: decision.outcome, candidateCount: decision.exact.length, durationMs: Date.now() - startedAt });
           return;
         }
@@ -2818,7 +3160,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const quality = assessOcrQuality(qualityChallengeType, result, requiredMapVariant, row.challengeType === "title_achievement");
         if (!quality.accepted) {
           stage = "persist_quality_result";
-          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality, decision: "review" }), nextStatus: "ready_for_review", reviewReason: "关键识别字段不足，请人工核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null });
+          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ qualityGate: quality, decision: "review", masteryOutcome: { status: masteryOutcome.status } }), nextStatus: "ready_for_review", reviewReason: "关键识别字段不足，请人工核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null, masteryOutcome });
           logOcrEvent("job_completed", { ...context, outcome: "review_required", qualityAccepted: false, durationMs: Date.now() - startedAt });
           return;
         }
@@ -2830,11 +3172,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           const mapId = snapshot.mapId;
           const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId))).get();
           const sample = await shouldSampleAutomaticDecision(row.id);
-          await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "automatic" }), grants: [{ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing) }], sample });
+          await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "automatic", masteryOutcome: { status: masteryOutcome.status } }), grants: [{ snapshot, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing), existingGrantId: existing?.id ?? null }], sample, masteryOutcome });
         } else if (matched) {
-          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "matched", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "review" }), nextStatus: "ready_for_review", reviewReason: "挑战已匹配，等待管理员核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual) });
+          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "matched", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "review", masteryOutcome: { status: masteryOutcome.status } }), nextStatus: "ready_for_review", reviewReason: "挑战已匹配，等待管理员核对", incrementFailCount: false, allowExistingStatus: Boolean(input.manual), masteryOutcome });
         } else {
-          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "resubmit" }), nextStatus: "resubmission_required", reviewReason: "OCR 结果与目标挑战不匹配，请重新提交", incrementFailCount: true, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null });
+          if (masteryAccepted) {
+            await persistMasteryOnlyDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "mastery_only", masteryOutcome: { status: masteryOutcome.status } }), masteryOutcome, sample: await shouldSampleAutomaticDecision(row.id) });
+          } else {
+            await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "mismatch", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ ...match, skipped, qualityGate: quality, decision: "resubmit", masteryOutcome: { status: masteryOutcome.status } }), nextStatus: "resubmission_required", reviewReason: "OCR 结果与目标挑战不匹配，请重新提交", incrementFailCount: true, allowExistingStatus: Boolean(input.manual), ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null, masteryOutcome });
+          }
         }
         logOcrEvent("job_completed", { ...context, outcome: matched ? "automatic" : "resubmit", qualityAccepted: quality.accepted, durationMs: Date.now() - startedAt });
       } catch (error) {
@@ -2920,6 +3266,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           difficulty: submission.difficulty ?? undefined,
           reason: submission.reviewReason ?? undefined,
           challenge: submission.challengeId ? recentSubmissionDetails?.challenges.get(submission.challengeId) ?? null : null,
+          ...(recentSubmissionDetails?.masteryOutcomes.get(submission.id) ? { masteryOutcome: playerMasterySubmissionOutcome(recentSubmissionDetails.masteryOutcomes.get(submission.id)!) } : {}),
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
@@ -3156,10 +3503,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .where(eq(submissions.bindingId, binding.id))
         .orderBy(desc(submissions.createdAt))
         .limit(5);
+      const masteryOutcomes = await loadMasterySubmissionOutcomes(recentSubmissions.map((submission) => submission.submissionId));
       return {
         contractVersion: "1" as const,
         player: { playerId: player.playerId, playerName: player.playerName, bindingStatus: "bound" as const, isAdmin: player.isAdmin === 1 },
-        recentSubmissions: recentSubmissions.map((submission) => ({ submissionId: submission.submissionId, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reason ?? undefined, createdAt: submission.createdAt, updatedAt: submission.updatedAt })),
+        recentSubmissions: recentSubmissions.map((submission) => ({ submissionId: submission.submissionId, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reason ?? undefined, ...(masteryOutcomes.get(submission.submissionId) ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcomes.get(submission.submissionId)!) } : {}), createdAt: submission.createdAt, updatedAt: submission.updatedAt })),
       };
     },
 
@@ -3817,7 +4165,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async getSubmission(input, _auth) {
       const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
-      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reviewReason ?? undefined, createdAt: submission.createdAt, updatedAt: submission.updatedAt };
+      const masteryOutcome = await loadMasterySubmissionOutcome(submission.id);
+      return { contractVersion: "1" as const, submissionId: submission.id, status: submission.status as never, mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: submission.reviewReason ?? undefined, ...(masteryOutcome ? { masteryOutcome: playerMasterySubmissionOutcome(masteryOutcome) } : {}), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
   };
 };

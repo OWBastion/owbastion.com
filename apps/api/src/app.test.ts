@@ -58,7 +58,7 @@ const services: PlatformServices = {
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => ({ contractVersion: "1", submissionId, status: "ready_for_review", challengeId }),
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
-  resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null }),
+  resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, masteryRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
@@ -1102,7 +1102,7 @@ describe("API", () => {
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {
     const resolutions: string[] = [];
-    const spotCheckApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001" }; } }) });
+    const spotCheckApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001", masteryRunId: null }; } }) });
     const response = await spotCheckApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/spot-check", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "spot-check-1" }, body: JSON.stringify({ contractVersion: "1", decision: "confirmed" }) }, env);
     expect(response.status).toBe(200);
     expect(resolutions).toEqual(["00000000-0000-4000-8000-000000000000:confirmed"]);
