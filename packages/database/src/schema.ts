@@ -333,6 +333,23 @@ export const masteryRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_even
   runCreatedIdx: index("mastery_run_lifecycle_events_run_created_idx").on(table.masteryRunId, table.createdAt),
 }));
 
+export const submissionOutcomes = sqliteTable("submission_outcomes", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull().references(() => submissions.id),
+  outcomeKey: text("outcome_key").notNull(),
+  outcomeType: text("outcome_type").notNull(),
+  status: text("status").notNull(),
+  entityId: text("entity_id"),
+  awardedXp: integer("awarded_xp").notNull().default(0),
+  detailsJson: text("details_json").notNull().default("{}"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  submissionOutcomeKeyIdx: uniqueIndex("submission_outcomes_submission_key_idx").on(table.submissionId, table.outcomeKey),
+  submissionIdx: index("submission_outcomes_submission_idx").on(table.submissionId, table.createdAt),
+  typeStatusIdx: index("submission_outcomes_type_status_idx").on(table.outcomeType, table.status),
+}));
+
 export const uploadSessions = sqliteTable("upload_sessions", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),

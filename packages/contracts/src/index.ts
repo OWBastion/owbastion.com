@@ -150,6 +150,16 @@ const attachmentSchema = z.object({
 });
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
+const masterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
+const playerMasterySubmissionOutcomeSchema = z.object({
+  status: masterySubmissionOutcomeStatus,
+  awardedXp: z.number().int().nonnegative(),
+}).strict();
+const adminMasterySubmissionOutcomeSchema = playerMasterySubmissionOutcomeSchema.extend({
+  masteryRunId: z.string().uuid().nullable(),
+  reason: z.string().nullable(),
+  conflictFields: z.array(z.enum(["run_code", "map", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"])),
+}).strict();
 
 export const mapChallengeSchema = z.object({
   challengeId: externalId,
@@ -631,6 +641,7 @@ export const adminSubmissionSchema = z.object({
   reason: z.string().nullable().optional(),
   evidenceUrl: z.string().url().nullable(),
   spotCheck: z.object({ status: z.enum(["pending", "confirmed", "revoked"]), sampledAt: z.number().int(), resolvedAt: z.number().int().nullable(), reviewer: z.string().nullable(), reason: z.string().nullable() }).nullable().optional(),
+  masteryOutcome: adminMasterySubmissionOutcomeSchema.optional(),
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
@@ -641,13 +652,15 @@ export const adminSubmissionReviewRequestSchema = z.object({
 });
 export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(),
-}).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
+}).or(z.object({
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema,
+})).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, challengeId: externalId, mapId: externalId.optional() });
 export const adminSubmissionChallengeResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ready_for_review"), challengeId: externalId });
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
-export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable() });
+export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable(), masteryRunId: z.string().uuid().nullable() });
 
 export const submissionRequestSchema = z.object({
   contractVersion,
@@ -686,6 +699,7 @@ export const submissionStatusResponseSchema = z.object({
   reason: z.string().optional(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
+  masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(),
 });
 
 export const playerSubmissionOcrSummarySchema = z.object({
