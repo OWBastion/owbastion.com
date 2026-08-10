@@ -74,6 +74,13 @@ describe("mastery projections", () => {
     });
   });
 
+  it("strips ledger-only facts from the recent-run projection", () => {
+    const ledgerRun = { ...run(), runCode: "1234-5678-9012", sourceSubmissionId: "submission-1", playerAccountId: "account-1", eventCounters: { "event.alpha": 1 }, xpInputSnapshot: { ruleVersion: "v1" } } as MasteryRunForProjection;
+    const [recentRun] = buildMasteryMapProfile("map.test", [ledgerRun]).recentRuns;
+    expect(recentRun).toEqual(run());
+    expect(JSON.stringify(recentRun)).not.toMatch(/runCode|sourceSubmissionId|playerAccountId|eventCounters|xpInputSnapshot/);
+  });
+
   it("recomputes invalidation and restoration without cached projection drift", () => {
     const invalidated = [...activeRuns, run({ runId: "run-5", mapId: "map.other", difficulty: "专家", completionDurationSeconds: 400, deaths: 1, skips: 0, awardedXp: 325, acceptedAt: 5, status: "invalidated" })];
     expect(buildMasteryProfiles(invalidated).map((profile) => profile.mapId)).toEqual(["map.test"]);

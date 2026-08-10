@@ -158,6 +158,19 @@ export type MasteryMapProfile = {
 
 const byMostRecent = (left: MasteryRunForProjection, right: MasteryRunForProjection) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId);
 
+const masteryRunProjection = (run: MasteryRunForProjection): MasteryRunForProjection => ({
+  runId: run.runId,
+  mapId: run.mapId,
+  mapVariant: run.mapVariant,
+  difficulty: run.difficulty,
+  completionDurationSeconds: run.completionDurationSeconds,
+  deaths: run.deaths,
+  skips: run.skips,
+  awardedXp: run.awardedXp,
+  acceptedAt: run.acceptedAt,
+  status: run.status,
+});
+
 const minimum = (values: Array<number | null>) => {
   const present = values.filter((value): value is number => value !== null);
   return present.length ? Math.min(...present) : null;
@@ -184,7 +197,7 @@ export const buildMasteryMapProfile = (mapId: string, runs: MasteryRunForProject
     fewestSkips: minimum(activeRuns.map((run) => run.skips)),
     highestSingleRunXp: activeRuns.length ? Math.max(...activeRuns.map((run) => run.awardedXp)) : null,
     highestCompletedDifficulty,
-    recentRuns: [...activeRuns].sort(byMostRecent).slice(0, recentLimit),
+    recentRuns: [...activeRuns].sort(byMostRecent).slice(0, recentLimit).map(masteryRunProjection),
   };
 };
 

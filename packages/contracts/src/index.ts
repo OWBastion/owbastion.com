@@ -725,6 +725,49 @@ export const currentPlayerResponseSchema = z.object({
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
 
+export const masteryDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
+
+export const playerMasteryRunSchema = z.object({
+  runId: z.string().uuid(),
+  mapId: externalId,
+  mapVariant: z.literal("classic").nullable(),
+  difficulty: masteryDifficultySchema,
+  completionDurationSeconds: z.number().int().positive(),
+  deaths: z.number().int().nonnegative().nullable(),
+  skips: z.number().int().nonnegative().nullable(),
+  awardedXp: z.number().int().nonnegative(),
+  acceptedAt: z.number().int().positive(),
+  status: z.literal("active"),
+}).strict();
+
+export const playerMasteryDifficultyStatSchema = z.object({
+  difficulty: masteryDifficultySchema,
+  verifiedRunCount: z.number().int().positive(),
+  fastestCompletionSeconds: z.number().int().positive(),
+}).strict();
+
+export const playerMasteryMapProfileSchema = z.object({
+  mapId: externalId,
+  totalXp: z.number().int().nonnegative(),
+  verifiedRunCount: z.number().int().positive(),
+  difficultyStats: z.array(playerMasteryDifficultyStatSchema).max(6),
+  lowestDeaths: z.number().int().nonnegative().nullable(),
+  fewestSkips: z.number().int().nonnegative().nullable(),
+  highestSingleRunXp: z.number().int().nonnegative().nullable(),
+  highestCompletedDifficulty: masteryDifficultySchema.nullable(),
+  recentRuns: z.array(playerMasteryRunSchema).max(10),
+}).strict();
+
+export const currentPlayerMasteryResponseSchema = z.object({
+  contractVersion,
+  profiles: z.array(playerMasteryMapProfileSchema).max(100),
+  runs: z.array(playerMasteryRunSchema).max(50),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(50),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
+
 export const errorResponseSchema = z.object({
   contractVersion,
   error: z.object({
@@ -773,6 +816,11 @@ export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSc
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
 export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
+export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;
+export type PlayerMasteryRun = z.infer<typeof playerMasteryRunSchema>;
+export type PlayerMasteryDifficultyStat = z.infer<typeof playerMasteryDifficultyStatSchema>;
+export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
+export type CurrentPlayerMasteryResponse = z.infer<typeof currentPlayerMasteryResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;

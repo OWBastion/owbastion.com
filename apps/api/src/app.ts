@@ -147,6 +147,20 @@ const hasOnlyPaginationQuery = (request: Request) => {
   return params.getAll("page").length <= 1 && params.getAll("pageSize").length <= 1;
 };
 
+const playerMasteryQuery = (request: Request) => {
+  const params = new URL(request.url).searchParams;
+  const names = new Set<string>();
+  params.forEach((_value, name) => names.add(name));
+  if ([...names].some((name) => !["mapId", "page", "pageSize"].includes(name))) return null;
+  if (["mapId", "page", "pageSize"].some((name) => params.getAll(name).length > 1)) return null;
+  const mapId = params.get("mapId");
+  const page = Number(params.get("page") ?? "1");
+  const pageSize = Number(params.get("pageSize") ?? "20");
+  if (mapId !== null && (!mapId.trim() || mapId.trim().length > 256)) return null;
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
+  return { mapId: mapId?.trim() || undefined, page, pageSize };
+};
+
 export const createApp = (dependencies: AppDependencies) => {
   const app = new Hono<{ Bindings: RuntimeEnv; Variables: Variables }>();
 
@@ -254,6 +268,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/mastery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -504,6 +519,17 @@ export const createApp = (dependencies: AppDependencies) => {
     const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
     if (!player) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(player);
+  });
+
+  app.get("/v1/me/mastery", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const query = playerMasteryQuery(c.req.raw);
+    if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery query is invalid");
+    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
+    if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    return c.json(mastery);
   });
 
   app.get("/v1/me/titles", async (c) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -44,6 +44,22 @@ describe("v1 platform contracts", () => {
 
   it("accepts a player response without QQ identifiers", () => {
     expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] }).success).toBe(true);
+  });
+
+  it("keeps player mastery responses limited to active projection fields", () => {
+    const run = { runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", mapVariant: null, difficulty: "困难", completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" };
+    const response = {
+      contractVersion: "1",
+      profiles: [{ mapId: "map.test", totalXp: 225, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难", verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 2, fewestSkips: 1, highestSingleRunXp: 225, highestCompletedDifficulty: "困难", recentRuns: [run] }],
+      runs: [run],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      hasMore: false,
+    };
+    expect(currentPlayerMasteryResponseSchema.safeParse(response).success).toBe(true);
+    expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, runCode: "1234-5678-9012" }] }).success).toBe(false);
+    expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, profiles: [{ ...response.profiles[0], recentRuns: [{ ...run, sourceSubmissionId: "00000000-0000-4000-8000-000000000011" }] }] }).success).toBe(false);
   });
 
   it("keeps player review contracts limited to current-review fields", () => {

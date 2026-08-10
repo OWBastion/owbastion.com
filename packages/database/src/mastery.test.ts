@@ -47,10 +47,16 @@ const createD1 = () => {
   return { database, sqlite };
 };
 
+const hashRequest = async (value: unknown) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE player_accounts (id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL);
+  CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
+  CREATE TABLE qq_sessions (id TEXT PRIMARY KEY NOT NULL, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, binding_id TEXT NOT NULL REFERENCES bindings(id));
   CREATE TABLE mastery_runs (
     id TEXT PRIMARY KEY NOT NULL,
@@ -85,8 +91,8 @@ const seed = (sqlite: DatabaseSync) => sqlite.exec(`
     ('account-1', '1001', 'One', 'one', 1, 1), ('account-2', '1002', 'Two', 'two', 1, 1);
   INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES
     ('map.test', 'Test', '26.0810.1', 'active', '26.0810.1', 1, 1);
-  INSERT INTO bindings (id, player_account_id, provider, member_open_id, status) VALUES
-    ('binding-1', 'account-1', 'qq', 'member-1', 'active'), ('binding-2', 'account-2', 'qq', 'member-2', 'active');
+  INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES
+    ('binding-1', 'identity-1', 'account-1', 'qq', 'group-1', 'member-1', 'active', 1), ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1);
   INSERT INTO submissions (id, binding_id) VALUES
     ('submission-1', 'binding-1'), ('submission-2', 'binding-1'), ('submission-3', 'binding-2'), ('submission-4', 'binding-1'), ('submission-5', 'binding-1');
 `);
@@ -159,5 +165,21 @@ describe("verified mastery run ledger", () => {
     await services.invalidateVerifiedMasteryRun({ masteryRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" });
     expect(await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 2_000 }))).toMatchObject({ outcome: "created" });
     await expect(services.restoreVerifiedMasteryRun({ masteryRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).rejects.toThrow("MASTERY_RUN_CODE_CONFLICT");
+  });
+
+  it("returns only the current player's active, privacy-safe mastery projection", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    await services.recordVerifiedMasteryRun(input());
+    await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_100 }));
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("session-1", "attempt-1", "group-1", "member-1", "test", await hashRequest("mastery-session"), Date.now() + 60_000, 1);
+
+    const projection = await services.getCurrentPlayerMastery({ sessionToken: "mastery-session", page: 1, pageSize: 20 });
+    expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", totalXp: 225, verifiedRunCount: 1 }], runs: [{ mapId: "map.test", awardedXp: 225, status: "active" }], page: 1, pageSize: 20, total: 1, hasMore: false });
+    expect(JSON.stringify(projection)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
+    await expect(services.getCurrentPlayerMastery({ sessionToken: "other-session", page: 1, pageSize: 20 })).resolves.toBeNull();
   });
 });

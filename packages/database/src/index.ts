@@ -2,8 +2,8 @@ import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notEx
 
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, normalizeMasteryRunCode } from "@owbastion/domain";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -818,6 +818,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return submission;
   };
 
+  const getCurrentPortalPlayer = async (sessionToken: string) => {
+    const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
+    if (!session) return null;
+    const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
+    if (!binding) return null;
+    const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
+    if (!player || player.status === "banned") return null;
+    return { binding, player };
+  };
+
   const normalizeMasteryEventCounters = (value: MasteryEventCounters | undefined): MasteryEventCounters => {
     const entries = Object.entries(value ?? {}).map(([key, count]) => {
       const normalizedKey = key.trim();
@@ -905,15 +915,45 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return fields;
   };
 
-  const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
+  const loadActiveMasteryRuns = async (input: { playerAccountId: string; mapId?: string }) => {
     const rows = await db.select().from(masteryRuns).where(and(
       eq(masteryRuns.playerAccountId, input.playerAccountId),
       eq(masteryRuns.status, "active"),
       input.mapId ? eq(masteryRuns.mapId, input.mapId) : undefined,
     ));
-    const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
-    return buildMasteryProfiles(rows.map(asVerifiedMasteryRun), recentLimit);
+    return rows.map(asVerifiedMasteryRun);
   };
+
+  const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
+    const runs = await loadActiveMasteryRuns(input);
+    const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
+    return buildMasteryProfiles(runs, recentLimit);
+  };
+
+  const playerMasteryRunView = (run: MasteryRunForProjection): CurrentPlayerMasteryResponse["runs"][number] => ({
+    runId: run.runId,
+    mapId: run.mapId,
+    mapVariant: run.mapVariant,
+    difficulty: run.difficulty,
+    completionDurationSeconds: run.completionDurationSeconds,
+    deaths: run.deaths,
+    skips: run.skips,
+    awardedXp: run.awardedXp,
+    acceptedAt: run.acceptedAt,
+    status: "active",
+  });
+
+  const playerMasteryProfileView = (profile: MasteryMapProfile): CurrentPlayerMasteryResponse["profiles"][number] => ({
+    mapId: profile.mapId,
+    totalXp: profile.totalXp,
+    verifiedRunCount: profile.verifiedRunCount,
+    difficultyStats: profile.difficultyStats,
+    lowestDeaths: profile.lowestDeaths,
+    fewestSkips: profile.fewestSkips,
+    highestSingleRunXp: profile.highestSingleRunXp,
+    highestCompletedDifficulty: profile.highestCompletedDifficulty,
+    recentRuns: profile.recentRuns.map(playerMasteryRunView),
+  });
 
   const transitionVerifiedMasteryRun = async (input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedMasteryRun> => {
     const runId = input.masteryRunId.trim();
@@ -3086,13 +3126,31 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return response;
     },
 
+    async getCurrentPlayerMastery(input) {
+      const access = await getCurrentPortalPlayer(input.sessionToken);
+      if (!access) return null;
+      const mapId = input.mapId?.trim() || undefined;
+      const page = Number.isInteger(input.page) && input.page > 0 ? input.page : 1;
+      const pageSize = Number.isInteger(input.pageSize) && input.pageSize > 0 ? Math.min(50, input.pageSize) : 20;
+      const runs = await loadActiveMasteryRuns({ playerAccountId: access.player.id, mapId });
+      const profiles = buildMasteryProfiles(runs, 10);
+      const orderedRuns = [...runs].sort((left, right) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId));
+      const pageOffset = (page - 1) * pageSize;
+      return {
+        contractVersion: "1" as const,
+        profiles: profiles.map(playerMasteryProfileView),
+        runs: orderedRuns.slice(pageOffset, pageOffset + pageSize).map(playerMasteryRunView),
+        page,
+        pageSize,
+        total: orderedRuns.length,
+        hasMore: pageOffset + pageSize < orderedRuns.length,
+      };
+    },
+
     async getCurrentPlayer(input) {
-      const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(input.sessionToken)), gt(qqSessions.expiresAt, now()))).get();
-      if (!session) return null;
-      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
-      if (!binding) return null;
-      const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-      if (!player || player.status === "banned") return null;
+      const access = await getCurrentPortalPlayer(input.sessionToken);
+      if (!access) return null;
+      const { binding, player } = access;
       const recentSubmissions = await db.select({ submissionId: submissions.id, status: submissions.status, mapName: submissions.mapName, challengeId: submissions.challengeId, difficulty: submissions.difficulty, reason: submissions.reviewReason, createdAt: submissions.createdAt, updatedAt: submissions.updatedAt })
         .from(submissions)
         .where(eq(submissions.bindingId, binding.id))

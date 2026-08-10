@@ -4,7 +4,7 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
+| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission evidence served through the configured public CDN origin and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
@@ -87,6 +87,14 @@ historical holder names, QQ identities, or audit data. QQ identities, evidence
 objects, source URLs, and audit payloads do not cross the API boundary. The
 protected administrator surface may read QQ group/member identifiers to operate
 bindings; these fields are never returned by public or player APIs.
+
+GET /v1/me/mastery is likewise session- and ownership-scoped. It reads only
+active verified-run projections for the current player: stable map ID, canonical
+difficulty, settlement metrics, awarded XP, aggregate personal bests, and a
+bounded recent-run/history page. Run codes, source submission IDs, account and
+QQ identifiers, game-version and event facts, OCR/evidence data, risk signals,
+XP rule snapshots, and lifecycle/audit details remain platform-private. This
+read does not create runs or decide submission eligibility.
 
 The public Agents projection is a separate title-fact boundary. Ordinary
 responses omit numeric player IDs. Requests carrying the dedicated Bastion

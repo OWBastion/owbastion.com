@@ -47,6 +47,12 @@ The current API implements versioned v1 QQ flows:
 - an authenticated player can read only their own submission detail and
   screenshot, plus a constrained OCR summary; public submission status remains
   free of evidence and OCR fields;
+- an authenticated player can read only their own active verified mastery-run
+  projection through `/v1/me/mastery`: stable map ID, canonical difficulty,
+  settlement metrics, awarded XP, aggregate personal bests, and bounded history.
+  Run codes, source submissions, account and QQ identity, OCR/evidence, event
+  facts, XP snapshots, lifecycle/audit fields, and risk signals remain private;
+  this read does not create a run or decide submission eligibility;
 - the platform stores the current title and map metadata, and
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
   holder snapshots without linking source names to platform accounts;

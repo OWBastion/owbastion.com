@@ -8,6 +8,7 @@ const services: PlatformServices = {
   invalidateVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
   restoreVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
   rebuildMasteryProfiles: async () => [],
+  getCurrentPlayerMastery: async ({ sessionToken, page, pageSize }) => sessionToken === "session-token" ? { contractVersion: "1" as const, profiles: [], runs: [], page, pageSize, total: 0, hasMore: false } : null,
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
@@ -543,6 +544,48 @@ describe("API", () => {
       player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
+  });
+
+  it("returns only the signed-in player's active mastery projections", async () => {
+    const calls: Array<{ sessionToken: string; mapId?: string; page: number; pageSize: number }> = [];
+    const masteryApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        getCurrentPlayerMastery: async (input) => {
+          calls.push(input);
+          return input.sessionToken === "session-token" ? {
+            contractVersion: "1" as const,
+            profiles: [{
+              mapId: "map.test",
+              totalXp: 225,
+              verifiedRunCount: 1,
+              difficultyStats: [{ difficulty: "困难" as const, verifiedRunCount: 1, fastestCompletionSeconds: 600 }],
+              lowestDeaths: 2,
+              fewestSkips: 1,
+              highestSingleRunXp: 225,
+              highestCompletedDifficulty: "困难" as const,
+              recentRuns: [{ runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", mapVariant: null, difficulty: "困难" as const, completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }],
+            }],
+            runs: [{ runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", mapVariant: null, difficulty: "困难" as const, completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }],
+            page: input.page,
+            pageSize: input.pageSize,
+            total: 1,
+            hasMore: false,
+          } : null;
+        },
+      }),
+    });
+
+    expect((await masteryApp.request("http://localhost/v1/me/mastery", {}, env)).status).toBe(401);
+    const response = await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&page=1&pageSize=1", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const body = await response.json() as Record<string, unknown>;
+    expect(body).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", recentRuns: [{ status: "active", awardedXp: 225 }] }], runs: [{ mapId: "map.test", difficulty: "困难" }], page: 1, pageSize: 1, total: 1, hasMore: false });
+    expect(JSON.stringify(body)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation|evidence|audit|memberOpenId|groupOpenId/);
+    expect(calls).toEqual([{ sessionToken: "session-token", mapId: "map.test", page: 1, pageSize: 1 }]);
+    expect((await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&mapId=map.other", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
   });
 
   it("returns only the signed-in player's active title grants", async () => {

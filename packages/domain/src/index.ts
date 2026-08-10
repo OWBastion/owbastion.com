@@ -19,6 +19,7 @@ import type {
   AdminPlayerStatusRequest,
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
+  CurrentPlayerMasteryResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
   AdminSubmissionChallengeRequest,
@@ -227,6 +228,7 @@ export type PlatformServices = {
   restoreReviewComment(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   invalidateReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   restoreReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  getCurrentPlayerMastery(input: { sessionToken: string; mapId?: string; page: number; pageSize: number }): Promise<CurrentPlayerMasteryResponse | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   logoutPortalSession(input: { sessionToken: string }): Promise<void>;
   listLocalDevAccounts(): Promise<LocalDevAccount[]>;
