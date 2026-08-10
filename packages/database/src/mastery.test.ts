@@ -6,6 +6,7 @@ import { createPlatformServices } from "./index";
 const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
+  let pendingBatch: Promise<void> = Promise.resolve();
   const wrapStatement = (statementSql: string) => {
     let bound: unknown[] = [];
     const statement = {
@@ -29,17 +30,22 @@ const createD1 = () => {
   };
   const database = {
     prepare(statementSql: string) { return wrapStatement(statementSql); },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      sqlite.exec("BEGIN;");
-      try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.run());
-        sqlite.exec("COMMIT;");
-        return results;
-      } catch (error) {
-        sqlite.exec("ROLLBACK;");
-        throw error;
-      }
+    batch(statements: Array<ReturnType<typeof wrapStatement>>) {
+      const apply = async () => {
+        sqlite.exec("BEGIN;");
+        try {
+          const results = [];
+          for (const statement of statements) results.push(await statement.run());
+          sqlite.exec("COMMIT;");
+          return results;
+        } catch (error) {
+          sqlite.exec("ROLLBACK;");
+          throw error;
+        }
+      };
+      const batch = pendingBatch.then(apply, apply);
+      pendingBatch = batch.then(() => undefined, () => undefined);
+      return batch;
     },
     async exec(statementSql: string) { sqlite.exec(statementSql); return []; },
     withSession() { return database; },
@@ -145,6 +151,23 @@ describe("verified mastery run ledger", () => {
     expect(await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_300 }))).toMatchObject({ outcome: "created", run: { playerAccountId: "account-2", runCode: "1234-5678-9012" } });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 2 }]);
+  });
+
+  it("settles concurrent same-player run-code writes as one run without duplicate XP", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+
+    const results = await Promise.all([
+      services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-1" })),
+      services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2" })),
+    ]);
+
+    expect(results.map((result) => result.outcome).sort()).toEqual(["created", "reused"]);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count, SUM(awarded_xp) AS awarded_xp FROM mastery_runs WHERE player_account_id = 'account-1'").get()).toEqual({ count: 1, awarded_xp: 225 });
+    expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 1 }]);
+    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ totalXp: 225, verifiedRunCount: 1 }]);
   });
 
   it("rebuilds active projections and applies invalidation/restoration exactly once", async () => {

@@ -2,7 +2,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, ne, lt, lte, 
 
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
-import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
+import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
@@ -33,19 +33,20 @@ export type MasteryOcrEvidenceAssessment =
   }
   | { outcome: "ineligible"; reason: string };
 
-const hasReliableMasteryField = (response: OcrResponse, fieldName: string) => {
+const hasReliableMasteryField = (response: OcrResponse, fieldName: string, compatibility: MasteryEvidenceCompatibilityV1) => {
   const field = response.fields?.[fieldName];
-  return field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= masteryEvidenceCompatibilityV1.requiredConfidence;
+  return field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= compatibility.requiredConfidence;
 };
 
 const ineligibleMasteryEvidence = (reason: string): MasteryOcrEvidenceAssessment => ({ outcome: "ineligible", reason });
 
-export const assessMasteryOcrEvidence = (response: OcrResponse): MasteryOcrEvidenceAssessment => {
+export const assessMasteryOcrEvidence = (response: OcrResponse, compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1): MasteryOcrEvidenceAssessment => {
+  if (!compatibility.minimumGameVersion || !compatibility.supportedOcrLayoutVersions.length) return ineligibleMasteryEvidence("mastery_rollout_disabled");
   if (response.schema_version !== "1") return ineligibleMasteryEvidence("unsupported_schema_version");
   if (response.ok !== true) return ineligibleMasteryEvidence("unsuccessful_response");
-  if (!isMasteryOcrLayoutSupported(response.layout_version)) return ineligibleMasteryEvidence("unsupported_layout");
+  if (!isMasteryOcrLayoutSupported(response.layout_version, compatibility)) return ineligibleMasteryEvidence("unsupported_layout");
   for (const fieldName of masteryRequiredOcrFields) {
-    if (!hasReliableMasteryField(response, fieldName)) return ineligibleMasteryEvidence(`unreliable_${fieldName}`);
+    if (!hasReliableMasteryField(response, fieldName, compatibility)) return ineligibleMasteryEvidence(`unreliable_${fieldName}`);
   }
 
   const data = response.data ?? {};
@@ -55,7 +56,7 @@ export const assessMasteryOcrEvidence = (response: OcrResponse): MasteryOcrEvide
   const viewerPlayer = typeof data.viewer_player === "string" ? data.viewer_player.trim() : "";
   if (!viewerPlayer) return ineligibleMasteryEvidence("missing_viewer_player");
   const gameVersion = typeof data.version === "string" ? data.version.trim() : "";
-  if (!isMasteryGameVersionSupported(gameVersion)) return ineligibleMasteryEvidence("unsupported_game_version");
+  if (!isMasteryGameVersionSupported(gameVersion, compatibility)) return ineligibleMasteryEvidence("unsupported_game_version");
   const difficulty = normalizedOcrDifficulty(data.difficulty);
   if (!masteryDifficulties.includes(difficulty as MasteryDifficulty)) return ineligibleMasteryEvidence("invalid_difficulty");
   const completionDurationSeconds = data.duration_seconds;
@@ -69,9 +70,9 @@ export const assessMasteryOcrEvidence = (response: OcrResponse): MasteryOcrEvide
 
   const rawVariant = typeof data.map_variant === "string" ? data.map_variant.trim() : "";
   if (rawVariant && rawVariant !== "classic") return ineligibleMasteryEvidence("invalid_map_variant");
-  if (rawVariant && !hasReliableMasteryField(response, "map_variant")) return ineligibleMasteryEvidence("unreliable_map_variant");
+  if (rawVariant && !hasReliableMasteryField(response, "map_variant", compatibility)) return ineligibleMasteryEvidence("unreliable_map_variant");
   const settlementValue = (value: number | null | undefined, fieldName: "deaths" | "skips") => {
-    if (value === null || value === undefined || !hasReliableMasteryField(response, fieldName)) return null;
+    if (value === null || value === undefined || !hasReliableMasteryField(response, fieldName, compatibility)) return null;
     return Number.isInteger(value) && value >= 0 ? value : undefined;
   };
   const deaths = settlementValue(data.deaths, "deaths");
@@ -364,7 +365,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1): PlatformServices => {
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
@@ -1173,7 +1174,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     acceptanceSource: "submission_automatic" | "submission_review",
   ): Promise<MasterySubmissionOutcome> => {
     const existing = await loadMasterySubmissionOutcome(row.id);
-    const evidence = assessMasteryOcrEvidence(response);
+    const evidence = assessMasteryOcrEvidence(response, masteryEvidenceCompatibility);
     if (evidence.outcome === "ineligible") {
       if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
       return { status: "ineligible", masteryRunId: null, awardedXp: 0, reason: evidence.reason, conflictFields: [] };
@@ -1767,10 +1768,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
     const runId = crypto.randomUUID();
     await database.batch([
-      database.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.runCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
-      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'accepted', 'service', ?, NULL, ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt),
+      database.prepare("INSERT OR IGNORE INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.runCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
+      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'accepted', 'service', ?, NULL, ? WHERE EXISTS (SELECT 1 FROM mastery_runs WHERE id = ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt, runId),
     ]);
-    return { outcome: "created", run: asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, runId)).get())!) };
+    const persistedBySource = await db.select().from(masteryRuns).where(eq(masteryRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+    const persisted = persistedBySource ?? await db.select().from(masteryRuns).where(and(
+      eq(masteryRuns.playerAccountId, candidate.playerAccountId),
+      eq(masteryRuns.runCode, candidate.runCode),
+      eq(masteryRuns.status, "active"),
+    )).get();
+    if (!persisted) throw new Error("MASTERY_RUN_PERSIST_FAILED");
+    const run = asVerifiedMasteryRun(persisted);
+    if (persisted.id === runId) return { outcome: "created", run };
+    const conflictFields = masteryConflictFields(run, candidate);
+    return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
   return {

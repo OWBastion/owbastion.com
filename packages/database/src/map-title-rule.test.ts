@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
+import { createMasteryEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { assessMasteryOcrEvidence, createPlatformServices } from "./index";
 
 /**
@@ -8,6 +9,7 @@ import { assessMasteryOcrEvidence, createPlatformServices } from "./index";
 const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
+  let preparedStatementCount = 0;
 
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
@@ -32,7 +34,7 @@ const createD1 = () => {
   };
 
   const database = {
-    prepare(sql: string) { return wrapStatement(sql); },
+    prepare(sql: string) { preparedStatementCount += 1; return wrapStatement(sql); },
     async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
       const results = [];
       for (const statement of statements) results.push(await statement.all());
@@ -45,7 +47,12 @@ const createD1 = () => {
     withSession() { return database; },
   } as unknown as D1Database;
 
-  return { database, sqlite };
+  return {
+    database,
+    sqlite,
+    preparedStatementCount: () => preparedStatementCount,
+    resetPreparedStatementCount: () => { preparedStatementCount = 0; },
+  };
 };
 
 const installSchema = (sqlite: DatabaseSync) => {
@@ -523,6 +530,10 @@ const installSchema = (sqlite: DatabaseSync) => {
 };
 
 const now = Date.now();
+const localMasteryEvidenceCompatibility = createMasteryEvidenceCompatibilityV1({
+  minimumGameVersion: "99.0101.1",
+  supportedOcrLayoutVersions: ["test-layout-v1"],
+});
 
 /** Seed helpers */
 const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" = "active") => {
@@ -582,6 +593,11 @@ const seedLegacyMapChallenge = (sqlite: DatabaseSync, challengeId: string, mapId
 
 const requestHash = async (value: unknown) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+
+const uploadHash = async (body: ArrayBuffer) => {
+  const digest = await crypto.subtle.digest("SHA-256", body);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 };
 
@@ -1128,7 +1144,7 @@ const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; run
   return {
     schema_version: "1",
     ok: true,
-    layout_version: overrides.layoutVersion ?? "1280x720-v6",
+    layout_version: overrides.layoutVersion ?? "test-layout-v1",
     fields: {
       challenge_completed: { status: "ok", confidence: 0.99 },
       viewer_player: { status: "ok", confidence: 0.99 },
@@ -1146,7 +1162,7 @@ const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; run
       viewer_player: overrides.viewerPlayer ?? "Tester#1234",
       map_name: "地图 map.mastery",
       difficulty: overrides.difficulty ?? "困难",
-      version: overrides.version ?? "26.0809.1",
+      version: overrides.version ?? "99.0101.1",
       run_code: runCode,
       duration_seconds: overrides.durationSeconds ?? 600,
       deaths: 1,
@@ -1158,13 +1174,187 @@ const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; run
 
 describe("submission mastery outcomes", () => {
   it("keeps the version, layout, and run-code gate platform-owned", () => {
-    expect(assessMasteryOcrEvidence(masteryOcr())).toMatchObject({ outcome: "eligible", runCode: "1234-5678-9012", gameVersion: "26.0809.1" });
-    expect(assessMasteryOcrEvidence(masteryOcr({ runCode: null }))).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
-    expect(assessMasteryOcrEvidence(masteryOcr({ layoutVersion: "1280x720-v5" }))).toEqual({ outcome: "ineligible", reason: "unsupported_layout" });
-    expect(assessMasteryOcrEvidence(masteryOcr({ version: "26.0808.9" }))).toEqual({ outcome: "ineligible", reason: "unsupported_game_version" });
+    expect(assessMasteryOcrEvidence(masteryOcr())).toEqual({ outcome: "ineligible", reason: "mastery_rollout_disabled" });
+    expect(assessMasteryOcrEvidence(masteryOcr(), localMasteryEvidenceCompatibility)).toMatchObject({ outcome: "eligible", runCode: "1234-5678-9012", gameVersion: "99.0101.1" });
+    expect(assessMasteryOcrEvidence(masteryOcr({ runCode: null }), localMasteryEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
+    expect(assessMasteryOcrEvidence(masteryOcr({ layoutVersion: "test-layout-v0" }), localMasteryEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_layout" });
+    expect(assessMasteryOcrEvidence(masteryOcr({ version: "99.0100.9" }), localMasteryEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_game_version" });
     const weakRunCode = masteryOcr();
     weakRunCode.fields.run_code = { status: "low_confidence", confidence: 0.89 };
-    expect(assessMasteryOcrEvidence(weakRunCode)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
+    expect(assessMasteryOcrEvidence(weakRunCode, localMasteryEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
+  });
+
+  it("covers the authenticated upload, private evidence, OCR, mastery-only, and combined-title paths with local fakes", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasteryPlayer(sqlite, "player.two", "binding.two", "Other");
+
+    const playerOneSession = "integration-player-one";
+    const playerTwoSession = "integration-player-two";
+    for (const [playerId, token] of [["player.one", playerOneSession], ["player.two", playerTwoSession]] as const) {
+      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+        .run(`session.${playerId}`, `attempt.${playerId}`, `group.${playerId}`, `member.${playerId}`, await requestHash(token), now + 60_000, now);
+    }
+
+    const storedObjects = new Map<string, ArrayBuffer>();
+    const queued: Array<{ version: number; submissionId: string; objectKey: string; requestId?: string }> = [];
+    const ocrRequests: Array<{ url: string; body: { bucket: string; object_key: string } }> = [];
+    const ocrResponses: Array<ReturnType<typeof masteryOcr>> = [];
+    const evidenceBucket = {
+      put: async (key: string, value: ArrayBuffer) => { storedObjects.set(key, value); },
+    } as unknown as R2Bucket;
+    const queue = {
+      send: async (message: unknown) => { queued.push(message as (typeof queued)[number]); },
+    } as Queue;
+    const services = createPlatformServices(
+      database,
+      evidenceBucket,
+      "https://api.example.com",
+      "https://ocr.example.com",
+      "token",
+      queue,
+      "integration-evidence",
+      undefined,
+      undefined,
+      undefined,
+      1,
+      0,
+      localMasteryEvidenceCompatibility,
+    );
+
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { bucket: string; object_key: string };
+      ocrRequests.push({ url: String(url), body });
+      const response = ocrResponses.shift();
+      if (!response) throw new Error("missing OCR response fixture");
+      return new Response(JSON.stringify(response), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+
+    const submit = async (input: { sessionToken: string; bytes: string; ocr: ReturnType<typeof masteryOcr>; requestId: string }) => {
+      const body = new TextEncoder().encode(input.bytes).buffer as ArrayBuffer;
+      const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, input.sessionToken);
+      await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, input.sessionToken);
+      await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, input.sessionToken, input.requestId)).resolves.toEqual({ submissionId: upload.submissionId, status: "ocr_pending" });
+      const job = queued.shift();
+      if (!job) throw new Error("missing OCR queue job");
+      ocrResponses.push(input.ocr);
+      await services.processOcrJob({ ...job, attempt: 1 });
+      return { submissionId: upload.submissionId, objectKey: job.objectKey };
+    };
+
+    try {
+      const first = await submit({ sessionToken: playerOneSession, bytes: "same-image", ocr: masteryOcr(), requestId: "request.first" });
+      const exactReplay = await submit({ sessionToken: playerOneSession, bytes: "same-image", ocr: masteryOcr(), requestId: "request.exact" });
+      const reencodedReplay = await submit({ sessionToken: playerOneSession, bytes: "changed-image", ocr: masteryOcr(), requestId: "request.reencoded" });
+      const otherPlayer = await submit({ sessionToken: playerTwoSession, bytes: "other-player-image", ocr: masteryOcr({ viewerPlayer: "Other#5678" }), requestId: "request.other" });
+      const conflict = await submit({ sessionToken: playerOneSession, bytes: "conflicting-image", ocr: masteryOcr({ difficulty: "传奇" }), requestId: "request.conflict" });
+
+      expect(sqlite.prepare("SELECT submission_id, status, awarded_xp FROM submission_outcomes WHERE outcome_key = 'mastery_run' ORDER BY submission_id").all()).toEqual([
+        { submission_id: conflict.submissionId, status: "conflict", awarded_xp: 0 },
+        { submission_id: exactReplay.submissionId, status: "reused", awarded_xp: 0 },
+        { submission_id: first.submissionId, status: "created", awarded_xp: 236 },
+        { submission_id: otherPlayer.submissionId, status: "created", awarded_xp: 236 },
+        { submission_id: reencodedReplay.submissionId, status: "reused", awarded_xp: 0 },
+      ].sort((left, right) => left.submission_id.localeCompare(right.submission_id)));
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(conflict.submissionId)).toEqual({ status: "ocr_review_required" });
+
+      const firstProfile = await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 });
+      expect(firstProfile).toMatchObject({
+        profiles: [{ mapId: "map.mastery", totalXp: 236, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难", verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 236, highestCompletedDifficulty: "困难" }],
+        total: 1,
+        hasMore: false,
+      });
+      expect(JSON.stringify(firstProfile)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|1234-5678-9012|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
+
+      const publicServices = createPlatformServices(database);
+      const publicFirst = await publicServices.getSubmission({ submissionId: first.submissionId }, {} as never);
+      const playerFirst = await services.getPlayerSubmission({ submissionId: first.submissionId }, playerOneSession);
+      expect(publicFirst.masteryOutcome).toEqual({ status: "created", awardedXp: 236 });
+      expect(playerFirst.masteryOutcome).toEqual({ status: "created", awardedXp: 236 });
+      expect(JSON.stringify({ publicFirst, playerFirst })).not.toMatch(/1234-5678-9012|player\.one|integration-evidence|uploads\/submissions|masteryRunId|object_key/);
+
+      const adminConflict = await services.getAdminSubmission({ submissionId: conflict.submissionId }, {} as never);
+      const masteryRunId = adminConflict.masteryOutcome?.masteryRunId;
+      if (!masteryRunId) throw new Error("missing mastery conflict target");
+      const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      await services.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: conflict.submissionId, action: "invalidate_existing", reason: "local integration invalidation" }, maintainer, "integration-invalidate");
+      expect(await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 })).toMatchObject({ profiles: [], total: 1, runs: [{ status: "invalidated" }] });
+      await services.transitionAdminMasteryRun({ masteryRunId, action: "restore", reason: "local integration restoration" }, maintainer, "integration-restore");
+      expect(await services.getCurrentPlayerMastery({ sessionToken: playerOneSession, mapId: "map.mastery", page: 1, pageSize: 20 })).toMatchObject({ profiles: [{ totalXp: 236, verifiedRunCount: 1 }], total: 1, runs: [{ status: "active" }] });
+
+      seedTitle(sqlite, "CONQUEROR");
+      sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.combined', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
+      const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ runCode: "2345-6789-1234", durationSeconds: 599 }), requestId: "request.combined" });
+      expect(sqlite.prepare("SELECT outcome_type, status FROM submission_outcomes WHERE submission_id = ? ORDER BY outcome_type").all(combined.submissionId)).toEqual([
+        { outcome_type: "challenge", status: "created" },
+        { outcome_type: "mastery_run", status: "created" },
+        { outcome_type: "title_grant", status: "created" },
+      ]);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.one' AND title_key = 'CONQUEROR' AND status = 'active'").get()).toEqual({ count: 1 });
+
+      expect(storedObjects.size).toBe(6);
+      expect([...storedObjects.keys()].every((key) => key.startsWith("uploads/submissions/"))).toBe(true);
+      expect(ocrRequests).toHaveLength(6);
+      expect(ocrRequests.every(({ url, body }) => url === "https://ocr.example.com/api/v1/ocr/challenge/by-object" && body.bucket === "integration-evidence" && storedObjects.has(body.object_key))).toBe(true);
+      expect(queued).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps player-profile and maintainer-list reads bounded as mastery history grows", async () => {
+    const measure = async (runCount: number) => {
+      const { database, sqlite, preparedStatementCount, resetPreparedStatementCount } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.mastery");
+      seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+      const sessionToken = `query-budget-${runCount}`;
+      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+        .run(`session.${runCount}`, `attempt.${runCount}`, "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
+      const services = createPlatformServices(database);
+
+      for (let index = 0; index < runCount; index += 1) {
+        const submissionId = `submission.query-budget.${runCount}.${index}`;
+        seedMasterySubmission(sqlite, submissionId, "binding.one", "Tester");
+        const recorded = await services.recordVerifiedMasteryRun({
+          playerAccountId: "player.one",
+          sourceSubmissionId: submissionId,
+          mapId: "map.mastery",
+          mapVariant: null,
+          difficulty: "困难",
+          gameVersion: "99.0101.1",
+          runCode: `${String(1000 + index).padStart(4, "0")}-5678-9012`,
+          completionDurationSeconds: 600 + index,
+          deaths: 1,
+          skips: 0,
+          acceptanceSource: "submission_automatic",
+          acceptedAt: now + index,
+        });
+        expect(recorded.outcome).toBe("created");
+      }
+
+      resetPreparedStatementCount();
+      const profile = await services.getCurrentPlayerMastery({ sessionToken, mapId: "map.mastery", page: 1, pageSize: 20 });
+      const profileStatements = preparedStatementCount();
+      resetPreparedStatementCount();
+      const list = await services.listAdminMasteryRuns({ page: 1, pageSize: 20 }, {} as never);
+      const listStatements = preparedStatementCount();
+      return { profile, list, profileStatements, listStatements };
+    };
+
+    const oneRun = await measure(1);
+    const fortyRuns = await measure(40);
+    expect(oneRun.profile).toMatchObject({ profiles: [{ verifiedRunCount: 1 }], total: 1, hasMore: false });
+    expect(fortyRuns.profile).toMatchObject({ profiles: [{ verifiedRunCount: 40 }], total: 40, hasMore: true });
+    expect(oneRun.list).toMatchObject({ total: 1, hasMore: false });
+    expect(fortyRuns.list).toMatchObject({ total: 40, hasMore: true });
+    expect(fortyRuns.profileStatements).toBe(oneRun.profileStatements);
+    expect(fortyRuns.listStatements).toBe(oneRun.listStatements);
+    expect(fortyRuns.profileStatements).toBeLessThanOrEqual(6);
+    expect(fortyRuns.listStatements).toBeLessThanOrEqual(3);
   });
 
   it("requires and preserves a classic map variant when the submission contract distinguishes it", async () => {
@@ -1181,7 +1371,7 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr({ runCode: "2345-6789-1234" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket");
+      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
       await services.processOcrJob({ submissionId: "submission.classic-missing", objectKey: "evidence/classic-missing.png", attempt: 1 });
       ocr = masteryOcr({ runCode: "3456-7891-2345", mapVariant: "classic" });
       await services.processOcrJob({ submissionId: "submission.classic-present", objectKey: "evidence/classic-present.png", attempt: 1 });
@@ -1205,7 +1395,7 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket");
+      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
       await services.processOcrJob({ submissionId: "submission.first", objectKey: "evidence/exact.png", attempt: 1 });
       await services.processOcrJob({ submissionId: "submission.exact", objectKey: "evidence/exact.png", attempt: 1 });
       await services.processOcrJob({ submissionId: "submission.reencoded", objectKey: "evidence/reencoded.png", attempt: 1 });
@@ -1305,7 +1495,7 @@ describe("submission mastery outcomes", () => {
     installSchema(sqlite);
     seedMap(sqlite, "map.mastery");
     seedTitle(sqlite, "CONQUEROR");
-    sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.mastery', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '26.0809.1', 'active', '26.0809.1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.mastery', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.combined", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.legacy", "binding.one", "Tester");
@@ -1313,7 +1503,7 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket");
+      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
       await services.processOcrJob({ submissionId: "submission.combined", objectKey: "evidence/combined.png", attempt: 1 });
       const combined = sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.combined'").get() as { status: string; grant_id: string | null };
       expect(combined.status).toBe("approved");
@@ -1350,7 +1540,7 @@ describe("submission mastery outcomes", () => {
     const ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", queue, "ocr-bucket", undefined, undefined, undefined, 1, 1);
+      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", queue, "ocr-bucket", undefined, undefined, undefined, 1, 1, localMasteryEvidenceCompatibility);
       await services.processOcrJob({ submissionId: "submission.lifecycle", objectKey: "evidence/submission.lifecycle.png", attempt: 1 });
       const revoked = await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission.lifecycle", decision: "revoked", reason: "证据无效" }, auth, "spot-check-revoke");
       expect(revoked).toMatchObject({ grantId: null, masteryRunId: expect.any(String), status: "revoked" });

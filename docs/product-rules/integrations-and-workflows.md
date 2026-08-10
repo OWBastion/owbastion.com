@@ -508,14 +508,28 @@ classic version of the recognized map: it satisfies map challenges that do not
 declare another variant, while classic-specific map challenges require the
 `classic` map variant. Neither kind of map challenge needs title evidence.
 
-For mastery outcomes, the current platform policy additionally requires OCR
-layout `1280x720-v6`, game version at least `26.0809.1`, and `ok` field evidence
-at confidence `>= 0.9` for completion, viewer player, map name, difficulty,
-version, run code, and completion duration. The platform normalizes and checks
-the code, resolves the map against exactly one active canonical map, and decides
+Mastery acceptance is fail-closed by default: both
+`MASTERY_MIN_GAME_VERSION` and `MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS` are
+empty until release records prove that the Bastion run-code HUD and the matching
+OCRKit layout are available. Operators may set both values only after that
+cross-repository release boundary is recorded. A missing, malformed, or partial
+setting disables new mastery acceptance; it never changes the independent
+legacy title path.
+
+When explicitly enabled, the platform requires the configured minimum game
+version, one configured OCR layout, and `ok` field evidence at confidence
+`>= 0.9` for completion, viewer player, map name, difficulty, version, run
+code, and completion duration. The platform normalizes and checks the code,
+resolves the map against exactly one active canonical map, and decides
 duplicate, conflict, acceptance, and XP; OCRKit supplies only evidence. Missing,
 weak, unsupported, or ambiguous mastery evidence produces no XP and does not
-block independent legacy title matching.
+block independent legacy title matching. Clearing either runtime setting and
+redeploying is the write rollback: existing ledger rows remain retained.
+
+No materialized mastery projection is stored. Player and maintainer projections
+are recomputed from `mastery_runs`; support reconciliation uses the
+`rebuildMasteryProfiles` service read and does not mutate accepted, invalidated,
+or conflict rows. Schema rollout remains covered by `pnpm run check:migrations`.
 
 The platform owns candidate selection, rule-snapshot evaluation, approval,
 Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous results

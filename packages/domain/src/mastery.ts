@@ -6,27 +6,44 @@ export type MasteryMapVariant = "classic" | null;
 export type MasteryAcceptanceSource = "submission_automatic" | "submission_review";
 export type MasteryEventCounters = Record<string, number>;
 
-/**
- * Platform-owned compatibility policy for turning OCR evidence into a verified
- * mastery run. OCRKit reports the raw version and layout; it does not decide
- * whether either is eligible for XP.
- */
-export const masteryEvidenceCompatibilityV1 = {
-  version: "v1",
-  minimumGameVersion: "26.0809.1",
-  supportedOcrLayoutVersions: ["1280x720-v6"],
-  requiredConfidence: 0.9,
-} as const;
-
 const versionParts = (value: string) => {
   const parts = value.trim().split(".");
   if (parts.length !== 3 || parts.some((part) => !/^\d+$/u.test(part))) return null;
   return parts.map(Number);
 };
 
-export const isMasteryGameVersionSupported = (value: string) => {
+export type MasteryEvidenceCompatibilityV1 = {
+  version: "v1";
+  minimumGameVersion: string | null;
+  supportedOcrLayoutVersions: readonly string[];
+  requiredConfidence: number;
+};
+
+export const createMasteryEvidenceCompatibilityV1 = (input: {
+  minimumGameVersion?: string | null;
+  supportedOcrLayoutVersions?: readonly string[];
+} = {}): MasteryEvidenceCompatibilityV1 => {
+  const minimumGameVersion = input.minimumGameVersion?.trim() ?? "";
+  return {
+    version: "v1",
+    minimumGameVersion: versionParts(minimumGameVersion) ? minimumGameVersion : null,
+    supportedOcrLayoutVersions: [...new Set((input.supportedOcrLayoutVersions ?? []).map((value) => value.trim()).filter(Boolean))],
+    requiredConfidence: 0.9,
+  };
+};
+
+/**
+ * The default is deliberately disabled until operators record releases that
+ * carry the run-code HUD and its matching OCR layout.
+ */
+export const masteryEvidenceCompatibilityV1 = createMasteryEvidenceCompatibilityV1();
+
+export const isMasteryEvidenceCompatibilityEnabled = (compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) =>
+  compatibility.minimumGameVersion !== null && compatibility.supportedOcrLayoutVersions.length > 0;
+
+export const isMasteryGameVersionSupported = (value: string, compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) => {
   const candidate = versionParts(value);
-  const minimum = versionParts(masteryEvidenceCompatibilityV1.minimumGameVersion);
+  const minimum = compatibility.minimumGameVersion ? versionParts(compatibility.minimumGameVersion) : null;
   if (!candidate || !minimum) return false;
   for (let index = 0; index < candidate.length; index += 1) {
     if (candidate[index] !== minimum[index]) return candidate[index] > minimum[index];
@@ -34,8 +51,8 @@ export const isMasteryGameVersionSupported = (value: string) => {
   return true;
 };
 
-export const isMasteryOcrLayoutSupported = (value: string | null | undefined) =>
-  typeof value === "string" && masteryEvidenceCompatibilityV1.supportedOcrLayoutVersions.includes(value.trim() as typeof masteryEvidenceCompatibilityV1.supportedOcrLayoutVersions[number]);
+export const isMasteryOcrLayoutSupported = (value: string | null | undefined, compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) =>
+  typeof value === "string" && compatibility.supportedOcrLayoutVersions.includes(value.trim());
 
 export const masteryXpRuleV1 = {
   version: "v1",

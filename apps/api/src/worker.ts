@@ -1,4 +1,5 @@
 import { authenticatePlatformActor } from "@owbastion/auth";
+import { createMasteryEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
 
@@ -6,10 +7,14 @@ type OcrQueueMessage = { version: number; submissionId: string; objectKey: strin
 type QqPolicyQueueMessage = { version: 1; eventId: string };
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
+const masteryCompatibility = (env: RuntimeEnv) => createMasteryEvidenceCompatibilityV1({
+  minimumGameVersion: env.MASTERY_MIN_GAME_VERSION,
+  supportedOcrLayoutVersions: env.MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?.split(","),
+});
 
 const app = createApp({
   authenticate: authenticatePlatformActor,
-  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env)),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env)),
 });
 
 const policySignature = async (secret: string, timestamp: string, body: string) => {
@@ -23,7 +28,7 @@ const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage): body i
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env));
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env));
     for (const message of batch.messages) {
       if (isQqPolicyMessage(message.body)) {
         try {
@@ -52,6 +57,6 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN).dispatchPendingQqGroupPolicyEvents();
+    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env)).dispatchPendingQqGroupPolicyEvents();
   },
 };

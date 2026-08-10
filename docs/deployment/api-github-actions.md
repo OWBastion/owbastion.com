@@ -40,6 +40,15 @@ default bucket.
 deterministically samples automatic approvals for maintainer spot checks; the
 default `0` leaves automatic approval unchanged and disables sampling.
 
+Mastery writes are disabled by default. Keep both
+`MASTERY_MIN_GAME_VERSION` and `MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS` empty
+until the Bastion run-code HUD and matching OCRKit layout each have an actual
+released compatibility record. Enable the capability only by setting both: the
+former is the released minimum `major.minor.patch` version, and the latter is a
+comma-separated allowlist of released OCR layout versions. An absent, invalid,
+or partial value fails closed. To roll back acceptance, clear either setting
+and redeploy; do not delete accepted mastery ledger rows or evidence.
+
 ## GitHub configuration
 
 Configure these repository or production-environment secrets:

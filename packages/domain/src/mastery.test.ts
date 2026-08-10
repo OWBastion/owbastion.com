@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryEvidenceCompatibilityV1, masteryXpRuleV1, normalizeMasteryRunCode, type MasteryRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateMasteryXpV1, createMasteryEvidenceCompatibilityV1, isMasteryEvidenceCompatibilityEnabled, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryEvidenceCompatibilityV1, masteryXpRuleV1, normalizeMasteryRunCode, type MasteryRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<MasteryRunForProjection> = {}): MasteryRunForProjection => ({
   runId: "run-1",
@@ -49,13 +49,17 @@ describe("mastery XP rule v1", () => {
   });
 
   it("keeps the platform-owned game and OCR compatibility gate explicit", () => {
-    expect(masteryEvidenceCompatibilityV1).toMatchObject({ minimumGameVersion: "26.0809.1", supportedOcrLayoutVersions: ["1280x720-v6"], requiredConfidence: 0.9 });
-    expect(isMasteryGameVersionSupported("26.0809.1")).toBe(true);
-    expect(isMasteryGameVersionSupported("26.0810.1")).toBe(true);
-    expect(isMasteryGameVersionSupported("26.0808.9")).toBe(false);
-    expect(isMasteryGameVersionSupported("legacy")).toBe(false);
-    expect(isMasteryOcrLayoutSupported("1280x720-v6")).toBe(true);
-    expect(isMasteryOcrLayoutSupported("1280x720-v5")).toBe(false);
+    const releasedCompatibility = createMasteryEvidenceCompatibilityV1({ minimumGameVersion: "99.0101.1", supportedOcrLayoutVersions: ["test-layout-v1"] });
+    expect(masteryEvidenceCompatibilityV1).toMatchObject({ minimumGameVersion: null, supportedOcrLayoutVersions: [], requiredConfidence: 0.9 });
+    expect(isMasteryEvidenceCompatibilityEnabled()).toBe(false);
+    expect(isMasteryEvidenceCompatibilityEnabled(releasedCompatibility)).toBe(true);
+    expect(isMasteryGameVersionSupported("99.0101.1", releasedCompatibility)).toBe(true);
+    expect(isMasteryGameVersionSupported("99.0102.1", releasedCompatibility)).toBe(true);
+    expect(isMasteryGameVersionSupported("99.0100.9", releasedCompatibility)).toBe(false);
+    expect(isMasteryGameVersionSupported("legacy", releasedCompatibility)).toBe(false);
+    expect(isMasteryOcrLayoutSupported("test-layout-v1", releasedCompatibility)).toBe(true);
+    expect(isMasteryOcrLayoutSupported("test-layout-v0", releasedCompatibility)).toBe(false);
+    expect(createMasteryEvidenceCompatibilityV1({ minimumGameVersion: "unreleased", supportedOcrLayoutVersions: ["test-layout-v1"] }).minimumGameVersion).toBeNull();
   });
 });
 
