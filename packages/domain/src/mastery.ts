@@ -3,6 +3,8 @@ export const masteryDifficulties = ["简单", "一般", "困难", "专家", "传
 export type MasteryDifficulty = (typeof masteryDifficulties)[number];
 export type MasteryRunStatus = "active" | "invalidated";
 export type MasteryMapVariant = "classic" | null;
+export type MasteryAcceptanceSource = "submission_automatic" | "submission_review";
+export type MasteryEventCounters = Record<string, number>;
 
 export const masteryXpRuleV1 = {
   version: "v1",
@@ -53,6 +55,7 @@ export const normalizeMasteryRunCode = (value: string) => {
 };
 
 export const calculateMasteryXpV1 = (input: MasteryXpInput): MasteryXpAward => {
+  if (!Object.hasOwn(masteryXpRuleV1.baseDifficultyXp, input.difficulty)) throw new Error("MASTERY_DIFFICULTY_INVALID");
   if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("MASTERY_SETTLEMENT_VALUE_INVALID");
   const mapFactor = input.mapFactor ?? masteryXpRuleV1.defaultMapFactor;
   if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("MASTERY_MAP_FACTOR_INVALID");
@@ -91,6 +94,48 @@ export type MasteryRunForProjection = {
   awardedXp: number;
   acceptedAt: number;
   status: MasteryRunStatus;
+};
+
+export type VerifiedMasteryRunInput = {
+  playerAccountId: string;
+  sourceSubmissionId: string;
+  mapId: string;
+  mapVariant: MasteryMapVariant;
+  difficulty: MasteryDifficulty;
+  gameVersion: string;
+  runCode: string;
+  completionDurationSeconds: number;
+  deaths?: number | null;
+  skips?: number | null;
+  eventCounters?: MasteryEventCounters;
+  acceptanceSource: MasteryAcceptanceSource;
+  acceptedAt?: number;
+  mapFactor?: number | null;
+};
+
+export type VerifiedMasteryRun = MasteryRunForProjection & {
+  playerAccountId: string;
+  sourceSubmissionId: string;
+  gameVersion: string;
+  runCode: string;
+  eventCounters: MasteryEventCounters;
+  acceptanceSource: MasteryAcceptanceSource;
+  xpRuleVersion: string;
+  xpInputSnapshot: MasteryXpSnapshot;
+  invalidatedAt: number | null;
+  invalidatedBy: string | null;
+  invalidationReason: string | null;
+};
+
+export type MasteryRunConflictField = "run_code" | "map" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters";
+
+export type RecordVerifiedMasteryRunResult =
+  | { outcome: "created" | "reused"; run: VerifiedMasteryRun }
+  | { outcome: "conflict"; run: VerifiedMasteryRun; conflictFields: MasteryRunConflictField[] };
+
+export type MasteryRunActor = {
+  actorType: "service" | "user";
+  actorId: string;
 };
 
 export type MasteryDifficultyProfile = {

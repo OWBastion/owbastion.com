@@ -1,9 +1,10 @@
 import { count, desc, eq, and, gt, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateMasteryXpV1, normalizeMasteryRunCode } from "@owbastion/domain";
+import type { AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryEventCounters, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminReview, AgentSearchResult, Challenge, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -817,6 +818,128 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return submission;
   };
 
+  const normalizeMasteryEventCounters = (value: MasteryEventCounters | undefined): MasteryEventCounters => {
+    const entries = Object.entries(value ?? {}).map(([key, count]) => {
+      const normalizedKey = key.trim();
+      if (!normalizedKey || !Number.isInteger(count) || count < 0) throw new Error("MASTERY_EVENT_COUNTER_INVALID");
+      return [normalizedKey, count] as const;
+    }).sort(([left], [right]) => left.localeCompare(right));
+    if (new Set(entries.map(([key]) => key)).size !== entries.length) throw new Error("MASTERY_EVENT_COUNTER_INVALID");
+    return Object.fromEntries(entries);
+  };
+
+  const asVerifiedMasteryRun = (row: typeof masteryRuns.$inferSelect): VerifiedMasteryRun => {
+    try {
+      const eventCounters = normalizeMasteryEventCounters(JSON.parse(row.eventCountersJson) as MasteryEventCounters);
+      const xpInputSnapshot = JSON.parse(row.xpInputSnapshotJson) as MasteryXpSnapshot;
+      return {
+        runId: row.id,
+        playerAccountId: row.playerAccountId,
+        sourceSubmissionId: row.sourceSubmissionId,
+        mapId: row.mapId,
+        mapVariant: (row.mapVariant ?? null) as VerifiedMasteryRun["mapVariant"],
+        difficulty: row.difficulty as VerifiedMasteryRun["difficulty"],
+        gameVersion: row.gameVersion,
+        runCode: row.runCode,
+        completionDurationSeconds: row.completionDurationSeconds,
+        deaths: row.deaths,
+        skips: row.skips,
+        eventCounters,
+        acceptanceSource: row.acceptanceSource as VerifiedMasteryRun["acceptanceSource"],
+        acceptedAt: row.acceptedAt,
+        status: row.status as VerifiedMasteryRun["status"],
+        invalidatedAt: row.invalidatedAt,
+        invalidatedBy: row.invalidatedBy,
+        invalidationReason: row.invalidationReason,
+        xpRuleVersion: row.xpRuleVersion,
+        xpInputSnapshot,
+        awardedXp: row.awardedXp,
+      };
+    } catch {
+      throw new Error("MASTERY_RUN_DATA_INVALID");
+    }
+  };
+
+  const prepareVerifiedMasteryRun = (input: VerifiedMasteryRunInput) => {
+    const required = (value: string, error: string) => {
+      const normalized = value.trim();
+      if (!normalized) throw new Error(error);
+      return normalized;
+    };
+    const completionDurationSeconds = input.completionDurationSeconds;
+    if (!Number.isInteger(completionDurationSeconds) || completionDurationSeconds <= 0) throw new Error("MASTERY_COMPLETION_DURATION_INVALID");
+    const acceptedAt = input.acceptedAt ?? now();
+    if (!Number.isInteger(acceptedAt) || acceptedAt <= 0) throw new Error("MASTERY_ACCEPTED_AT_INVALID");
+    const mapVariant = input.mapVariant ?? null;
+    if (mapVariant !== null && mapVariant !== "classic") throw new Error("MASTERY_MAP_VARIANT_INVALID");
+    if (!(["submission_automatic", "submission_review"] as const).includes(input.acceptanceSource)) throw new Error("MASTERY_ACCEPTANCE_SOURCE_INVALID");
+    return {
+      playerAccountId: required(input.playerAccountId, "MASTERY_PLAYER_NOT_FOUND"),
+      sourceSubmissionId: required(input.sourceSubmissionId, "MASTERY_SUBMISSION_NOT_FOUND"),
+      mapId: required(input.mapId, "MASTERY_MAP_NOT_FOUND"),
+      mapVariant,
+      difficulty: input.difficulty,
+      gameVersion: required(input.gameVersion, "MASTERY_GAME_VERSION_INVALID"),
+      runCode: normalizeMasteryRunCode(input.runCode),
+      completionDurationSeconds,
+      deaths: input.deaths ?? null,
+      skips: input.skips ?? null,
+      eventCounters: normalizeMasteryEventCounters(input.eventCounters),
+      acceptanceSource: input.acceptanceSource,
+      acceptedAt,
+      mapFactor: input.mapFactor ?? null,
+    };
+  };
+
+  const masteryConflictFields = (run: VerifiedMasteryRun, input: ReturnType<typeof prepareVerifiedMasteryRun>): MasteryRunConflictField[] => {
+    const fields: MasteryRunConflictField[] = [];
+    if (run.runCode !== input.runCode) fields.push("run_code");
+    if (run.mapId !== input.mapId) fields.push("map");
+    if (run.mapVariant !== input.mapVariant) fields.push("map_variant");
+    if (run.difficulty !== input.difficulty) fields.push("difficulty");
+    if (run.gameVersion !== input.gameVersion) fields.push("game_version");
+    if (run.completionDurationSeconds !== input.completionDurationSeconds) fields.push("completion_duration");
+    if (run.deaths !== input.deaths) fields.push("deaths");
+    if (run.skips !== input.skips) fields.push("skips");
+    if (JSON.stringify(run.eventCounters) !== JSON.stringify(input.eventCounters)) fields.push("event_counters");
+    return fields;
+  };
+
+  const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
+    const rows = await db.select().from(masteryRuns).where(and(
+      eq(masteryRuns.playerAccountId, input.playerAccountId),
+      eq(masteryRuns.status, "active"),
+      input.mapId ? eq(masteryRuns.mapId, input.mapId) : undefined,
+    ));
+    const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
+    return buildMasteryProfiles(rows.map(asVerifiedMasteryRun), recentLimit);
+  };
+
+  const transitionVerifiedMasteryRun = async (input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedMasteryRun> => {
+    const runId = input.masteryRunId.trim();
+    if (!runId) throw new Error("MASTERY_RUN_NOT_FOUND");
+    if (!actor.actorId.trim()) throw new Error("MASTERY_RUN_ACTOR_INVALID");
+    const row = await db.select().from(masteryRuns).where(eq(masteryRuns.id, runId)).get();
+    if (!row) throw new Error("MASTERY_RUN_NOT_FOUND");
+    if (row.status === nextStatus) return asVerifiedMasteryRun(row);
+    if (nextStatus === "active") {
+      const activeDuplicate = await db.select({ id: masteryRuns.id }).from(masteryRuns).where(and(
+        eq(masteryRuns.playerAccountId, row.playerAccountId),
+        eq(masteryRuns.runCode, row.runCode),
+        eq(masteryRuns.status, "active"),
+        ne(masteryRuns.id, row.id),
+      )).get();
+      if (activeDuplicate) throw new Error("MASTERY_RUN_CODE_CONFLICT");
+    }
+    const timestamp = now();
+    const reason = input.reason?.trim() || null;
+    await database.batch([
+      database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(nextStatus, nextStatus === "invalidated" ? timestamp : null, nextStatus === "invalidated" ? actor.actorId : null, nextStatus === "invalidated" ? reason : null, row.id),
+      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), row.id, nextStatus === "invalidated" ? "invalidated" : "restored", actor.actorType, actor.actorId, reason, timestamp),
+    ]);
+    return asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, row.id)).get())!);
+  };
+
   type AdminSubmissionChallenge =
     | { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" }
     | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" };
@@ -1022,6 +1145,64 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   return {
     dispatchPendingQqGroupPolicyEvents,
+    async recordVerifiedMasteryRun(input): Promise<RecordVerifiedMasteryRunResult> {
+      const candidate = prepareVerifiedMasteryRun(input);
+      const source = await db.select({ playerAccountId: bindings.playerAccountId }).from(submissions)
+        .innerJoin(bindings, eq(submissions.bindingId, bindings.id))
+        .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
+      if (!source) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
+      if (source.playerAccountId !== candidate.playerAccountId) throw new Error("MASTERY_SUBMISSION_PLAYER_MISMATCH");
+      const [player, map] = await Promise.all([
+        db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
+        db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
+      ]);
+      if (!player) throw new Error("MASTERY_PLAYER_NOT_FOUND");
+      if (!map) throw new Error("MASTERY_MAP_NOT_FOUND");
+
+      const bySource = await db.select().from(masteryRuns).where(eq(masteryRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+      if (bySource) {
+        const run = asVerifiedMasteryRun(bySource);
+        const conflictFields = masteryConflictFields(run, candidate);
+        return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+      }
+
+      const activeByCode = await db.select().from(masteryRuns).where(and(
+        eq(masteryRuns.playerAccountId, candidate.playerAccountId),
+        eq(masteryRuns.runCode, candidate.runCode),
+        eq(masteryRuns.status, "active"),
+      )).get();
+      if (activeByCode) {
+        const run = asVerifiedMasteryRun(activeByCode);
+        const conflictFields = masteryConflictFields(run, candidate);
+        return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+      }
+
+      const award = calculateMasteryXpV1({
+        difficulty: candidate.difficulty,
+        mapFactor: candidate.mapFactor,
+        deaths: candidate.deaths,
+        skips: candidate.skips,
+      });
+      const runId = crypto.randomUUID();
+      await database.batch([
+        database.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.runCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
+        database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, 'accepted', 'service', ?, NULL, ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt),
+      ]);
+      return { outcome: "created", run: asVerifiedMasteryRun((await db.select().from(masteryRuns).where(eq(masteryRuns.id, runId)).get())!) };
+    },
+
+    async invalidateVerifiedMasteryRun(input, actor) {
+      return transitionVerifiedMasteryRun(input, actor, "invalidated");
+    },
+
+    async restoreVerifiedMasteryRun(input, actor) {
+      return transitionVerifiedMasteryRun(input, actor, "active");
+    },
+
+    async rebuildMasteryProfiles(input) {
+      return activeMasteryProfiles(input);
+    },
+
     async listAgentEvents(input: AgentEventQuery) {
       const events = await this.listRandomEvents({ category: input.category, rarity: input.rarity });
       const query = input.query?.toLocaleLowerCase();

@@ -292,6 +292,47 @@ export const submissions = sqliteTable("submissions", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const masteryRuns = sqliteTable("mastery_runs", {
+  id: text("id").primaryKey(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  sourceSubmissionId: text("source_submission_id").notNull().references(() => submissions.id),
+  mapId: text("map_id").notNull().references(() => maps.id),
+  mapVariant: text("map_variant"),
+  difficulty: text("difficulty").notNull(),
+  gameVersion: text("game_version").notNull(),
+  runCode: text("run_code").notNull(),
+  completionDurationSeconds: integer("completion_duration_seconds").notNull(),
+  deaths: integer("deaths"),
+  skips: integer("skips"),
+  eventCountersJson: text("event_counters_json").notNull().default("{}"),
+  acceptanceSource: text("acceptance_source").notNull(),
+  acceptedAt: integer("accepted_at").notNull(),
+  status: text("status").notNull().default("active"),
+  invalidatedAt: integer("invalidated_at"),
+  invalidatedBy: text("invalidated_by"),
+  invalidationReason: text("invalidation_reason"),
+  xpRuleVersion: text("xp_rule_version").notNull(),
+  xpInputSnapshotJson: text("xp_input_snapshot_json").notNull(),
+  awardedXp: integer("awarded_xp").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  sourceSubmissionIdx: uniqueIndex("mastery_runs_source_submission_idx").on(table.sourceSubmissionId),
+  activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.runCode).where(sql`${table.status} = 'active'`),
+  activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_accepted_idx").on(table.playerAccountId, table.mapId, table.acceptedAt).where(sql`${table.status} = 'active'`),
+}));
+
+export const masteryRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_events", {
+  id: text("id").primaryKey(),
+  masteryRunId: text("mastery_run_id").notNull().references(() => masteryRuns.id),
+  transition: text("transition").notNull(),
+  actorType: text("actor_type").notNull(),
+  actorId: text("actor_id").notNull(),
+  reason: text("reason"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  runCreatedIdx: index("mastery_run_lifecycle_events_run_created_idx").on(table.masteryRunId, table.createdAt),
+}));
+
 export const uploadSessions = sqliteTable("upload_sessions", {
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),

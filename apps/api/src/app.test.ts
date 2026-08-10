@@ -4,6 +4,10 @@ import { createApp, type RuntimeEnv } from "./app";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  recordVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  invalidateVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  restoreVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  rebuildMasteryProfiles: async () => [],
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),

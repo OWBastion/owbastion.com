@@ -42,6 +42,7 @@ import type {
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
+import type { MasteryMapProfile, MasteryRunActor, RecordVerifiedMasteryRunResult, VerifiedMasteryRun, VerifiedMasteryRunInput } from "./mastery";
 
 export * from "./mastery";
 
@@ -125,6 +126,10 @@ export type AgentMapTitleHolderQuery = AgentPageInput & { mapId: string };
 export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
 
 export type PlatformServices = {
+  recordVerifiedMasteryRun(input: VerifiedMasteryRunInput): Promise<RecordVerifiedMasteryRunResult>;
+  invalidateVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
+  restoreVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
+  rebuildMasteryProfiles(input: { playerAccountId: string; mapId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]>;
   listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
   getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
