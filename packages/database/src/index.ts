@@ -999,6 +999,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return rows.map(asVerifiedMasteryRun);
   };
 
+  const loadPlayerMasteryHistory = async (input: { playerAccountId: string; mapId?: string; page: number; pageSize: number }) => {
+    const condition = and(
+      eq(masteryRuns.playerAccountId, input.playerAccountId),
+      input.mapId ? eq(masteryRuns.mapId, input.mapId) : undefined,
+    );
+    const [rows, [{ total }]] = await Promise.all([
+      db.select().from(masteryRuns).where(condition).orderBy(desc(masteryRuns.acceptedAt), desc(masteryRuns.id)).limit(input.pageSize).offset((input.page - 1) * input.pageSize),
+      db.select({ total: count() }).from(masteryRuns).where(condition),
+    ]);
+    return { runs: rows.map(asVerifiedMasteryRun), total };
+  };
+
   const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
     const runs = await loadActiveMasteryRuns(input);
     const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
@@ -1015,7 +1027,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     skips: run.skips,
     awardedXp: run.awardedXp,
     acceptedAt: run.acceptedAt,
-    status: "active",
+    status: run.status,
   });
 
   const playerMasteryProfileView = (profile: MasteryMapProfile): CurrentPlayerMasteryResponse["profiles"][number] => ({
@@ -3479,18 +3491,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const mapId = input.mapId?.trim() || undefined;
       const page = Number.isInteger(input.page) && input.page > 0 ? input.page : 1;
       const pageSize = Number.isInteger(input.pageSize) && input.pageSize > 0 ? Math.min(50, input.pageSize) : 20;
-      const runs = await loadActiveMasteryRuns({ playerAccountId: access.player.id, mapId });
-      const profiles = buildMasteryProfiles(runs, 10);
-      const orderedRuns = [...runs].sort((left, right) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId));
-      const pageOffset = (page - 1) * pageSize;
+      const [activeRuns, history] = await Promise.all([
+        loadActiveMasteryRuns({ playerAccountId: access.player.id, mapId }),
+        loadPlayerMasteryHistory({ playerAccountId: access.player.id, mapId, page, pageSize }),
+      ]);
+      const profiles = buildMasteryProfiles(activeRuns, 10);
       return {
         contractVersion: "1" as const,
         profiles: profiles.map(playerMasteryProfileView),
-        runs: orderedRuns.slice(pageOffset, pageOffset + pageSize).map(playerMasteryRunView),
+        runs: history.runs.map(playerMasteryRunView),
         page,
         pageSize,
-        total: orderedRuns.length,
-        hasMore: pageOffset + pageSize < orderedRuns.length,
+        total: history.total,
+        hasMore: page * pageSize < history.total,
       };
     },
 

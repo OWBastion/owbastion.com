@@ -167,18 +167,21 @@ describe("verified mastery run ledger", () => {
     await expect(services.restoreVerifiedMasteryRun({ masteryRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).rejects.toThrow("MASTERY_RUN_CODE_CONFLICT");
   });
 
-  it("returns only the current player's active, privacy-safe mastery projection", async () => {
+  it("returns only the current player's active aggregate and privacy-safe mastery history", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
-    await services.recordVerifiedMasteryRun(input());
+    const first = await services.recordVerifiedMasteryRun(input());
+    if (first.outcome !== "created") throw new Error("fixture setup failed");
+    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", runCode: "2234-5678-9012", difficulty: "传奇", acceptedAt: 1_200 }));
+    await services.invalidateVerifiedMasteryRun({ masteryRunId: first.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
     await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_100 }));
     sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run("session-1", "attempt-1", "group-1", "member-1", "test", await hashRequest("mastery-session"), Date.now() + 60_000, 1);
 
     const projection = await services.getCurrentPlayerMastery({ sessionToken: "mastery-session", page: 1, pageSize: 20 });
-    expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", totalXp: 225, verifiedRunCount: 1 }], runs: [{ mapId: "map.test", awardedXp: 225, status: "active" }], page: 1, pageSize: 20, total: 1, hasMore: false });
+    expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", verifiedRunCount: 1, highestCompletedDifficulty: "传奇" }], runs: [{ mapId: "map.test", status: "active" }, { mapId: "map.test", status: "invalidated" }], page: 1, pageSize: 20, total: 2, hasMore: false });
     expect(JSON.stringify(projection)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
     await expect(services.getCurrentPlayerMastery({ sessionToken: "other-session", page: 1, pageSize: 20 })).resolves.toBeNull();
   });

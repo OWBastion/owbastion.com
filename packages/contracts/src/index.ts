@@ -751,7 +751,7 @@ export const playerMasteryRunSchema = z.object({
   skips: z.number().int().nonnegative().nullable(),
   awardedXp: z.number().int().nonnegative(),
   acceptedAt: z.number().int().positive(),
-  status: z.literal("active"),
+  status: z.enum(["active", "invalidated"]),
 }).strict();
 
 export const playerMasteryDifficultyStatSchema = z.object({

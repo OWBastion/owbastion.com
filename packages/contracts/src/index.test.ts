@@ -46,7 +46,7 @@ describe("v1 platform contracts", () => {
     expect(currentPlayerResponseSchema.safeParse({ contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] }).success).toBe(true);
   });
 
-  it("keeps player mastery responses limited to active projection fields", () => {
+  it("keeps player mastery responses limited to safe active projections and private history state", () => {
     const run = { runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", mapVariant: null, difficulty: "困难", completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" };
     const response = {
       contractVersion: "1",
@@ -58,6 +58,7 @@ describe("v1 platform contracts", () => {
       hasMore: false,
     };
     expect(currentPlayerMasteryResponseSchema.safeParse(response).success).toBe(true);
+    expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, status: "invalidated" }] }).success).toBe(true);
     expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, runCode: "1234-5678-9012" }] }).success).toBe(false);
     expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, profiles: [{ ...response.profiles[0], recentRuns: [{ ...run, sourceSubmissionId: "00000000-0000-4000-8000-000000000011" }] }] }).success).toBe(false);
   });
