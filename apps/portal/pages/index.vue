@@ -6,35 +6,49 @@ useSeoMeta({
 </script>
 
 <template>
-  <main class="site-shell">
+  <main class="home-page page-shell--readable">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="eyebrow">《躲避堡垒 3》社区</p>
-        <h1 id="hero-title">躲避堡垒 3</h1>
-        <p class="hero-topic">事件 · 成就 · 天梯排名</p>
-        <p class="hero-description">了解规则，完成挑战，查看公开记录。</p>
+        <h1 id="hero-title" class="type-display">躲避堡垒 3</h1>
+        <p class="type-title hero-topic">事件 · 成就 · 天梯排名</p>
       </div>
-      <aside class="focus-panel" aria-labelledby="focus-title">
-        <p class="panel-eyebrow">本期焦点</p>
-        <h2 id="focus-title">首个轮换挑战<br>未开放</h2>
-        <p>限时目标、参与条件和公开完成记录。</p>
-        <ul><li>限时成就挑战</li><li>限时活动</li><li>公开完成记录</li></ul>
-      </aside>
     </section>
 
     <section id="rotation" class="rotation-feature surface-card" aria-labelledby="rotation-title">
-      <div class="feature-copy"><p class="eyebrow">轮换挑战</p><h2 id="rotation-title">限时目标<br>按期开放</h2><p>当前轮换挑战：未开放。</p></div>
-      <div class="feature-detail"><p>首个轮换挑战：未开放。</p></div>
+      <div class="feature-copy">
+        <h2 id="rotation-title" class="type-title">轮换挑战</h2>
+        <p>限时目标按期开放，首个轮换挑战当前未开放。</p>
+      </div>
+      <div class="feature-detail">
+        <p>限时成就挑战</p>
+        <p>限时活动</p>
+        <p>公开完成记录</p>
+      </div>
     </section>
 
     <section class="content-section" aria-labelledby="content-title">
-      <div class="section-heading"><div><h2 id="content-title">游玩记录</h2></div><p>仅展示公开内容。</p></div>
+      <h2 id="content-title" class="type-title">游玩记录</h2>
       <div class="content-grid">
-        <article id="events" class="content-card content-card-wide interactive-card--static"><p class="card-label type-kicker">事件</p><h3 class="type-headline">随机事件</h3><p>已发布的随机事件与规则变化。</p></article>
-        <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">成就</p><h3 class="type-headline">成就挑战</h3><p>查看已发布的目标与完成条件。</p></NuxtLink>
-        <article id="rankings" class="content-card content-card-emphasis interactive-card--static"><p class="card-label type-kicker">天梯排名</p><h3 class="type-headline">公开记录</h3><p>挑战、完成时间与玩家排名。</p></article>
-        <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">版本更新</p><h3 class="type-headline">版本变化</h3><p>已发布的内容与规则变化。</p></NuxtLink>
-        <NuxtLink to="/blog" class="content-card content-card--link interactive-card pressable-soft"><p class="card-label type-kicker">开发日志</p><h3 class="type-headline">开发进展</h3><p>阅读开发进展与设计记录。</p></NuxtLink>
+        <article id="events" class="content-card content-card-wide interactive-card--static">
+          <h3 class="type-headline">随机事件</h3>
+          <p>已发布的随机事件与规则变化。</p>
+        </article>
+        <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft">
+          <h3 class="type-headline">成就挑战</h3>
+          <p>查看已发布的目标与完成条件。</p>
+        </NuxtLink>
+        <article id="rankings" class="content-card content-card-emphasis interactive-card--static">
+          <h3 class="type-headline">公开记录</h3>
+          <p>挑战、完成时间与玩家排名。</p>
+        </article>
+        <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft">
+          <h3 class="type-headline">版本更新</h3>
+          <p>已发布的内容与规则变化。</p>
+        </NuxtLink>
+        <NuxtLink to="/blog" class="content-card content-card--link interactive-card pressable-soft">
+          <h3 class="type-headline">开发日志</h3>
+          <p>阅读开发进展与设计记录。</p>
+        </NuxtLink>
       </div>
     </section>
 
@@ -50,25 +64,32 @@ useSeoMeta({
 </template>
 
 <style scoped>
-.site-shell { padding: 0 clamp(18px, 5vw, 76px) 30px; }
-.hero { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(320px, .72fr); align-items: center; gap: clamp(40px, 8vw, 120px); max-width: 1100px; min-height: 610px; margin: 0 auto; padding: clamp(72px, 11vh, 132px) 0 clamp(70px, 10vh, 115px); }
-h1, h2, h3 { color: var(--text); font-weight: 650; }
-h1 { margin: 0 0 10px; font-size: clamp(3.6rem, 8.1vw, 7.2rem); line-height: .94; letter-spacing: var(--type-display-tracking); }
-.hero-topic { margin: 0 0 27px; font-size: clamp(1.65rem, 3vw, 2.75rem); letter-spacing: -.045em; line-height: 1.05; }
-.hero-description { max-width: 45ch; margin: 0; color: var(--muted); font-size: clamp(1rem, 1.25vw, 1.1rem); line-height: 1.65; }
-.focus-panel { padding: clamp(24px, 3.2vw, 34px); border: 1px solid color-mix(in oklch, var(--accent) 44%, var(--line)); border-radius: 18px; background: var(--accent-surface); }
-.panel-eyebrow, .card-label { margin: 0 0 28px; color: color-mix(in oklch, var(--accent) 82%, var(--on-accent)); font-size: .72rem; font-weight: 700; letter-spacing: .05em; }
-.focus-panel h2 { margin: 0 0 18px; font-size: clamp(1.85rem, 3vw, 2.65rem); line-height: 1.05; letter-spacing: var(--type-headline-tracking); }.focus-panel > p:not(.panel-eyebrow) { margin: 0 0 25px; color: var(--text); font-size: .9rem; line-height: 1.65; }.focus-panel ul { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: .8rem; }.focus-panel li { display: flex; gap: 9px; align-items: center; }.focus-panel li::before { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); content: ""; }
-.rotation-feature { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(230px, .65fr); gap: 38px; max-width: 1100px; margin: 0 auto clamp(120px, 17vw, 210px); padding: clamp(30px, 5vw, 56px); }.feature-copy h2, .section-heading h2 { margin: 0 0 18px; font-size: clamp(2.2rem, 4.4vw, 4.4rem); line-height: .98; letter-spacing: var(--type-title-tracking); }.feature-copy > p:last-child, .feature-detail { color: var(--muted); font-size: .9rem; line-height: 1.65; }.feature-detail { align-self: end; padding-left: 22px; border-left: 1px solid var(--line-strong); }.feature-detail p { margin: 0 0 8px; color: var(--text); font-weight: 600; }.feature-detail span { color: var(--quiet); }
-.content-section { max-width: 1100px; margin: 0 auto clamp(120px, 17vw, 210px); }.section-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .65fr); align-items: end; gap: 40px; margin-bottom: 46px; }.section-heading > p { max-width: 32ch; margin: 0 0 5px; color: var(--muted); font-size: .9rem; line-height: 1.65; }.content-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }.content-card { min-height: 220px; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; text-decoration: none; }.content-card-wide { grid-column: span 2; min-height: 210px; }.content-card-emphasis { background: color-mix(in oklch, var(--surface-raised) 72%, var(--accent-surface)); }.card-label { margin: 0 0 48px; color: var(--accent); }.content-card .type-headline { max-width: 18ch; margin: 0 0 11px; }.content-card p:last-child { max-width: 42ch; margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.62; }
+.home-page { padding-block: clamp(56px, 9vh, 96px) 40px; }
+.hero { padding-block: clamp(48px, 8vh, 88px) clamp(56px, 9vh, 96px); }
+.hero h1 { margin-bottom: 14px; }
+.hero-topic { margin: 0; color: var(--muted); }
+.rotation-feature { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(230px, .65fr); gap: 38px; margin-bottom: clamp(72px, 12vw, 140px); padding: clamp(30px, 5vw, 56px); }
+.rotation-feature .type-title { margin-bottom: 18px; }
+.feature-copy > p:last-child { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.65; }
+.feature-detail { align-self: end; padding-left: 22px; border-left: 1px solid var(--line-strong); }
+.feature-detail p { margin: 0 0 8px; color: var(--text); font-weight: 600; }
+.content-section { margin-bottom: clamp(72px, 12vw, 140px); }
+.content-section > .type-title { margin-bottom: 34px; }
+.content-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.content-card { display: grid; min-height: 200px; align-content: start; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; text-decoration: none; }
+.content-card-wide { grid-column: span 2; min-height: 180px; }
+.content-card-emphasis { background: color-mix(in oklch, var(--surface-raised) 72%, var(--accent-surface)); }
+.content-card .type-headline { max-width: 18ch; margin-bottom: 11px; }
+.content-card p:last-child { max-width: 42ch; margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.62; }
 .content-card--link.interactive-card:hover,
 .content-card--link.interactive-card:focus-visible {
   border-color: color-mix(in oklch, var(--accent) 42%, var(--line-strong));
   background: color-mix(in oklch, var(--surface) 88%, var(--accent-surface));
 }
-.footer { display: flex; justify-content: space-between; gap: 18px; max-width: 1280px; margin: 0 auto; padding-top: 25px; border-top: 1px solid var(--line); color: var(--quiet); font-size: .66rem; letter-spacing: .07em; }
+.footer { display: flex; justify-content: space-between; gap: 18px; padding-top: 25px; border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--type-caption-size); }
 .footer-nav { display: flex; align-items: center; gap: 1.125rem; }
 .footer-link { color: var(--quiet); text-decoration: none; }
 .footer-link:hover, .footer-link:focus-visible { color: var(--text); }
-@media (max-width: 820px) { .hero, .rotation-feature, .section-heading { grid-template-columns: 1fr; }.hero { gap: 36px; min-height: auto; }.focus-panel { max-width: 520px; }.feature-detail { padding: 22px 0 0; border-top: 1px solid var(--line-strong); border-left: 0; } } @media (max-width: 620px) { .site-shell { padding-inline: 14px; }.hero { padding-top: 70px; }.hero-copy { max-width: 35rem; }h1 { font-size: clamp(3.2rem, 16vw, 5rem); }.hero-topic { font-size: 1.65rem; }.rotation-feature { gap: 26px; padding: 25px; }.content-grid { grid-template-columns: 1fr; }.content-card-wide { grid-column: auto; }.content-card { min-height: 0; padding: 23px; }.card-label { margin-bottom: 38px; }.footer { flex-direction: column; align-items: flex-start; gap: 9px; } }
+@media (max-width: 820px) { .rotation-feature { grid-template-columns: 1fr; gap: 24px; }.feature-detail { padding: 18px 0 0; border-top: 1px solid var(--line-strong); border-left: 0; } }
+@media (max-width: 620px) { .content-grid { grid-template-columns: 1fr; }.content-card-wide { grid-column: auto; }.content-card { min-height: 0; padding: 23px; }.footer { flex-direction: column; align-items: flex-start; gap: 9px; } }
 </style>
