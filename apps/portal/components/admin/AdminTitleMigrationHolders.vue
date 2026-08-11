@@ -27,7 +27,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
         <UInput :model-value="query" icon="i-lucide-search" placeholder="搜索持有者或称号" aria-label="搜索历史称号" @update:model-value="emit('update:query', $event)" />
       </div>
     </template>
-    <div class="holder-filters" role="tablist" aria-label="历史持有人筛选">
+    <div class="holder-filters" aria-label="历史持有人筛选">
       <UButton
         v-for="item in filters"
         :key="item.value"
@@ -35,8 +35,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
         :variant="filter === item.value ? 'soft' : 'ghost'"
         :color="filter === item.value ? 'primary' : 'neutral'"
         size="sm"
-        role="tab"
-        :aria-selected="filter === item.value"
+        :aria-pressed="filter === item.value"
         @click="emit('update:filter', item.value)"
       />
     </div>

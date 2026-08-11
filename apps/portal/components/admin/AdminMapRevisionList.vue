@@ -34,6 +34,7 @@ const dateLabel = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { date
           type="button"
           class="revision-card"
           :class="{ 'revision-card--selected': revision.revisionId === props.selectedRevisionId }"
+          :aria-pressed="revision.revisionId === props.selectedRevisionId"
           :disabled="props.disabled"
           @click="emit('select', revision.revisionId)"
         >

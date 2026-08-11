@@ -130,8 +130,8 @@ onMounted(() => { void loadOptions(); });
     <div class="section-heading"><div><h3 id="player-titles-title">成就与称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
     <p v-if="errorMessage" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
-      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" @click="activeTab = 'global'">通用称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
-      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
+      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">通用称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
+      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" :aria-pressed="activeTab === 'map'" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
     </nav>
     <div v-if="activeGrants.length" class="title-table-wrap">
       <table class="title-table">

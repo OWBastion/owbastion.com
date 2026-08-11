@@ -102,6 +102,7 @@ const formattedDisplay = computed(() => {
               type="time"
               size="sm"
               class="w-28"
+              aria-label="具体时间"
               :model-value="timeValue"
               @update:model-value="handleTimeChange"
             />
