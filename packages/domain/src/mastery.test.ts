@@ -4,6 +4,7 @@ import { buildMasteryMapProfile, buildMasteryProfiles, calculateMasteryXpV1, cre
 const run = (overrides: Partial<MasteryRunForProjection> = {}): MasteryRunForProjection => ({
   runId: "run-1",
   mapId: "map.test",
+  gameplayRevisionId: "revision:map.test:initial",
   mapVariant: null,
   difficulty: "困难",
   completionDurationSeconds: 600,
@@ -72,8 +73,9 @@ describe("mastery projections", () => {
   ];
 
   it("returns independent personal bests, deterministic ties, and only active runs", () => {
-    expect(buildMasteryMapProfile("map.test", activeRuns, 2)).toEqual({
+    expect(buildMasteryMapProfile("map.test", "revision:map.test:initial", activeRuns, 2)).toEqual({
       mapId: "map.test",
+      gameplayRevisionId: "revision:map.test:initial",
       totalXp: 1170,
       verifiedRunCount: 3,
       difficultyStats: [
@@ -90,7 +92,7 @@ describe("mastery projections", () => {
 
   it("strips ledger-only facts from the recent-run projection", () => {
     const ledgerRun = { ...run(), runCode: "1234-5678-9012", sourceSubmissionId: "submission-1", playerAccountId: "account-1", eventCounters: { "event.alpha": 1 }, xpInputSnapshot: { ruleVersion: "v1" } } as MasteryRunForProjection;
-    const [recentRun] = buildMasteryMapProfile("map.test", [ledgerRun]).recentRuns;
+    const [recentRun] = buildMasteryMapProfile("map.test", "revision:map.test:initial", [ledgerRun]).recentRuns;
     expect(recentRun).toEqual(run());
     expect(JSON.stringify(recentRun)).not.toMatch(/runCode|sourceSubmissionId|playerAccountId|eventCounters|xpInputSnapshot/);
   });
@@ -102,6 +104,18 @@ describe("mastery projections", () => {
     expect(buildMasteryProfiles(restored).map((profile) => ({ mapId: profile.mapId, totalXp: profile.totalXp, verifiedRunCount: profile.verifiedRunCount }))).toEqual([
       { mapId: "map.test", totalXp: 1170, verifiedRunCount: 3 },
       { mapId: "map.other", totalXp: 325, verifiedRunCount: 1 },
+    ]);
+  });
+
+  it("keeps active runs from different gameplay revisions out of each other's profiles", () => {
+    const runs = [
+      run({ runId: "run-default", gameplayRevisionId: "revision:map.test:r2", awardedXp: 325 }),
+      run({ runId: "run-classic", gameplayRevisionId: "revision:map.test:r1", mapVariant: "classic", awardedXp: 600 }),
+    ];
+
+    expect(buildMasteryProfiles(runs).map((profile) => ({ revision: profile.gameplayRevisionId, totalXp: profile.totalXp, count: profile.verifiedRunCount }))).toEqual([
+      { revision: "revision:map.test:r1", totalXp: 600, count: 1 },
+      { revision: "revision:map.test:r2", totalXp: 325, count: 1 },
     ]);
   });
 });

@@ -6,8 +6,8 @@ const history = {
   contractVersion: "1" as const,
   profiles: [],
   runs: [
-    { runId: "00000000-0000-4000-8000-000000000001", mapId: "map.samoa", mapVariant: null, difficulty: "地狱" as const, completionDurationSeconds: 640, deaths: 1, skips: 0, awardedXp: 225, acceptedAt: 1_000, status: "active" as const },
-    { runId: "00000000-0000-4000-8000-000000000002", mapId: "map.samoa", mapVariant: null, difficulty: "传奇" as const, completionDurationSeconds: 720, deaths: 2, skips: 1, awardedXp: 180, acceptedAt: 900, status: "invalidated" as const, runCode: "1234-5678-9012" },
+    { runId: "00000000-0000-4000-8000-000000000001", mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:initial", gameplayRevisionLifecycle: "default" as const, mapVariant: null, difficulty: "地狱" as const, completionDurationSeconds: 640, deaths: 1, skips: 0, awardedXp: 225, acceptedAt: 1_000, status: "active" as const },
+    { runId: "00000000-0000-4000-8000-000000000002", mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:initial", gameplayRevisionLifecycle: "default" as const, mapVariant: null, difficulty: "传奇" as const, completionDurationSeconds: 720, deaths: 2, skips: 1, awardedXp: 180, acceptedAt: 900, status: "invalidated" as const, runCode: "1234-5678-9012" },
   ],
   page: 1,
   pageSize: 2,

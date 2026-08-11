@@ -153,7 +153,8 @@ const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_play
 export const masteryDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
 const masteryRunStatusSchema = z.enum(["active", "invalidated"]);
 const masteryAcceptanceSourceSchema = z.enum(["submission_automatic", "submission_review"]);
-const masteryRunConflictFieldSchema = z.enum(["run_code", "map", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
+const masteryRunConflictFieldSchema = z.enum(["run_code", "map", "gameplay_revision", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
+const gameplayRevisionLifecycleSchema = z.enum(["preparing", "default", "selectable", "historical"]);
 const masterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
 const playerMasterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "invalidated"]);
 const playerMasterySubmissionOutcomeSchema = z.object({
@@ -688,6 +689,8 @@ export const adminMasteryRunSchema = z.object({
   sourceSubmissionId: z.string().uuid(),
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
+  gameplayRevisionId: externalId,
+  gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   mapVariant: z.literal("classic").nullable(),
   difficulty: masteryDifficultySchema,
   gameVersion: z.string().trim().min(1).max(64),
@@ -716,6 +719,7 @@ const adminMasteryDifficultyStatSchema = z.object({
 
 export const adminMasteryRunProjectionSchema = z.object({
   mapId: externalId,
+  gameplayRevisionId: externalId,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().nonnegative(),
   difficultyStats: z.array(adminMasteryDifficultyStatSchema).max(6),
@@ -876,6 +880,8 @@ export const currentPlayerResponseSchema = z.object({
 export const playerMasteryRunSchema = z.object({
   runId: z.string().uuid(),
   mapId: externalId,
+  gameplayRevisionId: externalId,
+  gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   mapVariant: z.literal("classic").nullable(),
   difficulty: masteryDifficultySchema,
   completionDurationSeconds: z.number().int().positive(),
@@ -894,6 +900,8 @@ export const playerMasteryDifficultyStatSchema = z.object({
 
 export const playerMasteryMapProfileSchema = z.object({
   mapId: externalId,
+  gameplayRevisionId: externalId,
+  gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().positive(),
   difficultyStats: z.array(playerMasteryDifficultyStatSchema).max(6),

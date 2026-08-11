@@ -61,14 +61,26 @@ const hashRequest = async (value: unknown) => {
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE player_accounts (id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE TABLE gameplay_revisions (
+    id TEXT PRIMARY KEY NOT NULL,
+    map_id TEXT NOT NULL REFERENCES maps(id),
+    lifecycle TEXT NOT NULL,
+    legacy_map_variant TEXT,
+    copied_from_revision_id TEXT,
+    reset_reason TEXT,
+    game_version TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
   CREATE TABLE qq_sessions (id TEXT PRIMARY KEY NOT NULL, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
-  CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, binding_id TEXT NOT NULL REFERENCES bindings(id));
+  CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, binding_id TEXT NOT NULL REFERENCES bindings(id), gameplay_revision_id TEXT REFERENCES gameplay_revisions(id));
   CREATE TABLE mastery_runs (
     id TEXT PRIMARY KEY NOT NULL,
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
     map_id TEXT NOT NULL REFERENCES maps(id),
+    gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
     map_variant TEXT,
     difficulty TEXT NOT NULL,
     game_version TEXT NOT NULL,
@@ -113,6 +125,8 @@ const seed = (sqlite: DatabaseSync) => sqlite.exec(`
     ('account-1', '1001', 'One', 'one', 1, 1), ('account-2', '1002', 'Two', 'two', 1, 1);
   INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES
     ('map.test', 'Test', '26.0810.1', 'active', '26.0810.1', 1, 1);
+  INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES
+    ('revision:map.test:initial', 'map.test', 'default', NULL, NULL, NULL, '26.0810.1', 1, 1);
   INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES
     ('binding-1', 'identity-1', 'account-1', 'qq', 'group-1', 'member-1', 'active', 1), ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1);
   INSERT INTO submissions (id, binding_id) VALUES
@@ -123,6 +137,7 @@ const input = (overrides: Partial<VerifiedMasteryRunInput> = {}): VerifiedMaster
   playerAccountId: "account-1",
   sourceSubmissionId: "submission-1",
   mapId: "map.test",
+  gameplayRevisionId: "revision:map.test:initial",
   mapVariant: null,
   difficulty: "困难",
   gameVersion: "26.0810.1",
@@ -223,5 +238,35 @@ describe("verified mastery run ledger", () => {
     expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", verifiedRunCount: 1, highestCompletedDifficulty: "传奇" }], runs: [{ mapId: "map.test", status: "active" }, { mapId: "map.test", status: "invalidated" }], page: 1, pageSize: 20, total: 2, hasMore: false });
     expect(JSON.stringify(projection)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
     await expect(services.getCurrentPlayerMastery({ sessionToken: "other-session", page: 1, pageSize: 20 })).resolves.toBeNull();
+  });
+
+  it("keeps each gameplay revision's progression independent and lets a re-enabled revision recover only its own profile", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-1", runCode: "1234-5678-9012", acceptedAt: 1_000 }));
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = 'revision:map.test:initial'").run();
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.test:rework', 'map.test', 'default', NULL, 'revision:map.test:initial', 'difficulty redesign', '26.0810.2', 2, 2)").run();
+    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", gameplayRevisionId: "revision:map.test:rework", runCode: "2234-5678-9012", acceptedAt: 2_000 }));
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session-revision', 'attempt-revision', 'group-1', 'member-1', 'test', ?, ?, 1)")
+      .run(await hashRequest("revision-session"), Date.now() + 60_000);
+
+    const current = await services.getCurrentPlayerMastery({ sessionToken: "revision-session", mapId: "map.test", page: 1, pageSize: 20 });
+    expect(current).toMatchObject({
+      profiles: [{ gameplayRevisionId: "revision:map.test:rework", gameplayRevisionLifecycle: "default", verifiedRunCount: 1 }],
+      runs: expect.arrayContaining([
+        expect.objectContaining({ gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "historical" }),
+        expect.objectContaining({ gameplayRevisionId: "revision:map.test:rework", gameplayRevisionLifecycle: "default" }),
+      ]),
+    });
+    expect(current.profiles).not.toContainEqual(expect.objectContaining({ gameplayRevisionId: "revision:map.test:initial" }));
+
+    const historical = await services.getCurrentPlayerMastery({ sessionToken: "revision-session", mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 });
+    expect(historical).toMatchObject({ profiles: [{ gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "historical", verifiedRunCount: 1 }], total: 1 });
+
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'selectable' WHERE id = 'revision:map.test:initial'").run();
+    const selectable = await services.getCurrentPlayerMastery({ sessionToken: "revision-session", mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 });
+    expect(selectable).toMatchObject({ profiles: [{ gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "selectable", verifiedRunCount: 1 }], total: 1 });
   });
 });

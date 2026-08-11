@@ -97,6 +97,31 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE gameplay_revisions (
+      id TEXT PRIMARY KEY NOT NULL,
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      lifecycle TEXT NOT NULL,
+      legacy_map_variant TEXT,
+      copied_from_revision_id TEXT,
+      reset_reason TEXT,
+      game_version TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE gameplay_revision_challenge_assignments (
+      id TEXT PRIMARY KEY NOT NULL,
+      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      challenge_family TEXT NOT NULL,
+      challenge_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition TEXT,
+      evidence_rule TEXT,
+      submission_mode TEXT,
+      slot TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
     CREATE TABLE map_metadata (
       map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id),
       difficulty_rating TEXT,
@@ -260,6 +285,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
       title_key TEXT NOT NULL REFERENCES title_catalog(key),
       map_id TEXT REFERENCES maps(id),
+      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
       slot TEXT,
       status TEXT NOT NULL,
       source_type TEXT NOT NULL,
@@ -281,6 +307,9 @@ const seedCatalog = (sqlite: DatabaseSync, { maps, achievements }: { maps: numbe
       "INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, '2026.07.15', 'active', '2026.07.15', ?, ?)",
     ).run(mapId, `地图 ${i}`, now, now);
     sqlite.prepare(
+      "INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'default', NULL, NULL, NULL, '2026.07.15', ?, ?)",
+    ).run(`revision:${mapId}:initial`, mapId, now, now);
+    sqlite.prepare(
       "INSERT INTO map_metadata (map_id, difficulty_rating, mechanics_json, cover_url, background_url, updated_at, updated_by) VALUES (?, 'A', '[]', NULL, NULL, ?, 'test')",
     ).run(mapId, now);
   }
@@ -298,8 +327,12 @@ const seedCatalog = (sqlite: DatabaseSync, { maps, achievements }: { maps: numbe
     const firstMap = `map.${i % maps}`;
     const secondMap = `map.${(i + 1) % maps}`;
     sqlite.prepare("INSERT INTO achievement_challenge_maps (challenge_id, map_id) VALUES (?, ?)").run(challengeId, firstMap);
+    sqlite.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, created_at, updated_at) VALUES (?, ?, ?, 'title_challenge', ?, 1, ?, ?)")
+      .run(`assignment:${challengeId}:${firstMap}`, `revision:${firstMap}:initial`, firstMap, challengeId, now, now);
     if (secondMap !== firstMap) {
       sqlite.prepare("INSERT INTO achievement_challenge_maps (challenge_id, map_id) VALUES (?, ?)").run(challengeId, secondMap);
+      sqlite.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, created_at, updated_at) VALUES (?, ?, ?, 'title_challenge', ?, 1, ?, ?)")
+        .run(`assignment:${challengeId}:${secondMap}`, `revision:${secondMap}:initial`, secondMap, challengeId, now, now);
     }
   }
 

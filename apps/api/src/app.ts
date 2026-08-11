@@ -154,19 +154,21 @@ const playerMasteryQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
   const names = new Set<string>();
   params.forEach((_value, name) => names.add(name));
-  if ([...names].some((name) => !["mapId", "page", "pageSize"].includes(name))) return null;
-  if (["mapId", "page", "pageSize"].some((name) => params.getAll(name).length > 1)) return null;
+  if ([...names].some((name) => !["mapId", "gameplayRevisionId", "page", "pageSize"].includes(name))) return null;
+  if (["mapId", "gameplayRevisionId", "page", "pageSize"].some((name) => params.getAll(name).length > 1)) return null;
   const mapId = params.get("mapId");
+  const gameplayRevisionId = params.get("gameplayRevisionId");
   const page = Number(params.get("page") ?? "1");
   const pageSize = Number(params.get("pageSize") ?? "20");
   if (mapId !== null && (!mapId.trim() || mapId.trim().length > 256)) return null;
+  if (gameplayRevisionId !== null && (!gameplayRevisionId.trim() || gameplayRevisionId.trim().length > 256)) return null;
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
-  return { mapId: mapId?.trim() || undefined, page, pageSize };
+  return { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, page, pageSize };
 };
 
 const adminMasteryRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
-  const allowed = ["playerAccountId", "mapId", "difficulty", "status", "acceptanceSource", "runCode", "from", "to", "page", "pageSize"];
+  const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "acceptanceSource", "runCode", "from", "to", "page", "pageSize"];
   const names = new Set<string>();
   params.forEach((_value, name) => names.add(name));
   if ([...names].some((name) => !allowed.includes(name)) || allowed.some((name) => params.getAll(name).length > 1)) return null;
@@ -174,6 +176,7 @@ const adminMasteryRunQuery = (request: Request) => {
   const pageSize = Number(params.get("pageSize") ?? "20");
   const playerAccountId = params.get("playerAccountId")?.trim() || undefined;
   const mapId = params.get("mapId")?.trim() || undefined;
+  const gameplayRevisionId = params.get("gameplayRevisionId")?.trim() || undefined;
   const difficulty = params.get("difficulty")?.trim() || undefined;
   const status = params.get("status")?.trim() || undefined;
   const acceptanceSource = params.get("acceptanceSource")?.trim() || undefined;
@@ -186,6 +189,7 @@ const adminMasteryRunQuery = (request: Request) => {
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
   if (playerAccountId && !uuid.test(playerAccountId)) return null;
   if (mapId && mapId.length > 256) return null;
+  if (gameplayRevisionId && gameplayRevisionId.length > 256) return null;
   if (difficulty && !["简单", "一般", "困难", "专家", "传奇", "地狱"].includes(difficulty)) return null;
   if (status && !["active", "invalidated"].includes(status)) return null;
   if (acceptanceSource && !["submission_automatic", "submission_review"].includes(acceptanceSource)) return null;
@@ -198,6 +202,7 @@ const adminMasteryRunQuery = (request: Request) => {
     pageSize,
     ...(playerAccountId ? { playerAccountId } : {}),
     ...(mapId ? { mapId } : {}),
+    ...(gameplayRevisionId ? { gameplayRevisionId } : {}),
     ...(difficulty ? { difficulty: difficulty as "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱" } : {}),
     ...(status ? { status: status as "active" | "invalidated" } : {}),
     ...(acceptanceSource ? { acceptanceSource: acceptanceSource as "submission_automatic" | "submission_review" } : {}),

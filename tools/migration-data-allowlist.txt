@@ -21,3 +21,4 @@
 0054_materialise_variant_map_title_rules.sql
 0056_restrict_pioneer_map_title_scope.sql
 0058_title_grant_inheritance.sql
+0061_gameplay_revisions.sql

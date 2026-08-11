@@ -9,10 +9,10 @@ const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const masteryResponse = (path: string) => {
   const query = new URL(`https://portal.test${path}`).searchParams;
   const mapId = query.get("mapId");
-  const runs = [{ runId: "00000000-0000-4000-8000-000000000001", mapId: "map.samoa", mapVariant: null, difficulty: "地狱" as const, completionDurationSeconds: 640, deaths: 1, skips: 0, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }];
+  const runs = [{ runId: "00000000-0000-4000-8000-000000000001", mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:initial", gameplayRevisionLifecycle: "default" as const, mapVariant: null, difficulty: "地狱" as const, completionDurationSeconds: 640, deaths: 1, skips: 0, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }];
   return {
     contractVersion: "1" as const,
-    profiles: [{ mapId: "map.samoa", totalXp: 225, verifiedRunCount: 1, difficultyStats: [{ difficulty: "地狱" as const, verifiedRunCount: 1, fastestCompletionSeconds: 640 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 225, highestCompletedDifficulty: "地狱" as const, recentRuns: runs }],
+    profiles: [{ mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:initial", gameplayRevisionLifecycle: "default" as const, totalXp: 225, verifiedRunCount: 1, difficultyStats: [{ difficulty: "地狱" as const, verifiedRunCount: 1, fastestCompletionSeconds: 640 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 225, highestCompletedDifficulty: "地狱" as const, recentRuns: runs }],
     runs: mapId === "map.samoa" ? runs : [],
     page: Number(query.get("page") ?? 1),
     pageSize: Number(query.get("pageSize") ?? 1),

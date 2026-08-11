@@ -13,6 +13,8 @@ const detail: MasteryRunDetail = {
     sourceSubmissionId: "00000000-0000-4000-8000-000000000003",
     mapId: "map.test",
     mapName: "测试地图",
+    gameplayRevisionId: "revision:map.test:initial",
+    gameplayRevisionLifecycle: "default",
     mapVariant: null,
     difficulty: "困难",
     gameVersion: "26.0810.1",
@@ -34,6 +36,7 @@ const detail: MasteryRunDetail = {
   },
   projection: {
     mapId: "map.test",
+    gameplayRevisionId: "revision:map.test:initial",
     totalXp: 236,
     verifiedRunCount: 1,
     difficultyStats: [{ difficulty: "困难", verifiedRunCount: 1, fastestCompletionSeconds: 600 }],

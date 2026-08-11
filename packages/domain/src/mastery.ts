@@ -134,6 +134,7 @@ export const calculateMasteryXpV1 = (input: MasteryXpInput): MasteryXpAward => {
 export type MasteryRunForProjection = {
   runId: string;
   mapId: string;
+  gameplayRevisionId: string;
   mapVariant: MasteryMapVariant;
   difficulty: MasteryDifficulty;
   completionDurationSeconds: number;
@@ -148,6 +149,7 @@ export type VerifiedMasteryRunInput = {
   playerAccountId: string;
   sourceSubmissionId: string;
   mapId: string;
+  gameplayRevisionId: string;
   mapVariant: MasteryMapVariant;
   difficulty: MasteryDifficulty;
   gameVersion: string;
@@ -175,7 +177,7 @@ export type VerifiedMasteryRun = MasteryRunForProjection & {
   invalidationReason: string | null;
 };
 
-export type MasteryRunConflictField = "run_code" | "map" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters";
+export type MasteryRunConflictField = "run_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters";
 
 export type RecordVerifiedMasteryRunResult =
   | { outcome: "created" | "reused"; run: VerifiedMasteryRun }
@@ -194,6 +196,7 @@ export type MasteryDifficultyProfile = {
 
 export type MasteryMapProfile = {
   mapId: string;
+  gameplayRevisionId: string;
   totalXp: number;
   verifiedRunCount: number;
   difficultyStats: MasteryDifficultyProfile[];
@@ -209,6 +212,7 @@ const byMostRecent = (left: MasteryRunForProjection, right: MasteryRunForProject
 const masteryRunProjection = (run: MasteryRunForProjection): MasteryRunForProjection => ({
   runId: run.runId,
   mapId: run.mapId,
+  gameplayRevisionId: run.gameplayRevisionId,
   mapVariant: run.mapVariant,
   difficulty: run.difficulty,
   completionDurationSeconds: run.completionDurationSeconds,
@@ -224,8 +228,8 @@ const minimum = (values: Array<number | null>) => {
   return present.length ? Math.min(...present) : null;
 };
 
-export const buildMasteryMapProfile = (mapId: string, runs: MasteryRunForProjection[], recentLimit = 10): MasteryMapProfile => {
-  const activeRuns = runs.filter((run) => run.mapId === mapId && run.status === "active");
+export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string, runs: MasteryRunForProjection[], recentLimit = 10): MasteryMapProfile => {
+  const activeRuns = runs.filter((run) => run.mapId === mapId && run.gameplayRevisionId === gameplayRevisionId && run.status === "active");
   const difficultyStats = masteryDifficulties.flatMap((difficulty) => {
     const matching = activeRuns.filter((run) => run.difficulty === difficulty);
     return matching.length ? [{
@@ -238,6 +242,7 @@ export const buildMasteryMapProfile = (mapId: string, runs: MasteryRunForProject
 
   return {
     mapId,
+    gameplayRevisionId,
     totalXp: activeRuns.reduce((total, run) => total + run.awardedXp, 0),
     verifiedRunCount: activeRuns.length,
     difficultyStats,
@@ -250,8 +255,11 @@ export const buildMasteryMapProfile = (mapId: string, runs: MasteryRunForProject
 };
 
 export const buildMasteryProfiles = (runs: MasteryRunForProjection[], recentLimit = 10) => {
-  const mapIds = [...new Set(runs.filter((run) => run.status === "active").map((run) => run.mapId))];
-  return mapIds
-    .map((mapId) => buildMasteryMapProfile(mapId, runs, recentLimit))
-    .sort((left, right) => right.totalXp - left.totalXp || right.highestSingleRunXp! - left.highestSingleRunXp! || left.mapId.localeCompare(right.mapId));
+  const revisionKeys = [...new Set(runs.filter((run) => run.status === "active").map((run) => `${run.mapId}\u0000${run.gameplayRevisionId}`))];
+  return revisionKeys
+    .map((key) => {
+      const [mapId, gameplayRevisionId] = key.split("\u0000");
+      return buildMasteryMapProfile(mapId!, gameplayRevisionId!, runs, recentLimit);
+    })
+    .sort((left, right) => right.totalXp - left.totalXp || right.highestSingleRunXp! - left.highestSingleRunXp! || left.mapId.localeCompare(right.mapId) || left.gameplayRevisionId.localeCompare(right.gameplayRevisionId));
 };

@@ -531,6 +531,22 @@ are recomputed from `mastery_runs`; support reconciliation uses the
 `rebuildMasteryProfiles` service read and does not mutate accepted, invalidated,
 or conflict rows. Schema rollout remains covered by `pnpm run check:migrations`.
 
+A stable map may have several gameplay revisions. A revision is
+`preparing`, `default`, `selectable`, or `historical`; each map has exactly one
+default revision. The default represents current progression, while a selectable
+revision can be intentionally restored for its own progression and a historical
+revision remains readable without becoming current again. The database enforces
+the single-default invariant.
+
+Map-title rules, direct map challenges, map-scoped title challenges, and the
+legacy `CLASSIC`/`PIONEER` projections are all assigned through the same
+revision-aware challenge-assignment model. At submission or grant time the
+resolved `gameplay_revision_id` is an immutable snapshot on the submission,
+grant, and mastery-run facts. A rework therefore creates independent new
+progression without rewriting old facts. The default `/v1/me/mastery` profile
+uses only a map's default revision; an explicit revision query can read the
+selected or historical revision's own profile and bounded run history.
+
 The platform owns candidate selection, rule-snapshot evaluation, approval,
 Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous results
 are routed to maintainers; OCRKit does not decide eligibility or approval.

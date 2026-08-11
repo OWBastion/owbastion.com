@@ -60,6 +60,48 @@ export const maps = sqliteTable("maps", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+// A gameplay revision is the fairness/progression boundary beneath the stable
+// map identity. The lifecycle is intentionally independent from the map's
+// catalog visibility: preparation and historical rows remain retained, while
+// default/selectable rows are the only Bastion-enabled forms.
+export const gameplayRevisions = sqliteTable("gameplay_revisions", {
+  id: text("id").primaryKey(),
+  mapId: text("map_id").notNull().references(() => maps.id),
+  lifecycle: text("lifecycle").notNull(),
+  legacyMapVariant: text("legacy_map_variant"),
+  copiedFromRevisionId: text("copied_from_revision_id"),
+  resetReason: text("reset_reason"),
+  gameVersion: text("game_version").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  mapLifecycleIdx: index("gameplay_revisions_map_lifecycle_idx").on(table.mapId, table.lifecycle),
+  oneDefault: uniqueIndex("gameplay_revisions_one_default_idx").on(table.mapId).where(sql`${table.lifecycle} = 'default'`),
+  legacyVariant: uniqueIndex("gameplay_revisions_legacy_variant_idx").on(table.mapId, table.legacyMapVariant).where(sql`${table.legacyMapVariant} IS NOT NULL`),
+}));
+
+// This is the revision-aware applicability layer over reusable map-title rules,
+// direct map challenges, and map-scoped title challenges. It does not create a
+// second challenge system; it records which existing definition applies to a
+// specific fairness boundary and optional revision-local overrides.
+export const gameplayRevisionChallengeAssignments = sqliteTable("gameplay_revision_challenge_assignments", {
+  id: text("id").primaryKey(),
+  gameplayRevisionId: text("gameplay_revision_id").notNull().references(() => gameplayRevisions.id),
+  mapId: text("map_id").notNull().references(() => maps.id),
+  challengeFamily: text("challenge_family").notNull(),
+  challengeId: text("challenge_id").notNull(),
+  enabled: integer("enabled").notNull().default(1),
+  condition: text("condition"),
+  evidenceRule: text("evidence_rule"),
+  submissionMode: text("submission_mode"),
+  slot: text("slot"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  revisionChallenge: uniqueIndex("gameplay_revision_challenge_assignments_revision_challenge_idx").on(table.gameplayRevisionId, table.challengeFamily, table.challengeId),
+  mapRevisionIdx: index("gameplay_revision_challenge_assignments_map_revision_idx").on(table.mapId, table.gameplayRevisionId),
+}));
+
 export const mapMetadata = sqliteTable("map_metadata", {
   mapId: text("map_id").primaryKey().references(() => maps.id),
   difficultyRating: text("difficulty_rating"),
@@ -171,6 +213,7 @@ export const historicalTitleGrants = sqliteTable("historical_title_grants", {
   id: text("id").primaryKey(),
   scope: text("scope").notNull(),
   mapId: text("map_id").references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
   slot: text("slot"),
   titleKey: text("title_key").notNull().references(() => titleCatalog.key),
   holderName: text("holder_name").notNull(),
@@ -228,6 +271,7 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   titleKey: text("title_key").notNull().references(() => titleCatalog.key),
   mapId: text("map_id").references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
   slot: text("slot"),
   status: text("status").notNull(),
   sourceType: text("source_type").notNull(),
@@ -275,6 +319,7 @@ export const submissions = sqliteTable("submissions", {
   challengeType: text("challenge_type").notNull(),
   challengeId: text("challenge_id"),
   targetMapId: text("target_map_id").references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
   mapName: text("map_name").notNull(),
   difficulty: text("difficulty"),
   playerName: text("player_name"),
@@ -297,6 +342,7 @@ export const masteryRuns = sqliteTable("mastery_runs", {
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   sourceSubmissionId: text("source_submission_id").notNull().references(() => submissions.id),
   mapId: text("map_id").notNull().references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").notNull().references(() => gameplayRevisions.id),
   mapVariant: text("map_variant"),
   difficulty: text("difficulty").notNull(),
   gameVersion: text("game_version").notNull(),
@@ -318,7 +364,7 @@ export const masteryRuns = sqliteTable("mastery_runs", {
 }, (table) => ({
   sourceSubmissionIdx: uniqueIndex("mastery_runs_source_submission_idx").on(table.sourceSubmissionId),
   activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.runCode).where(sql`${table.status} = 'active'`),
-  activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_accepted_idx").on(table.playerAccountId, table.mapId, table.acceptedAt).where(sql`${table.status} = 'active'`),
+  activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_revision_accepted_idx").on(table.playerAccountId, table.mapId, table.gameplayRevisionId, table.acceptedAt).where(sql`${table.status} = 'active'`),
 }));
 
 export const masteryRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_events", {

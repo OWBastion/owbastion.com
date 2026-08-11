@@ -67,6 +67,32 @@ const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE gameplay_revisions (
+      id TEXT PRIMARY KEY NOT NULL,
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      lifecycle TEXT NOT NULL,
+      legacy_map_variant TEXT,
+      copied_from_revision_id TEXT,
+      reset_reason TEXT,
+      game_version TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE gameplay_revision_challenge_assignments (
+      id TEXT PRIMARY KEY NOT NULL,
+      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      challenge_family TEXT NOT NULL,
+      challenge_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition TEXT,
+      evidence_rule TEXT,
+      submission_mode TEXT,
+      slot TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (gameplay_revision_id, challenge_family, challenge_id)
+    );
     CREATE TABLE title_catalog (
       key TEXT PRIMARY KEY NOT NULL,
       label TEXT NOT NULL,
@@ -142,6 +168,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
       title_key TEXT NOT NULL REFERENCES title_catalog(key),
       map_id TEXT REFERENCES maps(id),
+      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
       slot TEXT,
       status TEXT NOT NULL,
       source_type TEXT NOT NULL,
@@ -197,6 +224,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       challenge_type TEXT NOT NULL,
       challenge_id TEXT,
       target_map_id TEXT REFERENCES maps(id),
+      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
       map_name TEXT NOT NULL,
       difficulty TEXT,
       player_name TEXT,
@@ -215,6 +243,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
       source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
       map_id TEXT NOT NULL REFERENCES maps(id),
+      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
       map_variant TEXT,
       difficulty TEXT NOT NULL,
       game_version TEXT NOT NULL,
@@ -388,6 +417,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       id TEXT PRIMARY KEY NOT NULL,
       scope TEXT NOT NULL,
       map_id TEXT REFERENCES maps(id),
+      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
       slot TEXT,
       title_key TEXT NOT NULL REFERENCES title_catalog(key),
       holder_name TEXT NOT NULL,
@@ -540,6 +570,31 @@ const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" 
   sqlite.prepare(
     "INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, '2026.07.15', ?, '2026.07.15', ?, ?)",
   ).run(id, `地图 ${id}`, status, now, now);
+  sqlite.prepare(
+    "INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL, NULL, '2026.07.15', ?, ?)",
+  ).run(`revision:${id}:initial`, id, status === "active" ? "default" : "historical", now, now);
+};
+
+const seedClassicGameplayRevision = (sqlite: DatabaseSync, mapId: string) => {
+  sqlite.prepare(
+    "INSERT OR IGNORE INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'selectable', 'classic', ?, NULL, '2026.07.15', ?, ?)",
+  ).run(`revision:${mapId}:classic`, mapId, `revision:${mapId}:initial`, now, now);
+};
+
+const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
+  gameplayRevisionId: string;
+  mapId: string;
+  challengeFamily: "map_title_rule" | "map_challenge" | "title_challenge";
+  challengeId: string;
+  enabled?: number;
+  condition?: string | null;
+  evidenceRule?: string | null;
+  submissionMode?: string | null;
+  slot?: string | null;
+}) => {
+  sqlite.prepare(
+    "INSERT OR REPLACE INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(`assignment:${input.gameplayRevisionId}:${input.challengeFamily}:${input.challengeId}`, input.gameplayRevisionId, input.mapId, input.challengeFamily, input.challengeId, input.enabled ?? 1, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, now, now);
 };
 
 const seedTitle = (sqlite: DatabaseSync, key: string) => {
@@ -558,6 +613,16 @@ const seedRule = (
   sqlite.prepare(
     "INSERT INTO map_title_rules (id, title_key, kind, condition, evidence_rule, submission_mode, display_kind, slot, map_variant, default_scope, status, introduced_version, created_at, updated_at) VALUES (?, ?, ?, '完成地图', '上传截图', 'manual', 'map_name_suffix', ?, ?, ?, ?, '2026.07.15', ?, ?)",
   ).run(ruleId, titleKey, kind, opts.slot ?? null, opts.mapVariant ?? null, opts.defaultScope ?? "all_active", opts.status ?? "active", now, now);
+  if (opts.status === "inactive" || opts.defaultScope === "explicit" || kind.toLocaleLowerCase() === "pioneer") return;
+  const maps = sqlite.prepare("SELECT id FROM maps WHERE status = 'active'").all() as Array<{ id: string }>;
+  for (const map of maps) {
+    if (opts.mapVariant === "classic") {
+      seedClassicGameplayRevision(sqlite, map.id);
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${map.id}:classic`, mapId: map.id, challengeFamily: "map_title_rule", challengeId: ruleId });
+    } else {
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${map.id}:initial`, mapId: map.id, challengeFamily: "map_title_rule", challengeId: ruleId });
+    }
+  }
 };
 
 const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleKey: string, mapId: string) => {
@@ -565,6 +630,7 @@ const seedMapTitleChallenge = (sqlite: DatabaseSync, challengeId: string, titleK
     "INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成经典版地图', '上传截图', 'manual', '2026.07.15', 'active', '2026.07.15', 'map', ?, ?)",
   ).run(challengeId, titleKey, now, now);
   sqlite.prepare("INSERT INTO achievement_challenge_maps (challenge_id, map_id) VALUES (?, ?)").run(challengeId, mapId);
+  seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${mapId}:initial`, mapId, challengeFamily: "title_challenge", challengeId });
 };
 
 const seedException = (
@@ -577,6 +643,20 @@ const seedException = (
   sqlite.prepare(
     "INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",
   ).run(id, ruleId, mapId, opts.enabled ?? 1, opts.condition ?? null, opts.evidenceRule ?? null, opts.slot ?? null, now, now);
+  const rule = sqlite.prepare("SELECT map_variant FROM map_title_rules WHERE id = ?").get(ruleId) as { map_variant: string | null };
+  const gameplayRevisionId = rule.map_variant === "classic"
+    ? (seedClassicGameplayRevision(sqlite, mapId), `revision:${mapId}:classic`)
+    : `revision:${mapId}:initial`;
+  seedRevisionAssignment(sqlite, {
+    gameplayRevisionId,
+    mapId,
+    challengeFamily: "map_title_rule",
+    challengeId: ruleId,
+    enabled: opts.enabled ?? 1,
+    condition: opts.condition ?? null,
+    evidenceRule: opts.evidenceRule ?? null,
+    slot: opts.slot ?? null,
+  });
 };
 
 const seedCompat = (sqlite: DatabaseSync, legacyId: string, ruleId: string, mapId: string, isStandard = 1) => {
@@ -589,6 +669,7 @@ const seedLegacyMapChallenge = (sqlite: DatabaseSync, challengeId: string, mapId
   sqlite.prepare(
     "INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, 'difficulty_completion', '旧称号挑战', '传奇', '旧条件', '旧截图规则', 'manual', 'CONQUEROR', '2026.07.15', 'active', '2026.07.15', ?, ?)",
   ).run(challengeId, mapId, now, now);
+  seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${mapId}:initial`, mapId, challengeFamily: "map_challenge", challengeId });
 };
 
 const requestHash = async (value: unknown) => {
@@ -633,10 +714,11 @@ describe("map title rule model – locked invariants", () => {
       );
 
       expect(result.status).toBe("ready_for_review");
-      const submission = sqlite.prepare("SELECT challenge_type, challenge_id, target_map_id, rule_snapshot_json FROM submissions WHERE id = 'submission.1'").get() as { challenge_type: string; challenge_id: string; target_map_id: string; rule_snapshot_json: string };
+      const submission = sqlite.prepare("SELECT challenge_type, challenge_id, target_map_id, gameplay_revision_id, rule_snapshot_json FROM submissions WHERE id = 'submission.1'").get() as { challenge_type: string; challenge_id: string; target_map_id: string; gameplay_revision_id: string; rule_snapshot_json: string };
       expect(submission.challenge_type).toBe("map_title_achievement");
       expect(submission.challenge_id).toBe("map.paris.conqueror");
       expect(submission.target_map_id).toBe("map.paris");
+      expect(submission.gameplay_revision_id).toBe("revision:map.paris:initial");
       expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", titleKey: "CONQUEROR", slot: "conqueror" });
     });
 
@@ -1016,6 +1098,7 @@ describe("map title rule model – locked invariants", () => {
         ruleId: "rule.conqueror",
         ruleRevision: now,
         mapId: "map.paris",
+        gameplayRevisionId: "revision:map.paris:initial",
         titleKey: "CONQUEROR",
         slot: "conqueror",
         displayKind: "map_name_suffix",
@@ -1028,7 +1111,7 @@ describe("map title rule model – locked invariants", () => {
 
       // Simulate storing the snapshot at upload-session creation.
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('b.1', 'id.1', 'p.1', 'qq', 'g.1', 'm.1', 'active', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.snap', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshotAtCreation), now, now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.snap', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', 'revision:map.paris:initial', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshotAtCreation), now, now);
 
       // Now change the rule's slot — the stored snapshot must not be affected.
       sqlite.prepare("UPDATE map_title_rules SET slot = 'dominator', updated_at = ? WHERE id = 'rule.conqueror'").run(now + 5000);
@@ -1038,6 +1121,30 @@ describe("map title rule model – locked invariants", () => {
 
       expect(stored.slot).toBe("conqueror");  // still the original value
       expect(stored.ruleRevision).toBe(now);  // still the original revision
+    });
+  });
+
+  describe("gameplay revision applicability", () => {
+    it("keeps old map grants active as facts while the current player view derives only the default revision", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "LEGACY");
+      seedTitle(sqlite, "CURRENT");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('p.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('b.1', 'id.1', 'p.1', 'qq', 'g.1', 'm.1', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.1', 'attempt.1', 'g.1', 'm.1', 'production', ?, ?, ?)").run(await requestHash("revision-title-session"), now + 60_000, now);
+      sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = 'revision:map.paris:initial'").run();
+      sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.paris:rework', 'map.paris', 'default', NULL, 'revision:map.paris:initial', 'difficulty redesign', '26.0810.2', ?, ?)").run(now + 1, now + 1);
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.legacy', 'p.1', 'LEGACY', 'map.paris', 'revision:map.paris:initial', NULL, 'active', 'submission', 'submission.legacy', 'admin', ?), ('grant.current', 'p.1', 'CURRENT', 'map.paris', 'revision:map.paris:rework', NULL, 'active', 'submission', 'submission.current', 'admin', ?)").run(now, now + 1);
+
+      const titles = await createPlatformServices(database).listCurrentPlayerTitles({ sessionToken: "revision-title-session" });
+
+      expect(titles).toEqual([expect.objectContaining({ titleKey: "CURRENT" })]);
+      expect(sqlite.prepare("SELECT id, status FROM player_title_grants ORDER BY id").all()).toEqual([
+        { id: "grant.current", status: "active" },
+        { id: "grant.legacy", status: "active" },
+      ]);
     });
   });
 
@@ -1074,7 +1181,7 @@ describe("map title rule model – locked invariants", () => {
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
 
-      const snapshot = { ruleId: "rule.conqueror", ruleRevision: now, mapId: "map.paris", titleKey: "CONQUEROR", slot: "conqueror", displayKind: "map_name_suffix", condition: "完成地图", evidenceRule: "上传截图", submissionMode: "manual", defaultScope: "all_active", exceptionId: null };
+      const snapshot = { ruleId: "rule.conqueror", ruleRevision: now, mapId: "map.paris", gameplayRevisionId: "revision:map.paris:initial", titleKey: "CONQUEROR", slot: "conqueror", displayKind: "map_name_suffix", condition: "完成地图", evidenceRule: "上传截图", submissionMode: "manual", defaultScope: "all_active", exceptionId: null };
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('b.1', 'id.1', 'p.1', 'qq', 'g.1', 'm.1', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.flight', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshot), now, now);
 
@@ -1103,7 +1210,7 @@ describe("map title rule model – locked invariants", () => {
 
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('p.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('b.1', 'id.1', 'p.1', 'qq', 'g.1', 'm.1', 'active', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.1', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshot), now, now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.1', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', 'revision:map.paris:initial', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshot), now, now);
 
       // Change the rule's title_key after submission was created.
       // The review must still use the snapshot's titleKey, not the live rule.
@@ -1121,9 +1228,10 @@ describe("map title rule model – locked invariants", () => {
 
       expect(result.decision).toBe("approved");
       // The grant must reference the title from the snapshot.
-      const grant = sqlite.prepare("SELECT title_key, map_id, slot FROM player_title_grants WHERE source_type = 'submission'").get() as { title_key: string; map_id: string; slot: string } | undefined;
+      const grant = sqlite.prepare("SELECT title_key, map_id, gameplay_revision_id, slot FROM player_title_grants WHERE source_type = 'submission'").get() as { title_key: string; map_id: string; gameplay_revision_id: string; slot: string } | undefined;
       expect(grant?.title_key).toBe("CONQUEROR");
       expect(grant?.map_id).toBe("map.paris");
+      expect(grant?.gameplay_revision_id).toBe("revision:map.paris:initial");
       expect(grant?.slot).toBe("conqueror");
     });
   });
@@ -1287,6 +1395,7 @@ describe("submission mastery outcomes", () => {
 
       seedTitle(sqlite, "CONQUEROR");
       sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.combined', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.combined" });
       const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ runCode: "2345-6789-1234", durationSeconds: 599 }), requestId: "request.combined" });
       expect(sqlite.prepare("SELECT outcome_type, status FROM submission_outcomes WHERE submission_id = ? ORDER BY outcome_type").all(combined.submissionId)).toEqual([
         { outcome_type: "challenge", status: "created" },
@@ -1323,6 +1432,7 @@ describe("submission mastery outcomes", () => {
           playerAccountId: "player.one",
           sourceSubmissionId: submissionId,
           mapId: "map.mastery",
+          gameplayRevisionId: "revision:map.mastery:initial",
           mapVariant: null,
           difficulty: "困难",
           gameVersion: "99.0101.1",
@@ -1361,6 +1471,7 @@ describe("submission mastery outcomes", () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.mastery");
+    seedClassicGameplayRevision(sqlite, "map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.classic-missing", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.classic-present", "binding.one", "Tester");
@@ -1496,6 +1607,7 @@ describe("submission mastery outcomes", () => {
     seedMap(sqlite, "map.mastery");
     seedTitle(sqlite, "CONQUEROR");
     sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.mastery', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.mastery" });
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.combined", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.legacy", "binding.one", "Tester");
