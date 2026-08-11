@@ -20,6 +20,7 @@ import {
   adminCatalogTitleUpdateRequestSchema,
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
+  adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
@@ -1052,6 +1053,51 @@ export const createApp = (dependencies: AppDependencies) => {
   app.delete("/v1/admin/events/:eventId", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); try { await dependencies.services(c.env).archiveAdminRandomEvent({ eventId: c.req.param("eventId") }, access.auth!, key); return c.body(null, 204); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_ARCHIVE_FAILED"; if (code === "EVENT_NOT_FOUND") return errorResponse(c, 404, code, "The event does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; } });
   app.post("/v1/admin/events/imports/preview", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c.env).previewAdminRandomEventImport(parsed.data, access.auth!)); });
   app.post("/v1/admin/events/imports", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const key = c.req.header("idempotency-key"); if (!key) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required"); const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); try { return c.json(await dependencies.services(c.env).importAdminRandomEvents(parsed.data, access.auth!, key), 201); } catch (error) { const code = error instanceof Error ? error.message : "EVENT_IMPORT_FAILED"; if (["EVENT_IMPORT_INVALID", "EVENT_IMPORT_NAME_CONFLICT", "CHALLENGE_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, "The import data is invalid"); if (code === "EVENT_IMPORT_DUPLICATE" || code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The import was already processed"); throw error; } });
+
+  app.get("/v1/admin/maps/:mapId/editor", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => dependencies.services(c.env).getAdminMapEditor({ mapId: c.req.param("mapId") }, access.auth!))); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "MAP_EDITOR_READ_FAILED";
+      if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
+      if (["INVALID_REVISION_LIFECYCLE", "INVALID_MAP_VARIANT", "INVALID_REVISION_ASSIGNMENT", "INVALID_SPATIAL_CONFIG"].includes(code)) return errorResponse(c, 422, code, "The map revision data is invalid");
+      throw error;
+    }
+  });
+  app.post("/v1/admin/maps/:mapId/revisions", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapRevisionCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId") }, access.auth!, idempotencyKey), 201); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "MAP_REVISION_CREATE_FAILED";
+      if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
+      if (code === "REVISION_SOURCE_NOT_FOUND") return errorResponse(c, 422, code, "The source revision does not belong to this map");
+      if (["INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
+      if (["IDEMPOTENCY_CONFLICT", "LEGACY_VARIANT_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
+      throw error;
+    }
+  });
+  app.put("/v1/admin/maps/:mapId/revisions/:revisionId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapRevisionUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).updateAdminMapRevision({ ...parsed.data, mapId: c.req.param("mapId"), revisionId: c.req.param("revisionId") }, access.auth!, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "MAP_REVISION_UPDATE_FAILED";
+      if (code === "REVISION_NOT_FOUND") return errorResponse(c, 404, code, "The map revision does not exist");
+      if (["INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
+      if (["DEFAULT_REVISION_CONFLICT", "LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
+      throw error;
+    }
+  });
 
   app.put("/v1/admin/maps/:mapId/metadata", async (c) => {
     const access = await requireMaintainer(c);

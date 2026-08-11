@@ -649,6 +649,79 @@ describe("Agents map projection readiness", () => {
   });
 });
 
+describe("Admin map revision editor", () => {
+  it("copies only revision configuration, supports the reset lifecycle, and keeps progress scoped to R1", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.editor");
+    seedLegacyMapChallenge(sqlite, "challenge.editor", "map.editor");
+    seedAgentSpatialConfig(sqlite, "revision:map.editor:initial");
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.editor:initial", mapId: "map.editor", challengeFamily: "map_challenge", challengeId: "challenge.editor" });
+    seedTitle(sqlite, "PIONEER");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.editor', '1001', 'Editor Player', 'editor player', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.editor.r1', 'player.editor', 'PIONEER', 'map.editor', 'revision:map.editor:initial', 'pioneer', 'active', 'submission', 'submission.editor.r1', 'admin', ?)").run(now);
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const editorBefore = await services.getAdminMapEditor({ mapId: "map.editor" }, auth);
+    const r1Before = editorBefore.revisions.find((revision) => revision.revisionId === "revision:map.editor:initial")!;
+
+    const r2 = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.editor",
+      sourceRevisionId: r1Before.revisionId,
+      resetReason: "geometry rework",
+      gameVersion: "2026.08.12",
+      mapVariant: null,
+      copyConfiguration: true,
+    }, auth, "editor-create-r2");
+    expect(r2.lifecycle).toBe("preparing");
+    expect(r2.spatialConfig).toEqual(r1Before.spatialConfig);
+    expect(r2.challengeAssignments).toMatchObject(r1Before.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment));
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
+
+    const updateInput = (revision: typeof r1Before, lifecycle: "default" | "selectable") => ({
+      contractVersion: "1" as const,
+      mapId: "map.editor",
+      revisionId: revision.revisionId,
+      lifecycle,
+      gameVersion: revision.gameVersion,
+      mapVariant: null,
+      spatialConfig: revision.spatialConfig,
+      challengeAssignments: revision.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment),
+    });
+    await services.updateAdminMapRevision(updateInput(r1Before, "selectable"), auth, "editor-update-r1");
+    const r2Default = await services.updateAdminMapRevision(updateInput(r2, "default"), auth, "editor-update-r2");
+    expect(r2Default.isDefault).toBe(true);
+    expect((await services.getAdminMapEditor({ mapId: "map.editor" }, auth)).revisions.map((revision) => [revision.revisionId, revision.lifecycle])).toEqual(expect.arrayContaining([
+      ["revision:map.editor:initial", "selectable"],
+      [r2.revisionId, "default"],
+    ]));
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
+    expect(sqlite.prepare("SELECT json_extract(payload_json, '$.progressCopied') AS progress_copied FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update') ORDER BY created_at").all()).toEqual([
+      { progress_copied: 0 },
+      { progress_copied: 0 },
+      { progress_copied: 0 },
+    ]);
+  });
+
+  it("rejects invalid spatial data and challenge references before writing a revision", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.editor.invalid");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const revision = (await services.getAdminMapEditor({ mapId: "map.editor.invalid" }, auth)).revisions[0]!;
+    await expect(services.updateAdminMapRevision({
+      contractVersion: "1", mapId: "map.editor.invalid", revisionId: revision.revisionId, lifecycle: "selectable", gameVersion: revision.gameVersion, mapVariant: null, spatialConfig: null, challengeAssignments: [],
+    }, auth, "invalid-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    await expect(services.createAdminMapRevision({
+      contractVersion: "1", mapId: "map.editor.invalid", resetReason: "invalid assignment", gameVersion: revision.gameVersion, mapVariant: null, copyConfiguration: false,
+      challengeAssignments: [{ challengeFamily: "map_challenge", challengeId: "missing.challenge", enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null }],
+    }, auth, "invalid-reference")).rejects.toThrow("REVISION_CHALLENGE_NOT_FOUND");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM gameplay_revisions WHERE map_id = 'map.editor.invalid'").get()).toEqual({ count: 1 });
+  });
+});
+
 /** Seed helpers */
 const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" = "active") => {
   sqlite.prepare(

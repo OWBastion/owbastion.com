@@ -33,6 +33,9 @@ const services: PlatformServices = {
   importAdminRandomEvents: async () => ({ importedCount: 0 }),
   listMaps: async () => [],
   updateAdminMapMetadata: async () => { throw new Error("MAP_NOT_FOUND"); },
+  getAdminMapEditor: async () => { throw new Error("MAP_NOT_FOUND"); },
+  createAdminMapRevision: async () => { throw new Error("MAP_NOT_FOUND"); },
+  updateAdminMapRevision: async () => { throw new Error("REVISION_NOT_FOUND"); },
   listChallenges: async () => [],
   listTitles: async () => [],
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
@@ -1047,6 +1050,40 @@ describe("API", () => {
     const metadataUpdate = await adminCatalogApp.request("http://localhost/v1/admin/maps/map.samoa/metadata", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-metadata-1" }, body: JSON.stringify({ contractVersion: "1", difficultyRating: "T3", mechanics: ["动态掩体"], coverUrl: null, backgroundUrl: null }) }, env);
     expect(metadataUpdate.status).toBe(200);
     expect(await metadataUpdate.json()).toMatchObject({ mapId: "map.samoa", difficultyRating: "T3", mechanics: ["动态掩体"] });
+
+    const revisionRequests: Array<{ operation: string; input: Record<string, unknown> }> = [];
+    const editorRevision = {
+      revisionId: "revision:map.samoa:rework",
+      mapId: "map.samoa",
+      lifecycle: "preparing" as const,
+      mapVariant: null,
+      copiedFromRevisionId: "revision:map.samoa:initial",
+      resetReason: "geometry rework",
+      gameVersion: "2026.08.12",
+      spatialConfig: null,
+      isDefault: false,
+      isSelectable: false,
+      challengeAssignments: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const editorApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...catalogServices,
+        getAdminMapEditor: async () => ({ contractVersion: "1" as const, map: (await catalogServices.listMaps())[0]!, revisions: [editorRevision], challengeCatalog: [], audit: [] }),
+        createAdminMapRevision: async (input) => { revisionRequests.push({ operation: "create", input }); return editorRevision; },
+        updateAdminMapRevision: async (input) => { revisionRequests.push({ operation: "update", input }); return { ...editorRevision, lifecycle: input.lifecycle, gameVersion: input.gameVersion }; },
+      }),
+    });
+    expect((await editorApp.request("http://localhost/v1/admin/maps/map.samoa/editor", {}, env)).status).toBe(200);
+    expect((await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", resetReason: "geometry rework", gameVersion: "2026.08.12", mapVariant: null, copyConfiguration: true }) }, env)).status).toBe(422);
+    const resetRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "map-revision-create-1" }, body: JSON.stringify({ contractVersion: "1", sourceRevisionId: "revision:map.samoa:initial", resetReason: "geometry rework", gameVersion: "2026.08.12", mapVariant: null, copyConfiguration: true }) }, env);
+    expect(resetRevision.status).toBe(201);
+    expect(revisionRequests[0]).toMatchObject({ operation: "create", input: { mapId: "map.samoa", copyConfiguration: true, sourceRevisionId: "revision:map.samoa:initial" } });
+    const savedRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.12", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env);
+    expect(savedRevision.status).toBe(200);
+    expect(revisionRequests[1]).toMatchObject({ operation: "update", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", lifecycle: "selectable" } });
 
     const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
     const maps = await playerCatalogApp.request("http://localhost/v1/maps", { headers: { cookie: "owb_session=session-token" } }, env);

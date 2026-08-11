@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -1092,6 +1092,169 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     } catch {
       return null;
     }
+  };
+
+  type AdminRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
+  const revisionChallengeFamilies = new Set(["map_challenge", "map_title_rule", "title_challenge"]);
+  const revisionLifecycles = new Set(["preparing", "default", "selectable", "historical"]);
+  const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
+  const nullableEditorText = (value: string | null) => value?.trim() || null;
+
+  const parseEditorSpatialConfig = (value: string | null) => {
+    if (value === null) return null;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(value);
+    } catch {
+      throw new Error("INVALID_SPATIAL_CONFIG");
+    }
+    const parsed = agentSpatialConfigSchema.safeParse(decoded);
+    if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");
+    return parsed.data;
+  };
+
+  const asAdminMapRevision = (
+    row: typeof gameplayRevisions.$inferSelect,
+    assignmentRows: Array<typeof gameplayRevisionChallengeAssignments.$inferSelect>,
+  ): AdminMapRevision => {
+    if (!revisionLifecycles.has(row.lifecycle)) throw new Error("INVALID_REVISION_LIFECYCLE");
+    if (row.legacyMapVariant !== null && row.legacyMapVariant !== "classic") throw new Error("INVALID_MAP_VARIANT");
+    const challengeAssignments = assignmentRows.map((assignment) => {
+      if (assignment.gameplayRevisionId !== row.id || assignment.mapId !== row.mapId || !revisionChallengeFamilies.has(assignment.challengeFamily)) throw new Error("INVALID_REVISION_ASSIGNMENT");
+      return {
+        assignmentId: assignment.id,
+        gameplayRevisionId: assignment.gameplayRevisionId,
+        mapId: assignment.mapId,
+        challengeFamily: assignment.challengeFamily as AdminMapRevisionChallengeAssignment["challengeFamily"],
+        challengeId: assignment.challengeId,
+        enabled: assignment.enabled === 1,
+        condition: nullableEditorText(assignment.condition),
+        evidenceRule: nullableEditorText(assignment.evidenceRule),
+        submissionMode: assignment.submissionMode === null ? null : assignment.submissionMode as "manual" | "automatic",
+        slot: assignment.slot === null ? null : assignment.slot as "pioneer" | "conqueror" | "dominator",
+      };
+    });
+    return {
+      revisionId: row.id,
+      mapId: row.mapId,
+      lifecycle: row.lifecycle as AdminMapRevision["lifecycle"],
+      mapVariant: row.legacyMapVariant as "classic" | null,
+      copiedFromRevisionId: row.copiedFromRevisionId,
+      resetReason: nullableEditorText(row.resetReason),
+      gameVersion: row.gameVersion,
+      spatialConfig: parseEditorSpatialConfig(row.spatialConfigJson),
+      isDefault: row.lifecycle === "default",
+      isSelectable: row.lifecycle === "selectable",
+      challengeAssignments,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  };
+
+  const loadAdminMapRevision = async (revisionId: string): Promise<AdminMapRevision> => {
+    const row = await db.select().from(gameplayRevisions).where(eq(gameplayRevisions.id, revisionId)).get();
+    if (!row) throw new Error("REVISION_NOT_FOUND");
+    const assignments = await db.select().from(gameplayRevisionChallengeAssignments)
+      .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, revisionId))
+      .orderBy(asc(gameplayRevisionChallengeAssignments.challengeFamily), asc(gameplayRevisionChallengeAssignments.challengeId));
+    return asAdminMapRevision(row, assignments);
+  };
+
+  const loadAdminMapEditorChallengeCatalog = async (mapId: string): Promise<AdminMapEditorChallengeOption[]> => {
+    const [mapChallengeRows, ruleRows, titleChallengeRows] = await Promise.all([
+      db.select().from(achievementChallenges).where(eq(achievementChallenges.mapId, mapId)),
+      db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key)),
+      db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges)
+        .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+        .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
+        .where(and(eq(achievementChallengeMaps.mapId, mapId), eq(titleChallenges.scope, "map"))),
+    ]);
+    return [
+      ...mapChallengeRows.map((challenge): AdminMapEditorChallengeOption => ({
+        challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, status: challenge.status, gameVersion: challenge.gameVersion,
+      })),
+      ...ruleRows.map(({ rule, title }): AdminMapEditorChallengeOption => ({
+        challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, status: rule.status, gameVersion: rule.introducedVersion,
+      })),
+      ...titleChallengeRows.map(({ challenge, title }): AdminMapEditorChallengeOption => ({
+        challengeFamily: "title_challenge", challengeId: challenge.id, label: title.label, kind: "title_challenge", status: challenge.status, gameVersion: challenge.gameVersion,
+      })),
+    ].sort((left, right) => compareText(`${left.challengeFamily}:${left.label}:${left.challengeId}`, `${right.challengeFamily}:${right.label}:${right.challengeId}`));
+  };
+
+  const loadAdminMapEditorAudit = async (mapId: string, revisionIds: string[]) => {
+    const entityFilter = revisionIds.length ? or(eq(auditEvents.entityId, mapId), inArray(auditEvents.entityId, revisionIds)) : eq(auditEvents.entityId, mapId);
+    const rows = await db.select().from(auditEvents).where(and(
+      inArray(auditEvents.operation, ["admin.map.metadata.update", "admin.map.revision.create", "admin.map.revision.update"]),
+      entityFilter,
+    )).orderBy(desc(auditEvents.createdAt), desc(auditEvents.id)).limit(100);
+    return rows.map((row) => {
+      let payload: Record<string, unknown> = {};
+      try {
+        const parsed: unknown = JSON.parse(row.payloadJson);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) payload = parsed as Record<string, unknown>;
+      } catch {
+        payload = {};
+      }
+      return { operation: row.operation, actorType: row.actorType, actorId: row.actorId, entityType: row.entityType, entityId: row.entityId, payload, createdAt: row.createdAt };
+    });
+  };
+
+  const loadAdminMap = async (mapId: string): Promise<Map | null> => {
+    const row = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.id, mapId)).get();
+    if (!row) return null;
+    return {
+      mapId: row.map.id,
+      mapName: row.map.name,
+      gameVersion: row.map.gameVersion,
+      difficultyRating: (row.metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
+      mechanics: row.metadata?.mechanicsJson ? JSON.parse(row.metadata.mechanicsJson) as string[] : [],
+      coverUrl: row.metadata?.coverUrl ?? null,
+      backgroundUrl: row.metadata?.backgroundUrl ?? null,
+    };
+  };
+
+  const validateRevisionAssignments = async (mapId: string, assignments: AdminRevisionAssignmentInput[]) => {
+    const seen = new Set<string>();
+    for (const assignment of assignments) {
+      if (!revisionChallengeFamilies.has(assignment.challengeFamily)) throw new Error("INVALID_REVISION_ASSIGNMENT");
+      const identity = `${assignment.challengeFamily}:${assignment.challengeId}`;
+      if (seen.has(identity)) throw new Error("DUPLICATE_REVISION_ASSIGNMENT");
+      seen.add(identity);
+      if (assignment.challengeFamily === "map_challenge") {
+        const challenge = await db.select({ id: achievementChallenges.id, status: achievementChallenges.status }).from(achievementChallenges).where(and(eq(achievementChallenges.id, assignment.challengeId), eq(achievementChallenges.mapId, mapId))).get();
+        if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
+        if (assignment.enabled && !["active", "sunsetting"].includes(challenge.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+      } else if (assignment.challengeFamily === "map_title_rule") {
+        const rule = await db.select({ id: mapTitleRules.id, kind: mapTitleRules.kind, defaultScope: mapTitleRules.defaultScope, status: mapTitleRules.status }).from(mapTitleRules).where(eq(mapTitleRules.id, assignment.challengeId)).get();
+        if (!rule) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
+        if (assignment.enabled && !["active", "sunsetting"].includes(rule.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+        if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+      } else {
+        const challenge = await db.select({ id: titleChallenges.id, status: titleChallenges.status }).from(titleChallenges)
+          .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
+          .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
+          .where(and(eq(titleChallenges.id, assignment.challengeId), eq(achievementChallengeMaps.mapId, mapId), eq(titleChallenges.scope, "map"))).get();
+        if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
+        if (assignment.enabled && !["scheduled", "active", "sunsetting"].includes(challenge.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
+      }
+    }
+  };
+
+  const assertRevisionLifecycle = (current: string, next: AdminMapRevisionUpdateRequest["lifecycle"]) => {
+    const allowed: Record<string, string[]> = {
+      preparing: ["preparing", "default", "selectable", "historical"],
+      default: ["default", "selectable", "historical"],
+      selectable: ["selectable", "default", "historical"],
+      historical: ["historical", "selectable"],
+    };
+    if (!allowed[current]?.includes(next)) throw new Error("INVALID_REVISION_TRANSITION");
+  };
+
+  const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"]) => {
+    if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
+    if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
+    if (spatialConfig && !agentSpatialConfigSchema.safeParse(spatialConfig).success) throw new Error("INVALID_SPATIAL_CONFIG");
   };
 
   type AgentMapProjectionRow = {
@@ -2596,6 +2759,117 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response: Map = { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
       await recordIdempotency(db, auth.subject, "admin.map.metadata.update", idempotencyKey, input, response);
       await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
+      return response;
+    },
+
+    async getAdminMapEditor(input) {
+      const map = await loadAdminMap(input.mapId);
+      if (!map) throw new Error("MAP_NOT_FOUND");
+      const revisionRows = await db.select().from(gameplayRevisions).where(eq(gameplayRevisions.mapId, input.mapId)).orderBy(asc(gameplayRevisions.createdAt), asc(gameplayRevisions.id));
+      const revisions = await Promise.all(revisionRows.map((row) => loadAdminMapRevision(row.id)));
+      const [challengeCatalog, audit] = await Promise.all([
+        loadAdminMapEditorChallengeCatalog(input.mapId),
+        loadAdminMapEditorAudit(input.mapId, revisions.map((revision) => revision.revisionId)),
+      ]);
+      return { contractVersion: "1" as const, map, revisions, challengeCatalog, audit } satisfies AdminMapEditorResponse;
+    },
+
+    async createAdminMapRevision(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<AdminMapRevision>(db, auth.subject, "admin.map.revision.create", idempotencyKey, input);
+      if (replay) return replay;
+      const map = await db.select().from(maps).where(eq(maps.id, input.mapId)).get();
+      if (!map) throw new Error("MAP_NOT_FOUND");
+
+      let source: typeof gameplayRevisions.$inferSelect | null = null;
+      if (input.sourceRevisionId) {
+        source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.id, input.sourceRevisionId), eq(gameplayRevisions.mapId, input.mapId))).get() ?? null;
+        if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
+      } else if (input.copyConfiguration) {
+        source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
+        if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
+      }
+
+      const sourceAssignments = source
+        ? await db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, source.id)).orderBy(asc(gameplayRevisionChallengeAssignments.challengeFamily), asc(gameplayRevisionChallengeAssignments.challengeId))
+        : [];
+      const assignments: AdminRevisionAssignmentInput[] = input.copyConfiguration
+        ? sourceAssignments.map((assignment) => ({
+          challengeFamily: assignment.challengeFamily as AdminRevisionAssignmentInput["challengeFamily"],
+          challengeId: assignment.challengeId,
+          enabled: assignment.enabled === 1,
+          condition: nullableEditorText(assignment.condition),
+          evidenceRule: nullableEditorText(assignment.evidenceRule),
+          submissionMode: assignment.submissionMode === null ? null : assignment.submissionMode as "manual" | "automatic",
+          slot: assignment.slot === null ? null : assignment.slot as "pioneer" | "conqueror" | "dominator",
+        }))
+        : input.challengeAssignments ?? [];
+      const spatialConfig = input.copyConfiguration ? parseEditorSpatialConfig(source?.spatialConfigJson ?? null) : input.spatialConfig ?? null;
+      await validateRevisionAssignments(input.mapId, assignments);
+      if (spatialConfig && !agentSpatialConfigSchema.safeParse(spatialConfig).success) throw new Error("INVALID_SPATIAL_CONFIG");
+      if (input.mapVariant === "classic") {
+        const existingClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"))).get();
+        if (existingClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
+      }
+
+      const timestamp = now();
+      const revisionId = `revision:${input.mapId}:${crypto.randomUUID()}`;
+      const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?)").bind(
+        revisionId, input.mapId, input.mapVariant, source?.id ?? input.sourceRevisionId ?? null, input.resetReason, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
+      )];
+      for (const assignment of assignments) {
+        statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
+          `assignment:${revisionId}:${crypto.randomUUID()}`, revisionId, input.mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp,
+        ));
+      }
+      await database.batch(statements);
+      const response = await loadAdminMapRevision(revisionId);
+      await recordIdempotency(db, auth.subject, "admin.map.revision.create", idempotencyKey, input, response);
+      await recordAudit(db, auth, "admin.map.revision.create", "gameplay_revision", revisionId, {
+        sourceRevisionId: source?.id ?? input.sourceRevisionId ?? null,
+        copyConfiguration: input.copyConfiguration,
+        copiedAssignmentCount: input.copyConfiguration ? assignments.length : 0,
+        progressCopied: false,
+      });
+      return response;
+    },
+
+    async updateAdminMapRevision(input, auth, idempotencyKey) {
+      const replay = await replayOrConflict<AdminMapRevision>(db, auth.subject, "admin.map.revision.update", idempotencyKey, input);
+      if (replay) return replay;
+      const current = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.id, input.revisionId), eq(gameplayRevisions.mapId, input.mapId))).get();
+      if (!current) throw new Error("REVISION_NOT_FOUND");
+      assertRevisionLifecycle(current.lifecycle, input.lifecycle);
+      assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
+      await validateRevisionAssignments(input.mapId, input.challengeAssignments);
+
+      if (input.lifecycle === "default") {
+        const otherDefault = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"), ne(gameplayRevisions.id, input.revisionId))).get();
+        if (otherDefault) throw new Error("DEFAULT_REVISION_CONFLICT");
+      }
+      if (input.mapVariant === "classic") {
+        const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
+        if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
+      }
+
+      const timestamp = now();
+      const statements = [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
+        input.lifecycle, input.mapVariant, input.gameVersion, input.spatialConfig ? JSON.stringify(input.spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+      ), database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId)];
+      for (const assignment of input.challengeAssignments) {
+        statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
+          `assignment:${input.revisionId}:${crypto.randomUUID()}`, input.revisionId, input.mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp,
+        ));
+      }
+      await database.batch(statements);
+      const response = await loadAdminMapRevision(input.revisionId);
+      await recordIdempotency(db, auth.subject, "admin.map.revision.update", idempotencyKey, input, response);
+      await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", input.revisionId, {
+        previousLifecycle: current.lifecycle,
+        lifecycle: input.lifecycle,
+        assignmentCount: input.challengeAssignments.length,
+        spatialConfigUpdated: true,
+        progressCopied: false,
+      });
       return response;
     },
 

@@ -406,6 +406,41 @@ export const adminMapMetadataUpdateRequestSchema = z.object({
   backgroundUrl: z.string().trim().url().max(2048).nullable(),
 });
 
+const adminMapRevisionLifecycle = z.enum(["preparing", "default", "selectable", "historical"]);
+const adminMapRevisionChallengeFamily = z.enum(["map_challenge", "map_title_rule", "title_challenge"]);
+const adminMapRevisionChallengeAssignmentInputSchema = z.object({
+  challengeFamily: adminMapRevisionChallengeFamily,
+  challengeId: externalId,
+  enabled: z.boolean(),
+  condition: z.string().trim().min(1).max(1024).nullable(),
+  evidenceRule: z.string().trim().min(1).max(2048).nullable(),
+  submissionMode: z.enum(["manual", "automatic"]).nullable(),
+  slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(),
+}).strict();
+export const adminMapRevisionChallengeAssignmentSchema = adminMapRevisionChallengeAssignmentInputSchema.extend({
+  assignmentId: externalId,
+  gameplayRevisionId: externalId,
+  mapId: externalId,
+}).strict();
+export const adminMapRevisionCreateRequestSchema = z.object({
+  contractVersion,
+  sourceRevisionId: externalId.nullable().optional(),
+  resetReason: z.string().trim().min(1).max(512),
+  gameVersion: z.string().trim().min(1).max(64),
+  mapVariant: z.literal("classic").nullable(),
+  copyConfiguration: z.boolean(),
+  spatialConfig: agentSpatialConfigSchema.nullable().optional(),
+  challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256).optional(),
+}).strict();
+export const adminMapRevisionUpdateRequestSchema = z.object({
+  contractVersion,
+  lifecycle: adminMapRevisionLifecycle,
+  gameVersion: z.string().trim().min(1).max(64),
+  mapVariant: z.literal("classic").nullable(),
+  spatialConfig: agentSpatialConfigSchema.nullable(),
+  challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),
+}).strict();
+
 const titleColorSchema = z.union([
   z.object({ kind: z.literal("heroColor"), index: z.number().int().nonnegative() }),
   z.object({ kind: z.literal("rgb"), value: z.tuple([z.number().int().min(0).max(255), z.number().int().min(0).max(255), z.number().int().min(0).max(255)]) }),
@@ -530,6 +565,45 @@ const adminCatalogTitleSchema = z.object({
 });
 export const adminChallengeSchema = z.discriminatedUnion("family", [adminMapChallengeSchema, adminAchievementChallengeSchema, adminCatalogTitleSchema]);
 export const adminChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminChallengeSchema) });
+export const adminMapEditorChallengeOptionSchema = z.object({
+  challengeFamily: adminMapRevisionChallengeFamily,
+  challengeId: externalId,
+  label: z.string().trim().min(1).max(256),
+  kind: z.string().trim().min(1).max(64),
+  status: z.string().trim().min(1).max(32),
+  gameVersion: z.string().trim().min(1).max(64),
+}).strict();
+export const adminMapRevisionSchema = z.object({
+  revisionId: externalId,
+  mapId: externalId,
+  lifecycle: adminMapRevisionLifecycle,
+  mapVariant: z.literal("classic").nullable(),
+  copiedFromRevisionId: externalId.nullable(),
+  resetReason: z.string().trim().max(512).nullable(),
+  gameVersion: z.string().trim().min(1).max(64),
+  spatialConfig: agentSpatialConfigSchema.nullable(),
+  isDefault: z.boolean(),
+  isSelectable: z.boolean(),
+  challengeAssignments: z.array(adminMapRevisionChallengeAssignmentSchema).max(256),
+  createdAt: z.number().int(),
+  updatedAt: z.number().int(),
+}).strict();
+export const adminMapEditorAuditSchema = z.object({
+  operation: z.string().trim().min(1).max(128),
+  actorType: z.string().trim().min(1).max(32),
+  actorId: z.string().trim().min(1).max(256),
+  entityType: z.string().trim().min(1).max(64),
+  entityId: externalId,
+  payload: z.record(z.string(), z.unknown()),
+  createdAt: z.number().int(),
+}).strict();
+export const adminMapEditorResponseSchema = z.object({
+  contractVersion,
+  map: mapSchema,
+  revisions: z.array(adminMapRevisionSchema).max(32),
+  challengeCatalog: z.array(adminMapEditorChallengeOptionSchema).max(512),
+  audit: z.array(adminMapEditorAuditSchema).max(100),
+}).strict();
 
 const mapTitleRuleStatus = z.enum(["active", "sunsetting", "retired"]);
 const mapTitleRuleSlot = z.enum(["pioneer", "conqueror", "dominator"]);
@@ -1068,6 +1142,13 @@ export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreat
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
+export type AdminMapRevisionChallengeAssignment = z.infer<typeof adminMapRevisionChallengeAssignmentSchema>;
+export type AdminMapRevisionCreateRequest = z.infer<typeof adminMapRevisionCreateRequestSchema>;
+export type AdminMapRevisionUpdateRequest = z.infer<typeof adminMapRevisionUpdateRequestSchema>;
+export type AdminMapEditorChallengeOption = z.infer<typeof adminMapEditorChallengeOptionSchema>;
+export type AdminMapRevision = z.infer<typeof adminMapRevisionSchema>;
+export type AdminMapEditorAudit = z.infer<typeof adminMapEditorAuditSchema>;
+export type AdminMapEditorResponse = z.infer<typeof adminMapEditorResponseSchema>;
 export type Title = z.infer<typeof titleSchema>;
 export type TitleListResponse = z.infer<typeof titleListResponseSchema>;
 export type AgentEventListResponse = z.infer<typeof agentEventListResponseSchema>;
