@@ -66,6 +66,29 @@ The Portal proxies administrator requests server-side so the platform session
 cookie is forwarded to the Worker. Public responses do not expose private evidence,
 QQ OpenIDs, review notes, or unapproved drafts.
 
+### Nuxt Portal route topology
+
+Portal routes use Nuxt's file-based routing. A page file and a directory of
+descendant pages form a parent route, not two independent route records. For
+example, `apps/portal/pages/admin/maps.vue` becomes the `/admin/maps` parent of
+`apps/portal/pages/admin/maps/[mapId].vue`; the child is rendered only when the
+parent explicitly includes `<NuxtPage />`.
+
+When a collection page and a dynamic detail or editor page are siblings, model
+the route as a directory:
+
+```text
+apps/portal/pages/admin/maps/
+├── index.vue       # /admin/maps
+└── [mapId].vue     # /admin/maps/:mapId
+```
+
+Use a segment-level `.vue` parent only when it intentionally owns a nested
+layout and renders `<NuxtPage />`. A list page must not accidentally become the
+parent of its dynamic editor. Every new collection/detail pair must include a
+focused route-view test that mounts the concrete dynamic URL and asserts the
+detail or editor content, followed by the normal Portal build/check gate.
+
 Portal editorial content is a separate Git-backed surface under
 `apps/portal/content/`, with future media assets rooted at
 `apps/portal/public/content/`. Nuxt Content indexes Blog development logs and
