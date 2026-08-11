@@ -22,3 +22,4 @@
 0056_restrict_pioneer_map_title_scope.sql
 0058_title_grant_inheritance.sql
 0061_gameplay_revisions.sql
+0062_repair_legacy_classic_revisions.sql

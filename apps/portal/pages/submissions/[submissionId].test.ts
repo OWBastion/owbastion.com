@@ -29,9 +29,9 @@ const stubs = {
   SubmissionStatusBadge: { props: ["status"], template: "<span>{{ status }}</span>" },
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
   SubmissionCatalog: {
-    props: ["selectedChallengeId"],
+    props: ["selectedChallengeId", "selectedMapId", "selectedGameplayRevisionId"],
     emits: ["select"],
-    template: `<button type="button" data-testid="catalog-option" @click="$emit('select', { challengeId: 'challenge-1' })">选择挑战</button>`,
+    template: `<button type="button" data-testid="catalog-option" @click="$emit('select', { challengeId: 'challenge-1', mapId: 'map-1', gameplayRevisionId: 'revision:map-1:rework' })">选择挑战</button>`,
   },
 };
 
@@ -212,6 +212,7 @@ describe("submission detail page", () => {
     expect(confirmButton).toBeDefined();
     await confirmButton!.trigger("click");
     await flushPromises();
+    expect(api).toHaveBeenCalledWith("/v1/player/submissions/submission-awaiting/challenge", expect.objectContaining({ method: "POST", body: { contractVersion: "1", challengeId: "challenge-1", mapId: "map-1", gameplayRevisionId: "revision:map-1:rework" } }));
     expect(wrapper.find(".status-live").text()).toContain("无法确认挑战");
     expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find(".confirm-catalog").attributes("aria-busy")).toBeUndefined();

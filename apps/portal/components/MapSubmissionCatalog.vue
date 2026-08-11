@@ -2,8 +2,8 @@
 import type { Map, MapChallenge } from "../composables/useSubmissionUpload";
 import { mapVariantLabel } from "../utils/map-variant";
 
-const props = withDefaults(defineProps<{ maps: Map[]; challenges: MapChallenge[]; selectedChallengeId: string; selectedMapId?: string }>(), { selectedMapId: "" });
-const emit = defineEmits<{ select: [selection: { challengeId: string; mapId: string }] }>();
+const props = withDefaults(defineProps<{ maps: Map[]; challenges: MapChallenge[]; selectedChallengeId: string; selectedMapId?: string; selectedGameplayRevisionId?: string }>(), { selectedMapId: "", selectedGameplayRevisionId: "" });
+const emit = defineEmits<{ select: [selection: { challengeId: string; mapId: string; gameplayRevisionId: string }] }>();
 const selectedMapId = shallowRef("");
 
 const selectedMap = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value));
@@ -18,7 +18,7 @@ const selectedMapChallenges = computed(() => props.challenges.filter((challenge)
     <div v-if="selectedMap" class="map-selection">
       <div class="selection-heading"><span>地图挑战</span><strong>{{ selectedMap.mapName }}</strong></div>
       <div v-if="selectedMapChallenges.length" class="map-objectives">
-        <button v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}`" class="objective-button" :class="{ selected: props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span class="map-variant">{{ mapVariantLabel(challenge.mapVariant) }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
+        <button v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}:${challenge.gameplayRevisionId}`" class="objective-button" :class="{ selected: props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId }" type="button" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId, gameplayRevisionId: challenge.gameplayRevisionId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span class="map-variant">{{ mapVariantLabel(challenge.mapVariant) }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>
       <p v-else class="empty-state">该地图暂无提交目标。</p>
     </div>

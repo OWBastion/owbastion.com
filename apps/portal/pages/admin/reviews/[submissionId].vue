@@ -63,7 +63,7 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   } finally { actionLoading.value = false; }
 }
 
-async function selectChallenge(selection: { challengeId: string; mapId?: string }) {
+async function selectChallenge(selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }) {
   if (!submission.value || challengeSelectionLoading.value || actionLoading.value) return;
   challengeSelectionLoading.value = true;
   challengeSelectionError.value = "";

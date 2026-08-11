@@ -15,7 +15,7 @@ const response = {
 } as const;
 
 const mapChallenge = (id: string, name = "萨摩亚") => ({
-  challengeId: id, family: "map" as const, type: "map_completion" as const, kind: "difficulty_completion" as const,
+  challengeId: id, family: "map" as const, gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion" as const, kind: "difficulty_completion" as const,
   name: "传奇通关", mapId: "map.samoa", mapName: name, difficulty: "传奇", gameVersion: "1", status: "active" as const,
   submissionMode: "manual" as const, titleKey: "CONQUEROR",
 });

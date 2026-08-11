@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { type AnySQLiteColumn, index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const identities = sqliteTable("identities", {
   id: text("id").primaryKey(),
@@ -69,7 +69,7 @@ export const gameplayRevisions = sqliteTable("gameplay_revisions", {
   mapId: text("map_id").notNull().references(() => maps.id),
   lifecycle: text("lifecycle").notNull(),
   legacyMapVariant: text("legacy_map_variant"),
-  copiedFromRevisionId: text("copied_from_revision_id"),
+  copiedFromRevisionId: text("copied_from_revision_id").references((): AnySQLiteColumn => gameplayRevisions.id),
   resetReason: text("reset_reason"),
   gameVersion: text("game_version").notNull(),
   createdAt: integer("created_at").notNull(),

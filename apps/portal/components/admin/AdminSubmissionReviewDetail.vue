@@ -19,7 +19,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   review: [decision: ReviewDecision];
-  "select-challenge": [selection: { challengeId: string; mapId?: string }];
+  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "retry-ocr": [];

@@ -10,6 +10,7 @@ type MapItem = { mapId: string; mapName: string };
 type MapChallenge = {
   challengeId: string;
   family: "map";
+  gameplayRevisionId: string;
   type: "map_completion";
   kind?: string;
   titleKey?: string;
@@ -158,7 +159,7 @@ const mapRows = computed<MapViewRow[]>(() => {
     inheritance: item,
   }));
   const genuineChallenges = props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value && !challenge.mapTitleRule?.dynamic).map((challenge) => ({
-    rowId: `${challenge.mapId}:${challenge.challengeId}`,
+    rowId: `${challenge.mapId}:${challenge.challengeId}:${challenge.gameplayRevisionId}`,
     rowType: "challenge" as const,
     titleName: challenge.name,
     source: "单图挑战",

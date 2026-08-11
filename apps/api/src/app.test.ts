@@ -1026,7 +1026,7 @@ describe("API", () => {
         listChallenges: async (input) => {
         requestedFamilies.push(input?.family);
         if (input?.family === "achievement") return [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual" }];
-        return [{ challengeId: "map.samoa.conqueror", family: "map", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15", status: "active" }];
+        return [{ challengeId: "map.samoa.conqueror", family: "map", gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15", status: "active" }];
       },
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], color: { kind: "heroColor" as const, index: 12 }, gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", icon: "trophy", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: "2026.07.15" }],
     };
@@ -1185,10 +1185,10 @@ describe("API", () => {
 
   it("lets maintainers select a submission challenge", async () => {
     const selections: string[] = [];
-    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => { selections.push(`${submissionId}:${challengeId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
-    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso" }) }, env);
+    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId, gameplayRevisionId }) => { selections.push(`${submissionId}:${challengeId}:${gameplayRevisionId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
+    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }) }, env);
     expect(response.status).toBe(200);
-    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell"]);
+    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework"]);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

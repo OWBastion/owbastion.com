@@ -335,7 +335,7 @@ onMounted(() => void load());
               :mobile-columns="challengeMobileColumns"
               :loading="loading"
               empty="暂无挑战记录。"
-              row-key="challengeId"
+              :row-key="(challenge) => `${challenge.challengeId}:${challenge.gameplayRevisionId}`"
               :table-key="`map-challenges-${selectedMap.mapId}`"
               table-min-width="560px"
               class="admin-table nested-table"

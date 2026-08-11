@@ -33,6 +33,7 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
 const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
 const selectedChallengeId = shallowRef("");
 const selectedMapId = shallowRef("");
+const selectedGameplayRevisionId = shallowRef("");
 const confirming = shallowRef(false);
 const requestingManualReview = shallowRef(false);
 const refreshingStatus = shallowRef(false);
@@ -72,10 +73,11 @@ const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceSta
 
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
 
-const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
+const selectChallenge = (event: { challengeId: string; mapId?: string; gameplayRevisionId?: string }) => {
   if (confirming.value) return;
   selectedChallengeId.value = event.challengeId;
   selectedMapId.value = event.mapId ?? "";
+  selectedGameplayRevisionId.value = event.gameplayRevisionId ?? "";
 };
 
 const confirmChallenge = async () => {
@@ -86,7 +88,7 @@ const confirmChallenge = async () => {
   try {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, {
       method: "POST",
-      body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}) },
+      body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}), ...(selectedGameplayRevisionId.value ? { gameplayRevisionId: selectedGameplayRevisionId.value } : {}) },
     });
     actionMessage.value = "挑战已确认。";
     await refresh();
@@ -237,6 +239,7 @@ onBeforeUnmount(() => {
                   :achievement-challenges="achievementChallenges"
                   :selected-challenge-id="selectedChallengeId"
                   :selected-map-id="selectedMapId"
+                  :selected-gameplay-revision-id="selectedGameplayRevisionId"
                   @select="selectChallenge"
                 />
               </div>

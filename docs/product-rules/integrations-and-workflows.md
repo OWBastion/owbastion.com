@@ -540,12 +540,15 @@ the single-default invariant.
 
 Map-title rules, direct map challenges, map-scoped title challenges, and the
 legacy `CLASSIC`/`PIONEER` projections are all assigned through the same
-revision-aware challenge-assignment model. At submission or grant time the
-resolved `gameplay_revision_id` is an immutable snapshot on the submission,
-grant, and mastery-run facts. A rework therefore creates independent new
-progression without rewriting old facts. The default `/v1/me/mastery` profile
-uses only a map's default revision; an explicit revision query can read the
-selected or historical revision's own profile and bounded run history.
+revision-aware challenge-assignment model. Every projected map challenge
+exposes its exact `gameplayRevisionId`; assignments to a `default` or
+`selectable` revision determine catalog visibility instead of a legacy variant
+branch. At submission or grant time that resolved revision is an immutable
+snapshot on the submission, grant, and mastery-run facts. A rework therefore
+creates independent new progression without rewriting old facts. The default
+`/v1/me/mastery` profile uses only a map's default revision; an explicit
+revision query can read the selected or historical revision's own profile and
+bounded run history.
 
 The platform owns candidate selection, rule-snapshot evaluation, approval,
 Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous results

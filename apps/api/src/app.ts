@@ -874,7 +874,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 422, code, "The challenge is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge revision is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
   });
 
   app.put("/v1/uploads/:uploadId", async (c) => {
@@ -899,7 +899,7 @@ export const createApp = (dependencies: AppDependencies) => {
     try { return c.json(await dependencies.services(c.env).confirmPlayerSubmissionChallenge({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "SUBMISSION_CHALLENGE_FAILED";
-      if (["CHALLENGE_NOT_FOUND", "SUBMISSION_NOT_CONFIRMABLE"].includes(code)) return errorResponse(c, 422, code, "The submission challenge cannot be confirmed");
+      if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED", "SUBMISSION_NOT_CONFIRMABLE"].includes(code)) return errorResponse(c, 422, code, "The submission challenge cannot be confirmed");
       throw error;
     }
   });
@@ -1435,7 +1435,7 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "CHALLENGE_SELECTION_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (["CHALLENGE_NOT_FOUND", "CHALLENGE_AUTOMATIC", "CHALLENGE_NOT_SELECTABLE", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
+      if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED", "CHALLENGE_AUTOMATIC", "CHALLENGE_NOT_SELECTABLE", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

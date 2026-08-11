@@ -13,15 +13,15 @@ const applyMigrations = (sqlite: DatabaseSync, through: string) => {
   }
 };
 
-describe("0061 gameplay revision forward migration", () => {
-  it("assigns legacy facts to stable initial and CLASSIC revisions without rewriting them", () => {
+describe("0061/0062 gameplay revision forward migrations", () => {
+  it("assigns legacy facts to stable initial and repairs CLASSIC provenance from legacy evidence", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec("PRAGMA foreign_keys = ON;");
     applyMigrations(sqlite, "0060_mastery_ledger.sql");
 
     sqlite.exec(`
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at)
-      VALUES ('map.revision', 'Revision Map', '26.0810.1', 'active', '26.0810.1', 1, 1);
+      VALUES ('map.revision', 'Revision Map', '26.0810.9', 'active', '26.0810.1', 1, 1);
       INSERT OR IGNORE INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version)
       VALUES
         ('REV_STANDARD', 'Standard', 'trophy', '地图', '完成地图', 'active', 'map', 'map_name_suffix', 'null', '26.0810.1'),
@@ -38,11 +38,11 @@ describe("0061 gameplay revision forward migration", () => {
       INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, retired_version, created_at, updated_at)
       VALUES
         ('challenge.revision.standard', 'map.revision', 'difficulty_completion', '标准挑战', '困难', '标准条件', '标准证据', 'manual', 'CONQUEROR', '26.0810.1', 'active', '26.0810.1', NULL, 1, 1),
-        ('challenge.revision.classic', 'map.revision', 'classic_completion', '经典挑战', '困难', '经典条件', '经典证据', 'manual', 'CLASSIC', '26.0810.1', 'active', '26.0810.1', NULL, 1, 1);
+        ('challenge.revision.classic', 'map.revision', 'classic_completion', '经典挑战', '困难', '经典条件', '经典证据', 'manual', 'CLASSIC', '26.0710.1', 'active', '26.0710.1', NULL, 1, 1);
       INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, map_variant, created_at, updated_at)
       VALUES
         ('title.revision.standard', 'REV_STANDARD', NULL, '标准条件', '标准证据', 'manual', '26.0810.1', 'active', '26.0810.1', NULL, NULL, NULL, 'map', NULL, 1, 1),
-        ('title.revision.classic', 'REV_CLASSIC', NULL, '经典条件', '经典证据', 'manual', '26.0810.1', 'active', '26.0810.1', NULL, NULL, NULL, 'map', 'classic', 1, 1);
+        ('title.revision.classic', 'REV_CLASSIC', NULL, '经典条件', '经典证据', 'manual', '26.0710.1', 'active', '26.0710.1', NULL, NULL, NULL, 'map', 'classic', 1, 1);
       INSERT INTO achievement_challenge_maps (challenge_id, map_id)
       VALUES ('title.revision.standard', 'map.revision'), ('title.revision.classic', 'map.revision');
       INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.revision', 1, 1);
@@ -57,7 +57,7 @@ describe("0061 gameplay revision forward migration", () => {
       INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, invalidated_at, invalidated_by, invalidation_reason, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at)
       VALUES
         ('run.revision.initial', 'player.revision', 'submission.revision.initial', 'map.revision', NULL, '困难', '26.0810.1', '1234-5678-9012', 600, 1, 0, '{}', 'submission_review', 1, 'active', NULL, NULL, NULL, 'v1', '{}', 225, 1),
-        ('run.revision.classic', 'player.revision', 'submission.revision.classic', 'map.revision', 'classic', '困难', '26.0810.1', '2234-5678-9012', 610, 1, 0, '{}', 'submission_review', 1, 'active', NULL, NULL, NULL, 'v1', '{}', 225, 1);
+        ('run.revision.classic', 'player.revision', 'submission.revision.classic', 'map.revision', 'classic', '困难', '26.0710.1', '2234-5678-9012', 610, 1, 0, '{}', 'submission_review', 1, 'active', NULL, NULL, NULL, 'v1', '{}', 225, 1);
       INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at)
       VALUES
         ('grant.revision.initial', 'player.revision', 'CONQUEROR', 'map.revision', 'conqueror', 'active', 'submission', 'submission.revision.initial', 'admin', 1),
@@ -69,10 +69,11 @@ describe("0061 gameplay revision forward migration", () => {
     `);
 
     sqlite.exec(readFileSync(`${migrationsDirectory}/0061_gameplay_revisions.sql`, "utf8"));
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0062_repair_legacy_classic_revisions.sql`, "utf8"));
 
-    expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
-      { id: "revision:map.revision:classic", lifecycle: "selectable", legacy_map_variant: "classic" },
-      { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null },
+    expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
+      { id: "revision:map.revision:classic", lifecycle: "selectable", legacy_map_variant: "classic", copied_from_revision_id: null, game_version: "26.0710.1" },
+      { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
     ]);
     expect(sqlite.prepare("SELECT id, gameplay_revision_id FROM submissions WHERE id LIKE 'submission.revision.%' ORDER BY id").all()).toEqual([
       { id: "submission.revision.classic", gameplay_revision_id: "revision:map.revision:classic" },

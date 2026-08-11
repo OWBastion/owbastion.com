@@ -581,6 +581,14 @@ const seedClassicGameplayRevision = (sqlite: DatabaseSync, mapId: string) => {
   ).run(`revision:${mapId}:classic`, mapId, `revision:${mapId}:initial`, now, now);
 };
 
+const seedSelectableGameplayRevision = (sqlite: DatabaseSync, mapId: string, suffix = "rework") => {
+  const id = `revision:${mapId}:${suffix}`;
+  sqlite.prepare(
+    "INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, 'revision test', '2026.08.10', ?, ?)",
+  ).run(id, mapId, `revision:${mapId}:initial`, now, now);
+  return id;
+};
+
 const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
   gameplayRevisionId: string;
   mapId: string;
@@ -699,6 +707,8 @@ describe("map title rule model – locked invariants", () => {
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
 
       const sessionToken = "player-session";
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
@@ -709,7 +719,7 @@ describe("map title rule model – locked invariants", () => {
 
       const services = createPlatformServices(database);
       const result = await services.confirmPlayerSubmissionChallenge(
-        { submissionId: "submission.1", challengeId: "map.paris.conqueror", mapId: "map.paris" } as never,
+        { submissionId: "submission.1", challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId } as never,
         sessionToken,
       );
 
@@ -718,8 +728,8 @@ describe("map title rule model – locked invariants", () => {
       expect(submission.challenge_type).toBe("map_title_achievement");
       expect(submission.challenge_id).toBe("map.paris.conqueror");
       expect(submission.target_map_id).toBe("map.paris");
-      expect(submission.gameplay_revision_id).toBe("revision:map.paris:initial");
-      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", titleKey: "CONQUEROR", slot: "conqueror" });
+      expect(submission.gameplay_revision_id).toBe(reworkRevisionId);
+      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId, titleKey: "CONQUEROR", slot: "conqueror" });
     });
 
     it("repairs a legacy classic submission before manual OCR retry", async () => {
@@ -885,6 +895,44 @@ describe("map title rule model – locked invariants", () => {
       expect(agents.items).toContainEqual(expect.objectContaining(expected));
     });
 
+    it("projects assignments on an arbitrary selectable revision across every map challenge family", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedTitle(sqlite, "REWORK");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      seedLegacyMapChallenge(sqlite, "challenge.paris.direct", "map.paris");
+      seedMapTitleChallenge(sqlite, "title.paris.rework", "REWORK", "map.paris");
+      const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_challenge", challengeId: "challenge.paris.direct" });
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "title_challenge", challengeId: "title.paris.rework" });
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      const portal = await services.listChallenges({ family: "map" });
+      const admin = await services.listAdminChallenges({ family: "map" }, auth);
+      const agents = await services.listAgentAchievements({ page: 1, pageSize: 20, mapId: "map.paris" });
+      const reworkProjection = (challengeId: string) => expect.objectContaining({ challengeId, mapId: "map.paris", gameplayRevisionId: reworkRevisionId });
+
+      expect(portal).toEqual(expect.arrayContaining([
+        reworkProjection("map.paris.conqueror"),
+        reworkProjection("challenge.paris.direct"),
+        reworkProjection("title.paris.rework"),
+      ]));
+      expect(admin.items).toEqual(expect.arrayContaining([
+        reworkProjection("map.paris.conqueror"),
+        reworkProjection("challenge.paris.direct"),
+        reworkProjection("title.paris.rework"),
+      ]));
+      expect(agents.items).toEqual(expect.arrayContaining([
+        reworkProjection("map.paris.conqueror"),
+        reworkProjection("title.paris.rework"),
+      ]));
+    });
+
     it("lets a maintainer select a projected challenge for an ambiguous submission", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
@@ -909,6 +957,34 @@ describe("map title rule model – locked invariants", () => {
       expect(submission).toMatchObject({ status: "ready_for_review", challenge_type: "map_title_achievement", challenge_id: "map.paris.conqueror", target_map_id: "map.paris" });
       expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", titleKey: "CONQUEROR", mapId: "map.paris" });
       expect(sqlite.prepare("SELECT operation FROM audit_events WHERE entity_id = 'submission.ambiguous'").get()).toMatchObject({ operation: "submission.challenge.select" });
+    });
+
+    it("requires and persists the selected gameplay revision for duplicate map candidates", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.revision-choice', 'binding.1', 'ocr_review_required', 'unknown', '地图 map.paris', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
+      const candidate = (gameplayRevisionId: string) => ({ challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId, challengeType: "map_title_achievement", targetMapName: "地图 map.paris", targetDifficulty: "传奇", titleName: "称号 CONQUEROR", match: { achievement: true } });
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.revision-choice', 'submission.revision-choice', 1, 'review_required', ?, ?, ?)").run(
+        JSON.stringify({ data: { map_name: "地图 map.paris", difficulty: "传奇" } }),
+        JSON.stringify({ candidates: [candidate("revision:map.paris:initial"), candidate(reworkRevisionId)] }),
+        now,
+      );
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.revision-choice", challengeId: "map.paris.conqueror", mapId: "map.paris" }, auth, "challenge-select-revision-missing")).rejects.toThrow("GAMEPLAY_REVISION_REQUIRED");
+      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.revision-choice", challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId }, auth, "challenge-select-revision-rework")).resolves.toMatchObject({ status: "ready_for_review", challengeId: "map.paris.conqueror" });
+
+      const submission = sqlite.prepare("SELECT gameplay_revision_id, rule_snapshot_json FROM submissions WHERE id = 'submission.revision-choice'").get() as { gameplay_revision_id: string; rule_snapshot_json: string };
+      expect(submission.gameplay_revision_id).toBe(reworkRevisionId);
+      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ gameplayRevisionId: reworkRevisionId });
     });
 
     it("lets a maintainer select a global achievement candidate", async () => {
