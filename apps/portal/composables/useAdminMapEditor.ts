@@ -78,7 +78,7 @@ export function useAdminMapEditor(mapId: string) {
     try {
       editor.value = await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`);
     } catch (cause) {
-      error.value = portalErrorDetails(cause, "无法读取地图 revision 编辑器，请稍后重试。").description;
+      error.value = portalErrorDetails(cause, "无法读取地图版本修订编辑器，请稍后重试。").description;
       throw cause;
     } finally {
       loading.value = false;

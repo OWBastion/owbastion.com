@@ -23,11 +23,11 @@ const dateLabel = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { date
     <header class="section-heading">
       <div>
         <p class="eyebrow">公平边界</p>
-        <h2 id="revision-list-title">Gameplay revisions</h2>
+        <h2 id="revision-list-title">版本修订</h2>
       </div>
       <span class="section-count">{{ props.revisions.length }} 个</span>
     </header>
-    <p class="section-note">默认和可选 revision 才会同步到 Bastion；准备中与历史 revision 保留在平台上供审计。</p>
+    <p class="section-note">仅默认和可选版本修订会同步到游戏侧；准备中与历史版本修订保留在平台上供审计。</p>
     <ol class="revision-list__items">
       <li v-for="revision in props.revisions" :key="revision.revisionId">
         <button
