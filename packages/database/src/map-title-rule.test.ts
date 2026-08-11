@@ -145,6 +145,8 @@ const installSchema = (sqlite: DatabaseSync) => {
       revoked_at INTEGER,
       revoke_reason TEXT
     );
+    CREATE UNIQUE INDEX player_title_grants_source_idx
+      ON player_title_grants (source_type, source_id, title_key);
     CREATE TABLE achievement_challenges (
       id TEXT PRIMARY KEY NOT NULL,
       map_id TEXT NOT NULL,
@@ -590,6 +592,46 @@ describe("map title rule model – locked invariants", () => {
       const submission = sqlite.prepare("SELECT status, rule_snapshot_json FROM submissions WHERE id = 'sub.legacy-classic'").get() as { status: string; rule_snapshot_json: string | null };
       expect(submission.status).toBe("approved");
       expect(JSON.parse(submission.rule_snapshot_json!)).toMatchObject({ titleKey: "CLASSIC", mapId: "map.paris", mapVariant: "classic" });
+    });
+
+    it("persists the covered conqueror grant when a dominator OCR match is automated", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.dorado");
+      seedTitle(sqlite, "CONQUEROR");
+      seedTitle(sqlite, "DOMINATOR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.auto', 'auto-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.auto', 'identity.auto', 'player.auto', 'qq', 'group.auto', 'member.auto', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.auto', 'binding.auto', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'auto.1', ?, ?)").run(now, now);
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        fields: {
+          challenge_completed: { status: "ok", confidence: 0.99 },
+          viewer_player: { status: "ok", confidence: 0.99 },
+          map_name: { status: "ok", confidence: 0.99 },
+          difficulty: { status: "ok", confidence: 0.99 },
+        },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.dorado", difficulty: "地狱" },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", undefined, "ocr-bucket");
+        await services.processOcrJob({ submissionId: "submission.auto", objectKey: "evidence/auto.png", attempt: 1, requestId: "request.auto" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      const grants = sqlite.prepare("SELECT title_key, slot, source_type, source_id FROM player_title_grants WHERE player_account_id = 'player.auto' AND status = 'active' ORDER BY title_key").all() as Array<{ title_key: string; slot: string; source_type: string; source_id: string }>;
+      expect(grants).toEqual([
+        { title_key: "CONQUEROR", slot: "conqueror", source_type: "automatic", source_id: "submission.auto" },
+        { title_key: "DOMINATOR", slot: "dominator", source_type: "automatic", source_id: "submission.auto" },
+      ]);
+      const auditCount = sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'submission.automatic_grant' AND entity_type = 'player_title_grant'").get() as { count: number };
+      expect(auditCount.count).toBe(2);
     });
   });
 

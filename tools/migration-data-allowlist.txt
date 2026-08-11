@@ -20,3 +20,4 @@
 0053_add_awaiting_player_confirmation_status.sql
 0054_materialise_variant_map_title_rules.sql
 0056_restrict_pioneer_map_title_scope.sql
+0058_title_grant_inheritance.sql

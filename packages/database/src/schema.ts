@@ -238,7 +238,7 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   revokedAt: integer("revoked_at"),
   revokeReason: text("revoke_reason"),
 }, (table) => ({
-  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId),
+  sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey),
 }));
 
 export const titleChallenges = sqliteTable("title_challenges", {
