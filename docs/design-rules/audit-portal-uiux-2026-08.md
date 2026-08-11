@@ -245,7 +245,7 @@ aria-label 过滤控件），上一轮 m-20（弹窗 eyebrow 重复）已随之�
 
 | 原编号 | 位置 | 原判定 | 豁免理由 |
 | --- | --- | --- | --- |
-| S-01 | `components/MyAchievementOverview.vue:69` | 玩家侧 badge「不再发放」使用禁用词「发放」 | 产品确认：该文案描述称号授予渠道的终止状态，为既定产品语义，合规保留。terminology.md 的「发放 → 获得」规则不适用于此实例 |
+| S-01 | `components/MyAchievementOverview.vue:69` | 玩家侧 badge「不再发放」使用禁用词「发放」 | 产品确认合规；已在 [terminology.md §玩家侧禁用内部词](terminology.md) 登记为「不再发放」例外（2026-08-12） |
 
 ## Apple-design 视角观察
 
