@@ -59,14 +59,11 @@ const manualReviewEligible = computed(() => data.value?.manualReviewEligible ===
 const masteryOutcome = computed(() => masteryOutcomePresentation(data.value?.masteryOutcome));
 const needsChallengeConfirmation = computed(() => Boolean(data.value && !data.value.challengeId && data.value.status === "awaiting_player_confirmation"));
 const mutationBusy = computed(() => confirming.value || requestingManualReview.value || refreshingStatus.value);
+// Status is carried by the badge and progress; the alert stays only for a distinct,
+// actionable fact (a resubmission reason, or a granted title name).
 const statusAlert = computed(() => {
-  if (data.value?.status === "ocr_pending") return { title: "截图已上传，等待识别", description: "识别通过后确认对应的地图通关或成就挑战。", color: "info" as const };
-  if (data.value?.status === "ocr_review_required") return { title: "等待处理", description: "已提交处理申请，请稍后查看结果。", color: "warning" as const };
   if (data.value?.status === "resubmission_required") return { title: "需重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
-  if (data.value?.titleGrant) return { title: "称号已获得", description: `已获得「${data.value.titleGrant.titleName}」${data.value.titleGrant.mapName ? ` · ${data.value.titleGrant.mapName}` : ""}。`, color: "success" as const };
-  if (data.value?.status === "awaiting_player_confirmation") return { title: "等待确认挑战", description: "请选择这张截图对应的挑战后继续。", color: "info" as const };
-  if (data.value?.status === "ready_for_review") return { title: "等待核对", description: "识别已完成，请等待核对结果。", color: "info" as const };
-  if (data.value?.status === "approved") return { title: "已通过", description: "提交已通过。", color: "success" as const };
+  if (data.value?.titleGrant) return { title: "已获得称号", description: `「${data.value.titleGrant.titleName}」${data.value.titleGrant.mapName ? ` · ${data.value.titleGrant.mapName}` : ""}`, color: "success" as const };
   return null;
 });
 const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceState.value === "ready" || evidenceState.value === "loading" ? evidenceUrl : null));
@@ -221,6 +218,24 @@ onBeforeUnmount(() => {
       </div>
 
       <section class="detail-grid">
+        <div class="evidence-col">
+          <UCard class="evidence-card elevation-3">
+            <template #header>
+              <div class="card-heading"><h2>提交截图</h2></div>
+            </template>
+            <img
+              v-if="evidenceDisplaySrc && evidenceState !== 'failed' && evidenceState !== 'missing'"
+              :src="evidenceDisplaySrc"
+              :alt="`${data.mapName}的提交截图`"
+              class="evidence-image"
+              @error="markEvidenceFailed"
+            />
+            <p v-else-if="evidenceState === 'loading'" class="evidence-message" role="status">读取中…</p>
+            <p v-else-if="evidenceState === 'missing'" class="evidence-message" role="status">暂无截图</p>
+            <p v-else class="evidence-message" role="alert">无法读取截图，请稍后重试。</p>
+          </UCard>
+        </div>
+
         <div class="info-col">
           <UCard v-if="needsChallengeConfirmation" class="confirm-card elevation-2">
             <template #header>
@@ -311,24 +326,6 @@ onBeforeUnmount(() => {
               <div><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
               <div v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
             </dl>
-          </UCard>
-        </div>
-
-        <div class="evidence-col">
-          <UCard class="evidence-card elevation-3">
-            <template #header>
-              <div class="card-heading"><h2>提交截图</h2></div>
-            </template>
-            <img
-              v-if="evidenceDisplaySrc && evidenceState !== 'failed' && evidenceState !== 'missing'"
-              :src="evidenceDisplaySrc"
-              :alt="`${data.mapName}的提交截图`"
-              class="evidence-image"
-              @error="markEvidenceFailed"
-            />
-            <p v-else-if="evidenceState === 'loading'" class="evidence-message" role="status">读取中…</p>
-            <p v-else-if="evidenceState === 'missing'" class="evidence-message" role="status">暂无截图</p>
-            <p v-else class="evidence-message" role="alert">无法读取截图</p>
           </UCard>
         </div>
       </section>
@@ -503,7 +500,7 @@ onBeforeUnmount(() => {
     grid-column: 1;
     grid-row: 1;
     position: sticky;
-    top: 24px;
+    top: var(--sticky-chrome-top);
   }
   .info-col {
     grid-column: 2;
@@ -517,6 +514,7 @@ onBeforeUnmount(() => {
   .submission-page { padding-top: 56px; }
   .page-heading .page-title { max-width: none; }
   .breadcrumb { margin-bottom: 30px; }
+  .overview-actions :deep(button) { min-height: 44px; }
   .submission-skeleton-row {
     align-items: flex-start;
     flex-direction: column;
@@ -526,7 +524,6 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 360px) {
   .submission-page { padding-block: 48px 48px; }
-  .overview-actions :deep(button) { min-height: 44px; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; }
