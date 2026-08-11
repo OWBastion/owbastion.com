@@ -36,7 +36,7 @@ onMounted(async () => {
 
 <template>
   <main class="maps-page page-shell">
-    <section class="page-intro" aria-labelledby="maps-title"><h1 id="maps-title" class="page-title">地图</h1><p class="body-copy">查看当前支持的地图与挑战记录。</p></section>
+    <section class="page-intro" aria-labelledby="maps-title"><h1 id="maps-title" class="page-title">地图</h1></section>
     <section class="map-directory-panel surface-card" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">

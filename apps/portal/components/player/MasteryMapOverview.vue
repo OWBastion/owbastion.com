@@ -24,7 +24,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
       </dl>
     </NuxtLink>
   </div>
-  <UEmpty v-else title="暂无精通记录" description="尚无已验证通关。" variant="naked" />
+  <UEmpty v-else title="暂无精通记录" variant="naked" />
 </template>
 
 <style scoped>

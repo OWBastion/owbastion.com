@@ -23,7 +23,7 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
 
 <template>
   <form class="review-editor" @submit.prevent="emit('save')">
-    <div class="review-editor-heading"><div><h4>{{ currentReview ? "编辑评价" : "写下评价" }}</h4><p>你的评价会帮助其他玩家了解这项内容。</p></div><span>{{ comment.length }}/500</span></div>
+    <div class="review-editor-heading"><div><h4>{{ currentReview ? "编辑评价" : "写下评价" }}</h4></div><span>{{ comment.length }}/500</span></div>
     <fieldset class="review-rating-fieldset" :disabled="saving">
       <legend>评分</legend>
       <div class="review-rating-options">

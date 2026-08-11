@@ -43,7 +43,7 @@ const withdraw = async () => { if (await review.withdraw()) emit("review-changed
     <template v-else>
       <UAlert v-if="error && !loading && !props.authenticated" color="error" variant="subtle" :description="error" role="alert" />
       <UAlert v-if="success" color="success" variant="subtle" :description="success" aria-live="polite" />
-      <div v-if="!props.authenticated" class="review-guest"><p>登录后可以提交或修改你的评价。</p><NuxtLink class="secondary-button review-login" :to="loginPath">登录后评分</NuxtLink></div>
+      <div v-if="!props.authenticated" class="review-guest"><NuxtLink class="secondary-button review-login" :to="loginPath">登录后评分</NuxtLink></div>
       <ReviewEditor v-else-if="!loading" :current-review="currentReview" :rating="draftRating" :comment="draftComment" :anonymous="draftAnonymous" :saving="saving" :error="error" @update:rating="draftRating = $event" @update:comment="draftComment = $event" @update:anonymous="draftAnonymous = $event" @save="save" @withdraw="withdraw" />
       <button v-if="error && !unavailable" class="secondary-button review-retry" type="button" :disabled="loading" @click="retry">重新读取评价</button>
     </template>

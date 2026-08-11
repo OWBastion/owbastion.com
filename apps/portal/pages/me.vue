@@ -99,7 +99,6 @@ onMounted(() => {
     <template v-if="player">
       <section class="intro" aria-labelledby="dashboard-title">
         <div class="intro-copy">
-          <p class="eyebrow">玩家中心</p>
           <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
         </div>
         <div class="intro-actions">
@@ -170,11 +169,8 @@ onMounted(() => {
         <PageSectionHeader title="更多功能" heading-id="upcoming-title" />
         <p id="upcoming-status" class="upcoming-status">未开放</p>
         <div class="upcoming-grid">
-          <article class="upcoming-card surface-card" aria-disabled="true">
-            <div>
-              <p class="upcoming-kicker type-kicker">限时目标</p>
-              <h3 class="type-headline">轮换挑战</h3>
-            </div>
+          <article class="upcoming-card surface-card">
+            <h3 class="type-headline">轮换挑战</h3>
           </article>
         </div>
       </section>
@@ -183,7 +179,6 @@ onMounted(() => {
     <div v-else-if="showSkeleton" class="me-skeleton" role="status" aria-label="读取中…">
       <section class="me-skeleton-intro" aria-hidden="true">
         <div class="me-skeleton-intro-copy">
-          <USkeleton class="me-skeleton-eyebrow" />
           <USkeleton class="me-skeleton-heading" />
         </div>
         <USkeleton class="me-skeleton-intro-action" />
@@ -233,7 +228,6 @@ onMounted(() => {
         <div class="me-skeleton-upcoming-grid">
           <article v-for="card in 2" :key="`upcoming-${card}`" class="me-skeleton-upcoming-card surface-card">
             <div class="me-skeleton-upcoming-copy">
-              <USkeleton class="me-skeleton-upcoming-kicker" />
               <USkeleton class="me-skeleton-upcoming-title" />
             </div>
           </article>
@@ -242,14 +236,12 @@ onMounted(() => {
     </div>
 
     <section v-else-if="playerLoadFailed" class="me-state surface-card" aria-labelledby="me-error-title">
-      <p class="eyebrow">玩家中心</p>
       <h1 id="me-error-title" class="page-title">无法读取玩家信息</h1>
       <p class="body-copy">{{ playerError }}</p>
       <UButton label="重试" color="primary" :loading="retrying" @click="retryAll" />
     </section>
 
     <section v-else-if="sessionUnavailable" class="me-state surface-card" aria-labelledby="me-session-title">
-      <p class="eyebrow">玩家中心</p>
       <h1 id="me-session-title" class="page-title">需要登录</h1>
       <p class="body-copy">当前会话不可用。</p>
       <UButton to="/login" label="去登录" color="primary" />
@@ -285,7 +277,6 @@ onMounted(() => {
   pointer-events: none;
   user-select: none;
 }
-.upcoming-kicker { margin: 0 0 8px; color: var(--quiet); }
 .upcoming-card .type-headline {
   margin: 0;
   color: color-mix(in oklch, var(--text) 72%, var(--muted));
@@ -297,7 +288,6 @@ onMounted(() => {
 .me-skeleton-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
 .me-skeleton-intro-copy { display: grid; gap: 14px; min-width: 0; max-width: 690px; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: 999px; }
-.me-skeleton-eyebrow { width: 72px; height: 12px; }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
 .me-skeleton-identity { display: flex; align-items: center; gap: 15px; padding: 22px; }
 .me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }
@@ -349,7 +339,6 @@ onMounted(() => {
   padding: 20px;
 }
 .me-skeleton-upcoming-copy { display: grid; gap: 10px; }
-.me-skeleton-upcoming-kicker { width: 72px; height: 12px; }
 .me-skeleton-upcoming-title { width: 124px; height: 24px; }
 @media (max-width: 760px) {
   .upcoming-grid, .titles-loading, .mastery-loading, .me-skeleton-title-grid, .me-skeleton-upcoming-grid { grid-template-columns: 1fr; }

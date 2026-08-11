@@ -6,7 +6,6 @@ const steps: StepperItem[] = [
   { icon: "i-lucide-scan-line", title: "截图识别" },
   { icon: "i-lucide-user-round-check", title: "核对结果" },
   { icon: "i-lucide-award", title: "获得称号" },
-  { icon: "i-lucide-refresh-cw", title: "游戏内同步" },
 ];
 </script>
 
