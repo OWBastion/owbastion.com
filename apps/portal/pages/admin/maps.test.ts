@@ -20,6 +20,7 @@ const challengesPayload = {
     {
       challengeId: "map.samoa.hell",
       family: "map" as const,
+      gameplayRevisionId: "revision:map.samoa:initial",
       type: "map_completion" as const,
       kind: "difficulty_completion" as const,
       name: "地狱难度通关",
@@ -37,6 +38,7 @@ const challengesPayload = {
     {
       challengeId: "map.samoa.scheduled",
       family: "map" as const,
+      gameplayRevisionId: "revision:map.samoa:initial",
       type: "map_completion" as const,
       kind: "difficulty_completion" as const,
       name: "计划开放挑战",

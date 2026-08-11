@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import type { MasterySubmissionOutcome } from "~/composables/usePortalApi";
+import { masteryOutcomePresentation } from "~/utils/mastery";
+
 defineProps<{
-  submissions: Array<{ submissionId: string; mapName: string; status: string; updatedAt: number }>;
+  submissions: Array<{ submissionId: string; mapName: string; status: string; updatedAt: number; masteryOutcome?: MasterySubmissionOutcome }>;
 }>();
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
@@ -9,7 +12,7 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 <template>
   <div v-if="submissions.length" class="submission-list">
     <NuxtLink v-for="submission in submissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row interactive-card pressable-soft">
-      <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}</span></div>
+      <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}<template v-if="masteryOutcomePresentation(submission.masteryOutcome)"> · {{ masteryOutcomePresentation(submission.masteryOutcome)?.inline }}</template></span></div>
       <SubmissionStatusBadge :status="submission.status" />
     </NuxtLink>
   </div>

@@ -29,9 +29,9 @@ const stubs = {
   SubmissionStatusBadge: { props: ["status"], template: "<span>{{ status }}</span>" },
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
   SubmissionCatalog: {
-    props: ["selectedChallengeId"],
+    props: ["selectedChallengeId", "selectedMapId", "selectedGameplayRevisionId"],
     emits: ["select"],
-    template: `<button type="button" data-testid="catalog-option" @click="$emit('select', { challengeId: 'challenge-1' })">选择挑战</button>`,
+    template: `<button type="button" data-testid="catalog-option" @click="$emit('select', { challengeId: 'challenge-1', mapId: 'map-1', gameplayRevisionId: 'revision:map-1:rework' })">选择挑战</button>`,
   },
 };
 
@@ -212,6 +212,7 @@ describe("submission detail page", () => {
     expect(confirmButton).toBeDefined();
     await confirmButton!.trigger("click");
     await flushPromises();
+    expect(api).toHaveBeenCalledWith("/v1/player/submissions/submission-awaiting/challenge", expect.objectContaining({ method: "POST", body: { contractVersion: "1", challengeId: "challenge-1", mapId: "map-1", gameplayRevisionId: "revision:map-1:rework" } }));
     expect(wrapper.find(".status-live").text()).toContain("无法确认挑战");
     expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find(".confirm-catalog").attributes("aria-busy")).toBeUndefined();
@@ -231,6 +232,47 @@ describe("submission detail page", () => {
     const wrapper = await mountSubmission("/submissions/submission-approved");
     expect(wrapper.text()).toContain("称号已获得");
     expect(wrapper.text()).toContain("征服者");
+  });
+
+  it("shows safe mastery outcomes alongside an independent title outcome", async () => {
+    api.mockImplementation(() => Promise.resolve({
+      submissionId: "submission-mastery-created",
+      status: "approved",
+      mapName: "花村",
+      createdAt: 0,
+      updatedAt: 2,
+      evidenceUrl: "https://example.test/evidence.png",
+      titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
+      masteryOutcome: { status: "created", awardedXp: 225 },
+    }));
+    const created = await mountSubmission("/submissions/submission-mastery-created");
+    expect(created.text()).toContain("称号已获得");
+    expect(created.text()).toContain("精通记录已保存");
+    expect(created.text()).toContain("获得 225 XP");
+
+    api.mockImplementation(() => Promise.resolve({
+      submissionId: "submission-mastery-reused",
+      status: "approved",
+      mapName: "花村",
+      createdAt: 0,
+      updatedAt: 2,
+      evidenceUrl: "https://example.test/evidence.png",
+      masteryOutcome: { status: "reused", awardedXp: 0 },
+    }));
+    const reused = await mountSubmission("/submissions/submission-mastery-reused");
+    expect(reused.text()).toContain("这次通关已记录");
+
+    api.mockImplementation(() => Promise.resolve({
+      submissionId: "submission-mastery-ineligible",
+      status: "resubmission_required",
+      mapName: "花村",
+      createdAt: 0,
+      updatedAt: 2,
+      evidenceUrl: "https://example.test/evidence.png",
+      masteryOutcome: { status: "ineligible", awardedXp: 0 },
+    }));
+    const ineligible = await mountSubmission("/submissions/submission-mastery-ineligible");
+    expect(ineligible.text()).toContain("本次未计入精通进度");
   });
 
   it("shows approved without grant as a distinct passed state", async () => {
@@ -270,4 +312,3 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("截图已上传，等待识别");
   });
 });
-

@@ -19,6 +19,7 @@ import type {
   AdminPlayerStatusRequest,
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
+  CurrentPlayerMasteryResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
   AdminSubmissionChallengeRequest,
@@ -28,6 +29,12 @@ import type {
   AdminSubmissionOcrRetryResponse,
   AdminSubmissionSpotCheckRequest,
   AdminSubmissionSpotCheckResponse,
+  AdminMasteryRunListResponse,
+  AdminMasteryRunDetailResponse,
+  AdminMasteryRunStateRequest,
+  AdminMasteryRunStateResponse,
+  AdminMasteryRunConflictResolutionRequest,
+  AdminMasteryRunConflictResolutionResponse,
   Challenge,
   Map,
   Title,
@@ -42,6 +49,10 @@ import type {
   AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
+import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerifiedMasteryRunResult, VerifiedMasteryRun, VerifiedMasteryRunInput } from "./mastery";
+
+export * from "./mastery";
+export * from "./gameplay-revision";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -121,8 +132,27 @@ export type AgentTitleQuery = AgentPageInput & { query?: string; category?: stri
 export type AgentPlayerTitleGrantQuery = AgentPageInput;
 export type AgentMapTitleHolderQuery = AgentPageInput & { mapId: string };
 export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
+export type AdminMasteryRunQuery = AgentPageInput & {
+  playerAccountId?: string;
+  mapId?: string;
+  gameplayRevisionId?: string;
+  difficulty?: MasteryDifficulty;
+  status?: "active" | "invalidated";
+  acceptanceSource?: "submission_automatic" | "submission_review";
+  runCode?: string;
+  from?: number;
+  to?: number;
+};
 
 export type PlatformServices = {
+  recordVerifiedMasteryRun(input: VerifiedMasteryRunInput): Promise<RecordVerifiedMasteryRunResult>;
+  invalidateVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
+  restoreVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
+  rebuildMasteryProfiles(input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]>;
+  listAdminMasteryRuns(input: AdminMasteryRunQuery, auth: AuthContext): Promise<AdminMasteryRunListResponse>;
+  getAdminMasteryRun(input: { masteryRunId: string }, auth: AuthContext): Promise<AdminMasteryRunDetailResponse>;
+  transitionAdminMasteryRun(input: AdminMasteryRunStateRequest & { masteryRunId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunStateResponse>;
+  resolveAdminMasteryRunConflict(input: AdminMasteryRunConflictResolutionRequest & { masteryRunId: string; submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunConflictResolutionResponse>;
   listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
   getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
@@ -220,6 +250,7 @@ export type PlatformServices = {
   restoreReviewComment(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   invalidateReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   restoreReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
+  getCurrentPlayerMastery(input: { sessionToken: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }): Promise<CurrentPlayerMasteryResponse | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
   logoutPortalSession(input: { sessionToken: string }): Promise<void>;
   listLocalDevAccounts(): Promise<LocalDevAccount[]>;

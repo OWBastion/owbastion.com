@@ -27,6 +27,7 @@ export type TitleAchievement = {
 export type MapAchievement = {
   challengeId: string;
   family: "map";
+  gameplayRevisionId: string;
   type: "map_completion";
   kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement";
   titleKey?: string;
@@ -79,7 +80,7 @@ export const isChallengeTitle = (item: AdminAchievement): item is TitleAchieveme
 export const isMap = (item: AdminAchievement): item is MapAchievement => item.family === "map";
 export const isCatalog = (item: AdminAchievement): item is CatalogTitle => item.family === "title_catalog";
 export const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发保留";
-export const itemIdentity = (item: AdminAchievement) => isMap(item) ? `${item.mapId}:${item.challengeId}` : item.challengeId;
+export const itemIdentity = (item: AdminAchievement) => isMap(item) ? `${item.mapId}:${item.challengeId}:${item.gameplayRevisionId}` : item.challengeId;
 export const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
 export const DEFAULT_EVIDENCE_RULE = "上传包含结算画面、称号条件与玩家信息的完整截图。";
 

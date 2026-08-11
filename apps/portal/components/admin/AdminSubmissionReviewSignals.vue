@@ -8,6 +8,7 @@ type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrF
 type MatchCandidate = {
   challengeId?: string;
   mapId?: string;
+  gameplayRevisionId?: string;
   challengeType?: string;
   targetMapName?: string;
   targetDifficulty?: string | null;
@@ -25,7 +26,7 @@ const props = defineProps<{
   /** Force a single-column stack (decision rail / narrow column). */
   stacked?: boolean;
 }>();
-const emit = defineEmits<{ "select-challenge": [selection: { challengeId: string; mapId?: string }] }>();
+const emit = defineEmits<{ "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }] }>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
@@ -70,9 +71,9 @@ const candidateResultLabel = (candidate: MatchCandidate) => {
   return isMapCandidate(candidate) ? `${label} · ${mapVariantLabel(candidate.requiredMapVariant)}` : label;
 };
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
-const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}`;
-watch([() => props.submission.challengeId, visibleCandidates], ([challengeId, candidates]) => {
-  const currentCandidate = candidates.find((candidate) => candidate.challengeId === challengeId);
+const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}:${candidate.gameplayRevisionId ?? ""}`;
+watch([() => props.submission.challengeId, () => props.submission.gameplayRevisionId, visibleCandidates], ([challengeId, gameplayRevisionId, candidates]) => {
+  const currentCandidate = candidates.find((candidate) => candidate.challengeId === challengeId && (!gameplayRevisionId || candidate.gameplayRevisionId === gameplayRevisionId));
   selectedCandidateId.value = currentCandidate ? candidateKey(currentCandidate) : challengeId || "";
 }, { immediate: true });
 const candidateStatusLabel = (candidate: MatchCandidate) => {
@@ -84,11 +85,11 @@ const candidateStatusLabel = (candidate: MatchCandidate) => {
 };
 const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
 const selectedCandidate = computed(() => visibleCandidates.value.find((candidate) => candidateKey(candidate) === selectedCandidateId.value) ?? null);
-const isCurrentCandidate = (candidate: MatchCandidate) => candidate.challengeId === props.submission.challengeId && visibleCandidates.value.includes(candidate);
+const isCurrentCandidate = (candidate: MatchCandidate) => candidate.challengeId === props.submission.challengeId && (!props.submission.gameplayRevisionId || candidate.gameplayRevisionId === props.submission.gameplayRevisionId) && visibleCandidates.value.includes(candidate);
 const selectCandidate = (candidate: MatchCandidate) => { selectedCandidateId.value = candidateKey(candidate); };
 const saveSelectedCandidate = () => {
   if (!selectedCandidate.value?.challengeId || props.challengeSelectionLoading) return;
-  emit("select-challenge", { challengeId: selectedCandidate.value.challengeId, ...(selectedCandidate.value.mapId ? { mapId: selectedCandidate.value.mapId } : {}) });
+  emit("select-challenge", { challengeId: selectedCandidate.value.challengeId, ...(selectedCandidate.value.mapId ? { mapId: selectedCandidate.value.mapId } : {}), ...(selectedCandidate.value.gameplayRevisionId ? { gameplayRevisionId: selectedCandidate.value.gameplayRevisionId } : {}) });
 };
 </script>
 

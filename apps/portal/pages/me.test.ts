@@ -23,13 +23,24 @@ const titles = ref<Title[]>(Array.from({ length: 4 }, (_, index) => ({
 const status = ref<"unknown" | "loading" | "authenticated" | "anonymous">("authenticated");
 const refreshPlayer = vi.fn(async () => player.value);
 const refreshTitles = vi.fn(async () => titles.value);
+const masteryProfiles = ref([]);
+const masteryLoading = ref(false);
+const masteryError = ref("");
+const refreshMastery = vi.fn(async () => ({ contractVersion: "1" as const, profiles: masteryProfiles.value, runs: [], page: 1, pageSize: 1, total: 0, hasMore: false }));
+const portalApi = vi.fn(async (path: string) => path === "/v1/maps" ? { items: [] } : Promise.reject(new Error(`Unexpected request: ${path}`)));
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player, status, refresh: refreshPlayer }));
 mockNuxtImport("usePlayerTitles", () => () => ({ items: titles, refresh: refreshTitles }));
+mockNuxtImport("usePlayerMastery", () => () => ({ profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery }));
+mockNuxtImport("usePortalApi", () => () => portalApi);
 
 async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapper> {
   refreshPlayer.mockClear();
   refreshTitles.mockClear();
+  refreshMastery.mockClear();
+  masteryProfiles.value = [];
+  masteryLoading.value = false;
+  masteryError.value = "";
   const wrapper = await mountSuspended(MePage, {
     attachTo: options?.attachTo,
     global: {
@@ -37,6 +48,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
         PlayerIdentityCard: { template: "<div data-testid='identity'>identity</div>" },
         StatusBadge: true,
         PlayerRecentSubmissions: { template: "<div data-testid='submissions'>submissions</div>" },
+        MasteryMapOverview: { template: "<div data-testid='mastery'>mastery</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
         TitleCollection: { props: ["titles"], template: "<div class=\"title-count\" data-testid='titles'>{{ titles.length }}</div>" },
         UButton: {

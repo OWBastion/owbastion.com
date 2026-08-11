@@ -4,6 +4,15 @@ import { createApp, type RuntimeEnv } from "./app";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  recordVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  invalidateVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  restoreVerifiedMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_IMPLEMENTED"); },
+  rebuildMasteryProfiles: async () => [],
+  listAdminMasteryRuns: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  getAdminMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
+  transitionAdminMasteryRun: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
+  resolveAdminMasteryRunConflict: async () => { throw new Error("MASTERY_RUN_NOT_FOUND"); },
+  getCurrentPlayerMastery: async ({ sessionToken, page, pageSize }) => sessionToken === "session-token" ? { contractVersion: "1" as const, profiles: [], runs: [], page, pageSize, total: 0, hasMore: false } : null,
   listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   getAgentEvent: async () => null,
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
@@ -53,7 +62,7 @@ const services: PlatformServices = {
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => ({ contractVersion: "1", submissionId, status: "ready_for_review", challengeId }),
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
-  resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null }),
+  resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, masteryRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
@@ -541,6 +550,56 @@ describe("API", () => {
     });
   });
 
+  it("returns only the signed-in player's active mastery projections", async () => {
+    const calls: Array<{ sessionToken: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }> = [];
+    const masteryApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        getCurrentPlayerMastery: async (input) => {
+          calls.push(input);
+          return input.sessionToken === "session-token" ? {
+            contractVersion: "1" as const,
+            profiles: [{
+              mapId: "map.test",
+              gameplayRevisionId: "revision:map.test:initial",
+              gameplayRevisionLifecycle: "default" as const,
+              totalXp: 225,
+              verifiedRunCount: 1,
+              difficultyStats: [{ difficulty: "困难" as const, verifiedRunCount: 1, fastestCompletionSeconds: 600 }],
+              lowestDeaths: 2,
+              fewestSkips: 1,
+              highestSingleRunXp: 225,
+              highestCompletedDifficulty: "困难" as const,
+              recentRuns: [{ runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "default" as const, mapVariant: null, difficulty: "困难" as const, completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }],
+            }],
+            runs: [{ runId: "00000000-0000-4000-8000-000000000010", mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", gameplayRevisionLifecycle: "default" as const, mapVariant: null, difficulty: "困难" as const, completionDurationSeconds: 600, deaths: 2, skips: 1, awardedXp: 225, acceptedAt: 1_000, status: "active" as const }],
+            page: input.page,
+            pageSize: input.pageSize,
+            total: 1,
+            hasMore: false,
+          } : null;
+        },
+      }),
+    });
+
+    expect((await masteryApp.request("http://localhost/v1/me/mastery", {}, env)).status).toBe(401);
+    const response = await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&page=1&pageSize=1", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    const body = await response.json() as Record<string, unknown>;
+    expect(body).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", recentRuns: [{ status: "active", awardedXp: 225 }] }], runs: [{ mapId: "map.test", difficulty: "困难" }], page: 1, pageSize: 1, total: 1, hasMore: false });
+    expect(JSON.stringify(body)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation|evidence|audit|memberOpenId|groupOpenId/);
+    const selectable = await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&gameplayRevisionId=revision%3Amap.test%3Ainitial", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(selectable.status).toBe(200);
+    expect(calls).toEqual([
+      { sessionToken: "session-token", mapId: "map.test", page: 1, pageSize: 1 },
+      { sessionToken: "session-token", mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 },
+    ]);
+    expect((await masteryApp.request("http://localhost/v1/me/mastery?mapId=map.test&mapId=map.other", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+    expect((await masteryApp.request("http://localhost/v1/me/mastery?gameplayRevisionId=one&gameplayRevisionId=two", { headers: { cookie: "owb_session=session-token" } }, env)).status).toBe(422);
+  });
+
   it("returns only the signed-in player's active title grants", async () => {
     expect((await app.request("http://localhost/v1/me/titles", {}, env)).status).toBe(401);
     const response = await app.request("http://localhost/v1/me/titles", { headers: { cookie: "owb_session=session-token" } }, env);
@@ -660,6 +719,85 @@ describe("API", () => {
     const state = await reviewApp.request(`http://localhost/v1/admin/reviews/${reviewId}/state`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "admin-invalidate-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate", reason: "内容不符合规范" }) }, env);
     expect(state.status).toBe(200);
     expect(calls).toContainEqual({ operation: "state", input: { reviewId, reason: "内容不符合规范" }, key: "admin-invalidate-1" });
+  });
+
+  it("limits mastery-run inspection and reconciliation to maintainers", async () => {
+    const masteryRunId = "00000000-0000-4000-8000-000000000013";
+    const conflictSubmissionId = "00000000-0000-4000-8000-000000000014";
+    const run = {
+      runId: masteryRunId,
+      playerAccountId: "00000000-0000-4000-8000-000000000011",
+      playerId: "1234",
+      playerName: "Player",
+      sourceSubmissionId: "00000000-0000-4000-8000-000000000012",
+      mapId: "map.test",
+      mapName: "测试地图",
+      gameplayRevisionId: "revision:map.test:initial",
+      gameplayRevisionLifecycle: "default" as const,
+      mapVariant: null,
+      difficulty: "困难" as const,
+      gameVersion: "26.0810.1",
+      runCode: "1234-5678-9012",
+      completionDurationSeconds: 600,
+      deaths: 1,
+      skips: 0,
+      eventCounters: {},
+      acceptanceSource: "submission_review" as const,
+      acceptedAt: 1,
+      status: "active" as const,
+      invalidatedAt: null,
+      invalidatedBy: null,
+      invalidationReason: null,
+      xpRuleVersion: "v1" as const,
+      xpInputSnapshot: { ruleVersion: "v1" as const, baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 11, performanceBonusReasons: ["no_skips" as const], challengeBonus: 0 },
+      awardedXp: 236,
+      conflictCount: 1,
+    };
+    const projection = { mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", totalXp: 236, verifiedRunCount: 1, difficultyStats: [{ difficulty: "困难" as const, verifiedRunCount: 1, fastestCompletionSeconds: 600 }], lowestDeaths: 1, fewestSkips: 0, highestSingleRunXp: 236, highestCompletedDifficulty: "困难" as const };
+    const calls: Array<{ operation: string; input: unknown; key?: string }> = [];
+    const masteryApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        listAdminMasteryRuns: async (input) => {
+          calls.push({ operation: "list", input });
+          return { contractVersion: "1" as const, items: [run], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false };
+        },
+        getAdminMasteryRun: async () => ({ contractVersion: "1" as const, run, projection, sourceSubmission: {} as never, lifecycle: [{ transition: "accepted" as const, actorType: "service" as const, actorId: "submission_review", reason: null, createdAt: 1 }], conflicts: [{ submissionId: conflictSubmissionId, submissionStatus: "ocr_review_required" as const, playerAccountId: run.playerAccountId, playerName: run.playerName, conflictFields: ["difficulty" as const], facts: { mapName: "测试地图", mapVariant: null, difficulty: "传奇" as const, gameVersion: "26.0810.1", runCode: "1234-5678-9012", completionDurationSeconds: 600, deaths: 1, skips: 0 }, resolution: null }] }),
+        transitionAdminMasteryRun: async (input, _auth, key) => {
+          calls.push({ operation: "state", input, key });
+          return { contractVersion: "1" as const, run, projection };
+        },
+        resolveAdminMasteryRunConflict: async (input, _auth, key) => {
+          calls.push({ operation: "conflict", input, key });
+          return { contractVersion: "1" as const, action: input.action, run, projection };
+        },
+      }),
+    });
+    const unauthenticated = createApp({ authenticate: async () => null, services: () => services });
+    expect((await unauthenticated.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(401);
+    expect((await app.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(403);
+
+    const list = await masteryApp.request("http://localhost/v1/admin/mastery-runs?playerAccountId=00000000-0000-4000-8000-000000000011&mapId=map.test&gameplayRevisionId=revision%3Amap.test%3Ainitial&difficulty=%E5%9B%B0%E9%9A%BE&status=active&acceptanceSource=submission_review&runCode=1234-5678-9012&from=1&to=2&page=2&pageSize=10", {}, env);
+    expect(list.status).toBe(200);
+    expect(list.headers.get("cache-control")).toBe("private, no-store");
+    expect(await list.json()).toMatchObject({ items: [{ runCode: "1234-5678-9012", playerAccountId: run.playerAccountId }], page: 2, pageSize: 10 });
+    expect(calls[0]).toEqual({ operation: "list", input: { playerAccountId: run.playerAccountId, mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", difficulty: "困难", status: "active", acceptanceSource: "submission_review", runCode: "1234-5678-9012", from: 1, to: 2, page: 2, pageSize: 10 } });
+    expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs?status=unknown", {}, env)).status).toBe(422);
+
+    const detail = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}`, {}, env);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ run: { runCode: "1234-5678-9012" }, conflicts: [{ submissionId: conflictSubmissionId, conflictFields: ["difficulty"] }] });
+    expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs/not-a-uuid", {}, env)).status).toBe(422);
+
+    expect((await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/state`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate" }) }, env)).status).toBe(422);
+    const state = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/state`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "mastery-state-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate", reason: "证据不一致" }) }, env);
+    expect(state.status).toBe(200);
+    expect(calls).toContainEqual({ operation: "state", input: { masteryRunId, action: "invalidate", reason: "证据不一致", contractVersion: "1" }, key: "mastery-state-1" });
+
+    const conflict = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}/conflicts/${conflictSubmissionId}`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "mastery-conflict-1" }, body: JSON.stringify({ contractVersion: "1", action: "invalidate_existing", reason: "以修正截图为准" }) }, env);
+    expect(conflict.status).toBe(200);
+    expect(calls).toContainEqual({ operation: "conflict", input: { masteryRunId, submissionId: conflictSubmissionId, action: "invalidate_existing", reason: "以修正截图为准", contractVersion: "1" }, key: "mastery-conflict-1" });
   });
 
   it("serves privacy-safe public review summaries and comments", async () => {
@@ -888,7 +1026,7 @@ describe("API", () => {
         listChallenges: async (input) => {
         requestedFamilies.push(input?.family);
         if (input?.family === "achievement") return [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual" }];
-        return [{ challengeId: "map.samoa.conqueror", family: "map", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15", status: "active" }];
+        return [{ challengeId: "map.samoa.conqueror", family: "map", gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion", kind: "difficulty_completion", name: "征服者", mapId: "map.samoa", mapName: "萨摩亚", difficulty: "传奇", gameVersion: "2026.07.15", status: "active" }];
       },
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "地图挑战", availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], color: { kind: "heroColor" as const, index: 12 }, gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", icon: "trophy", category: "地图精通系列", condition: "获得所有地图征服者头衔", availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: "2026.07.15" }],
     };
@@ -1047,15 +1185,15 @@ describe("API", () => {
 
   it("lets maintainers select a submission challenge", async () => {
     const selections: string[] = [];
-    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => { selections.push(`${submissionId}:${challengeId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
-    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso" }) }, env);
+    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId, gameplayRevisionId }) => { selections.push(`${submissionId}:${challengeId}:${gameplayRevisionId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
+    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }) }, env);
     expect(response.status).toBe(200);
-    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell"]);
+    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework"]);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {
     const resolutions: string[] = [];
-    const spotCheckApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001" }; } }) });
+    const spotCheckApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001", masteryRunId: null }; } }) });
     const response = await spotCheckApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/spot-check", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "spot-check-1" }, body: JSON.stringify({ contractVersion: "1", decision: "confirmed" }) }, env);
     expect(response.status).toBe(200);
     expect(resolutions).toEqual(["00000000-0000-4000-8000-000000000000:confirmed"]);

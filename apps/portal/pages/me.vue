@@ -6,16 +6,29 @@ useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
 
 const { player, status, refresh } = useCurrentPlayer();
 const { items: titles, refresh: refreshTitles } = usePlayerTitles();
+const api = usePortalApi();
+const { profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery } = usePlayerMastery();
 
 const loading = shallowRef(true);
 const playerError = shallowRef("");
 const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
+const masteryRetrying = shallowRef(false);
+const masteryMapNames = shallowRef<Record<string, string>>({});
 
 const showSkeleton = computed(() => loading.value && !player.value);
 const sessionUnavailable = computed(() => !loading.value && !player.value && !playerError.value && status.value === "anonymous");
 const playerLoadFailed = computed(() => !loading.value && !player.value && Boolean(playerError.value));
+
+async function loadMastery() {
+  const [mastery, maps] = await Promise.all([
+    refreshMastery(),
+    api<{ items: Array<{ mapId: string; mapName: string }> }>("/v1/maps").catch(() => null),
+  ]);
+  if (maps) masteryMapNames.value = Object.fromEntries(maps.items.map((map) => [map.mapId, map.mapName]));
+  return mastery;
+}
 
 async function load(options: { forcePlayer?: boolean } = {}) {
   loading.value = true;
@@ -37,6 +50,8 @@ async function load(options: { forcePlayer?: boolean } = {}) {
       titlesReady.value = false;
       titlesError.value = portalErrorDetails(titlesResult.reason, "无法读取称号，请稍后重试。").description;
     }
+
+    if (playerResult.status === "fulfilled" && playerResult.value) void loadMastery();
   } finally {
     loading.value = false;
   }
@@ -62,6 +77,15 @@ async function retryTitles() {
     titlesError.value = portalErrorDetails(error, "无法读取称号，请稍后重试。").description;
   } finally {
     retrying.value = false;
+  }
+}
+
+async function retryMastery() {
+  masteryRetrying.value = true;
+  try {
+    await loadMastery();
+  } finally {
+    masteryRetrying.value = false;
   }
 }
 
@@ -104,6 +128,17 @@ onMounted(() => {
         <PlayerRecentSubmissions :submissions="player.recentSubmissions" />
       </section>
 
+      <section class="section-block mastery-section" aria-labelledby="mastery-title">
+        <PageSectionHeader title="地图精通" heading-id="mastery-title">
+          <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
+        </PageSectionHeader>
+        <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
+        </UAlert>
+        <div v-else-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取精通记录…"><USkeleton /><USkeleton /></div>
+        <MasteryMapOverview v-else :profiles="masteryProfiles" :map-names="masteryMapNames" />
+      </section>
+
       <section class="section-block titles-section" aria-labelledby="titles-title">
         <PageSectionHeader title="最近获得的称号" heading-id="titles-title">
           <template #actions>
@@ -139,12 +174,6 @@ onMounted(() => {
             <div>
               <p class="upcoming-kicker type-kicker">限时目标</p>
               <h3 class="type-headline">轮换挑战</h3>
-            </div>
-          </article>
-          <article class="upcoming-card surface-card" aria-disabled="true">
-            <div>
-              <p class="upcoming-kicker type-kicker">地图记录</p>
-              <h3 class="type-headline">地图挑战进度</h3>
             </div>
           </article>
         </div>
@@ -240,6 +269,7 @@ onMounted(() => {
 .titles-section { margin-top: clamp(52px, 8vw, 86px); }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .titles-loading-card { min-height: 112px; border-radius: 16px; }
+.mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.mastery-loading > * { min-height: 132px; border-radius: 16px; }
 .upcoming-status { margin: -4px 0 14px; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
 .upcoming-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .upcoming-card {
@@ -322,7 +352,7 @@ onMounted(() => {
 .me-skeleton-upcoming-kicker { width: 72px; height: 12px; }
 .me-skeleton-upcoming-title { width: 124px; height: 24px; }
 @media (max-width: 760px) {
-  .upcoming-grid, .titles-loading, .me-skeleton-title-grid, .me-skeleton-upcoming-grid { grid-template-columns: 1fr; }
+  .upcoming-grid, .titles-loading, .mastery-loading, .me-skeleton-title-grid, .me-skeleton-upcoming-grid { grid-template-columns: 1fr; }
   .upcoming-card, .me-skeleton-upcoming-card { min-height: 10.5rem; }
 }
 @media (max-width: 620px) {

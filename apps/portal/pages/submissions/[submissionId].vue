@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
+import type { MasterySubmissionOutcome } from "~/composables/usePortalApi";
+import { masteryOutcomePresentation } from "~/utils/mastery";
 
 type SubmissionDetail = {
   submissionId: string;
@@ -14,6 +16,7 @@ type SubmissionDetail = {
   ocrFailCount?: number;
   manualReviewEligible?: boolean;
   titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
+  masteryOutcome?: MasterySubmissionOutcome;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
 };
 
@@ -30,6 +33,7 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
 const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
 const selectedChallengeId = shallowRef("");
 const selectedMapId = shallowRef("");
+const selectedGameplayRevisionId = shallowRef("");
 const confirming = shallowRef(false);
 const requestingManualReview = shallowRef(false);
 const refreshingStatus = shallowRef(false);
@@ -52,6 +56,7 @@ const resubmissionTips = [
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
+const masteryOutcome = computed(() => masteryOutcomePresentation(data.value?.masteryOutcome));
 const needsChallengeConfirmation = computed(() => Boolean(data.value && !data.value.challengeId && data.value.status === "awaiting_player_confirmation"));
 const mutationBusy = computed(() => confirming.value || requestingManualReview.value || refreshingStatus.value);
 const statusAlert = computed(() => {
@@ -68,10 +73,11 @@ const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceSta
 
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
 
-const selectChallenge = (event: { challengeId: string; mapId?: string }) => {
+const selectChallenge = (event: { challengeId: string; mapId?: string; gameplayRevisionId?: string }) => {
   if (confirming.value) return;
   selectedChallengeId.value = event.challengeId;
   selectedMapId.value = event.mapId ?? "";
+  selectedGameplayRevisionId.value = event.gameplayRevisionId ?? "";
 };
 
 const confirmChallenge = async () => {
@@ -82,7 +88,7 @@ const confirmChallenge = async () => {
   try {
     await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, {
       method: "POST",
-      body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}) },
+      body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}), ...(selectedGameplayRevisionId.value ? { gameplayRevisionId: selectedGameplayRevisionId.value } : {}) },
     });
     actionMessage.value = "挑战已确认。";
     await refresh();
@@ -233,6 +239,7 @@ onBeforeUnmount(() => {
                   :achievement-challenges="achievementChallenges"
                   :selected-challenge-id="selectedChallengeId"
                   :selected-map-id="selectedMapId"
+                  :selected-gameplay-revision-id="selectedGameplayRevisionId"
                   @select="selectChallenge"
                 />
               </div>
@@ -254,6 +261,7 @@ onBeforeUnmount(() => {
               <div v-if="data.reason"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
               <div><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
             </dl>
+            <UAlert v-if="masteryOutcome" class="mastery-outcome" :color="data.masteryOutcome?.status === 'created' || data.masteryOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="masteryOutcome.title" :description="masteryOutcome.description || undefined" />
             <div class="overview-actions">
               <UButton
                 v-if="data.status === 'resubmission_required'"
@@ -422,7 +430,7 @@ onBeforeUnmount(() => {
 .evidence-col, .info-col { min-width: 0; }
 .info-col { display: grid; gap: 16px; }
 .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
-.overview-actions { display: grid; gap: 8px; margin-top: 22px; }
+.mastery-outcome { margin-top: 18px; }.overview-actions { display: grid; gap: 8px; margin-top: 22px; }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message, .message { margin: 0; padding: 72px 0; color: var(--muted); font-size: .88rem; text-align: center; }
 .catalog-loading { padding: 28px 0; }

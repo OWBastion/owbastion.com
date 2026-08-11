@@ -8,6 +8,8 @@ PORTAL_ORIGIN = "https://owbastion.com"
 OCRKIT_BASE_URL = "https://ocr.owbastion.com"
 OCRKIT_EVIDENCE_BUCKET = "owbastion-codes-evidence"
 OCR_AUTO_REVIEW_SAMPLE_RATE = "0"
+MASTERY_MIN_GAME_VERSION = ""
+MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS = ""
 EVIDENCE_PUBLIC_ORIGIN = "https://evidence.owbastion.codes"
 
 [[routes]]

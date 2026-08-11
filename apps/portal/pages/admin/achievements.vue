@@ -376,9 +376,9 @@ function closeEnd() {
   void nextTick(() => trigger?.isConnected && trigger.focus());
 }
 
-function toggleEditing(id: string, mapId?: string) {
+function toggleEditing(id: string, mapId?: string, gameplayRevisionId?: string) {
   iconFile.value = null;
-  const item = items.value.find((candidate) => candidate.challengeId === id && (!mapId || !isMap(candidate) || candidate.mapId === mapId));
+  const item = items.value.find((candidate) => candidate.challengeId === id && (!mapId || !isMap(candidate) || candidate.mapId === mapId && (!gameplayRevisionId || candidate.gameplayRevisionId === gameplayRevisionId)));
   const identity = item ? itemIdentity(item) : id;
   editingId.value = editingId.value === identity ? null : identity;
   if (editingId.value) void loadMapOptions();
@@ -489,7 +489,7 @@ onMounted(() => void load());
         </template>
 
         <template #map>
-          <AdminMapAchievementWorkspace :maps="maps" :challenges="mapItems" :loading="loading" :initial-map-id="typeof route.query.mapId === 'string' ? route.query.mapId : ''" :initial-rule-id="typeof route.query.ruleId === 'string' ? route.query.ruleId : ''" @edit-challenge="(challenge) => { activeTab = 'map'; toggleEditing(challenge.challengeId, challenge.mapId); }" />
+          <AdminMapAchievementWorkspace :maps="maps" :challenges="mapItems" :loading="loading" :initial-map-id="typeof route.query.mapId === 'string' ? route.query.mapId : ''" :initial-rule-id="typeof route.query.ruleId === 'string' ? route.query.ruleId : ''" @edit-challenge="(challenge) => { activeTab = 'map'; toggleEditing(challenge.challengeId, challenge.mapId, challenge.gameplayRevisionId); }" />
         </template>
 
         <template #catalog>
