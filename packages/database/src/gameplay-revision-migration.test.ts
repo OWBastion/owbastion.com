@@ -83,7 +83,14 @@ describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
       INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at)
       VALUES ('audit.revision.classic', 'correlation.revision.classic', 'admin', 'admin', 'gameplay_revision.normalize', 'gameplay_revision', 'revision:map.revision:classic', '{"gameplayRevisionId":"revision:map.revision:classic"}', 1);
     `);
-    sqlite.exec(readFileSync(`${migrationsDirectory}/0063_normalize_legacy_gameplay_revision_ids.sql`, "utf8"));
+    sqlite.exec("BEGIN;");
+    try {
+      sqlite.exec(readFileSync(`${migrationsDirectory}/0063_normalize_legacy_gameplay_revision_ids.sql`, "utf8"));
+      sqlite.exec("COMMIT;");
+    } catch (error) {
+      sqlite.exec("ROLLBACK;");
+      throw error;
+    }
     sqlite.exec(readFileSync(`${migrationsDirectory}/0064_gameplay_revision_spatial_config.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([

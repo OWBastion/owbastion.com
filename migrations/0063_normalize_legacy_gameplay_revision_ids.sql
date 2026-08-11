@@ -5,7 +5,9 @@
 -- of the revision identity. Rewrite every persisted reference so historical
 -- facts, challenge projections, and retry/audit snapshots remain coherent.
 
-PRAGMA foreign_keys = OFF;
+-- D1 runs each migration inside an implicit transaction, so foreign_keys=OFF
+-- cannot be changed here. Defer checks while child references are rewritten.
+PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE gameplay_revision_id_0063_map (
   old_id TEXT PRIMARY KEY NOT NULL,
@@ -236,4 +238,4 @@ SET payload_json = (
 
 DROP TABLE gameplay_revision_id_0063_map;
 
-PRAGMA foreign_keys = ON;
+PRAGMA defer_foreign_keys = OFF;
