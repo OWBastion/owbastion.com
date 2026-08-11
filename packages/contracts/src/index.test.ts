@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -129,6 +129,37 @@ describe("v1 platform contracts", () => {
     const challenge = { challengeId: "map.samoa.hell", family: "map", type: "map_completion", kind: "difficulty_completion", name: "地狱难度通关", mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", status: "active" };
     expect(mapChallengeSchema.safeParse(challenge).success).toBe(false);
     expect(mapChallengeSchema.safeParse({ ...challenge, gameplayRevisionId: "revision:map.samoa:rework" }).success).toBe(true);
+  });
+
+  it("validates only explicit, finite, revision-owned spatial projections", () => {
+    const spatialConfig = {
+      bastionPositions: [[1, 2, 3]],
+      resetPosition: [4, 5, 6],
+      endPosition: [7, 8, 9],
+      thirdPersonPosition: [10, 11, 12],
+      creditsPosition: [13, 14, 15],
+      control: null,
+      portalPositions: [],
+      springboardPositions: [],
+    } as const;
+    const revision = {
+      gameplayRevisionId: "revision:map.samoa:initial",
+      mapId: "map.samoa",
+      mapVariant: null,
+      lifecycle: "default",
+      enabled: true,
+      isDefault: true,
+      isSelectable: false,
+      gameVersion: "26.0810.1",
+      spatialConfig,
+      challengeRefs: [{ family: "map", challengeId: "map.samoa.hell" }],
+    } as const;
+    expect(agentSpatialConfigSchema.safeParse(spatialConfig).success).toBe(true);
+    expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [revision] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, endPosition: [Number.POSITIVE_INFINITY, 0, 0] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [[0, 0, 0]], respawnPositions: [[0, 0, 0], [1, 1, 1]], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [[0, 0, 0], [1, 1, 1]], respawnPositions: [[0, 0, 0]], respawnAxis: null, respawnAxisThreshold: null } }).success).toBe(false);
+    expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 
   it("allows review decisions without requiring a reason", () => {

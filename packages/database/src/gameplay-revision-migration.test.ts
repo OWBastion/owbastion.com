@@ -13,7 +13,7 @@ const applyMigrations = (sqlite: DatabaseSync, through: string) => {
   }
 };
 
-describe("0061/0062/0063 gameplay revision forward migrations", () => {
+describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
   it("assigns legacy facts, repairs CLASSIC provenance, and normalizes label-derived revision IDs", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec("PRAGMA foreign_keys = ON;");
@@ -84,6 +84,7 @@ describe("0061/0062/0063 gameplay revision forward migrations", () => {
       VALUES ('audit.revision.classic', 'correlation.revision.classic', 'admin', 'admin', 'gameplay_revision.normalize', 'gameplay_revision', 'revision:map.revision:classic', '{"gameplayRevisionId":"revision:map.revision:classic"}', 1);
     `);
     sqlite.exec(readFileSync(`${migrationsDirectory}/0063_normalize_legacy_gameplay_revision_ids.sql`, "utf8"));
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0064_gameplay_revision_spatial_config.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
       { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
@@ -137,5 +138,6 @@ describe("0061/0062/0063 gameplay revision forward migrations", () => {
     expect(sqlite.prepare("SELECT id FROM gameplay_revisions WHERE id LIKE '%:classic'").all()).toEqual([]);
     expect(() => sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, game_version, created_at, updated_at) VALUES ('revision:map.revision:duplicate', 'map.revision', 'default', NULL, '26.0810.1', 2, 2)").run()).toThrow();
     expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect((sqlite.prepare("PRAGMA table_info(gameplay_revisions)").all() as Array<{ name: string }>).some(({ name }) => name === "spatial_config_json")).toBe(true);
   });
 });

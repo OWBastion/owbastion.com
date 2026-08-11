@@ -46,7 +46,7 @@ import type {
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   PlayerSubmissionChallengeRequest,
-  AgentEventListResponse, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
+  AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
 import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerifiedMasteryRunResult, VerifiedMasteryRun, VerifiedMasteryRunInput } from "./mastery";
@@ -156,9 +156,9 @@ export type PlatformServices = {
   listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
   getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
-  getAgentMap(input: { mapId: string }): Promise<Map | null>;
+  getAgentMap(input: { mapId: string }): Promise<AgentMap | null>;
   listAgentAchievements(input: AgentAchievementQuery): Promise<AgentAchievementListResponse>;
-  getAgentAchievement(input: { challengeId: string; mapId?: string }): Promise<Challenge | null>;
+  getAgentAchievement(input: { challengeId: string; mapId?: string; gameplayRevisionId?: string }): Promise<Challenge | null>;
   listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
   listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery): Promise<AgentPlayerTitleGrantListResponse>;
   listAgentMapTitleHolders(input: AgentMapTitleHolderQuery): Promise<AgentMapTitleHolderListResponse>;

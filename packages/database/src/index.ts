@@ -3,7 +3,8 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, ne, lt, lte, 
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -1083,6 +1084,159 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }];
     });
   };
+  const parseAgentSpatialConfig = (value: string | null) => {
+    if (!value) return null;
+    try {
+      const parsed = agentSpatialConfigSchema.safeParse(JSON.parse(value));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  };
+
+  type AgentMapProjectionRow = {
+    map_id: string;
+    map_name: string;
+    map_game_version: string;
+    difficulty_rating: string | null;
+    mechanics_json: string | null;
+    cover_url: string | null;
+    background_url: string | null;
+    revision_id: string | null;
+    revision_map_id: string | null;
+    revision_lifecycle: string | null;
+    legacy_map_variant: string | null;
+    revision_game_version: string | null;
+    spatial_config_json: string | null;
+  };
+  type AgentRevisionAssignmentRow = {
+    revision_id: string;
+    assignment_map_id: string;
+    revision_map_id: string;
+    challenge_family: string;
+    challenge_id: string;
+    public_challenge_id: string | null;
+    compat_rule_id: string | null;
+  };
+  const loadAgentMapProjectionsFast = async (input: { mapId?: string }): Promise<AgentMap[]> => {
+    const mapFilter = input.mapId ? " AND m.id = ?" : "";
+    const mapQuery = database.prepare([
+      "SELECT m.id AS map_id, m.name AS map_name, m.game_version AS map_game_version,",
+      "md.difficulty_rating, md.mechanics_json, md.cover_url, md.background_url,",
+      "r.id AS revision_id, r.map_id AS revision_map_id, r.lifecycle AS revision_lifecycle,",
+      "r.legacy_map_variant, r.game_version AS revision_game_version, r.spatial_config_json",
+      "FROM maps m",
+      "LEFT JOIN map_metadata md ON md.map_id = m.id",
+      "LEFT JOIN gameplay_revisions r ON r.map_id = m.id AND r.lifecycle IN ('default', 'selectable')",
+      "WHERE m.status = 'active'" + mapFilter,
+      "ORDER BY m.name, m.id, CASE r.lifecycle WHEN 'default' THEN 0 WHEN 'selectable' THEN 1 ELSE 2 END, r.id",
+    ].join(" ")).bind(...(input.mapId ? [input.mapId] : [])).all<AgentMapProjectionRow>();
+    const assignmentFilter = input.mapId ? " AND r.map_id = ?" : "";
+    const assignmentQuery = database.prepare([
+      "SELECT a.gameplay_revision_id AS revision_id, a.map_id AS assignment_map_id, r.map_id AS revision_map_id,",
+      "a.challenge_family, a.challenge_id,",
+      "CASE",
+      "WHEN a.challenge_family = 'map_challenge' THEN (",
+      "  SELECT ac.id FROM achievement_challenges ac",
+      "  WHERE ac.id = a.challenge_id AND ac.map_id = a.map_id AND ac.status IN ('active', 'sunsetting')",
+      ")",
+      "WHEN a.challenge_family = 'map_title_rule' THEN (",
+      "  SELECT COALESCE((",
+      "    SELECT c.legacy_challenge_id FROM map_title_rule_compat c",
+      "    WHERE c.rule_id = rule.id AND c.map_id = a.map_id LIMIT 1",
+      "  ), a.map_id || '.' || trim(rule.kind))",
+      "  FROM map_title_rules rule",
+      "  INNER JOIN title_catalog title ON title.key = rule.title_key AND title.availability = 'active'",
+      "  WHERE rule.id = a.challenge_id AND rule.status IN ('active', 'sunsetting')",
+      "    AND NOT (lower(trim(rule.kind)) = 'pioneer' AND rule.default_scope <> 'explicit')",
+      ")",
+      "WHEN a.challenge_family = 'title_challenge' THEN (",
+      "  SELECT tc.id FROM title_challenges tc",
+      "  INNER JOIN title_catalog title ON title.key = tc.title_key AND title.availability = 'active'",
+      "  WHERE tc.id = a.challenge_id AND tc.scope = 'map'",
+      "    AND tc.status IN ('scheduled', 'active', 'sunsetting')",
+      "    AND NOT EXISTS (SELECT 1 FROM map_title_rule_compat c WHERE c.legacy_challenge_id = tc.id)",
+      ")",
+      "ELSE NULL END AS public_challenge_id,",
+      "CASE WHEN a.challenge_family = 'map_challenge' THEN (",
+      "  SELECT c.rule_id FROM map_title_rule_compat c",
+      "  WHERE c.legacy_challenge_id = a.challenge_id AND c.map_id = a.map_id LIMIT 1",
+      ") ELSE NULL END AS compat_rule_id",
+      "FROM gameplay_revision_challenge_assignments a",
+      "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable')",
+      "INNER JOIN maps m ON m.id = r.map_id AND m.status = 'active'",
+      "WHERE a.enabled = 1" + assignmentFilter,
+    ].join(" ")).bind(...(input.mapId ? [input.mapId] : [])).all<AgentRevisionAssignmentRow>();
+    const [mapResult, assignmentResult] = await Promise.all([mapQuery, assignmentQuery]);
+    const revisionsByMap = new globalThis.Map<string, AgentMapProjectionRow[]>();
+    for (const row of mapResult.results) {
+      const current = revisionsByMap.get(row.map_id) ?? [];
+      current.push(row);
+      revisionsByMap.set(row.map_id, current);
+    }
+    const assignmentsByRevision = new globalThis.Map<string, AgentRevisionAssignmentRow[]>();
+    for (const row of assignmentResult.results) {
+      const current = assignmentsByRevision.get(row.revision_id) ?? [];
+      current.push(row);
+      assignmentsByRevision.set(row.revision_id, current);
+    }
+    const items: AgentMap[] = [];
+    for (const [mapId, rows] of revisionsByMap) {
+      const first = rows[0];
+      if (!first) continue;
+      const revisionRows = rows.filter((row) => row.revision_id !== null);
+      const defaultRows = revisionRows.filter((row) => row.revision_lifecycle === "default");
+      const projectRevision = (row: AgentMapProjectionRow): AgentMap["gameplayRevisions"][number] | null => {
+        if (!row.revision_id || !row.revision_map_id || !row.revision_lifecycle || !row.revision_game_version) return null;
+        if (row.revision_map_id !== mapId || row.revision_lifecycle === "default" && row.legacy_map_variant === "classic" || row.legacy_map_variant !== null && row.legacy_map_variant !== "classic") return null;
+        const spatialConfig = parseAgentSpatialConfig(row.spatial_config_json);
+        if (!spatialConfig) return null;
+        const assignments = assignmentsByRevision.get(row.revision_id) ?? [];
+        const challengeIds = new Set<string>();
+        for (const assignment of assignments) {
+          if (assignment.assignment_map_id !== mapId || assignment.revision_map_id !== mapId) return null;
+          let publicChallengeId = assignment.public_challenge_id;
+          if (assignment.challenge_family === "map_challenge" && assignment.compat_rule_id) {
+            publicChallengeId = assignments.find((candidate) => candidate.challenge_family === "map_title_rule" && candidate.challenge_id === assignment.compat_rule_id)?.public_challenge_id ?? null;
+          }
+          if (!publicChallengeId) return null;
+          challengeIds.add(publicChallengeId);
+        }
+        const challengeRefs = [...challengeIds].sort().map((challengeId) => ({ family: "map" as const, challengeId }));
+        const parsed = agentGameplayRevisionSchema.safeParse({
+          gameplayRevisionId: row.revision_id,
+          mapId,
+          mapVariant: row.legacy_map_variant === "classic" ? "classic" : null,
+          lifecycle: row.revision_lifecycle,
+          enabled: true,
+          isDefault: row.revision_lifecycle === "default",
+          isSelectable: row.revision_lifecycle === "selectable",
+          gameVersion: row.revision_game_version,
+          spatialConfig,
+          challengeRefs,
+        });
+        return parsed.success ? parsed.data : null;
+      };
+      const defaultProjection = defaultRows.length === 1 ? projectRevision(defaultRows[0]) : null;
+      const projectedRevisions = defaultProjection
+        ? [defaultProjection, ...revisionRows.filter((row) => row.revision_lifecycle === "selectable").map(projectRevision).filter((revision): revision is NonNullable<typeof revision> => revision !== null)]
+        : [];
+      projectedRevisions.sort((left, right) => (left.isDefault ? 0 : 1) - (right.isDefault ? 0 : 1)
+        || (left.gameplayRevisionId < right.gameplayRevisionId ? -1 : left.gameplayRevisionId > right.gameplayRevisionId ? 1 : 0));
+      items.push({
+        mapId,
+        mapName: first.map_name,
+        gameVersion: first.map_game_version,
+        difficultyRating: first.difficulty_rating as Map["difficultyRating"] ?? null,
+        mechanics: first.mechanics_json ? JSON.parse(first.mechanics_json) as string[] : [],
+        coverUrl: first.cover_url,
+        backgroundUrl: first.background_url,
+        gameplayRevisions: projectedRevisions,
+      });
+    }
+    return items.sort((left, right) => left.mapName < right.mapName ? -1 : left.mapName > right.mapName ? 1 : left.mapId < right.mapId ? -1 : left.mapId > right.mapId ? 1 : 0);
+  };
+
   const glossary = async () => (await db.select().from(effectGlossaryTerms)).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
   const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
   const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
@@ -2189,27 +2343,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
     async getAgentEvent(input) { return this.getRandomEvent({ eventId: input.eventId }); },
     async listAgentMaps(input: AgentMapQuery) {
-      const maps = await this.listMaps();
+      const maps = await loadAgentMapProjectionsFast({});
       const query = input.query?.toLocaleLowerCase();
       const mechanic = input.mechanic?.toLocaleLowerCase();
       const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async getAgentMap(input) {
-      const row = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get();
-      if (!row) return null;
-      return {
-        mapId: row.map.id,
-        mapName: row.map.name,
-        gameVersion: row.map.gameVersion,
-        difficultyRating: (row.metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
-        mechanics: row.metadata?.mechanicsJson ? JSON.parse(row.metadata.mechanicsJson) as string[] : [],
-        coverUrl: row.metadata?.coverUrl ?? null,
-        backgroundUrl: row.metadata?.backgroundUrl ?? null,
-      };
+      return (await loadAgentMapProjectionsFast({ mapId: input.mapId }))[0] ?? null;
     },
     async listAgentAchievements(input: AgentAchievementQuery) {
-      const challenges = (await this.listChallenges()).filter((challenge) => challenge.family === "achievement" || challenge.kind === "map_title_achievement");
+      const allChallenges = await this.listChallenges();
+      const projectableRevisionIds = new Set((await loadAgentMapProjectionsFast({})).flatMap((map) => map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)));
+      const challenges = allChallenges.filter((challenge) => challenge.family === "achievement" || challenge.family === "map" && projectableRevisionIds.has(challenge.gameplayRevisionId));
       const query = input.query?.toLocaleLowerCase();
       const filtered = challenges.filter((challenge) => {
         const values = challenge.family === "achievement"
@@ -2232,24 +2378,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           eq(titleCatalog.availability, "active"),
         ))
         .get();
-      if (!row) {
-        const mapProjections = [...await loadMapTitleRuleChallenges(), ...await loadMapScopedTitleChallenges()]
-          .filter((challenge): challenge is Extract<Challenge, { family: "map" }> => challenge.challengeId === input.challengeId && challenge.family === "map");
-        if (!input.mapId) return mapProjections.length === 1 ? mapProjections[0] : null;
-        const mapMatches = mapProjections.filter((challenge) => challenge.mapId === input.mapId);
-        return mapMatches.length === 1 ? mapMatches[0] : null;
+      if (row) {
+        const mapIdsByChallenge = (row.challenge.scope ?? "global") === "map"
+          ? await loadChallengeMapIds([row.challenge.id])
+          : new globalThis.Map<string, string[]>();
+        return toPublicTitleChallenge(row.challenge, row.title, now(), mapIdsByChallenge);
       }
-      if ((row.challenge.scope ?? "global") === "map") {
-        const mapProjections = [...await loadMapTitleRuleChallenges(), ...await loadMapScopedTitleChallenges()]
-          .filter((challenge): challenge is Extract<Challenge, { family: "map" }> => challenge.challengeId === input.challengeId && challenge.family === "map");
-        if (!input.mapId) return mapProjections.length === 1 ? mapProjections[0] : null;
-        const mapMatches = mapProjections.filter((challenge) => challenge.mapId === input.mapId);
-        return mapMatches.length === 1 ? mapMatches[0] : null;
-      }
-      const mapIdsByChallenge = (row.challenge.scope ?? "global") === "map"
-        ? await loadChallengeMapIds([row.challenge.id])
-        : new globalThis.Map<string, string[]>();
-      return toPublicTitleChallenge(row.challenge, row.title, now(), mapIdsByChallenge);
+      const allChallenges = await this.listChallenges();
+      const projectableRevisionIds = new Set((await loadAgentMapProjectionsFast({})).flatMap((map) => map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)));
+      const mapMatches = allChallenges.filter((challenge): challenge is Extract<Challenge, { family: "map" }> => challenge.family === "map"
+        && challenge.challengeId === input.challengeId
+        && projectableRevisionIds.has(challenge.gameplayRevisionId)
+        && (!input.mapId || challenge.mapId === input.mapId)
+        && (!input.gameplayRevisionId || challenge.gameplayRevisionId === input.gameplayRevisionId));
+      if (mapMatches.length) return mapMatches.length === 1 ? mapMatches[0] : null;
+      return null;
     },
     async listAgentTitles(input: AgentTitleQuery) {
       const titles = await this.listTitles({ mapId: input.mapId });
@@ -2259,25 +2402,33 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
     async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
       const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId })
-        .from(playerTitleGrants).innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .where(eq(playerTitleGrants.status, "active")).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
+        .from(playerTitleGrants)
+        .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
+        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "global")))
+        .where(and(eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId))).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
       const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitleKeys: Set<string> }>();
       for (const row of rows) {
         const current = grouped.get(row.playerId) ?? { playerId: row.playerId, playerName: row.playerName, titleKeys: [], allTitleKeys: new Set<string>() };
         current.allTitleKeys.add(row.titleKey);
-        if (row.mapId === null && !current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
+        if (!current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
         grouped.set(row.playerId, current);
       }
-      const titleCount = (await db.select({ key: titleCatalog.key }).from(titleCatalog)).length;
+      const titleCount = (await db.select({ key: titleCatalog.key }).from(titleCatalog).where(and(eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "global")))).length;
       const items = [...grouped.values()].map(({ allTitleKeys, ...player }) => ({ ...player, allTitles: allTitleKeys.size === titleCount }));
       return { contractVersion: "1" as const, ...paginate(items, input.page, input.pageSize) };
     },
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
-      const rows = await db.select({ mapId: playerTitleGrants.mapId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
-        .from(playerTitleGrants).innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId)))
-        .orderBy(playerTitleGrants.slot, playerAccounts.playerId);
-      return { contractVersion: "1" as const, ...paginate(rows.map((row) => ({ mapId: row.mapId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize) };
+      const map = await this.getAgentMap({ mapId: input.mapId });
+      const projectableRevisionIds = map?.gameplayRevisions.map((revision) => revision.gameplayRevisionId) ?? [];
+      if (!projectableRevisionIds.length) return { contractVersion: "1" as const, ...paginate([], input.page, input.pageSize) };
+      const rows = await db.select({ mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
+        .from(playerTitleGrants)
+        .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
+        .innerJoin(gameplayRevisions, and(eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id), eq(gameplayRevisions.mapId, input.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
+        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "map")))
+        .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
+        .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey);
+      return { contractVersion: "1" as const, ...paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize) };
     },
     async getAgentTitle(input) {
       const title = await db.select().from(titleCatalog).where(and(eq(titleCatalog.key, input.titleKey), eq(titleCatalog.availability, "active"))).get();

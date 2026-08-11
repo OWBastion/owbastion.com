@@ -403,6 +403,28 @@ ordinary title challenges. A dynamic instance carries its source rule and an
 explicit `dynamic: true` slot descriptor, so Bastion must not infer dynamic
 map-title meaning from a nullable slot.
 
+`/v1/agents/maps` and `/v1/agents/maps/:mapId` additionally expose the stable
+map's `gameplayRevisions` build projection. It contains only `default` and
+`selectable` revisions with `enabled: true`, explicit `isDefault`/
+`isSelectable` flags, the machine `gameplayRevisionId`, optional explicit
+`mapVariant: "classic"`, revision `gameVersion`, and a validated
+`spatialConfig`. The spatial object has finite three-component vectors for
+`bastionPositions`, `resetPosition`, `endPosition`, `thirdPersonPosition`, and
+`creditsPosition`; optional control center/jump/respawn vectors with paired
+axis/threshold; and deterministic portal/springboard position arrays. It is
+not a free-form payload. `challengeRefs` contains references only; the full
+challenge definition remains authoritative in `/v1/agents/achievements` and
+is joined by map revision ID plus challenge family/ID.
+
+An active map with no projectable default remains listed with an empty
+`gameplayRevisions` array so a consumer cannot mistake an omitted map for a
+retired map. Preparing, historical-only, malformed, incomplete, duplicate-
+default, or invalidly assigned revisions are not Bastion-ready and do not
+appear in that array. The map holder endpoint applies the same readiness
+filter and every holder item carries `gameplayRevisionId`; the global player
+grant endpoint contains only active global grants, never revision-scoped map
+grants. These are additive fields under contractVersion `1`.
+
 ## QQBot and login
 
 QQBot is a channel adapter. Binding starts from a Portal invitation link whose
@@ -552,6 +574,16 @@ creates independent new progression without rewriting old facts. The default
 `/v1/me/mastery` profile uses only a map's default revision; an explicit
 revision query can read the selected or historical revision's own profile and
 bounded run history.
+
+The Agents projection is stricter than the retained revision model: a map is
+build-projectable only when exactly one enabled default revision has valid
+spatial data and every enabled assignment resolves to a current public map
+challenge. Valid selectable revisions may then join the same projection.
+Historical progression remains attributable through its stored revision ID,
+but cannot inflate the normal build projection or its holder list. A challenge
+lookup that is shared by multiple enabled revisions must include
+`gameplayRevisionId`; no endpoint infers identity from labels, order, or a
+missing value.
 
 The platform owns candidate selection, rule-snapshot evaluation, approval,
 Grant reuse, audit, and spot-check revocation. Uncertain or ambiguous results

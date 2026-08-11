@@ -75,6 +75,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       copied_from_revision_id TEXT,
       reset_reason TEXT,
       game_version TEXT NOT NULL,
+      spatial_config_json TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -565,6 +566,89 @@ const localMasteryEvidenceCompatibility = createMasteryEvidenceCompatibilityV1({
   supportedOcrLayoutVersions: ["test-layout-v1"],
 });
 
+describe("Agents map gameplay projection", () => {
+  it("projects enabled revisions with deterministic spatial and challenge references", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.agents");
+    seedTitle(sqlite, "CONQUEROR");
+    seedTitle(sqlite, "REWORK");
+    seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+    seedCompat(sqlite, "map.agents.conqueror", "rule.conqueror", "map.agents");
+    seedLegacyMapChallenge(sqlite, "challenge.agents.direct", "map.agents");
+    seedMapTitleChallenge(sqlite, "title.agents.rework", "REWORK", "map.agents");
+    const selectableRevisionId = seedSelectableGameplayRevision(sqlite, "map.agents");
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: selectableRevisionId, mapId: "map.agents", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: selectableRevisionId, mapId: "map.agents", challengeFamily: "map_challenge", challengeId: "challenge.agents.direct" });
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: selectableRevisionId, mapId: "map.agents", challengeFamily: "title_challenge", challengeId: "title.agents.rework" });
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
+    seedAgentSpatialConfig(sqlite, selectableRevisionId);
+    const services = createPlatformServices(database);
+
+    const response = await services.listAgentMaps({ page: 1, pageSize: 20 });
+    expect(response.items[0]?.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual([
+      "revision:map.agents:initial",
+      selectableRevisionId,
+    ]);
+    expect(response.items[0]?.gameplayRevisions[0]?.challengeRefs).toEqual([
+      { family: "map", challengeId: "challenge.agents.direct" },
+      { family: "map", challengeId: "map.agents.conqueror" },
+      { family: "map", challengeId: "title.agents.rework" },
+    ]);
+    expect((await services.listAgentAchievements({ page: 1, pageSize: 20, mapId: "map.agents" })).items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "challenge.agents.direct", gameplayRevisionId: "revision:map.agents:initial" }),
+      expect.objectContaining({ challengeId: "title.agents.rework", gameplayRevisionId: "revision:map.agents:initial" }),
+      expect.objectContaining({ challengeId: "challenge.agents.direct", gameplayRevisionId: selectableRevisionId }),
+    ]));
+  });
+});
+
+describe("Agents map projection readiness", () => {
+  it("fails closed for incomplete revisions and never projects historical or preparing rows", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.agents");
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
+    const invalidSelectableId = seedSelectableGameplayRevision(sqlite, "map.agents", "invalid");
+    sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run("not-json", invalidSelectableId);
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES ('revision:map.agents:historical', 'map.agents', 'historical', NULL, NULL, NULL, '2025.01.1', ?, ?, ?), ('revision:map.agents:preparing', 'map.agents', 'preparing', NULL, NULL, NULL, '2026.08.1', ?, ?, ?)").run(JSON.stringify({}), now, now, JSON.stringify({}), now, now);
+    const services = createPlatformServices(database);
+
+    const map = (await services.getAgentMap({ mapId: "map.agents" }))!;
+    expect(map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.agents:initial"]);
+  });
+
+  it("does not project a map when enabled defaults are ambiguous", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.agents");
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES ('revision:map.agents:duplicate-default', 'map.agents', 'default', NULL, NULL, NULL, '2026.08.1', ?, ?, ?)").run(JSON.stringify({}), now, now);
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:duplicate-default");
+    const services = createPlatformServices(database);
+
+    await expect(services.getAgentMap({ mapId: "map.agents" })).resolves.toMatchObject({ mapId: "map.agents", gameplayRevisions: [] });
+  });
+
+  it("scopes map title holders to projectable revision identities", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.agents");
+    seedTitle(sqlite, "PIONEER");
+    const selectableRevisionId = seedSelectableGameplayRevision(sqlite, "map.agents");
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.agents:historical', 'map.agents', 'historical', NULL, NULL, NULL, '2025.01.1', ?, ?)").run(now, now);
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
+    seedAgentSpatialConfig(sqlite, selectableRevisionId);
+    seedAgentSpatialConfig(sqlite, "revision:map.agents:historical");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.agents', '1001', 'Agent Player', 'agent player', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.default', 'player.agents', 'PIONEER', 'map.agents', 'revision:map.agents:initial', 'pioneer', 'active', 'submission', 'source.default', 'admin', ?), ('grant.selectable', 'player.agents', 'PIONEER', 'map.agents', ?, 'pioneer', 'active', 'submission', 'source.selectable', 'admin', ?), ('grant.historical', 'player.agents', 'PIONEER', 'map.agents', 'revision:map.agents:historical', 'pioneer', 'active', 'submission', 'source.historical', 'admin', ?)").run(now, selectableRevisionId, now, now);
+    const services = createPlatformServices(database);
+
+    const response = await services.listAgentMapTitleHolders({ mapId: "map.agents", page: 1, pageSize: 20 });
+    expect(response.items.map((item) => item.gameplayRevisionId)).toEqual(["revision:map.agents:initial", selectableRevisionId]);
+  });
+});
+
 /** Seed helpers */
 const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" = "active") => {
   sqlite.prepare(
@@ -587,6 +671,21 @@ const seedSelectableGameplayRevision = (sqlite: DatabaseSync, mapId: string, suf
     "INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'selectable', NULL, ?, 'revision test', '2026.08.10', ?, ?)",
   ).run(id, mapId, `revision:${mapId}:initial`, now, now);
   return id;
+};
+
+const seedAgentSpatialConfig = (sqlite: DatabaseSync, gameplayRevisionId: string, overrides: Record<string, unknown> = {}) => {
+  const spatialConfig = {
+    bastionPositions: [[1, 2, 3]],
+    resetPosition: [4, 5, 6],
+    endPosition: [7, 8, 9],
+    thirdPersonPosition: [10, 11, 12],
+    creditsPosition: [13, 14, 15],
+    control: null,
+    portalPositions: [],
+    springboardPositions: [],
+    ...overrides,
+  };
+  sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(spatialConfig), gameplayRevisionId);
 };
 
 const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
@@ -883,6 +982,7 @@ describe("map title rule model – locked invariants", () => {
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      seedAgentSpatialConfig(sqlite, "revision:map.paris:initial");
       const services = createPlatformServices(database);
 
       const portal = await services.listChallenges({ family: "map" });
@@ -906,6 +1006,8 @@ describe("map title rule model – locked invariants", () => {
       seedLegacyMapChallenge(sqlite, "challenge.paris.direct", "map.paris");
       seedMapTitleChallenge(sqlite, "title.paris.rework", "REWORK", "map.paris");
       const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
+      seedAgentSpatialConfig(sqlite, "revision:map.paris:initial");
+      seedAgentSpatialConfig(sqlite, reworkRevisionId);
       seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
       seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_challenge", challengeId: "challenge.paris.direct" });
       seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "title_challenge", challengeId: "title.paris.rework" });
@@ -1035,6 +1137,10 @@ describe("map title rule model – locked invariants", () => {
       seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
       seedException(sqlite, "exception.paris", "rule.classic", "map.paris");
       seedException(sqlite, "exception.hanamura", "rule.classic", "map.hanamura");
+      seedAgentSpatialConfig(sqlite, "revision:map.paris:initial");
+      seedAgentSpatialConfig(sqlite, "revision:map.hanamura:initial");
+      seedAgentSpatialConfig(sqlite, legacyGameplayRevisionId("map.paris"));
+      seedAgentSpatialConfig(sqlite, legacyGameplayRevisionId("map.hanamura"));
       seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.paris");
       seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.hanamura");
       const services = createPlatformServices(database);

@@ -30,7 +30,10 @@ The platform provides public and player-facing account capabilities and owns
 the current event, map, title, and challenge metadata for the Bastion
 ecosystem, as well as durable business state. Bastion owns the game
 implementation, build, and release artifacts. Bastion reads platform metadata
-through the Agents API; it is not a competing metadata source.
+through the Agents API, including only platform-enabled, validated map gameplay
+revision projections and revision-owned spatial inputs; it is not a competing
+metadata source. Workshop behavior, generated data, build, and release remain
+Bastion-owned.
 
 | Repository | Authoritative responsibility |
 | --- | --- |

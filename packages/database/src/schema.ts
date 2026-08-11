@@ -72,6 +72,7 @@ export const gameplayRevisions = sqliteTable("gameplay_revisions", {
   copiedFromRevisionId: text("copied_from_revision_id").references((): AnySQLiteColumn => gameplayRevisions.id),
   resetReason: text("reset_reason"),
   gameVersion: text("game_version").notNull(),
+  spatialConfigJson: text("spatial_config_json"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({

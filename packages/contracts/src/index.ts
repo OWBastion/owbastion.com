@@ -241,6 +241,62 @@ export const mapSchema = z.object({
 
 export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
 
+const finiteCoordinate = z.number().refine(Number.isFinite, "Coordinate must be finite");
+const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
+const spatialPositions = z.array(vector3).max(128);
+const requiredSpatialPositions = spatialPositions.min(1);
+const controlSpatialConfigSchema = z.object({
+  centerPositions: requiredSpatialPositions,
+  jumpPositions: requiredSpatialPositions,
+  respawnPositions: requiredSpatialPositions,
+  respawnAxis: z.enum(["x", "y", "z"]).nullable(),
+  respawnAxisThreshold: finiteCoordinate.refine((value) => value >= 0, "Threshold must be non-negative").nullable(),
+}).strict().superRefine((value, context) => {
+  if (value.centerPositions.length !== value.respawnPositions.length) {
+    context.addIssue({ code: "custom", path: ["centerPositions"], message: "Control center and respawn positions must have matching lengths" });
+  }
+  if (value.jumpPositions.length !== value.respawnPositions.length) {
+    context.addIssue({ code: "custom", path: ["jumpPositions"], message: "Control jump and respawn positions must have matching lengths" });
+  }
+  if ((value.respawnAxis === null) !== (value.respawnAxisThreshold === null)) {
+    context.addIssue({ code: "custom", path: ["respawnAxis"], message: "Control axis and threshold must be provided together" });
+  }
+});
+
+export const agentSpatialConfigSchema = z.object({
+  bastionPositions: requiredSpatialPositions,
+  resetPosition: vector3,
+  endPosition: vector3,
+  thirdPersonPosition: vector3,
+  creditsPosition: vector3,
+  control: controlSpatialConfigSchema.nullable(),
+  portalPositions: spatialPositions,
+  springboardPositions: spatialPositions,
+}).strict();
+
+export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
+export const agentGameplayRevisionSchema = z.object({
+  gameplayRevisionId: externalId,
+  mapId: externalId,
+  mapVariant: z.literal("classic").nullable(),
+  lifecycle: z.enum(["default", "selectable"]),
+  enabled: z.literal(true),
+  isDefault: z.boolean(),
+  isSelectable: z.boolean(),
+  gameVersion: z.string().trim().min(1).max(64),
+  spatialConfig: agentSpatialConfigSchema,
+  challengeRefs: z.array(agentMapChallengeRefSchema).max(256),
+}).strict().superRefine((value, context) => {
+  if (value.lifecycle === "default" && (!value.isDefault || value.isSelectable)) {
+    context.addIssue({ code: "custom", path: ["lifecycle"], message: "Default revisions must be default-only" });
+  }
+  if (value.lifecycle === "selectable" && (value.isDefault || !value.isSelectable)) {
+    context.addIssue({ code: "custom", path: ["lifecycle"], message: "Selectable revisions must be selectable-only" });
+  }
+});
+
+export const agentMapSchema = mapSchema.extend({ gameplayRevisions: z.array(agentGameplayRevisionSchema).max(32) }).strict();
+
 const randomEventStatus = z.enum(["development", "implemented", "removed"]);
 const randomEventLinkSchema = z.object({ family: z.enum(["map", "achievement"]), challengeId: externalId });
 const effectGlossaryTermSchema = z.object({ key: z.string().trim().min(1).max(64), nameZh: z.string().trim().min(1).max(128), aliases: z.array(z.string().trim().min(1).max(128)).max(16), category: z.string().trim().min(1).max(64), summary: z.string().trim().min(1).max(512), definition: z.string().trim().min(1).max(4096), rules: z.array(z.string().trim().min(1).max(512)).max(16), sourceVersion: z.string().trim().min(1).max(64) });
@@ -383,12 +439,12 @@ const agentPage = z.object({
 });
 const agentPageQuery = z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().positive().max(100).default(20) });
 export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
-export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) }).merge(agentPage);
+export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(agentMapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
 export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) }).merge(agentPage);
 export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName: z.string().trim().min(1).max(64), titleKeys: z.array(externalId), allTitles: z.boolean() });
 export const agentPlayerTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(agentPlayerTitleGrantSchema) }).merge(agentPage);
-export const agentMapTitleHolderSchema = z.object({ mapId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName: z.string().trim().min(1).max(64) });
+export const agentMapTitleHolderSchema = z.object({ mapId: externalId, gameplayRevisionId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName: z.string().trim().min(1).max(64) });
 export const agentMapTitleHolderListResponseSchema = z.object({ contractVersion, items: z.array(agentMapTitleHolderSchema) }).merge(agentPage);
 export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
 export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);
@@ -984,6 +1040,10 @@ export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;
 export type MapListResponse = z.infer<typeof mapListResponseSchema>;
+export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
+export type AgentMapChallengeRef = z.infer<typeof agentMapChallengeRefSchema>;
+export type AgentGameplayRevision = z.infer<typeof agentGameplayRevisionSchema>;
+export type AgentMap = z.infer<typeof agentMapSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;

@@ -69,6 +69,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     copied_from_revision_id TEXT,
     reset_reason TEXT,
     game_version TEXT NOT NULL,
+    spatial_config_json TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );

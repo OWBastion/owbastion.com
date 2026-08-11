@@ -159,15 +159,15 @@ describe("API", () => {
     const agentApp = createApp({ authenticate: auth, services: () => ({
       ...services,
       listAgentPlayerTitleGrants: async () => ({ contractVersion: "1" as const, items: [{ playerId: "1234", playerName: "Player", titleKeys: ["TITLE"], allTitles: false }], page: 1, pageSize: 20, total: 1, hasMore: false }),
-      getAgentMap: async ({ mapId }) => mapId === "map.test" ? { mapId, mapName: "测试地图", gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null } : null,
-      listAgentMapTitleHolders: async () => ({ contractVersion: "1" as const, items: [{ mapId: "map.test", titleKey: "PIONEER", slot: "pioneer" as const, slotSemantics: "named" as const, playerId: "1234", playerName: "Player" }], page: 1, pageSize: 20, total: 1, hasMore: false }),
+      getAgentMap: async ({ mapId }) => mapId === "map.test" ? { mapId, mapName: "测试地图", gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [] } : null,
+      listAgentMapTitleHolders: async () => ({ contractVersion: "1" as const, items: [{ mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", titleKey: "PIONEER", slot: "pioneer" as const, slotSemantics: "named" as const, playerId: "1234", playerName: "Player" }], page: 1, pageSize: 20, total: 1, hasMore: false }),
     }) });
     const players = await agentApp.request("http://localhost/v1/agents/player-title-grants?page=1&pageSize=20", {}, env);
     const holders = await agentApp.request("http://localhost/v1/agents/map-title-holders?mapId=map.test&page=1&pageSize=20", {}, env);
     expect(players.status).toBe(200);
     expect(holders.status).toBe(200);
     expect((await players.json() as { items: Array<{ playerId?: string; playerName: string }> }).items[0]).toEqual({ playerName: "Player", titleKeys: ["TITLE"], allTitles: false });
-    expect((await holders.json() as { items: Array<{ playerId?: string; mapId: string; titleKey: string; slot: string; slotSemantics: string; playerName: string }> }).items[0]).toEqual({ mapId: "map.test", titleKey: "PIONEER", slot: "pioneer", slotSemantics: "named", playerName: "Player" });
+    expect((await holders.json() as { items: Array<{ playerId?: string; mapId: string; gameplayRevisionId: string; titleKey: string; slot: string; slotSemantics: string; playerName: string }> }).items[0]).toEqual({ mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", titleKey: "PIONEER", slot: "pioneer", slotSemantics: "named", playerName: "Player" });
   });
 
   it("returns player IDs only with the Bastion build token", async () => {
