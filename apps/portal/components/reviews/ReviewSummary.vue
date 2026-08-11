@@ -21,7 +21,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
 
 <template>
   <div class="review-summary" aria-live="polite">
-    <div v-if="loading" class="review-loading" role="status">正在读取评价…</div>
+    <div v-if="loading" class="review-loading" role="status">读取中…</div>
     <template v-else>
       <div class="review-summary-overview">
         <div class="review-average"><strong>{{ averageLabel }}</strong><span>{{ summary?.reviewCount ?? 0 }} 条有效评价</span></div>

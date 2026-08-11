@@ -7,7 +7,7 @@ const props = defineProps<{ status: string; updatedAt: number }>();
 const steps: ProgressStep[] = [
   { key: "submitted", title: "已提交", icon: "i-lucide-check", detail: "截图已提交" },
   { key: "ocr", title: "截图识别", icon: "i-lucide-scan-line", detail: "等待识别" },
-  { key: "review", title: "核对结果", icon: "i-lucide-user-round-check", detail: "等待进入核对" },
+  { key: "review", title: "核对结果", icon: "i-lucide-user-round-check", detail: "等待核对" },
   { key: "grant", title: "获得称号", icon: "i-lucide-award", detail: "核对通过后获得称号" },
 ];
 
@@ -41,7 +41,7 @@ const stepStates = computed<StepState[]>(() => {
 const stepDetails = computed(() => steps.map((step, index) => {
   const state = stepStates.value[index];
   if (step.key === "ocr" && state === "current" && props.status === "awaiting_player_confirmation") return "等待确认挑战";
-  if (step.key === "ocr" && state === "failed") return "处理未通过";
+  if (step.key === "ocr" && state === "failed") return "未通过";
   if (step.key === "review" && state === "current" && props.status === "ocr_review_required") return "等待处理";
   if (step.key === "review" && state === "failed") return "未通过";
   if (state === "complete") return "已完成";

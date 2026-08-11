@@ -166,7 +166,7 @@ const challengeSummary = computed(() => {
             class="action-btn pressable"
             type="button"
             block
-            label="要求重传"
+            label="要求重新提交"
             color="neutral"
             variant="outline"
             :loading="decisionLoading('resubmission_required')"
