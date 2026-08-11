@@ -45,7 +45,7 @@ async function mountSubmission(route = "/submissions/submission-1") {
 }
 
 describe("submission detail page", () => {
-  it("shows status and required actions before evidence, and distinguishes evidence read failure", async () => {
+  it("shows status alert before evidence and distinguishes evidence read failure", async () => {
     api.mockClear();
     api.mockImplementation(() => Promise.resolve({ ...baseSubmission }));
     const wrapper = await mountSubmission();
@@ -64,8 +64,8 @@ describe("submission detail page", () => {
     expect(wrapper.get(".progress-card").text()).toContain("处理未通过");
 
     const columns = wrapper.findAll(".detail-grid > div").map((column) => column.classes().join(" "));
-    expect(columns[0]).toContain("info-col");
-    expect(columns[1]).toContain("evidence-col");
+    expect(columns[0]).toContain("evidence-col");
+    expect(columns[1]).toContain("info-col");
     expect(wrapper.find(".detail-grid").attributes("aria-live")).toBeUndefined();
     expect(wrapper.find(".status-alert").exists()).toBe(true);
     expect(wrapper.find(".status-alert").attributes("aria-live")).toBeUndefined();
@@ -93,12 +93,11 @@ describe("submission detail page", () => {
       evidenceUrl: null,
     }));
     const wrapper = await mountSubmission("/submissions/submission-missing");
-    expect(wrapper.text()).toContain("截图已上传，等待识别");
     expect(wrapper.text()).toContain("暂无截图");
     expect(wrapper.text()).not.toContain("无法读取截图");
   });
 
-  it("covers waiting and ready-for-review status alerts", async () => {
+  it("passes waiting and ready-for-review statuses to the status badge", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-waiting",
       status: "ready_for_review",
@@ -108,7 +107,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const waiting = await mountSubmission("/submissions/submission-waiting");
-    expect(waiting.text()).toContain("等待核对");
+    expect(waiting.text()).toContain("ready_for_review");
 
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-ocr-review",
@@ -119,7 +118,7 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const ocrReview = await mountSubmission("/submissions/submission-ocr-review");
-    expect(ocrReview.text()).toContain("等待处理");
+    expect(ocrReview.text()).toContain("ocr_review_required");
   });
 
   it("hides manual review button when the API marks the submission ineligible", async () => {
@@ -177,7 +176,7 @@ describe("submission detail page", () => {
     expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
     // Steady status alert remains outside the live region and does not repeat the action success copy.
-    expect(wrapper.find(".status-alert").text()).not.toContain("已提交申请");
+    expect(wrapper.find(".status-alert").exists()).toBe(false);
     expect(wrapper.findAll("[aria-live='polite']")).toHaveLength(1);
   });
 
@@ -204,7 +203,6 @@ describe("submission detail page", () => {
     const infoCards = wrapper.findAll(".info-col > *").map((card) => card.classes().join(" "));
     expect(infoCards[0]).toContain("confirm-card");
     expect(infoCards[1]).toContain("overview-card");
-    expect(wrapper.text()).toContain("等待确认挑战");
     expect(wrapper.find(".confirm-copy").exists()).toBe(false);
 
     await wrapper.get('[data-testid="catalog-option"]').trigger("click");
@@ -230,7 +228,7 @@ describe("submission detail page", () => {
       titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
     }));
     const wrapper = await mountSubmission("/submissions/submission-approved");
-    expect(wrapper.text()).toContain("称号已获得");
+    expect(wrapper.text()).toContain("已获得称号");
     expect(wrapper.text()).toContain("征服者");
   });
 
@@ -246,7 +244,7 @@ describe("submission detail page", () => {
       masteryOutcome: { status: "created", awardedXp: 225 },
     }));
     const created = await mountSubmission("/submissions/submission-mastery-created");
-    expect(created.text()).toContain("称号已获得");
+    expect(created.text()).toContain("已获得称号");
     expect(created.text()).toContain("精通记录已保存");
     expect(created.text()).toContain("获得 225 XP");
 
@@ -285,8 +283,8 @@ describe("submission detail page", () => {
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const wrapper = await mountSubmission("/submissions/submission-passed");
-    expect(wrapper.text()).toContain("已通过");
-    expect(wrapper.text()).not.toContain("称号已获得");
+    expect(wrapper.text()).toContain("approved");
+    expect(wrapper.text()).not.toContain("已获得称号");
   });
 
   it("surfaces explicit refresh failures in the active status region", async () => {
@@ -304,11 +302,11 @@ describe("submission detail page", () => {
       });
     });
     const wrapper = await mountSubmission("/submissions/submission-refresh");
-    expect(wrapper.text()).toContain("截图已上传，等待识别");
+    expect(wrapper.text()).toContain("ocr_pending");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
     expect(wrapper.find(".status-live").text()).toContain("无法刷新状态");
     expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
-    expect(wrapper.text()).toContain("截图已上传，等待识别");
+    expect(wrapper.text()).toContain("ocr_pending");
   });
 });

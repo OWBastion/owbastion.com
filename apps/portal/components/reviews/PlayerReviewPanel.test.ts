@@ -72,7 +72,7 @@ describe("PlayerReviewPanel", () => {
     const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: false }, global });
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.get('[role="status"]').text()).toContain("正在读取评价");
+    expect(wrapper.get('[role="status"]').text()).toContain("读取中…");
     resolveSummary(summary);
     resolveComments(comments);
     await flushPromises();
@@ -86,7 +86,7 @@ describe("PlayerReviewPanel", () => {
 
     expect(wrapper.text()).toContain("4.2");
     expect(wrapper.text()).toContain("节奏很好");
-    expect(wrapper.text()).toContain("登录后可以提交或修改你的评价");
+    expect(wrapper.text()).toContain("登录后评分");
     expect(wrapper.get(".review-login").attributes("href")).toContain("/login?returnTo=");
     expect(wrapper.find(".review-editor").exists()).toBe(false);
     expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/v1/me/reviews/"), expect.anything());

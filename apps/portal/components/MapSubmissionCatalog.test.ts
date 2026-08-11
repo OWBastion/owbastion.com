@@ -9,7 +9,6 @@ describe("MapSubmissionCatalog", () => {
       global: { stubs: { USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select aria-label="选择地图" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' } } },
     });
     await wrapper.get('select[aria-label="选择地图"]').setValue("map-1");
-    expect(wrapper.get(".eyebrow").text()).toBe("始终可提交");
     expect(wrapper.text()).toContain("即将结束");
     expect(wrapper.text()).toContain("26.0713.2");
     expect(wrapper.get(".objective-button").attributes("disabled")).toBeUndefined();

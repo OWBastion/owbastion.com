@@ -176,7 +176,7 @@ onMounted(() => { void loadOptions(); });
         </div>
       </template>
     </AdminDataTable>
-    <UEmpty v-else-if="!props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
+    <UEmpty v-if="!activeGrants.length && !props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
