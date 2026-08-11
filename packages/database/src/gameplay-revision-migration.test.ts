@@ -13,8 +13,8 @@ const applyMigrations = (sqlite: DatabaseSync, through: string) => {
   }
 };
 
-describe("0061/0062 gameplay revision forward migrations", () => {
-  it("assigns legacy facts to stable initial and repairs CLASSIC provenance from legacy evidence", () => {
+describe("0061/0062/0063 gameplay revision forward migrations", () => {
+  it("assigns legacy facts, repairs CLASSIC provenance, and normalizes label-derived revision IDs", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec("PRAGMA foreign_keys = ON;");
     applyMigrations(sqlite, "0060_mastery_ledger.sql");
@@ -70,25 +70,39 @@ describe("0061/0062 gameplay revision forward migrations", () => {
 
     sqlite.exec(readFileSync(`${migrationsDirectory}/0061_gameplay_revisions.sql`, "utf8"));
     sqlite.exec(readFileSync(`${migrationsDirectory}/0062_repair_legacy_classic_revisions.sql`, "utf8"));
+    sqlite.exec(`
+      UPDATE submissions
+      SET rule_snapshot_json = '{"gameplayRevisionId":"revision:map.revision:classic","mapVariant":"classic"}'
+      WHERE id = 'submission.revision.classic';
+      INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at)
+      VALUES ('outcome.revision.classic', 'submission.revision.classic', 'challenge:challenge.revision.classic:map.revision:revision:map.revision:classic', 'challenge', 'created', 'challenge.revision.classic', 0, '{"gameplayRevisionId":"revision:map.revision:classic"}', 1, 1);
+      INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at)
+      VALUES ('ocr.revision.classic', 'submission.revision.classic', 1, 'review_required', '{}', '{"candidates":[{"gameplayRevisionId":"revision:map.revision:classic"}]}', 1);
+      INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at)
+      VALUES ('idempotency.revision.classic', 'admin', 'submission.challenge.select', 'hash', '{"gameplayRevisionId":"revision:map.revision:classic"}', 1);
+      INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at)
+      VALUES ('audit.revision.classic', 'correlation.revision.classic', 'admin', 'admin', 'gameplay_revision.normalize', 'gameplay_revision', 'revision:map.revision:classic', '{"gameplayRevisionId":"revision:map.revision:classic"}', 1);
+    `);
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0063_normalize_legacy_gameplay_revision_ids.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
-      { id: "revision:map.revision:classic", lifecycle: "selectable", legacy_map_variant: "classic", copied_from_revision_id: null, game_version: "26.0710.1" },
       { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
+      { id: "revision:map.revision:v0", lifecycle: "selectable", legacy_map_variant: "classic", copied_from_revision_id: null, game_version: "26.0710.1" },
     ]);
     expect(sqlite.prepare("SELECT id, gameplay_revision_id FROM submissions WHERE id LIKE 'submission.revision.%' ORDER BY id").all()).toEqual([
-      { id: "submission.revision.classic", gameplay_revision_id: "revision:map.revision:classic" },
+      { id: "submission.revision.classic", gameplay_revision_id: "revision:map.revision:v0" },
       { id: "submission.revision.initial", gameplay_revision_id: "revision:map.revision:initial" },
     ]);
     expect(sqlite.prepare("SELECT id, gameplay_revision_id FROM mastery_runs WHERE id LIKE 'run.revision.%' ORDER BY id").all()).toEqual([
-      { id: "run.revision.classic", gameplay_revision_id: "revision:map.revision:classic" },
+      { id: "run.revision.classic", gameplay_revision_id: "revision:map.revision:v0" },
       { id: "run.revision.initial", gameplay_revision_id: "revision:map.revision:initial" },
     ]);
     expect(sqlite.prepare("SELECT id, gameplay_revision_id, status FROM player_title_grants WHERE id LIKE 'grant.revision.%' ORDER BY id").all()).toEqual([
-      { id: "grant.revision.classic", gameplay_revision_id: "revision:map.revision:classic", status: "active" },
+      { id: "grant.revision.classic", gameplay_revision_id: "revision:map.revision:v0", status: "active" },
       { id: "grant.revision.initial", gameplay_revision_id: "revision:map.revision:initial", status: "active" },
     ]);
     expect(sqlite.prepare("SELECT id, gameplay_revision_id FROM historical_title_grants WHERE id LIKE 'historical.revision.%' ORDER BY id").all()).toEqual([
-      { id: "historical.revision.classic", gameplay_revision_id: "revision:map.revision:classic" },
+      { id: "historical.revision.classic", gameplay_revision_id: "revision:map.revision:v0" },
       { id: "historical.revision.initial", gameplay_revision_id: "revision:map.revision:initial" },
     ]);
     expect(sqlite.prepare("SELECT gameplay_revision_id, challenge_family, challenge_id FROM gameplay_revision_challenge_assignments WHERE map_id = 'map.revision' ORDER BY gameplay_revision_id, challenge_family, challenge_id").all()).toEqual(expect.arrayContaining([
@@ -96,10 +110,31 @@ describe("0061/0062 gameplay revision forward migrations", () => {
       { gameplay_revision_id: "revision:map.revision:initial", challenge_family: "map_title_rule", challenge_id: "rule.pioneer" },
       { gameplay_revision_id: "revision:map.revision:initial", challenge_family: "map_challenge", challenge_id: "challenge.revision.standard" },
       { gameplay_revision_id: "revision:map.revision:initial", challenge_family: "title_challenge", challenge_id: "title.revision.standard" },
-      { gameplay_revision_id: "revision:map.revision:classic", challenge_family: "map_title_rule", challenge_id: "rule.classic" },
-      { gameplay_revision_id: "revision:map.revision:classic", challenge_family: "map_challenge", challenge_id: "challenge.revision.classic" },
-      { gameplay_revision_id: "revision:map.revision:classic", challenge_family: "title_challenge", challenge_id: "title.revision.classic" },
+      { gameplay_revision_id: "revision:map.revision:v0", challenge_family: "map_title_rule", challenge_id: "rule.classic" },
+      { gameplay_revision_id: "revision:map.revision:v0", challenge_family: "map_challenge", challenge_id: "challenge.revision.classic" },
+      { gameplay_revision_id: "revision:map.revision:v0", challenge_family: "title_challenge", challenge_id: "title.revision.classic" },
     ]));
+    expect(sqlite.prepare("SELECT id FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.revision:v0' AND challenge_id = 'rule.classic'").get()).toEqual({
+      id: "assignment:revision:map.revision:v0:map_title_rule:rule.classic",
+    });
+    expect(JSON.parse((sqlite.prepare("SELECT rule_snapshot_json FROM submissions WHERE id = 'submission.revision.classic'").get() as { rule_snapshot_json: string }).rule_snapshot_json)).toMatchObject({
+      gameplayRevisionId: "revision:map.revision:v0",
+    });
+    expect(sqlite.prepare("SELECT outcome_key, details_json FROM submission_outcomes WHERE id = 'outcome.revision.classic'").get()).toEqual({
+      outcome_key: "challenge:challenge.revision.classic:map.revision:revision:map.revision:v0",
+      details_json: '{"gameplayRevisionId":"revision:map.revision:v0"}',
+    });
+    expect(JSON.parse((sqlite.prepare("SELECT match_json FROM ocr_results WHERE id = 'ocr.revision.classic'").get() as { match_json: string }).match_json)).toMatchObject({
+      candidates: [{ gameplayRevisionId: "revision:map.revision:v0" }],
+    });
+    expect(JSON.parse((sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE id = 'idempotency.revision.classic'").get() as { response_json: string }).response_json)).toMatchObject({
+      gameplayRevisionId: "revision:map.revision:v0",
+    });
+    expect(sqlite.prepare("SELECT entity_id, payload_json FROM audit_events WHERE id = 'audit.revision.classic'").get()).toEqual({
+      entity_id: "revision:map.revision:v0",
+      payload_json: '{"gameplayRevisionId":"revision:map.revision:v0"}',
+    });
+    expect(sqlite.prepare("SELECT id FROM gameplay_revisions WHERE id LIKE '%:classic'").all()).toEqual([]);
     expect(() => sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, game_version, created_at, updated_at) VALUES ('revision:map.revision:duplicate', 'map.revision', 'default', NULL, '26.0810.1', 2, 2)").run()).toThrow();
     expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });

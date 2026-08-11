@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
-import { createMasteryEvidenceCompatibilityV1 } from "@owbastion/domain";
+import { createMasteryEvidenceCompatibilityV1, legacyGameplayRevisionId } from "@owbastion/domain";
 import { assessMasteryOcrEvidence, createPlatformServices } from "./index";
 
 /**
@@ -578,7 +578,7 @@ const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" 
 const seedClassicGameplayRevision = (sqlite: DatabaseSync, mapId: string) => {
   sqlite.prepare(
     "INSERT OR IGNORE INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'selectable', 'classic', ?, NULL, '2026.07.15', ?, ?)",
-  ).run(`revision:${mapId}:classic`, mapId, `revision:${mapId}:initial`, now, now);
+  ).run(legacyGameplayRevisionId(mapId), mapId, null, now, now);
 };
 
 const seedSelectableGameplayRevision = (sqlite: DatabaseSync, mapId: string, suffix = "rework") => {
@@ -626,7 +626,7 @@ const seedRule = (
   for (const map of maps) {
     if (opts.mapVariant === "classic") {
       seedClassicGameplayRevision(sqlite, map.id);
-      seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${map.id}:classic`, mapId: map.id, challengeFamily: "map_title_rule", challengeId: ruleId });
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: legacyGameplayRevisionId(map.id), mapId: map.id, challengeFamily: "map_title_rule", challengeId: ruleId });
     } else {
       seedRevisionAssignment(sqlite, { gameplayRevisionId: `revision:${map.id}:initial`, mapId: map.id, challengeFamily: "map_title_rule", challengeId: ruleId });
     }
@@ -653,7 +653,7 @@ const seedException = (
   ).run(id, ruleId, mapId, opts.enabled ?? 1, opts.condition ?? null, opts.evidenceRule ?? null, opts.slot ?? null, now, now);
   const rule = sqlite.prepare("SELECT map_variant FROM map_title_rules WHERE id = ?").get(ruleId) as { map_variant: string | null };
   const gameplayRevisionId = rule.map_variant === "classic"
-    ? (seedClassicGameplayRevision(sqlite, mapId), `revision:${mapId}:classic`)
+    ? (seedClassicGameplayRevision(sqlite, mapId), legacyGameplayRevisionId(mapId))
     : `revision:${mapId}:initial`;
   seedRevisionAssignment(sqlite, {
     gameplayRevisionId,

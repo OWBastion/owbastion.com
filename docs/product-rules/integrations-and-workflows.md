@@ -536,7 +536,10 @@ A stable map may have several gameplay revisions. A revision is
 default revision. The default represents current progression, while a selectable
 revision can be intentionally restored for its own progression and a historical
 revision remains readable without becoming current again. The database enforces
-the single-default invariant.
+the single-default invariant. Revision IDs are machine identifiers: the legacy
+compatibility marker remains in `legacyMapVariant`, while its historical
+revision uses the reserved `v0` sequence rather than a label such as
+`classic`.
 
 Map-title rules, direct map challenges, map-scoped title challenges, and the
 legacy `CLASSIC`/`PIONEER` projections are all assigned through the same

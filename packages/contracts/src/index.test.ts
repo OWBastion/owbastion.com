@@ -188,6 +188,6 @@ describe("v1 platform contracts", () => {
 
   it("keeps historical retirement version records readable", () => {
     expect(adminChallengeSchema.safeParse({ challengeId: "map.test", family: "map", gameplayRevisionId: "revision:map.test:initial", type: "map_completion", kind: "difficulty_completion", name: "测试挑战", mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", status: "retired", introducedVersion: "2026.07.15", retiredVersion: "2026.07.16" }).success).toBe(true);
-    expect(adminChallengeSchema.safeParse({ challengeId: "title.CLASSIC", family: "map", gameplayRevisionId: "revision:map.circuit_royal:classic", type: "map_completion", kind: "map_title_achievement", titleKey: "CLASSIC", name: "老兵", mapId: "map.circuit_royal", mapName: "皇家赛道", gameVersion: "2026.07.29", status: "active", introducedVersion: "2026.07.29", retiredVersion: null }).success).toBe(true);
+    expect(adminChallengeSchema.safeParse({ challengeId: "title.CLASSIC", family: "map", gameplayRevisionId: "revision:map.circuit_royal:v0", type: "map_completion", kind: "map_title_achievement", titleKey: "CLASSIC", name: "老兵", mapId: "map.circuit_royal", mapName: "皇家赛道", gameVersion: "2026.07.29", status: "active", introducedVersion: "2026.07.29", retiredVersion: null }).success).toBe(true);
   });
 });

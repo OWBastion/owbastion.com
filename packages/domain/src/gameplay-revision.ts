@@ -11,4 +11,6 @@ export const isGameplayRevisionDefault = (lifecycle: GameplayRevisionLifecycle) 
 
 export const initialGameplayRevisionId = (mapId: string) => `revision:${mapId}:initial`;
 
-export const classicGameplayRevisionId = (mapId: string) => `revision:${mapId}:classic`;
+// Legacy compatibility remains represented by legacyMapVariant. The revision
+// identity itself uses a reserved machine sequence rather than that label.
+export const legacyGameplayRevisionId = (mapId: string) => ["revision", mapId, "v0"].join(":");

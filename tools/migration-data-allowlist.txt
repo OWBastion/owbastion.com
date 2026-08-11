@@ -23,3 +23,4 @@
 0058_title_grant_inheritance.sql
 0061_gameplay_revisions.sql
 0062_repair_legacy_classic_revisions.sql
+0063_normalize_legacy_gameplay_revision_ids.sql
