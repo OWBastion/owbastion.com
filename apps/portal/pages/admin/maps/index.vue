@@ -89,7 +89,7 @@ onMounted(() => void load());
         ]"
         row-key="mapId"
         :loading="loading"
-        empty="暂无地图记录。"
+        empty="暂无地图记录"
         table-key="maps"
         table-min-width="760px"
         class="admin-table maps-table"

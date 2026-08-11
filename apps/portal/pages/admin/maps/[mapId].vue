@@ -232,7 +232,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 .map-editor-layout { display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(18px, 3vw, 32px); align-items: start; }
 .map-editor-sidebar, .map-editor-main { display: grid; gap: 18px; min-width: 0; }
 .map-summary, .metadata-card, .audit-card { padding: clamp(16px, 2.5vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.map-summary { background: linear-gradient(135deg, var(--accent-surface), var(--surface)); }
+.map-summary { background: var(--accent-surface); }
 .map-summary h2 { margin: 5px 0 8px; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .map-summary p:last-of-type { margin: 0; color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; overflow-wrap: anywhere; }
 .map-summary span { display: block; margin-top: 12px; color: var(--quiet); font-size: var(--type-caption-size); }
@@ -250,6 +250,6 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 .audit-list p { margin: 4px 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .audit-list span { flex: 0 0 auto; color: var(--quiet); font-size: var(--type-caption-size); }
 .empty-note { margin: 0; }
-@media (max-width: 850px) { .map-editor-layout { grid-template-columns: 1fr; } .map-editor-sidebar { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: start; } }
+@media (max-width: 820px) { .map-editor-layout { grid-template-columns: 1fr; } .map-editor-sidebar { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: start; } }
 @media (max-width: 620px) { .map-editor-sidebar, .metadata-form__grid { grid-template-columns: 1fr; } .section-heading { align-items: start; flex-direction: column; } .form-actions :deep(button) { width: 100%; } .audit-list li { flex-direction: column; gap: 5px; } }
 </style>

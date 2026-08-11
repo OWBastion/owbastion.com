@@ -125,7 +125,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
       </div>
 
       <UFormField label="空间配置" hint="使用平台 contract 的 JSON 表示；具体字段、坐标和引用由服务端统一校验。">
-        <UTextarea v-model="spatialJson" :rows="12" class="spatial-input" :disabled="saving" spellcheck="false" aria-label="空间配置 JSON" />
+        <UTextarea v-model="spatialJson" :rows="12" class="spatial-input" :disabled="saving" spellcheck="false" />
         <p v-if="spatialError" class="field-error" role="alert">{{ spatialError }}</p>
       </UFormField>
 
