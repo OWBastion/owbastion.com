@@ -135,8 +135,8 @@ onMounted(() => { void load(); });
     </template>
     <template v-if='pendingAction' #footer>
       <div class='moderation-confirmation'>
-        <p>确认{{ actionLabel(pendingAction) }}？理由可选，不填写也可以完成操作。</p>
-        <UTextarea v-model='reason' aria-label='操作理由（可选）' placeholder='操作理由（可选）' :rows='3' :disabled='saving' />
+        <p>确认{{ actionLabel(pendingAction) }}？</p>
+        <UTextarea v-model='reason' aria-label='操作理由' placeholder='操作理由' :rows='3' :disabled='saving' />
         <div class='moderation-confirmation__actions'><UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='cancelModeration' /><UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :loading='saving' @click='saveModeration' /></div>
       </div>
     </template>

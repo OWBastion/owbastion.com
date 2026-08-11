@@ -118,7 +118,7 @@ onMounted(() => { void loadCandidates(); });
       <UInput v-model="battleTag" label="目标 BattleTag" placeholder="玩家名称#1234" aria-label="目标 BattleTag" />
       <p v-if="battleTag.trim() && !parsedPlayer" class="invite-panel__validation" role="alert">请输入完整 BattleTag，例如玩家名称#1234。</p>
       <section v-if="holders.length || loading" class="historical-section" aria-labelledby="historical-section-title">
-        <div class="historical-section__heading"><div><h3 id="historical-section-title">历史称号</h3><p>可选。请明确选择正确的历史持有者；不会按 BattleTag 自动匹配。</p></div><UBadge v-if="selectedHolder" :label="`${selectedGrantIds.length} 项`" color="warning" variant="subtle" /></div>
+        <div class="historical-section__heading"><div><h3 id="historical-section-title">历史称号</h3><p>请明确选择正确的历史持有者；不会按 BattleTag 自动匹配。</p></div><UBadge v-if="selectedHolder" :label="`${selectedGrantIds.length} 项`" color="warning" variant="subtle" /></div>
         <UInput v-model="query" icon="i-lucide-search" placeholder="搜索历史持有者或称号" aria-label="搜索历史持有者或称号" @update:model-value="debouncedLoad" />
         <div v-if="loading" class="historical-state" role="status">读取中…</div>
         <div v-else-if="!holders.length" class="historical-state">暂无未关联称号。</div>

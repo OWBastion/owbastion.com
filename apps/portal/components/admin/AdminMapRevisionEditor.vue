@@ -116,7 +116,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <UFormField label="生命周期" hint="平台服务端会校验可用的状态转换。">
           <USelect v-model="lifecycle" :items="lifecycleItems" :disabled="saving" />
         </UFormField>
-        <UFormField label="游戏版本">
+        <UFormField label="游戏版本" required>
           <UInput v-model="gameVersion" :disabled="saving" required />
         </UFormField>
         <UFormField label="地图变体" hint="默认 revision 必须使用正式版。">
