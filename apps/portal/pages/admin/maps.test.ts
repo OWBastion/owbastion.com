@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import MapsAdminPage from "./maps.vue";
+import MapsAdminPage from "./maps/index.vue";
 
 const mapsPayload = {
   items: [{
