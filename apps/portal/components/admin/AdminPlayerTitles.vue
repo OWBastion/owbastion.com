@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TableColumn } from "@nuxt/ui";
+import type { SortingState } from "@tanstack/vue-table";
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -6,6 +8,7 @@ import { createRequestId } from "~/utils/request-id";
 type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string; slot?: "pioneer" | "conqueror" | "dominator" };
 type TitleOption = Title & { mapName?: string; value: string };
 type TitleMenuItem = { label: string; value: string };
+type GrantRow = AdminPlayerDetail["titleGrants"][number] & { sourceLabel: string; mapLabel: string };
 
 const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDetail["titleGrants"]; loading?: boolean }>();
 const emit = defineEmits<{ granted: []; revoked: [] }>();
@@ -37,6 +40,25 @@ const activeTab = shallowRef<"global" | "map">("global");
 const globalGrants = computed(() => props.titleGrants.filter((g) => g.scope === "global"));
 const mapGrants = computed(() => props.titleGrants.filter((g) => g.scope === "map"));
 const activeGrants = computed(() => activeTab.value === "global" ? globalGrants.value : mapGrants.value);
+const sorting = shallowRef<SortingState>([{ id: "grantedAt", desc: true }]);
+const grantRows = computed<GrantRow[]>(() => activeGrants.value.map((grant) => ({
+  ...grant,
+  sourceLabel: sourceLabels[grant.sourceType],
+  mapLabel: `${grant.mapName ?? "未知地图"}${grant.slot ? ` · ${slotLabels[grant.slot]}` : ""}`,
+})));
+const grantColumns = computed<TableColumn<GrantRow>[]>(() => [
+  { accessorKey: "label", header: "称号" },
+  ...(activeTab.value === "map" ? [{ accessorKey: "mapLabel", header: "地图 · 称号槽位" }] : []),
+  { accessorKey: "sourceLabel", header: "来源" },
+  { accessorKey: "grantedAt", header: "授予时间" },
+  { id: "actions", header: "操作", enableHiding: false },
+]);
+const grantMobileColumns = computed(() => [
+  { id: "label", priority: "primary" as const, order: 0 },
+  ...(activeTab.value === "map" ? [{ id: "mapLabel", priority: "primary" as const, order: 1 }] : []),
+  { id: "sourceLabel", priority: "detail" as const, order: 2 },
+  { id: "grantedAt", priority: "detail" as const, order: 3 },
+]);
 const revokeDescription = computed(() => {
   if (!revokeTarget.value) return undefined;
   return `${revokeTarget.value.label}${revokeTarget.value.mapName ? ` · ${revokeTarget.value.mapName}` : ""}`;
@@ -133,14 +155,27 @@ onMounted(() => { void loadOptions(); });
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">通用称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" :aria-pressed="activeTab === 'map'" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
     </nav>
-    <div v-if="activeGrants.length" class="title-table-wrap">
-      <table class="title-table">
-        <thead v-if="activeTab === 'global'"><tr><th>称号</th><th>来源</th><th>授予时间</th><th>操作</th></tr></thead>
-        <thead v-else><tr><th>称号</th><th>地图 · 称号槽位</th><th>来源</th><th>授予时间</th><th>操作</th></tr></thead>
-        <tbody v-if="activeTab === 'global'"><tr v-for="grant in globalGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td><td class="table-action-cell"><UButton :data-testid="`revoke-title-grant-${grant.grantId}`" label="回收" color="error" variant="link" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(grant)" /></td></tr></tbody>
-        <tbody v-else><tr v-for="grant in mapGrants" :key="grant.grantId"><td><strong>{{ grant.label }}</strong><small>{{ grant.category }}</small></td><td class="table-map">{{ grant.mapName ?? "未知地图" }}{{ grant.slot ? ` · ${slotLabels[grant.slot]}` : "" }}</td><td>{{ sourceLabels[grant.sourceType] }}</td><td class="table-meta">{{ formatTime(grant.grantedAt) }}</td><td class="table-action-cell"><UButton :data-testid="`revoke-title-grant-${grant.grantId}`" label="回收" color="error" variant="link" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(grant)" /></td></tr></tbody>
-      </table>
-    </div>
+    <AdminDataTable
+      v-model:sorting="sorting"
+      :data="grantRows"
+      :columns="grantColumns"
+      :mobile-columns="grantMobileColumns"
+      :default-sorting="[{ id: 'grantedAt', desc: true }]"
+      row-key="grantId"
+      :loading="props.loading"
+      empty="暂无称号记录。"
+      table-key="player-title-grants"
+      table-min-width="640px"
+    >
+      <template #label-cell="{ row }"><strong>{{ row.original.label }}</strong><small>{{ row.original.category }}</small></template>
+      <template #sourceLabel-cell="{ row }"><span>{{ row.original.sourceLabel }}</span></template>
+      <template #grantedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.grantedAt) }}</span></template>
+      <template #actions-cell="{ row }">
+        <div class="table-actions">
+          <UButton :data-testid="`revoke-title-grant-${row.original.grantId}`" label="回收" color="error" variant="outline" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(row.original)" />
+        </div>
+      </template>
+    </AdminDataTable>
     <UEmpty v-else-if="!props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
@@ -177,8 +212,8 @@ onMounted(() => { void loadOptions(); });
 <style scoped>
 .player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
 .grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
-.title-table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 38%, transparent); }.title-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: .78rem; }.title-table th, .title-table td { padding: 12px 13px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }.title-table th { color: var(--quiet); font-size: .7rem; font-weight: 700; letter-spacing: .04em; }.title-table tr:last-child td { border-bottom: 0; }.title-table td:first-child { white-space: normal; }.title-table strong, .title-table small { display: block; }.title-table small { margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }.table-map { max-width: 200px; white-space: normal; }.table-action-cell { text-align: right !important; }.revoke-form { display: grid; gap: 16px; }.revoke-note { margin: 0; color: var(--muted); line-height: 1.55; }
 .grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
-@media (max-width: 520px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
+.player-titles :deep(td strong) { display: block; }.player-titles :deep(td small) { display: block; margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }
+@media (max-width: 620px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .grants-tab { transition: color 140ms ease, background 140ms ease; } }
 </style>

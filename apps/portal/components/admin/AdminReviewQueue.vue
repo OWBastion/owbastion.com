@@ -15,21 +15,20 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
   <section class="review-queue surface-card" aria-labelledby="review-queue-title">
     <div class="queue-heading">
       <div>
-        <p class="eyebrow">当前工作</p>
         <h2 id="review-queue-title">待核对队列</h2>
       </div>
       <NuxtLink class="queue-link" to="/admin/reviews">查看全部 <span aria-hidden="true">→</span></NuxtLink>
     </div>
 
-    <div class="queue-table" role="table" aria-live="polite">
-      <div class="queue-row queue-row--header" role="row">
-        <span role="columnheader">挑战</span><span role="columnheader">玩家</span><span role="columnheader">状态</span><span role="columnheader">更新时间</span>
+    <div class="queue-table" aria-live="polite">
+      <div class="queue-row queue-row--header">
+        <span>挑战</span><span>玩家</span><span>状态</span><span>更新时间</span>
       </div>
-      <NuxtLink v-for="review in reviews" :key="review.submissionId" class="queue-row queue-row--item pressable-soft" role="row" :to="`/admin/reviews/${encodeURIComponent(review.submissionId)}`">
-        <span class="queue-challenge" role="cell"><strong>{{ review.mapName }}</strong><small>{{ review.difficulty }}</small></span>
-        <span role="cell">{{ review.playerName }}</span>
-        <span role="cell">{{ review.status }}</span>
-        <time role="cell">{{ review.updatedAt }}</time>
+      <NuxtLink v-for="review in reviews" :key="review.submissionId" class="queue-row queue-row--item pressable-soft" :to="`/admin/reviews/${encodeURIComponent(review.submissionId)}`">
+        <span class="queue-challenge"><strong>{{ review.mapName }}</strong><small>{{ review.difficulty }}</small></span>
+        <span>{{ review.playerName }}</span>
+        <span>{{ review.status }}</span>
+        <time>{{ review.updatedAt }}</time>
       </NuxtLink>
       <p v-if="loading" class="queue-empty" role="status">读取中…</p>
       <p v-else-if="!reviews.length" class="queue-empty">暂无待核对。</p>

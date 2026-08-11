@@ -136,6 +136,7 @@ onMounted(() => { void load(); });
     <template v-if='pendingAction' #footer>
       <div class='moderation-confirmation'>
         <p>确认{{ actionLabel(pendingAction) }}？</p>
+        <p v-if="pendingAction === 'invalidate'" class='moderation-consequence'>评价将不再对玩家公开展示；历史记录保留。</p>
         <UTextarea v-model='reason' aria-label='操作理由' placeholder='操作理由' :rows='3' :disabled='saving' />
         <div class='moderation-confirmation__actions'><UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='cancelModeration' /><UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :loading='saving' @click='saveModeration' /></div>
       </div>
@@ -152,6 +153,7 @@ onMounted(() => { void load(); });
 .detail-loading { display: grid; gap: 10px; }
 .moderation-confirmation { display: grid; flex: 1 1 100%; gap: 10px; }
 .moderation-confirmation p { margin: 0; font-size: .86rem; }
+.moderation-consequence { color: var(--muted); line-height: 1.55; }
 .moderation-confirmation__actions { display: flex; justify-content: flex-end; gap: 8px; }
 @media (max-width: 620px) { .review-filters { display: grid; grid-template-columns: 1fr; }.review-filters > :first-child, .review-filters > :not(:first-child) { min-width: 0; }.moderation-confirmation__actions { justify-content: stretch; }.moderation-confirmation__actions > * { flex: 1 1 50%; min-height: 44px; } }
 </style>
