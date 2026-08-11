@@ -18,6 +18,7 @@
 | [portal-ui-guidelines.md](portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 |
 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
 | [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
+| [audit-portal-uiux-2026-08.md](audit-portal-uiux-2026-08.md) | Portal UI/UX 审计快照 | reference | 2026-08 静态审计：范围、方法、发现清单与修复批次 |
 
 ## 使用规则
 
