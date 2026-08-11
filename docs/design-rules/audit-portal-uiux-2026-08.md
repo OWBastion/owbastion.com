@@ -4,11 +4,11 @@
 
 | 项 | 值 |
 | --- | --- |
-| 日期 | 2026-08-12 |
+| 日期 | 2026-08-12（含追加轮：提交 `204d9ea` / `70d6ee4` 之后） |
 | 范围 | `apps/portal`（全部 235 个源文件） |
 | 类型 | reference（设计规则合规性快照，不具约束力；正文引用的规则文档仍以 `docs/design-rules/` 权威文档为准） |
 | 验收标准 | `docs/design-rules/` 全部 12 篇权威文档、apple-design（WWDC 流体交互）、kill-ai-slop 35 项 tell |
-| 方法 | ① kill-ai-slop 扫描器全量扫描（296 处命中逐条人工核验）；② 4 路并行只读审计（公开目录 / 玩家中心与提交流 / 管理后台 / 内容与登录）；③ 主代理对全部 high-signal 发现二次读码复核；④ dev server 运行时验证（本环境不可达，见「待运行时验证」） |
+| 方法 | ① kill-ai-slop 扫描器全量扫描（296 处命中逐条人工核验）；② 4 路并行只读审计（公开目录 / 玩家中心与提交流 / 管理后台 / 内容与登录）；③ 主代理对全部 high-signal 发现二次读码复核；④ dev server 运行时验证（本环境不可达，见「待运行时验证」）；⑤ 追加轮：审计 `204d9ea feat(admin): add map revision editor` 引入的 4 个 Portal UI 文件 |
 
 ## 摘要
 
@@ -16,6 +16,11 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 `main.css`；全局 `prefers-reduced-motion` / `reduced-transparency` / `contrast` 策略完整；无
 `position: fixed` 决策栏；无 `hover:scale` / `transition-all` 抖动；overlay 全部走
 `AdminResponsiveDialog`；无原生 file input；icon-only 控件均有 `aria-label`。
+
+**追加轮（204d9ea）**：重构后的 `pages/admin/maps.vue` 列表页合规良好，上一轮该文件的
+弹窗重复发现已随之解决；新引入的地图 revision 编辑器（4 个文件）主要问题是**中英混排文案**
+（全库中文 UI 中首次出现英文 h2 与英文产品词「Reset / Rework」「revision」），另有装饰性
+渐变、选中态仅靠颜色、三文件重复的一次性 type 等，共 10 项新发现。
 
 问题集中在四类：
 
@@ -29,12 +34,12 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | 严重度 | 数量 | 说明 |
 | --- | --- | --- |
 | blocker | 1 | 已发布内容含占位符，必须修复 |
-| major | 13（去重后 12） | 玩家侧禁用词、requiredness 违规、原生表格、证据顺序 / sticky 遮挡、状态重复 |
-| minor | 57（去重后 56） | 文案冗余、断点 / 单位、无障碍语义、非规范状态词 |
-| nit | 29 | 一次性 type、装饰、格式 glitch、px 堆叠 |
-| **合计** | **100（去重后 98）** | 跨审计组重复项 2 处（「不再发放」由两组分别报告） |
+| major | 13（去重后 12） | 玩家侧禁用词、requiredness 违规、原生表格、证据顺序 / sticky 遮挡、状态重复；追加轮 +1（中英混排） |
+| minor | 57（去重后 56） | 文案冗余、断点 / 单位、无障碍语义、非规范状态词；追加轮 +6 |
+| nit | 29 | 一次性 type、装饰、格式 glitch、px 堆叠；追加轮 +3 |
+| **合计** | **原轮 100（去重后 98）+ 追加轮 10 = 108** | 跨审计组重复项 2 处（「不再发放」由两组分别报告）；其中 m-20（maps.vue 弹窗重复）已随 `204d9ea` 重构解决，当前有效 107 项 |
 
-按页面集群分布：公开目录 31 · 玩家中心与提交流 33 · 管理后台 22 · 内容与登录 14。
+按页面集群分布：公开目录 31 · 玩家中心与提交流 33 · 管理后台 22（+10 追加轮）· 内容与登录 14。
 
 ## 阻断级发现（1）
 
@@ -42,7 +47,7 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | --- | --- | --- | --- | --- |
 | B-01 | `content/changelog/26.0801.1.md:13-92` | 已发布 changelog（`releasedAt: 2026-08-01`）含 `#### xx`、`- **xx：**`、`> xxx`、`- xxx` 占位 20+ 处；「视觉效果更新 / 成就挑战调整 / 全新地图：/ 错误修复」四章节为空 | terminology.md §内容与更新：changelog 只收录已发布内容 | 补全内容后重新发布，或撤回该版本；发布前增加「无 xx/xxx 占位」检查 |
 
-## 严重级发现（12，均经二次读码复核）
+## 严重级发现（12，均经二次读码复核；追加轮 +1 见 R-01）
 
 ### 玩家侧文案与术语
 
@@ -86,7 +91,7 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | S-11 | `pages/index.vue:19,26,27` | 「未开放」在焦点面板 h2、轮换区段落、feature-detail 三处重复 | content-and-state §重复事实测试（「未开放」在分区标题与子卡片重复） | 保留一个事实状态，删除两段冗余 |
 | S-12 | `pages/index.vue:12,15,18,33-37` | 首页 eyebrow + hero 描述 + 焦点面板 eyebrow/段落 + 每张卡片 `type-kicker` + 卡片描述，全部为默认不添加项 | content-and-state §Defaults（eyebrow/描述/kicker 默认不加）；kill-ai-slop tell 10（kicker 泛滥） | 删冗余，仅保留不可推断的信息（见修复批次 B） |
 
-## 次要发现（56，按主题分组）
+## 次要发现（56，按主题分组；追加轮 +6 见 R-02~R-07）
 
 ### 文案与状态词汇
 
@@ -160,7 +165,7 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | m-41 | `content/blog/event-preview-and-ssr-expectations.md` 等 | 半角空格夹在全角括号内（`:66,68,74-77` 等）、`——当然…` 破折号 | 文案格式 | 规范标点与空格 |
 | m-42 | `content/changelog/26.0729.1.md:60,139-142`、`technical-optimization.md:20`、`title-system-rebuild.md:25` | markdown 格式 glitch（双空格、加粗断行） | 文案格式 | 规范化 |
 
-## 细节发现（29）
+## 细节发现（29；追加轮 +3 见 R-08~R-10）
 
 | # | 位置 | 问题 | 修复 |
 | --- | --- | --- | --- |
@@ -193,6 +198,38 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | n-27 | `components/admin/BindingInviteBatchPanel.vue:125-126` | 一次性 `:active scale(.98)` + 列表 enter/leave 位移动画 | 用 pressable + opacity 过渡 |
 | n-28 | `components/admin/AdminTitleMigrationDetail.vue:60-109` | 卡片套卡片（UCard 包 AdminDataTable） | 中和内层容器边框/圆角 |
 | n-29 | `pages/admin/index.vue:58-62` + `AdminDashboardMetrics.vue` | dashboard 概览层（指标+mini queue+详情文案）处于边界 | 视决策价值决定是否裁剪 |
+
+## 追加轮发现（2026-08-12 · 提交 `204d9ea` 之后）
+
+审计对象：`pages/admin/maps/[mapId].vue`（新）、`pages/admin/maps.vue`（重构）、
+`components/admin/AdminMapRevisionEditor.vue`（新）、`components/admin/AdminMapRevisionList.vue`（新）。
+重构后的 `maps.vue` 列表页合规良好（AdminWorkspace + AdminDataTable + mobile-columns + row-key +
+aria-label 过滤控件），上一轮 m-20（弹窗 eyebrow 重复）已随之解决。新编辑器共 10 项发现。
+
+### 严重级（1）
+
+| # | 位置 | 问题 | 规则引用 | 修复 |
+| --- | --- | --- | --- | --- |
+| R-01 | `maps/[mapId].vue:143,208,210,222`、`AdminMapRevisionEditor.vue:108,150`、`AdminMapRevisionList.vue:26` | **中英混排文案贯穿新 UI**：全英文 h2「Gameplay revisions」、按钮/弹窗「Reset / Rework」、字段与 toast 中的英文词「revision」「Revision 配置」「Revision-scoped challenge assignments」、SEO 标题「地图 revision 编辑器」——全库中文界面中首次出现英文产品词与英文 h2 | terminology.md（中文唯一来源）；portal-copy-guidelines（克制、一致）；文案一致性 | 统一中文术语（如「修订版本 / 边界版本」），新增术语先入 terminology.md；「Reset / Rework」→「重置 / 重做」 |
+
+### 次要级（6）
+
+| # | 位置 | 问题 | 规则引用 | 修复 |
+| --- | --- | --- | --- | --- |
+| R-02 | `AdminMapRevisionEditor.vue:134`、`AdminMapRevisionList.vue:30` | 内部架构说明：「Portal 不复制挑战规则或实现自己的引用校验」「默认和可选 revision 才会同步到 Bastion」——删除测试不过关，且「Bastion」为内部服务名 | portal-ui-guidelines §Admin copy 最小化；content-and-state §Deletion test | 只保留操作约束（如「仅默认/可选会同步」），删实现细节 |
+| R-03 | `AdminMapRevisionList.vue:36-40` | revision 选中态仅靠边框 + 底色 + inset 色条（`.revision-card--selected`），按钮无 `aria-pressed` | content-and-state §State presentation（颜色单独不足以表达） | 加 `aria-pressed` |
+| R-04 | `maps/[mapId].vue:237` | `.map-summary { background: linear-gradient(135deg, var(--accent-surface), var(--surface)) }` 装饰性渐变 | visual-foundation §Density and chrome（操作面禁装饰渐变）；slop tell 06 | 用平面 `surface`/`accent-surface` |
+| R-05 | `maps/[mapId].vue:240`、`AdminMapRevisionEditor.vue:158`、`AdminMapRevisionList.vue:58` | 同一 `.section-heading h2 { font-size:1.35rem; letter-spacing:-.02em }` 在三个新文件重复，绕过共享 type | css-ownership §规则（三处以上 → 抽取共享类）；visual-foundation §Typography | 抽共享 section-heading 类或改用 `type-headline` |
+| R-06 | `AdminMapRevisionEditor.vue:120` | `UFormField label="游戏版本"` 未标 required，但内部 `UInput required`（行为必填、UI 未标） | portal-ui-guidelines §requiredness（UI 与行为一致） | UFormField 加 `required`（对齐 reset 弹窗写法） |
+| R-07 | `maps/[mapId].vue:253` | 一次性 `@media (max-width: 850px)` 断点 | layout-and-spacing §Breakpoints | 用 820px |
+
+### 细节级（3）
+
+| # | 位置 | 问题 | 修复 |
+| --- | --- | --- | --- |
+| R-08 | `AdminMapRevisionEditor.vue:127` | 空间配置 `UTextarea aria-label="空间配置 JSON"` 与 `UFormField label="空间配置"` 重复/冲突 | 删 textarea 上的 aria-label |
+| R-09 | `maps/[mapId].vue:150,162,189`、`AdminMapRevisionList.vue:23`、`AdminMapRevisionEditor.vue:108` | 每 section 均加 eyebrow（稳定地图身份/普通保存/可追溯变更/Revision 配置/公平边界），部分抽象 | 只保留有真实信息量的 eyebrow，或统一去掉 |
+| R-10 | `pages/admin/maps.vue:92` | `empty="暂无地图记录。"` 带句号，与「暂无记录」短语风格不一致 | 改「暂无地图记录」（或按上下文省略） |
 
 ## 合规亮点（本轮未发现问题的部分）
 
@@ -227,10 +264,10 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 
 | 批次 | 内容 | 说明 |
 | --- | --- | --- |
-| **A · 立即（独立小修）** | B-01 占位符；S-01 不再发放；S-02/S-03 术语；S-04/S-05（可选）；S-06 原生表格；S-07 alert 去重；S-09 sticky top；S-10 aria-pressed；m-01~m-10 状态词与句式 | 每项单文件单规则，可直接进 PR |
-| **B · 独立重构轨道** | 首页 `index.vue` 重写（去 kicker/描述/重复事实，对齐公开目录范式） | 一次只动这一页 |
+| **A · 立即（独立小修）** | B-01 占位符；S-01 不再发放；S-02/S-03 术语；S-04/S-05（可选）；S-06 原生表格；S-07 alert 去重；S-09 sticky top；S-10 aria-pressed；m-01~m-10 状态词与句式；**R-01 中英混排、R-03 aria-pressed、R-04 渐变、R-06 required、R-07 断点** | 每项单文件单规则，可直接进 PR |
+| **B · 独立重构轨道** | 首页 `index.vue` 重写（去 kicker/描述/重复事实，对齐公开目录范式）；R-05 抽取共享 section-heading type | 一次只动一个表面 |
 | **C · 内容治理** | 全量清点 blog/changelog：删 emoji 标题、去 AI 腔、玩家侧 审核→核对 / OCR→识别 / 发放→获得 | 需人工判断语感，单独任务 |
-| **D · 布局 backlog** | 系统性 px→rem、断点收敛到 620/760/820、44px 触控下限统一 | 按 layout-and-spacing §Refactor backlog 执行 |
+| **D · 布局 backlog** | 系统性 px→rem、断点收敛到 620/760/820（含 R-07）、44px 触控下限统一 | 按 layout-and-spacing §Refactor backlog 执行 |
 
 ## 附录：高浓度文件索引
 
@@ -241,6 +278,9 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 | `pages/submissions/[submissionId].vue` | 12 | 状态重复、证据顺序、sticky、句式、触控、px |
 | `components/AchievementSubmissionCatalog.vue` | 8 | 术语、选中态、内嵌滚动、一次性 active |
 | `pages/index.vue` | 14 | kicker 泛滥、重复事实、一次性 type/容器 |
+| `pages/admin/maps/[mapId].vue`（新增） | 6 | 中英混排、内部词说明、渐变、一次性 type/断点、eyebrow |
+| `components/admin/AdminMapRevisionEditor.vue`（新增） | 6 | 中英混排、内部架构说明、一次性 type、required 标记、aria 冲突 |
+| `components/admin/AdminMapRevisionList.vue`（新增） | 4 | 英文 h2、选中态 aria、一次性 type、eyebrow |
 | `components/admin/AdminPlayerTitles.vue` | 3 | 原生表格、tab aria、link 按钮 |
 | `pages/admin/player-reviews/index.vue` | 3 | （可选）、后果说明 |
 | `content/changelog/26.0801.1.md` | 1 | 占位符（阻断） |
