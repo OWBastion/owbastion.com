@@ -1,10 +1,11 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import MapEditorPage from "./[mapId].vue";
 
-const adminApi = vi.fn(async (path: string) => {
+const resetRequests: Array<Record<string, unknown>> = [];
+const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/maps/map.samoa/editor") {
     return {
       contractVersion: "1" as const,
@@ -36,6 +37,24 @@ const adminApi = vi.fn(async (path: string) => {
       audit: [],
     };
   }
+  if (path === "/v1/maps/map.samoa/revisions" && options?.method === "POST") {
+    resetRequests.push(options.body ?? {});
+    return {
+      revisionId: "revision:map.samoa:rework",
+      mapId: "map.samoa",
+      lifecycle: "preparing" as const,
+      mapVariant: null,
+      copiedFromRevisionId: "revision:map.samoa:initial",
+      resetReason: options.body?.resetReason ?? null,
+      gameVersion: "2026.07.15",
+      spatialConfig: null,
+      isDefault: false,
+      isSelectable: false,
+      challengeAssignments: [],
+      createdAt: 2,
+      updatedAt: 2,
+    };
+  }
   throw new Error(`Unexpected request: ${path}`);
 });
 
@@ -55,7 +74,7 @@ describe("admin map editor page", () => {
         stubs: {
           AdminMapRevisionList: { template: "<div>Gameplay revisions</div>" },
           AdminMapRevisionEditor: { template: "<div>编辑当前边界</div>" },
-          AdminResponsiveDialog: { template: "<div />" },
+          AdminResponsiveDialog: { props: ["open"], template: "<div v-if=\"open\"><slot name=\"body\" /><slot name=\"footer\" /></div>" },
           StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
         },
       },
@@ -67,5 +86,39 @@ describe("admin map editor page", () => {
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("编辑当前边界");
     expect(wrapper.text()).not.toContain("地图管理");
+  });
+
+  it("creates a reset revision without a reason and shows a source-derived readonly game version", async () => {
+    resetRequests.length = 0;
+    const wrapper = await mountSuspended(MapEditorPage, {
+      route: "/admin/maps/map.samoa",
+      global: {
+        stubs: {
+          AdminMapRevisionList: { template: "<div>Gameplay revisions</div>" },
+          AdminMapRevisionEditor: { template: "<div>编辑当前边界</div>" },
+          AdminResponsiveDialog: { props: ["open"], template: "<div v-if=\"open\"><slot name=\"body\" /><slot name=\"footer\" /></div>" },
+          StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
+        },
+      },
+    });
+    await flushPromises();
+    const openReset = wrapper.findAll("button").find((button) => button.text().includes("重置 / 重做"));
+    await openReset!.trigger("click");
+    await nextTick();
+
+    expect(wrapper.get("textarea[placeholder^='例如：地图几何']").attributes("required")).toBeUndefined();
+    const targetVersion = wrapper.get("input[readonly]");
+    expect((targetVersion.element as HTMLInputElement).value).toBe("2026.07.15");
+    expect(wrapper.findAll("button").find((button) => button.text().includes("创建准备中版本修订"))?.attributes("disabled")).toBeUndefined();
+
+    await wrapper.get("#map-reset-form").trigger("submit");
+    await flushPromises();
+    expect(resetRequests).toEqual([{
+      contractVersion: "1",
+      sourceRevisionId: "revision:map.samoa:initial",
+      resetReason: null,
+      mapVariant: null,
+      copyConfiguration: true,
+    }]);
   });
 });

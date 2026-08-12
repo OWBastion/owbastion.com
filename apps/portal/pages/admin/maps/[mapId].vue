@@ -17,7 +17,6 @@ const resetOpen = shallowRef(false);
 const resetSaving = shallowRef(false);
 const resetSourceId = shallowRef<string | null>(null);
 const resetReason = shallowRef("");
-const resetGameVersion = shallowRef("");
 const resetMapVariant = shallowRef<"classic" | null>(null);
 const resetCopyConfiguration = shallowRef(true);
 const metadata = reactive<{ coverUrl: string; backgroundUrl: string; difficultyRating: Map["difficultyRating"]; mechanics: string[] }>({
@@ -30,6 +29,13 @@ const metadata = reactive<{ coverUrl: string; backgroundUrl: string; difficultyR
 const map = computed(() => api.editor.value?.map ?? null);
 const revisions = computed(() => api.editor.value?.revisions ?? []);
 const selectedRevision = computed(() => revisions.value.find((revision) => revision.revisionId === selectedRevisionId.value) ?? null);
+const resetVersionSource = computed(() => {
+  const sourceRevisionId = resetCopyConfiguration.value ? resetSourceId.value : null;
+  return revisions.value.find((revision) => revision.revisionId === sourceRevisionId)
+    ?? revisions.value.find((revision) => revision.lifecycle === "default")
+    ?? null;
+});
+const resetGameVersion = computed(() => resetVersionSource.value?.gameVersion ?? map.value?.gameVersion ?? "");
 const audit = computed(() => api.editor.value?.audit ?? []);
 const title = computed(() => map.value ? `${map.value.mapName} · 地图编辑器` : "地图编辑器");
 const lifecycleLabels = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" } as const;
@@ -95,21 +101,19 @@ async function saveRevision(input: AdminMapRevisionUpdateInput) {
 function openReset() {
   resetSourceId.value = selectedRevision.value?.revisionId ?? revisions.value.find((revision) => revision.lifecycle === "default")?.revisionId ?? null;
   resetReason.value = "";
-  resetGameVersion.value = selectedRevision.value?.gameVersion ?? map.value?.gameVersion ?? "";
   resetMapVariant.value = null;
   resetCopyConfiguration.value = true;
   resetOpen.value = true;
 }
 
 async function createResetRevision() {
-  if (resetSaving.value || !resetReason.value.trim() || !resetGameVersion.value.trim()) return;
+  if (resetSaving.value) return;
   resetSaving.value = true;
   actionError.value = "";
   try {
     const revision = await api.createRevision({
       sourceRevisionId: resetCopyConfiguration.value ? resetSourceId.value : null,
-      resetReason: resetReason.value.trim(),
-      gameVersion: resetGameVersion.value.trim(),
+      resetReason: resetReason.value.trim() || null,
       mapVariant: resetMapVariant.value,
       copyConfiguration: resetCopyConfiguration.value,
     });
@@ -213,16 +217,16 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
             <USelect v-model="resetSourceId" :items="[{ label: '不指定来源', value: null }, ...revisions.map((revision) => ({ label: `${revision.revisionId} · ${lifecycleLabels[revision.lifecycle]}`, value: revision.revisionId }))]" :disabled="resetSaving || !resetCopyConfiguration" />
           </UFormField>
           <UCheckbox v-model="resetCopyConfiguration" label="复制空间配置和 challenge assignments" :disabled="resetSaving" />
-          <UFormField label="重置 / 重做理由" required><UTextarea v-model="resetReason" :rows="3" placeholder="例如：地图几何重新制作，重新建立公平边界" :disabled="resetSaving" required /></UFormField>
+          <UFormField label="重置 / 重做理由"><UTextarea v-model="resetReason" :rows="3" placeholder="例如：地图几何重新制作，重新建立公平边界" :disabled="resetSaving" /></UFormField>
           <div class="metadata-form__grid">
-            <UFormField label="目标游戏版本" required><UInput v-model="resetGameVersion" :disabled="resetSaving" required /></UFormField>
+            <UFormField label="目标游戏版本"><UInput :model-value="resetGameVersion" readonly /></UFormField>
             <UFormField label="地图变体"><USelect v-model="resetMapVariant" :items="resetMapVariantItems" :disabled="resetSaving" /></UFormField>
           </div>
         </form>
       </template>
       <template #footer>
         <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
-        <UButton type="submit" form="map-reset-form" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving || !resetReason.trim() || !resetGameVersion.trim()" />
+        <UButton type="submit" form="map-reset-form" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

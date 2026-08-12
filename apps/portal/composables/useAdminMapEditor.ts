@@ -117,8 +117,7 @@ export function useAdminMapEditor(mapId: string) {
 
   const createRevision = async (input: {
     sourceRevisionId: string | null;
-    resetReason: string;
-    gameVersion: string;
+    resetReason: string | null;
     mapVariant: "classic" | null;
     copyConfiguration: boolean;
   }) => {

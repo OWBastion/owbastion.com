@@ -425,8 +425,7 @@ export const adminMapRevisionChallengeAssignmentSchema = adminMapRevisionChallen
 export const adminMapRevisionCreateRequestSchema = z.object({
   contractVersion,
   sourceRevisionId: externalId.nullable().optional(),
-  resetReason: z.string().trim().min(1).max(512),
-  gameVersion: z.string().trim().min(1).max(64),
+  resetReason: z.string().trim().max(512).transform((value) => value || null).nullable().optional(),
   mapVariant: z.literal("classic").nullable(),
   copyConfiguration: z.boolean(),
   spatialConfig: agentSpatialConfigSchema.nullable().optional(),

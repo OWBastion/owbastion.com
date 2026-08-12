@@ -13,8 +13,8 @@ const applyMigrations = (sqlite: DatabaseSync, through: string) => {
   }
 };
 
-describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
-  it("assigns legacy facts, repairs CLASSIC provenance, and normalizes label-derived revision IDs", () => {
+describe("0061/0062/0063/0064/0065 gameplay revision forward migrations", () => {
+  it("assigns legacy facts, disables inactive assignments, repairs CLASSIC provenance, and normalizes label-derived revision IDs", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec("PRAGMA foreign_keys = ON;");
     applyMigrations(sqlite, "0060_mastery_ledger.sql");
@@ -38,6 +38,7 @@ describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
       INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, retired_version, created_at, updated_at)
       VALUES
         ('challenge.revision.standard', 'map.revision', 'difficulty_completion', '标准挑战', '困难', '标准条件', '标准证据', 'manual', 'CONQUEROR', '26.0810.1', 'active', '26.0810.1', NULL, 1, 1),
+        ('challenge.revision.inactive', 'map.revision', 'difficulty_completion', '已停用挑战', '困难', '停用条件', '停用证据', 'manual', NULL, '26.0810.1', 'inactive', '26.0810.1', '26.0810.9', 1, 1),
         ('challenge.revision.classic', 'map.revision', 'classic_completion', '经典挑战', '困难', '经典条件', '经典证据', 'manual', 'CLASSIC', '26.0710.1', 'active', '26.0710.1', NULL, 1, 1);
       INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, map_variant, created_at, updated_at)
       VALUES
@@ -92,6 +93,7 @@ describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
       throw error;
     }
     sqlite.exec(readFileSync(`${migrationsDirectory}/0064_gameplay_revision_spatial_config.sql`, "utf8"));
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0065_disable_inactive_revision_assignments.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
       { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
@@ -124,6 +126,9 @@ describe("0061/0062/0063/0064 gameplay revision forward migrations", () => {
     ]));
     expect(sqlite.prepare("SELECT id FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.revision:v0' AND challenge_id = 'rule.classic'").get()).toEqual({
       id: "assignment:revision:map.revision:v0:map_title_rule:rule.classic",
+    });
+    expect(sqlite.prepare("SELECT enabled FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.revision:initial' AND challenge_id = 'challenge.revision.inactive'").get()).toEqual({
+      enabled: 0,
     });
     expect(JSON.parse((sqlite.prepare("SELECT rule_snapshot_json FROM submissions WHERE id = 'submission.revision.classic'").get() as { rule_snapshot_json: string }).rule_snapshot_json)).toMatchObject({
       gameplayRevisionId: "revision:map.revision:v0",

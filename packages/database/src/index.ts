@@ -2788,6 +2788,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
         if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
       }
+      const versionSource = source ?? await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
+      const gameVersion = versionSource?.gameVersion ?? map.gameVersion;
+      const resetReason = input.resetReason ?? null;
 
       const sourceAssignments = source
         ? await db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, source.id)).orderBy(asc(gameplayRevisionChallengeAssignments.challengeFamily), asc(gameplayRevisionChallengeAssignments.challengeId))
@@ -2814,7 +2817,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       const revisionId = `revision:${input.mapId}:${crypto.randomUUID()}`;
       const statements = [database.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES (?, ?, 'preparing', ?, ?, ?, ?, ?, ?, ?)").bind(
-        revisionId, input.mapId, input.mapVariant, source?.id ?? input.sourceRevisionId ?? null, input.resetReason, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
+        revisionId, input.mapId, input.mapVariant, source?.id ?? input.sourceRevisionId ?? null, resetReason, gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, timestamp,
       )];
       for (const assignment of assignments) {
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
@@ -2826,6 +2829,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordIdempotency(db, auth.subject, "admin.map.revision.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "admin.map.revision.create", "gameplay_revision", revisionId, {
         sourceRevisionId: source?.id ?? input.sourceRevisionId ?? null,
+        gameVersionSourceRevisionId: versionSource?.id ?? null,
+        gameVersion,
+        resetReason,
         copyConfiguration: input.copyConfiguration,
         copiedAssignmentCount: input.copyConfiguration ? assignments.length : 0,
         progressCopied: false,

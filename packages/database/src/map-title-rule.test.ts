@@ -669,12 +669,12 @@ describe("Admin map revision editor", () => {
       contractVersion: "1",
       mapId: "map.editor",
       sourceRevisionId: r1Before.revisionId,
-      resetReason: "geometry rework",
-      gameVersion: "2026.08.12",
       mapVariant: null,
       copyConfiguration: true,
     }, auth, "editor-create-r2");
     expect(r2.lifecycle).toBe("preparing");
+    expect(r2.gameVersion).toBe(r1Before.gameVersion);
+    expect(r2.resetReason).toBeNull();
     expect(r2.spatialConfig).toEqual(r1Before.spatialConfig);
     expect(r2.challengeAssignments).toMatchObject(r1Before.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
@@ -697,10 +697,10 @@ describe("Admin map revision editor", () => {
       [r2.revisionId, "default"],
     ]));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
-    expect(sqlite.prepare("SELECT json_extract(payload_json, '$.progressCopied') AS progress_copied FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update') ORDER BY created_at").all()).toEqual([
-      { progress_copied: 0 },
-      { progress_copied: 0 },
-      { progress_copied: 0 },
+    expect(sqlite.prepare("SELECT json_extract(payload_json, '$.progressCopied') AS progress_copied, json_extract(payload_json, '$.resetReason') AS reset_reason, json_extract(payload_json, '$.gameVersion') AS game_version FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update') ORDER BY created_at").all()).toEqual([
+      { progress_copied: 0, reset_reason: null, game_version: r1Before.gameVersion },
+      { progress_copied: 0, reset_reason: null, game_version: null },
+      { progress_copied: 0, reset_reason: null, game_version: null },
     ]);
   });
 
@@ -715,7 +715,7 @@ describe("Admin map revision editor", () => {
       contractVersion: "1", mapId: "map.editor.invalid", revisionId: revision.revisionId, lifecycle: "selectable", gameVersion: revision.gameVersion, mapVariant: null, spatialConfig: null, challengeAssignments: [],
     }, auth, "invalid-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
     await expect(services.createAdminMapRevision({
-      contractVersion: "1", mapId: "map.editor.invalid", resetReason: "invalid assignment", gameVersion: revision.gameVersion, mapVariant: null, copyConfiguration: false,
+      contractVersion: "1", mapId: "map.editor.invalid", resetReason: "invalid assignment", mapVariant: null, copyConfiguration: false,
       challengeAssignments: [{ challengeFamily: "map_challenge", challengeId: "missing.challenge", enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null }],
     }, auth, "invalid-reference")).rejects.toThrow("REVISION_CHALLENGE_NOT_FOUND");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM gameplay_revisions WHERE map_id = 'map.editor.invalid'").get()).toEqual({ count: 1 });
