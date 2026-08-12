@@ -55,8 +55,9 @@ describe("Portal SSR", async () => {
       "开发日志 #8：轮换挑战与地图精通",
     ]);
     expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
-    expect(changelogRows).toHaveLength(23);
+    expect(changelogRows).toHaveLength(24);
     expect(changelogRows.map((row) => row.version)).toEqual([
+      "26.0812.1",
       "26.0801.1",
       "26.0729.1",
       "26.0710.1",
