@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
@@ -1084,21 +1084,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }];
     });
   };
-  const parseAgentSpatialConfig = (value: string | null) => {
-    if (!value) return null;
-    try {
-      const parsed = agentSpatialConfigSchema.safeParse(JSON.parse(value));
-      return parsed.success ? parsed.data : null;
-    } catch {
-      return null;
-    }
-  };
-
   type AdminRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
   const revisionChallengeFamilies = new Set(["map_challenge", "map_title_rule", "title_challenge"]);
   const revisionLifecycles = new Set(["preparing", "default", "selectable", "historical"]);
   const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
   const nullableEditorText = (value: string | null) => value?.trim() || null;
+  const normalizeSpatialConfig = (config: AgentSpatialConfig): AgentSpatialConfig => ({
+    ...config,
+    alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)),
+  });
+  const parseSpatialConfig = (value: unknown): AgentSpatialConfig => {
+    const parsed = agentSpatialConfigSchema.safeParse(value);
+    if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");
+    return normalizeSpatialConfig(parsed.data);
+  };
+  const parseAgentSpatialConfig = (value: string | null) => {
+    if (!value) return null;
+    try {
+      return parseSpatialConfig(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  };
 
   const parseEditorSpatialConfig = (value: string | null) => {
     if (value === null) return null;
@@ -1108,9 +1115,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     } catch {
       throw new Error("INVALID_SPATIAL_CONFIG");
     }
-    const parsed = agentSpatialConfigSchema.safeParse(decoded);
-    if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");
-    return parsed.data;
+    return parseSpatialConfig(decoded);
   };
 
   const asAdminMapRevision = (
@@ -1254,7 +1259,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const assertRevisionConfiguration = (lifecycle: AdminMapRevisionUpdateRequest["lifecycle"], mapVariant: "classic" | null, spatialConfig: AdminMapRevisionUpdateRequest["spatialConfig"]) => {
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
     if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
-    if (spatialConfig && !agentSpatialConfigSchema.safeParse(spatialConfig).success) throw new Error("INVALID_SPATIAL_CONFIG");
+    return spatialConfig ? parseSpatialConfig(spatialConfig) : null;
   };
 
   type AgentMapProjectionRow = {
@@ -2806,9 +2811,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           slot: assignment.slot === null ? null : assignment.slot as "pioneer" | "conqueror" | "dominator",
         }))
         : input.challengeAssignments ?? [];
-      const spatialConfig = input.copyConfiguration ? parseEditorSpatialConfig(source?.spatialConfigJson ?? null) : input.spatialConfig ?? null;
+      const spatialConfig = input.copyConfiguration
+        ? parseEditorSpatialConfig(source?.spatialConfigJson ?? null)
+        : input.spatialConfig ? parseSpatialConfig(input.spatialConfig) : null;
       await validateRevisionAssignments(input.mapId, assignments);
-      if (spatialConfig && !agentSpatialConfigSchema.safeParse(spatialConfig).success) throw new Error("INVALID_SPATIAL_CONFIG");
       if (input.mapVariant === "classic") {
         const existingClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"))).get();
         if (existingClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
@@ -2845,7 +2851,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const current = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.id, input.revisionId), eq(gameplayRevisions.mapId, input.mapId))).get();
       if (!current) throw new Error("REVISION_NOT_FOUND");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
-      assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
+      const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
       await validateRevisionAssignments(input.mapId, input.challengeAssignments);
 
       if (input.lifecycle === "default") {
@@ -2859,7 +2865,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
       const timestamp = now();
       const statements = [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-        input.lifecycle, input.mapVariant, input.gameVersion, input.spatialConfig ? JSON.stringify(input.spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+        input.lifecycle, input.mapVariant, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
       ), database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId)];
       for (const assignment of input.challengeAssignments) {
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(

@@ -245,6 +245,7 @@ const finiteCoordinate = z.number().refine(Number.isFinite, "Coordinate must be 
 const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
 const spatialPositions = z.array(vector3).max(128);
 const requiredSpatialPositions = spatialPositions.min(1);
+const spatialStageId = z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/).max(64);
 const controlSpatialConfigSchema = z.object({
   centerPositions: spatialPositions,
   jumpPositions: spatialPositions,
@@ -260,7 +261,7 @@ const controlSpatialConfigSchema = z.object({
   }
 });
 
-export const agentSpatialConfigSchema = z.object({
+const spatialConfigFields = {
   bastionPositions: requiredSpatialPositions,
   resetPosition: vector3,
   endPosition: vector3,
@@ -269,7 +270,24 @@ export const agentSpatialConfigSchema = z.object({
   control: controlSpatialConfigSchema.nullable(),
   portalPositions: spatialPositions,
   springboardPositions: spatialPositions,
+};
+const alternateSpatialStageSchema = z.object({
+  stageId: spatialStageId,
+  ...spatialConfigFields,
 }).strict();
+
+export const agentSpatialConfigSchema = z.object({
+  ...spatialConfigFields,
+  alternateStages: z.array(alternateSpatialStageSchema).max(15).default([]),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const [index, stage] of value.alternateStages.entries()) {
+    if (seen.has(stage.stageId)) {
+      context.addIssue({ code: "custom", path: ["alternateStages", index, "stageId"], message: "Duplicate alternate spatial stage" });
+    }
+    seen.add(stage.stageId);
+  }
+});
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({

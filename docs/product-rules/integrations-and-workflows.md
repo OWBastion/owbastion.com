@@ -414,8 +414,11 @@ map's `gameplayRevisions` build projection. It contains only `default` and
 axis/threshold; and deterministic portal/springboard position arrays. Control
 roles are independently present only when that stable Bastion map implementation
 uses them; an axis requires at least one respawn vector, while cardinality is
-validated by the consuming map implementation. It is not a free-form payload.
-`challengeRefs` contains references only; the full
+validated by the consuming map implementation. A multi-stage map may add
+deterministic `alternateStages`, each with a stable non-localized `stageId` and
+its full role set; Bastion retains game-engine stage detection and only selects
+one of these platform-owned configurations during setup. It is not a free-form
+payload. `challengeRefs` contains references only; the full
 challenge definition remains authoritative in `/v1/agents/achievements` and
 is joined by map revision ID plus challenge family/ID.
 
