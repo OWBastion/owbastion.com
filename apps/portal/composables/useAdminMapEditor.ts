@@ -3,6 +3,7 @@ import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 export type AdminMapRevisionLifecycle = "preparing" | "default" | "selectable" | "historical";
+export type AdminMapRevisionReplacementLifecycle = "selectable" | "historical";
 export type AdminMapRevisionChallengeFamily = "map_challenge" | "map_title_rule" | "title_challenge";
 export type AdminMapRevisionChallengeAssignment = {
   assignmentId: string;
@@ -59,7 +60,7 @@ export type AdminMapRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssi
 export type AdminMapRevisionUpdateInput = {
   contractVersion: "1";
   lifecycle: AdminMapRevisionLifecycle;
-  gameVersion: string;
+  replacedDefaultLifecycle?: AdminMapRevisionReplacementLifecycle | null;
   mapVariant: "classic" | null;
   spatialConfig: Record<string, unknown> | null;
   challengeAssignments: AdminMapRevisionAssignmentInput[];
@@ -108,7 +109,22 @@ export function useAdminMapEditor(mapId: string) {
         headers: { "Idempotency-Key": createRequestId() },
         body: input,
       });
-      if (editor.value) editor.value = { ...editor.value, revisions: editor.value.revisions.map((item) => item.revisionId === revision.revisionId ? revision : item) };
+      if (editor.value) {
+        const revisions = editor.value.revisions.map((item) => {
+          if (item.revisionId === revision.revisionId) return revision;
+          if (input.replacedDefaultLifecycle && item.lifecycle === "default") {
+            return {
+              ...item,
+              lifecycle: input.replacedDefaultLifecycle,
+              isDefault: false,
+              isSelectable: input.replacedDefaultLifecycle === "selectable",
+              updatedAt: revision.updatedAt,
+            };
+          }
+          return item;
+        });
+        editor.value = { ...editor.value, revisions };
+      }
       return revision;
     } finally {
       saving.value = false;

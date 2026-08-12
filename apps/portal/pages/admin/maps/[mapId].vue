@@ -29,13 +29,8 @@ const metadata = reactive<{ coverUrl: string; backgroundUrl: string; difficultyR
 const map = computed(() => api.editor.value?.map ?? null);
 const revisions = computed(() => api.editor.value?.revisions ?? []);
 const selectedRevision = computed(() => revisions.value.find((revision) => revision.revisionId === selectedRevisionId.value) ?? null);
-const resetVersionSource = computed(() => {
-  const sourceRevisionId = resetCopyConfiguration.value ? resetSourceId.value : null;
-  return revisions.value.find((revision) => revision.revisionId === sourceRevisionId)
-    ?? revisions.value.find((revision) => revision.lifecycle === "default")
-    ?? null;
-});
-const resetGameVersion = computed(() => resetVersionSource.value?.gameVersion ?? map.value?.gameVersion ?? "");
+const replacedDefaultRevision = computed(() => revisions.value.find((revision) => revision.lifecycle === "default" && revision.revisionId !== selectedRevisionId.value) ?? null);
+const resetGameVersion = computed(() => map.value?.gameVersion ?? "");
 const audit = computed(() => api.editor.value?.audit ?? []);
 const title = computed(() => map.value ? `${map.value.mapName} · 地图编辑器` : "地图编辑器");
 const lifecycleLabels = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" } as const;
@@ -185,7 +180,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
           </form>
         </section>
 
-        <AdminMapRevisionEditor v-if="selectedRevision" :revision="selectedRevision" :challenge-catalog="api.editor.value?.challengeCatalog ?? []" :saving="api.saving.value" @save="saveRevision" />
+        <AdminMapRevisionEditor v-if="selectedRevision" :revision="selectedRevision" :replaced-default-revision="replacedDefaultRevision" :challenge-catalog="api.editor.value?.challengeCatalog ?? []" :saving="api.saving.value" @save="saveRevision" />
 
         <section class="audit-card" aria-labelledby="audit-title">
           <header class="section-heading">

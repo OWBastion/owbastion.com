@@ -1073,7 +1073,7 @@ describe("API", () => {
         ...catalogServices,
         getAdminMapEditor: async () => ({ contractVersion: "1" as const, map: (await catalogServices.listMaps())[0]!, revisions: [editorRevision], challengeCatalog: [], audit: [] }),
         createAdminMapRevision: async (input) => { revisionRequests.push({ operation: "create", input }); return editorRevision; },
-        updateAdminMapRevision: async (input) => { revisionRequests.push({ operation: "update", input }); return { ...editorRevision, lifecycle: input.lifecycle, gameVersion: input.gameVersion }; },
+        updateAdminMapRevision: async (input) => { revisionRequests.push({ operation: "update", input }); return { ...editorRevision, lifecycle: input.lifecycle }; },
       }),
     });
     expect((await editorApp.request("http://localhost/v1/admin/maps/map.samoa/editor", {}, env)).status).toBe(200);
@@ -1084,7 +1084,8 @@ describe("API", () => {
     expect(revisionRequests[0]).toMatchObject({ operation: "create", input: { mapId: "map.samoa", copyConfiguration: true, sourceRevisionId: "revision:map.samoa:initial" } });
     expect(revisionRequests[0]!.input.gameVersion).toBeUndefined();
     expect(revisionRequests[0]!.input.resetReason).toBeUndefined();
-    const savedRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.12", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env);
+    expect((await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-manual-version" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.12", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env)).status).toBe(422);
+    const savedRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env);
     expect(savedRevision.status).toBe(200);
     expect(revisionRequests[1]).toMatchObject({ operation: "update", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", lifecycle: "selectable" } });
 

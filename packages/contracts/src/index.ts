@@ -449,7 +449,7 @@ export const adminMapRevisionCreateRequestSchema = z.object({
 export const adminMapRevisionUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: adminMapRevisionLifecycle,
-  gameVersion: z.string().trim().min(1).max(64),
+  replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable().optional(),
   mapVariant: z.literal("classic").nullable(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),

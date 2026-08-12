@@ -12,7 +12,7 @@ const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: 
       map: {
         mapId: "map.samoa",
         mapName: "萨摩亚",
-        gameVersion: "2026.07.15",
+        gameVersion: "2026.08.12",
         difficultyRating: "T3" as const,
         mechanics: ["动态掩体"],
         coverUrl: null,
@@ -46,7 +46,7 @@ const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: 
       mapVariant: null,
       copiedFromRevisionId: "revision:map.samoa:initial",
       resetReason: options.body?.resetReason ?? null,
-      gameVersion: "2026.07.15",
+      gameVersion: "2026.08.12",
       spatialConfig: null,
       isDefault: false,
       isSelectable: false,
@@ -88,7 +88,7 @@ describe("admin map editor page", () => {
     expect(wrapper.text()).not.toContain("地图管理");
   });
 
-  it("creates a reset revision without a reason and shows a source-derived readonly game version", async () => {
+  it("creates a reset revision without a reason and shows the current map version as readonly", async () => {
     resetRequests.length = 0;
     const wrapper = await mountSuspended(MapEditorPage, {
       route: "/admin/maps/map.samoa",
@@ -108,7 +108,7 @@ describe("admin map editor page", () => {
 
     expect(wrapper.get("textarea[placeholder^='例如：地图几何']").attributes("required")).toBeUndefined();
     const targetVersion = wrapper.get("input[readonly]");
-    expect((targetVersion.element as HTMLInputElement).value).toBe("2026.07.15");
+    expect((targetVersion.element as HTMLInputElement).value).toBe("2026.08.12");
     expect(wrapper.findAll("button").find((button) => button.text().includes("创建准备中版本修订"))?.attributes("disabled")).toBeUndefined();
 
     await wrapper.get("#map-reset-form").trigger("submit");

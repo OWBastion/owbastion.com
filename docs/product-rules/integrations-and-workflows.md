@@ -569,6 +569,12 @@ compatibility marker remains in `legacyMapVariant`, while its historical
 revision uses the reserved `v0` sequence rather than a label such as
 `classic`.
 
+Creating a rework creates a `preparing` revision and retains the existing
+default until promotion. Promoting that revision atomically moves the replaced
+default to the administrator-selected `selectable` or `historical` state; the
+service never copies player progress and never leaves an observable duplicate
+or missing default.
+
 Map-title rules, direct map challenges, map-scoped title challenges, and the
 legacy `CLASSIC`/`PIONEER` projections are all assigned through the same
 revision-aware challenge-assignment model. Every projected map challenge

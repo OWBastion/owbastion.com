@@ -2793,8 +2793,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
         if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
       }
-      const versionSource = source ?? await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
-      const gameVersion = versionSource?.gameVersion ?? map.gameVersion;
+      const gameVersion = map.gameVersion;
       const resetReason = input.resetReason ?? null;
 
       const sourceAssignments = source
@@ -2835,7 +2834,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordIdempotency(db, auth.subject, "admin.map.revision.create", idempotencyKey, input, response);
       await recordAudit(db, auth, "admin.map.revision.create", "gameplay_revision", revisionId, {
         sourceRevisionId: source?.id ?? input.sourceRevisionId ?? null,
-        gameVersionSourceRevisionId: versionSource?.id ?? null,
+        gameVersionSourceMapId: map.id,
         gameVersion,
         resetReason,
         copyConfiguration: input.copyConfiguration,
@@ -2854,19 +2853,27 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
       await validateRevisionAssignments(input.mapId, input.challengeAssignments);
 
-      if (input.lifecycle === "default") {
-        const otherDefault = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"), ne(gameplayRevisions.id, input.revisionId))).get();
-        if (otherDefault) throw new Error("DEFAULT_REVISION_CONFLICT");
-      }
+      const otherDefault = input.lifecycle === "default"
+        ? await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"), ne(gameplayRevisions.id, input.revisionId))).get() ?? null
+        : null;
+      if (otherDefault && !input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_REQUIRED");
+      if (!otherDefault && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_NOT_FOUND");
+      if (input.lifecycle !== "default" && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_INVALID");
       if (input.mapVariant === "classic") {
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
 
       const timestamp = now();
-      const statements = [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-        input.lifecycle, input.mapVariant, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
-      ), database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId)];
+      const statements = [
+        ...(otherDefault ? [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
+          input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
+        )] : []),
+        database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
+          input.lifecycle, input.mapVariant, current.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+        ),
+        database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId),
+      ];
       for (const assignment of input.challengeAssignments) {
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
           `assignment:${input.revisionId}:${crypto.randomUUID()}`, input.revisionId, input.mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp,
@@ -2875,9 +2882,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await database.batch(statements);
       const response = await loadAdminMapRevision(input.revisionId);
       await recordIdempotency(db, auth.subject, "admin.map.revision.update", idempotencyKey, input, response);
+      if (otherDefault) await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", otherDefault.id, {
+        previousLifecycle: otherDefault.lifecycle,
+        lifecycle: input.replacedDefaultLifecycle,
+        replacedByRevisionId: input.revisionId,
+        progressCopied: false,
+      });
       await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", input.revisionId, {
         previousLifecycle: current.lifecycle,
         lifecycle: input.lifecycle,
+        replacedDefaultRevisionId: otherDefault?.id ?? null,
+        replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null,
         assignmentCount: input.challengeAssignments.length,
         spatialConfigUpdated: true,
         progressCopied: false,
