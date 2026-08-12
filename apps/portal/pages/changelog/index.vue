@@ -7,7 +7,7 @@ const { data: entries, status, error, refresh } = await useAsyncData(
 
 useSeoMeta({
   title: "版本更新 · 躲避堡垒 3",
-  description: "查看已发布的 Portal 内容与规则变化。",
+  description: "查看已发布的平台内容与规则变化。",
 });
 
 const changelogVersions = computed(() => entries.value.map((entry) => ({

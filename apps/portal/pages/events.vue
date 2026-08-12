@@ -14,7 +14,7 @@ onMounted(async () => {
 </script>
 <template>
   <main class="events-page page-shell">
-    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1><p class="body-copy">查看当前事件与开放挑战。</p></section>
+    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1></section>
     <section class="events-panel surface-card" aria-labelledby="events-title">
       <div v-if="loading" class="event-skeleton-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
@@ -37,6 +37,5 @@ onMounted(async () => {
 .event-skeleton-title { width:62%; height:22px; }.event-skeleton-copy { display:grid; gap:8px; }.event-skeleton-copy > * { width:100%; height:12px; }.event-skeleton-copy-short { width:76% !important; }
 .event-skeleton-tags { display:flex; gap:6px; margin-top:auto; }.event-skeleton-tag { width:48px; height:20px; border-radius:999px; }.event-skeleton-tag-short { width:36px; }
 @media (max-width:760px) { .event-skeleton-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:520px) { .event-skeleton-grid { grid-template-columns:1fr; } }
-@media (max-width:620px) { .events-page { padding-block:48px; }.page-intro { margin-bottom:20px; }.events-panel { padding:14px; } }
+@media (max-width:620px) { .event-skeleton-grid { grid-template-columns:1fr; }.events-page { padding-block:48px; }.page-intro { margin-bottom:20px; }.events-panel { padding:14px; } }
 </style>

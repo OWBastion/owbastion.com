@@ -105,7 +105,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   <section class="revision-editor" aria-labelledby="revision-editor-title">
     <header class="section-heading">
       <div>
-        <p class="eyebrow">Revision 配置</p>
+        <p class="eyebrow">版本修订配置</p>
         <h2 id="revision-editor-title">编辑当前边界</h2>
       </div>
       <StatusBadge :label="lifecycleLabels[revision.lifecycle]" :tone="revision.lifecycle === 'default' ? 'success' : revision.lifecycle === 'selectable' ? 'info' : 'default'" />
@@ -116,7 +116,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <UFormField label="生命周期" hint="平台服务端会校验可用的状态转换。">
           <USelect v-model="lifecycle" :items="lifecycleItems" :disabled="saving" />
         </UFormField>
-        <UFormField label="游戏版本">
+        <UFormField label="游戏版本" required>
           <UInput v-model="gameVersion" :disabled="saving" required />
         </UFormField>
         <UFormField label="地图变体" hint="默认 revision 必须使用正式版。">
@@ -125,13 +125,13 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
       </div>
 
       <UFormField label="空间配置" hint="使用平台 contract 的 JSON 表示；具体字段、坐标和引用由服务端统一校验。">
-        <UTextarea v-model="spatialJson" :rows="12" class="spatial-input" :disabled="saving" spellcheck="false" aria-label="空间配置 JSON" />
+        <UTextarea v-model="spatialJson" :rows="12" class="spatial-input" :disabled="saving" spellcheck="false" />
         <p v-if="spatialError" class="field-error" role="alert">{{ spatialError }}</p>
       </UFormField>
 
       <fieldset class="assignment-fieldset">
-        <legend>Revision-scoped challenge assignments</legend>
-        <p class="field-hint">只选择此 revision 应适用的既有定义；Portal 不复制挑战规则或实现自己的引用校验。</p>
+        <legend>版本修订范围的挑战分配</legend>
+        <p class="field-hint">只选择此版本修订应适用的既有定义；Portal 不复制挑战规则或实现自己的引用校验。</p>
         <div v-if="challengeCatalog.length" class="assignment-list">
           <UCheckbox
             v-for="option in challengeCatalog"
@@ -146,8 +146,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
       </fieldset>
 
       <div class="revision-editor__actions">
-        <p class="editor-note">保存只更新 revision 配置、空间数据和挑战适用性，不会复制或修改玩家进度。</p>
-        <UButton type="submit" label="保存 revision" :loading="saving" :disabled="saving" />
+        <p class="editor-note">保存只更新版本修订配置、空间数据和挑战适用性，不会复制或修改玩家进度。</p>
+        <UButton type="submit" label="保存版本修订" :loading="saving" :disabled="saving" />
       </div>
     </form>
   </section>

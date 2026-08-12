@@ -19,7 +19,7 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
         <div><dt>评价状态</dt><dd><StatusBadge :label="statusLabel(detail.review.status)" :tone="detail.review.status === 'active' ? 'success' : detail.review.status === 'invalidated' ? 'warning' : 'default'" /></dd></div>
         <div><dt>评论状态</dt><dd><StatusBadge :label="commentStatusLabel(detail.review.commentStatus)" :tone="detail.review.commentStatus === 'visible' ? 'success' : 'warning'" /></dd></div>
         <div><dt>提交时间</dt><dd>{{ formatTime(detail.review.createdAt) }}</dd></div>
-        <div><dt>公开匿名</dt><dd>{{ detail.review.anonymous ? "是" : "否" }}<span class="table-meta">维护者仍可查看真实身份</span></dd></div>
+        <div><dt>公开匿名</dt><dd>{{ detail.review.anonymous ? "是" : "否" }}</dd></div>
       </dl>
       <blockquote v-if="detail.review.comment" class="review-detail__comment">{{ detail.review.comment }}</blockquote>
       <p v-else class="review-detail__muted">未填写评论。</p>

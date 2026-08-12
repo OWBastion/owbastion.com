@@ -12,7 +12,7 @@ const requirements = [
 
 <template>
   <section class="requirements" aria-labelledby="requirements-title">
-    <SubmissionSectionHeading number="2." title="截图要求" description="请确保截图包含以下内容" heading-id="requirements-title" />
+    <SubmissionSectionHeading number="2." title="截图要求" heading-id="requirements-title" />
     <div class="requirement-list">
       <UCard v-for="item in requirements" :key="item.title" class="requirement-card" variant="subtle">
         <UIcon :name="item.icon" class="requirement-icon" aria-hidden="true" />
@@ -22,7 +22,7 @@ const requirements = [
         </div>
       </UCard>
     </div>
-    <UAlert class="tip" icon="i-lucide-lightbulb" color="warning" variant="subtle" title="小贴士" description="优先使用游戏内截图，避免裁剪或二次压缩。" />
+    <p class="tip-note"><UIcon name="i-lucide-lightbulb" aria-hidden="true" />优先使用游戏内截图，避免裁剪或二次压缩。</p>
   </section>
 </template>
 
@@ -42,7 +42,8 @@ const requirements = [
 .requirement-icon { flex: 0 0 auto; width: 20px; height: 20px; color: var(--accent); }
 .requirement-card h3 { margin: 0; color: var(--accent); font-size: .82rem; font-weight: 720; line-height: 1.3; }
 .requirement-card p { margin: 1px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.3; }
-.tip { margin-top: 12px; }
+.tip-note { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--muted); font-size: var(--type-caption-size); line-height: 1.5; }
+.tip-note svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--quiet); }
 @media (prefers-reduced-transparency: reduce) {
   .requirement-card { background: var(--surface-raised); }
 }

@@ -35,8 +35,8 @@ const title = computed(() => map.value ? `${map.value.mapName} · 地图编辑�
 const lifecycleLabels = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" } as const;
 const auditLabels: Record<string, string> = {
   "admin.map.metadata.update": "保存地图属性",
-  "admin.map.revision.create": "创建 revision",
-  "admin.map.revision.update": "保存 revision",
+  "admin.map.revision.create": "创建版本修订",
+  "admin.map.revision.update": "保存版本修订",
 };
 const resetMapVariantItems = [{ value: null, label: "正式版" }, { value: "classic", label: "经典版" }];
 
@@ -86,9 +86,9 @@ async function saveRevision(input: AdminMapRevisionUpdateInput) {
   actionError.value = "";
   try {
     await api.saveRevision(selectedRevision.value.revisionId, input);
-    toast.add({ title: "Revision 配置已保存", color: "success" });
+    toast.add({ title: "版本修订配置已保存", color: "success" });
   } catch (cause) {
-    actionError.value = portalErrorDetails(cause, "无法保存 revision 配置，请检查服务端返回的校验信息。").description;
+    actionError.value = portalErrorDetails(cause, "无法保存版本修订配置，请检查服务端返回的校验信息。").description;
   }
 }
 
@@ -115,9 +115,9 @@ async function createResetRevision() {
     });
     selectedRevisionId.value = revision.revisionId;
     resetOpen.value = false;
-    toast.add({ title: "新的准备中 revision 已创建", description: "玩家进度未被复制。完成配置后，再将它设为默认或可选。", color: "success" });
+    toast.add({ title: "新的准备中版本修订已创建", description: "玩家进度未被复制。完成配置后，再将它设为默认或可选。", color: "success" });
   } catch (cause) {
-    actionError.value = portalErrorDetails(cause, "无法创建 revision，请稍后重试。").description;
+    actionError.value = portalErrorDetails(cause, "无法创建版本修订，请稍后重试。").description;
   } finally {
     resetSaving.value = false;
   }
@@ -131,14 +131,14 @@ function auditPayload(auditItem: (typeof audit.value)[number]) {
 }
 
 onMounted(() => void load());
-useSeoMeta({ title: "地图 revision 编辑器 · 躲避堡垒 3" });
+useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 </script>
 
 <template>
   <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : map ? `${revisions.length} 个 revision` : ''">
     <template #actions>
       <UButton to="/admin/maps" label="返回地图目录" color="neutral" variant="outline" />
-      <UButton v-if="map" label="Reset / Rework" icon="i-lucide-git-branch-plus" color="neutral" @click="openReset" />
+      <UButton v-if="map" label="重置 / 重做" icon="i-lucide-git-branch-plus" color="neutral" @click="openReset" />
     </template>
     <template #messages>
       <UAlert v-if="api.error.value || actionError" color="error" variant="subtle" :description="api.error.value || actionError" />
@@ -206,7 +206,7 @@ useSeoMeta({ title: "地图 revision 编辑器 · 躲避堡垒 3" });
     </div>
     <p v-else-if="!api.loading.value" class="admin-empty">地图不存在，或当前账号没有访问权限。</p>
 
-    <AdminResponsiveDialog v-model:open="resetOpen" title="Reset / Rework · 创建新 revision" description="新 revision 从准备中开始。复制配置不会复制任何玩家进度。" size="md" :dismissible="!resetSaving">
+    <AdminResponsiveDialog v-model:open="resetOpen" title="重置 / 重做 · 创建新版本修订" description="新版本修订从准备中开始。复制配置不会复制任何玩家进度。" size="md" :dismissible="!resetSaving">
       <template #body>
         <form id="map-reset-form" class="reset-form" @submit.prevent="createResetRevision">
           <UFormField label="来源 revision" hint="可选择任意保留的 revision 作为配置来源。">
@@ -222,7 +222,7 @@ useSeoMeta({ title: "地图 revision 编辑器 · 躲避堡垒 3" });
       </template>
       <template #footer>
         <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
-        <UButton type="submit" form="map-reset-form" label="创建准备中 revision" :loading="resetSaving" :disabled="resetSaving || !resetReason.trim() || !resetGameVersion.trim()" />
+        <UButton type="submit" form="map-reset-form" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving || !resetReason.trim() || !resetGameVersion.trim()" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
@@ -232,7 +232,7 @@ useSeoMeta({ title: "地图 revision 编辑器 · 躲避堡垒 3" });
 .map-editor-layout { display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(18px, 3vw, 32px); align-items: start; }
 .map-editor-sidebar, .map-editor-main { display: grid; gap: 18px; min-width: 0; }
 .map-summary, .metadata-card, .audit-card { padding: clamp(16px, 2.5vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.map-summary { background: linear-gradient(135deg, var(--accent-surface), var(--surface)); }
+.map-summary { background: var(--accent-surface); }
 .map-summary h2 { margin: 5px 0 8px; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -.04em; overflow-wrap: anywhere; }
 .map-summary p:last-of-type { margin: 0; color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; overflow-wrap: anywhere; }
 .map-summary span { display: block; margin-top: 12px; color: var(--quiet); font-size: var(--type-caption-size); }
@@ -250,6 +250,6 @@ useSeoMeta({ title: "地图 revision 编辑器 · 躲避堡垒 3" });
 .audit-list p { margin: 4px 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .audit-list span { flex: 0 0 auto; color: var(--quiet); font-size: var(--type-caption-size); }
 .empty-note { margin: 0; }
-@media (max-width: 850px) { .map-editor-layout { grid-template-columns: 1fr; } .map-editor-sidebar { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: start; } }
+@media (max-width: 820px) { .map-editor-layout { grid-template-columns: 1fr; } .map-editor-sidebar { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: start; } }
 @media (max-width: 620px) { .map-editor-sidebar, .metadata-form__grid { grid-template-columns: 1fr; } .section-heading { align-items: start; flex-direction: column; } .form-actions :deep(button) { width: 100%; } .audit-list li { flex-direction: column; gap: 5px; } }
 </style>

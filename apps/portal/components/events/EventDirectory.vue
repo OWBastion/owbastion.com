@@ -246,7 +246,7 @@ onMounted(() => { hydrated.value = true; });
 .probability-dl dt { color: var(--muted); font-size: .8rem; }
 .probability-dl dd { margin: 0; font-size: .82rem; font-weight: 650; }
 
-@media (max-width: 520px) {
+@media (max-width: 620px) {
   .event-grid { grid-template-columns: 1fr; }
   .detail dl, .probability-dl { grid-template-columns: 1fr; }
   .detail dl div:nth-child(odd), .probability-dl div:nth-child(odd) { padding-right: 0; }

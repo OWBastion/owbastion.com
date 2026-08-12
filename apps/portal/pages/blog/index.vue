@@ -7,7 +7,7 @@ const { data: posts, status, error, refresh } = await useAsyncData(
 
 useSeoMeta({
   title: "开发日志 · 躲避堡垒 3",
-  description: "阅读 Portal 的开发日志与设计记录。",
+  description: "阅读平台的开发日志与设计记录。",
 });
 
 const blogPosts = computed(() => posts.value.map((post) => ({

@@ -349,13 +349,12 @@ onMounted(() => {
     <AdminResponsiveDialog v-model:open="panelOpen" title="确认称号迁移" size="sm" :dismissible="!saving">
       <template #body>
         <section v-if="selectedHolder && selectedPlayer" class="migration-dialog">
-          <p class="eyebrow">批量关联</p>
-          <h2>确认称号迁移</h2>
           <dl class="migration-facts">
             <div><dt>历史持有者</dt><dd>{{ selectedHolder.holderName }}</dd></div>
             <div><dt>关联至</dt><dd><PlayerBattleTag :player-name="selectedPlayer.playerName" :player-id="selectedPlayer.playerId" /></dd></div>
             <div><dt>影响范围</dt><dd>{{ bulkAffectedCount }} 项未关联称号</dd></div>
           </dl>
+          <p v-if="bulkAffectedCount" class="migration-consequence">确认后，{{ bulkAffectedCount }} 项未关联称号将关联到该玩家，并计入其已获得称号。</p>
           <ul class="pending-list" aria-label="待关联称号">
             <li v-for="grant in pendingGrantsPreview" :key="grant.grantId">
               <span>{{ grant.label }}</span>
@@ -382,7 +381,8 @@ onMounted(() => {
 .migration-facts div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
 .migration-facts dt { color: var(--quiet); font-size: .74rem; }
 .migration-facts dd { margin: 0; font-weight: 680; overflow-wrap: anywhere; }
-.pending-list { display: grid; gap: 1px; max-height: 280px; margin: 0; padding: 0; overflow: auto; list-style: none; border: 1px solid var(--line); border-radius: 11px; }
+.migration-consequence { margin: 0 0 16px; color: var(--muted); font-size: .84rem; line-height: 1.55; }
+.pending-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 11px; }
 .pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--surface); font-size: .84rem; }
 .pending-list li + li { border-top: 1px solid var(--line); }
 .pending-list small, .pending-overflow { color: var(--quiet); font-size: .75rem; }

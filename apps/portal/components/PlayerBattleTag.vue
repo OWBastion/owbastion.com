@@ -8,13 +8,13 @@ const props = withDefaults(defineProps<{
 
 <template>
   <span v-if="props.mode === 'inline'" class="battle-tag">
-    <span>{{ props.playerName }}</span><span class="battle-tag__id" aria-hidden="true">#{{ props.playerId }}</span>
+    <span>{{ props.playerName }}</span><span class="battle-tag__id">#{{ props.playerId }}</span>
   </span>
   <div v-else class="battle-tag-identity">
     <span class="battle-tag-identity__mark" aria-hidden="true">{{ props.playerName.slice(0, 1) }}</span>
     <div>
       <p class="battle-tag-identity__label">战网 ID</p>
-      <strong class="battle-tag"><span>{{ props.playerName }}</span><span class="battle-tag__id" aria-hidden="true">#{{ props.playerId }}</span></strong>
+      <strong class="battle-tag"><span>{{ props.playerName }}</span><span class="battle-tag__id">#{{ props.playerId }}</span></strong>
     </div>
   </div>
 </template>

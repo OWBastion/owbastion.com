@@ -495,7 +495,6 @@ onMounted(() => void load());
         <template #catalog>
           <section class="catalog-section" aria-labelledby="title-catalog-title">
             <PageSectionHeader title="称号定义" eyebrow="称号目录" heading-id="title-catalog-title" :count="`${catalogItems.length} 项`" />
-            <p class="catalog-note">目录称号为权威定义，可单独授予；与可提交挑战不同。</p>
             <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
                 <USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />

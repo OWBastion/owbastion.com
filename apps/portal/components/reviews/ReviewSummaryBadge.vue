@@ -8,7 +8,7 @@ const props = defineProps<{
 }>();
 
 const label = computed(() => {
-  if (props.loading) return "评分读取中";
+  if (props.loading) return "读取中…";
   if (props.error) return "评分暂不可用";
   if (!props.summary || props.summary.averageRating === null) return "暂无评分";
   return `${props.summary.averageRating.toFixed(1)} 分 · ${props.summary.reviewCount} 条`;
