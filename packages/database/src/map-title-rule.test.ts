@@ -612,10 +612,34 @@ describe("Agents map gameplay projection", () => {
       expect.objectContaining({ challengeId: "challenge.agents.direct", gameplayRevisionId: selectableRevisionId }),
     ]));
   });
+
+  it("resolves a legacy title challenge alias through its assigned map title rule", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.classic");
+    seedTitle(sqlite, "CLASSIC");
+    seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
+    seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.classic");
+    seedException(sqlite, "exception.classic", "rule.classic", "map.classic");
+    seedMapTitleChallenge(sqlite, "title.CLASSIC", "CLASSIC", "map.classic");
+    sqlite.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ? AND challenge_family = 'title_challenge' AND challenge_id = 'title.CLASSIC'").run("revision:map.classic:initial");
+    const classicRevisionId = legacyGameplayRevisionId("map.classic");
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: classicRevisionId, mapId: "map.classic", challengeFamily: "title_challenge", challengeId: "title.CLASSIC" });
+    seedAgentSpatialConfig(sqlite, "revision:map.classic:initial");
+    seedAgentSpatialConfig(sqlite, classicRevisionId);
+    const services = createPlatformServices(database);
+
+    const map = (await services.getAgentMap({ mapId: "map.classic" }))!;
+    expect(map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual([
+      "revision:map.classic:initial",
+      classicRevisionId,
+    ]);
+    expect(map.gameplayRevisions[1]?.challengeRefs).toEqual([{ family: "map", challengeId: "title.CLASSIC" }]);
+  });
 });
 
 describe("Agents map projection readiness", () => {
-  it("fails closed for incomplete revisions and never projects historical or preparing rows", async () => {
+  it("fails the whole map closed for an incomplete enabled revision and never projects historical or preparing rows", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.agents");
@@ -626,7 +650,28 @@ describe("Agents map projection readiness", () => {
     const services = createPlatformServices(database);
 
     const map = (await services.getAgentMap({ mapId: "map.agents" }))!;
-    expect(map.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.agents:initial"]);
+    expect(map.gameplayRevisions).toEqual([]);
+  });
+
+  it("fails closed when a compat title alias lacks its mapped rule assignment", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.compat");
+    seedTitle(sqlite, "CLASSIC");
+    seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
+    seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.compat");
+    seedMapTitleChallenge(sqlite, "title.CLASSIC", "CLASSIC", "map.compat");
+    sqlite.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ? AND challenge_family = 'title_challenge' AND challenge_id = 'title.CLASSIC'").run("revision:map.compat:initial");
+    const classicRevisionId = legacyGameplayRevisionId("map.compat");
+    seedClassicGameplayRevision(sqlite, "map.compat");
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: classicRevisionId, mapId: "map.compat", challengeFamily: "title_challenge", challengeId: "title.CLASSIC" });
+    seedAgentSpatialConfig(sqlite, "revision:map.compat:initial");
+    seedAgentSpatialConfig(sqlite, classicRevisionId);
+    const services = createPlatformServices(database);
+
+    await expect(services.getAgentMap({ mapId: "map.compat" })).resolves.toMatchObject({
+      gameplayRevisions: [],
+    });
   });
 
   it("does not project a map when enabled defaults are ambiguous", async () => {
