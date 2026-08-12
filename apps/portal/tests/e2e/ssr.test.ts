@@ -36,25 +36,43 @@ describe("Portal SSR", async () => {
     const [blogRows, changelogRows] = await Promise.all([
       $fetch("/__nuxt_content/blog/query", {
         method: "POST",
-        body: { sql: "SELECT \"title\", \"publishedAt\" FROM _content_blog ORDER BY \"title\" ASC" },
+        body: { sql: "SELECT \"title\", \"path\", \"publishedAt\" FROM _content_blog ORDER BY \"publishedAt\" DESC" },
       }),
       $fetch("/__nuxt_content/changelog/query", {
         method: "POST",
-        body: { sql: "SELECT \"title\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"version\" DESC" },
+        body: { sql: "SELECT \"title\", \"path\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"releasedAt\" DESC" },
       }),
     ]);
 
     const blogTitles = blogRows.map((row) => row.title);
     expect(blogTitles.length).toBeGreaterThan(0);
-    expect(blogTitles).toEqual([...blogTitles].sort());
     expect(blogTitles.every((title) => typeof title === "string" && title.length > 0)).toBe(true);
+    expect(blogRows.every((row) => typeof row.path === "string" && row.path.startsWith("/blog/"))).toBe(true);
     expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
     expect(changelogRows.length).toBeGreaterThan(0);
     const changelogVersions = changelogRows.map((row) => row.version);
-    expect(changelogVersions).toEqual([...changelogVersions].sort().reverse());
     expect(new Set(changelogVersions).size).toBe(changelogVersions.length);
     expect(changelogRows.every((row) => typeof row.title === "string" && row.title.length > 0)).toBe(true);
+    expect(changelogRows.every((row) => typeof row.path === "string" && row.path.startsWith("/changelog/"))).toBe(true);
     expect(changelogVersions.every((version) => typeof version === "string" && version.length > 0)).toBe(true);
     expect(changelogRows.every((row) => typeof row.releasedAt === "string")).toBe(true);
+
+    const latestBlog = blogRows[0];
+    const latestChangelog = changelogRows[0];
+    if (!latestBlog || !latestChangelog) throw new Error("built editorial collections are unexpectedly empty");
+
+    const [blogIndex, changelogIndex, blogDetail, changelogDetail] = await Promise.all([
+      $fetch("/blog"),
+      $fetch("/changelog"),
+      $fetch(latestBlog.path),
+      $fetch(latestChangelog.path),
+    ]);
+
+    expect(blogIndex).toContain(`href="${latestBlog.path}"`);
+    expect(blogIndex).toContain(latestBlog.title);
+    expect(blogDetail).toContain(latestBlog.title);
+    expect(changelogIndex).toContain(`href="${latestChangelog.path}"`);
+    expect(changelogIndex).toContain(`版本 ${latestChangelog.version}`);
+    expect(changelogDetail).toContain(latestChangelog.title);
   });
 });
