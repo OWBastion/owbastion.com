@@ -411,8 +411,15 @@ map's `gameplayRevisions` build projection. It contains only `default` and
 `spatialConfig`. The spatial object has finite three-component vectors for
 `bastionPositions`, `resetPosition`, `endPosition`, `thirdPersonPosition`, and
 `creditsPosition`; optional control center/jump/respawn vectors with paired
-axis/threshold; and deterministic portal/springboard position arrays. It is
-not a free-form payload. `challengeRefs` contains references only; the full
+axis/threshold; and deterministic portal/springboard position arrays. Control
+roles are independently present only when that stable Bastion map implementation
+uses them; an axis requires at least one respawn vector, while cardinality is
+validated by the consuming map implementation. A multi-stage map may add
+deterministic `alternateStages`, each with a stable non-localized `stageId`, a
+platform-owned finite `setupDetection` position and positive radius, and its
+full role set; Bastion evaluates that selector once during setup and only then
+selects one of these platform-owned configurations. It is not a free-form
+payload. `challengeRefs` contains references only; the full
 challenge definition remains authoritative in `/v1/agents/achievements` and
 is joined by map revision ID plus challenge family/ID.
 
@@ -562,6 +569,12 @@ the single-default invariant. Revision IDs are machine identifiers: the legacy
 compatibility marker remains in `legacyMapVariant`, while its historical
 revision uses the reserved `v0` sequence rather than a label such as
 `classic`.
+
+Creating a rework creates a `preparing` revision and retains the existing
+default until promotion. Promoting that revision atomically moves the replaced
+default to the administrator-selected `selectable` or `historical` state; the
+service never copies player progress and never leaves an observable duplicate
+or missing default.
 
 Map-title rules, direct map challenges, map-scoped title challenges, and the
 legacy `CLASSIC`/`PIONEER` projections are all assigned through the same

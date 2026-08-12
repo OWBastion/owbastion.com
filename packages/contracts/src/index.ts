@@ -245,25 +245,23 @@ const finiteCoordinate = z.number().refine(Number.isFinite, "Coordinate must be 
 const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
 const spatialPositions = z.array(vector3).max(128);
 const requiredSpatialPositions = spatialPositions.min(1);
+const spatialStageId = z.string().trim().regex(/^[a-z0-9][a-z0-9_-]*$/).max(64);
 const controlSpatialConfigSchema = z.object({
-  centerPositions: requiredSpatialPositions,
-  jumpPositions: requiredSpatialPositions,
-  respawnPositions: requiredSpatialPositions,
+  centerPositions: spatialPositions,
+  jumpPositions: spatialPositions,
+  respawnPositions: spatialPositions,
   respawnAxis: z.enum(["x", "y", "z"]).nullable(),
   respawnAxisThreshold: finiteCoordinate.refine((value) => value >= 0, "Threshold must be non-negative").nullable(),
 }).strict().superRefine((value, context) => {
-  if (value.centerPositions.length !== value.respawnPositions.length) {
-    context.addIssue({ code: "custom", path: ["centerPositions"], message: "Control center and respawn positions must have matching lengths" });
-  }
-  if (value.jumpPositions.length !== value.respawnPositions.length) {
-    context.addIssue({ code: "custom", path: ["jumpPositions"], message: "Control jump and respawn positions must have matching lengths" });
-  }
   if ((value.respawnAxis === null) !== (value.respawnAxisThreshold === null)) {
     context.addIssue({ code: "custom", path: ["respawnAxis"], message: "Control axis and threshold must be provided together" });
   }
+  if (value.respawnAxis !== null && value.respawnPositions.length === 0) {
+    context.addIssue({ code: "custom", path: ["respawnPositions"], message: "Control axis requires a respawn position" });
+  }
 });
 
-export const agentSpatialConfigSchema = z.object({
+const spatialConfigFields = {
   bastionPositions: requiredSpatialPositions,
   resetPosition: vector3,
   endPosition: vector3,
@@ -272,7 +270,29 @@ export const agentSpatialConfigSchema = z.object({
   control: controlSpatialConfigSchema.nullable(),
   portalPositions: spatialPositions,
   springboardPositions: spatialPositions,
+};
+const alternateStageSetupDetectionSchema = z.object({
+  position: vector3,
+  radius: finiteCoordinate.refine((value) => value > 0, "Detection radius must be positive"),
 }).strict();
+const alternateSpatialStageSchema = z.object({
+  stageId: spatialStageId,
+  setupDetection: alternateStageSetupDetectionSchema,
+  ...spatialConfigFields,
+}).strict();
+
+export const agentSpatialConfigSchema = z.object({
+  ...spatialConfigFields,
+  alternateStages: z.array(alternateSpatialStageSchema).max(15).default([]),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const [index, stage] of value.alternateStages.entries()) {
+    if (seen.has(stage.stageId)) {
+      context.addIssue({ code: "custom", path: ["alternateStages", index, "stageId"], message: "Duplicate alternate spatial stage" });
+    }
+    seen.add(stage.stageId);
+  }
+});
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({
@@ -434,7 +454,7 @@ export const adminMapRevisionCreateRequestSchema = z.object({
 export const adminMapRevisionUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: adminMapRevisionLifecycle,
-  gameVersion: z.string().trim().min(1).max(64),
+  replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable().optional(),
   mapVariant: z.literal("classic").nullable(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),

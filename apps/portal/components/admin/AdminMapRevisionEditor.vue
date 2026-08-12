@@ -5,23 +5,26 @@ import type {
   AdminMapRevisionAssignmentInput,
   AdminMapRevisionChallengeFamily,
   AdminMapRevisionLifecycle,
+  AdminMapRevisionReplacementLifecycle,
   AdminMapRevisionUpdateInput,
 } from "~/composables/useAdminMapEditor";
 
 const props = withDefaults(defineProps<{
   revision: AdminMapEditorRevision;
+  replacedDefaultRevision?: AdminMapEditorRevision | null;
   challengeCatalog: AdminMapEditorChallengeOption[];
   saving?: boolean;
-}>(), { saving: false });
+}>(), { saving: false, replacedDefaultRevision: null });
 const emit = defineEmits<{ save: [input: AdminMapRevisionUpdateInput] }>();
 
 const lifecycleLabels: Record<AdminMapRevisionLifecycle, string> = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" };
 const familyLabels: Record<AdminMapRevisionChallengeFamily, string> = { map_challenge: "单图挑战", map_title_rule: "地图称号规则", title_challenge: "地图称号挑战" };
 const lifecycleItems = (Object.entries(lifecycleLabels) as Array<[AdminMapRevisionLifecycle, string]>).map(([value, label]) => ({ value, label }));
 const mapVariantItems = [{ value: null, label: "正式版" }, { value: "classic", label: "经典版" }];
+const replacementLifecycleItems = [{ value: "selectable", label: "保留为可选版本" }, { value: "historical", label: "归档为历史版本" }];
 
 const lifecycle = shallowRef<AdminMapRevisionLifecycle>(props.revision.lifecycle);
-const gameVersion = shallowRef(props.revision.gameVersion);
+const replacedDefaultLifecycle = shallowRef<AdminMapRevisionReplacementLifecycle>("selectable");
 const mapVariant = shallowRef<"classic" | null>(props.revision.mapVariant);
 const spatialJson = shallowRef("");
 const spatialError = shallowRef("");
@@ -30,7 +33,7 @@ const assignments = shallowRef<Record<string, AdminMapRevisionAssignmentInput>>(
 const assignmentKey = (family: AdminMapRevisionChallengeFamily, challengeId: string) => `${family}:${challengeId}`;
 const sync = (revision: AdminMapEditorRevision) => {
   lifecycle.value = revision.lifecycle;
-  gameVersion.value = revision.gameVersion;
+  replacedDefaultLifecycle.value = "selectable";
   mapVariant.value = revision.mapVariant;
   spatialJson.value = revision.spatialConfig ? JSON.stringify(revision.spatialConfig, null, 2) : "";
   spatialError.value = "";
@@ -45,6 +48,8 @@ const sync = (revision: AdminMapEditorRevision) => {
   }]));
 };
 watch(() => props.revision.revisionId, () => sync(props.revision), { immediate: true });
+
+const isReplacingDefault = computed(() => lifecycle.value === "default" && props.replacedDefaultRevision !== null);
 
 const isAssigned = (option: AdminMapEditorChallengeOption) => assignments.value[assignmentKey(option.challengeFamily, option.challengeId)]?.enabled === true;
 const toggleAssignment = (option: AdminMapEditorChallengeOption, enabled: boolean) => {
@@ -91,7 +96,7 @@ function save() {
   emit("save", {
     contractVersion: "1",
     lifecycle: lifecycle.value,
-    gameVersion: gameVersion.value.trim(),
+    replacedDefaultLifecycle: isReplacingDefault.value ? replacedDefaultLifecycle.value : null,
     mapVariant: mapVariant.value,
     spatialConfig,
     challengeAssignments: Object.values(assignments.value),
@@ -116,11 +121,14 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <UFormField label="生命周期" hint="平台服务端会校验可用的状态转换。">
           <USelect v-model="lifecycle" :items="lifecycleItems" :disabled="saving" />
         </UFormField>
-        <UFormField label="游戏版本" required>
-          <UInput v-model="gameVersion" :disabled="saving" required />
+        <UFormField label="游戏版本">
+          <UInput :model-value="revision.gameVersion" readonly />
         </UFormField>
         <UFormField label="地图变体" hint="默认 revision 必须使用正式版。">
           <USelect v-model="mapVariant" :items="mapVariantItems" :disabled="saving" />
+        </UFormField>
+        <UFormField v-if="isReplacingDefault" label="原默认版本处理" :hint="`将 ${replacedDefaultRevision?.revisionId} 改为以下状态。`">
+          <USelect v-model="replacedDefaultLifecycle" :items="replacementLifecycleItems" :disabled="saving" />
         </UFormField>
       </div>
 

@@ -1093,8 +1093,8 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_REVISION_UPDATE_FAILED";
       if (code === "REVISION_NOT_FOUND") return errorResponse(c, 404, code, "The map revision does not exist");
-      if (["INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
-      if (["DEFAULT_REVISION_CONFLICT", "LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
+      if (["INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "DEFAULT_REVISION_REPLACEMENT_NOT_FOUND", "DEFAULT_REVISION_REPLACEMENT_INVALID", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
+      if (["DEFAULT_REVISION_REPLACEMENT_REQUIRED", "LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
       throw error;
     }
   });

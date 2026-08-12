@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
+import { agentSpatialConfigSchema } from "@owbastion/contracts";
 
 const migrationsDirectory = fileURLToPath(new URL("../../../migrations/", import.meta.url));
 const migrationNames = readdirSync(migrationsDirectory).filter((name) => /^\d{4}_.*\.sql$/u.test(name)).sort();
@@ -13,15 +14,20 @@ const applyMigrations = (sqlite: DatabaseSync, through: string) => {
   }
 };
 
-describe("0061/0062/0063/0064/0065 gameplay revision forward migrations", () => {
-  it("assigns legacy facts, disables inactive assignments, repairs CLASSIC provenance, and normalizes label-derived revision IDs", () => {
+describe("0061/0062/0063/0064/0065/0066 gameplay revision forward migrations", () => {
+  it("assigns legacy facts, disables inactive assignments, repairs CLASSIC provenance, and materialises the spatial baseline without copying progress", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec("PRAGMA foreign_keys = ON;");
     applyMigrations(sqlite, "0060_mastery_ledger.sql");
 
     sqlite.exec(`
-      INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at)
-      VALUES ('map.revision', 'Revision Map', '26.0810.9', 'active', '26.0810.1', 1, 1);
+      INSERT OR IGNORE INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at)
+      VALUES
+        ('map.revision', 'Revision Map', '26.0810.9', 'active', '26.0810.1', 1, 1),
+        ('map.aatlis', 'Aatlis', '26.0810.9', 'active', '26.0810.1', 1, 1),
+        ('map.antarctic_peninsula', 'Antarctic Peninsula', '26.0810.9', 'active', '26.0810.1', 1, 1),
+        ('map.paraiso', 'Paraiso', '26.0810.9', 'active', '26.0810.1', 1, 1),
+        ('map.eichenwalde', 'Eichenwalde', '26.0810.9', 'active', '26.0810.1', 1, 1);
       INSERT OR IGNORE INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version)
       VALUES
         ('REV_STANDARD', 'Standard', 'trophy', '地图', '完成地图', 'active', 'map', 'map_name_suffix', 'null', '26.0810.1'),
@@ -94,6 +100,15 @@ describe("0061/0062/0063/0064/0065 gameplay revision forward migrations", () => 
     }
     sqlite.exec(readFileSync(`${migrationsDirectory}/0064_gameplay_revision_spatial_config.sql`, "utf8"));
     sqlite.exec(readFileSync(`${migrationsDirectory}/0065_disable_inactive_revision_assignments.sql`, "utf8"));
+    const preservedParaisoSpatialConfig = JSON.stringify({
+      bastionPositions: [[900, 901, 902]], resetPosition: [903, 904, 905], endPosition: [906, 907, 908],
+      thirdPersonPosition: [909, 910, 911], creditsPosition: [912, 913, 914], control: null,
+      portalPositions: [], springboardPositions: [], alternateStages: [],
+    });
+    sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = 'revision:map.paraiso:initial'").run(preservedParaisoSpatialConfig);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.eichen.initial', 'player.revision', 'CONQUEROR', 'map.eichenwalde', 'revision:map.eichenwalde:initial', 'conqueror', 'active', 'submission', 'submission.eichen.initial', 'admin', 1)").run();
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0066_backfill_initial_gameplay_revision_spatial_configs.sql`, "utf8"));
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0067_add_alternate_stage_setup_detection.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
       { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
@@ -148,6 +163,35 @@ describe("0061/0062/0063/0064/0065 gameplay revision forward migrations", () => 
       payload_json: '{"gameplayRevisionId":"revision:map.revision:v0"}',
     });
     expect(sqlite.prepare("SELECT id FROM gameplay_revisions WHERE id LIKE '%:classic'").all()).toEqual([]);
+    const aatlisSpatialConfig = JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.aatlis:initial'").get() as { spatial_config_json: string }).spatial_config_json);
+    expect(aatlisSpatialConfig.bastionPositions[0]).toEqual([-27.31, 30.462, 99.799]);
+    expect(aatlisSpatialConfig).toMatchObject({
+      control: { respawnAxis: "z", respawnAxisThreshold: 30, respawnPositions: [[4.85, 15.5, 104.6]] },
+      alternateStages: [],
+    });
+    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.antarctic_peninsula:initial'").get() as { spatial_config_json: string }).spatial_config_json).alternateStages).toMatchObject([
+      { stageId: "icebreaker", setupDetection: { position: [175.87, -9.5, -228], radius: 30 } },
+      { stageId: "laboratory", setupDetection: { position: [371, 46, 176], radius: 30 } },
+    ]);
+    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.ilios:initial'").get() as { spatial_config_json: string }).spatial_config_json).alternateStages).toMatchObject([
+      { stageId: "lighthouse", setupDetection: { position: [322.692, -21.52, 42.832], radius: 30 } },
+      { stageId: "ruins", setupDetection: { position: [131.609, 64.254, -159.135], radius: 30 } },
+    ]);
+    expect(sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.paraiso:initial'").get()).toEqual({ spatial_config_json: preservedParaisoSpatialConfig });
+    expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id FROM gameplay_revisions WHERE map_id = 'map.eichenwalde' ORDER BY id").all()).toEqual([
+      { id: "revision:map.eichenwalde:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null },
+      { id: "revision:map.eichenwalde:v0", lifecycle: "selectable", legacy_map_variant: "classic", copied_from_revision_id: "revision:map.eichenwalde:initial" },
+    ]);
+    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.eichenwalde:v0'").get() as { spatial_config_json: string }).spatial_config_json).bastionPositions[5]).toEqual([3.66, 9.08, -62.94]);
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.eichenwalde' ORDER BY gameplay_revision_id").all()).toEqual([
+      { gameplay_revision_id: "revision:map.eichenwalde:initial" },
+    ]);
+    const initialSpatialRows = sqlite.prepare("SELECT map_id, spatial_config_json FROM gameplay_revisions WHERE id LIKE 'revision:map.%:initial' AND spatial_config_json IS NOT NULL ORDER BY map_id").all() as Array<{ map_id: string; spatial_config_json: string }>;
+    expect(initialSpatialRows).toHaveLength(38);
+    for (const row of initialSpatialRows) expect(agentSpatialConfigSchema.safeParse(JSON.parse(row.spatial_config_json)).success, row.map_id).toBe(true);
+    const selectableSpatialRows = sqlite.prepare("SELECT map_id, spatial_config_json FROM gameplay_revisions WHERE id IN ('revision:map.circuit_royal:v0', 'revision:map.eichenwalde:v0', 'revision:map.hanamura:v0', 'revision:map.paris:v0') ORDER BY map_id").all() as Array<{ map_id: string; spatial_config_json: string }>;
+    expect(selectableSpatialRows).toHaveLength(4);
+    for (const row of selectableSpatialRows) expect(agentSpatialConfigSchema.safeParse(JSON.parse(row.spatial_config_json)).success, row.map_id).toBe(true);
     expect(() => sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, game_version, created_at, updated_at) VALUES ('revision:map.revision:duplicate', 'map.revision', 'default', NULL, '26.0810.1', 2, 2)").run()).toThrow();
     expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     expect((sqlite.prepare("PRAGMA table_info(gameplay_revisions)").all() as Array<{ name: string }>).some(({ name }) => name === "spatial_config_json")).toBe(true);

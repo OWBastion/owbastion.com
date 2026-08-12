@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -155,10 +155,16 @@ describe("v1 platform contracts", () => {
       challengeRefs: [{ family: "map", challengeId: "map.samoa.hell" }],
     } as const;
     expect(agentSpatialConfigSchema.safeParse(spatialConfig).success).toBe(true);
+    expect(agentSpatialConfigSchema.parse(spatialConfig).alternateStages).toEqual([]);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [revision] }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, endPosition: [Number.POSITIVE_INFINITY, 0, 0] }).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [[0, 0, 0]], respawnPositions: [[0, 0, 0], [1, 1, 1]], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [[0, 0, 0], [1, 1, 1]], respawnPositions: [[0, 0, 0]], respawnAxis: null, respawnAxisThreshold: null } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [], jumpPositions: [[0, 0, 0]], respawnPositions: [[0, 0, 0], [1, 1, 1]], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [], respawnPositions: [], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [], respawnPositions: [[0, 0, 0]], respawnAxis: null, respawnAxisThreshold: 1 } }).success).toBe(false);
+    const alternateStage = { stageId: "ruins", setupDetection: { position: [16, 17, 18], radius: 30 }, ...spatialConfig } as const;
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [{ ...alternateStage, setupDetection: { position: [16, 17, 18], radius: 0 } }] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage, alternateStage] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 
@@ -173,6 +179,10 @@ describe("v1 platform contracts", () => {
     expect(adminMapRevisionCreateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminMapRevisionCreateRequestSchema.parse({ ...input, resetReason: "  " }).resetReason).toBeNull();
     expect(adminMapRevisionCreateRequestSchema.safeParse({ ...input, gameVersion: "2099.01.01" }).success).toBe(false);
+
+    const update = { contractVersion: "1" as const, lifecycle: "preparing" as const, replacedDefaultLifecycle: null, mapVariant: null, spatialConfig: null, challengeAssignments: [] };
+    expect(adminMapRevisionUpdateRequestSchema.safeParse(update).success).toBe(true);
+    expect(adminMapRevisionUpdateRequestSchema.safeParse({ ...update, gameVersion: "2099.01.01" }).success).toBe(false);
   });
 
   it("requires a non-empty optional reason for manual title grants", () => {
