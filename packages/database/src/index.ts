@@ -1326,7 +1326,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       "    AND NOT EXISTS (SELECT 1 FROM map_title_rule_compat c WHERE c.legacy_challenge_id = tc.id)",
       ")",
       "ELSE NULL END AS public_challenge_id,",
-      "CASE WHEN a.challenge_family = 'map_challenge' THEN (",
+      "CASE WHEN a.challenge_family IN ('map_challenge', 'title_challenge') THEN (",
       "  SELECT c.rule_id FROM map_title_rule_compat c",
       "  WHERE c.legacy_challenge_id = a.challenge_id AND c.map_id = a.map_id LIMIT 1",
       ") ELSE NULL END AS compat_rule_id",
@@ -1364,7 +1364,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         for (const assignment of assignments) {
           if (assignment.assignment_map_id !== mapId || assignment.revision_map_id !== mapId) return null;
           let publicChallengeId = assignment.public_challenge_id;
-          if (assignment.challenge_family === "map_challenge" && assignment.compat_rule_id) {
+          if (assignment.compat_rule_id) {
             publicChallengeId = assignments.find((candidate) => candidate.challenge_family === "map_title_rule" && candidate.challenge_id === assignment.compat_rule_id)?.public_challenge_id ?? null;
           }
           if (!publicChallengeId) return null;
@@ -1385,9 +1385,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         });
         return parsed.success ? parsed.data : null;
       };
-      const defaultProjection = defaultRows.length === 1 ? projectRevision(defaultRows[0]) : null;
-      const projectedRevisions = defaultProjection
-        ? [defaultProjection, ...revisionRows.filter((row) => row.revision_lifecycle === "selectable").map(projectRevision).filter((revision): revision is NonNullable<typeof revision> => revision !== null)]
+      const candidateRevisions = defaultRows.length === 1 ? revisionRows.map(projectRevision) : [];
+      const projectedRevisions = candidateRevisions.every((revision): revision is AgentMap["gameplayRevisions"][number] => revision !== null)
+        ? candidateRevisions
         : [];
       projectedRevisions.sort((left, right) => (left.isDefault ? 0 : 1) - (right.isDefault ? 0 : 1)
         || (left.gameplayRevisionId < right.gameplayRevisionId ? -1 : left.gameplayRevisionId > right.gameplayRevisionId ? 1 : 0));
