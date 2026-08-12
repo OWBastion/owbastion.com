@@ -16,7 +16,7 @@ const selectedMapChallenges = computed(() => props.challenges.filter((challenge)
     <div class="catalog-heading"><h2 id="map-catalog-title">选择地图挑战</h2></div>
     <UFormField label="选择地图"><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /></UFormField>
     <div v-if="selectedMap" class="map-selection">
-      <div class="selection-heading"><span>地图挑战</span><strong>{{ selectedMap.mapName }}</strong></div>
+      <div class="selection-heading"><strong>{{ selectedMap.mapName }}</strong></div>
       <div v-if="selectedMapChallenges.length" class="map-objectives">
         <button v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}:${challenge.gameplayRevisionId}`" class="objective-button pressable-soft" :class="{ selected: props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId }" type="button" :aria-pressed="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId, gameplayRevisionId: challenge.gameplayRevisionId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span class="map-variant">{{ mapVariantLabel(challenge.mapVariant) }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></button>
       </div>

@@ -12,7 +12,7 @@ const requirements = [
 
 <template>
   <section class="requirements" aria-labelledby="requirements-title">
-    <SubmissionSectionHeading number="2." title="截图要求" heading-id="requirements-title" />
+    <SubmissionSectionHeading title="截图要求" heading-id="requirements-title" />
     <div class="requirement-list">
       <UCard v-for="item in requirements" :key="item.title" class="requirement-card" variant="subtle">
         <UIcon :name="item.icon" class="requirement-icon" aria-hidden="true" />

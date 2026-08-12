@@ -164,6 +164,7 @@ onMounted(() => { if (data.value && !data.value.challengeId) void loadCatalog();
 onMounted(() => {
   if (data.value?.status !== "ocr_pending") return;
   ocrPollTimer = setInterval(async () => {
+    if (document.visibilityState === "hidden") return;
     if (fetchStatus.value === "pending" || mutationBusy.value) return;
     try { await refresh(); } catch { return; }
     if (data.value?.status !== "ocr_pending" && ocrPollTimer) {
@@ -269,6 +270,10 @@ onBeforeUnmount(() => {
                 <SubmissionStatusBadge :status="data.status" />
               </div>
             </template>
+            <div v-if="data.status === 'ocr_pending'" class="ocr-wait">
+              <UProgress color="neutral" size="sm" aria-hidden="true" />
+              <span>识别中…</span>
+            </div>
             <dl class="detail-list">
               <div><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
               <div><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
@@ -427,6 +432,8 @@ onBeforeUnmount(() => {
 .evidence-col, .info-col { min-width: 0; }
 .info-col { display: grid; gap: 16px; }
 .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
+.ocr-wait { display: grid; gap: 6px; margin-top: 14px; }
+.ocr-wait > span { color: var(--muted); font-size: var(--type-caption-size); }
 .mastery-outcome { margin-top: 18px; }.overview-actions { display: grid; gap: 8px; margin-top: 22px; }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .evidence-message, .message { margin: 0; padding: 72px 0; color: var(--muted); font-size: .88rem; text-align: center; }

@@ -54,7 +54,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
     <UCard class="submission-card elevation-2" variant="subtle">
       <div class="submission-columns">
         <section class="upload-section" aria-labelledby="upload-title">
-          <SubmissionSectionHeading number="1." title="上传截图" heading-id="upload-title" />
+          <SubmissionSectionHeading title="上传截图" heading-id="upload-title" />
           <UForm :state="state" :validate="validate" :disabled="loading" aria-labelledby="upload-title" @submit="send">
             <UFormField name="screenshot">
               <UFileUpload
@@ -75,7 +75,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
             <UButton
               class="submit-button"
               :label="loading ? '上传中…' : '上传并识别截图'"
-              icon="i-lucide-sparkles"
+              icon="i-lucide-upload"
               :loading="loading"
               :disabled="loading || !state.screenshot"
               type="submit"
