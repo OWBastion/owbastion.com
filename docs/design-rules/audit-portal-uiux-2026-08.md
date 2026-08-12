@@ -1,14 +1,20 @@
 # Portal UI/UX 审计报告（2026-08）
 
+## 文档状态
+
+本文档为三轮审计的活动档案：**第一轮**（全量 4 路并行审计）→ **追加轮**（`204d9ea` 地图
+revision 编辑器）→ **第三轮**（PR #98 合并后复核 + apple-design 专项）。已解决与豁免的发现
+从待修清单移入[已解决清单](#已解决清单截至-pr-98)，待修项见[待修清单](#待修清单第三轮基线)。
+
 ## 元信息
 
 | 项 | 值 |
 | --- | --- |
-| 日期 | 2026-08-12（含追加轮：提交 `204d9ea` / `70d6ee4` 之后） |
+| 日期 | 2026-08-12（第三轮：PR #98 合并后） |
 | 范围 | `apps/portal`（全部 235 个源文件） |
 | 类型 | reference（设计规则合规性快照，不具约束力；正文引用的规则文档仍以 `docs/design-rules/` 权威文档为准） |
 | 验收标准 | `docs/design-rules/` 全部 12 篇权威文档、apple-design（WWDC 流体交互）、kill-ai-slop 35 项 tell |
-| 方法 | ① kill-ai-slop 扫描器全量扫描（296 处命中逐条人工核验）；② 4 路并行只读审计（公开目录 / 玩家中心与提交流 / 管理后台 / 内容与登录）；③ 主代理对全部 high-signal 发现二次读码复核；④ dev server 运行时验证（本环境不可达，见「待运行时验证」）；⑤ 追加轮：审计 `204d9ea feat(admin): add map revision editor` 引入的 4 个 Portal UI 文件 |
+| 方法 | ① kill-ai-slop 扫描器全量扫描（276 处命中逐条人工核验）；② 4 路并行只读审计；③ 主代理对全部 high-signal 发现二次读码复核；④ dev server 运行时验证（本环境不可达）；⑤ 追加轮：审计 `204d9ea` 地图 revision 编辑器；⑥ 第三轮：PR #98 修复项抽查 + 未修项状态复核 + apple-design 专项扫描 |
 
 ## 摘要
 
@@ -17,29 +23,70 @@ Portal 的**设计系统地基健康且高于平均水准**：语义 token / typ
 `position: fixed` 决策栏；无 `hover:scale` / `transition-all` 抖动；overlay 全部走
 `AdminResponsiveDialog`；无原生 file input；icon-only 控件均有 `aria-label`。
 
-**追加轮（204d9ea）**：重构后的 `pages/admin/maps.vue` 列表页合规良好，上一轮该文件的
-弹窗重复发现已随之解决；新引入的地图 revision 编辑器（4 个文件）主要问题是**中英混排文案**
-（全库中文 UI 中首次出现英文 h2 与英文产品词「Reset / Rework」「revision」），另有装饰性
-渐变、选中态仅靠颜色、三文件重复的一次性 type 等，共 10 项新发现。
+**第三轮（PR #98 合并后）**：批次 A + B 的 65 项发现已解决（含 S-01 豁免），抽查确认修复
+彻底生效（唯一残留为测试 stub 过时文案，见 r3-01）。剩余待修 27 项集中在四类：**需产品数据**
+（B-01 占位符）、**需人工语感**（批次 C：69 处 emoji 标题与 AI 腔）、**系统性 backlog**
+（m-26 px→rem、R-05 共享 section-heading）、**边缘装饰与低风险细节**（m-28/m-34/m-35/m-37、
+n-07~n-14 等）。apple-design 专项扫描无新违规。
 
-问题集中在四类：
+## 发现统计（第三轮状态）
 
-1. **已发布内容含占位符**（阻断）：changelog `26.0801.1` 含 `xx` / `xxx` 占位与空章节。
-2. **玩家侧文案与术语失守**：非规范状态词、「（可选）」标记（明令禁止）、地图挑战/成就挑战等管理台用词混入玩家页。（「不再发放」经产品确认合规，见[合规豁免记录](#合规豁免记录产品确认)。）
-3. **状态重复表达与删除测试不过关**：同一状态在多个层级重复、解释性文案未过删除测试。
-4. **首页与内容 markdown 的 AI 腔**：kicker 泛滥、emoji 标题、排比宣传句、整句加粗。
+按编号清单统计（原轮部分次要发现未进入 m 编号，故 minor/nit 行仅计编号项）：
 
-## 发现统计
-
-| 严重度 | 数量（唯一） | 说明 |
-| --- | --- | --- |
-| blocker | 1 | 已发布内容含占位符，必须修复 |
-| major | 11 | requiredness 违规、原生表格、证据顺序 / sticky 遮挡、状态重复；追加轮 +1（中英混排） |
-| minor | 56 | 文案冗余、断点 / 单位、无障碍语义、非规范状态词；追加轮 +6 |
-| nit | 29 | 一次性 type、装饰、格式 glitch、px 堆叠；追加轮 +3 |
-| **合计** | **原轮 97 + 追加轮 10 = 107** | S-01 已剔除（见[合规豁免记录](#合规豁免记录产品确认)）；m-20（maps.vue 弹窗重复）已随 `204d9ea` 重构解决，当前待修 106 项 |
+| 严重度 | 已解决 / 豁免 | 待修 | 说明 |
+| --- | --- | --- | --- |
+| blocker | 0 | 1 | B-01，需产品数据 |
+| major | 12 | 0 | S-02~S-12（11）+ R-01 |
+| minor | 36 | 11 | 已解决 m×32 + R-03/04/06/07；待修 m-26/28/34/35/37/39~42（9）+ R-02/05 |
+| nit | 17 | 16 | 已解决 n×15 + R-08/10；待修 n-07~14/17/21/25/27~29（14）+ R-09 + r3-01/r3-02 |
+| **合计** | **65** | **28** | 另 m-20 已随 `204d9ea` 解决、S-01 豁免；待修 28 = 26 原有编号项 + 第三轮新增 2 |
 
 按页面集群分布：公开目录 31 · 玩家中心与提交流 32（S-01 剔除）· 管理后台 22（+10 追加轮）· 内容与登录 14。
+
+## 已解决清单（截至 PR #98）
+
+| 分组 | 编号 |
+| --- | --- |
+| 严重级（11） | S-02、S-03、S-04、S-05、S-06、S-07、S-08、S-09、S-10、S-11、S-12 |
+| 追加轮（7） | R-01、R-03、R-04、R-06、R-07、R-08、R-10 |
+| 次要（32） | m-01~m-25（除 m-26）、m-27、m-29~m-33、m-36、m-38 |
+| 细节（15） | n-01~n-06、n-15、n-16、n-18、n-19、n-20、n-22、n-23、n-24、n-26 |
+| 豁免（1） | S-01（产品确认，术语表已登记例外） |
+
+已解决共 65 项（PR #98 的 11 个 commits + 204d9ea 的 m-20 + S-01 豁免）。修复内容与批次对应关系
+见 PR #98 描述；抽查验证：S-02/S-04/S-07/S-09/R-01/R-03 等均生效，`[submissionId]` 详情页
+状态 alert 去重、sticky 偏移、证据顺序均符合规范。
+
+## 待修清单（第三轮基线）
+
+| 分组 | 编号 | 阻塞原因 |
+| --- | --- | --- |
+| 阻断（1） | B-01 | 需产品提供英雄平衡数据 |
+| 追加轮（3） | R-02（内部架构说明）、R-05（共享 section-heading）、R-09（eyebrow 偏多） | R-05 影响面大，独立重构轨道 |
+| 次要（9） | m-26（px→rem backlog）、m-28（bindings 状态列）、m-34（MapCard 装饰）、m-35（EventDirectory 材料）、m-37（tip-icon，可保留）、m-39~m-42（批次 C 内容） | 批次 C 需人工语感 |
+| 细节（14） | n-07~n-14、n-17、n-21、n-25、n-27、n-28、n-29 | 低风险批量细节 |
+| 第三轮新增（2） | r3-01、r3-02，见[第三轮发现](#第三轮发现2026-08-12) | — |
+
+## 第三轮发现（2026-08-12）
+
+本轮复核：PR #98 修复项抽查（全部生效，见已解决清单）+ 未修项状态确认（B-01 占位符 26 处、
+内容 emoji 标题 69 处、px 堆叠、R-05 三处重复均仍在）+ apple-design 专项扫描。新发现 2 项：
+
+### 细节级（2）
+
+| # | 位置 | 问题 | 修复 |
+| --- | --- | --- | --- |
+| r3-01 | `pages/admin/maps/[mapId].test.ts:56` | 测试 stub 模板仍用旧标题「Gameplay revisions」，与 R-01 修复后的中文术语不一致（无害但过时） | 同步为「版本修订」 |
+| r3-02 | `components/admin/BindingInviteBatchPanel.vue:125` | `.batch-invites__actions { min-height: 34px }` 操作容器低于 44px 触控下限 | 提升到 `.hit-44` / `min-height: 44px` |
+
+### Apple-design 专项结论（无新违规）
+
+| 原则 | 结论 |
+| --- | --- |
+| §1 响应优先 | `pressable*` 在 pointer-down 生效、100ms 过渡；轮询（登录/绑定 2s poll）为产品行为，非延迟缺陷 |
+| §26 动效克制 | 全库无 `transition-all`；路由过渡仅 opacity；hover 反馈仅 color/background |
+| §10 触控 | 主操作均已达 44px 下限（本轮补修 login 40px 与提交详情 361–620px 区间）；仅 r3-02 一处批量面板容器 34px |
+| §7/§11 空间一致性 | 移动导航对称 enter/leave、证据列顺序（状态→证据→识别结果）已符合阅读连续性 |
 
 ## 阻断级发现（1）
 
@@ -252,14 +299,14 @@ aria-label 过滤控件），上一轮 m-20（弹窗 eyebrow 重复）已随之�
 | 原则 | 结论 |
 | --- | --- |
 | §1 响应优先 | `pressable` 在 pointer-down 生效、100ms 短过渡——达标 |
-| §7/§11 空间一致、内容连续性 | **移动端证据顺序违反阅读连续性（S-08）；sticky 证据被头部吞掉（S-09）**——本轮最贴近 apple-design 的两处缺陷 |
+| §7/§11 空间一致、内容连续性 | 第一轮的两处缺陷（S-08 证据顺序、S-09 sticky 遮挡）已随 PR #98 解决；第三轮专项扫描无新违规 |
 | §14 减速偏好 | 全局策略完整，优于多数项目 |
-| §1/§10 触控与直接操纵 | 上传预览 16:9 固定帧违背保真度精神（m-13 相关）；44px 下限覆盖不全（m-22） |
+| §1/§10 触控与直接操纵 | 44px 下限已补全（login、提交详情 361–620px）；仅 r3-02 一处批量面板容器 34px；上传预览固定 16:9 帧（m-13 相关）仍可改进为自然比例 |
 
 ## Kill-ai-slop 视角观察
 
-- 扫描器全量 296 处命中，**核验后绝大多数为误报**：`main.css` 的 `backdrop-filter` 是设计系统自有的材料语言（非玻璃滥用）；mono 字体仅用于 ID/代码/邀请码（非 tell 34）。
-- 真实 slop 集中在：**内容 markdown**（emoji 标题、AI 文案腔、格式 glitch）、**首页**（kicker 压满标题 tell 10、未开放三连、焦点面板重复）、边缘项（tip-icon 圆角图标块、自制 sunsetting pill）。
+- 扫描器全量 276 处命中（较首轮 296 下降，对应 PR #98 修复），**核验后绝大多数为误报**：`main.css` 的 `backdrop-filter` 是设计系统自有的材料语言（非玻璃滥用）；mono 字体仅用于 ID/代码/邀请码（非 tell 34）。
+- 真实 slop 现存集中于：**内容 markdown**（69 处 emoji 标题、AI 文案腔、格式 glitch——批次 C 待人工治理）；首页的 kicker/重复事实堆栈已随批次 B 重构解决；自制 sunsetting pill 已换 `StatusBadge`。
 
 ## 待运行时验证（1 项）
 
@@ -271,28 +318,31 @@ aria-label 过滤控件），上一轮 m-20（弹窗 eyebrow 重复）已随之�
 
 | 批次 | 内容 | 说明 |
 | --- | --- | --- |
-| **A · 立即（独立小修）** | B-01 占位符；S-02/S-03 术语；S-04/S-05（可选）；S-06 原生表格；S-07 alert 去重；S-09 sticky top；S-10 aria-pressed；m-01~m-10 状态词与句式；**R-01 中英混排、R-03 aria-pressed、R-04 渐变、R-06 required、R-07 断点** | 每项单文件单规则，可直接进 PR |
-| **B · 独立重构轨道** | 首页 `index.vue` 重写（去 kicker/描述/重复事实，对齐公开目录范式）；R-05 抽取共享 section-heading type | 一次只动一个表面 |
-| **C · 内容治理** | 全量清点 blog/changelog：删 emoji 标题、去 AI 腔、玩家侧 审核→核对 / OCR→识别 / 发放→获得 | 需人工判断语感，单独任务 |
-| **D · 布局 backlog** | 系统性 px→rem、断点收敛到 620/760/820（含 R-07）、44px 触控下限统一 | 按 layout-and-spacing §Refactor backlog 执行 |
+| **A′ · 立即（PR #98 遗留小修）** | r3-01/r3-02（测试 stub、34px 触控）；R-02（删内部架构说明）；m-28（bindings 移动端状态列置首）；n-25（link 破坏性行操作改按钮）；n-19 已随批次 B 解决 | 单文件单规则，可直接进 PR |
+| **B′ · 独立重构轨道** | R-05 抽取共享 section-heading type（协调 10 个既有使用处）；批次 C 内容治理（69 处 emoji 标题 + AI 腔，需人工语感） | 一次只动一个表面 |
+| **C′ · 布局与装饰 backlog** | m-26 系统性 px→rem；m-34/m-35 装饰收敛；m-37 可保留或简化 | 按 layout-and-spacing §Refactor backlog 执行 |
+| **D′ · 批量细节** | n-07~n-14（骨架 px、type）、n-17（ocrValue 措辞）、n-21（schema emoji 防护）、n-27（批面板动画）、n-28（card-in-card）、n-29（dashboard） | 低风险，可一次 PR 批量 |
 
-## 附录：高浓度文件索引
+**需产品数据**：B-01 changelog `26.0801.1` 占位符（26 处）——补全英雄平衡数据后发布。
 
-按发现数量排序（问题最集中的文件优先处理）：
+## 附录：待修高浓度文件索引
 
-| 文件 | 发现数 | 主要问题 |
+第三轮后仍含待修项的文件（按待修数排序）：
+
+| 文件 | 待修项 | 主要问题 |
 | --- | --- | --- |
-| `pages/submissions/[submissionId].vue` | 12 | 状态重复、证据顺序、sticky、句式、触控、px |
-| `components/AchievementSubmissionCatalog.vue` | 8 | 术语、选中态、内嵌滚动、一次性 active |
-| `pages/index.vue` | 14 | kicker 泛滥、重复事实、一次性 type/容器 |
-| `pages/admin/maps/[mapId].vue`（新增） | 6 | 中英混排、内部词说明、渐变、一次性 type/断点、eyebrow |
-| `components/admin/AdminMapRevisionEditor.vue`（新增） | 6 | 中英混排、内部架构说明、一次性 type、required 标记、aria 冲突 |
-| `components/admin/AdminMapRevisionList.vue`（新增） | 4 | 英文 h2、选中态 aria、一次性 type、eyebrow |
-| `components/admin/AdminPlayerTitles.vue` | 3 | 原生表格、tab aria、link 按钮 |
-| `pages/admin/player-reviews/index.vue` | 3 | （可选）、后果说明 |
-| `content/changelog/26.0801.1.md` | 1 | 占位符（阻断） |
+| `content/changelog/26.0801.1.md` | 1（阻断） | B-01 占位符，需产品数据 |
+| `content/blog/*` + `content/changelog/*`（6 文件） | m-39~m-42 | 批次 C：emoji 标题与 AI 腔，需人工语感 |
+| `components/admin/AdminMapRevisionEditor.vue` | 3 | R-02 内部说明、R-05 type、R-09 eyebrow |
+| `components/admin/AdminMapRevisionList.vue` | 3 | R-02/R-05/R-09 |
+| `pages/admin/maps/[mapId].vue` | 3 | R-02/R-05/R-09 |
+| `pages/admin/bindings.vue` | 1 | m-28 移动端状态列 |
+| `components/admin/AdminPlayerDetail.vue` | 2 | n-25 link 行操作（含 AdminTitleMigrationDetail） |
+| `components/maps/MapCard.vue` | 2 | m-34 装饰、n-10 type |
+| `components/admin/BindingInviteBatchPanel.vue` | 3 | r3-02 触控、n-27 动画、m-26 px |
+| 全库 scoped CSS | m-26 | px→rem 系统性 backlog |
 
 ---
 
-*本文档为 2026-08-12 静态审计快照。修复落地后应更新本文档或归档，并以
+*本文档为 2026-08-12 三轮审计的活动档案。修复落地后更新本清单，并以
 `docs/design-rules/README.md` 中的权威文档作为新改动的验收标准。*

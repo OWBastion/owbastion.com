@@ -34,7 +34,7 @@
 | [api-github-actions.md](deployment/api-github-actions.md) | API 部署手册 | authoritative | GitHub Actions、Worker、Queue、QQBot 集成部署 | API / 运维 |
 | [api-observability.md](deployment/api-observability.md) | API 运维手册 | authoritative | 生产 revision、缓存、Queue OCR 和请求追踪验证 | API / 运维 |
 | [portal-hkg.md](deployment/portal-hkg.md) | Portal 部署手册 | authoritative | HKG Docker Compose、镜像发布和 Tunnel 边界 | Portal / 运维 |
-| [audit-portal-uiux-2026-08.md](design-rules/audit-portal-uiux-2026-08.md) | UI/UX 审计快照 | reference | 2026-08 Portal 静态审计：发现清单与修复批次 | Portal |
+| [audit-portal-uiux-2026-08.md](design-rules/audit-portal-uiux-2026-08.md) | UI/UX 审计档案 | reference | 2026-08 三轮审计：已解决 / 待修 / 豁免状态 | Portal |
 
 ## 如何判断文档归属
 
