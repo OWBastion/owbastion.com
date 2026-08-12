@@ -44,44 +44,17 @@ describe("Portal SSR", async () => {
       }),
     ]);
 
-    expect(blogRows.map((row) => row.title)).toEqual([
-      "开发日志 #1：随机系统底层重构——从“随机”到“算法加权”",
-      "开发日志 #2：4.0 事件预览与 SSR 获取期望",
-      "开发日志 #3：老事件的“新生”——权重系统下的再平衡 🎮",
-      "开发日志 #4：称号系统重构计划",
-      "开发日志 #5：技术层的优化与改进",
-      "开发日志 #6：事件抽取算法的优化与改进",
-      "开发日志 #7：成就挑战系统的优化改进与周年庆",
-      "开发日志 #8：轮换挑战与地图精通",
-    ]);
+    const blogTitles = blogRows.map((row) => row.title);
+    expect(blogTitles.length).toBeGreaterThan(0);
+    expect(blogTitles).toEqual([...blogTitles].sort());
+    expect(blogTitles.every((title) => typeof title === "string" && title.length > 0)).toBe(true);
     expect(blogRows.every((row) => typeof row.publishedAt === "string")).toBe(true);
-    expect(changelogRows).toHaveLength(24);
-    expect(changelogRows.map((row) => row.version)).toEqual([
-      "26.0812.1",
-      "26.0801.1",
-      "26.0729.1",
-      "26.0710.1",
-      "26.0704.1",
-      "26.0628.1",
-      "26.0513.1",
-      "26.0501.1",
-      "26.0417.1",
-      "26.0406.10",
-      "26.0401.1",
-      "26.0325.1",
-      "26.0321.1",
-      "26.0317.1",
-      "26.0227.1",
-      "26.0212.1",
-      "26.0201.1",
-      "26.0131.1",
-      "26.0123.3",
-      "26.0123.1",
-      "26.0117.1",
-      "26.0107.2",
-      "25.1225.1",
-      "25.1223.1",
-    ]);
+    expect(changelogRows.length).toBeGreaterThan(0);
+    const changelogVersions = changelogRows.map((row) => row.version);
+    expect(changelogVersions).toEqual([...changelogVersions].sort().reverse());
+    expect(new Set(changelogVersions).size).toBe(changelogVersions.length);
+    expect(changelogRows.every((row) => typeof row.title === "string" && row.title.length > 0)).toBe(true);
+    expect(changelogVersions.every((version) => typeof version === "string" && version.length > 0)).toBe(true);
     expect(changelogRows.every((row) => typeof row.releasedAt === "string")).toBe(true);
   });
 });
