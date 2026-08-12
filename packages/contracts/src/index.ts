@@ -246,20 +246,17 @@ const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
 const spatialPositions = z.array(vector3).max(128);
 const requiredSpatialPositions = spatialPositions.min(1);
 const controlSpatialConfigSchema = z.object({
-  centerPositions: requiredSpatialPositions,
-  jumpPositions: requiredSpatialPositions,
-  respawnPositions: requiredSpatialPositions,
+  centerPositions: spatialPositions,
+  jumpPositions: spatialPositions,
+  respawnPositions: spatialPositions,
   respawnAxis: z.enum(["x", "y", "z"]).nullable(),
   respawnAxisThreshold: finiteCoordinate.refine((value) => value >= 0, "Threshold must be non-negative").nullable(),
 }).strict().superRefine((value, context) => {
-  if (value.centerPositions.length !== value.respawnPositions.length) {
-    context.addIssue({ code: "custom", path: ["centerPositions"], message: "Control center and respawn positions must have matching lengths" });
-  }
-  if (value.jumpPositions.length !== value.respawnPositions.length) {
-    context.addIssue({ code: "custom", path: ["jumpPositions"], message: "Control jump and respawn positions must have matching lengths" });
-  }
   if ((value.respawnAxis === null) !== (value.respawnAxisThreshold === null)) {
     context.addIssue({ code: "custom", path: ["respawnAxis"], message: "Control axis and threshold must be provided together" });
+  }
+  if (value.respawnAxis !== null && value.respawnPositions.length === 0) {
+    context.addIssue({ code: "custom", path: ["respawnPositions"], message: "Control axis requires a respawn position" });
   }
 });
 
