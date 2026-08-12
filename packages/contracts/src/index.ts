@@ -271,8 +271,13 @@ const spatialConfigFields = {
   portalPositions: spatialPositions,
   springboardPositions: spatialPositions,
 };
+const alternateStageSetupDetectionSchema = z.object({
+  position: vector3,
+  radius: finiteCoordinate.refine((value) => value > 0, "Detection radius must be positive"),
+}).strict();
 const alternateSpatialStageSchema = z.object({
   stageId: spatialStageId,
+  setupDetection: alternateStageSetupDetectionSchema,
   ...spatialConfigFields,
 }).strict();
 

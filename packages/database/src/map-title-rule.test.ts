@@ -588,8 +588,8 @@ describe("Agents map gameplay projection", () => {
     };
     seedAgentSpatialConfig(sqlite, "revision:map.agents:initial", {
       alternateStages: [
-        { stageId: "zeta", ...stageSpatialConfig },
-        { stageId: "alpha", ...stageSpatialConfig },
+        { stageId: "zeta", ...stageSpatialConfig, setupDetection: { position: [50, 51, 52], radius: 30 } },
+        { stageId: "alpha", ...stageSpatialConfig, setupDetection: { position: [53, 54, 55], radius: 30 } },
       ],
     });
     seedAgentSpatialConfig(sqlite, selectableRevisionId);
@@ -708,8 +708,8 @@ describe("Admin map revision editor", () => {
       spatialConfig: {
         ...r2.spatialConfig!,
         alternateStages: [
-          { stageId: "zeta", ...stageSpatialConfig },
-          { stageId: "alpha", ...stageSpatialConfig },
+          { stageId: "zeta", ...stageSpatialConfig, setupDetection: { position: [50, 51, 52], radius: 30 } },
+          { stageId: "alpha", ...stageSpatialConfig, setupDetection: { position: [53, 54, 55], radius: 30 } },
         ],
       },
     }, auth, "editor-update-r2");

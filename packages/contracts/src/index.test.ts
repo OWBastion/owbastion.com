@@ -161,8 +161,10 @@ describe("v1 platform contracts", () => {
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [], jumpPositions: [[0, 0, 0]], respawnPositions: [[0, 0, 0], [1, 1, 1]], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [], respawnPositions: [], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [[0, 0, 0]], jumpPositions: [], respawnPositions: [[0, 0, 0]], respawnAxis: null, respawnAxisThreshold: 1 } }).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [{ stageId: "ruins", ...spatialConfig }] }).success).toBe(true);
-    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [{ stageId: "ruins", ...spatialConfig }, { stageId: "ruins", ...spatialConfig }] }).success).toBe(false);
+    const alternateStage = { stageId: "ruins", setupDetection: { position: [16, 17, 18], radius: 30 }, ...spatialConfig } as const;
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [{ ...alternateStage, setupDetection: { position: [16, 17, 18], radius: 0 } }] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage, alternateStage] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 

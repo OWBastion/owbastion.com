@@ -108,6 +108,7 @@ describe("0061/0062/0063/0064/0065/0066 gameplay revision forward migrations", (
     sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = 'revision:map.paraiso:initial'").run(preservedParaisoSpatialConfig);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.eichen.initial', 'player.revision', 'CONQUEROR', 'map.eichenwalde', 'revision:map.eichenwalde:initial', 'conqueror', 'active', 'submission', 'submission.eichen.initial', 'admin', 1)").run();
     sqlite.exec(readFileSync(`${migrationsDirectory}/0066_backfill_initial_gameplay_revision_spatial_configs.sql`, "utf8"));
+    sqlite.exec(readFileSync(`${migrationsDirectory}/0067_add_alternate_stage_setup_detection.sql`, "utf8"));
 
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id, game_version FROM gameplay_revisions WHERE map_id = 'map.revision' ORDER BY id").all()).toEqual([
       { id: "revision:map.revision:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null, game_version: "26.0810.9" },
@@ -168,7 +169,14 @@ describe("0061/0062/0063/0064/0065/0066 gameplay revision forward migrations", (
       control: { respawnAxis: "z", respawnAxisThreshold: 30, respawnPositions: [[4.85, 15.5, 104.6]] },
       alternateStages: [],
     });
-    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.antarctic_peninsula:initial'").get() as { spatial_config_json: string }).spatial_config_json).alternateStages.map((stage: { stageId: string }) => stage.stageId)).toEqual(["icebreaker", "laboratory"]);
+    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.antarctic_peninsula:initial'").get() as { spatial_config_json: string }).spatial_config_json).alternateStages).toMatchObject([
+      { stageId: "icebreaker", setupDetection: { position: [175.87, -9.5, -228], radius: 30 } },
+      { stageId: "laboratory", setupDetection: { position: [371, 46, 176], radius: 30 } },
+    ]);
+    expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.ilios:initial'").get() as { spatial_config_json: string }).spatial_config_json).alternateStages).toMatchObject([
+      { stageId: "lighthouse", setupDetection: { position: [322.692, -21.52, 42.832], radius: 30 } },
+      { stageId: "ruins", setupDetection: { position: [131.609, 64.254, -159.135], radius: 30 } },
+    ]);
     expect(sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = 'revision:map.paraiso:initial'").get()).toEqual({ spatial_config_json: preservedParaisoSpatialConfig });
     expect(sqlite.prepare("SELECT id, lifecycle, legacy_map_variant, copied_from_revision_id FROM gameplay_revisions WHERE map_id = 'map.eichenwalde' ORDER BY id").all()).toEqual([
       { id: "revision:map.eichenwalde:initial", lifecycle: "default", legacy_map_variant: null, copied_from_revision_id: null },
