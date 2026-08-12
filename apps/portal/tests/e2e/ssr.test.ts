@@ -27,7 +27,7 @@ describe("Portal SSR", async () => {
     const html = await $fetch("/");
 
     expect(html).toMatch(/<h1[^>]*id="hero-title"[^>]*>躲避堡垒 3<\/h1>/);
-    expect(html).toContain("限时目标按期开放，首个轮换挑战当前未开放。");
+    expect(html).toContain("轮换挑战未开放");
     expect(html).toContain('href="/achievements"');
     expect(html).toContain('href="/changelog"');
   });

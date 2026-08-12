@@ -7,6 +7,12 @@ const menuOpen = ref(false);
 const menuButton = ref<HTMLButtonElement | null>(null);
 const menuPanel = ref<HTMLElement | null>(null);
 const route = useRoute();
+const menuFocusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(menuFocusableSelector))
+    .filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+}
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminNavigationItems = [
   { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin" },
@@ -38,8 +44,37 @@ function closeMenu(returnFocus = false) {
   if (returnFocus) nextTick(() => menuButton.value?.focus());
 }
 
+function focusFirstMenuControl() {
+  const panel = menuPanel.value;
+  if (!panel) return;
+  menuFocusableElements(panel)[0]?.focus();
+}
+
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
+  if (menuOpen.value) nextTick(focusFirstMenuControl);
+}
+
+/** Keep Tab ownership inside the open mobile nav (last -> first, Shift+Tab first -> last). */
+function handleMenuKeydown(event: KeyboardEvent) {
+  if (event.key !== "Tab") return;
+  const panel = menuPanel.value;
+  if (!panel) return;
+  const focusables = menuFocusableElements(panel);
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (!first || !last) return;
+  const target = event.target;
+  if (!(target instanceof Node) || !panel.contains(target)) return;
+  if (event.shiftKey) {
+    if (target === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (target === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
@@ -98,8 +133,6 @@ async function signOut() {
           <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
           <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
           <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
-          <NuxtLink to="/#rankings" class="hash-nav-link pressable">天梯排名</NuxtLink>
-          <NuxtLink to="/#rotation" class="hash-nav-link pressable">轮换挑战</NuxtLink>
         </template>
       </nav>
       <div class="account-actions">
@@ -126,6 +159,7 @@ async function signOut() {
           ref="menuPanel"
           class="mobile-nav glass-heavy elevation-2"
           :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
+          @keydown="handleMenuKeydown"
         >
           <template v-if="isAdminPage">
             <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
@@ -135,8 +169,6 @@ async function signOut() {
             <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
             <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
             <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
-            <NuxtLink to="/#rankings" class="hash-nav-link pressable" @click="closeMenu()">天梯排名</NuxtLink>
-            <NuxtLink to="/#rotation" class="hash-nav-link pressable" @click="closeMenu()">轮换挑战</NuxtLink>
           </template>
         </nav>
       </Transition>
@@ -164,7 +196,7 @@ async function signOut() {
   white-space: nowrap;
   transition: color 160ms ease, background 160ms ease;
 }
-.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active:not(.hash-nav-link),
+.main-nav a:hover, .main-nav a:focus-visible, .main-nav a.router-link-exact-active,
 .main-nav :deep([data-slot="link"]:hover), .main-nav :deep([data-slot="link"]:focus-visible),
 .main-nav :deep([data-slot="trigger"]:hover), .main-nav :deep([data-slot="trigger"]:focus-visible),
 .main-nav :deep([data-active="true"]) {
@@ -226,7 +258,7 @@ async function signOut() {
   }
   .mobile-nav a:hover,
   .mobile-nav a:focus-visible,
-  .mobile-nav a.router-link-exact-active:not(.hash-nav-link) {
+  .mobile-nav a.router-link-exact-active {
     color: var(--text-on-glass);
     background: var(--surface);
   }

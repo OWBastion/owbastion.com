@@ -10,8 +10,8 @@ mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref(null), loaded: ref
 
 /**
  * Mobile nav disclosure contract (documented for #62):
- * - Opening keeps focus on the trigger; Tab may enter the panel in document order.
- * - Tab/Shift+Tab are not trapped inside the non-modal panel.
+ * - Opening moves focus to the first focusable control inside the panel.
+ * - Tab/Shift+Tab are trapped inside the panel (last -> first, first -> last).
  * - Arrow/Home/End are left to UNavigationMenu (no custom roving layer).
  * - Escape closes and restores focus to the trigger.
  * - Outside pointer and route changes close without focus restoration.
@@ -63,28 +63,38 @@ describe("AppHeader", () => {
     focusSpy.mockRestore();
   });
 
-  it("keeps focus on the trigger when opening and does not trap Tab", async () => {
-    route.path = "/admin";
-    route.fullPath = "/admin";
+  it("moves focus into the mobile nav and traps Tab within it", async () => {
+    route.path = "/";
+    route.fullPath = "/";
     const wrapper = await mountHeader();
     const toggle = wrapper.get(".mobile-menu-toggle");
-    const focusCountBeforeOpen = focused.length;
 
     await toggle.trigger("click");
     await flushPromises();
 
-    expect(wrapper.get("#mobile-nav").exists()).toBe(true);
-    // Disclosure keeps focus on the trigger — no next-tick focus move into the panel.
-    expect(focused.length).toBe(focusCountBeforeOpen);
-
     const nav = wrapper.get("#mobile-nav");
-    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
-    nav.element.dispatchEvent(tabEvent);
-    expect(tabEvent.defaultPrevented).toBe(false);
+    expect(nav.exists()).toBe(true);
+    const links = nav.findAll("a");
+    expect(links.length).toBe(4);
+    const first = links[0];
+    const last = links[links.length - 1];
 
+    // Opening moves focus to the first focusable control.
+    expect(focused.at(-1)).toBe(first.element);
+
+    // Shift+Tab from the first control wraps to the last control.
+    focused = [];
     const shiftTabEvent = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
-    nav.element.dispatchEvent(shiftTabEvent);
-    expect(shiftTabEvent.defaultPrevented).toBe(false);
+    first.element.dispatchEvent(shiftTabEvent);
+    expect(shiftTabEvent.defaultPrevented).toBe(true);
+    expect(focused.at(-1)).toBe(last.element);
+
+    // Tab from the last control wraps back to the first control.
+    focused = [];
+    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    last.element.dispatchEvent(tabEvent);
+    expect(tabEvent.defaultPrevented).toBe(true);
+    expect(focused.at(-1)).toBe(first.element);
 
     focusSpy.mockRestore();
   });

@@ -16,7 +16,11 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
       <SubmissionStatusBadge :status="submission.status" />
     </NuxtLink>
   </div>
-  <UEmpty v-else title="暂无记录" variant="naked" />
+  <UEmpty v-else title="暂无提交记录" description="提交完成截图，开始记录你的地图精通进度。" variant="naked">
+    <template #actions>
+      <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" />
+    </template>
+  </UEmpty>
 </template>
 
 <style scoped>

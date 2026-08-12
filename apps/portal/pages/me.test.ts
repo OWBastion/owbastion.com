@@ -88,11 +88,8 @@ describe("me page", () => {
     const wrapper = await mountPage();
     expect(wrapper.find(".title-count").text()).toBe("3");
     expect(wrapper.find('button[data-to="/achievements"]').text()).toContain("查看全部成就");
-    expect(wrapper.text()).toContain("更多功能");
-    expect(wrapper.text()).toContain("未开放");
-    expect(wrapper.text().match(/未开放/g)?.length).toBe(1);
-    expect(wrapper.find(".upcoming-card").exists()).toBe(true);
-    expect(wrapper.find(".upcoming-card").attributes("aria-disabled")).toBeUndefined();
+    expect(wrapper.text()).not.toContain("更多功能");
+    expect(wrapper.find(".upcoming-card").exists()).toBe(false);
   });
 
   it("shows a successful empty title state without treating it as an error", async () => {

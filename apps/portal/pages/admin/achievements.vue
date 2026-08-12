@@ -439,7 +439,7 @@ onMounted(() => void load());
       <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="成就类型" class="catalog-tabs">
         <template #generic>
           <section class="catalog-section" aria-labelledby="title-achievements-title">
-            <PageSectionHeader title="称号挑战" eyebrow="通用成就" heading-id="title-achievements-title" :count="`${titleChallengeItems.length} 项`" />
+            <PageSectionHeader title="称号挑战" heading-id="title-achievements-title" :count="`${titleChallengeItems.length} 项`" />
             <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
               <template #filters>
                 <USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
@@ -494,7 +494,7 @@ onMounted(() => void load());
 
         <template #catalog>
           <section class="catalog-section" aria-labelledby="title-catalog-title">
-            <PageSectionHeader title="称号定义" eyebrow="称号目录" heading-id="title-catalog-title" :count="`${catalogItems.length} 项`" />
+            <PageSectionHeader title="称号定义" heading-id="title-catalog-title" :count="`${catalogItems.length} 项`" />
             <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
                 <USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />

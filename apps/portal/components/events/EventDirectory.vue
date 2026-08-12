@@ -36,6 +36,15 @@ const detailOpen = computed({
 const statusText = (value: RandomEvent["releaseStatus"]) => value === "implemented" ? "已实装" : value === "removed" ? "已移除" : "开发中";
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";
 const unannotatedEffectTags = (event: RandomEvent) => event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value));
+const visibleEffectChips = (event: RandomEvent) => {
+  const rawTags = unannotatedEffectTags(event);
+  const annotations = event.effectAnnotations.slice(0, 3);
+  return {
+    annotations,
+    rawTags: rawTags.slice(0, Math.max(0, 3 - annotations.length)),
+    overflow: Math.max(0, event.effectAnnotations.length + rawTags.length - 3),
+  };
+};
 const probability = (event: RandomEvent) => calculateEventProbabilities(event, props.events);
 const reviewSummaries = useReviewSummaries("event", () => props.events.map((event) => event.eventId));
 const reviewLoading = computed(() => reviewSummaries.loading.value);
@@ -62,25 +71,18 @@ onMounted(() => { hydrated.value = true; });
         </div>
         <div class="event-grid">
           <button v-for="event in group.events" :key="event.eventId" class="event-card interactive-card pressable-soft" type="button" @click="selected = event">
-            <div class="card-top">
-              <div class="card-badges">
-                <UBadge :label="event.category" :color="categoryColor(event.category)" variant="subtle" />
-                <span class="event-rarity">{{ event.rarity }}</span>
-              </div>
-              <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
-            </div>
             <h3>{{ event.name }}</h3>
+            <div class="card-meta">
+              <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
+              <span class="event-category">{{ event.category }}</span>
+              <span class="event-rarity">{{ event.rarity }}</span>
+            </div>
             <p>{{ event.description }}</p>
             <div class="event-card-footer">
               <div class="event-tags">
-                <EffectGlossaryTooltip v-for="annotation in event.effectAnnotations" :key="annotation.term.key" :annotation="annotation" />
-                <UBadge
-                  v-for="tag in event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value))"
-                  :key="`raw-${tag}`"
-                  :label="tag"
-                  color="neutral"
-                  variant="subtle"
-                />
+                <EffectGlossaryTooltip v-for="annotation in visibleEffectChips(event).annotations" :key="annotation.term.key" :annotation="annotation" />
+                <UBadge v-for="tag in visibleEffectChips(event).rawTags" :key="`raw-${tag}`" :label="tag" color="neutral" variant="subtle" />
+                <span v-if="visibleEffectChips(event).overflow" class="effect-overflow">+{{ visibleEffectChips(event).overflow }}</span>
               </div>
               <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
             </div>
@@ -88,7 +90,7 @@ onMounted(() => { hydrated.value = true; });
         </div>
       </section>
     </div>
-    <UEmpty v-else title="暂无事件" description="没有符合当前筛选条件的事件。" variant="naked" />
+    <UEmpty v-else title="暂无事件" description="没有符合当前筛选条件的事件，试试调整状态、类别或稀有度筛选。" variant="naked" />
 
     <DefineHeaderTags>
       <div v-if="selected" class="detail-header-tags">
@@ -196,9 +198,9 @@ onMounted(() => { hydrated.value = true; });
   text-align: left;
   font: inherit;
 }
-.card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.card-badges { display: flex; align-items: center; gap: 8px; }
-.event-rarity { color: var(--accent); font-size: .72rem; font-weight: 750; letter-spacing: .06em; }
+.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.event-category { color: var(--quiet); font-size: .72rem; font-weight: 650; letter-spacing: .04em; }
+.event-rarity { color: var(--quiet); font-size: .72rem; font-weight: 650; letter-spacing: .06em; }
 .event-card h3 { margin: 0; font-size: 1.08rem; font-weight: 650; letter-spacing: var(--type-headline-tracking); }
 .event-card p {
   display: -webkit-box;
@@ -210,7 +212,7 @@ onMounted(() => { hydrated.value = true; });
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.event-card-footer { display: grid; gap: 9px; align-items: end; }.event-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.event-card-footer { display: grid; gap: 9px; align-items: end; }.event-tags { display: flex; flex-wrap: wrap; gap: 6px; }.effect-overflow { color: var(--quiet); font-size: .72rem; font-weight: 650; }
 .detail { display: grid; gap: 18px; }
 .detail-header-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .description { margin: 0; color: var(--text); line-height: 1.65; }

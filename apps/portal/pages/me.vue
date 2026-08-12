@@ -102,7 +102,6 @@ onMounted(() => {
           <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
         </div>
         <div class="intro-actions">
-          <UButton to="/blog" label="开发日志" color="neutral" variant="outline" size="lg" class="intro-action" />
           <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
         </div>
       </section>
@@ -165,15 +164,6 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="upcoming-section" aria-labelledby="upcoming-title" aria-describedby="upcoming-status">
-        <PageSectionHeader title="更多功能" heading-id="upcoming-title" />
-        <p id="upcoming-status" class="upcoming-status">未开放</p>
-        <div class="upcoming-grid">
-          <article class="upcoming-card surface-card">
-            <h3 class="type-headline">轮换挑战</h3>
-          </article>
-        </div>
-      </section>
     </template>
 
     <div v-else-if="showSkeleton" class="me-skeleton" role="status" aria-label="读取中…">
@@ -221,18 +211,6 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="me-skeleton-section" aria-hidden="true">
-        <div class="me-skeleton-section-heading me-skeleton-section-heading-plain">
-          <USkeleton class="me-skeleton-section-title" />
-        </div>
-        <div class="me-skeleton-upcoming-grid">
-          <article v-for="card in 2" :key="`upcoming-${card}`" class="me-skeleton-upcoming-card surface-card">
-            <div class="me-skeleton-upcoming-copy">
-              <USkeleton class="me-skeleton-upcoming-title" />
-            </div>
-          </article>
-        </div>
-      </section>
     </div>
 
     <section v-else-if="playerLoadFailed" class="me-state surface-card" aria-labelledby="me-error-title">
@@ -257,31 +235,11 @@ onMounted(() => {
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.75rem; }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: 20px; }
-.section-block, .upcoming-section { margin-top: clamp(56px, 8vw, 88px); }
+.section-block { margin-top: clamp(56px, 8vw, 88px); }
 .titles-section { margin-top: clamp(52px, 8vw, 86px); }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .titles-loading-card { min-height: 112px; border-radius: 16px; }
 .mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.mastery-loading > * { min-height: 132px; border-radius: 16px; }
-.upcoming-status { margin: -4px 0 14px; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
-.upcoming-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.upcoming-card {
-  position: relative;
-  display: flex;
-  min-height: 12.5rem;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  padding: 20px;
-  color: var(--muted);
-  background: var(--surface-raised);
-  pointer-events: none;
-  user-select: none;
-}
-.upcoming-card .type-headline {
-  margin: 0;
-  color: color-mix(in oklch, var(--text) 72%, var(--muted));
-  font-size: clamp(1.1rem, 2vw, 1.35rem);
-}
 .me-state { display: grid; gap: 16px; justify-items: start; max-width: 640px; padding: clamp(24px, 5vw, 40px); }
 .me-state .body-copy { margin: 0; }
 .me-skeleton { display: grid; }
@@ -330,19 +288,8 @@ onMounted(() => {
 .me-skeleton-submission-name { width: min(42%, 220px); height: 18px; }
 .me-skeleton-submission-date { width: 30%; height: 12px; }
 .me-skeleton-submission-status { width: 68px; height: 24px; border-radius: 999px; }
-.me-skeleton-upcoming-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.me-skeleton-upcoming-card {
-  display: flex;
-  min-height: 12.5rem;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 20px;
-}
-.me-skeleton-upcoming-copy { display: grid; gap: 10px; }
-.me-skeleton-upcoming-title { width: 124px; height: 24px; }
 @media (max-width: 760px) {
-  .upcoming-grid, .titles-loading, .mastery-loading, .me-skeleton-title-grid, .me-skeleton-upcoming-grid { grid-template-columns: 1fr; }
-  .upcoming-card, .me-skeleton-upcoming-card { min-height: 10.5rem; }
+  .titles-loading, .mastery-loading, .me-skeleton-title-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .intro { align-items: stretch; flex-direction: column; gap: 22px; }

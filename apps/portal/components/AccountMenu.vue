@@ -14,7 +14,6 @@ const items = computed<DropdownMenuItem[][]>(() => {
     links.push({ label: "管理后台", icon: "i-lucide-settings-2", to: "/admin" });
     links.push({ label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink });
   }
-  links.push({ label: "设置", icon: "i-lucide-sliders-horizontal", to: "/me#appearance", exactHash: true });
   links.push({
     label: "退出",
     icon: "i-lucide-log-out",
