@@ -627,6 +627,8 @@ describe("Agents map gameplay projection", () => {
     seedRevisionAssignment(sqlite, { gameplayRevisionId: classicRevisionId, mapId: "map.classic", challengeFamily: "title_challenge", challengeId: "title.CLASSIC" });
     seedAgentSpatialConfig(sqlite, "revision:map.classic:initial");
     seedAgentSpatialConfig(sqlite, classicRevisionId);
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.classic', '1002', 'Classic Player', 'classic player', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.classic', 'player.classic', 'CLASSIC', 'map.classic', ?, NULL, 'active', 'submission', 'source.classic', 'admin', ?)").run(classicRevisionId, now);
     const services = createPlatformServices(database);
 
     const map = (await services.getAgentMap({ mapId: "map.classic" }))!;
@@ -635,6 +637,9 @@ describe("Agents map gameplay projection", () => {
       classicRevisionId,
     ]);
     expect(map.gameplayRevisions[1]?.challengeRefs).toEqual([{ family: "map", challengeId: "title.CLASSIC" }]);
+    await expect(services.listAgentMapTitleHolders({ mapId: "map.classic", page: 1, pageSize: 20 })).resolves.toMatchObject({
+      items: [expect.objectContaining({ mapId: "map.classic", gameplayRevisionId: classicRevisionId, titleKey: "CLASSIC", slot: null, slotSemantics: "none" })],
+    });
   });
 });
 
@@ -651,6 +656,30 @@ describe("Agents map projection readiness", () => {
 
     const map = (await services.getAgentMap({ mapId: "map.agents" }))!;
     expect(map.gameplayRevisions).toEqual([]);
+  });
+
+  it("keeps a valid map with zero legitimate holders as an empty projection", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.empty");
+    seedAgentSpatialConfig(sqlite, "revision:map.empty:initial");
+    const services = createPlatformServices(database);
+
+    await expect(services.listAgentMapTitleHolders({ mapId: "map.empty", page: 1, pageSize: 20 })).resolves.toMatchObject({
+      contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false,
+    });
+  });
+
+  it("does not turn durable grants into an empty projection when an enabled map is unavailable", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.unavailable");
+    seedTitle(sqlite, "PIONEER");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.unavailable', '1003', 'Unavailable Player', 'unavailable player', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.unavailable', 'player.unavailable', 'PIONEER', 'map.unavailable', 'revision:map.unavailable:initial', 'pioneer', 'active', 'submission', 'source.unavailable', 'admin', ?)").run(now);
+    const services = createPlatformServices(database);
+
+    await expect(services.listAgentMapTitleHolders({ mapId: "map.unavailable", page: 1, pageSize: 20 })).rejects.toThrow("AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE");
   });
 
   it("fails closed when a compat title alias lacks its mapped rule assignment", async () => {

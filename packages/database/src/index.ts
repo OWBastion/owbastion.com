@@ -2588,7 +2588,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
       const map = await this.getAgentMap({ mapId: input.mapId });
       const projectableRevisionIds = map?.gameplayRevisions.map((revision) => revision.gameplayRevisionId) ?? [];
-      if (!projectableRevisionIds.length) return { contractVersion: "1" as const, ...paginate([], input.page, input.pageSize) };
+      if (!map) throw new Error("AGENT_MAP_NOT_FOUND");
+      if (!projectableRevisionIds.length) throw new Error("AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE");
       const rows = await db.select({ mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
         .from(playerTitleGrants)
         .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))

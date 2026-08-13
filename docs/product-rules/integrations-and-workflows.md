@@ -381,6 +381,11 @@ read D1 as the authoritative source and never expose historical or revoked
 grants to the Bastion build. Portal edits are immediately visible through the
 D1-backed service. Optional HTTP response caching belongs at the HTTP boundary
 and must not alter database-service reads or become a second catalog truth.
+For an active map whose enabled revision projection is incomplete or otherwise
+unavailable, the map-holder endpoint returns `503 AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE`;
+it never returns a trustworthy-looking
+empty holder page. A valid, projectable map with no active holders still returns
+the ordinary `200` empty page.
 Submission-status reads are intentionally uncached: workflow state is
 authoritative in D1 and each refresh observes the latest committed transition.
 

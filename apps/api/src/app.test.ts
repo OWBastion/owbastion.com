@@ -184,6 +184,17 @@ describe("API", () => {
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
+  it("fails closed when map title-holder projection is unavailable", async () => {
+    const agentApp = createApp({ authenticate: auth, services: () => ({
+      ...services,
+      getAgentMap: async () => ({ mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [] }),
+      listAgentMapTitleHolders: async () => { throw new Error("AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE"); },
+    }) });
+    const response = await agentApp.request("http://localhost/v1/agents/map-title-holders?mapId=map.test&page=1&pageSize=20", {}, env);
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ contractVersion: "1", error: { code: "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE" } });
+  });
+
   it("can disable public Agents HTTP caching without changing catalog data", async () => {
     const response = await app.request("http://localhost/v1/agents/maps?page=1&pageSize=20", {}, { ...env, PUBLIC_HTTP_CACHE_ENABLED: "false" });
     expect(response.status).toBe(200);

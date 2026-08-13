@@ -862,7 +862,14 @@ export const createApp = (dependencies: AppDependencies) => {
   app.get("/v1/agents/map-title-holders", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required"); setAgentsCache(c, includePlayerIds, true);
     if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
-    return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
+    try {
+      return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "AGENT_MAP_TITLE_PROJECTION_FAILED";
+      if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") return errorResponse(c, 503, code, "The map title-holder projection is temporarily unavailable");
+      if (code === "AGENT_MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+      throw error;
+    }
   });
   app.get("/v1/agents/search", async (c) => {
     allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
