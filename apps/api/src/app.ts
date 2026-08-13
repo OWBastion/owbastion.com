@@ -866,7 +866,10 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
     } catch (error) {
       const code = error instanceof Error ? error.message : "AGENT_MAP_TITLE_PROJECTION_FAILED";
-      if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") return errorResponse(c, 503, code, "The map title-holder projection is temporarily unavailable");
+      if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") {
+        c.header("Cache-Control", "private, no-store");
+        return errorResponse(c, 503, code, "The map title-holder projection is temporarily unavailable");
+      }
       if (code === "AGENT_MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
       throw error;
     }
