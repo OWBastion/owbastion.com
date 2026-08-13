@@ -5,6 +5,18 @@ import { nextTick, ref } from "vue";
 import MapEditorPage from "./[mapId].vue";
 import { formatCurrentGameVersion } from "~/utils/game-version";
 
+const pageStubs = {
+  AdminMapRevisionList: { template: "<div>版本修订</div>" },
+  AdminMapRevisionEditor: { template: "<div>编辑当前边界</div>" },
+  AdminResponsiveDialog: { props: ["open"], template: "<div v-if=\"open\"><slot name=\"body\" /><slot name=\"footer\" /></div>" },
+  StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
+  UTabs: {
+    props: ["modelValue", "items"],
+    emits: ["update:modelValue"],
+    template: '<div><button v-for="item in items" :key="item.value" type="button" @click="$emit(\'update:modelValue\', item.value)">{{ item.label }}</button></div>',
+  },
+};
+
 const resetRequests: Array<Record<string, unknown>> = [];
 const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
   if (path === "/v1/maps/map.samoa/editor") {
@@ -71,14 +83,7 @@ describe("admin map editor page", () => {
   it("loads the editor for the dynamic map route", async () => {
     const wrapper = await mountSuspended(MapEditorPage, {
       route: "/admin/maps/map.samoa",
-      global: {
-        stubs: {
-          AdminMapRevisionList: { template: "<div>Gameplay revisions</div>" },
-          AdminMapRevisionEditor: { template: "<div>编辑当前边界</div>" },
-          AdminResponsiveDialog: { props: ["open"], template: "<div v-if=\"open\"><slot name=\"body\" /><slot name=\"footer\" /></div>" },
-          StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-        },
-      },
+      global: { stubs: pageStubs },
     });
     await flushPromises();
 
@@ -86,27 +91,48 @@ describe("admin map editor page", () => {
     expect(wrapper.text()).toContain("地图编辑器");
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("编辑当前边界");
+    expect(wrapper.text()).toContain("修订");
+    expect(wrapper.text()).toContain("属性");
+    expect(wrapper.text()).toContain("记录");
+    expect(wrapper.text()).not.toContain("稳定地图身份");
+    expect(wrapper.text()).not.toContain("普通保存");
+    expect(wrapper.text()).not.toContain("可追溯变更");
     expect(wrapper.text()).not.toContain("地图管理");
+    expect(wrapper.text()).toContain("版本修订");
+    expect(wrapper.text()).not.toContain("Gameplay revisions");
+  });
+
+  it("keeps map attributes off the default revision workspace", async () => {
+    const wrapper = await mountSuspended(MapEditorPage, {
+      route: "/admin/maps/map.samoa",
+      global: { stubs: pageStubs },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("保存地图属性");
+    const attributesTab = wrapper.findAll("button").find((button) => button.text() === "属性");
+    expect(attributesTab).toBeDefined();
+    await attributesTab!.trigger("click");
+    await nextTick();
+    expect(wrapper.text()).toContain("保存地图属性");
+    expect(wrapper.text()).not.toContain("编辑当前边界");
   });
 
   it("defaults a reset revision to today's version and lets the administrator change it", async () => {
     resetRequests.length = 0;
     const wrapper = await mountSuspended(MapEditorPage, {
       route: "/admin/maps/map.samoa",
-      global: {
-        stubs: {
-          AdminMapRevisionList: { template: "<div>Gameplay revisions</div>" },
-          AdminMapRevisionEditor: { template: "<div>编辑当前边界</div>" },
-          AdminResponsiveDialog: { props: ["open"], template: "<div v-if=\"open\"><slot name=\"body\" /><slot name=\"footer\" /></div>" },
-          StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-        },
-      },
+      global: { stubs: pageStubs },
     });
     await flushPromises();
     const openReset = wrapper.findAll("button").find((button) => button.text().includes("重置 / 重做"));
     await openReset!.trigger("click");
     await nextTick();
 
+    expect(wrapper.text()).toContain("来源版本修订");
+    expect(wrapper.text()).toContain("复制空间配置和挑战分配");
+    expect(wrapper.text()).not.toContain("来源 revision");
+    expect(wrapper.text()).not.toContain("challenge assignments");
     expect(wrapper.get("textarea[placeholder^='例如：地图几何']").attributes("required")).toBeUndefined();
     const targetVersion = wrapper.findAll("input").find((input) => (input.element as HTMLInputElement).value === formatCurrentGameVersion());
     expect(targetVersion).toBeDefined();

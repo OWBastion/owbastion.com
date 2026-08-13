@@ -21,6 +21,7 @@ const resetReason = shallowRef("");
 const resetMapVariant = shallowRef<"classic" | null>(null);
 const resetCopyConfiguration = shallowRef(true);
 const resetGameVersion = shallowRef("");
+const workspacePane = shallowRef<"revision" | "attributes" | "audit">("revision");
 const metadata = reactive<{ gameVersion: string; coverUrl: string; backgroundUrl: string; difficultyRating: Map["difficultyRating"]; mechanics: string[] }>({
   gameVersion: "",
   coverUrl: "",
@@ -35,6 +36,11 @@ const selectedRevision = computed(() => revisions.value.find((revision) => revis
 const replacedDefaultRevision = computed(() => revisions.value.find((revision) => revision.lifecycle === "default" && revision.revisionId !== selectedRevisionId.value) ?? null);
 const audit = computed(() => api.editor.value?.audit ?? []);
 const title = computed(() => map.value ? `${map.value.mapName} · 地图编辑器` : "地图编辑器");
+const workspaceTabs = [
+  { label: "修订", value: "revision" },
+  { label: "属性", value: "attributes" },
+  { label: "记录", value: "audit" },
+];
 const lifecycleLabels = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" } as const;
 const auditLabels: Record<string, string> = {
   "admin.map.metadata.update": "保存地图属性",
@@ -42,6 +48,10 @@ const auditLabels: Record<string, string> = {
   "admin.map.revision.update": "保存版本修订",
 };
 const resetMapVariantItems = [{ value: null, label: "正式版" }, { value: "classic", label: "经典版" }];
+const difficultyItems = [
+  { label: "暂无评级", value: null },
+  ...(["T0", "T1", "T2", "T3", "T4", "T5"] as const).map((rating) => ({ label: rating, value: rating })),
+];
 
 function syncMetadata(value: Map | null) {
   if (!value) return;
@@ -119,6 +129,7 @@ async function createResetRevision() {
       copyConfiguration: resetCopyConfiguration.value,
     });
     selectedRevisionId.value = revision.revisionId;
+    workspacePane.value = "revision";
     resetOpen.value = false;
     toast.add({ title: "新的准备中版本修订已创建", description: "玩家进度未被复制。完成配置后，再将它设为默认或可选。", color: "success" });
   } catch (cause) {
@@ -130,7 +141,7 @@ async function createResetRevision() {
 
 function auditPayload(auditItem: (typeof audit.value)[number]) {
   const payload = auditItem.payload;
-  if (auditItem.operation === "admin.map.revision.create") return payload.progressCopied === false ? "复制配置；未复制进度" : "创建 revision";
+  if (auditItem.operation === "admin.map.revision.create") return payload.progressCopied === false ? "复制配置；未复制进度" : "创建版本修订";
   if (auditItem.operation === "admin.map.revision.update") return `状态：${String(payload.previousLifecycle ?? "—")} → ${String(payload.lifecycle ?? "—")}；未复制进度`;
   return "地图属性变更";
 }
@@ -140,87 +151,89 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 </script>
 
 <template>
-  <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : map ? `${revisions.length} 个 revision` : ''">
+  <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : map ? `${revisions.length} 个版本修订` : ''">
     <template #actions>
       <UButton to="/admin/maps" label="返回地图目录" color="neutral" variant="outline" />
-      <UButton v-if="map" label="重置 / 重做" icon="i-lucide-git-branch-plus" color="neutral" @click="openReset" />
+      <UButton v-if="map" class="pressable" label="重置 / 重做" icon="i-lucide-git-branch-plus" color="neutral" @click="openReset" />
     </template>
     <template #messages>
       <UAlert v-if="api.error.value || actionError" color="error" variant="subtle" :description="api.error.value || actionError" />
     </template>
+    <template v-if="map" #toolbar>
+      <UTabs v-model="workspacePane" :items="workspaceTabs" variant="link" aria-label="地图编辑器分区" />
+    </template>
 
-    <div v-if="map" class="map-editor-layout">
-      <aside class="map-editor-sidebar">
-        <section class="map-summary" aria-labelledby="map-summary-title">
-          <p class="eyebrow">稳定地图身份</p>
-          <h2 id="map-summary-title">{{ map.mapName }}</h2>
-          <p>{{ map.mapId }}</p>
-          <span>目录版本 {{ map.gameVersion }}</span>
+    <div v-if="map && workspacePane === 'revision'" class="map-editor">
+      <aside class="map-editor__master">
+        <section class="map-identity" aria-label="地图身份">
+          <p class="map-identity__id">{{ map.mapId }}</p>
+          <p class="type-caption">目录版本 {{ map.gameVersion }}</p>
         </section>
         <AdminMapRevisionList :revisions="revisions" :selected-revision-id="selectedRevisionId" :disabled="api.saving.value" @select="selectedRevisionId = $event" />
       </aside>
-
-      <div class="map-editor-main">
-        <section class="metadata-card" aria-labelledby="metadata-title">
-          <header class="section-heading">
-            <div>
-              <p class="eyebrow">普通保存</p>
-              <h2 id="metadata-title">地图属性</h2>
-            </div>
-            <span class="section-note">不改变 revision 生命周期</span>
-          </header>
-          <form class="metadata-form" @submit.prevent="saveMetadata">
-            <div class="metadata-form__grid">
-              <UFormField label="地图难度评级" hint="地图综合评级，不等同于挑战难度。">
-                <USelect v-model="metadata.difficultyRating" :items="[{ label: '暂无评级', value: null }, ...(['T0', 'T1', 'T2', 'T3', 'T4', 'T5'] as const).map((rating) => ({ label: rating, value: rating }))]" :disabled="metadataSaving" />
-              </UFormField>
-              <UFormField label="特殊机制" hint="平台服务端负责最终数量和长度校验。">
-                <UInputTags v-model="metadata.mechanics" :disabled="metadataSaving" placeholder="输入机制标签" />
-              </UFormField>
-            </div>
-            <div class="metadata-form__grid">
-              <UFormField label="目录版本" required><UInput v-model="metadata.gameVersion" required :disabled="metadataSaving" /></UFormField>
-              <UFormField label="地图封面地址"><UInput v-model="metadata.coverUrl" type="url" placeholder="https://…" :disabled="metadataSaving" /></UFormField>
-              <UFormField label="地图背景地址"><UInput v-model="metadata.backgroundUrl" type="url" placeholder="https://…" :disabled="metadataSaving" /></UFormField>
-            </div>
-            <div class="form-actions"><UButton type="submit" label="保存地图属性" :loading="metadataSaving" :disabled="metadataSaving" /></div>
-          </form>
-        </section>
-
-        <AdminMapRevisionEditor v-if="selectedRevision" :revision="selectedRevision" :replaced-default-revision="replacedDefaultRevision" :challenge-catalog="api.editor.value?.challengeCatalog ?? []" :saving="api.saving.value" @save="saveRevision" />
-
-        <section class="audit-card" aria-labelledby="audit-title">
-          <header class="section-heading">
-            <div>
-              <p class="eyebrow">可追溯变更</p>
-              <h2 id="audit-title">审计记录</h2>
-            </div>
-            <span class="section-note">{{ audit.length }} 条</span>
-          </header>
-          <ol v-if="audit.length" class="audit-list">
-            <li v-for="item in audit" :key="`${item.createdAt}:${item.operation}:${item.entityId}`">
-              <div>
-                <strong>{{ auditLabels[item.operation] ?? item.operation }}</strong>
-                <p>{{ auditPayload(item) }}</p>
-              </div>
-              <span>{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(item.createdAt) }}</span>
-            </li>
-          </ol>
-          <p v-else class="empty-note">暂无地图编辑记录。</p>
-        </section>
+      <div class="map-editor__detail">
+        <AdminMapRevisionEditor
+          v-if="selectedRevision"
+          :revision="selectedRevision"
+          :replaced-default-revision="replacedDefaultRevision"
+          :challenge-catalog="api.editor.value?.challengeCatalog ?? []"
+          :saving="api.saving.value"
+          @save="saveRevision"
+        />
       </div>
     </div>
-    <p v-else-if="!api.loading.value" class="admin-empty">地图不存在，或当前账号没有访问权限。</p>
+
+    <form v-else-if="map && workspacePane === 'attributes'" class="pane-form" @submit.prevent="saveMetadata">
+      <div class="pane-form__fields">
+        <UFormField label="地图难度评级" hint="地图综合评级，不等同于挑战难度。">
+          <USelect v-model="metadata.difficultyRating" :items="difficultyItems" :disabled="metadataSaving" />
+        </UFormField>
+        <UFormField label="特殊机制" hint="平台服务端负责最终数量和长度校验。">
+          <UInputTags v-model="metadata.mechanics" :disabled="metadataSaving" placeholder="输入机制标签" />
+        </UFormField>
+        <UFormField label="目录版本" required>
+          <UInput v-model="metadata.gameVersion" required :disabled="metadataSaving" />
+        </UFormField>
+        <UFormField label="地图封面地址">
+          <UInput v-model="metadata.coverUrl" type="url" placeholder="https://…" :disabled="metadataSaving" />
+        </UFormField>
+        <UFormField label="地图背景地址">
+          <UInput v-model="metadata.backgroundUrl" type="url" placeholder="https://…" :disabled="metadataSaving" />
+        </UFormField>
+      </div>
+      <div class="pane-toolbar glass elevation-1 scroll-edge-sticky">
+        <UButton type="submit" class="pressable" label="保存地图属性" :loading="metadataSaving" :disabled="metadataSaving" />
+      </div>
+    </form>
+
+    <section v-else-if="map && workspacePane === 'audit'" class="audit-pane" aria-labelledby="audit-title">
+      <header class="audit-pane__header">
+        <h2 id="audit-title" class="type-headline">记录</h2>
+        <span class="type-caption">{{ audit.length }} 条</span>
+      </header>
+      <ol v-if="audit.length" class="audit-list">
+        <li v-for="item in audit" :key="`${item.createdAt}:${item.operation}:${item.entityId}`">
+          <div>
+            <strong>{{ auditLabels[item.operation] ?? item.operation }}</strong>
+            <p>{{ auditPayload(item) }}</p>
+          </div>
+          <span>{{ new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(item.createdAt) }}</span>
+        </li>
+      </ol>
+      <UEmpty v-else title="暂无地图编辑记录" />
+    </section>
+
+    <UEmpty v-else-if="!api.loading.value" title="地图不存在，或当前账号没有访问权限" />
 
     <AdminResponsiveDialog v-model:open="resetOpen" title="重置 / 重做 · 创建新版本修订" description="新版本修订从准备中开始。复制配置不会复制任何玩家进度。" size="md" :dismissible="!resetSaving">
       <template #body>
         <form id="map-reset-form" class="reset-form" @submit.prevent="createResetRevision">
-          <UFormField label="来源 revision" hint="可选择任意保留的 revision 作为配置来源。">
+          <UFormField label="来源版本修订" hint="可选择任意保留的版本修订作为配置来源。">
             <USelect v-model="resetSourceId" :items="[{ label: '不指定来源', value: null }, ...revisions.map((revision) => ({ label: `${revision.revisionId} · ${lifecycleLabels[revision.lifecycle]}`, value: revision.revisionId }))]" :disabled="resetSaving || !resetCopyConfiguration" />
           </UFormField>
-          <UCheckbox v-model="resetCopyConfiguration" label="复制空间配置和 challenge assignments" :disabled="resetSaving" />
+          <UCheckbox v-model="resetCopyConfiguration" label="复制空间配置和挑战分配" :disabled="resetSaving" />
           <UFormField label="重置 / 重做理由"><UTextarea v-model="resetReason" :rows="3" placeholder="例如：地图几何重新制作，重新建立公平边界" :disabled="resetSaving" /></UFormField>
-          <div class="metadata-form__grid">
+          <div class="reset-form__grid">
             <UFormField label="目标游戏版本" hint="默认使用今天的日期，可由管理员修改。"><UInput v-model="resetGameVersion" required :disabled="resetSaving" /></UFormField>
             <UFormField label="地图变体"><USelect v-model="resetMapVariant" :items="resetMapVariantItems" :disabled="resetSaving" /></UFormField>
           </div>
@@ -228,34 +241,107 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
       </template>
       <template #footer>
         <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
-        <UButton type="submit" form="map-reset-form" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving" />
+        <UButton type="submit" form="map-reset-form" class="pressable" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.map-editor-layout { display: grid; grid-template-columns: minmax(15rem, 20rem) minmax(0, 1fr); gap: clamp(18px, 3vw, 32px); align-items: start; }
-.map-editor-sidebar, .map-editor-main { display: grid; gap: 18px; min-width: 0; }
-.map-summary, .metadata-card, .audit-card { padding: clamp(16px, 2.5vw, 24px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-.map-summary { background: var(--accent-surface); }
-.map-summary h2 { margin: 5px 0 8px; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -.04em; overflow-wrap: anywhere; }
-.map-summary p:last-of-type { margin: 0; color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; overflow-wrap: anywhere; }
-.map-summary span { display: block; margin-top: 12px; color: var(--quiet); font-size: var(--type-caption-size); }
-.section-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
-.section-heading h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
-.section-heading .eyebrow { margin: 0 0 5px; }
-.section-note, .empty-note { color: var(--quiet); font-size: var(--type-caption-size); }
-.metadata-card, .audit-card { display: grid; gap: 16px; }
-.metadata-form, .reset-form { display: grid; gap: 14px; }
-.metadata-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.form-actions { display: flex; justify-content: flex-end; padding-top: 4px; }
-.audit-list { display: grid; gap: 0; padding: 0; margin: 0; list-style: none; border-top: 1px solid var(--line); }
-.audit-list li { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.audit-list strong { font-size: .84rem; }
-.audit-list p { margin: 4px 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
-.audit-list span { flex: 0 0 auto; color: var(--quiet); font-size: var(--type-caption-size); }
-.empty-note { margin: 0; }
-@media (max-width: 820px) { .map-editor-layout { grid-template-columns: 1fr; } .map-editor-sidebar { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); align-items: start; } }
-@media (max-width: 620px) { .map-editor-sidebar, .metadata-form__grid { grid-template-columns: 1fr; } .section-heading { align-items: start; flex-direction: column; } .form-actions :deep(button) { width: 100%; } .audit-list li { flex-direction: column; gap: 5px; } }
+.map-editor {
+  display: grid;
+  grid-template-columns: minmax(min(100%, 16rem), 20rem) minmax(0, 1fr);
+  gap: clamp(1.125rem, 3vw, 2rem);
+  align-items: start;
+}
+.map-editor__master,
+.map-editor__detail,
+.pane-form,
+.audit-pane {
+  display: grid;
+  gap: 1.125rem;
+  min-width: 0;
+}
+.map-identity {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.map-identity__id {
+  margin: 0;
+  color: var(--quiet);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-caption-size);
+  overflow-wrap: anywhere;
+}
+.map-identity .type-caption {
+  margin: 0;
+  color: var(--quiet);
+}
+.pane-form__fields,
+.reset-form {
+  display: grid;
+  gap: 0.875rem;
+}
+.pane-form__fields {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+.reset-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+}
+.pane-toolbar {
+  position: sticky;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.875rem;
+}
+.audit-pane__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.audit-pane__header h2 { margin: 0; }
+.audit-list {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.audit-list li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.audit-list strong { font-size: 0.875rem; }
+.audit-list p,
+.audit-list span {
+  margin: 0.25rem 0 0;
+  color: var(--quiet);
+  font-size: var(--type-caption-size);
+}
+.audit-list span {
+  flex: 0 0 auto;
+  margin: 0;
+}
+@media (max-width: 51.25rem) {
+  .map-editor { grid-template-columns: 1fr; }
+}
+@media (max-width: 38.75rem) {
+  .pane-toolbar { justify-content: stretch; }
+  .pane-toolbar :deep(button) { width: 100%; }
+  .audit-list li { flex-direction: column; gap: 0.35rem; }
+}
 </style>
