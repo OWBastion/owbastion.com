@@ -2,6 +2,7 @@
 import type { Map } from "~/composables/useSubmissionUpload";
 import type { AdminMapRevisionUpdateInput } from "~/composables/useAdminMapEditor";
 import { useAdminMapEditor } from "~/composables/useAdminMapEditor";
+import { formatCurrentGameVersion } from "~/utils/game-version";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
@@ -19,7 +20,9 @@ const resetSourceId = shallowRef<string | null>(null);
 const resetReason = shallowRef("");
 const resetMapVariant = shallowRef<"classic" | null>(null);
 const resetCopyConfiguration = shallowRef(true);
-const metadata = reactive<{ coverUrl: string; backgroundUrl: string; difficultyRating: Map["difficultyRating"]; mechanics: string[] }>({
+const resetGameVersion = shallowRef("");
+const metadata = reactive<{ gameVersion: string; coverUrl: string; backgroundUrl: string; difficultyRating: Map["difficultyRating"]; mechanics: string[] }>({
+  gameVersion: "",
   coverUrl: "",
   backgroundUrl: "",
   difficultyRating: null,
@@ -30,7 +33,6 @@ const map = computed(() => api.editor.value?.map ?? null);
 const revisions = computed(() => api.editor.value?.revisions ?? []);
 const selectedRevision = computed(() => revisions.value.find((revision) => revision.revisionId === selectedRevisionId.value) ?? null);
 const replacedDefaultRevision = computed(() => revisions.value.find((revision) => revision.lifecycle === "default" && revision.revisionId !== selectedRevisionId.value) ?? null);
-const resetGameVersion = computed(() => map.value?.gameVersion ?? "");
 const audit = computed(() => api.editor.value?.audit ?? []);
 const title = computed(() => map.value ? `${map.value.mapName} · 地图编辑器` : "地图编辑器");
 const lifecycleLabels = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" } as const;
@@ -43,6 +45,7 @@ const resetMapVariantItems = [{ value: null, label: "正式版" }, { value: "cla
 
 function syncMetadata(value: Map | null) {
   if (!value) return;
+  metadata.gameVersion = value.gameVersion;
   metadata.coverUrl = value.coverUrl ?? "";
   metadata.backgroundUrl = value.backgroundUrl ?? "";
   metadata.difficultyRating = value.difficultyRating;
@@ -69,6 +72,7 @@ async function saveMetadata() {
   actionError.value = "";
   try {
     await api.saveMetadata({
+      gameVersion: metadata.gameVersion.trim(),
       difficultyRating: metadata.difficultyRating,
       mechanics: metadata.mechanics,
       coverUrl: metadata.coverUrl.trim() || null,
@@ -96,6 +100,7 @@ async function saveRevision(input: AdminMapRevisionUpdateInput) {
 function openReset() {
   resetSourceId.value = selectedRevision.value?.revisionId ?? revisions.value.find((revision) => revision.lifecycle === "default")?.revisionId ?? null;
   resetReason.value = "";
+  resetGameVersion.value = formatCurrentGameVersion();
   resetMapVariant.value = null;
   resetCopyConfiguration.value = true;
   resetOpen.value = true;
@@ -109,6 +114,7 @@ async function createResetRevision() {
     const revision = await api.createRevision({
       sourceRevisionId: resetCopyConfiguration.value ? resetSourceId.value : null,
       resetReason: resetReason.value.trim() || null,
+      gameVersion: resetGameVersion.value.trim(),
       mapVariant: resetMapVariant.value,
       copyConfiguration: resetCopyConfiguration.value,
     });
@@ -173,6 +179,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
               </UFormField>
             </div>
             <div class="metadata-form__grid">
+              <UFormField label="目录版本" required><UInput v-model="metadata.gameVersion" required :disabled="metadataSaving" /></UFormField>
               <UFormField label="地图封面地址"><UInput v-model="metadata.coverUrl" type="url" placeholder="https://…" :disabled="metadataSaving" /></UFormField>
               <UFormField label="地图背景地址"><UInput v-model="metadata.backgroundUrl" type="url" placeholder="https://…" :disabled="metadataSaving" /></UFormField>
             </div>
@@ -214,7 +221,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
           <UCheckbox v-model="resetCopyConfiguration" label="复制空间配置和 challenge assignments" :disabled="resetSaving" />
           <UFormField label="重置 / 重做理由"><UTextarea v-model="resetReason" :rows="3" placeholder="例如：地图几何重新制作，重新建立公平边界" :disabled="resetSaving" /></UFormField>
           <div class="metadata-form__grid">
-            <UFormField label="目标游戏版本"><UInput :model-value="resetGameVersion" readonly /></UFormField>
+            <UFormField label="目标游戏版本" hint="默认使用今天的日期，可由管理员修改。"><UInput v-model="resetGameVersion" required :disabled="resetSaving" /></UFormField>
             <UFormField label="地图变体"><USelect v-model="resetMapVariant" :items="resetMapVariantItems" :disabled="resetSaving" /></UFormField>
           </div>
         </form>

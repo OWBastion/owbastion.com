@@ -3,6 +3,7 @@ import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
 import MapEditorPage from "./[mapId].vue";
+import { formatCurrentGameVersion } from "~/utils/game-version";
 
 const resetRequests: Array<Record<string, unknown>> = [];
 const adminApi = vi.fn(async (path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
@@ -88,7 +89,7 @@ describe("admin map editor page", () => {
     expect(wrapper.text()).not.toContain("地图管理");
   });
 
-  it("creates a reset revision without a reason and shows the current map version as readonly", async () => {
+  it("defaults a reset revision to today's version and lets the administrator change it", async () => {
     resetRequests.length = 0;
     const wrapper = await mountSuspended(MapEditorPage, {
       route: "/admin/maps/map.samoa",
@@ -107,8 +108,8 @@ describe("admin map editor page", () => {
     await nextTick();
 
     expect(wrapper.get("textarea[placeholder^='例如：地图几何']").attributes("required")).toBeUndefined();
-    const targetVersion = wrapper.get("input[readonly]");
-    expect((targetVersion.element as HTMLInputElement).value).toBe("2026.08.12");
+    const targetVersion = wrapper.findAll("input").find((input) => (input.element as HTMLInputElement).value === formatCurrentGameVersion());
+    expect(targetVersion).toBeDefined();
     expect(wrapper.findAll("button").find((button) => button.text().includes("创建准备中版本修订"))?.attributes("disabled")).toBeUndefined();
 
     await wrapper.get("#map-reset-form").trigger("submit");
@@ -117,6 +118,7 @@ describe("admin map editor page", () => {
       contractVersion: "1",
       sourceRevisionId: "revision:map.samoa:initial",
       resetReason: null,
+      gameVersion: formatCurrentGameVersion(),
       mapVariant: null,
       copyConfiguration: true,
     }]);

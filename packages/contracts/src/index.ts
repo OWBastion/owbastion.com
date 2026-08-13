@@ -420,6 +420,7 @@ export const adminReviewStateModerationRequestSchema = z.object({ contractVersio
 
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
+  gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
   coverUrl: z.string().trim().url().max(2048).nullable(),
@@ -446,6 +447,7 @@ export const adminMapRevisionCreateRequestSchema = z.object({
   contractVersion,
   sourceRevisionId: externalId.nullable().optional(),
   resetReason: z.string().trim().max(512).transform((value) => value || null).nullable().optional(),
+  gameVersion: z.string().trim().min(1).max(64).optional(),
   mapVariant: z.literal("classic").nullable(),
   copyConfiguration: z.boolean(),
   spatialConfig: agentSpatialConfigSchema.nullable().optional(),
@@ -455,6 +457,7 @@ export const adminMapRevisionUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: adminMapRevisionLifecycle,
   replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable().optional(),
+  gameVersion: z.string().trim().min(1).max(64),
   mapVariant: z.literal("classic").nullable(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),

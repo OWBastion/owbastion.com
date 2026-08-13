@@ -12,6 +12,7 @@ import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
 
 const now = () => Date.now();
+const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 const normalizedOcrDifficulty = (value: unknown) => {
   const label = normalizedOcrLabel(value);
@@ -2761,10 +2762,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!map) throw new Error("MAP_NOT_FOUND");
       const mechanics = [...new Set(input.mechanics.map((value) => value.trim()).filter(Boolean))];
       const timestamp = now();
+      await db.update(maps).set({ gameVersion: input.gameVersion, updatedAt: timestamp }).where(eq(maps.id, input.mapId));
       await db.insert(mapMetadata).values({ mapId: input.mapId, difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject }).onConflictDoUpdate({ target: mapMetadata.mapId, set: { difficultyRating: input.difficultyRating, mechanicsJson: JSON.stringify(mechanics), coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl, updatedAt: timestamp, updatedBy: auth.subject } });
-      const response: Map = { mapId: map.id, mapName: map.name, gameVersion: map.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
+      const response: Map = { mapId: map.id, mapName: map.name, gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl };
       await recordIdempotency(db, auth.subject, "admin.map.metadata.update", idempotencyKey, input, response);
-      await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
+      await recordAudit(db, auth, "admin.map.metadata.update", "map_metadata", input.mapId, { gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl });
       return response;
     },
 
@@ -2794,7 +2796,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         source = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"))).get() ?? null;
         if (!source) throw new Error("REVISION_SOURCE_NOT_FOUND");
       }
-      const gameVersion = map.gameVersion;
+      const gameVersion = input.gameVersion ?? formatCurrentGameVersion();
       const resetReason = input.resetReason ?? null;
 
       const sourceAssignments = source
@@ -2871,7 +2873,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
         )] : []),
         database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-          input.lifecycle, input.mapVariant, current.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
+          input.lifecycle, input.mapVariant, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
         ),
         database.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = ?").bind(input.revisionId),
       ];
@@ -2892,6 +2894,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", input.revisionId, {
         previousLifecycle: current.lifecycle,
         lifecycle: input.lifecycle,
+        gameVersion: input.gameVersion,
         replacedDefaultRevisionId: otherDefault?.id ?? null,
         replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null,
         assignmentCount: input.challengeAssignments.length,

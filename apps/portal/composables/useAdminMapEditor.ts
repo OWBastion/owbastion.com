@@ -61,6 +61,7 @@ export type AdminMapRevisionUpdateInput = {
   contractVersion: "1";
   lifecycle: AdminMapRevisionLifecycle;
   replacedDefaultLifecycle?: AdminMapRevisionReplacementLifecycle | null;
+  gameVersion: string;
   mapVariant: "classic" | null;
   spatialConfig: Record<string, unknown> | null;
   challengeAssignments: AdminMapRevisionAssignmentInput[];
@@ -86,7 +87,7 @@ export function useAdminMapEditor(mapId: string) {
     }
   };
 
-  const saveMetadata = async (input: { difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
+  const saveMetadata = async (input: { gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
     saving.value = true;
     try {
       const map = await api<Map>(`/v1/maps/${encodeURIComponent(mapId)}/metadata`, {
@@ -134,6 +135,7 @@ export function useAdminMapEditor(mapId: string) {
   const createRevision = async (input: {
     sourceRevisionId: string | null;
     resetReason: string | null;
+    gameVersion?: string;
     mapVariant: "classic" | null;
     copyConfiguration: boolean;
   }) => {

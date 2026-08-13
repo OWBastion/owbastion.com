@@ -26,6 +26,7 @@ const replacementLifecycleItems = [{ value: "selectable", label: "保留为可�
 const lifecycle = shallowRef<AdminMapRevisionLifecycle>(props.revision.lifecycle);
 const replacedDefaultLifecycle = shallowRef<AdminMapRevisionReplacementLifecycle>("selectable");
 const mapVariant = shallowRef<"classic" | null>(props.revision.mapVariant);
+const gameVersion = shallowRef(props.revision.gameVersion);
 const spatialJson = shallowRef("");
 const spatialError = shallowRef("");
 const assignments = shallowRef<Record<string, AdminMapRevisionAssignmentInput>>({});
@@ -35,6 +36,7 @@ const sync = (revision: AdminMapEditorRevision) => {
   lifecycle.value = revision.lifecycle;
   replacedDefaultLifecycle.value = "selectable";
   mapVariant.value = revision.mapVariant;
+  gameVersion.value = revision.gameVersion;
   spatialJson.value = revision.spatialConfig ? JSON.stringify(revision.spatialConfig, null, 2) : "";
   spatialError.value = "";
   assignments.value = Object.fromEntries(revision.challengeAssignments.map((assignment) => [assignmentKey(assignment.challengeFamily, assignment.challengeId), {
@@ -97,6 +99,7 @@ function save() {
     contractVersion: "1",
     lifecycle: lifecycle.value,
     replacedDefaultLifecycle: isReplacingDefault.value ? replacedDefaultLifecycle.value : null,
+    gameVersion: gameVersion.value.trim(),
     mapVariant: mapVariant.value,
     spatialConfig,
     challengeAssignments: Object.values(assignments.value),
@@ -121,8 +124,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <UFormField label="生命周期" hint="平台服务端会校验可用的状态转换。">
           <USelect v-model="lifecycle" :items="lifecycleItems" :disabled="saving" />
         </UFormField>
-        <UFormField label="游戏版本">
-          <UInput :model-value="revision.gameVersion" readonly />
+        <UFormField label="游戏版本" hint="创建新版本时默认使用当前日期，可由管理员修改。">
+          <UInput v-model="gameVersion" required :disabled="saving" />
         </UFormField>
         <UFormField label="地图变体" hint="默认 revision 必须使用正式版。">
           <USelect v-model="mapVariant" :items="mapVariantItems" :disabled="saving" />

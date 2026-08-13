@@ -174,15 +174,15 @@ describe("v1 platform contracts", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected" }).success).toBe(true);
   });
 
-  it("keeps reset reasons optional and derives the target game version on the platform", () => {
+  it("keeps reset reasons optional and allows an automatic or administrator-defined game version", () => {
     const input = { contractVersion: "1" as const, sourceRevisionId: "revision:map.busan:initial", mapVariant: null, copyConfiguration: true };
     expect(adminMapRevisionCreateRequestSchema.safeParse(input).success).toBe(true);
     expect(adminMapRevisionCreateRequestSchema.parse({ ...input, resetReason: "  " }).resetReason).toBeNull();
-    expect(adminMapRevisionCreateRequestSchema.safeParse({ ...input, gameVersion: "2099.01.01" }).success).toBe(false);
+    expect(adminMapRevisionCreateRequestSchema.safeParse({ ...input, gameVersion: "2099.01.01" }).success).toBe(true);
 
-    const update = { contractVersion: "1" as const, lifecycle: "preparing" as const, replacedDefaultLifecycle: null, mapVariant: null, spatialConfig: null, challengeAssignments: [] };
+    const update = { contractVersion: "1" as const, lifecycle: "preparing" as const, replacedDefaultLifecycle: null, gameVersion: "2099.01.01", mapVariant: null, spatialConfig: null, challengeAssignments: [] };
     expect(adminMapRevisionUpdateRequestSchema.safeParse(update).success).toBe(true);
-    expect(adminMapRevisionUpdateRequestSchema.safeParse({ ...update, gameVersion: "2099.01.01" }).success).toBe(false);
+    expect(adminMapRevisionUpdateRequestSchema.safeParse({ ...update, gameVersion: "  " }).success).toBe(false);
   });
 
   it("requires a non-empty optional reason for manual title grants", () => {
