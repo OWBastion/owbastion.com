@@ -27,8 +27,8 @@ const lifecycle = shallowRef<AdminMapRevisionLifecycle>(props.revision.lifecycle
 const replacedDefaultLifecycle = shallowRef<AdminMapRevisionReplacementLifecycle>("selectable");
 const mapVariant = shallowRef<"classic" | null>(props.revision.mapVariant);
 const gameVersion = shallowRef(props.revision.gameVersion);
-const spatialJson = shallowRef("");
-const spatialError = shallowRef("");
+const spatialConfig = shallowRef<Record<string, unknown> | null>(props.revision.spatialConfig);
+const spatialInputValid = shallowRef(true);
 const assignments = shallowRef<Record<string, AdminMapRevisionAssignmentInput>>({});
 
 const assignmentKey = (family: AdminMapRevisionChallengeFamily, challengeId: string) => `${family}:${challengeId}`;
@@ -37,8 +37,8 @@ const sync = (revision: AdminMapEditorRevision) => {
   replacedDefaultLifecycle.value = "selectable";
   mapVariant.value = revision.mapVariant;
   gameVersion.value = revision.gameVersion;
-  spatialJson.value = revision.spatialConfig ? JSON.stringify(revision.spatialConfig, null, 2) : "";
-  spatialError.value = "";
+  spatialConfig.value = revision.spatialConfig;
+  spatialInputValid.value = true;
   assignments.value = Object.fromEntries(revision.challengeAssignments.map((assignment) => [assignmentKey(assignment.challengeFamily, assignment.challengeId), {
     challengeFamily: assignment.challengeFamily,
     challengeId: assignment.challengeId,
@@ -75,33 +75,15 @@ const toggleAssignment = (option: AdminMapEditorChallengeOption, enabled: boolea
   };
 };
 
-const parseSpatial = (): Record<string, unknown> | null | undefined => {
-  const value = spatialJson.value.trim();
-  if (!value) return null;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      spatialError.value = "空间配置必须是 JSON 对象。";
-      return undefined;
-    }
-    spatialError.value = "";
-    return parsed as Record<string, unknown>;
-  } catch {
-    spatialError.value = "空间配置不是有效 JSON。";
-    return undefined;
-  }
-};
-
 function save() {
-  const spatialConfig = parseSpatial();
-  if (spatialConfig === undefined) return;
+  if (!spatialInputValid.value) return;
   emit("save", {
     contractVersion: "1",
     lifecycle: lifecycle.value,
     replacedDefaultLifecycle: isReplacingDefault.value ? replacedDefaultLifecycle.value : null,
     gameVersion: gameVersion.value.trim(),
     mapVariant: mapVariant.value,
-    spatialConfig,
+    spatialConfig: spatialConfig.value,
     challengeAssignments: Object.values(assignments.value),
   });
 }
@@ -147,11 +129,16 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         <p v-else class="empty-note">当前地图没有可分配的挑战定义。</p>
       </fieldset>
 
-      <details class="spatial-advanced">
+      <details class="spatial-advanced" open>
         <summary>空间配置</summary>
-        <UFormField hint="使用平台 contract 的 JSON 表示；具体字段、坐标和引用由服务端统一校验。">
-          <UTextarea v-model="spatialJson" :rows="10" class="spatial-input" :disabled="saving" spellcheck="false" />
-          <p v-if="spatialError" class="field-error" role="alert">{{ spatialError }}</p>
+        <UFormField hint="直接粘贴游戏内已经定位的点位代码，页面会自动转换；保存时仍由服务端做最终校验。">
+          <AdminSpatialConfigInput
+            :model-value="spatialConfig"
+            :revision-key="revision.revisionId"
+            :disabled="saving"
+            @update:model-value="spatialConfig = $event"
+            @valid="spatialInputValid = $event"
+          />
         </UFormField>
       </details>
 

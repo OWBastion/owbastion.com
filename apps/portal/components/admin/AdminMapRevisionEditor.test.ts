@@ -44,6 +44,7 @@ describe("AdminMapRevisionEditor", () => {
           },
           UInput: { props: ["modelValue", "readonly"], emits: ["update:modelValue"], template: "<input :value=\"modelValue\" :readonly=\"readonly\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
           UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: "<textarea :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
+          AdminSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: "<div />" },
           UCheckbox: { props: ["label"], template: "<label><input type=\"checkbox\" />{{ label }}</label>" },
           UButton: { props: ["disabled"], template: "<button :disabled=\"disabled\"><slot /></button>" },
         },
@@ -55,7 +56,7 @@ describe("AdminMapRevisionEditor", () => {
     expect(wrapper.text()).not.toContain("单图挑战");
     expect(wrapper.text()).not.toContain("地图称号挑战");
     expect(wrapper.get("details").text()).toContain("空间配置");
-    expect(wrapper.find("details[open]").exists()).toBe(false);
+    expect(wrapper.find("details[open]").exists()).toBe(true);
 
     const versionInput = wrapper.findAll("input")[0]!;
     expect((versionInput.element as HTMLInputElement).value).toBe("26.0812.1");
