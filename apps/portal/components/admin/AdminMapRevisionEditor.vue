@@ -131,15 +131,13 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
 
       <details class="spatial-advanced" open>
         <summary>空间配置</summary>
-        <UFormField hint="直接粘贴游戏内已经定位的点位代码，页面会自动转换；保存时仍由服务端做最终校验。">
-          <AdminSpatialConfigInput
-            :model-value="spatialConfig"
-            :revision-key="revision.revisionId"
-            :disabled="saving"
-            @update:model-value="spatialConfig = $event"
-            @valid="spatialInputValid = $event"
-          />
-        </UFormField>
+        <AdminSpatialConfigInput
+          :model-value="spatialConfig"
+          :revision-key="revision.revisionId"
+          :disabled="saving"
+          @update:model-value="spatialConfig = $event"
+          @valid="spatialInputValid = $event"
+        />
       </details>
 
       <div class="revision-editor__actions glass elevation-1 scroll-edge-sticky">
@@ -172,6 +170,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
 .spatial-advanced {
   display: grid;
   gap: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
   min-width: 0;
   padding: 0.75rem 0.875rem;
   border: 1px solid var(--line);
@@ -180,17 +180,6 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
 .spatial-advanced summary {
   cursor: pointer;
   font-weight: 650;
-}
-.spatial-input :deep(textarea) {
-  min-height: 10rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8125rem;
-  line-height: 1.55;
-}
-.field-error {
-  margin: 0.375rem 0 0;
-  color: var(--danger);
-  font-size: var(--type-caption-size);
 }
 .empty-note,
 .editor-note {

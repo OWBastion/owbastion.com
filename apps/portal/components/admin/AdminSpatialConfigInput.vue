@@ -52,7 +52,7 @@ const updateSource = (value: string) => {
     <UTextarea
       :model-value="source"
       :rows="12"
-      class="spatial-input"
+      class="spatial-input w-full"
       :disabled="disabled"
       spellcheck="false"
       placeholder="Global.bastionPosition[0] = Vector(-121.979, 0.148, 110.507);"
@@ -68,10 +68,59 @@ const updateSource = (value: string) => {
 </template>
 
 <style scoped>
-.spatial-input :deep(textarea) { min-height: 13rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem; line-height: 1.55; }
-.field-hint, .field-error { margin: 6px 0 0; font-size: var(--type-caption-size); line-height: 1.5; }
-.field-hint { color: var(--quiet); }
-.field-error { color: var(--danger); }
-.spatial-summary { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 8px; color: var(--quiet); font-size: var(--type-caption-size); line-height: 1.5; }
-.spatial-summary strong { color: var(--ink); }
+.spatial-config-input {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.spatial-input {
+  width: 100%;
+  min-width: 0;
+}
+
+.spatial-input :deep(textarea) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 13rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+.field-hint,
+.field-error {
+  margin: 0.375rem 0 0;
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+}
+
+.field-hint {
+  color: var(--quiet);
+}
+
+.field-error {
+  color: var(--danger);
+}
+
+.spatial-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.375rem 0.75rem;
+  margin-top: 0.5rem;
+  color: var(--quiet);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+}
+
+.spatial-summary strong {
+  color: var(--ink);
+}
 </style>
