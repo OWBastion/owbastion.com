@@ -55,10 +55,10 @@ const updateSource = (value: string) => {
       class="spatial-input w-full"
       :disabled="disabled"
       spellcheck="false"
-      placeholder="Global.bastionPosition[0] = Vector(-121.979, 0.148, 110.507);"
+      placeholder="全局.bastionPosition = 数组(矢量(-10.300, 6.832, -132.595), ...);"
       @update:model-value="updateSource"
     />
-    <p class="field-hint">直接粘贴游戏内已定位的 Vector 代码；页面会自动转换为平台配置。支持索引赋值和 Append To Array。</p>
+    <p class="field-hint">直接粘贴游戏内已定位的 Raw Workshop 代码；支持中英文的全局、数组、矢量写法，以及索引赋值和 Append To Array。</p>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <div v-else-if="summary" class="spatial-summary" role="status">
       <strong>已识别 {{ summary.totalPositions }} 个点位</strong>

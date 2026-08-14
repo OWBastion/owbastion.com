@@ -30,6 +30,22 @@ describe("spatial-config-import", () => {
     expect(result.summary.totalPositions).toBe(6);
   });
 
+  it("accepts localized Raw Workshop array assignments copied from the game", () => {
+    const result = parseSpatialConfigSource(`
+      全局.bastionPosition = 数组(矢量(-10.300, 6.832, -132.595), 矢量(-41.189, 3.790, -155.701), 矢量(-1.528, 12.665, -112.339), 矢量(10.710, 10.361, -67.628), 矢量(-15.164, 9.512, -47.168), 矢量(-4.057, 10.450, -18.278), 矢量(13.362, 4.189, 13.072), 矢量(-43.153, 3, 42.732), 矢量(-58.618, 0.007, 19.441));
+      全局.endPosition = 矢量(1, 2, 3);
+      全局.heroRingPosition = 矢量(4, 5, 6);
+      全局.resetPosition = 矢量(7, 8, 9);
+      全局.creditsPosition = 矢量(10, 11, 12);
+    `);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    expect(result.config.bastionPositions).toHaveLength(9);
+    expect(result.config.bastionPositions[0]).toEqual([-10.3, 6.832, -132.595]);
+    expect(result.config.bastionPositions[8]).toEqual([-58.618, 0.007, 19.441]);
+  });
+
   it("converts append-style arrays and preserves alternate stages", () => {
     const result = parseSpatialConfigSource(`
       Global.bastionPosition = Empty Array;

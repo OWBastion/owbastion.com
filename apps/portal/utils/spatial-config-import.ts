@@ -40,6 +40,42 @@ function isVectorList(value: unknown): value is Vector[] {
   return Array.isArray(value) && value.every(isVector);
 }
 
+function normalizeWorkshopAliases(source: string): string {
+  return source
+    .replaceAll("全局", "Global")
+    .replaceAll("数组", "Array")
+    .replaceAll("矢量", "Vector");
+}
+
+function collectArrayAssignmentVectors(source: string, field: string): Vector[] {
+  const assignmentPattern = new RegExp(`(?:Global\\.)?${field}\\s*=\\s*Array\\s*\\(`, "g");
+  const vectorPattern = new RegExp(vectorCapture, "g");
+  const values: Vector[] = [];
+  let assignment: RegExpExecArray | null;
+  while ((assignment = assignmentPattern.exec(source))) {
+    let depth = 1;
+    let cursor = assignmentPattern.lastIndex;
+    let quote: string | null = null;
+    for (; cursor < source.length && depth > 0; cursor += 1) {
+      const character = source[cursor];
+      if (quote) {
+        if (character === quote && source[cursor - 1] !== "\\") quote = null;
+        continue;
+      }
+      if (character === "\"" || character === "'") quote = character;
+      else if (character === "(") depth += 1;
+      else if (character === ")") depth -= 1;
+    }
+    if (depth !== 0) continue;
+    const body = source.slice(assignmentPattern.lastIndex, cursor - 1);
+    let vector: RegExpExecArray | null;
+    while ((vector = vectorPattern.exec(body))) values.push(vectorFromMatch(vector, 1));
+    vectorPattern.lastIndex = 0;
+    assignmentPattern.lastIndex = cursor;
+  }
+  return values;
+}
+
 function collectVectors(source: string, field: string): Vector[] {
   const indexed = new Map<number, Vector>();
   const indexedPattern = new RegExp(`(?:Global\\.)?${field}\\s*\\[\\s*(\\d+)\\s*\\]\\s*=\\s*${vectorCapture}\\s*;?`, "g");
@@ -51,6 +87,8 @@ function collectVectors(source: string, field: string): Vector[] {
 
   const directPattern = new RegExp(`(?:Global\\.)?${field}\\s*=\\s*${vectorCapture}\\s*;?`, "g");
   while ((match = directPattern.exec(source))) values.push(vectorFromMatch(match, 1));
+
+  values.push(...collectArrayAssignmentVectors(source, field));
 
   const appendPattern = new RegExp(`Modify\\s+Global\\s+Variable\\s*\\(\\s*${field}\\s*,\\s*Append\\s+To\\s+Array\\s*,\\s*${vectorCapture}\\s*\\)\\s*;?`, "g");
   while ((match = appendPattern.exec(source))) values.push(vectorFromMatch(match, 1));
@@ -109,7 +147,8 @@ function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
 }
 
 export function parseSpatialConfigSource(source: string, existingConfig: SpatialConfigValue | null = null): SpatialConfigImportResult {
-  const trimmed = source.trim();
+  const normalizedSource = normalizeWorkshopAliases(source);
+  const trimmed = normalizedSource.trim();
   if (!trimmed) return { ok: false, error: "请粘贴游戏内的点位代码。" };
 
   if (trimmed.startsWith("{")) {
@@ -123,11 +162,11 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
     }
   }
 
-  const bastionPositions = collectVectors(source, "bastionPosition");
-  const resetPosition = collectScalarVector(source, "resetPosition");
-  const endPosition = collectScalarVector(source, "endPosition");
-  const thirdPersonPosition = scalarAliases.map((field) => collectScalarVector(source, field)).find(isVector);
-  const creditsPosition = collectScalarVector(source, "creditsPosition");
+  const bastionPositions = collectVectors(normalizedSource, "bastionPosition");
+  const resetPosition = collectScalarVector(normalizedSource, "resetPosition");
+  const endPosition = collectScalarVector(normalizedSource, "endPosition");
+  const thirdPersonPosition = scalarAliases.map((field) => collectScalarVector(normalizedSource, field)).find(isVector);
+  const creditsPosition = collectScalarVector(normalizedSource, "creditsPosition");
   const missing = [
     bastionPositions.length === 0 ? "Bastion 出生点" : null,
     !resetPosition ? "重置点" : null,
@@ -137,11 +176,11 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
   ].filter((value): value is string => value !== null);
   if (missing.length > 0) return { ok: false, error: `缺少必需点位：${missing.join("、")}。请粘贴同一张地图的完整定位代码。` };
 
-  const controlCenterPositions = collectVectors(source, "controlCenterPosition");
-  const controlJumpPositions = collectVectors(source, "controlJumpPosition");
-  const controlRespawnPositions = collectVectors(source, "controlRespawnPosition");
-  const respawnAxis = collectAxis(source);
-  const respawnAxisThreshold = collectThreshold(source);
+  const controlCenterPositions = collectVectors(normalizedSource, "controlCenterPosition");
+  const controlJumpPositions = collectVectors(normalizedSource, "controlJumpPosition");
+  const controlRespawnPositions = collectVectors(normalizedSource, "controlRespawnPosition");
+  const respawnAxis = collectAxis(normalizedSource);
+  const respawnAxisThreshold = collectThreshold(normalizedSource);
   const hasControl = controlCenterPositions.length > 0 || controlJumpPositions.length > 0 || controlRespawnPositions.length > 0 || respawnAxis !== undefined || respawnAxisThreshold !== undefined;
   if (hasControl && ((respawnAxis === undefined) !== (respawnAxisThreshold === undefined))) {
     return { ok: false, error: "占领重生轴和阈值必须同时提供，或同时留空。" };
@@ -163,8 +202,8 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
       respawnAxis: respawnAxis ?? null,
       respawnAxisThreshold: respawnAxisThreshold ?? null,
     } : null,
-    portalPositions: collectVectors(source, "portalPosition"),
-    springboardPositions: collectVectors(source, "springBoardPosition"),
+    portalPositions: collectVectors(normalizedSource, "portalPosition"),
+    springboardPositions: collectVectors(normalizedSource, "springBoardPosition"),
     alternateStages: Array.isArray(existingConfig?.alternateStages) ? existingConfig.alternateStages : [],
   };
   return { ok: true, config, summary: summaryFor(config) };
