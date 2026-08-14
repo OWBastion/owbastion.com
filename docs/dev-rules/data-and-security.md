@@ -48,6 +48,26 @@ authorization mechanism. The
 player-facing OCR summary contains only recognized map, difficulty, player, and
 completion values; raw OCR output and internal match details remain private.
 
+Player OCR feedback is a separate annotation-proposal boundary. The player
+projection exposes only a derived feedback mode (none/targeted/grouped), the
+prompt-origin category, safe field identifiers and recognized values, and
+explicit submitted/available state; it never includes numeric confidence,
+thresholds, warnings, risk signals, raw OCRKit payloads, or other players'
+evidence. Feedback writes require the Portal session, the player's own
+Submission, and an idempotency key; proposals never alter the Submission
+decision, challenge, Grant, mastery, or OCR evidence.
+
+Dataset snapshots and reviewed annotations are maintainer/service-only. The
+OCRKit consumption contract is a private, versioned HTTP boundary requiring
+the `OCRKIT_SNAPSHOT_TOKEN` secret (a Worker secret, never a committed
+variable); it exposes only finalized snapshot metadata and member annotation
+facts, never QQ identity, player-account internals, review risk signals,
+Grant/mastery decisions, object keys, or unrelated Submission payloads.
+Evidence delivery is a platform-side proxy bounded to snapshot members;
+OCRKit never receives D1 access or broad R2 credentials. Missing or deleted
+source evidence is reported explicitly (410 `EVIDENCE_UNAVAILABLE`) and never
+silently substituted.
+
 Player ratings are D1-owned records keyed by the authenticated player account
 and a stable event/map target. The account association, audit events, hidden
 comment state, withdrawn rows, and invalidated rows remain private platform

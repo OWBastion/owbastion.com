@@ -30,6 +30,8 @@ import {
   playerOcrFeedbackRequestSchema,
   adminAnnotationDecisionRequestSchema,
   adminAnnotationDirectCreateRequestSchema,
+  adminDatasetCreateRequestSchema,
+  adminDatasetFinalizeRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
@@ -49,6 +51,7 @@ export type RuntimeEnv = {
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
   OCRKIT_EVIDENCE_BUCKET?: string;
+  OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
   QQBOT_POLICY_WEBHOOK_URL?: string;
@@ -68,7 +71,7 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
-type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "portal" | "qq" | "unknown";
+type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
 
 const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
@@ -77,6 +80,7 @@ const routeClassForPath = (pathname: string): RequestRouteClass => {
   if (pathname === "/health") return "health";
   if (pathname.startsWith("/v1/admin/")) return "admin";
   if (pathname.startsWith("/v1/agents/")) return "agents";
+  if (pathname.startsWith("/v1/ocrkit/")) return "ocrkit";
   if (pathname.startsWith("/v1/__local/")) return "local";
   if (pathname.startsWith("/v1/qq/")) return "qq";
   if (["/v1/events", "/v1/maps", "/v1/public/achievements"].includes(pathname) || pathname.startsWith("/v1/public/achievement-icons/") || pathname.startsWith("/v1/challenges") || pathname.startsWith("/v1/titles")) return "catalog";
@@ -347,6 +351,9 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/annotations/proposals/:proposalId/decision", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/direct", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/reviewed", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/datasets", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/datasets/:datasetId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/datasets/:datasetId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -373,6 +380,14 @@ export const createApp = (dependencies: AppDependencies) => {
     const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
+  };
+
+  // Private service boundary for OCRKit snapshot consumption. The token is a
+  // secret, never a committed variable; without it the endpoints are closed.
+  const allowOcrkit = (c: any) => {
+    const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
+    const authorization = c.req.header("authorization");
+    return Boolean(token && authorization === `Bearer ${token}`);
   };
 
   const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>) => ({
@@ -1517,6 +1532,97 @@ export const createApp = (dependencies: AppDependencies) => {
       ...(layoutVersion?.trim() ? { layoutVersion: layoutVersion.trim() } : {}),
       ...(promptOrigin ? { promptOrigin: promptOrigin as typeof allowedAnnotationOrigins[number] } : {}),
     }, access.auth!));
+  });
+
+  app.get("/v1/admin/datasets", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const page = Number(c.req.query("page") ?? "1");
+    const pageSize = Number(c.req.query("pageSize") ?? "20");
+    const status = c.req.query("status");
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
+      || (status && status !== "draft" && status !== "finalized")) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The dataset query is invalid");
+    }
+    return c.json(await dependencies.services(c.env).listAdminDatasets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" } : {}) }, access.auth!));
+  });
+
+  app.post("/v1/admin/datasets", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminDatasetCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    const input = parsed.data.note === undefined ? {} : { note: parsed.data.note };
+    return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201);
+  });
+
+  app.get("/v1/admin/datasets/:datasetId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const datasetId = c.req.param("datasetId");
+    if (!validAnnotationUuid(datasetId)) return errorResponse(c, 422, "INVALID_DATASET_ID", "The dataset ID is invalid");
+    try { return c.json(await dependencies.services(c.env).getAdminDataset({ datasetId }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "DATASET_NOT_FOUND") return errorResponse(c, 404, "DATASET_NOT_FOUND", "The dataset does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/datasets/:datasetId/finalize", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const datasetId = c.req.param("datasetId");
+    if (!validAnnotationUuid(datasetId)) return errorResponse(c, 422, "INVALID_DATASET_ID", "The dataset ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminDatasetFinalizeRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    const input = parsed.data.note === undefined ? { datasetId } : { datasetId, note: parsed.data.note };
+    try {
+      return c.json(await dependencies.services(c.env).finalizeAdminDataset(input, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "DATASET_FINALIZE_FAILED";
+      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
+      if (code === "DATASET_ALREADY_FINALIZED") return errorResponse(c, 409, code, "The dataset is already finalized");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.get("/v1/ocrkit/datasets/:version", async (c) => {
+    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    c.header("Cache-Control", "private, no-store");
+    const version = Number(c.req.param("version"));
+    if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_DATASET_VERSION", "The dataset version is invalid");
+    try {
+      return c.json(await dependencies.services(c.env).getOcrkitDataset({ version }));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "OCRKit_DATASET_READ_FAILED";
+      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
+      if (code === "DATASET_NOT_FINALIZED") return errorResponse(c, 409, code, "The dataset is not finalized");
+      throw error;
+    }
+  });
+
+  app.get("/v1/ocrkit/datasets/:version/evidence/:annotationId", async (c) => {
+    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    c.header("Cache-Control", "private, no-store");
+    const version = Number(c.req.param("version"));
+    const annotationId = c.req.param("annotationId");
+    if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_DATASET_VERSION", "The dataset version is invalid");
+    if (!validAnnotationUuid(annotationId)) return errorResponse(c, 422, "INVALID_ANNOTATION_ID", "The annotation ID is invalid");
+    try {
+      const evidence = await dependencies.services(c.env).getOcrkitDatasetEvidence({ version, annotationId });
+      return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "OCRKit_EVIDENCE_READ_FAILED";
+      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
+      if (code === "DATASET_NOT_FINALIZED") return errorResponse(c, 409, code, "The dataset is not finalized");
+      if (code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, "The evidence is not part of this dataset");
+      // Explicit, never substituted: a missing source object is reported as
+      // unavailable rather than replaced with different evidence.
+      if (code === "EVIDENCE_UNAVAILABLE") return c.json({ contractVersion: "1", error: { code, message: "The source evidence is no longer available", requestId: c.get("requestId") } }, 410);
+      throw error;
+    }
   });
 
   app.get("/v1/admin/mastery-runs", async (c) => {

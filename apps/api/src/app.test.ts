@@ -74,6 +74,12 @@ const services: PlatformServices = {
   decideAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
   createAdminReviewedAnnotation: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); },
   listAdminReviewedAnnotations: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", counts: { eligibleCount: 0, excludedCount: 0, submissionCount: 0, annotationCount: 0 } }),
+  listAdminDatasets: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  getAdminDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
+  finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized", finalizedAt: 2 }),
+  getOcrkitDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
+  getOcrkitDatasetEvidence: async () => { throw new Error("EVIDENCE_UNAVAILABLE"); },
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
@@ -804,6 +810,75 @@ describe("API", () => {
     const reviewed = await annotationApp.request("http://localhost/v1/admin/annotations/reviewed?state=accepted", {}, env);
     expect(reviewed.status).toBe(200);
     expect(await reviewed.json()).toMatchObject({ items: [], total: 0 });
+  });
+
+  it("creates, lists, and finalizes dataset drafts with immutable finalization", async () => {
+    const datasetApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }),
+        listAdminDatasets: async (input) => ({ contractVersion: "1", items: [{ datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
+        getAdminDataset: async () => ({ contractVersion: "1", snapshot: { datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { available: true, contentType: "image/png" } }], exclusions: [{ annotationId: "00000000-0000-4000-8000-000000000008", reason: "missing_model_version" }] }),
+        finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
+      }),
+    });
+    expect((await app.request("http://localhost/v1/admin/datasets", {}, env)).status).toBe(403);
+
+    const created = await datasetApp.request("http://localhost/v1/admin/datasets", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-1" }, body: JSON.stringify({ contractVersion: "1", note: "v1 采样" }) }, env);
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ version: 1, status: "draft", counts: { eligibleCount: 2, excludedCount: 1 } });
+
+    const list = await datasetApp.request("http://localhost/v1/admin/datasets?status=draft&page=1&pageSize=20", {}, env);
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ items: [{ version: 1, status: "draft" }], total: 1 });
+    expect((await datasetApp.request("http://localhost/v1/admin/datasets?status=bogus", {}, env)).status).toBe(422);
+
+    const detail = await datasetApp.request("http://localhost/v1/admin/datasets/00000000-0000-4000-8000-000000000007", {}, env);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ members: [{ reviewedValue: "一般" }], exclusions: [{ reason: "missing_model_version" }] });
+
+    const finalized = await datasetApp.request("http://localhost/v1/admin/datasets/00000000-0000-4000-8000-000000000007/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-finalize-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    expect(finalized.status).toBe(200);
+    expect(await finalized.json()).toMatchObject({ status: "finalized" });
+    expect((await datasetApp.request("http://localhost/v1/admin/datasets/not-a-uuid/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-finalize-2" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
+  });
+
+  it("exposes finalized dataset snapshots only through the private versioned OCRKit contract", async () => {
+    const ocrkitDataset = { contractVersion: "1" as const, snapshot: { id: "00000000-0000-4000-8000-000000000007", version: 1, finalizedAt: 2, note: null }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { id: "00000000-0000-4000-8000-000000000006", available: true, contentType: "image/png" } }] };
+    const ocrkitApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        getOcrkitDataset: async () => ocrkitDataset,
+        getOcrkitDatasetEvidence: async () => ({ body: new Uint8Array([9, 8, 7]).buffer, contentType: "image/png" }),
+      }),
+    });
+    const envWithToken = { ...env, OCRKIT_SNAPSHOT_TOKEN: "ocrkit-snapshot-secret" } as typeof env;
+    const unauth = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", {}, envWithToken);
+    expect(unauth.status).toBe(401);
+    const wrongToken = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", { headers: { authorization: "Bearer nope" } }, envWithToken);
+    expect(wrongToken.status).toBe(401);
+
+    const dataset = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
+    expect(dataset.status).toBe(200);
+    const body = await dataset.json();
+    expect(body).toMatchObject({ members: [{ reviewedValue: "一般" }] });
+    // The OCRKit contract never leaks player identity, risk signals, grants, or mastery state.
+    expect(JSON.stringify(body)).not.toContain("playerAccountId");
+    expect(JSON.stringify(body)).not.toContain("qq");
+    expect(JSON.stringify(body)).not.toContain("grant");
+    expect(JSON.stringify(body)).not.toContain("mastery");
+    expect((await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/0", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken)).status).toBe(422);
+
+    const evidence = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
+    expect(evidence.status).toBe(200);
+    expect(evidence.headers.get("content-type")).toBe("image/png");
+
+    const unavailableApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitDatasetEvidence: async () => { throw new Error("EVIDENCE_UNAVAILABLE"); } }) });
+    const unavailable = await unavailableApp.request("http://localhost/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
+    expect(unavailable.status).toBe(410);
+    expect((await unavailable.json() as { error: { code: string } }).error.code).toBe("EVIDENCE_UNAVAILABLE");
   });
 
   it("limits review identity and moderation operations to maintainers", async () => {

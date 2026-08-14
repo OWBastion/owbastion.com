@@ -1185,6 +1185,107 @@ export const adminAnnotationDirectCreateResponseSchema = z.object({
   supersededAnnotationId: z.string().uuid().nullable(),
 }).strict();
 
+// ---- Immutable reviewed dataset snapshots and OCRKit consumption (#105) ----
+
+export const datasetSnapshotStatusSchema = z.enum(["draft", "finalized"]);
+
+export const adminDatasetSnapshotSchema = z.object({
+  datasetId: z.string().uuid(),
+  version: z.number().int().positive(),
+  status: datasetSnapshotStatusSchema,
+  createdBy: z.string(),
+  createdAt: z.number().int(),
+  finalizedBy: z.string().nullable(),
+  finalizedAt: z.number().int().nullable(),
+  note: z.string().nullable(),
+  counts: z.object({
+    eligibleCount: z.number().int().nonnegative(),
+    excludedCount: z.number().int().nonnegative(),
+    submissionCount: z.number().int().nonnegative(),
+    annotationCount: z.number().int().nonnegative(),
+  }).strict(),
+}).strict();
+
+export const adminDatasetListResponseSchema = z.object({
+  contractVersion,
+  items: z.array(adminDatasetSnapshotSchema),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(100),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
+
+export const adminDatasetCreateRequestSchema = z.object({
+  contractVersion,
+  note: z.string().trim().max(1000).optional(),
+}).strict();
+
+export const adminDatasetCreateResponseSchema = z.object({
+  contractVersion,
+  datasetId: z.string().uuid(),
+  version: z.number().int().positive(),
+  status: z.literal("draft"),
+  counts: adminDatasetSnapshotSchema.shape.counts,
+}).strict();
+
+export const adminDatasetFinalizeRequestSchema = z.object({
+  contractVersion,
+  note: z.string().trim().max(1000).optional(),
+}).strict();
+
+export const adminDatasetFinalizeResponseSchema = z.object({
+  contractVersion,
+  datasetId: z.string().uuid(),
+  version: z.number().int().positive(),
+  status: z.literal("finalized"),
+  finalizedAt: z.number().int(),
+}).strict();
+
+export const adminDatasetMemberSchema = z.object({
+  annotationId: z.string().uuid(),
+  fieldKey: ocrFeedbackFieldKeySchema,
+  reviewedValue: z.string().trim().min(1),
+  normalizedValue: z.string().nullable(),
+  originalOcrValue: z.string().nullable(),
+  modelVersion: z.string().nullable(),
+  layoutVersion: z.string().nullable(),
+  evidence: z.object({ available: z.boolean(), contentType: z.string().nullable() }).strict(),
+}).strict();
+
+export const adminDatasetExclusionSchema = z.object({
+  annotationId: z.string().uuid(),
+  reason: z.string(),
+}).strict();
+
+export const adminDatasetDetailResponseSchema = z.object({
+  contractVersion,
+  snapshot: adminDatasetSnapshotSchema,
+  members: z.array(adminDatasetMemberSchema),
+  exclusions: z.array(adminDatasetExclusionSchema),
+}).strict();
+
+export const ocrkitDatasetMemberSchema = z.object({
+  annotationId: z.string().uuid(),
+  fieldKey: ocrFeedbackFieldKeySchema,
+  reviewedValue: z.string().trim().min(1),
+  normalizedValue: z.string().nullable(),
+  originalOcrValue: z.string().nullable(),
+  modelVersion: z.string().nullable(),
+  layoutVersion: z.string().nullable(),
+  evidence: z.object({ id: z.string().uuid(), available: z.boolean(), contentType: z.string().nullable() }).strict(),
+}).strict();
+
+export const ocrkitDatasetResponseSchema = z.object({
+  contractVersion,
+  snapshot: z.object({
+    id: z.string().uuid(),
+    version: z.number().int().positive(),
+    finalizedAt: z.number().int(),
+    note: z.string().nullable(),
+  }).strict(),
+  members: z.array(ocrkitDatasetMemberSchema),
+}).strict();
+
 export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.omit({ contractVersion: true }).extend({
   challenge: adminSubmissionChallengeSchema.nullable().optional(),
 });
@@ -1311,6 +1412,14 @@ export type AdminReviewedAnnotation = z.infer<typeof adminReviewedAnnotationSche
 export type AdminReviewedAnnotationListResponse = z.infer<typeof adminReviewedAnnotationListResponseSchema>;
 export type AdminAnnotationDirectCreateRequest = z.infer<typeof adminAnnotationDirectCreateRequestSchema>;
 export type AdminAnnotationDirectCreateResponse = z.infer<typeof adminAnnotationDirectCreateResponseSchema>;
+export type AdminDatasetSnapshot = z.infer<typeof adminDatasetSnapshotSchema>;
+export type AdminDatasetListResponse = z.infer<typeof adminDatasetListResponseSchema>;
+export type AdminDatasetCreateRequest = z.infer<typeof adminDatasetCreateRequestSchema>;
+export type AdminDatasetCreateResponse = z.infer<typeof adminDatasetCreateResponseSchema>;
+export type AdminDatasetFinalizeRequest = z.infer<typeof adminDatasetFinalizeRequestSchema>;
+export type AdminDatasetFinalizeResponse = z.infer<typeof adminDatasetFinalizeResponseSchema>;
+export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailResponseSchema>;
+export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
 export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;

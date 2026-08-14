@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -321,5 +321,29 @@ describe("v1 platform contracts", () => {
       supersedesAnnotationId: null,
       createdAt: 3,
     }).success).toBe(true);
+  });
+
+  it("validates dataset draft creation and finalization contracts", () => {
+    expect(adminDatasetCreateRequestSchema.safeParse({ contractVersion: "1", note: "v1 采样" }).success).toBe(true);
+    expect(adminDatasetCreateRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
+    const counts = { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 };
+    expect(adminDatasetCreateResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", counts }).success).toBe(true);
+    expect(adminDatasetCreateResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "finalized", counts }).success).toBe(false);
+    expect(adminDatasetFinalizeRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
+    expect(adminDatasetFinalizeResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "finalized", finalizedAt: 2 }).success).toBe(true);
+    expect(adminDatasetListResponseSchema.safeParse({ contractVersion: "1", items: [{ datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts }], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(true);
+    expect(adminDatasetDetailResponseSchema.safeParse({ contractVersion: "1", snapshot: { datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { available: true, contentType: "image/png" } }], exclusions: [{ annotationId: "00000000-0000-4000-8000-000000000008", reason: "missing_model_version" }] }).success).toBe(true);
+  });
+
+  it("keeps the OCRKit consumption contract private, versioned, and free of identity and risk internals", () => {
+    const response = {
+      contractVersion: "1",
+      snapshot: { id: "00000000-0000-4000-8000-000000000007", version: 1, finalizedAt: 2, note: null },
+      members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { id: "00000000-0000-4000-8000-000000000006", available: true, contentType: "image/png" } }],
+    };
+    expect(ocrkitDatasetResponseSchema.safeParse(response).success).toBe(true);
+    // The contract rejects fields that would leak player identity or risk internals.
+    expect(ocrkitDatasetResponseSchema.safeParse({ ...response, members: [{ ...response.members[0], playerAccountId: "player-1" }] }).success).toBe(false);
+    expect(ocrkitDatasetResponseSchema.safeParse({ ...response, members: [{ ...response.members[0], evidence: { ...response.members[0].evidence, objectKey: "evidence/1.png" } }] }).success).toBe(false);
   });
 });

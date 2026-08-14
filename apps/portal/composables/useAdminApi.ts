@@ -145,6 +145,32 @@ export type AdminReviewedAnnotation = {
   supersedesAnnotationId: string | null;
   createdAt: number;
 };
+export type AdminDatasetSnapshot = {
+  datasetId: string;
+  version: number;
+  status: "draft" | "finalized";
+  createdBy: string;
+  createdAt: number;
+  finalizedBy: string | null;
+  finalizedAt: number | null;
+  note: string | null;
+  counts: { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number };
+};
+export type AdminDatasetDetail = {
+  contractVersion: "1";
+  snapshot: AdminDatasetSnapshot;
+  members: Array<{
+    annotationId: string;
+    fieldKey: AdminAnnotationProposal["fieldKey"];
+    reviewedValue: string;
+    normalizedValue: string | null;
+    originalOcrValue: string | null;
+    modelVersion: string | null;
+    layoutVersion: string | null;
+    evidence: { available: boolean; contentType: string | null };
+  }>;
+  exclusions: Array<{ annotationId: string; reason: string }>;
+};
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

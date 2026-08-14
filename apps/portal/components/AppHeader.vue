@@ -27,6 +27,7 @@ const adminNavigationItems = [
       { label: "通关记录", description: "已验证通关与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs" },
       { label: "评价", description: "玩家评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews" },
       { label: "标注", description: "识别标注审核队列", icon: "i-lucide-scan-text", to: "/admin/annotations" },
+      { label: "数据集", description: "审定标注快照与导出", icon: "i-lucide-database", to: "/admin/datasets" },
       { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements" },
       { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
     ],

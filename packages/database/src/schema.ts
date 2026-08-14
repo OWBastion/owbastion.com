@@ -514,6 +514,35 @@ export const reviewedAnnotations = sqliteTable("reviewed_annotations", {
   fieldIdx: index("reviewed_annotations_field_idx").on(table.fieldKey, table.modelVersion, table.layoutVersion),
 }));
 
+// Immutable, versioned reviewed-annotation dataset snapshots. A finalized
+// snapshot never changes its membership or provenance; later corrections
+// belong to a later snapshot.
+export const datasetSnapshots = sqliteTable("dataset_snapshots", {
+  id: text("id").primaryKey(),
+  version: integer("version").notNull().unique(),
+  status: text("status").notNull().default("draft"),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  finalizedBy: text("finalized_by"),
+  finalizedAt: integer("finalized_at"),
+  note: text("note"),
+  eligibilityJson: text("eligibility_json").notNull().default("{}"),
+}, (table) => ({
+  statusIdx: index("dataset_snapshots_status_idx").on(table.status, table.createdAt),
+}));
+
+export const datasetSnapshotAnnotations = sqliteTable("dataset_snapshot_annotations", {
+  snapshotId: text("snapshot_id").notNull().references(() => datasetSnapshots.id),
+  annotationId: text("annotation_id").notNull().references(() => reviewedAnnotations.id),
+  position: integer("position").notNull(),
+  evidenceObjectKey: text("evidence_object_key"),
+  evidenceContentType: text("evidence_content_type"),
+  evidenceAvailable: integer("evidence_available").notNull().default(0),
+}, (table) => ({
+  snapshotAnnotation: primaryKey({ columns: [table.snapshotId, table.annotationId] }),
+  annotationIdx: index("dataset_snapshot_annotations_annotation_idx").on(table.annotationId),
+}));
+
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),

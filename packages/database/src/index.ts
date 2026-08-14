@@ -4,8 +4,8 @@ import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, annotationProposalPriority, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviewedAnnotations, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviewedAnnotations, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -4454,6 +4454,172 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         createdAt: row.created_at,
       }));
       return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
+    // ---- Immutable reviewed dataset snapshots (#105) ----
+
+    async createAdminDatasetDraft(input: { note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse> {
+      const replay = await replayOrConflict<AdminDatasetCreateResponse>(db, auth.subject, "dataset.draft.create", idempotencyKey, input);
+      if (replay) return replay;
+      const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
+      // An annotation belongs to at most one snapshot: any membership (draft or
+      // finalized) makes it no longer eligible for a new snapshot.
+      const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
+      const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
+      const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
+      const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
+      const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
+      for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
+        if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
+      }
+      const members: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string | null; contentType: string | null; available: boolean }> = [];
+      const exclusions: Array<{ annotationId: string; reason: string }> = [];
+      for (const annotation of accepted) {
+        if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
+        if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
+        if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
+        const evidence = latestAttachment.get(annotation.submissionId);
+        if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
+        const available = evidenceBucket ? Boolean(await evidenceBucket.head(evidence.objectKey)) : true;
+        members.push({ annotation, objectKey: evidence.objectKey, contentType: evidence.contentType, available });
+      }
+      const timestamp = now();
+      const datasetId = crypto.randomUUID();
+      const versionRow = await db.select({ version: datasetSnapshots.version }).from(datasetSnapshots).orderBy(desc(datasetSnapshots.version)).limit(1).get();
+      const version = (versionRow?.version ?? 0) + 1;
+      const submissionCount = new Set(members.map((member) => member.annotation.submissionId)).size;
+      const eligibilityJson = JSON.stringify({ eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, annotationCount: members.length, exclusions });
+      const statements: D1PreparedStatement[] = [
+        database.prepare("INSERT INTO dataset_snapshots (id, version, status, created_by, created_at, note, eligibility_json) VALUES (?, ?, 'draft', ?, ?, ?, ?)").bind(datasetId, version, auth.subject, timestamp, input.note?.trim() ?? null, eligibilityJson),
+        ...members.map((member, index) => database.prepare("INSERT INTO dataset_snapshot_annotations (snapshot_id, annotation_id, position, evidence_object_key, evidence_content_type, evidence_available) VALUES (?, ?, ?, ?, ?, ?)").bind(datasetId, member.annotation.id, index, member.objectKey, member.contentType, member.available ? 1 : 0)),
+      ];
+      const response: AdminDatasetCreateResponse = { contractVersion: "1", datasetId, version, status: "draft", counts: { eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, annotationCount: members.length } };
+      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'dataset.draft.create', ?, ?, ?)").bind(`${auth.subject}:dataset.draft.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'dataset.draft.created', 'dataset_snapshot', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, datasetId, JSON.stringify({ version, eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, exclusions }), timestamp));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      return response;
+    },
+
+    async listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, _auth: AuthContext): Promise<AdminDatasetListResponse> {
+      const page = input.page >= 1 ? input.page : 1;
+      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
+      const conditions = input.status ? [eq(datasetSnapshots.status, input.status)] : [];
+      const totalRow = await db.select({ total: count() }).from(datasetSnapshots).where(conditions.length ? and(...conditions) : undefined).get();
+      const total = totalRow?.total ?? 0;
+      const rows = await db.select().from(datasetSnapshots).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(datasetSnapshots.createdAt)).limit(pageSize).offset((page - 1) * pageSize).all();
+      const items: AdminDatasetListResponse["items"] = rows.map((row) => {
+        const eligibility = JSON.parse(row.eligibilityJson) as { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number };
+        return {
+          datasetId: row.id,
+          version: row.version,
+          status: row.status as "draft" | "finalized",
+          createdBy: row.createdBy,
+          createdAt: row.createdAt,
+          finalizedBy: row.finalizedBy,
+          finalizedAt: row.finalizedAt,
+          note: row.note,
+          counts: { eligibleCount: eligibility.eligibleCount, excludedCount: eligibility.excludedCount, submissionCount: eligibility.submissionCount, annotationCount: eligibility.annotationCount },
+        };
+      });
+      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
+    async getAdminDataset(input: { datasetId: string }, _auth: AuthContext): Promise<AdminDatasetDetailResponse> {
+      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.id, input.datasetId)).get();
+      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
+      const eligibility = JSON.parse(snapshot.eligibilityJson) as { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number; exclusions?: Array<{ annotationId: string; reason: string }> };
+      const members = await db.select().from(datasetSnapshotAnnotations).where(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id)).orderBy(asc(datasetSnapshotAnnotations.position)).all();
+      const annotationIds = members.map((member) => member.annotationId);
+      const annotationRows = annotationIds.length ? await db.select().from(reviewedAnnotations).where(inArray(reviewedAnnotations.id, annotationIds)).all() : [];
+      const byId = new Map(annotationRows.map((annotation) => [annotation.id, annotation]));
+      return {
+        contractVersion: "1",
+        snapshot: {
+          datasetId: snapshot.id,
+          version: snapshot.version,
+          status: snapshot.status as "draft" | "finalized",
+          createdBy: snapshot.createdBy,
+          createdAt: snapshot.createdAt,
+          finalizedBy: snapshot.finalizedBy,
+          finalizedAt: snapshot.finalizedAt,
+          note: snapshot.note,
+          counts: { eligibleCount: eligibility.eligibleCount, excludedCount: eligibility.excludedCount, submissionCount: eligibility.submissionCount, annotationCount: eligibility.annotationCount },
+        },
+        members: members.map((member) => {
+          const annotation = byId.get(member.annotationId);
+          return {
+            annotationId: member.annotationId,
+            fieldKey: annotation?.fieldKey as AdminDatasetDetailResponse["members"][number]["fieldKey"],
+            reviewedValue: annotation?.reviewedValue ?? "",
+            normalizedValue: annotation?.normalizedValue ?? null,
+            originalOcrValue: annotation?.originalOcrValue ?? null,
+            modelVersion: annotation?.modelVersion ?? null,
+            layoutVersion: annotation?.layoutVersion ?? null,
+            evidence: { available: member.evidenceAvailable === 1, contentType: member.evidenceContentType },
+          };
+        }),
+        exclusions: eligibility.exclusions ?? [],
+      };
+    },
+
+    async finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse> {
+      const replay = await replayOrConflict<AdminDatasetFinalizeResponse>(db, auth.subject, "dataset.finalize", idempotencyKey, input);
+      if (replay) return replay;
+      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.id, input.datasetId)).get();
+      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
+      if (snapshot.status !== "draft") throw new Error("DATASET_ALREADY_FINALIZED");
+      const timestamp = now();
+      const statements: D1PreparedStatement[] = [
+        database.prepare("UPDATE dataset_snapshots SET status = 'finalized', finalized_by = ?, finalized_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, snapshot.id),
+      ];
+      const response: AdminDatasetFinalizeResponse = { contractVersion: "1", datasetId: snapshot.id, version: snapshot.version, status: "finalized", finalizedAt: timestamp };
+      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'dataset.finalize', ?, ?, ?)").bind(`${auth.subject}:dataset.finalize:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'dataset.finalized', 'dataset_snapshot', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, snapshot.id, JSON.stringify({ version: snapshot.version }), timestamp));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      return response;
+    },
+
+    // Private, versioned OCRKit consumption contract. Reads only finalized
+    // snapshots and never exposes QQ identity, player-account internals, risk
+    // signals, Grant/mastery decisions, or unrelated Submission payloads.
+    async getOcrkitDataset(input: { version: number }): Promise<OcrkitDatasetResponse> {
+      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
+      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
+      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
+      const members = await db.select().from(datasetSnapshotAnnotations).where(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id)).orderBy(asc(datasetSnapshotAnnotations.position)).all();
+      const annotationIds = members.map((member) => member.annotationId);
+      const annotationRows = annotationIds.length ? await db.select().from(reviewedAnnotations).where(inArray(reviewedAnnotations.id, annotationIds)).all() : [];
+      const byId = new Map(annotationRows.map((annotation) => [annotation.id, annotation]));
+      return {
+        contractVersion: "1",
+        snapshot: { id: snapshot.id, version: snapshot.version, finalizedAt: snapshot.finalizedAt ?? 0, note: snapshot.note },
+        members: members.map((member) => {
+          const annotation = byId.get(member.annotationId);
+          return {
+            annotationId: member.annotationId,
+            fieldKey: annotation?.fieldKey as OcrkitDatasetResponse["members"][number]["fieldKey"],
+            reviewedValue: annotation?.reviewedValue ?? "",
+            normalizedValue: annotation?.normalizedValue ?? null,
+            originalOcrValue: annotation?.originalOcrValue ?? null,
+            modelVersion: annotation?.modelVersion ?? null,
+            layoutVersion: annotation?.layoutVersion ?? null,
+            evidence: { id: member.annotationId, available: member.evidenceAvailable === 1, contentType: member.evidenceContentType },
+          };
+        }),
+      };
+    },
+
+    async getOcrkitDatasetEvidence(input: { version: number; annotationId: string }): Promise<{ body: ArrayBuffer; contentType: string }> {
+      if (!evidenceBucket) throw new Error("EVIDENCE_UNAVAILABLE");
+      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
+      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
+      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
+      const member = await db.select().from(datasetSnapshotAnnotations).where(and(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id), eq(datasetSnapshotAnnotations.annotationId, input.annotationId))).get();
+      if (!member?.evidenceObjectKey) throw new Error("EVIDENCE_NOT_FOUND");
+      if (member.evidenceAvailable !== 1) throw new Error("EVIDENCE_UNAVAILABLE");
+      const object = await evidenceBucket.get(member.evidenceObjectKey);
+      if (!object) throw new Error("EVIDENCE_UNAVAILABLE");
+      return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? member.evidenceContentType ?? "image/png" };
     },
 
     async requestManualReview(input, sessionToken) {

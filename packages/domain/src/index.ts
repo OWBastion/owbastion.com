@@ -56,6 +56,11 @@ import type {
   AdminAnnotationDirectCreateRequest,
   AdminAnnotationDirectCreateResponse,
   AdminReviewedAnnotationListResponse,
+  AdminDatasetCreateResponse,
+  AdminDatasetListResponse,
+  AdminDatasetDetailResponse,
+  AdminDatasetFinalizeResponse,
+  OcrkitDatasetResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
@@ -246,6 +251,12 @@ export type PlatformServices = {
   decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse>;
   createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse>;
   listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, auth: AuthContext): Promise<AdminReviewedAnnotationListResponse>;
+  createAdminDatasetDraft(input: { note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
+  listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, auth: AuthContext): Promise<AdminDatasetListResponse>;
+  getAdminDataset(input: { datasetId: string }, auth: AuthContext): Promise<AdminDatasetDetailResponse>;
+  finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse>;
+  getOcrkitDataset(input: { version: number }): Promise<OcrkitDatasetResponse>;
+  getOcrkitDatasetEvidence(input: { version: number; annotationId: string }): Promise<{ body: ArrayBuffer; contentType: string }>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
