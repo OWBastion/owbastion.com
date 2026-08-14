@@ -1,11 +1,11 @@
 import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryProfiles, calculateMasteryXpV1, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateMasteryXpV1, annotationProposalPriority, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviewedAnnotations, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -13,6 +13,48 @@ import { assessOcrQuality, type OcrResponse } from "./ocr-response";
 
 const now = () => Date.now();
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
+
+type AdminAnnotationProposalRow = {
+  id: string;
+  submission_id: string;
+  submission_map_name: string;
+  submission_created_at: number;
+  ocr_result_id: string;
+  field_key: string;
+  original_value: string | null;
+  feedback_type: string;
+  prompt_origin: string | null;
+  proposed_value: string | null;
+  model_version: string | null;
+  layout_version: string | null;
+  player_account_id: string;
+  status: string;
+  review_state: string;
+  created_at: number;
+};
+
+type AdminReviewedAnnotationRow = {
+  id: string;
+  submission_id: string;
+  submission_map_name: string;
+  ocr_result_id: string;
+  proposal_id: string | null;
+  field_key: string;
+  original_ocr_value: string | null;
+  model_version: string | null;
+  layout_version: string | null;
+  reviewed_value: string;
+  normalized_value: string | null;
+  player_account_id: string | null;
+  player_proposed_value: string | null;
+  prompt_origin: string | null;
+  review_state: string;
+  reviewed_by: string;
+  reviewed_at: number;
+  note: string | null;
+  supersedes_annotation_id: string | null;
+  created_at: number;
+};
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 const normalizedOcrDifficulty = (value: unknown) => {
   const label = normalizedOcrLabel(value);
@@ -1944,6 +1986,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ocrStatus: (ocr?.status ?? (row.status === "ocr_pending" ? "pending" : "not_started")) as never,
       ocrAttempt: ocr?.attempt ?? null,
       ocrErrorCode: ocr?.errorCode ?? null,
+      ocrResultId: ocr?.id ?? null,
       ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
       match,
       reason: row.reviewReason,
@@ -4202,6 +4245,215 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, 'user', ?, 'ocr.feedback.submitted', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), player.player.id, submission.id, JSON.stringify({ ocrResultId: result.id, recorded, promptOrigin: decision.promptOrigin ?? null, modelVersion: response.model_version ?? null, layoutVersion: response.layout_version ?? null }), timestamp));
       await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
       return { ...responseBody, alreadySubmitted: input.items.every((item) => existingKeys.has(item.fieldKey)) };
+    },
+
+    // SQL-side deterministic order proxy for the proposal queue. It mirrors the
+    // domain priority scoring factors (calibration failure > correction >
+    // uncertain > critical field) so corrections, uncertain fields, and
+    // calibration failures always rank above routine confirmations. The
+    // displayed per-row priority (with repeat-pattern boost) is computed by the
+    // domain function for each returned row.
+    listAdminAnnotationProposals: async (input: { page: number; pageSize: number; state?: "pending" | "accepted" | "rejected"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string; kind?: "correction" | "confirmation" }, _auth: AuthContext): Promise<AdminAnnotationProposalListResponse> => {
+      const conditions = ["p.status = 'submitted'"];
+      const params: unknown[] = [];
+      const add = (clause: string, value: unknown) => { conditions.push(clause); params.push(value); };
+      if (input.state) add("p.review_state = ?", input.state);
+      if (input.fieldKey) add("p.field_key = ?", input.fieldKey);
+      if (input.modelVersion) add("p.model_version = ?", input.modelVersion);
+      if (input.layoutVersion) add("p.layout_version = ?", input.layoutVersion);
+      if (input.promptOrigin) add("p.prompt_origin = ?", input.promptOrigin);
+      if (input.kind === "correction") conditions.push("p.feedback_type IN ('corrected', 'passive_report')");
+      if (input.kind === "confirmation") conditions.push("p.feedback_type = 'confirmed'");
+      const where = conditions.join(" AND ");
+      const page = input.page >= 1 ? input.page : 1;
+      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
+      const totalRow = await database.prepare(`SELECT COUNT(*) AS total FROM ocr_feedback_proposals p WHERE ${where}`).bind(...params).first<{ total: number }>();
+      const total = totalRow?.total ?? 0;
+      const order = `CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.prompt_origin = 'calibration' THEN 40 ELSE 0 END
+        + CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.proposed_value IS NOT NULL AND p.proposed_value != p.original_value THEN 20 ELSE 0 END
+        + CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.prompt_origin IN ('uncertainty', 'conflict', 'grouped') THEN 15 ELSE 0 END
+        + CASE WHEN p.field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed') THEN 5 ELSE 0 END`;
+      const rows = await database.prepare(
+        `SELECT p.*, s.map_name AS submission_map_name, s.created_at AS submission_created_at FROM ocr_feedback_proposals p INNER JOIN submissions s ON s.id = p.submission_id WHERE ${where} ORDER BY (${order}) DESC, p.created_at ASC LIMIT ? OFFSET ?`
+      ).bind(...params, pageSize, (page - 1) * pageSize).all<AdminAnnotationProposalRow>();
+      const repeatKeys = [...new Set(rows.results.filter((row) => (row.feedback_type === "corrected" || row.feedback_type === "passive_report") && row.proposed_value).map((row) => `${row.field_key}:${row.proposed_value}`))];
+      const repeatCounts = new Map<string, number>();
+      if (repeatKeys.length) {
+        const placeholders = repeatKeys.map(() => "?").join(", ");
+        const counts = await database.prepare(`SELECT field_key, proposed_value, COUNT(*) AS cnt FROM ocr_feedback_proposals WHERE status = 'submitted' AND feedback_type IN ('corrected', 'passive_report') AND proposed_value IS NOT NULL AND (field_key || ':' || proposed_value) IN (${placeholders}) GROUP BY field_key, proposed_value`).bind(...repeatKeys).all<{ field_key: string; proposed_value: string; cnt: number }>();
+        for (const row of counts.results) repeatCounts.set(`${row.field_key}:${row.proposed_value}`, row.cnt);
+      }
+      const items: AdminAnnotationProposal[] = rows.results.map((row) => {
+        const priority = annotationProposalPriority({
+          feedbackType: row.feedback_type as "confirmed" | "corrected" | "passive_report",
+          promptOrigin: row.prompt_origin,
+          fieldKey: row.field_key,
+          originalValue: row.original_value,
+          proposedValue: row.proposed_value,
+          repeatCount: Math.max(0, (repeatCounts.get(`${row.field_key}:${row.proposed_value}`) ?? 1) - 1),
+        });
+        return {
+          proposalId: row.id,
+          submissionId: row.submission_id,
+          submissionMapName: row.submission_map_name,
+          submissionCreatedAt: row.submission_created_at,
+          ocrResultId: row.ocr_result_id,
+          fieldKey: row.field_key as AdminAnnotationProposal["fieldKey"],
+          originalValue: row.original_value,
+          feedbackType: row.feedback_type as AdminAnnotationProposal["feedbackType"],
+          promptOrigin: row.prompt_origin as AdminAnnotationProposal["promptOrigin"],
+          proposedValue: row.proposed_value,
+          modelVersion: row.model_version,
+          layoutVersion: row.layout_version,
+          playerSubmittedAt: row.created_at,
+          reviewState: row.review_state as AdminAnnotationProposal["reviewState"],
+          priority,
+        };
+      });
+      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
+    async getAdminAnnotationProposal(input: { proposalId: string }, _auth: AuthContext): Promise<AdminAnnotationProposalDetailResponse> {
+      const row = await database.prepare(
+        "SELECT p.*, s.map_name AS submission_map_name, s.created_at AS submission_created_at FROM ocr_feedback_proposals p INNER JOIN submissions s ON s.id = p.submission_id WHERE p.id = ?"
+      ).bind(input.proposalId).first<AdminAnnotationProposalRow>();
+      if (!row) throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND");
+      const priority = annotationProposalPriority({
+        feedbackType: row.feedback_type as "confirmed" | "corrected" | "passive_report",
+        promptOrigin: row.prompt_origin,
+        fieldKey: row.field_key,
+        originalValue: row.original_value,
+        proposedValue: row.proposed_value,
+      });
+      const proposal: AdminAnnotationProposal = {
+        proposalId: row.id,
+        submissionId: row.submission_id,
+        submissionMapName: row.submission_map_name,
+        submissionCreatedAt: row.submission_created_at,
+        ocrResultId: row.ocr_result_id,
+        fieldKey: row.field_key as AdminAnnotationProposal["fieldKey"],
+        originalValue: row.original_value,
+        feedbackType: row.feedback_type as AdminAnnotationProposal["feedbackType"],
+        promptOrigin: row.prompt_origin as AdminAnnotationProposal["promptOrigin"],
+        proposedValue: row.proposed_value,
+        modelVersion: row.model_version,
+        layoutVersion: row.layout_version,
+        playerSubmittedAt: row.created_at,
+        reviewState: row.review_state as AdminAnnotationProposal["reviewState"],
+        priority,
+      };
+      const ocrResult = await db.select().from(ocrResults).where(eq(ocrResults.id, row.ocr_result_id)).get();
+      let ocr: AdminAnnotationProposalDetailResponse["ocr"] = null;
+      if (ocrResult?.responseJson) {
+        try {
+          const response = JSON.parse(ocrResult.responseJson) as OcrResponse;
+          ocr = { mapName: response.data?.map_name ?? null, difficulty: response.data?.difficulty ?? null, playerName: response.data?.viewer_player ?? null, challengeCompleted: response.data?.challenge_completed ?? null, achievementTitles: response.data?.achievement_titles ?? [] };
+        } catch { ocr = null; }
+      }
+      return { contractVersion: "1", proposal, ocr };
+    },
+
+    async decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse> {
+      const replay = await replayOrConflict<AdminAnnotationDecisionResponse>(db, auth.subject, "annotation.proposal.decide", idempotencyKey, input);
+      if (replay) return replay;
+      const proposal = await db.select().from(ocrFeedbackProposals).where(eq(ocrFeedbackProposals.id, input.proposalId)).get();
+      if (!proposal) throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND");
+      if (proposal.reviewState !== "pending") throw new Error("ANNOTATION_PROPOSAL_ALREADY_DECIDED");
+      const timestamp = now();
+      const statements: D1PreparedStatement[] = [];
+      let annotationId: string | null = null;
+      let newState: "accepted" | "rejected" = "rejected";
+      if (input.action !== "reject") {
+        newState = "accepted";
+        const reviewedValue = (input.reviewedValue ?? proposal.proposedValue ?? proposal.originalValue)?.trim();
+        if (!reviewedValue) throw new Error("ANNOTATION_REVIEWED_VALUE_REQUIRED");
+        const existing = await db.select().from(reviewedAnnotations).where(and(eq(reviewedAnnotations.submissionId, proposal.submissionId), eq(reviewedAnnotations.ocrResultId, proposal.ocrResultId), eq(reviewedAnnotations.fieldKey, proposal.fieldKey), eq(reviewedAnnotations.reviewState, "accepted"))).get();
+        annotationId = crypto.randomUUID();
+        if (existing) {
+          statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
+          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ proposalId: proposal.id, reason: input.note ?? null }), timestamp));
+        }
+        statements.push(database.prepare(
+          `INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?)`
+        ).bind(annotationId, proposal.submissionId, proposal.ocrResultId, proposal.id, proposal.fieldKey, proposal.originalValue, proposal.modelVersion, proposal.layoutVersion, reviewedValue, input.normalizedValue?.trim() ?? null, proposal.playerAccountId, proposal.proposedValue, proposal.promptOrigin, auth.subject, timestamp, input.note?.trim() ?? null, existing?.id ?? null, timestamp));
+        statements.push(database.prepare("UPDATE ocr_feedback_proposals SET review_state = 'accepted', updated_at = ? WHERE id = ? AND review_state = 'pending'").bind(timestamp, proposal.id));
+      } else {
+        statements.push(database.prepare("UPDATE ocr_feedback_proposals SET review_state = 'rejected', updated_at = ? WHERE id = ? AND review_state = 'pending'").bind(timestamp, proposal.id));
+      }
+      const response: AdminAnnotationDecisionResponse = { contractVersion: "1", proposalId: proposal.id, reviewState: newState, annotationId };
+      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'annotation.proposal.decide', ?, ?, ?)").bind(`${auth.subject}:annotation.proposal.decide:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'annotation_proposal', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, `annotation.proposal.${newState}`, proposal.id, JSON.stringify({ action: input.action, reviewedValue: input.reviewedValue ?? null, normalizedValue: input.normalizedValue?.trim() ?? null, note: input.note?.trim() ?? null, annotationId }), timestamp));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      return response;
+    },
+
+    async createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse> {
+      const replay = await replayOrConflict<AdminAnnotationDirectCreateResponse>(db, auth.subject, "annotation.direct.create", idempotencyKey, input);
+      if (replay) return replay;
+      const ocrResult = await db.select().from(ocrResults).where(and(eq(ocrResults.id, input.ocrResultId), eq(ocrResults.submissionId, input.submissionId))).get();
+      if (!ocrResult?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
+      let response: OcrResponse;
+      try { response = JSON.parse(ocrResult.responseJson) as OcrResponse; } catch { throw new Error("OCR_RESULT_INVALID"); }
+      if (!ocrFeedbackSafeKeys.includes(input.fieldKey)) throw new Error("OCR_FEEDBACK_FIELD_UNSAFE");
+      const timestamp = now();
+      const statements: D1PreparedStatement[] = [];
+      const annotationId = crypto.randomUUID();
+      const existing = await db.select().from(reviewedAnnotations).where(and(eq(reviewedAnnotations.submissionId, input.submissionId), eq(reviewedAnnotations.ocrResultId, input.ocrResultId), eq(reviewedAnnotations.fieldKey, input.fieldKey), eq(reviewedAnnotations.reviewState, "accepted"))).get();
+      let supersededAnnotationId: string | null = null;
+      if (existing) {
+        supersededAnnotationId = existing.id;
+        statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
+        statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ reason: input.note ?? null }), timestamp));
+      }
+      statements.push(database.prepare(
+        `INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 'accepted', ?, ?, ?, ?, ?)`
+      ).bind(annotationId, input.submissionId, input.ocrResultId, input.fieldKey, ocrFeedbackValue(response, input.fieldKey), response.model_version ?? null, response.layout_version ?? null, input.reviewedValue, input.normalizedValue?.trim() ?? null, auth.subject, timestamp, input.note?.trim() ?? null, supersededAnnotationId, timestamp));
+      const result: AdminAnnotationDirectCreateResponse = { contractVersion: "1", annotationId, supersededAnnotationId };
+      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'annotation.direct.create', ?, ?, ?)").bind(`${auth.subject}:annotation.direct.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(result), timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.direct.created', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, annotationId, JSON.stringify({ submissionId: input.submissionId, ocrResultId: input.ocrResultId, fieldKey: input.fieldKey, supersededAnnotationId }), timestamp));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      return result;
+    },
+
+    async listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, _auth: AuthContext): Promise<AdminReviewedAnnotationListResponse> {
+      const conditions = ["1 = 1"];
+      const params: unknown[] = [];
+      if (input.state) { conditions.push("r.review_state = ?"); params.push(input.state); }
+      if (input.fieldKey) { conditions.push("r.field_key = ?"); params.push(input.fieldKey); }
+      if (input.modelVersion) { conditions.push("r.model_version = ?"); params.push(input.modelVersion); }
+      if (input.layoutVersion) { conditions.push("r.layout_version = ?"); params.push(input.layoutVersion); }
+      if (input.promptOrigin) { conditions.push("r.prompt_origin = ?"); params.push(input.promptOrigin); }
+      const where = conditions.join(" AND ");
+      const page = input.page >= 1 ? input.page : 1;
+      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
+      const totalRow = await database.prepare(`SELECT COUNT(*) AS total FROM reviewed_annotations r WHERE ${where}`).bind(...params).first<{ total: number }>();
+      const total = totalRow?.total ?? 0;
+      const rows = await database.prepare(
+        `SELECT r.*, s.map_name AS submission_map_name FROM reviewed_annotations r INNER JOIN submissions s ON s.id = r.submission_id WHERE ${where} ORDER BY r.reviewed_at DESC, r.created_at DESC LIMIT ? OFFSET ?`
+      ).bind(...params, pageSize, (page - 1) * pageSize).all<AdminReviewedAnnotationRow>();
+      const items: AdminReviewedAnnotation[] = rows.results.map((row) => ({
+        annotationId: row.id,
+        submissionId: row.submission_id,
+        submissionMapName: row.submission_map_name,
+        ocrResultId: row.ocr_result_id,
+        proposalId: row.proposal_id,
+        fieldKey: row.field_key as AdminReviewedAnnotation["fieldKey"],
+        originalOcrValue: row.original_ocr_value,
+        modelVersion: row.model_version,
+        layoutVersion: row.layout_version,
+        reviewedValue: row.reviewed_value,
+        normalizedValue: row.normalized_value,
+        playerAccountId: row.player_account_id,
+        playerProposedValue: row.player_proposed_value,
+        promptOrigin: row.prompt_origin as AdminReviewedAnnotation["promptOrigin"],
+        reviewState: row.review_state as AdminReviewedAnnotation["reviewState"],
+        reviewedBy: row.reviewed_by,
+        reviewedAt: row.reviewed_at,
+        note: row.note,
+        supersedesAnnotationId: row.supersedes_annotation_id,
+        createdAt: row.created_at,
+      }));
+      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
     },
 
     async requestManualReview(input, sessionToken) {

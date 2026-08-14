@@ -105,6 +105,46 @@ export type AdminReview = {
 };
 export type AdminReviewAudit = { operation: string; actorType: string; actorId: string; reason: string | null; createdAt: number };
 export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
+export type AdminAnnotationProposal = {
+  proposalId: string;
+  submissionId: string;
+  submissionMapName: string;
+  submissionCreatedAt: number;
+  ocrResultId: string;
+  fieldKey: "map_name" | "difficulty" | "viewer_player" | "challenge_completed" | "achievement_titles";
+  originalValue: string | null;
+  feedbackType: "confirmed" | "corrected" | "passive_report";
+  promptOrigin: "uncertainty" | "conflict" | "grouped" | "calibration" | null;
+  proposedValue: string | null;
+  modelVersion: string | null;
+  layoutVersion: string | null;
+  playerSubmittedAt: number;
+  reviewState: "pending" | "accepted" | "rejected";
+  priority: { score: number; category: "correction" | "calibration_failure" | "uncertain" | "repeat" | "confirmation"; reasons: string[] };
+};
+export type AdminAnnotationProposalDetail = { contractVersion: "1"; proposal: AdminAnnotationProposal; ocr: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles?: string[] } | null };
+export type AdminReviewedAnnotation = {
+  annotationId: string;
+  submissionId: string;
+  submissionMapName: string;
+  ocrResultId: string;
+  proposalId: string | null;
+  fieldKey: AdminAnnotationProposal["fieldKey"];
+  originalOcrValue: string | null;
+  modelVersion: string | null;
+  layoutVersion: string | null;
+  reviewedValue: string;
+  normalizedValue: string | null;
+  playerAccountId: string | null;
+  playerProposedValue: string | null;
+  promptOrigin: AdminAnnotationProposal["promptOrigin"];
+  reviewState: "accepted" | "superseded";
+  reviewedBy: string;
+  reviewedAt: number;
+  note: string | null;
+  supersedesAnnotationId: string | null;
+  createdAt: number;
+};
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

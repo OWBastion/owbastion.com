@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -257,5 +257,69 @@ describe("v1 platform contracts", () => {
     expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "run_code", action: "confirmed" }] }).success).toBe(false);
     expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [] }).success).toBe(false);
     expect(playerOcrFeedbackResponseSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false }).success).toBe(true);
+  });
+
+  it("validates maintainer annotation decisions without requiring reasons", () => {
+    const base = { contractVersion: "1" };
+    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "accept" }).success).toBe(true);
+    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "reject" }).success).toBe(true);
+    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "edit_accept", reviewedValue: "普通" }).success).toBe(true);
+    // edit_accept without a reviewed transcription is invalid.
+    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "edit_accept" }).success).toBe(false);
+    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "accept", normalizedValue: "一般" }).success).toBe(false);
+    expect(adminAnnotationDecisionResponseSchema.safeParse({ contractVersion: "1", proposalId: "00000000-0000-4000-8000-000000000005", reviewState: "accepted", annotationId: "00000000-0000-4000-8000-000000000006" }).success).toBe(true);
+  });
+
+  it("validates direct reviewed annotation creation for eligible OCR fields", () => {
+    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道" }).success).toBe(true);
+    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道", normalizedValue: "map.royal", note: "人工核对" }).success).toBe(true);
+    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "run_code", reviewedValue: "1234" }).success).toBe(false);
+    expect(adminAnnotationDirectCreateResponseSchema.safeParse({ contractVersion: "1", annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null }).success).toBe(true);
+  });
+
+  it("keeps the annotation proposal queue contract explainable and free of raw scoring internals", () => {
+    const item = {
+      proposalId: "00000000-0000-4000-8000-000000000005",
+      submissionId: "00000000-0000-4000-8000-000000000003",
+      submissionMapName: "测试地图",
+      submissionCreatedAt: 1,
+      ocrResultId: "00000000-0000-4000-8000-000000000004",
+      fieldKey: "difficulty",
+      originalValue: "困难",
+      feedbackType: "corrected",
+      promptOrigin: "uncertainty",
+      proposedValue: "一般",
+      modelVersion: "ocr-v1",
+      layoutVersion: "layout-v2",
+      playerSubmittedAt: 2,
+      reviewState: "pending",
+      priority: { score: 25, category: "correction", reasons: ["correction"] },
+    };
+    expect(adminAnnotationProposalSchema.safeParse(item).success).toBe(true);
+    // The queue must not carry raw confidence or threshold internals.
+    expect(adminAnnotationProposalSchema.safeParse({ ...item, priority: { score: 25, category: "correction", reasons: ["correction"], confidence: 0.7 } }).success).toBe(false);
+    expect(adminAnnotationProposalListResponseSchema.safeParse({ contractVersion: "1", items: [item], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(true);
+    expect(adminReviewedAnnotationSchema.safeParse({
+      annotationId: "00000000-0000-4000-8000-000000000006",
+      submissionId: "00000000-0000-4000-8000-000000000003",
+      submissionMapName: "测试地图",
+      ocrResultId: "00000000-0000-4000-8000-000000000004",
+      proposalId: "00000000-0000-4000-8000-000000000005",
+      fieldKey: "difficulty",
+      originalOcrValue: "困难",
+      modelVersion: "ocr-v1",
+      layoutVersion: "layout-v2",
+      reviewedValue: "一般",
+      normalizedValue: "一般",
+      playerAccountId: "player-1",
+      playerProposedValue: "一般",
+      promptOrigin: "uncertainty",
+      reviewState: "accepted",
+      reviewedBy: "maintainer-1",
+      reviewedAt: 3,
+      note: null,
+      supersedesAnnotationId: null,
+      createdAt: 3,
+    }).success).toBe(true);
   });
 });

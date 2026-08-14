@@ -474,6 +474,7 @@ export const ocrFeedbackProposals = sqliteTable("ocr_feedback_proposals", {
   layoutVersion: text("layout_version"),
   playerAccountId: text("player_account_id").notNull(),
   status: text("status").notNull().default("submitted"),
+  reviewState: text("review_state").notNull().default("pending"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
@@ -481,6 +482,36 @@ export const ocrFeedbackProposals = sqliteTable("ocr_feedback_proposals", {
   // recognition, field, player). Retries update the same row in place.
   proposalReplayIdx: uniqueIndex("ocr_feedback_proposals_replay_idx").on(table.submissionId, table.ocrResultId, table.fieldKey, table.playerAccountId),
   proposalQueueIdx: index("ocr_feedback_proposals_queue_idx").on(table.status, table.createdAt),
+}));
+
+// Reviewed annotation truth produced by a maintainer from a player proposal or
+// a maintainer-found OCR error. Content is immutable after creation; only the
+// lifecycle state (accepted -> superseded) may change.
+export const reviewedAnnotations = sqliteTable("reviewed_annotations", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  ocrResultId: text("ocr_result_id").notNull(),
+  proposalId: text("proposal_id").references(() => ocrFeedbackProposals.id),
+  fieldKey: text("field_key").notNull(),
+  originalOcrValue: text("original_ocr_value"),
+  modelVersion: text("model_version"),
+  layoutVersion: text("layout_version"),
+  reviewedValue: text("reviewed_value").notNull(),
+  normalizedValue: text("normalized_value"),
+  playerAccountId: text("player_account_id"),
+  playerProposedValue: text("player_proposed_value"),
+  promptOrigin: text("prompt_origin"),
+  reviewState: text("review_state").notNull().default("accepted"),
+  reviewedBy: text("reviewed_by").notNull(),
+  reviewedAt: integer("reviewed_at").notNull(),
+  note: text("note"),
+  supersedesAnnotationId: text("supersedes_annotation_id").references((): AnySQLiteColumn => reviewedAnnotations.id),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  proposalIdx: uniqueIndex("reviewed_annotations_proposal_idx").on(table.proposalId).where(sql`${table.proposalId} IS NOT NULL`),
+  activeFieldIdx: uniqueIndex("reviewed_annotations_active_field_idx").on(table.submissionId, table.ocrResultId, table.fieldKey).where(sql`${table.reviewState} = 'accepted'`),
+  queueIdx: index("reviewed_annotations_queue_idx").on(table.reviewState, table.reviewedAt),
+  fieldIdx: index("reviewed_annotations_field_idx").on(table.fieldKey, table.modelVersion, table.layoutVersion),
 }));
 
 export const reviews = sqliteTable("reviews", {

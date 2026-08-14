@@ -69,6 +69,11 @@ const services: PlatformServices = {
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
   submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false }),
+  listAdminAnnotationProposals: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  getAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
+  decideAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
+  createAdminReviewedAnnotation: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); },
+  listAdminReviewedAnnotations: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
@@ -735,6 +740,70 @@ describe("API", () => {
     const stale = await staleApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
     expect(stale.status).toBe(409);
     expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
+  });
+
+  it("keeps annotation review routes maintainer-only with validated queries", async () => {
+    const proposalId = "00000000-0000-4000-8000-000000000005";
+    const proposal = {
+      proposalId,
+      submissionId: "00000000-0000-4000-8000-000000000003",
+      submissionMapName: "测试地图",
+      submissionCreatedAt: 1,
+      ocrResultId: "00000000-0000-4000-8000-000000000004",
+      fieldKey: "difficulty" as const,
+      originalValue: "困难",
+      feedbackType: "corrected" as const,
+      promptOrigin: "uncertainty" as const,
+      proposedValue: "一般",
+      modelVersion: "ocr-v1",
+      layoutVersion: "layout-v2",
+      playerSubmittedAt: 2,
+      reviewState: "pending" as const,
+      priority: { score: 25, category: "correction" as const, reasons: ["correction"] },
+    };
+    const annotationApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({
+        ...services,
+        listAdminAnnotationProposals: async (input) => ({ contractVersion: "1", items: [proposal], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
+        getAdminAnnotationProposal: async () => ({ contractVersion: "1", proposal, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
+        decideAdminAnnotationProposal: async (input) => ({ contractVersion: "1", proposalId: input.proposalId, reviewState: input.action === "reject" ? "rejected" : "accepted", annotationId: input.action === "reject" ? null : "00000000-0000-4000-8000-000000000006" }),
+        createAdminReviewedAnnotation: async () => ({ contractVersion: "1", annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null }),
+      }),
+    });
+
+    expect((await app.request("http://localhost/v1/admin/annotations/proposals", {}, env)).status).toBe(403);
+    const unauthenticated = createApp({ authenticate: async () => null, services: () => services });
+    expect((await unauthenticated.request("http://localhost/v1/admin/annotations/proposals", {}, env)).status).toBe(401);
+
+    const list = await annotationApp.request("http://localhost/v1/admin/annotations/proposals?state=pending&fieldKey=difficulty&kind=correction&page=1&pageSize=10", {}, env);
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ items: [{ proposalId, priority: { category: "correction" } }], total: 1 });
+    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals?state=bogus", {}, env)).status).toBe(422);
+    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals?page=0", {}, env)).status).toBe(422);
+
+    const detail = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}`, {}, env);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ proposal: { proposedValue: "一般" }, ocr: { mapName: "测试地图" } });
+    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals/not-a-uuid", {}, env)).status).toBe(422);
+
+    const accept = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-1" }, body: JSON.stringify({ contractVersion: "1", action: "accept" }) }, env);
+    expect(accept.status).toBe(200);
+    expect(await accept.json()).toMatchObject({ reviewState: "accepted", annotationId: "00000000-0000-4000-8000-000000000006" });
+    const reject = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-2" }, body: JSON.stringify({ contractVersion: "1", action: "reject" }) }, env);
+    expect(reject.status).toBe(200);
+    expect(await reject.json()).toMatchObject({ reviewState: "rejected", annotationId: null });
+    // Reasons remain optional; edit_accept without a value is rejected.
+    const editAccept = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-3" }, body: JSON.stringify({ contractVersion: "1", action: "edit_accept" }) }, env);
+    expect(editAccept.status).toBe(422);
+
+    const direct = await annotationApp.request("http://localhost/v1/admin/annotations/direct", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-4" }, body: JSON.stringify({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道" }) }, env);
+    expect(direct.status).toBe(200);
+    expect(await direct.json()).toMatchObject({ annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null });
+
+    const reviewed = await annotationApp.request("http://localhost/v1/admin/annotations/reviewed?state=accepted", {}, env);
+    expect(reviewed.status).toBe(200);
+    expect(await reviewed.json()).toMatchObject({ items: [], total: 0 });
   });
 
   it("limits review identity and moderation operations to maintainers", async () => {

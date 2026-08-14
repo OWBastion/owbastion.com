@@ -28,6 +28,8 @@ import {
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
   playerOcrFeedbackRequestSchema,
+  adminAnnotationDecisionRequestSchema,
+  adminAnnotationDirectCreateRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
@@ -340,6 +342,11 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/mastery-runs/:masteryRunId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/mastery-runs/:masteryRunId/state", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/mastery-runs/:masteryRunId/conflicts/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/annotations/proposals", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/annotations/proposals/:proposalId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/annotations/proposals/:proposalId/decision", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/annotations/direct", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/annotations/reviewed", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -1404,12 +1411,119 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  const allowedAnnotationStates = ["pending", "accepted", "rejected"] as const;
+  const allowedAnnotationFieldKeys = ["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"] as const;
+  const allowedAnnotationOrigins = ["uncertainty", "conflict", "grouped", "calibration", "passive"] as const;
+  const validAnnotationUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+  app.get("/v1/admin/annotations/proposals", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const page = Number(c.req.query("page") ?? "1");
+    const pageSize = Number(c.req.query("pageSize") ?? "20");
+    const state = c.req.query("state");
+    const fieldKey = c.req.query("fieldKey");
+    const modelVersion = c.req.query("modelVersion");
+    const layoutVersion = c.req.query("layoutVersion");
+    const promptOrigin = c.req.query("promptOrigin");
+    const kind = c.req.query("kind");
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
+      || (state && !allowedAnnotationStates.includes(state as typeof allowedAnnotationStates[number]))
+      || (fieldKey && !allowedAnnotationFieldKeys.includes(fieldKey as typeof allowedAnnotationFieldKeys[number]))
+      || (promptOrigin && !allowedAnnotationOrigins.includes(promptOrigin as typeof allowedAnnotationOrigins[number]))
+      || (kind && kind !== "correction" && kind !== "confirmation")) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The annotation proposal query is invalid");
+    }
+    return c.json(await dependencies.services(c.env).listAdminAnnotationProposals({
+      page, pageSize,
+      ...(state ? { state: state as typeof allowedAnnotationStates[number] } : {}),
+      ...(fieldKey ? { fieldKey: fieldKey as typeof allowedAnnotationFieldKeys[number] } : {}),
+      ...(modelVersion?.trim() ? { modelVersion: modelVersion.trim() } : {}),
+      ...(layoutVersion?.trim() ? { layoutVersion: layoutVersion.trim() } : {}),
+      ...(promptOrigin ? { promptOrigin: promptOrigin as typeof allowedAnnotationOrigins[number] } : {}),
+      ...(kind ? { kind: kind as "correction" | "confirmation" } : {}),
+    }, access.auth!));
+  });
+
+  app.get("/v1/admin/annotations/proposals/:proposalId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const proposalId = c.req.param("proposalId");
+    if (!validAnnotationUuid(proposalId)) return errorResponse(c, 422, "INVALID_PROPOSAL_ID", "The proposal ID is invalid");
+    try { return c.json(await dependencies.services(c.env).getAdminAnnotationProposal({ proposalId }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "ANNOTATION_PROPOSAL_NOT_FOUND") return errorResponse(c, 404, "ANNOTATION_PROPOSAL_NOT_FOUND", "The annotation proposal does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/annotations/proposals/:proposalId/decision", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const proposalId = c.req.param("proposalId");
+    if (!validAnnotationUuid(proposalId)) return errorResponse(c, 422, "INVALID_PROPOSAL_ID", "The proposal ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminAnnotationDecisionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).decideAdminAnnotationProposal({ ...parsed.data, proposalId }, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "ANNOTATION_DECISION_FAILED";
+      if (code === "ANNOTATION_PROPOSAL_NOT_FOUND") return errorResponse(c, 404, code, "The annotation proposal does not exist");
+      if (code === "ANNOTATION_PROPOSAL_ALREADY_DECIDED") return errorResponse(c, 409, code, "The annotation proposal was already decided");
+      if (code === "ANNOTATION_REVIEWED_VALUE_REQUIRED") return errorResponse(c, 422, code, "Accepting requires a reviewed transcription");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/annotations/direct", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminAnnotationDirectCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).createAdminReviewedAnnotation(parsed.data, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "ANNOTATION_CREATE_FAILED";
+      if (["OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"].includes(code)) return errorResponse(c, 404, "OCR_RESULT_NOT_FOUND", "The recognition result does not exist");
+      if (code === "OCR_FEEDBACK_FIELD_UNSAFE") return errorResponse(c, 422, code, "The field is not eligible for annotation");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.get("/v1/admin/annotations/reviewed", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const page = Number(c.req.query("page") ?? "1");
+    const pageSize = Number(c.req.query("pageSize") ?? "20");
+    const state = c.req.query("state");
+    const fieldKey = c.req.query("fieldKey");
+    const modelVersion = c.req.query("modelVersion");
+    const layoutVersion = c.req.query("layoutVersion");
+    const promptOrigin = c.req.query("promptOrigin");
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
+      || (state && state !== "accepted" && state !== "superseded")
+      || (fieldKey && !allowedAnnotationFieldKeys.includes(fieldKey as typeof allowedAnnotationFieldKeys[number]))
+      || (promptOrigin && !allowedAnnotationOrigins.includes(promptOrigin as typeof allowedAnnotationOrigins[number]))) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The reviewed annotation query is invalid");
+    }
+    return c.json(await dependencies.services(c.env).listAdminReviewedAnnotations({
+      page, pageSize,
+      ...(state ? { state: state as "accepted" | "superseded" } : {}),
+      ...(fieldKey ? { fieldKey: fieldKey as typeof allowedAnnotationFieldKeys[number] } : {}),
+      ...(modelVersion?.trim() ? { modelVersion: modelVersion.trim() } : {}),
+      ...(layoutVersion?.trim() ? { layoutVersion: layoutVersion.trim() } : {}),
+      ...(promptOrigin ? { promptOrigin: promptOrigin as typeof allowedAnnotationOrigins[number] } : {}),
+    }, access.auth!));
+  });
+
   app.get("/v1/admin/mastery-runs", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
     const query = adminMasteryRunQuery(c.req.raw);
-    if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery run query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminMasteryRuns(query, access.auth!));
+    if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery run query is invalid");    return c.json(await dependencies.services(c.env).listAdminMasteryRuns(query, access.auth!));
   });
 
   app.get("/v1/admin/mastery-runs/:masteryRunId", async (c) => {

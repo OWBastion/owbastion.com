@@ -49,6 +49,13 @@ import type {
   PlayerSubmissionChallengeRequest,
   PlayerOcrFeedbackRequest,
   PlayerOcrFeedbackResponse,
+  AdminAnnotationProposalListResponse,
+  AdminAnnotationProposalDetailResponse,
+  AdminAnnotationDecisionRequest,
+  AdminAnnotationDecisionResponse,
+  AdminAnnotationDirectCreateRequest,
+  AdminAnnotationDirectCreateResponse,
+  AdminReviewedAnnotationListResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
@@ -57,6 +64,7 @@ import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerif
 export * from "./mastery";
 export * from "./gameplay-revision";
 export * from "./ocr-feedback";
+export * from "./annotation-review";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -233,6 +241,11 @@ export type PlatformServices = {
   getPlayerEvidence(input: { submissionId: string }, sessionToken: string): Promise<{ body: ArrayBuffer; contentType: string }>;
   submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
+  listAdminAnnotationProposals(input: { page: number; pageSize: number; state?: "pending" | "accepted" | "rejected"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string; kind?: "correction" | "confirmation" }, auth: AuthContext): Promise<AdminAnnotationProposalListResponse>;
+  getAdminAnnotationProposal(input: { proposalId: string }, auth: AuthContext): Promise<AdminAnnotationProposalDetailResponse>;
+  decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse>;
+  createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse>;
+  listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, auth: AuthContext): Promise<AdminReviewedAnnotationListResponse>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqLoginVerifyResponse>;
