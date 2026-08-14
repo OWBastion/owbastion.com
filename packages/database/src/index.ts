@@ -1,11 +1,11 @@
 import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryProfiles, calculateMasteryXpV1, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
-import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateMasteryXpV1, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
+import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -367,7 +367,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02): PlatformServices => {
   const db = drizzle(database);
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
@@ -1422,6 +1422,55 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const submissionBinding = await db.select().from(bindings).where(eq(bindings.id, submission.bindingId)).get();
     if (!submissionBinding || submissionBinding.playerAccountId !== currentBinding.playerAccountId) throw new Error("SUBMISSION_NOT_FOUND");
     return submission;
+  };
+
+  // Feedback is offered only when the submission carries usable OCR evidence.
+  // Unsupported/cropped/unusable records already live in the existing
+  // resubmission/manual-review path and must never become annotation tasks.
+  const ocrFeedbackEligibleStatuses = new Set(["approved", "ready_for_review", "ocr_review_required", "awaiting_player_confirmation"]);
+
+  const ocrFeedbackSafeKeys: OcrFeedbackFieldKey[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"];
+
+  const ocrFeedbackValue = (response: OcrResponse, key: OcrFeedbackFieldKey): string | null => {
+    const data = response.data ?? {};
+    switch (key) {
+      case "map_name": return typeof data.map_name === "string" ? data.map_name : null;
+      case "difficulty": return typeof data.difficulty === "string" ? data.difficulty : null;
+      case "viewer_player": return typeof data.viewer_player === "string" ? data.viewer_player : null;
+      case "challenge_completed": return data.challenge_completed === null || data.challenge_completed === undefined ? null : String(data.challenge_completed);
+      case "achievement_titles": return Array.isArray(data.achievement_titles) && data.achievement_titles.length ? data.achievement_titles.join("、") : null;
+    }
+  };
+
+  const ocrFeedbackFieldInputs = (response: OcrResponse): OcrFeedbackFieldInput[] => ocrFeedbackSafeKeys.map((key) => {
+    const evidence = response.fields?.[key];
+    return {
+      key,
+      value: ocrFeedbackValue(response, key),
+      confidence: typeof evidence?.confidence === "number" ? evidence.confidence : null,
+      status: evidence?.status ?? null,
+    };
+  });
+
+  const buildPlayerOcrFeedbackState = async (submissionId: string, result: typeof ocrResults.$inferSelect, response: OcrResponse, calibrationSampleRate = ocrFeedbackCalibrationRate) => {
+    const decision = await deriveOcrFeedbackDecision({
+      submissionId,
+      ocrResultId: result.id,
+      ok: response.ok,
+      schemaVersion: response.schema_version,
+      fields: ocrFeedbackFieldInputs(response),
+      calibrationSampleRate,
+    });
+    const existing = await db.select({ id: ocrFeedbackProposals.id }).from(ocrFeedbackProposals).where(and(eq(ocrFeedbackProposals.submissionId, submissionId), eq(ocrFeedbackProposals.ocrResultId, result.id), eq(ocrFeedbackProposals.status, "submitted"))).limit(1).get();
+    return {
+      mode: decision.mode,
+      promptOrigin: decision.promptOrigin,
+      promptFieldKeys: decision.promptFieldKeys,
+      fields: ocrFeedbackSafeKeys.map((key) => ({ key, value: ocrFeedbackValue(response, key) })),
+      ocrResultId: result.id,
+      submitted: Boolean(existing),
+      available: !decision.severeFailure,
+    };
   };
 
   const getCurrentPortalPlayer = async (sessionToken: string) => {
@@ -4092,6 +4141,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         loadMasterySubmissionOutcome(submission.id),
       ]);
       const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
+      const feedback = raw && result && ocrFeedbackEligibleStatuses.has(submission.status)
+        ? await buildPlayerOcrFeedbackState(submission.id, result, raw)
+        : null;
       return {
         contractVersion: "1" as const,
         submissionId: submission.id,
@@ -4106,9 +4158,50 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ocrFailCount: submission.ocrFailCount,
         manualReviewEligible: submission.status === "resubmission_required" && submission.ocrFailCount >= ocrManualReviewThreshold,
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
+        ...(feedback ? { feedback } : {}),
         ...(grantRow?.grant.status === "active" ? { titleGrant: { grantId: grantRow.grant.id, titleKey: grantRow.title.key, titleName: grantRow.title.label, ...(grantRow.mapName ? { mapName: grantRow.mapName } : {}) } } : {}),
         ...playerMasterySubmissionOutcomeFields(masteryOutcome),
       };
+    },
+
+    async submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse> {
+      const player = await getCurrentPortalPlayer(sessionToken);
+      if (!player) throw new Error("UNAUTHENTICATED");
+      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      const replay = await replayOrConflict<PlayerOcrFeedbackResponse>(db, player.player.id, "ocr.feedback.submit", idempotencyKey, input);
+      if (replay) return { ...replay, alreadySubmitted: true };
+      if (!ocrFeedbackEligibleStatuses.has(submission.status)) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
+      if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
+      let response: OcrResponse;
+      try { response = JSON.parse(result.responseJson) as OcrResponse; } catch { throw new Error("OCR_RESULT_INVALID"); }
+      const decision = await deriveOcrFeedbackDecision({ submissionId: submission.id, ocrResultId: result.id, ok: response.ok, schemaVersion: response.schema_version, fields: ocrFeedbackFieldInputs(response), calibrationSampleRate: ocrFeedbackCalibrationRate });
+      if (decision.severeFailure) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
+      const existingRows = await db.select({ fieldKey: ocrFeedbackProposals.fieldKey }).from(ocrFeedbackProposals).where(and(eq(ocrFeedbackProposals.submissionId, submission.id), eq(ocrFeedbackProposals.ocrResultId, result.id), eq(ocrFeedbackProposals.playerAccountId, player.player.id)));
+      const existingKeys = new Set(existingRows.map((row) => row.fieldKey));
+      const timestamp = now();
+      const statements: D1PreparedStatement[] = [];
+      const recorded: PlayerOcrFeedbackResponse["recorded"] = [];
+      for (const item of input.items) {
+        if (!ocrFeedbackSafeKeys.includes(item.fieldKey)) throw new Error("OCR_FEEDBACK_FIELD_UNSAFE");
+        const prompted = decision.promptFieldKeys.includes(item.fieldKey);
+        if (item.action === "confirmed" && !prompted) throw new Error("OCR_FEEDBACK_FIELD_NOT_PROMPTED");
+        const proposedValue = item.action === "corrected" ? item.proposedValue?.trim() ?? "" : null;
+        if (item.action === "corrected" && !proposedValue) throw new Error("OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED");
+        if (proposedValue && Array.from(proposedValue).length > 256) throw new Error("OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG");
+        const origin = prompted && decision.promptOrigin ? decision.promptOrigin : "passive";
+        statements.push(database.prepare(
+          `INSERT INTO ocr_feedback_proposals (id, submission_id, ocr_result_id, field_key, original_value, feedback_type, prompt_origin, proposed_value, model_version, layout_version, player_account_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)
+           ON CONFLICT(submission_id, ocr_result_id, field_key, player_account_id) DO UPDATE SET feedback_type = excluded.feedback_type, prompt_origin = excluded.prompt_origin, proposed_value = excluded.proposed_value, original_value = excluded.original_value, model_version = excluded.model_version, layout_version = excluded.layout_version, status = 'submitted', updated_at = excluded.updated_at`
+        ).bind(crypto.randomUUID(), submission.id, result.id, item.fieldKey, ocrFeedbackValue(response, item.fieldKey), item.action === "confirmed" ? "confirmed" : "corrected", origin, proposedValue, response.model_version ?? null, response.layout_version ?? null, player.player.id, timestamp, timestamp));
+        recorded.push({ fieldKey: item.fieldKey, action: item.action, status: "submitted" });
+      }
+      const responseBody: PlayerOcrFeedbackResponse = { contractVersion: "1", submissionId: submission.id, recorded, alreadySubmitted: false };
+      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'ocr.feedback.submit', ?, ?, ?)").bind(`${player.player.id}:ocr.feedback.submit:${idempotencyKey}`, player.player.id, await hashRequest(input), JSON.stringify(responseBody), timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, 'user', ?, 'ocr.feedback.submitted', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), player.player.id, submission.id, JSON.stringify({ ocrResultId: result.id, recorded, promptOrigin: decision.promptOrigin ?? null, modelVersion: response.model_version ?? null, layoutVersion: response.layout_version ?? null }), timestamp));
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      return { ...responseBody, alreadySubmitted: input.items.every((item) => existingKeys.has(item.fieldKey)) };
     },
 
     async requestManualReview(input, sessionToken) {

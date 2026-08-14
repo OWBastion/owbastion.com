@@ -458,6 +458,31 @@ export const submissionSpotChecks = sqliteTable("submission_spot_checks", {
   reason: text("reason"),
 }, (table) => ({ submissionIdIdx: uniqueIndex("submission_spot_checks_submission_id_idx").on(table.submissionId) }));
 
+// Player OCR-result feedback proposals. One row per safe field per recognition.
+// A proposal is an annotation proposal, never ground truth by itself: it does
+// not change the Submission decision, challenge, Grant, or mastery outcome.
+export const ocrFeedbackProposals = sqliteTable("ocr_feedback_proposals", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  ocrResultId: text("ocr_result_id").notNull(),
+  fieldKey: text("field_key").notNull(),
+  originalValue: text("original_value"),
+  feedbackType: text("feedback_type").notNull(),
+  promptOrigin: text("prompt_origin"),
+  proposedValue: text("proposed_value"),
+  modelVersion: text("model_version"),
+  layoutVersion: text("layout_version"),
+  playerAccountId: text("player_account_id").notNull(),
+  status: text("status").notNull().default("submitted"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  // Idempotent replay boundary: one equivalent proposal per (submission,
+  // recognition, field, player). Retries update the same row in place.
+  proposalReplayIdx: uniqueIndex("ocr_feedback_proposals_replay_idx").on(table.submissionId, table.ocrResultId, table.fieldKey, table.playerAccountId),
+  proposalQueueIdx: index("ocr_feedback_proposals_queue_idx").on(table.status, table.createdAt),
+}));
+
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),

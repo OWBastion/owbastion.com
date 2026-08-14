@@ -18,6 +18,15 @@ type SubmissionDetail = {
   titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
   masteryOutcome?: MasterySubmissionOutcome;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
+  feedback?: {
+    mode: "none" | "targeted" | "grouped";
+    promptOrigin: "uncertainty" | "conflict" | "grouped" | "calibration" | null;
+    promptFieldKeys: string[];
+    fields: Array<{ key: string; value: string | null }>;
+    ocrResultId: string;
+    submitted: boolean;
+    available: boolean;
+  };
 };
 
 definePageMeta({ middleware: "auth" });
@@ -332,6 +341,14 @@ onBeforeUnmount(() => {
               <div v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
             </dl>
           </UCard>
+
+          <OcrFeedbackPanel
+            v-if="data.feedback?.available"
+            :submission-id="data.submissionId"
+            :feedback="data.feedback"
+            @recorded="refreshSubmission"
+            @stale="refreshSubmission"
+          />
         </div>
       </section>
 

@@ -1005,12 +1005,71 @@ export const playerSubmissionOcrSummarySchema = z.object({
   achievementTitles: z.array(z.string()).optional(),
 }).strict();
 
+export const ocrFeedbackFieldKeySchema = z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"]);
+export const ocrFeedbackModeSchema = z.enum(["none", "targeted", "grouped"]);
+export const ocrFeedbackPromptOriginSchema = z.enum(["uncertainty", "conflict", "grouped", "calibration"]);
+export const ocrFeedbackActionSchema = z.enum(["confirmed", "corrected"]);
+
+export const playerSubmissionOcrFeedbackSchema = z.object({
+  // Whether a prompt exists for this recognition: none / targeted / grouped.
+  mode: ocrFeedbackModeSchema,
+  // The policy reason that produced a prompt, when one was generated.
+  promptOrigin: ocrFeedbackPromptOriginSchema.nullable(),
+  // Safe field keys the player is asked to confirm/correct.
+  promptFieldKeys: z.array(ocrFeedbackFieldKeySchema),
+  // Safe field identifiers and recognized values the player may give feedback
+  // on. This is the entire presentation contract; it never exposes numeric
+  // confidence, thresholds, warnings, risk signals, or raw OCRKit payloads.
+  fields: z.array(z.object({ key: ocrFeedbackFieldKeySchema, value: z.string().nullable() }).strict()),
+  // The recognition this feedback state refers to. Submissions bind feedback
+  // to a specific OCR result so a stale prompt is explicit.
+  ocrResultId: z.string().uuid(),
+  // Whether the player already recorded feedback for this recognition.
+  submitted: z.boolean(),
+  // Explicit prompt availability for the UI: unavailable when the recognition
+  // or submission cannot receive feedback (e.g. severe quality failure).
+  available: z.boolean(),
+}).strict();
+
+export const playerOcrFeedbackItemSchema = z.object({
+  fieldKey: ocrFeedbackFieldKeySchema,
+  action: ocrFeedbackActionSchema,
+  // Required for "corrected": the visible value the player proposes.
+  proposedValue: z.string().trim().min(1).max(256).optional(),
+}).strict().superRefine((item, context) => {
+  if (item.action === "corrected" && !item.proposedValue) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["proposedValue"], message: "A correction requires a proposed visible value" });
+  }
+});
+
+export const playerOcrFeedbackRequestSchema = z.object({
+  contractVersion,
+  // The recognition result the player was prompted on.
+  ocrResultId: z.string().uuid(),
+  items: z.array(playerOcrFeedbackItemSchema).min(1).max(10),
+}).strict();
+
+export const playerOcrFeedbackRecordedSchema = z.object({
+  fieldKey: ocrFeedbackFieldKeySchema,
+  action: ocrFeedbackActionSchema,
+  status: z.literal("submitted"),
+}).strict();
+
+export const playerOcrFeedbackResponseSchema = z.object({
+  contractVersion,
+  submissionId: z.string().uuid(),
+  recorded: z.array(playerOcrFeedbackRecordedSchema),
+  // True when the exact same feedback was already recorded (idempotent replay).
+  alreadySubmitted: z.boolean(),
+}).strict();
+
 export const playerSubmissionDetailSchema = submissionStatusResponseSchema.extend({
   evidenceUrl: z.string().url().nullable().optional(),
   ocr: playerSubmissionOcrSummarySchema.optional(),
   ocrFailCount: z.number().int().nonnegative().optional(),
   manualReviewEligible: z.boolean().optional(),
   titleGrant: z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapName: z.string().optional() }).optional(),
+  feedback: playerSubmissionOcrFeedbackSchema.optional(),
 });
 
 export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.omit({ contractVersion: true }).extend({
@@ -1125,6 +1184,11 @@ export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
+export type PlayerSubmissionOcrFeedback = z.infer<typeof playerSubmissionOcrFeedbackSchema>;
+export type PlayerOcrFeedbackRequest = z.infer<typeof playerOcrFeedbackRequestSchema>;
+export type PlayerOcrFeedbackResponse = z.infer<typeof playerOcrFeedbackResponseSchema>;
+export type OcrFeedbackFieldKey = z.infer<typeof ocrFeedbackFieldKeySchema>;
+export type OcrFeedbackAction = z.infer<typeof ocrFeedbackActionSchema>;
 export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;

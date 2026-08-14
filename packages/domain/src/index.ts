@@ -47,6 +47,8 @@ import type {
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   PlayerSubmissionChallengeRequest,
+  PlayerOcrFeedbackRequest,
+  PlayerOcrFeedbackResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
@@ -54,6 +56,7 @@ import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerif
 
 export * from "./mastery";
 export * from "./gameplay-revision";
+export * from "./ocr-feedback";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -228,6 +231,7 @@ export type PlatformServices = {
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   getPlayerEvidence(input: { submissionId: string }, sessionToken: string): Promise<{ body: ArrayBuffer; contentType: string }>;
+  submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
   getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;

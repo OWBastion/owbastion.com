@@ -38,7 +38,7 @@ describe("OCR Queue consumer", () => {
       minimumGameVersion: null,
       supportedOcrLayoutVersions: [],
       requiredConfidence: 0.9,
-    });
+    }, 0.02);
     expect(processOcrJob).toHaveBeenCalledWith({
       version: 1,
       submissionId: "submission-1",
@@ -61,7 +61,7 @@ describe("OCR Queue consumer", () => {
       MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS: "test-layout-v1, test-layout-v2",
     } as never);
 
-    expect(createPlatformServices.mock.calls[0]?.at(-1)).toEqual({
+    expect(createPlatformServices.mock.calls[0]?.at(-2)).toEqual({
       version: "v1",
       minimumGameVersion: "99.0101.1",
       supportedOcrLayoutVersions: ["test-layout-v1", "test-layout-v2"],

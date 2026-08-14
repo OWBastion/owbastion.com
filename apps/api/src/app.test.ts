@@ -68,6 +68,7 @@ const services: PlatformServices = {
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, masteryRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
+  submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
@@ -697,6 +698,43 @@ describe("API", () => {
     expect(invalid.status).toBe(422);
     const invalidTarget = await app.request("http://localhost/v1/me/reviews/not-a-target/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(invalidTarget.status).toBe(422);
+  });
+
+  it("records player OCR feedback with an idempotency key and safe-field validation", async () => {
+    const calls: Array<{ input: unknown; key: string; sessionToken: string }> = [];
+    const feedbackApp = createApp({
+      authenticate: auth,
+      services: () => ({
+        ...services,
+        submitPlayerOcrFeedback: async (input, sessionToken, key) => {
+          calls.push({ input, key, sessionToken });
+          return { contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false };
+        },
+      }),
+    });
+
+    const unauth = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    expect(unauth.status).toBe(401);
+
+    const missingKey = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    expect(missingKey.status).toBe(422);
+
+    const submitted = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-1" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    expect(submitted.status).toBe(200);
+    expect(await submitted.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false });
+    expect(calls).toEqual([{ input: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }], submissionId: "00000000-0000-4000-8000-000000000003" }, key: "feedback-1", sessionToken: "session-token" }]);
+
+    // Unsafe fields and malformed corrections are rejected at the contract boundary.
+    const unsafe = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-2" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "run_code", action: "confirmed" }] }) }, env);
+    expect(unsafe.status).toBe(422);
+    const missingValue = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-3" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected" }] }) }, env);
+    expect(missingValue.status).toBe(422);
+
+    // Actionable service errors map to explicit HTTP states.
+    const staleApp = createApp({ authenticate: auth, services: () => ({ ...services, submitPlayerOcrFeedback: async () => { throw new Error("OCR_PROMPT_STALE"); } }) });
+    const stale = await staleApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    expect(stale.status).toBe(409);
+    expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
   });
 
   it("limits review identity and moderation operations to maintainers", async () => {

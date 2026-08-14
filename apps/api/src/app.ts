@@ -27,6 +27,7 @@ import {
   adminMasteryRunStateRequestSchema, adminMasteryRunConflictResolutionRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
+  playerOcrFeedbackRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
 } from "@owbastion/contracts";
@@ -53,6 +54,7 @@ export type RuntimeEnv = {
   BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
   OCR_MANUAL_REVIEW_THRESHOLD?: string;
   OCR_AUTO_REVIEW_SAMPLE_RATE?: string;
+  OCR_FEEDBACK_CALIBRATION_RATE?: string;
   MASTERY_MIN_GAME_VERSION?: string;
   MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?: string;
   DEPLOYMENT_REVISION?: string;
@@ -324,6 +326,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/submissions/:submissionId/ocr-feedback", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:targetType/:targetId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:reviewId/withdraw", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/reviews/summaries", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -683,6 +686,29 @@ export const createApp = (dependencies: AppDependencies) => {
       return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } });
     } catch (error) {
       if (error instanceof Error && ["SUBMISSION_NOT_FOUND", "EVIDENCE_NOT_FOUND"].includes(error.message)) return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
+      throw error;
+    }
+  });
+
+  app.post("/v1/me/submissions/:submissionId/ocr-feedback", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = playerOcrFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
+      return c.json(response);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
+      if (code === "UNAUTHENTICATED") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
+      if (["OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"].includes(code)) return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
+      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition prompt is no longer current; refresh the submission");
+      if (["OCR_FEEDBACK_FIELD_UNSAFE", "OCR_FEEDBACK_FIELD_NOT_PROMPTED", "OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED", "OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG"].includes(code)) return errorResponse(c, 422, code, "The feedback content is invalid");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
   });

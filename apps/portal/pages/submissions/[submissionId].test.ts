@@ -28,6 +28,10 @@ const stubs = {
   StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
   SubmissionStatusBadge: { props: ["status"], template: "<span>{{ status }}</span>" },
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
+  OcrFeedbackPanel: {
+    props: ["submissionId", "feedback"],
+    template: `<div class="feedback-panel-stub" data-testid="ocr-feedback-panel">{{ submissionId }}:{{ feedback.mode }}</div>`,
+  },
   SubmissionCatalog: {
     props: ["selectedChallengeId", "selectedMapId", "selectedGameplayRevisionId"],
     emits: ["select"],
@@ -308,5 +312,33 @@ describe("submission detail page", () => {
     expect(wrapper.find(".status-live").text()).toContain("无法刷新状态");
     expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.text()).toContain("ocr_pending");
+  });
+
+  it("renders the OCR feedback panel only when feedback is available", async () => {
+    api.mockImplementation(() => Promise.resolve({
+      ...baseSubmission,
+      status: "approved",
+      reason: undefined,
+      feedback: {
+        mode: "targeted",
+        promptOrigin: "uncertainty",
+        promptFieldKeys: ["difficulty"],
+        fields: [{ key: "map_name", value: "帕拉伊苏" }, { key: "difficulty", value: "困难" }],
+        ocrResultId: "00000000-0000-4000-8000-000000000004",
+        submitted: false,
+        available: true,
+      },
+    }));
+    const wrapper = await mountSubmission("/submissions/submission-feedback");
+    const panel = wrapper.find('[data-testid="ocr-feedback-panel"]');
+    expect(panel.exists()).toBe(true);
+    expect(panel.text()).toContain("targeted");
+    expect(panel.text()).toContain("submission-1");
+  });
+
+  it("omits the OCR feedback panel when feedback is unavailable", async () => {
+    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "approved", reason: undefined, feedback: { mode: "none", promptOrigin: null, promptFieldKeys: [], fields: [], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: false } }));
+    const wrapper = await mountSubmission("/submissions/submission-no-feedback");
+    expect(wrapper.find('[data-testid="ocr-feedback-panel"]').exists()).toBe(false);
   });
 });

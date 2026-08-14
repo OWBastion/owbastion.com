@@ -17,7 +17,7 @@
     "db:generate-title-migration": "node --experimental-strip-types tools/generate-title-catalog-migration.ts",
     "db:reconcile:map-title-rules": "pnpm exec wrangler d1 execute DB --local --file tools/map-title-rule-reconciliation.sql --json",
     "deploy:api-endpoints": "node --experimental-strip-types tools/deploy-api-endpoints.ts",
-    "check:migrations": "bash tools/check-migrations.sh && bash tools/test-single-active-group-migration.sh && bash tools/test-global-qq-member-open-id-migration.sh && bash tools/test-title-grant-migration.sh && bash tools/test-pioneer-scope-migration.sh && bash tools/test-review-migration.sh",
+    "check:migrations": "bash tools/check-migrations.sh && bash tools/test-single-active-group-migration.sh && bash tools/test-global-qq-member-open-id-migration.sh && bash tools/test-title-grant-migration.sh && bash tools/test-pioneer-scope-migration.sh && bash tools/test-review-migration.sh && bash tools/test-ocr-feedback-migration.sh",
     "build:portal": "pnpm --filter @owbastion/portal build",
     "build:api": "pnpm --filter @owbastion/api build",
     "build": "pnpm --recursive --if-present run build",

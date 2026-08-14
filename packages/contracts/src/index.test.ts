@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentSpatialConfigSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryBatchResponseSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -237,5 +237,25 @@ describe("v1 platform contracts", () => {
   it("keeps historical retirement version records readable", () => {
     expect(adminChallengeSchema.safeParse({ challengeId: "map.test", family: "map", gameplayRevisionId: "revision:map.test:initial", type: "map_completion", kind: "difficulty_completion", name: "测试挑战", mapId: "map.test", mapName: "测试地图", gameVersion: "2026.07.15", status: "retired", introducedVersion: "2026.07.15", retiredVersion: "2026.07.16" }).success).toBe(true);
     expect(adminChallengeSchema.safeParse({ challengeId: "title.CLASSIC", family: "map", gameplayRevisionId: "revision:map.circuit_royal:v0", type: "map_completion", kind: "map_title_achievement", titleKey: "CLASSIC", name: "老兵", mapId: "map.circuit_royal", mapName: "皇家赛道", gameVersion: "2026.07.29", status: "active", introducedVersion: "2026.07.29", retiredVersion: null }).success).toBe(true);
+  });
+
+  it("keeps player OCR feedback to safe fields and a bounded presentation contract", () => {
+    const feedback = { mode: "targeted", promptOrigin: "uncertainty", promptFieldKeys: ["difficulty"], fields: [{ key: "difficulty", value: "困难" }], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: true };
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true }, feedback }).success).toBe(true);
+    // Numeric confidence, thresholds, raw warnings and internal signals must not be part of the contract.
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, fields: [{ key: "difficulty", value: "困难", confidence: 0.7 }] } }).success).toBe(false);
+    // Only safe field keys may appear.
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, promptFieldKeys: ["run_code"] } }).success).toBe(false);
+  });
+
+  it("validates player OCR feedback submissions", () => {
+    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }).success).toBe(true);
+    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }).success).toBe(true);
+    // A correction without a proposed visible value is invalid.
+    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected" }] }).success).toBe(false);
+    // Unsafe fields are rejected at the contract boundary.
+    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "run_code", action: "confirmed" }] }).success).toBe(false);
+    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [] }).success).toBe(false);
+    expect(playerOcrFeedbackResponseSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false }).success).toBe(true);
   });
 });
