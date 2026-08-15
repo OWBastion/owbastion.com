@@ -41,7 +41,7 @@ async function copyCommand() {
         <p v-else-if="state === 'rejected'" class="binding-note error-note">绑定申请未通过。</p>
         <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原绑定链接重新生成。</p>
         <p v-else-if="state === 'failed'" class="binding-note error-note">{{ errorMessage }}</p>
-        <p v-else class="binding-note">绑定完成，正在进入玩家中心…</p>
+        <p v-else class="binding-note">绑定完成，进入玩家中心…</p>
         <UAlert v-if="errorMessage && state !== 'failed'" color="error" variant="subtle" :description="errorMessage" />
         <UButton v-if="state === 'expired' && inviteCode" class="binding-refresh w-fit" label="重新生成确认码" color="neutral" variant="outline" @click="submit(inviteCode)" />
         <UButton v-if="['waiting', 'review', 'failed'].includes(state)" class="binding-refresh w-fit" label="刷新状态" color="neutral" variant="outline" :loading="refreshing" :disabled="refreshing" @click="refreshStatus" />
