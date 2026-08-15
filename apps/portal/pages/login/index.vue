@@ -11,6 +11,10 @@ const returnTo = computed(() => safeReturnTo(route.query.returnTo));
 const copied = ref(false);
 const { accounts: localAccounts, selectedAccountId, loading: localLoading, errorMessage: localError, enabled: localEnabled, load: loadLocalAccounts, login: loginLocal } = useLocalDevAuth();
 const localReturnTo = computed(() => hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : undefined);
+const localAccountItems = computed(() => localAccounts.value.map((account) => ({
+  label: `${account.playerName}#${account.playerId}${account.isAdmin ? "（管理员）" : "（玩家）"}`,
+  value: account.accountId,
+})));
 
 onMounted(() => {
   restore(returnTo.value);
@@ -40,7 +44,12 @@ async function handleLocalLogin() {
         <p v-if="state === 'expired'" class="notice warning">验证码已过期，请重新获取。</p>
         <p v-else-if="state === 'failed'" class="notice error">{{ message }}</p>
         <p v-else-if="state === 'cancelled'" class="notice">已取消本次验证。</p>
-        <button class="primary-button" type="button" @click="start(returnTo)">{{ state === 'failed' || state === 'expired' ? '重新获取验证码' : '生成登录验证码' }}</button>
+        <UButton
+          :label="state === 'failed' || state === 'expired' ? '重新获取验证码' : '生成登录验证码'"
+          color="primary"
+          size="lg"
+          @click="start(returnTo)"
+        />
       </div>
 
       <div v-else-if="state === 'creating'" class="action-panel"><p class="notice">生成验证码中…</p></div>
@@ -48,7 +57,21 @@ async function handleLocalLogin() {
       <div v-else-if="state === 'waiting' && attempt" class="challenge-panel">
         <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
         <p class="login-code">{{ qqVerificationCommand(attempt.code) }}</p>
-        <div class="challenge-actions"><button class="secondary-button" type="button" @click="copy">{{ copied ? '已复制' : '复制指令' }}</button><button class="text-button" type="button" @click="cancel">取消</button></div>
+        <div class="challenge-actions">
+          <UButton
+            :label="copied ? '已复制' : '复制指令'"
+            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
+            color="neutral"
+            variant="outline"
+            @click="copy"
+          />
+          <UButton
+            label="取消"
+            color="neutral"
+            variant="ghost"
+            @click="cancel"
+          />
+        </div>
         <p class="hint">请手动输入 @，从列表选择机器人，再发送上方指令。成功后进入玩家中心；验证码仅保存在当前标签页。</p>
       </div>
 
@@ -59,10 +82,19 @@ async function handleLocalLogin() {
         <p class="local-dev-copy">使用本地账号登录 Portal。</p>
         <p v-if="localError" class="notice error">{{ localError }}</p>
         <div v-else-if="localAccounts.length" class="local-dev-actions">
-          <select v-model="selectedAccountId" aria-label="本地开发账号">
-            <option v-for="account in localAccounts" :key="account.accountId" :value="account.accountId">{{ account.playerName }}#{{ account.playerId }}{{ account.isAdmin ? '（管理员）' : '（玩家）' }}</option>
-          </select>
-          <button class="secondary-button" type="button" :disabled="localLoading" @click="handleLocalLogin">{{ localLoading ? '登录中……' : '使用本地账号登录' }}</button>
+          <USelect
+            v-model="selectedAccountId"
+            :items="localAccountItems"
+            aria-label="本地开发账号"
+            class="min-w-64"
+          />
+          <UButton
+            :label="localLoading ? '登录中……' : '使用本地账号登录'"
+            :loading="localLoading"
+            color="neutral"
+            variant="outline"
+            @click="handleLocalLogin"
+          />
         </div>
         <p v-else class="notice">读取中…</p>
       </section>
@@ -71,6 +103,6 @@ async function handleLocalLogin() {
 </template>
 
 <style scoped>
-.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(72px, 11vh, 130px) 56px; }.login-card { width: 100%; padding: clamp(26px, 6vw, 58px); }.intro { max-width: 43ch; margin: 22px 0 38px; }.action-panel { min-height: 118px; }.notice { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }.warning { color: var(--warning); }.error { color: var(--danger); }.challenge-panel { padding: 22px; border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: 15px; background: var(--accent-surface); }.challenge-heading { display: flex; justify-content: space-between; gap: 18px; color: var(--text); }.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }.challenge-label { margin: 0 0 6px; color: var(--muted); font-size: .72rem; font-weight: 500; letter-spacing: .02em; }.challenge-copy { margin: 0; font-size: .88rem; }.login-code { margin: 20px 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 720; letter-spacing: .04em; }.challenge-actions { display: flex; align-items: center; gap: 16px; }.text-button { min-height: 44px; padding: 0; border: 0; color: var(--muted); background: transparent; font-size: .85rem; }.hint { margin: 20px 0 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }.local-dev-panel { margin-top: 34px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 15px; background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }.local-dev-copy { margin: 0 0 16px; color: var(--muted); font-size: .86rem; line-height: 1.55; }.local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }.local-dev-actions select { min-height: 44px; min-width: 0; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--text); background: var(--surface-raised); }
-@media (max-width: 430px) { .login-page { padding-top: 58px; }.login-card { padding: 24px 18px; }.login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }.challenge-panel, .local-dev-panel { padding: 18px; }.challenge-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }.challenge-actions .secondary-button, .local-dev-actions select, .local-dev-actions .secondary-button { width: 100%; } }
+.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(72px, 11vh, 130px) 56px; }.login-card { width: 100%; padding: clamp(26px, 6vw, 58px); }.intro { max-width: 43ch; margin: 22px 0 38px; }.action-panel { min-height: 118px; }.notice { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }.warning { color: var(--warning); }.error { color: var(--danger); }.challenge-panel { padding: 22px; border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: 15px; background: var(--accent-surface); }.challenge-heading { display: flex; justify-content: space-between; gap: 18px; color: var(--text); }.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }.challenge-label { margin: 0 0 6px; color: var(--muted); font-size: .72rem; font-weight: 500; letter-spacing: .02em; }.challenge-copy { margin: 0; font-size: .88rem; }.login-code { margin: 20px 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 720; letter-spacing: .04em; }.challenge-actions { display: flex; align-items: center; gap: 16px; }.hint { margin: 20px 0 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }.local-dev-panel { margin-top: 34px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 15px; background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }.local-dev-copy { margin: 0 0 16px; color: var(--muted); font-size: .86rem; line-height: 1.55; }.local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+@media (max-width: 430px) { .login-page { padding-top: 58px; }.login-card { padding: 24px 18px; }.login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }.challenge-panel, .local-dev-panel { padding: 18px; }.challenge-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }.challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; } }
 </style>
