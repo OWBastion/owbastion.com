@@ -116,7 +116,7 @@ const cancelPassive = () => {
         <span class="feedback-recorded-icon"><UIcon name="i-lucide-check-circle-2" aria-hidden="true" /></span>
         <div>
           <strong>已记录反馈</strong>
-          <p>你的核对已提交，不会影响挑战审核结果。</p>
+          <p>你的核对已提交，不会影响挑战核对结果。</p>
         </div>
       </div>
     </UCard>
@@ -129,7 +129,7 @@ const cancelPassive = () => {
             <span>仅需核对以下内容</span>
           </div>
         </template>
-        <p class="feedback-hint">请对照截图确认识别是否正确。修正后不会影响挑战审核结果。</p>
+        <p class="feedback-hint">请对照截图确认识别是否正确。修正后不会影响挑战核对结果。</p>
         <div class="feedback-fields">
           <div v-for="key in feedback.promptFieldKeys" :key="key" class="feedback-row">
             <div class="feedback-fact">

@@ -42,7 +42,7 @@ export function useReviewSummaries(targetType: ReviewTargetType, targetIds: Mayb
       }
     }
     summaries.value = nextSummaries;
-    if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "评分摘要暂时无法读取。").description;
+    if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "无法读取评分摘要，请稍后重试。").description;
     loading.value = false;
   };
 

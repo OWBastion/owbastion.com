@@ -89,7 +89,7 @@ async function handleLocalLogin() {
             class="min-w-64"
           />
           <UButton
-            :label="localLoading ? '登录中……' : '使用本地账号登录'"
+            :label="localLoading ? '登录中…' : '使用本地账号登录'"
             :loading="localLoading"
             color="neutral"
             variant="outline"

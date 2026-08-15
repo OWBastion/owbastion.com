@@ -157,7 +157,7 @@ describe("PlayerReviewPanel", () => {
     await flushPromises();
 
     expect(wrapper.get(".review-editor").exists()).toBe(true);
-    expect(wrapper.text()).toContain("评价暂时无法读取");
+    expect(wrapper.text()).toContain("无法读取评价");
     expect(wrapper.get(".review-retry").exists()).toBe(true);
   });
 });

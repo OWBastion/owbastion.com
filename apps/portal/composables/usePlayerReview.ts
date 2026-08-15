@@ -111,7 +111,7 @@ export function usePlayerReview(
     const notFound = failed?.status === "rejected" && portalErrorDetails(failed.reason).statusCode === 404;
     unavailable.value = Boolean(notFound);
     if (failed?.status === "rejected") {
-      error.value = reviewErrorMessage(failed.reason, notFound ? "这项内容已无法读取评价。" : "评价暂时无法读取，请稍后重试。");
+      error.value = reviewErrorMessage(failed.reason, notFound ? "这项内容已无法读取评价。" : "无法读取评价，请稍后重试。");
     }
 
     const summaryResult = requests[0];
