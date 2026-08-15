@@ -314,15 +314,20 @@ lifecycle status.
 `PIONEER` is an exception-only rule: its default scope must always be
 `explicit`, so it is not a challenge for every active map. A maintainer may
 enable a map exception only for the limited window of a map rework or a new
-map launch, then disable it when that window ends. `CONQUEROR` and `DOMINATOR`
-retain their configured default scope. The API, database service, and rule
-projection all reject or ignore an `all_active` Pioneer rule so a migration or
-stale configuration cannot reopen it globally.
+map launch, with explicit start and end timestamps (the Portal defaults the
+first window to 24 hours), then disable it when that window ends. A submission
+must be created inside that window; its resolved window is persisted in the
+immutable rule snapshot, so review and grant remain valid after the event ends.
+`CONQUEROR` and `DOMINATOR` retain their configured default scope. The API,
+database service, and rule projection all reject or ignore an `all_active`
+Pioneer rule or an expired Pioneer exception so a migration or stale
+configuration cannot reopen it globally.
 
 Administrators manage these entities on the dedicated map-title-rule surface.
 The ordinary map-completion screen may display a projection, but it is read-only
 and links back to its authoritative rule. Per-map management exposes resolved
-inheritance and writes only the permitted exception fields; it never updates
+inheritance and writes only the permitted exception fields, including the
+Pioneer submission window; it never updates
 `achievement_challenges` for a map-title projection.
 
 **Exception precedence** — the deterministic resolution algorithm for a

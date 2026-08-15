@@ -52,6 +52,8 @@ type Exception = {
   evidenceRule: string | null;
   submissionMode: "manual" | "automatic" | null;
   slot: Rule["slot"];
+  startsAt: number | null;
+  endsAt: number | null;
 };
 type Inheritance = {
   mapId: string;
@@ -96,7 +98,7 @@ const errorMessage = shallowRef("");
 const editingRule = shallowRef<Rule | null>(null);
 const ruleFormOpen = shallowRef(false);
 const editingExceptionId = shallowRef<string | null>(null);
-const exceptionDraft = reactive<Exception>({ enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null });
+const exceptionDraft = reactive<Exception>({ enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null });
 const form = reactive({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual" as Rule["submissionMode"], displayKind: "fixed" as Rule["displayKind"], slot: null as Rule["slot"], mapVariant: undefined as "classic" | undefined, defaultScope: "all_active" as Rule["defaultScope"], status: "active" as Rule["status"], introducedVersion: "", retiredVersion: "" });
 
 const defaultRuleSorting: SortingState = [{ id: "titleName", desc: false }];
@@ -171,6 +173,8 @@ const mapRows = computed<MapViewRow[]>(() => {
   return [...projections, ...genuineChallenges];
 });
 const selectedException = computed(() => selectedInheritance.value.find((item) => `${item.mapId}:${item.rule.ruleId}` === editingExceptionId.value) ?? null);
+const selectedExceptionIsPioneer = computed(() => selectedException.value?.rule.kind.trim().toLocaleLowerCase() === "pioneer");
+const exceptionScheduleValid = computed(() => !selectedExceptionIsPioneer.value || !exceptionDraft.enabled || Boolean(exceptionDraft.startsAt && exceptionDraft.endsAt && exceptionDraft.endsAt > exceptionDraft.startsAt));
 const dialogOpen = computed({ get: () => ruleFormOpen.value, set: (open: boolean) => { if (open) ruleFormOpen.value = true; else closeRuleForm(); } });
 
 function resetForm(rule?: Rule) {
@@ -181,9 +185,13 @@ function editRule(rule?: Rule) { editingRule.value = rule ?? null; resetForm(rul
 function closeRuleForm() { editingRule.value = null; ruleFormOpen.value = false; resetForm(); }
 function openException(item: Inheritance) {
   editingExceptionId.value = `${item.mapId}:${item.rule.ruleId}`;
-  Object.assign(exceptionDraft, item.exception ?? { enabled: item.projected, condition: null, evidenceRule: null, submissionMode: null, slot: null });
+  Object.assign(exceptionDraft, item.exception ?? { enabled: item.projected, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null });
 }
-function closeException() { editingExceptionId.value = null; Object.assign(exceptionDraft, { enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null }); }
+function closeException() { editingExceptionId.value = null; Object.assign(exceptionDraft, { enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null }); }
+function setExceptionSchedule(field: "startsAt" | "endsAt", value: number | null) {
+  exceptionDraft[field] = value;
+  if (field === "startsAt" && value && !exceptionDraft.endsAt) exceptionDraft.endsAt = value + 24 * 60 * 60 * 1000;
+}
 
 async function load() {
   if (!props.maps.length) return;
@@ -282,8 +290,8 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
         <template #actions-cell="{ row }"><div class="table-actions"><template v-if="row.original.rowType === 'projection'"><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="editRule(row.original.rule)" /><UButton label="编辑例外" size="sm" color="neutral" variant="soft" @click="openException(row.original.inheritance!)" /></template><UButton v-else label="编辑挑战" size="sm" color="neutral" variant="outline" @click="emit('editChallenge', row.original.challenge!)" /></div></template>
       </AdminDataTable>
       <AdminResponsiveDialog :open="selectedException !== null" :title="selectedException ? `${mapName} · 地图例外` : ''" size="md" :dismissible="!saving" @update:open="(open) => { if (!open) closeException(); }">
-        <template #body><form v-if="selectedException" id="map-exception-editor" class="exception-editor" @submit.prevent="saveException"><UFormField label="例外状态"><USwitch v-model="exceptionDraft.enabled" label="在此地图启用规则" /></UFormField><UFormField label="覆盖完成条件"><UTextarea :model-value="exceptionDraft.condition ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.condition = $event || null" /></UFormField><UFormField label="覆盖截图规则"><UTextarea :model-value="exceptionDraft.evidenceRule ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.evidenceRule = $event || null" /></UFormField><UFormField label="覆盖提交方式"><USelect v-model="exceptionDraft.submissionMode" :items="[{ label: '继承规则', value: null }, { label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="覆盖称号槽位"><USelect v-model="exceptionDraft.slot" :items="[{ label: '继承规则', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField></form></template>
-        <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeException" /><UButton label="保存例外" type="submit" form="map-exception-editor" :loading="saving" /></template>
+        <template #body><form v-if="selectedException" id="map-exception-editor" class="exception-editor" @submit.prevent="saveException"><UFormField label="例外状态"><USwitch v-model="exceptionDraft.enabled" label="在此地图启用规则" /></UFormField><template v-if="selectedExceptionIsPioneer"><UFormField label="开放开始时间" required hint="首次选择开始时间后，默认填充 24 小时窗口。"><AdminDateTimePicker :model-value="exceptionDraft.startsAt" :disabled="saving" placeholder="选择开放开始时间" @update:model-value="setExceptionSchedule('startsAt', $event)" /></UFormField><UFormField label="开放结束时间" required><AdminDateTimePicker :model-value="exceptionDraft.endsAt" :disabled="saving" placeholder="选择开放结束时间" @update:model-value="setExceptionSchedule('endsAt', $event)" /></UFormField></template><UFormField label="覆盖完成条件"><UTextarea :model-value="exceptionDraft.condition ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.condition = $event || null" /></UFormField><UFormField label="覆盖截图规则"><UTextarea :model-value="exceptionDraft.evidenceRule ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.evidenceRule = $event || null" /></UFormField><UFormField label="覆盖提交方式"><USelect v-model="exceptionDraft.submissionMode" :items="[{ label: '继承规则', value: null }, { label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="覆盖称号槽位"><USelect v-model="exceptionDraft.slot" :items="[{ label: '继承规则', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField></form></template>
+        <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeException" /><UButton label="保存例外" type="submit" form="map-exception-editor" :loading="saving" :disabled="!exceptionScheduleValid" /></template>
       </AdminResponsiveDialog>
     </template>
 

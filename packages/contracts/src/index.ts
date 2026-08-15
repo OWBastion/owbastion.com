@@ -660,6 +660,7 @@ export const adminMapTitleRuleExceptionSchema = z.object({
   exceptionId: z.string().uuid(), ruleId: externalId, mapId: externalId, enabled: z.boolean(),
   condition: z.string().trim().min(1).max(1024).nullable(), evidenceRule: z.string().trim().min(1).max(2048).nullable(),
   submissionMode: z.enum(["manual", "automatic"]).nullable(), slot: mapTitleRuleSlot.nullable(),
+  startsAt: scheduleTimestamp.nullable(), endsAt: scheduleTimestamp.nullable(),
 });
 export const adminMapTitleInheritanceSchema = z.object({
   mapId: externalId, rule: adminMapTitleRuleSchema, projected: z.boolean(),
@@ -671,6 +672,11 @@ export const adminMapTitleInheritanceResponseSchema = z.object({ contractVersion
 export const adminMapTitleRuleExceptionUpsertRequestSchema = z.object({
   contractVersion, enabled: z.boolean(), condition: z.string().trim().min(1).max(1024).nullable().optional(),
   evidenceRule: z.string().trim().min(1).max(2048).nullable().optional(), submissionMode: z.enum(["manual", "automatic"]).nullable().optional(), slot: mapTitleRuleSlot.nullable().optional(),
+  startsAt: scheduleTimestamp.nullable().optional(), endsAt: scheduleTimestamp.nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (value.startsAt !== undefined && value.endsAt !== undefined && value.startsAt !== null && value.endsAt !== null && value.endsAt <= value.startsAt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "The end time must be after the start time" });
+  }
 });
 
 const adminMapChallengeUpdateSchema = z.object({

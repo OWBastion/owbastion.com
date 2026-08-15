@@ -90,6 +90,8 @@ const installSchema = (sqlite: DatabaseSync) => {
       evidence_rule TEXT,
       submission_mode TEXT,
       slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       UNIQUE (gameplay_revision_id, challenge_family, challenge_id)
@@ -136,6 +138,8 @@ const installSchema = (sqlite: DatabaseSync) => {
       evidence_rule TEXT,
       submission_mode TEXT,
       slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -775,6 +779,7 @@ describe("Admin map revision editor", () => {
     ]));
 
     sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = ?").run("rule.pioneer.catalog");
+    seedException(sqlite, "exception.pioneer.catalog", "rule.pioneer.catalog", "map.editor.catalog", { startsAt: now - 60_000, endsAt: now + 60_000 });
     const repaired = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
     expect(repaired.challengeCatalog).toEqual(expect.arrayContaining([
       expect.objectContaining({ challengeId: "rule.pioneer.catalog" }),
@@ -966,11 +971,11 @@ const seedException = (
   id: string,
   ruleId: string,
   mapId: string,
-  opts: { enabled?: number; condition?: string; evidenceRule?: string; slot?: string } = {},
+  opts: { enabled?: number; condition?: string; evidenceRule?: string; slot?: string; startsAt?: number | null; endsAt?: number | null } = {},
 ) => {
   sqlite.prepare(
-    "INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",
-  ).run(id, ruleId, mapId, opts.enabled ?? 1, opts.condition ?? null, opts.evidenceRule ?? null, opts.slot ?? null, now, now);
+    "INSERT INTO map_title_rule_exceptions (id, rule_id, map_id, enabled, condition, evidence_rule, submission_mode, slot, starts_at, ends_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)",
+  ).run(id, ruleId, mapId, opts.enabled ?? 1, opts.condition ?? null, opts.evidenceRule ?? null, opts.slot ?? null, opts.startsAt ?? null, opts.endsAt ?? null, now, now);
   const rule = sqlite.prepare("SELECT map_variant FROM map_title_rules WHERE id = ?").get(ruleId) as { map_variant: string | null };
   const gameplayRevisionId = rule.map_variant === "classic"
     ? (seedClassicGameplayRevision(sqlite, mapId), legacyGameplayRevisionId(mapId))
@@ -1483,8 +1488,11 @@ describe("map title rule model – locked invariants", () => {
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
 
       sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = 'rule.pioneer'").run();
-      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris");
+      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris", { startsAt: now - 60_000, endsAt: now + 60_000 });
       await expect(services.listChallenges({ family: "map" })).resolves.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris", mapTitleRule: expect.objectContaining({ kind: "pioneer" }) }));
+
+      sqlite.prepare("UPDATE map_title_rule_exceptions SET ends_at = ? WHERE id = ?").run(now - 1, "exception.pioneer.paris");
+      await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
     });
   });
 

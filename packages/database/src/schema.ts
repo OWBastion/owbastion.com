@@ -190,6 +190,8 @@ export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
   evidenceRule: text("evidence_rule"),
   submissionMode: text("submission_mode"),
   slot: text("slot"),
+  startsAt: integer("starts_at"),
+  endsAt: integer("ends_at"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({

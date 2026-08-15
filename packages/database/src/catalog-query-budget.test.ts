@@ -120,6 +120,8 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       evidence_rule TEXT,
       submission_mode TEXT,
       slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
@@ -202,6 +204,8 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       evidence_rule TEXT,
       submission_mode TEXT,
       slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

@@ -247,6 +247,8 @@ export const titleChallengeIsSubmittable = (status: string, startsAt: number | n
   const publicStatus = publicTitleChallengeStatus(status, startsAt, endsAt, timestamp);
   return publicStatus === "active" || publicStatus === "sunsetting";
 };
+export const pioneerExceptionHasValidWindow = (startsAt: number | null, endsAt: number | null) => startsAt !== null && endsAt !== null && endsAt > startsAt;
+export const pioneerExceptionIsSubmittable = (enabled: number, startsAt: number | null, endsAt: number | null, timestamp: number) => enabled === 1 && pioneerExceptionHasValidWindow(startsAt, endsAt) && timestamp >= startsAt! && timestamp < endsAt!;
 const randomToken = (bytes = 32) => {
   const value = new Uint8Array(bytes);
   crypto.getRandomValues(value);
@@ -638,6 +640,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     submissionMode: string;
     defaultScope: string;
     exceptionId: string | null;
+    startsAt: number | null;
+    endsAt: number | null;
   };
 
   const selectGameplayRevision = async (input: {
@@ -700,13 +704,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"),
       eq(gameplayRevisionChallengeAssignments.challengeId, rule.id),
     )).get();
-    if (!assignment || assignment.enabled === 0) return null;
-
     // The legacy exception remains useful provenance for migrated snapshots,
     // while the revision assignment is now authoritative for eligibility.
     const exception = await db.select().from(mapTitleRuleExceptions)
       .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
       .get();
+    if (!assignment || assignment.enabled === 0) return null;
+    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, now())) return null;
     return {
       ruleId: rule.id,
       ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt),
@@ -721,6 +725,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionMode: assignment.submissionMode ?? rule.submissionMode,
       defaultScope: rule.defaultScope,
       exceptionId: exception?.id ?? null,
+      startsAt: exception?.startsAt ?? null,
+      endsAt: exception?.endsAt ?? null,
     };
   };
 
@@ -774,6 +780,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         submissionMode: challenge.submissionMode,
         defaultScope: challenge.scope ?? "global",
         exceptionId: null,
+        startsAt: null,
+        endsAt: null,
       };
     }
     const revision = await selectGameplayRevision({ mapId, mapVariant, gameplayRevisionId, allowHistorical: Boolean(gameplayRevisionId) });
@@ -801,6 +809,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionMode: assignment.submissionMode ?? challenge.submissionMode,
       defaultScope: challenge.scope ?? "map",
       exceptionId: null,
+      startsAt: null,
+      endsAt: null,
     };
   };
 
@@ -859,6 +869,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionMode: resolved.assignment.submissionMode ?? challenge.submissionMode,
       defaultScope: "map",
       exceptionId: null,
+      startsAt: null,
+      endsAt: null,
     };
   };
 
@@ -1048,7 +1060,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return items;
   };
   const loadMapTitleRuleChallenges = async (includeInactive = false): Promise<Challenge[]> => {
-    const [rows, revisionRows, assignments, compat] = await Promise.all([
+    const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
       db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
         .where(and(includeInactive ? undefined : inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
       db.select({ map: maps, revision: gameplayRevisions }).from(gameplayRevisions)
@@ -1056,15 +1068,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .where(and(eq(maps.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
       db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule")),
       db.select().from(mapTitleRuleCompat),
+      db.select().from(mapTitleRuleExceptions),
     ]);
     const assignmentByRevisionRule = new globalThis.Map(assignments.map((item) => [`${item.gameplayRevisionId}:${item.challengeId}`, item]));
     const compatByRuleMap = new globalThis.Map(compat.map((item) => [`${item.ruleId}:${item.mapId}`, item.legacyChallengeId]));
+    const exceptionByRuleMap = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
+    const timestamp = now();
     const items: Challenge[] = [];
     for (const { rule, title } of rows) {
       if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") continue;
       for (const { map, revision } of revisionRows) {
         const assignment = assignmentByRevisionRule.get(`${revision.id}:${rule.id}`);
         if (!assignment || assignment.mapId !== map.id || assignment.enabled === 0) continue;
+        const exception = exceptionByRuleMap.get(`${rule.id}:${map.id}`);
+        if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, timestamp)) continue;
         const slot = assignment.slot ?? rule.slot ?? null;
         items.push({
           challengeId: compatByRuleMap.get(`${rule.id}:${map.id}`) ?? `${map.id}.${rule.kind}`,
@@ -1209,7 +1226,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const loadAdminMapEditorChallengeCatalog = async (mapId: string): Promise<AdminMapEditorChallengeOption[]> => {
-    const [mapChallengeRows, ruleRows, titleChallengeRows] = await Promise.all([
+    const [mapChallengeRows, ruleRows, titleChallengeRows, exceptionRows] = await Promise.all([
       db.select().from(achievementChallenges).where(eq(achievementChallenges.mapId, mapId)),
       db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
         .where(and(inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
@@ -1217,12 +1234,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
         .where(and(eq(achievementChallengeMaps.mapId, mapId), eq(titleChallenges.scope, "map"))),
+      db.select().from(mapTitleRuleExceptions).where(eq(mapTitleRuleExceptions.mapId, mapId)),
     ]);
+    const exceptionByRule = new globalThis.Map(exceptionRows.map((exception) => [exception.ruleId, exception]));
     return [
       ...mapChallengeRows.map((challenge): AdminMapEditorChallengeOption => ({
         challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, status: challenge.status, gameVersion: challenge.gameVersion,
       })),
-      ...ruleRows.filter(({ rule }) => rule.kind.trim().toLocaleLowerCase() !== "pioneer" || rule.defaultScope === "explicit").map(({ rule, title }): AdminMapEditorChallengeOption => ({
+      ...ruleRows.filter(({ rule }) => {
+        if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") return true;
+        const exception = exceptionByRule.get(rule.id);
+        return rule.defaultScope === "explicit" && exception?.enabled === 1 && pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) && exception.endsAt! > now();
+      }).map(({ rule, title }): AdminMapEditorChallengeOption => ({
         challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, status: rule.status, gameVersion: rule.introducedVersion,
       })),
       ...titleChallengeRows.map(({ challenge, title }): AdminMapEditorChallengeOption => ({
@@ -1278,7 +1301,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rule = await db.select({ id: mapTitleRules.id, kind: mapTitleRules.kind, defaultScope: mapTitleRules.defaultScope, status: mapTitleRules.status }).from(mapTitleRules).where(eq(mapTitleRules.id, assignment.challengeId)).get();
         if (!rule) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
         if (assignment.enabled && !["active", "sunsetting"].includes(rule.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
-        if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+        if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer") {
+          const exception = await db.select({ enabled: mapTitleRuleExceptions.enabled, startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions).where(and(eq(mapTitleRuleExceptions.ruleId, rule.id), eq(mapTitleRuleExceptions.mapId, mapId))).get();
+          if (rule.defaultScope !== "explicit" || exception?.enabled !== 1 || !pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) || exception.endsAt! <= now()) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+        }
       } else {
         const challenge = await db.select({ id: titleChallenges.id, status: titleChallenges.status }).from(titleChallenges)
           .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
@@ -2305,6 +2331,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionMode: candidate.challenge.submissionMode ?? "manual",
       defaultScope: candidate.challenge.scope ?? "global",
       exceptionId: null,
+      startsAt: null,
+      endsAt: null,
     };
   };
 
@@ -3222,7 +3250,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const projection = await resolveMapTitleProjection(rule.id, input.mapId);
         return { mapId: input.mapId, rule: asAdminMapTitleRule(rule, title.label), projected: projection !== null, source: "map_title_rule" as const,
           effective: projection ? { condition: projection.condition, evidenceRule: projection.evidenceRule, submissionMode: projection.submissionMode as "manual" | "automatic", slot: projection.slot as "pioneer" | "conqueror" | "dominator" | null } : null,
-          exception: exception ? { exceptionId: exception.id, ruleId: exception.ruleId, mapId: exception.mapId, enabled: exception.enabled === 1, condition: exception.condition, evidenceRule: exception.evidenceRule, submissionMode: exception.submissionMode as "manual" | "automatic" | null, slot: exception.slot as "pioneer" | "conqueror" | "dominator" | null } : null };
+          exception: exception ? { exceptionId: exception.id, ruleId: exception.ruleId, mapId: exception.mapId, enabled: exception.enabled === 1, condition: exception.condition, evidenceRule: exception.evidenceRule, submissionMode: exception.submissionMode as "manual" | "automatic" | null, slot: exception.slot as "pioneer" | "conqueror" | "dominator" | null, startsAt: exception.startsAt, endsAt: exception.endsAt } : null };
       }));
       return { contractVersion: "1" as const, items };
     },
@@ -3230,12 +3258,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async upsertAdminMapTitleRuleException(input: AdminMapTitleRuleExceptionUpsertRequest & { mapId: string; ruleId: string }, auth, idempotencyKey) {
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.map-title-rule-exception.upsert", idempotencyKey, input);
       if (replay) return;
-      const [map, rule] = await Promise.all([db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get(), db.select({ id: mapTitleRules.id, mapVariant: mapTitleRules.mapVariant }).from(mapTitleRules).where(eq(mapTitleRules.id, input.ruleId)).get()]);
+      const [map, rule] = await Promise.all([db.select({ id: maps.id }).from(maps).where(eq(maps.id, input.mapId)).get(), db.select({ id: mapTitleRules.id, kind: mapTitleRules.kind, mapVariant: mapTitleRules.mapVariant }).from(mapTitleRules).where(eq(mapTitleRules.id, input.ruleId)).get()]);
       if (!map) throw new Error("MAP_NOT_FOUND");
       if (!rule) throw new Error("MAP_TITLE_RULE_NOT_FOUND");
+      const startsAt = input.startsAt ?? null;
+      const endsAt = input.endsAt ?? null;
+      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && input.enabled && (startsAt === null || endsAt === null || endsAt <= startsAt)) throw new Error("PIONEER_EXCEPTION_SCHEDULE_REQUIRED");
       const timestamp = now();
-      await database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, updated_at=excluded.updated_at")
-        .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, timestamp, timestamp).run();
+      await database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, starts_at=excluded.starts_at, ends_at=excluded.ends_at, updated_at=excluded.updated_at")
+        .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, startsAt, endsAt, timestamp, timestamp).run();
       const revision = await selectGameplayRevision({ mapId: input.mapId, mapVariant: rule.mapVariant === "classic" ? "classic" : null });
       if (!revision) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
       await database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, 'map_title_rule', ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(gameplay_revision_id, challenge_family, challenge_id) DO UPDATE SET enabled = excluded.enabled, condition = excluded.condition, evidence_rule = excluded.evidence_rule, submission_mode = excluded.submission_mode, slot = excluded.slot, updated_at = excluded.updated_at")
