@@ -52,14 +52,14 @@ useSeoMeta({
 </template>
 
 <style scoped>
-.home-page { padding-block: clamp(56px, 9vh, 96px) 40px; }
-.hero { padding-block: clamp(48px, 8vh, 88px) clamp(56px, 9vh, 96px); }
-.hero h1 { margin-bottom: 14px; }
+.home-page { padding-block: clamp(3.5rem, 9vh, 6rem) 2.5rem; }
+.hero { padding-block: clamp(3rem, 8vh, 5.5rem) clamp(3.5rem, 9vh, 6rem); }
+.hero h1 { margin-bottom: 0.875rem; }
 .hero-topic { margin: 0; color: var(--muted); }
-.rotation-status { margin-bottom: clamp(72px, 12vw, 140px); padding: 18px 24px; color: var(--muted); font-size: .85rem; }
+.rotation-status { margin-bottom: clamp(4.5rem, 12vw, 8.75rem); padding: 1.125rem 1.5rem; color: var(--muted); font-size: .85rem; }
 .rotation-status p { margin: 0; }
-.content-section { margin-bottom: clamp(72px, 12vw, 140px); }
-.content-section > .type-title { margin-bottom: 34px; }
+.content-section { margin-bottom: clamp(4.5rem, 12vw, 8.75rem); }
+.content-section > .type-title { margin-bottom: 2.125rem; }
 .content-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .content-card { display: grid; min-height: 200px; align-content: start; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; text-decoration: none; }
 .content-card .type-headline { max-width: 18ch; margin-bottom: 11px; }

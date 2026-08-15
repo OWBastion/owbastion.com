@@ -102,13 +102,13 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 </template>
 
 <style scoped>
-.submit-page { padding-block: clamp(56px, 8vw, 88px) 72px; }
-.submit-intro { max-width: 650px; margin-bottom: 28px; }
-.submission-card { border-color: var(--line); padding: clamp(20px, 3vw, 30px); }
+.submit-page { padding-block: clamp(3.5rem, 8vw, 5.5rem) 4.5rem; }
+.submit-intro { max-width: 650px; margin-bottom: 1.75rem; }
+.submission-card { border-color: var(--line); padding: clamp(1.25rem, 3vw, 1.875rem); }
 .submission-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(28px, 5vw, 64px);
+  gap: clamp(1.75rem, 5vw, 4rem);
 }
 .upload-section { min-width: 0; }
 .upload-section :deep(form) { display: grid; gap: 14px; }

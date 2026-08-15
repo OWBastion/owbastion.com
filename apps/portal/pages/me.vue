@@ -228,15 +228,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.me-page { padding-block: clamp(64px, 9vh, 104px) 72px; }
+.me-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
 .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
 .intro-copy { min-width: 0; max-width: 690px; }
 .intro-copy .page-title { overflow-wrap: anywhere; }
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.75rem; }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: 20px; }
-.section-block { margin-top: clamp(56px, 8vw, 88px); }
-.titles-section { margin-top: clamp(52px, 8vw, 86px); }
+.section-block { margin-top: clamp(3.5rem, 8vw, 5.5rem); }
+.titles-section { margin-top: clamp(3.25rem, 8vw, 5.375rem); }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .titles-loading-card { min-height: 112px; border-radius: 16px; }
 .mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.mastery-loading > * { min-height: 132px; border-radius: 16px; }
