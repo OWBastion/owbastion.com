@@ -19,6 +19,7 @@
 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
 | [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
 | [audit-portal-uiux-2026-08.md](audit-portal-uiux-2026-08.md) | Portal UI/UX 审计档案 | reference | 2026-08 三轮审计：已解决 / 待修 / 豁免状态 |
+| [audit-portal-uiux-2026-08-15.md](audit-portal-uiux-2026-08-15.md) | Portal UI/UX 综合审计报告 | reference | 2026-08-15 综合审计：Apple Design 与 Kill-AI-Slop 全量检视与重构路线 |
 
 ## 使用规则
 
