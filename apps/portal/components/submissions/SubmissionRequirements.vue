@@ -2,49 +2,78 @@
 import SubmissionSectionHeading from "~/components/submissions/SubmissionSectionHeading.vue";
 
 const requirements = [
-  { icon: "i-lucide-user-round", title: "游戏 ID", description: "左下角显示的玩家名称" },
-  { icon: "i-lucide-map", title: "地图名称", description: "游戏右上角显示的地图名称" },
-  { icon: "i-lucide-chart-no-axes-column", title: "游戏难度", description: "游戏右上角显示的难度标识" },
-  { icon: "i-lucide-badge-check", title: "通关数据与标志", description: "左上角通关数据与通关标志" },
-  { icon: "i-lucide-star", title: "相关挑战数据", description: "与挑战相关的具体数据" },
+  { title: "游戏 ID", description: "左下角显示的玩家名称" },
+  { title: "地图名称", description: "游戏右上角显示的地图名称" },
+  { title: "游戏难度", description: "游戏右上角显示的难度标识" },
+  { title: "通关数据与标志", description: "左上角通关数据与通关标志" },
+  { title: "相关挑战数据", description: "与挑战相关的具体数据" },
 ];
 </script>
 
 <template>
   <section class="requirements" aria-labelledby="requirements-title">
     <SubmissionSectionHeading title="截图要求" heading-id="requirements-title" />
-    <div class="requirement-list">
-      <UCard v-for="item in requirements" :key="item.title" class="requirement-card" variant="subtle">
-        <UIcon :name="item.icon" class="requirement-icon" aria-hidden="true" />
-        <div>
-          <h3>{{ item.title }}</h3>
-          <p>{{ item.description }}</p>
-        </div>
-      </UCard>
-    </div>
-    <p class="tip-note"><UIcon name="i-lucide-lightbulb" aria-hidden="true" />优先使用游戏内截图，避免裁剪或二次压缩。</p>
+    <dl class="requirement-list">
+      <div v-for="item in requirements" :key="item.title" class="requirement-item">
+        <dt>{{ item.title }}</dt>
+        <dd>{{ item.description }}</dd>
+      </div>
+    </dl>
+    <p class="tip-note">优先使用游戏内截图，避免裁剪或二次压缩。</p>
   </section>
 </template>
 
 <style scoped>
 .requirements { min-width: 0; }
-.requirement-list { display: grid; gap: 8px; }
-.requirement-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 48px;
-  padding: 8px 12px;
-  border-color: color-mix(in oklch, var(--accent) 10%, var(--line));
-  background: color-mix(in oklch, var(--surface) 78%, var(--accent-surface));
-  box-shadow: none;
+.requirement-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  overflow: hidden;
 }
-.requirement-icon { flex: 0 0 auto; width: 20px; height: 20px; color: var(--accent); }
-.requirement-card h3 { margin: 0; color: var(--accent); font-size: .82rem; font-weight: 720; line-height: 1.3; }
-.requirement-card p { margin: 1px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.3; }
-.tip-note { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--muted); font-size: var(--type-caption-size); line-height: 1.5; }
-.tip-note svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--quiet); }
-@media (prefers-reduced-transparency: reduce) {
-  .requirement-card { background: var(--surface-raised); }
+.requirement-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+.requirement-item:first-child { border-top: 0; }
+.requirement-item dt {
+  color: var(--text);
+  font-size: .82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.requirement-item dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.4;
+  text-align: right;
+}
+.tip-note {
+  margin: 12px 0 0;
+  color: var(--quiet);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+}
+@media (max-width: 480px) {
+  .requirement-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .requirement-item dd {
+    text-align: left;
+  }
+}
+@media (prefers-contrast: more) {
+  .requirement-list { border-color: var(--text); }
+  .requirement-item { border-color: var(--text); }
 }
 </style>
