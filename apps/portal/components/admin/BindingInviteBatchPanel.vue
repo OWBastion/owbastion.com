@@ -99,7 +99,7 @@ async function copyInvitation(invitation: Invitation) {
 <template>
   <section class="batch-invites surface-card" aria-labelledby="batch-invites-title">
     <header class="batch-invites__header">
-      <div><p class="batch-invites__eyebrow">定向邀请</p><h2 id="batch-invites-title">批量生成邀请码</h2></div>
+      <div><h2 id="batch-invites-title">批量生成邀请码</h2></div>
       <span class="batch-invites__count glass-chip">{{ countLabel }}</span>
     </header>
     <form class="batch-invites__form" @submit.prevent="createInvitations">
@@ -119,13 +119,12 @@ async function copyInvitation(invitation: Invitation) {
 
 <style scoped>
 .batch-invites { display: grid; gap: 18px; padding: clamp(18px, 3vw, 28px); }.batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.batch-invites__eyebrow, .batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: .04em; }
-.batch-invites__header h2 { margin: 5px 0 0; font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.035em; }
+.batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: .04em; }
+.batch-invites__header h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.035em; }
 .batch-invites__count { padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; }
-.batch-invites__form { display: grid; gap: 10px; }.batch-invites__actions { min-height: 34px; }.batch-invites__validation { margin: 0; color: var(--danger); font-size: .82rem; line-height: 1.5; }.invite-results { display: grid; gap: 8px; }.invite-result { padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }.invite-result__identity { display: grid; min-width: 0; gap: 5px; }.invite-result__identity strong { overflow-wrap: anywhere; font-size: .88rem; letter-spacing: -.015em; }.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; font-weight: 700; letter-spacing: .08em; }.invite-list-enter-active, .invite-list-leave-active { transition: opacity 180ms ease, transform 180ms cubic-bezier(.2, .7, .2, 1); }.invite-list-enter-from, .invite-list-leave-to { opacity: 0; transform: translateY(5px); }
-.batch-invites :deep(button) { transition: transform 100ms ease-out; }.batch-invites :deep(button:active) { transform: scale(.98); }
+.batch-invites__form { display: grid; gap: 10px; }.batch-invites__actions { min-height: 44px; }.batch-invites__validation { margin: 0; color: var(--danger); font-size: .82rem; line-height: 1.5; }.invite-results { display: grid; gap: 8px; }.invite-result { padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }.invite-result__identity { display: grid; min-width: 0; gap: 5px; }.invite-result__identity strong { overflow-wrap: anywhere; font-size: .88rem; letter-spacing: -.015em; }.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; font-weight: 700; letter-spacing: .08em; }.invite-list-enter-active, .invite-list-leave-active { transition: opacity 180ms ease, transform 180ms cubic-bezier(.2, .7, .2, 1); }.invite-list-enter-from, .invite-list-leave-to { opacity: 0; transform: translateY(5px); }
 @media (max-width: 620px) { .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }.batch-invites__count { align-self: flex-start; }.batch-invites__actions :deep(button), .invite-result :deep(button) { width: 100%; justify-content: center; } }
-@media (prefers-reduced-motion: reduce) { .batch-invites :deep(button) { transition: none; }.invite-list-enter-active, .invite-list-leave-active { transition: opacity 120ms ease; }.invite-list-enter-from, .invite-list-leave-to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .invite-list-enter-active, .invite-list-leave-active { transition: opacity 120ms ease; }.invite-list-enter-from, .invite-list-leave-to { transform: none; } }
 @media (prefers-reduced-transparency: reduce) { .invite-result { background: var(--surface-raised); } }
 @media (prefers-contrast: more) { .batch-invites__count, .invite-result { border-color: var(--line-strong); } }
 </style>

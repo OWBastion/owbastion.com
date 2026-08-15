@@ -9,7 +9,6 @@ defineProps<{
   <main class="admin-workspace page-shell page-shell--wide">
     <header class="admin-workspace__header">
       <div>
-        <p class="eyebrow">管理后台</p>
         <h1>{{ title }}</h1>
       </div>
       <div v-if="count || $slots.actions" class="admin-workspace__meta">
@@ -26,7 +25,6 @@ defineProps<{
 <style>
 .admin-workspace { display: grid; gap: clamp(16px, 2.4vw, 24px); padding-block: clamp(38px, 6vh, 66px); }
 .admin-workspace__header { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
-.admin-workspace__header .eyebrow { margin-bottom: 7px; }
 .admin-workspace__header h1 { margin: 0; font-size: var(--type-title-size); font-weight: 690; letter-spacing: var(--type-title-tracking); line-height: var(--type-title-leading); }
 .admin-workspace__meta { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 .admin-workspace__count { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; white-space: nowrap; }

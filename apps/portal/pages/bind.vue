@@ -33,7 +33,6 @@ async function copyCommand() {
       <section v-else-if="state === 'submitting'" class="binding-state"><p class="binding-note">读取绑定邀请中…</p></section>
 
       <section v-else class="binding-confirmation" aria-labelledby="binding-confirmation-title">
-        <p class="eyebrow">目标账号</p>
         <h2 id="binding-confirmation-title" class="binding-heading">{{ invite ? `${invite.playerName}#${invite.playerId}` : '绑定邀请' }}</h2>
         <p v-if="state === 'waiting'" class="body-copy">在已开放的 QQ 群中发送：</p>
         <p v-if="state === 'waiting'" class="binding-code">{{ qqVerificationCommand(confirmationCode) }}</p>
