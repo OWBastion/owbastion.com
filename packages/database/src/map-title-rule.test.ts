@@ -752,6 +752,35 @@ describe("Agents map projection readiness", () => {
 });
 
 describe("Admin map revision editor", () => {
+  it("only exposes active and assignable map title rules", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.editor.catalog");
+    seedTitle(sqlite, "PIONEER");
+    seedRule(sqlite, "rule.pioneer.catalog", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
+    seedTitle(sqlite, "CONQUEROR");
+    seedRule(sqlite, "rule.conqueror.catalog", "CONQUEROR", "conqueror", { slot: "conqueror" });
+    seedTitle(sqlite, "RETIRED");
+    seedRule(sqlite, "rule.retired.catalog", "RETIRED", "retired", { status: "inactive" });
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    await expect(services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth)).resolves.toMatchObject({
+      challengeCatalog: expect.arrayContaining([expect.objectContaining({ challengeId: "rule.conqueror.catalog" })]),
+    });
+    const initial = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
+    expect(initial.challengeCatalog).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.catalog" }),
+      expect.objectContaining({ challengeId: "rule.retired.catalog" }),
+    ]));
+
+    sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = ?").run("rule.pioneer.catalog");
+    const repaired = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
+    expect(repaired.challengeCatalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.catalog" }),
+    ]));
+  });
+
   it("copies only revision configuration, supports the reset lifecycle, and keeps progress scoped to R1", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

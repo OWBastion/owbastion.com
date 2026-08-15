@@ -1211,7 +1211,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const loadAdminMapEditorChallengeCatalog = async (mapId: string): Promise<AdminMapEditorChallengeOption[]> => {
     const [mapChallengeRows, ruleRows, titleChallengeRows] = await Promise.all([
       db.select().from(achievementChallenges).where(eq(achievementChallenges.mapId, mapId)),
-      db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key)),
+      db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
+        .where(and(inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
       db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
         .innerJoin(achievementChallengeMaps, eq(achievementChallengeMaps.challengeId, titleChallenges.id))
@@ -1221,7 +1222,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ...mapChallengeRows.map((challenge): AdminMapEditorChallengeOption => ({
         challengeFamily: "map_challenge", challengeId: challenge.id, label: challenge.name, kind: challenge.type, status: challenge.status, gameVersion: challenge.gameVersion,
       })),
-      ...ruleRows.map(({ rule, title }): AdminMapEditorChallengeOption => ({
+      ...ruleRows.filter(({ rule }) => rule.kind.trim().toLocaleLowerCase() !== "pioneer" || rule.defaultScope === "explicit").map(({ rule, title }): AdminMapEditorChallengeOption => ({
         challengeFamily: "map_title_rule", challengeId: rule.id, label: title.label, kind: rule.kind, status: rule.status, gameVersion: rule.introducedVersion,
       })),
       ...titleChallengeRows.map(({ challenge, title }): AdminMapEditorChallengeOption => ({

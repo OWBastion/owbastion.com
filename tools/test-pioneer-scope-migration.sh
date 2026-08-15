@@ -56,4 +56,8 @@ sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migratio
 [[ "$(sqlite3 "$database" "SELECT status FROM submission_spot_checks WHERE submission_id = 'submission.pioneer-bad';")" == "revoked" ]]
 [[ "$(sqlite3 "$database" "SELECT COUNT(*) FROM audit_events WHERE operation IN ('title_grant.revoke', 'submission.corrective_review', 'submission.spot_check.revoked');")" == "3" ]]
 
+sqlite3 "$database" "UPDATE map_title_rules SET default_scope = 'all_active' WHERE id = 'rule.pioneer';"
+sqlite3 -cmd 'PRAGMA foreign_keys = ON;' -bail "$database" < "$root_dir/migrations/0071_repair_pioneer_map_title_scope.sql"
+[[ "$(sqlite3 "$database" "SELECT default_scope FROM map_title_rules WHERE id = 'rule.pioneer';")" == "explicit" ]]
+
 echo "Pioneer scope migration scenarios passed."
