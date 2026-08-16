@@ -10,6 +10,7 @@ const createD1 = () => {
   sqlite.exec(`
     CREATE TABLE binding_invites (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, code_ciphertext TEXT, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER, revoked_at INTEGER, revoked_by TEXT);
     CREATE TABLE historical_title_grants (id TEXT PRIMARY KEY, scope TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, title_key TEXT NOT NULL, holder_name TEXT NOT NULL, source_version TEXT NOT NULL);
+    CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL);
     CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT);
     CREATE TABLE binding_invite_historical_title_grants (id TEXT PRIMARY KEY, invite_id TEXT NOT NULL, historical_title_grant_id TEXT NOT NULL, authorized_by TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'authorized', player_title_grant_id TEXT, last_error TEXT, created_at INTEGER NOT NULL, processed_at INTEGER);
     CREATE TABLE binding_claims (id TEXT PRIMARY KEY, invite_id TEXT NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL UNIQUE, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, status TEXT NOT NULL, member_open_id TEXT, group_open_id TEXT, message_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, verified_at INTEGER, decided_at INTEGER, decided_by TEXT, decision_reason TEXT);
@@ -89,13 +90,28 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 0 });
   });
 
-  it("lists pending historical title holders for targeted invitations", async () => {
+  it("lists historical title holders for invitations and migration", async () => {
     const { database, sqlite } = createD1();
-    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
+    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE_PENDING', 'Player', 'test'), ('hist.2', 'global', 'TITLE_COMPLETED', 'Migrated', 'test')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label) VALUES ('TITLE_PENDING', '待迁移称号'), ('TITLE_COMPLETED', '已迁移称号')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.1', 'account.1', 'TITLE_COMPLETED', 'active', 'historical', 'hist.2', 'admin', 1)").run();
     const services = createPlatformServices(database);
 
     await expect(services.listHistoricalTitleGrants({ filter: "pending", page: 1, pageSize: 50 }, auth)).resolves.toMatchObject({
       holders: [{ holderName: "Player", totalCount: 1, unclaimedCount: 1, status: "pending" }],
+      total: 1,
+      hasMore: false,
+    });
+    await expect(services.listHistoricalTitleGrants({ filter: "all", page: 1, pageSize: 50 }, auth)).resolves.toMatchObject({
+      holders: [
+        { holderName: "Migrated", totalCount: 1, unclaimedCount: 0, status: "completed" },
+        { holderName: "Player", totalCount: 1, unclaimedCount: 1, status: "pending" },
+      ],
+      total: 2,
+      hasMore: false,
+    });
+    await expect(services.listHistoricalTitleGrants({ query: "已迁移称号", filter: "completed", page: 1, pageSize: 50 }, auth)).resolves.toMatchObject({
+      holders: [{ holderName: "Migrated", totalCount: 1, unclaimedCount: 0, status: "completed" }],
       total: 1,
       hasMore: false,
     });
