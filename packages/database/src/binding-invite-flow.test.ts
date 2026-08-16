@@ -89,6 +89,18 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 0 });
   });
 
+  it("lists pending historical title holders for targeted invitations", async () => {
+    const { database, sqlite } = createD1();
+    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
+    const services = createPlatformServices(database);
+
+    await expect(services.listHistoricalTitleGrants({ filter: "pending", page: 1, pageSize: 50 }, auth)).resolves.toMatchObject({
+      holders: [{ holderName: "Player", totalCount: 1, unclaimedCount: 1, status: "pending" }],
+      total: 1,
+      hasMore: false,
+    });
+  });
+
   it("runs the same authorized migration after a reviewed binding", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();

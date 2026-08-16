@@ -3633,8 +3633,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
       const aggregated = db.select({
         holderName: historicalTitleGrants.holderName,
-        totalCount: totalCountExpr,
-        unclaimedCount: unclaimedCountExpr,
+        totalCount: totalCountExpr.as("total_count"),
+        unclaimedCount: unclaimedCountExpr.as("unclaimed_count"),
       }).from(historicalTitleGrants)
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
         .where(holderScope)
