@@ -82,11 +82,11 @@ async function load() {
   errorMessage.value = '';
   try {
     if (activeTab.value === 'proposals') {
-      const response = await api<{ items: AdminAnnotationProposal[]; total: number }>('/v1/admin/annotations/proposals?' + query.value);
+      const response = await api<{ items: AdminAnnotationProposal[]; total: number }>('/v1/annotations/proposals?' + query.value);
       proposals.value = response.items;
       total.value = response.total;
     } else {
-      const response = await api<{ items: AdminReviewedAnnotation[]; total: number }>('/v1/admin/annotations/reviewed?' + query.value);
+      const response = await api<{ items: AdminReviewedAnnotation[]; total: number }>('/v1/annotations/reviewed?' + query.value);
       reviewed.value = response.items;
       total.value = response.total;
     }
@@ -103,7 +103,7 @@ async function openProposal(proposalId: string) {
   selectedDetail.value = null;
   editing.value = false;
   editValue.value = '';
-  try { selectedDetail.value = await api<AdminAnnotationProposalDetail>('/v1/admin/annotations/proposals/' + encodeURIComponent(proposalId)); }
+  try { selectedDetail.value = await api<AdminAnnotationProposalDetail>('/v1/annotations/proposals/' + encodeURIComponent(proposalId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取标注详情。').description; }
   finally { detailLoading.value = false; }
 }
@@ -119,7 +119,7 @@ async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue
   }
   saving.value = true;
   try {
-    await api(`/v1/admin/annotations/proposals/${encodeURIComponent(proposalId)}/decision`, {
+    await api(`/v1/annotations/proposals/${encodeURIComponent(proposalId)}/decision`, {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', action },
@@ -136,7 +136,7 @@ async function saveEditAccept() {
   saving.value = true;
   detailError.value = '';
   try {
-    await api(`/v1/admin/annotations/proposals/${encodeURIComponent(selectedDetail.value.proposal.proposalId)}/decision`, {
+    await api(`/v1/annotations/proposals/${encodeURIComponent(selectedDetail.value.proposal.proposalId)}/decision`, {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', action: 'edit_accept', reviewedValue: editValue.value.trim() },
@@ -154,7 +154,7 @@ async function loadDirectSubmission() {
   directLoading.value = true;
   directSubmission.value = null;
   try {
-    const response = await api<{ submissionId: string; mapName: string; ocrResultId: string | null; ocr: Record<string, unknown> | null }>('/v1/admin/submissions/' + encodeURIComponent(submissionId));
+    const response = await api<{ submissionId: string; mapName: string; ocrResultId: string | null; ocr: Record<string, unknown> | null }>('/v1/submissions/' + encodeURIComponent(submissionId));
     directSubmission.value = response;
     if (!response.ocrResultId) { directSubmission.value = { ...response, ocrResultId: null }; }
   } catch (error) {
@@ -168,7 +168,7 @@ async function createDirect() {
   saving.value = true;
   detailError.value = '';
   try {
-    await api('/v1/admin/annotations/direct', {
+    await api('/v1/annotations/direct', {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', submissionId: directSubmission.value.submissionId, ocrResultId: directSubmission.value.ocrResultId, fieldKey: directFieldKey.value, reviewedValue: directValue.value.trim(), ...(directNote.value.trim() ? { note: directNote.value.trim() } : {}) },

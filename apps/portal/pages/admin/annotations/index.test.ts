@@ -46,10 +46,10 @@ const reviewed = {
 };
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
-  if (path === "/v1/admin/annotations/proposals?page=1&pageSize=20") return Promise.resolve({ items: [proposal], total: 1 });
-  if (path === "/v1/admin/annotations/reviewed?page=1&pageSize=20") return Promise.resolve({ items: [reviewed], total: 1 });
-  if (path === "/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005") return Promise.resolve(detail);
-  if (path === "/v1/admin/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "测试地图", ocrResultId: "00000000-0000-4000-8000-000000000004", ocr: { data: { map_name: "测试地图" } } });
+  if (path === "/v1/annotations/proposals?page=1&pageSize=20") return Promise.resolve({ items: [proposal], total: 1 });
+  if (path === "/v1/annotations/reviewed?page=1&pageSize=20") return Promise.resolve({ items: [reviewed], total: 1 });
+  if (path === "/v1/annotations/proposals/00000000-0000-4000-8000-000000000005") return Promise.resolve(detail);
+  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "测试地图", ocrResultId: "00000000-0000-4000-8000-000000000004", ocr: { data: { map_name: "测试地图" } } });
   if (options?.method === "POST") return Promise.resolve({});
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -94,14 +94,14 @@ describe("admin annotations page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AnnotationsPage, { global: { stubs } });
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/proposals?page=1&pageSize=20");
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals?page=1&pageSize=20");
     expect(wrapper.text()).toContain("测试地图");
     expect(wrapper.text()).toContain("pending");
     expect(wrapper.text()).toContain("详情");
 
     await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005");
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals/00000000-0000-4000-8000-000000000005");
     expect(wrapper.get('[data-testid="dialog"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("玩家建议值");
     expect(wrapper.text()).toContain("一般");
@@ -116,7 +116,7 @@ describe("admin annotations page", () => {
     const accept = wrapper.findAll("button").find((button) => button.text().trim() === "接受");
     await accept?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005/decision", expect.objectContaining({
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals/00000000-0000-4000-8000-000000000005/decision", expect.objectContaining({
       method: "POST",
       body: { contractVersion: "1", action: "accept" },
     }));
@@ -130,7 +130,7 @@ describe("admin annotations page", () => {
     const tabs = wrapper.findAll("button").filter((button) => ["提案队列", "已审标注"].includes(button.text()));
     await tabs.find((button) => button.text() === "已审标注")?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/reviewed?page=1&pageSize=20");
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/reviewed?page=1&pageSize=20");
     expect(wrapper.text()).toContain("normalizedValue");
     expect(wrapper.text()).toContain("maintainer-1");
   });
@@ -146,12 +146,12 @@ describe("admin annotations page", () => {
     const readButton = wrapper.findAll("button").find((button) => button.text() === "读取");
     await readButton?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/submissions/submission-1");
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1");
     await wrapper.find('input[aria-label="审定值"]').setValue("普通");
     const createButton = wrapper.findAll("button").find((button) => button.text().includes("创建标注"));
     await createButton?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/direct", expect.objectContaining({
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/direct", expect.objectContaining({
       method: "POST",
       body: { contractVersion: "1", submissionId: "submission-1", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "普通" },
     }));

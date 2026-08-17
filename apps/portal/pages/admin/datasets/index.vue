@@ -44,7 +44,7 @@ async function load() {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const response = await api<{ items: AdminDatasetSnapshot[]; total: number }>('/v1/admin/datasets?' + query.value);
+    const response = await api<{ items: AdminDatasetSnapshot[]; total: number }>('/v1/datasets?' + query.value);
     datasets.value = response.items;
     total.value = response.total;
     if (page.value > 1 && !response.items.length && response.total) { page.value -= 1; await load(); }
@@ -59,7 +59,7 @@ async function createDraft() {
   errorMessage.value = '';
   feedback.value = '';
   try {
-    const response = await api<AdminDatasetDetail['snapshot']>('/v1/admin/datasets', {
+    const response = await api<AdminDatasetDetail['snapshot']>('/v1/datasets', {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1' },
@@ -76,7 +76,7 @@ async function openDetail(datasetId: string) {
   detailLoading.value = true;
   detailError.value = '';
   selectedDetail.value = null;
-  try { selectedDetail.value = await api<AdminDatasetDetail>('/v1/admin/datasets/' + encodeURIComponent(datasetId)); }
+  try { selectedDetail.value = await api<AdminDatasetDetail>('/v1/datasets/' + encodeURIComponent(datasetId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取数据集详情。').description; }
   finally { detailLoading.value = false; }
 }
@@ -86,7 +86,7 @@ async function finalize() {
   finalizing.value = true;
   detailError.value = '';
   try {
-    const response = await api<{ status: 'finalized'; version: number }>(`/v1/admin/datasets/${encodeURIComponent(selectedDetail.value.snapshot.datasetId)}/finalize`, {
+    const response = await api<{ status: 'finalized'; version: number }>(`/v1/datasets/${encodeURIComponent(selectedDetail.value.snapshot.datasetId)}/finalize`, {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1' },

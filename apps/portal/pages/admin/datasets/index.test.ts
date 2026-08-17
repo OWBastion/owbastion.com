@@ -23,9 +23,9 @@ const detail = {
 };
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
-  if (path === "/v1/admin/datasets?page=1&pageSize=20") return Promise.resolve({ items: [snapshot], total: 1 });
-  if (path === "/v1/admin/datasets/00000000-0000-4000-8000-000000000007") return Promise.resolve(detail);
-  if (path === "/v1/admin/datasets" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", datasetId: snapshot.datasetId, version: 2, status: "draft", counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } });
+  if (path === "/v1/datasets?page=1&pageSize=20") return Promise.resolve({ items: [snapshot], total: 1 });
+  if (path === "/v1/datasets/00000000-0000-4000-8000-000000000007") return Promise.resolve(detail);
+  if (path === "/v1/datasets" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", datasetId: snapshot.datasetId, version: 2, status: "draft", counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } });
   if (options?.method === "POST") return Promise.resolve({ contractVersion: "1", datasetId: snapshot.datasetId, version: 1, status: "finalized", finalizedAt: 2 });
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -60,11 +60,11 @@ describe("admin datasets page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(DatasetsPage, { global: { stubs } });
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/datasets?page=1&pageSize=20");
+    expect(adminApi).toHaveBeenCalledWith("/v1/datasets?page=1&pageSize=20");
     expect(wrapper.text()).toContain("eligibleCount");
     await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/datasets/00000000-0000-4000-8000-000000000007");
+    expect(adminApi).toHaveBeenCalledWith("/v1/datasets/00000000-0000-4000-8000-000000000007");
     expect(wrapper.get('[data-testid="dialog"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("缺少模型版本");
     expect(wrapper.text()).toContain("定稿冻结");
@@ -77,7 +77,7 @@ describe("admin datasets page", () => {
     const createButton = wrapper.findAll("button").find((button) => button.text().includes("创建草稿"));
     await createButton?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/datasets", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/datasets", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
     expect(wrapper.text()).toContain("已创建 v2 草稿");
   });
 
@@ -90,7 +90,7 @@ describe("admin datasets page", () => {
     const finalizeButton = wrapper.findAll("button").find((button) => button.text().includes("定稿冻结"));
     await finalizeButton?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/datasets/00000000-0000-4000-8000-000000000007/finalize", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/datasets/00000000-0000-4000-8000-000000000007/finalize", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
     expect(wrapper.text()).toContain("已定稿，快照不可再变更");
   });
 });
