@@ -11,8 +11,6 @@ const steps: ProgressStep[] = [
   { key: "grant", title: "获得称号", icon: "i-lucide-award", detail: "核对通过后获得称号" },
 ];
 
-const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
-
 const stepStates = computed<StepState[]>(() => {
   switch (props.status) {
     case "received":
@@ -64,7 +62,7 @@ const progressItems = computed(() => steps.map((step, index) => {
 
 <template>
   <UCard class="progress-card elevation-2" aria-labelledby="submission-progress-title">
-    <template #header><div class="card-heading"><h2 id="submission-progress-title">提交进度</h2><span>最后更新 {{ formatTime(props.updatedAt) }}</span></div></template>
+    <template #header><div class="card-heading"><h2 id="submission-progress-title">提交进度</h2></div></template>
     <ol class="progress-list">
       <li v-for="step in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
         <div class="progress-marker" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>

@@ -50,7 +50,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
         PlayerRecentSubmissions: { template: "<div data-testid='submissions'>submissions</div>" },
         MasteryMapOverview: { template: "<div data-testid='mastery'>mastery</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
-        TitleCollection: { props: ["titles"], template: "<div class=\"title-count\" data-testid='titles'>{{ titles.length }}</div>" },
+        TitleCollection: true,
         UButton: {
           props: ["to", "label", "loading"],
           emits: ["click"],
@@ -86,7 +86,7 @@ describe("me page", () => {
     refreshTitles.mockResolvedValue(titles.value);
 
     const wrapper = await mountPage();
-    expect(wrapper.find(".title-count").text()).toBe("3");
+    expect(wrapper.findAll("[data-testid='titles'] .recent-title")).toHaveLength(3);
     expect(wrapper.find('button[data-to="/achievements"]').text()).toContain("查看全部成就");
     expect(wrapper.text()).not.toContain("更多功能");
     expect(wrapper.find(".upcoming-card").exists()).toBe(false);
@@ -117,7 +117,7 @@ describe("me page", () => {
     expect(wrapper.find("[data-testid='submissions']").exists()).toBe(true);
     expect(wrapper.text()).toContain("无法读取称号");
     expect(wrapper.text()).not.toContain("暂无称号");
-    expect(wrapper.find(".title-count").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='titles']").exists()).toBe(false);
 
     titles.value = [{ grantId: "grant-1", titleKey: "TITLE-1", label: "称号1", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 1 }];
     refreshTitles.mockResolvedValueOnce(titles.value);
@@ -125,7 +125,7 @@ describe("me page", () => {
     expect(retry).toBeDefined();
     await retry!.trigger("click");
     await flushPromises();
-    expect(wrapper.find(".title-count").text()).toBe("1");
+    expect(wrapper.findAll("[data-testid='titles'] .recent-title")).toHaveLength(1);
     expect(wrapper.text()).not.toContain("无法读取称号");
   });
 

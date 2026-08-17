@@ -75,7 +75,7 @@ describe("AppHeader", () => {
     const nav = wrapper.get("#mobile-nav");
     expect(nav.exists()).toBe(true);
     const links = nav.findAll("a");
-    expect(links.length).toBe(4);
+    expect(links.length).toBe(5);
     const first = links[0];
     const last = links[links.length - 1];
 

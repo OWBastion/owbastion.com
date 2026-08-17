@@ -35,20 +35,41 @@ const emit = defineEmits<{
   "retry-mastery": [];
   "history-page": [input: { mapId: string; page: number }];
 }>();
+const route = useRoute();
+const router = useRouter();
+const syncingQuery = shallowRef(false);
+
+const writeMapQuery = async (mapId: string | undefined) => {
+  const current = typeof route.query.mapId === "string" ? route.query.mapId : undefined;
+  if (current === mapId) return;
+  syncingQuery.value = true;
+  const query = { ...route.query };
+  if (mapId) query.mapId = mapId;
+  else delete query.mapId;
+  await router.replace({ query });
+  syncingQuery.value = false;
+};
 
 const openMap = (map: Map) => {
   selectedMap.value = map;
   modalOpen.value = true;
+  void writeMapQuery(map.mapId);
   if (props.authenticated) emit("history-page", { mapId: map.mapId, page: 1 });
 };
 
 const openSelectedMap = () => {
+  if (syncingQuery.value) return;
   if (!props.selectedMapId) return;
   const map = props.maps.find((candidate) => candidate.mapId === props.selectedMapId);
   if (map && selectedMap.value?.mapId !== map.mapId) openMap(map);
 };
 
 watch([() => props.selectedMapId, () => props.maps], openSelectedMap, { immediate: true });
+watch(modalOpen, (open) => {
+  if (open) return;
+  selectedMap.value = null;
+  void writeMapQuery(undefined);
+});
 
 const requestHistoryPage = (page: number) => {
   if (selectedMap.value) emit("history-page", { mapId: selectedMap.value.mapId, page });

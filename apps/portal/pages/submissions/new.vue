@@ -66,7 +66,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
                 layout="grid"
                 position="outside"
                 :preview="true"
-                :ui="{ base: 'aspect-video !flex-none', files: 'w-full', file: 'w-full aspect-video overflow-hidden rounded-lg', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
+                :ui="{ files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
                 description="支持 JPEG、PNG、WebP，不超过 10MB"
                 :disabled="loading"
               />

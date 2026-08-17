@@ -100,6 +100,7 @@ async function openProposal(proposalId: string) {
   detailOpen.value = true;
   detailLoading.value = true;
   detailError.value = '';
+  selectedDetail.value = null;
   editing.value = false;
   editValue.value = '';
   try { selectedDetail.value = await api<AdminAnnotationProposalDetail>('/v1/admin/annotations/proposals/' + encodeURIComponent(proposalId)); }
@@ -109,7 +110,6 @@ async function openProposal(proposalId: string) {
 
 async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue?: string) {
   if (!selectedDetail.value || saving.value) return;
-  saving.value = true;
   detailError.value = '';
   const proposalId = selectedDetail.value.proposal.proposalId;
   if (action === 'edit_accept') {
@@ -117,6 +117,7 @@ async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue
     editValue.value = reviewedValue ?? selectedDetail.value.proposal.proposedValue ?? selectedDetail.value.proposal.originalValue ?? '';
     return;
   }
+  saving.value = true;
   try {
     await api(`/v1/admin/annotations/proposals/${encodeURIComponent(proposalId)}/decision`, {
       method: 'POST',
@@ -216,6 +217,7 @@ onMounted(() => { void load(); });
         <template #playerSubmittedAt-cell='{ row }'><span>{{ formatTime(row.original.playerSubmittedAt) }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openProposal(row.original.proposalId)' /></div></template>
       </AdminDataTable>
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
 
     <section v-else aria-label='已审标注列表'>
@@ -231,36 +233,50 @@ onMounted(() => { void load(); });
         <template #reviewState-cell='{ row }'><StatusBadge :label='stateLabel(row.original.reviewState)' :tone='row.original.reviewState === "accepted" ? "success" : "default"' /></template>
         <template #reviewedAt-cell='{ row }'><span>{{ formatTime(row.original.reviewedAt) }}</span><span class='table-meta'>{{ row.original.reviewedBy }}</span></template>
       </AdminDataTable>
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
 
     <AdminResponsiveDialog v-model:open='detailOpen' title='标注提案' description='审定后不会影响截图审核结果。' size='lg'>
-      <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='annotation-dialog-error' />
-      <p v-if='detailLoading' class='annotation-dialog-message' role='status'>读取详情…</p>
-      <AdminAnnotationProposalDetail v-else-if='selectedDetail' :detail='selectedDetail' @decide='decide' />
-      <div v-if='editing' class='annotation-edit'>
-        <UInput v-model='editValue' size='md' placeholder='审定后的准确值' aria-label='审定值' />
-        <div class='annotation-edit-actions'>
-          <UButton label='保存审定' color='primary' :loading='saving' :disabled='saving || !editValue.trim()' @click='saveEditAccept' />
-          <UButton label='取消' color='neutral' variant='ghost' :disabled='saving' @click='editing = false' />
+      <template #body>
+        <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='annotation-dialog-error' />
+        <p v-if='detailLoading' class='annotation-dialog-message' role='status'>读取详情…</p>
+        <AdminAnnotationProposalDetail v-else-if='selectedDetail' :detail='selectedDetail' />
+        <div v-if='editing' class='annotation-edit'>
+          <UInput v-model='editValue' size='md' placeholder='审定后的准确值' aria-label='审定值' />
         </div>
-      </div>
+      </template>
+      <template v-if='!detailLoading && selectedDetail' #footer>
+        <template v-if='editing'>
+          <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='editing = false' />
+          <UButton label='保存审定' color='primary' :loading='saving' :disabled='saving || !editValue.trim()' @click='saveEditAccept' />
+        </template>
+        <template v-else-if='selectedDetail.proposal.reviewState === "pending"'>
+          <UButton label='拒绝' color='error' variant='outline' :disabled='saving' @click='decide("reject")' />
+          <UButton label='编辑并接受' color='neutral' variant='outline' :disabled='saving' @click='decide("edit_accept")' />
+          <UButton label='接受' color='primary' :loading='saving' :disabled='saving' @click='decide("accept")' />
+        </template>
+      </template>
     </AdminResponsiveDialog>
 
     <AdminResponsiveDialog v-model:open='directOpen' title='直接创建审定标注' description='用于维护者核对截图时发现识别错误、且无玩家反馈的情况。' size='md'>
-      <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='annotation-dialog-error' />
-      <div class='annotation-direct'>
-        <div class='annotation-direct-row'>
-          <UInput v-model='directSubmissionId' size='md' placeholder='提交 ID' aria-label='提交 ID' />
-          <UButton label='读取' color='neutral' variant='outline' :loading='directLoading' :disabled='!directSubmissionId.trim() || directLoading' @click='loadDirectSubmission' />
+      <template #body>
+        <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='annotation-dialog-error' />
+        <div class='annotation-direct'>
+          <div class='annotation-direct-row'>
+            <UInput v-model='directSubmissionId' size='md' placeholder='提交 ID' aria-label='提交 ID' />
+            <UButton label='读取' color='neutral' variant='outline' :loading='directLoading' :disabled='!directSubmissionId.trim() || directLoading' @click='loadDirectSubmission' />
+          </div>
+          <p v-if='directSubmission' class='annotation-direct-fact'>{{ directSubmission.mapName }} · {{ directSubmission.submissionId }}<span v-if='!directSubmission.ocrResultId' class='table-meta'>（无可用识别结果）</span></p>
+          <div v-if='directSubmission?.ocrResultId' class='annotation-direct-form'>
+            <USelect v-model='directFieldKey' aria-label='选择字段' :items='[{ label: "地图", value: "map_name" }, { label: "难度", value: "difficulty" }, { label: "玩家", value: "viewer_player" }, { label: "通关标记", value: "challenge_completed" }, { label: "成就", value: "achievement_titles" }]' />
+            <UInput v-model='directValue' size='md' placeholder='审定后的准确值' aria-label='审定值' />
+            <UInput v-model='directNote' size='md' placeholder='备注' aria-label='备注' />
+          </div>
         </div>
-        <p v-if='directSubmission' class='annotation-direct-fact'>{{ directSubmission.mapName }} · {{ directSubmission.submissionId }}<span v-if='!directSubmission.ocrResultId' class='table-meta'>（无可用识别结果）</span></p>
-        <div v-if='directSubmission?.ocrResultId' class='annotation-direct-form'>
-          <USelect v-model='directFieldKey' aria-label='选择字段' :items='[{ label: "地图", value: "map_name" }, { label: "难度", value: "difficulty" }, { label: "玩家", value: "viewer_player" }, { label: "通关标记", value: "challenge_completed" }, { label: "成就", value: "achievement_titles" }]' />
-          <UInput v-model='directValue' size='md' placeholder='审定后的准确值' aria-label='审定值' />
-          <UInput v-model='directNote' size='md' placeholder='备注（可选）' aria-label='备注' />
-          <UButton label='创建标注' color='primary' :loading='saving' :disabled='saving || !directValue.trim()' @click='createDirect' />
-        </div>
-      </div>
+      </template>
+      <template v-if='directSubmission?.ocrResultId' #footer>
+        <UButton label='创建标注' color='primary' :loading='saving' :disabled='saving || !directValue.trim()' @click='createDirect' />
+      </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
@@ -272,7 +288,7 @@ onMounted(() => { void load(); });
 .annotation-dialog-error { margin-bottom: 12px; }
 .annotation-dialog-message { margin: 0; padding: 40px 0; color: var(--muted); text-align: center; }
 .annotation-edit { display: grid; gap: 10px; margin-top: 14px; }
-.annotation-edit-actions { display: flex; gap: 8px; }
+.pagination { display: flex; justify-content: center; margin-top: 10px; }
 .annotation-direct { display: grid; gap: 12px; }
 .annotation-direct-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .annotation-direct-fact { margin: 0; color: var(--text); font-size: .86rem; overflow-wrap: anywhere; }

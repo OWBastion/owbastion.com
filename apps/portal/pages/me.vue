@@ -16,6 +16,9 @@ const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
 const masteryRetrying = shallowRef(false);
 const masteryMapNames = shallowRef<Record<string, string>>({});
+const recentTitles = computed(() => titles.value.slice(0, 3));
+const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
+const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
 const showSkeleton = computed(() => loading.value && !player.value);
 const sessionUnavailable = computed(() => !loading.value && !player.value && !playerError.value && status.value === "anonymous");
@@ -155,7 +158,12 @@ onMounted(() => {
             <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" />
           </template>
         </UAlert>
-        <TitleCollection v-else-if="titlesReady && titles.length" :titles="titles.slice(0, 3)" />
+        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles" data-testid="titles">
+          <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
+            <strong>{{ title.label }}</strong>
+            <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
+          </li>
+        </ul>
         <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
         <div v-else-if="loading" class="titles-loading" role="status" aria-label="读取中…">
           <USkeleton class="titles-loading-card" />
@@ -237,6 +245,10 @@ onMounted(() => {
 .me-alert { margin-bottom: 20px; }
 .section-block { margin-top: clamp(3.5rem, 8vw, 5.5rem); }
 .titles-section { margin-top: clamp(3.25rem, 8vw, 5.375rem); }
+.recent-titles { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.recent-title { display: grid; gap: 5px; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.recent-title strong { overflow-wrap: anywhere; font-weight: 650; letter-spacing: var(--type-headline-tracking); }
+.recent-title span { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .titles-loading-card { min-height: 112px; border-radius: 16px; }
 .mastery-loading { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.mastery-loading > * { min-height: 132px; border-radius: 16px; }

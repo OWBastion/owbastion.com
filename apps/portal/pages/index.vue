@@ -1,12 +1,12 @@
 <script setup lang="ts">
 useSeoMeta({
   title: "躲避堡垒 3 · 玩家社区",
-  description: "活动、成就记录与地图。",
+  description: "事件、成就、地图与版本更新。",
 });
 </script>
 
 <template>
-  <main class="home-page page-shell--readable">
+  <main class="home-page page-shell">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
         <h1 id="hero-title" class="type-display">躲避堡垒 3</h1>
@@ -19,23 +19,22 @@ useSeoMeta({
     </section>
 
     <section class="content-section" aria-labelledby="content-title">
-      <h2 id="content-title" class="type-title">游玩记录</h2>
+      <h2 id="content-title" class="type-title">目录</h2>
       <div class="content-grid">
         <NuxtLink id="events" to="/events" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">随机事件</h3>
-          <p>已发布的随机事件与规则变化。</p>
+        </NuxtLink>
+        <NuxtLink id="maps" to="/maps" class="content-card content-card--link interactive-card pressable-soft">
+          <h3 class="type-headline">地图</h3>
         </NuxtLink>
         <NuxtLink id="achievements" to="/achievements" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">成就挑战</h3>
-          <p>查看已发布的目标与完成条件。</p>
         </NuxtLink>
         <NuxtLink to="/changelog" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">版本更新</h3>
-          <p>已发布的内容与规则变化。</p>
         </NuxtLink>
         <NuxtLink to="/blog" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">开发日志</h3>
-          <p>阅读开发进展与设计记录。</p>
         </NuxtLink>
       </div>
     </section>
@@ -62,8 +61,7 @@ useSeoMeta({
 .content-section > .type-title { margin-bottom: 2.125rem; }
 .content-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .content-card { display: grid; min-height: 200px; align-content: start; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: inherit; text-decoration: none; }
-.content-card .type-headline { max-width: 18ch; margin-bottom: 11px; }
-.content-card p:last-child { max-width: 42ch; margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.62; }
+.content-card .type-headline { max-width: 18ch; margin: 0; }
 .content-card--link.interactive-card:hover,
 .content-card--link.interactive-card:focus-visible {
   border-color: color-mix(in oklch, var(--accent) 42%, var(--line-strong));

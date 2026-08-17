@@ -78,6 +78,9 @@ describe("maps page", () => {
     expect(document.body.textContent).toContain("精通记录");
     expect(document.body.textContent).toContain("225 XP");
     expect(document.body.textContent).toContain("通关记录");
+    expect(document.body.textContent).toContain("地狱难度通关");
+    expect(wrapper.text()).toContain("1 项");
+    expect(wrapper.text()).not.toContain("挑战进度");
     expect(portalApi).toHaveBeenCalledWith("/v1/me/mastery?mapId=map.samoa&page=1&pageSize=10");
     wrapper.unmount();
   });

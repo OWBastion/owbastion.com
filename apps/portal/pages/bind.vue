@@ -37,7 +37,7 @@ async function copyCommand() {
         <p v-if="state === 'waiting'" class="body-copy">在已开放的 QQ 群中发送：</p>
         <p v-if="state === 'waiting'" class="binding-code">{{ qqVerificationCommand(confirmationCode) }}</p>
         <div v-if="state === 'waiting'" class="binding-actions"><UButton :label="copied ? '已复制' : '复制指令'" color="neutral" variant="outline" @click="copyCommand" /><p class="binding-note">请手动输入 @，从列表选择机器人，再发送上方指令。验证成功后自动完成首次绑定并登录。</p></div>
-        <p v-else-if="state === 'review'" class="binding-note">涉及现有绑定或其他冲突，等待处理。</p>
+        <p v-else-if="state === 'review'" class="binding-note">涉及现有绑定或其他冲突，待处理。</p>
         <p v-else-if="state === 'rejected'" class="binding-note error-note">绑定申请未通过。</p>
         <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原绑定链接重新生成。</p>
         <p v-else-if="state === 'failed'" class="binding-note error-note">{{ errorMessage }}</p>

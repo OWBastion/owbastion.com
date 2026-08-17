@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
-import type { RandomEvent } from "~/types/random-event";
+import type { EventChallenge, RandomEvent } from "~/types/random-event";
 import EffectGlossaryTooltip from "~/components/events/EffectGlossaryTooltip.vue";
 import PlayerReviewPanel from "~/components/reviews/PlayerReviewPanel.vue";
 import { useReviewSummaries } from "~/composables/useReviewSummaries";
@@ -34,6 +34,10 @@ const detailOpen = computed({
   set: (open) => { if (!open) selected.value = null; },
 });
 const statusText = (value: RandomEvent["releaseStatus"]) => value === "implemented" ? "已实装" : value === "removed" ? "已移除" : "开发中";
+const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
+  ? (challenge.mapId ? `/maps?mapId=${encodeURIComponent(challenge.mapId)}` : "/maps")
+  : "/achievements";
+const challengeAction = (challenge: EventChallenge) => challenge.family === "map" ? "查看地图" : "查看成就";
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";
 const unannotatedEffectTags = (event: RandomEvent) => event.effectTags.filter((value) => !event.effectAnnotations.some((annotation) => annotation.tag === value));
 const visibleEffectChips = (event: RandomEvent) => {
@@ -126,9 +130,14 @@ onMounted(() => { hydrated.value = true; });
         <section class="challenges">
           <h3>开放挑战</h3>
           <p v-if="!selected.challenges.length" class="muted">暂无开放挑战。</p>
-          <NuxtLink v-for="challenge in selected.challenges" :key="challenge.challengeId" to="/achievements" class="challenge-link interactive-card pressable-soft">
+          <NuxtLink
+            v-for="challenge in selected.challenges"
+            :key="challenge.challengeId"
+            :to="challengeHref(challenge)"
+            class="challenge-link interactive-card pressable-soft"
+          >
             {{ challenge.family === "map" ? challenge.name : challenge.titleName }}
-            <span>查看成就 →</span>
+            <span>{{ challengeAction(challenge) }}</span>
           </NuxtLink>
         </section>
         <PlayerReviewPanel target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />

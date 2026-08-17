@@ -20,6 +20,7 @@
 | [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
 | [audit-portal-uiux-2026-08.md](audit-portal-uiux-2026-08.md) | Portal UI/UX 审计档案 | reference | 2026-08 三轮审计：已解决 / 待修 / 豁免状态 |
 | [audit-portal-uiux-2026-08-15.md](audit-portal-uiux-2026-08-15.md) | Portal UI/UX 综合审计报告 | reference | 2026-08-15 综合审计：Apple Design 与 Kill-AI-Slop 全量检视与重构路线 |
+| [audit-portal-uiux-2026-08-17.md](audit-portal-uiux-2026-08-17.md) | Portal UI/UX 独立审计 | reference | 2026-08-17：按模块功能对照设计支柱 / Apple Design / Kill-AI-Slop，不依据既有审计档 |
 
 ## 使用规则
 

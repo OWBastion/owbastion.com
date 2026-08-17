@@ -131,10 +131,11 @@ async function signOut() {
           <LazyUNavigationMenu :items="adminNavigationItems" orientation="horizontal" highlight variant="pill" />
         </template>
         <template v-else>
-          <NuxtLink to="/events" class="pressable">事件</NuxtLink>
+          <NuxtLink to="/events" class="pressable">随机事件</NuxtLink>
           <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
           <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
           <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
+          <NuxtLink to="/blog" class="pressable">开发日志</NuxtLink>
         </template>
       </nav>
       <div class="account-actions">
@@ -167,10 +168,11 @@ async function signOut() {
             <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
           </template>
           <template v-else>
-            <NuxtLink to="/events" class="pressable" @click="closeMenu()">事件</NuxtLink>
+            <NuxtLink to="/events" class="pressable" @click="closeMenu()">随机事件</NuxtLink>
             <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
             <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
             <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
+            <NuxtLink to="/blog" class="pressable" @click="closeMenu()">开发日志</NuxtLink>
           </template>
         </nav>
       </Transition>
@@ -186,10 +188,10 @@ async function signOut() {
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
 .main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
 .main-nav :deep(ul) { gap: 2px; }
-.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 40px; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
 .main-nav a {
   display: inline-flex;
-  min-height: 40px;
+  min-height: 2.75rem;
   align-items: center;
   padding: 0 11px;
   border-radius: 9px;
@@ -206,7 +208,7 @@ async function signOut() {
   background: color-mix(in oklch, var(--surface-raised) 72%, transparent);
 }
 .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; font-size: .78rem; font-weight: 650; }
-.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
+.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .mobile-menu-toggle, .mobile-nav { display: none; }
 @media (max-width: 900px) {
   .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }

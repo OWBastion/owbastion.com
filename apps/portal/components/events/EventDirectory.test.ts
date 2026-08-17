@@ -87,4 +87,30 @@ describe("EventDirectory", () => {
     expect(wrapper.text()).toContain("详情说明");
     expect(wrapper.text()).toContain("普通");
   });
+
+  it("sends map-family challenges to the map directory", async () => {
+    const wrapper = await mountSuspended(EventDirectory, {
+      props: {
+        events: [event({
+          eventId: "event.alpha",
+          name: "Alpha 事件",
+          challenges: [
+            { challengeId: "map.samoa.hell", family: "map", gameplayRevisionId: "revision:map.samoa:initial", name: "地狱难度通关", mapId: "map.samoa" },
+            { challengeId: "title.lucky", family: "achievement", titleName: "幸运星" },
+          ],
+        })],
+        authenticated: false,
+      },
+      global,
+    });
+
+    await wrapper.get(".event-card").trigger("click");
+    await wrapper.vm.$nextTick();
+    const links = wrapper.findAll(".challenge-link");
+    expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).toContain("/maps?mapId=map.samoa");
+    expect(links[0]?.text()).toContain("查看地图");
+    expect(links[1]?.attributes("href") ?? links[1]?.attributes("to")).toContain("/achievements");
+    expect(links[1]?.text()).toContain("查看成就");
+    expect(wrapper.text()).not.toContain("查看成就 →");
+  });
 });

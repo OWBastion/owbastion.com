@@ -59,6 +59,13 @@ function flashRow(id: string, updatedIds: Set<string>) {
 }
 
 const activeTab = shallowRef("claims");
+const workspaceCount = computed(() => {
+  if (loading.value) return "读取中…";
+  if (activeTab.value === "claims") return `${claims.value.length} 条`;
+  if (activeTab.value === "invitations") return `${invitations.value.length} 条`;
+  if (activeTab.value === "active") return `${activeBindings.value.length} 条`;
+  return undefined;
+});
 const bindingTabs = [
   { label: "绑定申请", value: "claims", slot: "claims" as const },
   { label: "已生成邀请码", value: "invitations", slot: "invitations" as const },
@@ -272,7 +279,7 @@ onMounted(load);
 </script>
 
 <template>
-  <AdminWorkspace title="绑定管理" :count="loading ? '读取中…' : `${claims.length} 条`">
+  <AdminWorkspace title="绑定管理" :count="workspaceCount">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section class="binding-section" aria-label="绑定记录">
       <UTabs v-model="activeTab" :items="bindingTabs" variant="link" aria-label="绑定记录类型" class="binding-tabs">
@@ -340,11 +347,11 @@ onMounted(load);
             </span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">将撤销的 binding 数量</span>
+            <span class="detail-label">将解除的绑定</span>
             <span class="detail-value">{{ detailTarget.revokingBindingCount ?? 0 }} 个</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">将失效的 Session 数量</span>
+            <span class="detail-label">将退出的登录</span>
             <span class="detail-value">{{ detailTarget.invalidatingSessionCount ?? 0 }} 个</span>
           </div>
           <div class="detail-row">
@@ -365,7 +372,7 @@ onMounted(load);
     <AdminResponsiveDialog :open="conflictTarget !== null" title="确认批准冲突申请" :description="conflictTarget ? `${conflictTarget.playerName}#${conflictTarget.playerId}` : undefined" size="md" :dismissible="!deciding" @update:open="(open) => { if (!open && !deciding) conflictTarget = null; }">
       <template #body>
         <div v-if="conflictTarget" class="claim-detail-list">
-          <UAlert color="warning" variant="subtle" title="身份冲突提示" description="批准此操作将撤销现有的关联绑定并导致相关 Session 失效。" />
+          <UAlert color="warning" variant="subtle" title="身份冲突提示" description="批准此操作将解除现有关联绑定，并退出相关登录。" />
           <div class="detail-row">
             <span class="detail-label">操作类型</span>
             <StatusBadge :label="operationTypeLabel(conflictTarget.operationType)" :tone="operationTypeTone(conflictTarget.operationType)" />
@@ -384,11 +391,11 @@ onMounted(load);
             </span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">将撤销的 binding 数量</span>
+            <span class="detail-label">将解除的绑定</span>
             <span class="detail-value">{{ conflictTarget.revokingBindingCount ?? 0 }} 个</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">将失效的 Session 数量</span>
+            <span class="detail-label">将退出的登录</span>
             <span class="detail-value">{{ conflictTarget.invalidatingSessionCount ?? 0 }} 个</span>
           </div>
         </div>

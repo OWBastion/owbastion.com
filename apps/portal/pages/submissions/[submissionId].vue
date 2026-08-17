@@ -279,15 +279,11 @@ onBeforeUnmount(() => {
                 <SubmissionStatusBadge :status="data.status" />
               </div>
             </template>
-            <div v-if="data.status === 'ocr_pending'" class="ocr-wait">
-              <UProgress color="neutral" size="sm" aria-hidden="true" />
-              <span>识别中…</span>
-            </div>
             <dl class="detail-list">
               <div><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
               <div><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
               <div v-if="data.difficulty"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
-              <div v-if="data.reason"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
+              <div v-if="data.reason && data.status !== 'resubmission_required'"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
               <div><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
             </dl>
             <UAlert v-if="masteryOutcome" class="mastery-outcome" :color="data.masteryOutcome?.status === 'created' || data.masteryOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="masteryOutcome.title" :description="masteryOutcome.description || undefined" />

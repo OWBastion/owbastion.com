@@ -45,7 +45,7 @@ const AdminDataTableStub = defineComponent({
 const AdminResponsiveDialogStub = defineComponent({
   props: ["open", "title"],
   setup(props, { slots }) {
-    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.default?.()]) : null);
+    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
   },
 });
 const stubs = {

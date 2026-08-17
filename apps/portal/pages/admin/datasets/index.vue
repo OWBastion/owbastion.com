@@ -75,6 +75,7 @@ async function openDetail(datasetId: string) {
   detailOpen.value = true;
   detailLoading.value = true;
   detailError.value = '';
+  selectedDetail.value = null;
   try { selectedDetail.value = await api<AdminDatasetDetail>('/v1/admin/datasets/' + encodeURIComponent(datasetId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取数据集详情。').description; }
   finally { detailLoading.value = false; }
@@ -123,41 +124,44 @@ onMounted(() => { void load(); });
         <template #createdAt-cell='{ row }'><span>{{ formatTime(row.original.createdAt) }}</span><span class='table-meta'>{{ row.original.createdBy }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openDetail(row.original.datasetId)' /></div></template>
       </AdminDataTable>
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
 
     <AdminResponsiveDialog v-model:open='detailOpen' title='数据集详情' description='已定稿快照的成员与来源不可再变更。' size='lg'>
-      <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='dataset-dialog-error' />
-      <p v-if='detailLoading' class='dataset-dialog-message' role='status'>读取详情…</p>
-      <template v-else-if='selectedDetail'>
-        <dl class='dataset-facts'>
-          <div><dt>版本</dt><dd>v{{ selectedDetail.snapshot.version }}</dd></div>
-          <div><dt>状态</dt><dd><StatusBadge :label='statusLabel(selectedDetail.snapshot.status)' :tone='selectedDetail.snapshot.status === "finalized" ? "success" : "default"' /></dd></div>
-          <div><dt>创建时间</dt><dd>{{ formatTime(selectedDetail.snapshot.createdAt) }}</dd></div>
-          <div><dt>定稿时间</dt><dd>{{ selectedDetail.snapshot.finalizedAt ? formatTime(selectedDetail.snapshot.finalizedAt) : "—" }}</dd></div>
-          <div><dt>入选 / 排除</dt><dd>{{ selectedDetail.snapshot.counts.eligibleCount }} / {{ selectedDetail.snapshot.counts.excludedCount }}</dd></div>
-          <div><dt>来源截图</dt><dd>{{ selectedDetail.snapshot.counts.submissionCount }}</dd></div>
-        </dl>
-        <div v-if='selectedDetail.members.length' class='dataset-members'>
-          <h3>成员标注（{{ selectedDetail.members.length }}）</h3>
-          <ul>
-            <li v-for='member in selectedDetail.members' :key='member.annotationId'>
-              <div><strong>{{ member.fieldKey }}</strong><span class='table-meta'>{{ member.modelVersion }} / {{ member.layoutVersion }}</span></div>
-              <div class='dataset-mono'>审定：{{ member.reviewedValue }}<span v-if='member.normalizedValue'> · 规范化：{{ member.normalizedValue }}</span><span v-if='member.originalOcrValue'> · 原始：{{ member.originalOcrValue }}</span></div>
-              <div class='table-meta'>证据{{ member.evidence.available ? "可用" : "缺失" }}</div>
-            </li>
-          </ul>
-        </div>
-        <div v-if='selectedDetail.exclusions.length' class='dataset-exclusions'>
-          <h3>排除记录（{{ selectedDetail.exclusions.length }}）</h3>
-          <ul>
-            <li v-for='exclusion in selectedDetail.exclusions' :key='exclusion.annotationId'>
-              <span>{{ exclusion.annotationId }}</span><span class='table-meta'>{{ exclusionReasonLabel(exclusion.reason) }}</span>
-            </li>
-          </ul>
-        </div>
-        <div v-if='selectedDetail.snapshot.status === "draft"' class='dataset-actions'>
-          <UButton label='定稿冻结' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
-        </div>
+      <template #body>
+        <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='dataset-dialog-error' />
+        <p v-if='detailLoading' class='dataset-dialog-message' role='status'>读取详情…</p>
+        <template v-else-if='selectedDetail'>
+          <dl class='dataset-facts'>
+            <div><dt>版本</dt><dd>v{{ selectedDetail.snapshot.version }}</dd></div>
+            <div><dt>状态</dt><dd><StatusBadge :label='statusLabel(selectedDetail.snapshot.status)' :tone='selectedDetail.snapshot.status === "finalized" ? "success" : "default"' /></dd></div>
+            <div><dt>创建时间</dt><dd>{{ formatTime(selectedDetail.snapshot.createdAt) }}</dd></div>
+            <div><dt>定稿时间</dt><dd>{{ selectedDetail.snapshot.finalizedAt ? formatTime(selectedDetail.snapshot.finalizedAt) : "—" }}</dd></div>
+            <div><dt>入选 / 排除</dt><dd>{{ selectedDetail.snapshot.counts.eligibleCount }} / {{ selectedDetail.snapshot.counts.excludedCount }}</dd></div>
+            <div><dt>来源截图</dt><dd>{{ selectedDetail.snapshot.counts.submissionCount }}</dd></div>
+          </dl>
+          <div v-if='selectedDetail.members.length' class='dataset-members'>
+            <h3>成员标注（{{ selectedDetail.members.length }}）</h3>
+            <ul>
+              <li v-for='member in selectedDetail.members' :key='member.annotationId'>
+                <div><strong>{{ member.fieldKey }}</strong><span class='table-meta'>{{ member.modelVersion }} / {{ member.layoutVersion }}</span></div>
+                <div class='dataset-mono'>审定：{{ member.reviewedValue }}<span v-if='member.normalizedValue'> · 规范化：{{ member.normalizedValue }}</span><span v-if='member.originalOcrValue'> · 原始：{{ member.originalOcrValue }}</span></div>
+                <div class='table-meta'>证据{{ member.evidence.available ? "可用" : "缺失" }}</div>
+              </li>
+            </ul>
+          </div>
+          <div v-if='selectedDetail.exclusions.length' class='dataset-exclusions'>
+            <h3>排除记录（{{ selectedDetail.exclusions.length }}）</h3>
+            <ul>
+              <li v-for='exclusion in selectedDetail.exclusions' :key='exclusion.annotationId'>
+                <span>{{ exclusion.annotationId }}</span><span class='table-meta'>{{ exclusionReasonLabel(exclusion.reason) }}</span>
+              </li>
+            </ul>
+          </div>
+        </template>
+      </template>
+      <template v-if='selectedDetail?.snapshot.status === "draft"' #footer>
+        <UButton label='定稿冻结' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
@@ -181,7 +185,7 @@ onMounted(() => { void load(); });
   border-radius: 10px;
 }
 .dataset-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
-.dataset-actions { display: flex; margin-top: 16px; }
+.pagination { display: flex; justify-content: center; margin-top: 10px; }
 @media (max-width: 560px) {
   .dataset-facts { grid-template-columns: minmax(0, 1fr); }
 }

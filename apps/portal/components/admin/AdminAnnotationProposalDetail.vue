@@ -2,7 +2,6 @@
 import type { AdminAnnotationProposalDetail } from "~/composables/useAdminApi";
 
 defineProps<{ detail: AdminAnnotationProposalDetail }>();
-const emit = defineEmits<{ decide: [action: "accept" | "edit_accept" | "reject", reviewedValue?: string] }>();
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const fieldLabel = (key: string) => ({ map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", achievement_titles: "成就" })[key] ?? key;
 const feedbackTypeLabel = (type: string) => type === "confirmed" ? "确认" : type === "corrected" ? "修正" : "被动报告";
@@ -43,12 +42,6 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
         </dl>
       </div>
     </section>
-
-    <div class="annotation-detail__actions" role="group" aria-label="标注操作">
-      <UButton v-if="detail.proposal.reviewState === 'pending'" label="接受" color="success" variant="outline" @click="emit('decide', 'accept')" />
-      <UButton v-if="detail.proposal.reviewState === 'pending'" label="编辑并接受" color="primary" variant="outline" @click="emit('decide', 'edit_accept', detail.proposal.proposedValue ?? detail.proposal.originalValue ?? '')" />
-      <UButton v-if="detail.proposal.reviewState === 'pending'" label="拒绝" color="error" variant="outline" @click="emit('decide', 'reject')" />
-    </div>
   </div>
 </template>
 
@@ -62,7 +55,6 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 .annotation-detail__facts dt { color: var(--quiet); font-size: .74rem; }
 .annotation-detail__facts dd { margin: 0; color: var(--text); font-size: .86rem; overflow-wrap: anywhere; }
 .annotation-detail__ocr { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
-.annotation-detail__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 560px) {
   .annotation-detail__facts { grid-template-columns: minmax(0, 1fr); }
 }

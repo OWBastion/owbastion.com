@@ -77,7 +77,7 @@ const AdminDataTableStub = defineComponent({
 const AdminResponsiveDialogStub = defineComponent({
   props: ["open", "title"],
   setup(props, { slots }) {
-    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.default?.()]) : null);
+    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
   },
 });
 
@@ -113,7 +113,7 @@ describe("admin annotations page", () => {
     await flushPromises();
     await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
     await flushPromises();
-    const accept = wrapper.findAll("button").find((button) => button.text().includes("接受"));
+    const accept = wrapper.findAll("button").find((button) => button.text().trim() === "接受");
     await accept?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005/decision", expect.objectContaining({
