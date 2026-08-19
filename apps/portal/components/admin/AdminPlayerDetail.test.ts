@@ -1,10 +1,10 @@
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
-import type { AdminPlayerDetail } from "~/composables/useAdminApi";
+import type { AdminPlayerDetail as AdminPlayerDetailData } from "~/composables/useAdminApi";
 import AdminPlayerDetail from "./AdminPlayerDetail.vue";
 
-const player: AdminPlayerDetail = {
+const player: AdminPlayerDetailData = {
   playerAccountId: "account-1",
   playerId: "1001",
   playerName: "测试玩家",

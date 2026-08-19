@@ -191,7 +191,7 @@ onMounted(() => { void load(); });
           <USelect v-model='promptOrigin' aria-label='筛选提示来源' :items='[{ label: "全部来源", value: "all" }, { label: "不确定", value: "uncertainty" }, { label: "冲突", value: "conflict" }, { label: "分组核对", value: "grouped" }, { label: "校准抽查", value: "calibration" }, { label: "被动报告", value: "passive" }]' />
         </div></template>
         <template #mobile-primary><USelect v-model='proposalState' class='w-full' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "待审", value: "pending" }, { label: "已接受", value: "accepted" }, { label: "已拒绝", value: "rejected" }]' /></template>
-        <template #mobile-secondary><div class='annotation-filters'><USelect v-model='fieldKey' aria-label='筛选字段' :items='fieldFilterItems' /><USelect v-model='kind' aria-label='筛选反馈类型' :items='[{ label: "全部反馈", value: "all" }, { label: "修正", value: "correction" }, { label: "确认", value: "confirmation" }]' /></div></template>
+        <template #mobile-secondary><div class='annotation-filters'><USelect v-model='fieldKey' aria-label='筛选字段' :items='fieldFilterItems' /><USelect v-model='kind' aria-label='筛选反馈类型' :items='[{ label: "全部反馈", value: "all" }, { label: "修正", value: "correction" }, { label: "确认", value: "confirmation" }]' /><USelect v-model='promptOrigin' aria-label='筛选提示来源' :items='[{ label: "全部来源", value: "all" }, { label: "不确定", value: "uncertainty" }, { label: "冲突", value: "conflict" }, { label: "分组核对", value: "grouped" }, { label: "校准抽查", value: "calibration" }, { label: "被动报告", value: "passive" }]' /></div></template>
         <template #field-cell='{ row }'><strong>{{ fieldLabel(row.original.fieldKey) }}</strong><span class='table-meta'>{{ row.original.fieldKey }}</span></template>
         <template #feedbackType-cell='{ row }'><span>{{ feedbackTypeLabel(row.original.feedbackType) }}</span><span class='table-meta'>{{ originLabel(row.original.promptOrigin) }} · {{ priorityLabel(row.original.priority.category) }}</span></template>
         <template #proposed-cell='{ row }'><span class='annotation-mono'>{{ row.original.proposedValue ?? "—" }}</span></template>
@@ -246,11 +246,16 @@ onMounted(() => { void load(); });
 
 <style scoped>
 .annotation-tabs { margin-bottom: 16px; }
-.annotation-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.annotation-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.annotation-filters > * { min-width: 8.5rem; }
 .annotation-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
 .annotation-dialog-error { margin-bottom: 12px; }
 .annotation-dialog-message { margin: 0; padding: 40px 0; color: var(--muted); text-align: center; }
 .annotation-edit { display: grid; gap: 10px; margin-top: 14px; }
 .pagination { display: flex; justify-content: center; margin-top: 10px; }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .annotation-filters { display: grid; grid-template-columns: 1fr; width: 100%; gap: 12px; }
+  .annotation-filters > * { min-width: 0; }
+}
 </style>
