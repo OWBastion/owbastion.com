@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import BlogListPage from "./blog/index.vue";
 import BlogDetailPage from "./blog/[slug].vue";
 import ChangelogListPage from "./changelog/index.vue";
+import ChangelogDetailPage from "./changelog/[slug].vue";
 
 const queryCollection = vi.hoisted(() => vi.fn());
 const route = reactive({ path: "/blog/rotation-challenges-map-mastery", fullPath: "/blog/rotation-challenges-map-mastery", params: { slug: "rotation-challenges-map-mastery" } });
@@ -107,5 +108,41 @@ describe("public editorial surfaces", () => {
     const emptyWrapper = await mountSuspended(BlogListPage, { global: { stubs } });
     await flushPromises();
     expect(emptyWrapper.get("[data-testid='empty']").text()).toBe("暂无开发日志");
+  });
+
+  it("renders a changelog detail with the version above the title and a copy-link action", async () => {
+    clearNuxtData("public-changelog-entry");
+    route.path = "/changelog/26.0801.1";
+    route.fullPath = "/changelog/26.0801.1";
+    route.params.slug = "26.0801.1";
+    setCollection([changelogEntry]);
+    const wrapper = await mountSuspended(ChangelogDetailPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(wrapper.get(".changelog-version").text()).toContain("26.0801.1");
+    expect(wrapper.get("h1").text()).toBe("随机事件调整");
+    expect(wrapper.get("h1").classes()).toContain("type-headline");
+    expect(wrapper.text()).toContain("复制链接");
+    expect(wrapper.get("[data-testid='content-renderer']").exists()).toBe(true);
+  });
+
+  it("copies the changelog canonical URL", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    clearNuxtData("public-changelog-entry");
+    route.path = "/changelog/26.0801.1";
+    route.fullPath = "/changelog/26.0801.1";
+    route.params.slug = "26.0801.1";
+    setCollection([changelogEntry]);
+    const wrapper = await mountSuspended(ChangelogDetailPage, { global: { stubs } });
+    await flushPromises();
+
+    const copyButton = wrapper.findAll("button").find((button) => button.text() === "复制链接");
+    expect(copyButton).toBeDefined();
+    await copyButton!.trigger("click");
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/changelog/26.0801.1"));
+    expect(wrapper.text()).toContain("已复制");
   });
 });
