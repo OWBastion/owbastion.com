@@ -22,6 +22,7 @@
 | 内容与状态 | [content-and-state.md](content-and-state.md) | 内容层级、状态表达、权限与公开/私有边界 |
 | Portal 实现 | [portal-ui-guidelines.md](portal-ui-guidelines.md) | 页面骨架、表单、Admin 细则、agent 工作流 |
 | 文案 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | 中文文案、状态词、空状态和错误 |
+| 版本更新 | [changelog-guidelines.md](changelog-guidelines.md) | `apps/portal/content/changelog` 结构、排版与文案规范 |
 | 术语 | [terminology.md](terminology.md) | 称号、挑战、提交、事件和 QQ 绑定术语 |
 
 ## Cross-cutting principles
@@ -53,6 +54,7 @@
 | 按压、动效、toast/加载反馈 | motion-and-feedback、interaction-accessibility |
 | 整页结构 / 管理台表格 | page-archetypes、portal-ui-guidelines |
 | 文案与术语 | portal-copy-guidelines、terminology |
+| 版本更新 / Changelog | changelog-guidelines、terminology |
 | 抽样式 / 改 main.css | css-ownership |
 
 修改 Portal UI 时：先读本索引 → 对应支柱文档 → 需要时再读 Portal 细则与邻接

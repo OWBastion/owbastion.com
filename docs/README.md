@@ -23,6 +23,8 @@
 | [design-rules/content-and-state.md](design-rules/content-and-state.md) | 内容与状态语言 | authoritative | 内容层级、状态表达和权限展示边界 | Portal |
 | [portal-ui-guidelines.md](design-rules/portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 | Portal |
 | [portal-copy-guidelines.md](design-rules/portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 | Portal |
+| [changelog-guidelines.md](design-rules/changelog-guidelines.md) | 版本更新规范 | authoritative | `apps/portal/content/changelog` 结构、排版与文案规范 | Portal |
+| [terminology.md](design-rules/terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 | Portal |
 | [dev-rules/README.md](dev-rules/README.md) | 开发规则索引 | authoritative | 工程、数据、安全、测试与变更边界 | 平台 |
 | [architecture-overview.md](dev-rules/architecture-overview.md) | 架构概览 | authoritative | 仓库边界、数据 owner、服务职责与跨仓关系 | 全仓 |
 | [data-and-security.md](dev-rules/data-and-security.md) | 数据与安全规则 | authoritative | API、Portal、D1、R2、认证和公开数据边界 | API / Portal |
