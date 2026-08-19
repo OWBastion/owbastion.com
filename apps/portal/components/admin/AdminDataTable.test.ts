@@ -46,19 +46,20 @@ describe("AdminDataTable mobile presentation", () => {
     { accessorKey: "status", header: "状态" },
     { id: "actions", header: "操作", enableHiding: false },
   ];
-  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown }) => void) => defineComponent({
+  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown }) => void) => defineComponent({
     props: {
       data: { type: Array, default: () => [] },
+      columns: { type: Array, default: () => [] },
       virtualize: { default: false },
       sticky: { default: false },
     },
     setup(props, { expose }) {
-      onProps?.({ virtualize: props.virtualize, sticky: props.sticky });
+      onProps?.({ virtualize: props.virtualize, sticky: props.sticky, columns: props.columns });
       expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
       return () => h("div");
     },
   });
-  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown }) => void) => mount(AdminDataTable, {
+  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown }) => void) => mount(AdminDataTable, {
     props: {
       data: rows,
       columns,
@@ -109,6 +110,19 @@ describe("AdminDataTable mobile presentation", () => {
     expect(scroll.attributes("style")).toContain("height: 30rem");
     expect(virtualize).toEqual(expect.objectContaining({ estimateSize: 65, overscan: 8 }));
     expect((virtualize as { getScrollElement: () => HTMLElement | null }).getScrollElement()).toBe(scroll.element);
+  });
+
+  it("disables header sorting unless the page opts in with sortingOptions", async () => {
+    let unsortedColumns: Array<{ enableSorting?: boolean; id?: string; accessorKey?: string }> | undefined;
+    mountTable({ sortingOptions: [] }, (props) => { unsortedColumns = props.columns as typeof unsortedColumns; });
+    await nextTick();
+    expect(unsortedColumns?.every((column) => column.enableSorting === false)).toBe(true);
+
+    let sortedColumns: Array<{ enableSorting?: boolean; accessorKey?: string; id?: string }> | undefined;
+    mountTable({ sortingOptions: [{ id: "name", label: "记录" }] }, (props) => { sortedColumns = props.columns as typeof sortedColumns; });
+    await nextTick();
+    expect(sortedColumns?.find((column) => column.accessorKey === "name")?.enableSorting).toBe(true);
+    expect(sortedColumns?.find((column) => column.id === "actions")?.enableSorting).toBe(false);
   });
 
   it("keeps sticky table headers enabled by default in flow and bounded modes", async () => {

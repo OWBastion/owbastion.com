@@ -231,6 +231,15 @@ const challengeSummary = computed(() => {
             :disabled="actionsLoading"
             @click="emit('retry-ocr')"
           />
+          <UButton
+            class="action-btn action-btn--utility pressable"
+            :to="`/admin/annotations?submissionId=${encodeURIComponent(submission.submissionId)}`"
+            icon="i-lucide-pen-line"
+            label="直接标注"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+          />
         </div>
       </section>
 

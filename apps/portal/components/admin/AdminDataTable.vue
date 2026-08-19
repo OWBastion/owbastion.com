@@ -82,6 +82,16 @@ const tableViewport = useTemplateRef<HTMLElement>("tableViewport");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !["filters", "mobile-primary", "mobile-secondary"].includes(name)));
 const tableUi = { root: "overflow-visible" };
+const tableColumns = computed(() => {
+  const allowHeaderSorting = props.sortingOptions.length > 0;
+  return props.columns.map((column) => {
+    const hasAccessor = "accessorKey" in column || "accessorFn" in column;
+    return {
+      ...column,
+      enableSorting: allowHeaderSorting && column.enableSorting !== false && hasAccessor,
+    };
+  });
+});
 const tableVirtualize = computed<boolean | TableVirtualizeOptions>(() => {
   if (!props.virtualize) return false;
   const options = typeof props.virtualize === "object" ? props.virtualize : {};
@@ -295,7 +305,7 @@ onBeforeUnmount(() => {
           v-model:sorting="sorting"
           v-model:grouping="grouping"
           v-model:column-pinning="columnPinning"
-          :columns="columns"
+          :columns="tableColumns"
           :data="data"
           :empty="empty"
           :loading="loading"

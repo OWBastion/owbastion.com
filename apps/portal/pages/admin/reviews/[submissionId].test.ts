@@ -36,6 +36,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("查看原始识别数据");
     expect(wrapper.text()).toContain("提交信息");
     expect(wrapper.findAll(".actions button")).toHaveLength(3);
+    expect(wrapper.get(".ocr-retry-actions a").attributes("href") ?? wrapper.get(".ocr-retry-actions a").attributes("to")).toContain("/admin/annotations?submissionId=submission-1");
     expect(wrapper.find(".claim-card").exists()).toBe(true);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });

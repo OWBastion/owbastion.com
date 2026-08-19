@@ -1,6 +1,6 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import AnnotationsPage from "./index.vue";
 
@@ -45,15 +45,27 @@ const reviewed = {
   createdAt: 3,
 };
 
+const listedSubmission = {
+  submissionId: "submission-1",
+  mapName: "测试地图",
+  playerName: "测试玩家",
+  status: "ready_for_review",
+  updatedAt: 4,
+  ocrResultId: "00000000-0000-4000-8000-000000000004",
+  ocr: { data: { map_name: "测试地图", difficulty: "困难" } },
+};
+
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (path === "/v1/annotations/proposals?page=1&pageSize=20") return Promise.resolve({ items: [proposal], total: 1 });
   if (path === "/v1/annotations/reviewed?page=1&pageSize=20") return Promise.resolve({ items: [reviewed], total: 1 });
   if (path === "/v1/annotations/proposals/00000000-0000-4000-8000-000000000005") return Promise.resolve(detail);
-  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "测试地图", ocrResultId: "00000000-0000-4000-8000-000000000004", ocr: { data: { map_name: "测试地图" } } });
+  if (path === "/v1/submissions?page=1&pageSize=50") return Promise.resolve({ items: [listedSubmission], total: 1 });
+  if (path === "/v1/submissions/submission-1") return Promise.resolve(listedSubmission);
   if (options?.method === "POST") return Promise.resolve({});
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
 
 // AdminDataTable and AdminResponsiveDialog have their own dedicated tests; here
 // they are stubbed so the page logic (loading, detail, decisions, direct
@@ -86,6 +98,18 @@ const stubs = {
   AdminResponsiveDialog: AdminResponsiveDialogStub,
   UTabs: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<div class="tabs-stub"><button v-for="item in items" :key="item.value" :class="{ active: modelValue === item.value }" @click="$emit(\'update:modelValue\', item.value)">{{ item.label }}</button></div>' },
   USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' },
+  USelectMenu: {
+    props: ["modelValue", "items", "searchTerm"],
+    emits: ["update:modelValue", "update:searchTerm"],
+    template: `
+      <div>
+        <input aria-label="搜索提交" :value="searchTerm" @input="$emit('update:searchTerm', $event.target.value)" />
+        <select aria-label="选择提交" :value="modelValue" @change="$emit('update:modelValue', $event.target.value)">
+          <option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option>
+        </select>
+      </div>
+    `,
+  },
   StatusBadge: { props: ["label"], template: '<span class="status-badge">{{ label }}</span>' },
 };
 
@@ -135,18 +159,17 @@ describe("admin annotations page", () => {
     expect(wrapper.text()).toContain("maintainer-1");
   });
 
-  it("creates a reviewed annotation directly from an inspected submission", async () => {
+  it("creates a reviewed annotation by picking a recent submission", async () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AnnotationsPage, { global: { stubs } });
     await flushPromises();
     const directButton = wrapper.findAll("button").find((button) => button.text().includes("直接标注"));
     await directButton?.trigger("click");
     await flushPromises();
-    await wrapper.find('input[aria-label="提交 ID"]').setValue("submission-1");
-    const readButton = wrapper.findAll("button").find((button) => button.text() === "读取");
-    await readButton?.trigger("click");
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=50");
+    await wrapper.find('select[aria-label="选择提交"]').setValue("submission-1");
+    await wrapper.find('select[aria-label="选择提交"]').trigger("change");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1");
     await wrapper.find('input[aria-label="审定值"]').setValue("普通");
     const createButton = wrapper.findAll("button").find((button) => button.text().includes("创建标注"));
     await createButton?.trigger("click");
@@ -155,5 +178,16 @@ describe("admin annotations page", () => {
       method: "POST",
       body: { contractVersion: "1", submissionId: "submission-1", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "普通" },
     }));
+    expect(wrapper.text()).toContain("已创建审定标注");
+  });
+
+  it("opens direct annotation from a submission query without typing an ID", async () => {
+    adminApi.mockClear();
+    const wrapper = await mountSuspended(AnnotationsPage, { route: "/admin/annotations?submissionId=submission-1", global: { stubs } });
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=50");
+    expect(wrapper.get('[data-testid="dialog"]').text()).toContain("直接创建审定标注");
+    expect(wrapper.text()).toContain("查看审核详情");
+    expect(wrapper.find('input[aria-label="审定值"]').exists()).toBe(true);
   });
 });
