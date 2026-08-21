@@ -1,5 +1,5 @@
--- 0073_repair_paraiso_reset_title_grants: remove map-title state copied onto
--- the current Paraiso reset revision while preserving prior revision history.
+-- 0073_repair_paraiso_reset_title_grants: remove all map-title state copied
+-- onto the current Paraiso reset revision while preserving prior history.
 
 UPDATE gameplay_revision_challenge_assignments
 SET enabled = 0,
@@ -10,9 +10,7 @@ WHERE gameplay_revision_id = (
     WHERE map_id = 'map.paraiso' AND lifecycle = 'default'
   )
   AND challenge_family = 'map_title_rule'
-  AND challenge_id IN (
-    SELECT id FROM map_title_rules WHERE lower(trim(kind)) = 'pioneer'
-  )
+  AND challenge_id IN (SELECT id FROM map_title_rules)
   AND enabled = 1;
 
 UPDATE player_title_grants
