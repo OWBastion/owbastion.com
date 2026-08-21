@@ -160,7 +160,7 @@ async function createAnnotation() {
 </script>
 
 <template>
-  <AdminResponsiveDialog v-model:open="open" title="直接创建审定标注" description="用于核对截图时发现识别错误、且无玩家反馈的情况。" size="md">
+  <AdminResponsiveDialog v-model:open="open" title="直接标注" description="用于核对截图时发现识别错误、且无玩家反馈的情况。" size="md">
     <template #body>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" class="annotation-direct-error" />
       <div class="annotation-direct">

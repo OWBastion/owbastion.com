@@ -88,6 +88,7 @@ onMounted(() => void load());
           { id: 'gameVersion', priority: 'detail', order: 4 },
         ]"
         row-key="mapId"
+        :mobile-row-link="(row) => `/admin/maps/${encodeURIComponent(row.mapId)}`"
         :loading="loading"
         empty="暂无地图记录"
         table-key="maps"
@@ -114,7 +115,7 @@ onMounted(() => void load());
         <template #gameVersion-cell="{ row }"><span class="table-meta">{{ row.original.gameVersion }}</span></template>
         <template #actions-cell="{ row }">
           <div class="table-actions">
-            <UButton :to="`/admin/maps/${encodeURIComponent(row.original.mapId)}`" label="打开编辑器" size="sm" color="neutral" variant="outline" />
+            <UButton :to="`/admin/maps/${encodeURIComponent(row.original.mapId)}`" label="编辑" size="sm" color="neutral" variant="outline" />
           </div>
         </template>
       </AdminDataTable>

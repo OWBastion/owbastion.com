@@ -13,10 +13,12 @@ type PendingAction =
 type MasteryRunActionResponse = { contractVersion: "1"; run: AdminMasteryRun; projection: AdminMasteryRunProjection };
 
 const api = useAdminApi();
+const route = useRoute();
+const router = useRouter();
+const toast = useToast();
 const runs = shallowRef<AdminMasteryRun[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
-const feedback = ref("");
 const page = ref(1);
 const total = ref(0);
 const runCode = ref("");
@@ -118,11 +120,26 @@ async function loadDetail(masteryRunId: string) {
   }
 }
 
+function setRunQuery(runId: string | null) {
+  const query = { ...route.query };
+  if (runId) query.runId = runId;
+  else delete query.runId;
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+}
+
 async function openDetail(masteryRunId: string) {
   detailOpen.value = true;
   pendingAction.value = null;
   reason.value = "";
+  setRunQuery(masteryRunId);
   await loadDetail(masteryRunId);
+}
+
+function closeDetail() {
+  detailOpen.value = false;
+  pendingAction.value = null;
+  reason.value = "";
+  setRunQuery(null);
 }
 
 function beginStateAction(action: "invalidate" | "restore") {
@@ -152,7 +169,7 @@ async function saveAction() {
       ? `/v1/mastery-runs/${encodeURIComponent(detail.run.runId)}/state`
       : `/v1/mastery-runs/${encodeURIComponent(detail.run.runId)}/conflicts/${encodeURIComponent(action.submissionId)}`;
     await api<MasteryRunActionResponse>(path, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body });
-    feedback.value = `${actionLabel.value}已完成。`;
+    toast.add({ title: `${actionLabel.value}已完成`, color: "success" });
     pendingAction.value = null;
     reason.value = "";
     await Promise.all([load(), loadDetail(detail.run.runId)]);
@@ -167,6 +184,22 @@ watch([runCode, playerAccountId, mapId, difficulty, runStatus, acceptanceSource,
   page.value = 1;
   void load();
 });
+watch(() => route.query.runId, (value) => {
+  const id = Array.isArray(value) ? value[0] : value;
+  if (typeof id === "string" && id.trim()) {
+    if (selectedDetail.value?.run.runId === id || (detailOpen.value && detailLoading.value)) return;
+    void openDetail(id);
+    return;
+  }
+  if (detailOpen.value) {
+    detailOpen.value = false;
+    pendingAction.value = null;
+    reason.value = "";
+  }
+});
+watch(detailOpen, (open) => {
+  if (!open) setRunQuery(null);
+});
 onMounted(() => { void load(); });
 </script>
 
@@ -175,10 +208,9 @@ onMounted(() => { void load(); });
     <template #actions><UButton label="刷新" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :loading="loading" @click="load" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
-      <UAlert v-if="feedback" color="success" variant="subtle" :description="feedback" />
     </template>
     <section aria-label="通关记录列表">
-      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'difficulty', priority: 'detail', order: 2 }, { id: 'status', priority: 'detail', order: 3 }, { id: 'runCode', priority: 'detail', order: 4 }, { id: 'acceptanceSource', priority: 'detail', order: 5 }, { id: 'acceptedAt', priority: 'detail', order: 6 }, { id: 'conflictCount', priority: 'detail', order: 7 } ]" row-key="runId" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
+      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'runCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :mobile-row-link="(row) => `/admin/mastery-runs?runId=${encodeURIComponent(row.runId)}`" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
         <template #filters>
           <div class="mastery-run-filters">
             <UInput v-model="runCode" aria-label="按通关码筛选" placeholder="通关码" />
@@ -216,16 +248,16 @@ onMounted(() => { void load(); });
     </section>
   </AdminWorkspace>
 
-  <AdminResponsiveDialog v-model:open="detailOpen" title="通关记录详情" size="xl" :dismissible="!saving">
+  <AdminResponsiveDialog v-model:open="detailOpen" :title="selectedDetail ? `${selectedDetail.run.mapName} · ${selectedDetail.run.difficulty}` : '通关记录'" size="xl" :dismissible="!saving" @update:open="(open) => { if (!open) closeDetail(); }">
     <template #body>
       <div v-if="detailLoading" class="detail-loading" role="status" aria-label="读取中"><USkeleton v-for="index in 6" :key="index" class="h-12" /></div>
       <UAlert v-else-if="detailError" color="error" variant="subtle" :description="detailError" />
-      <AdminMasteryRunDetail v-else-if="selectedDetail" :detail="selectedDetail" :action-loading="saving" @state="beginStateAction" @conflict="beginConflictAction" />
+      <AdminMasteryRunDetail v-else-if="selectedDetail" :detail="selectedDetail" :action-loading="saving || Boolean(pendingAction)" @state="beginStateAction" @conflict="beginConflictAction" />
     </template>
     <template v-if="pendingAction" #footer>
       <div class="mastery-run-confirmation">
         <p>{{ actionDescription }}</p>
-        <UFormField label="操作理由"><UTextarea v-model="reason" aria-label="操作理由" placeholder="填写理由" :rows="3" :disabled="saving" /></UFormField>
+        <UFormField label="操作理由"><UTextarea v-model="reason" aria-label="操作理由" :rows="3" :disabled="saving" /></UFormField>
         <div class="mastery-run-confirmation__actions">
           <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="cancelAction" />
           <UButton :label="actionLabel" :color="actionColor" :loading="saving" @click="saveAction" />

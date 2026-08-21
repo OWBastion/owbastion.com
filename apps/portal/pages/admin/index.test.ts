@@ -21,8 +21,8 @@ describe("admin dashboard", () => {
     const wrapper = await mountSuspended(AdminDashboard, { global: { stubs: { NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" } } } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("待审核");
-    expect(wrapper.text()).toContain("OCR 队列");
+    expect(wrapper.text()).toContain("待核对");
+    expect(wrapper.text()).toContain("识别中");
     expect(wrapper.text()).toContain("活跃玩家");
     expect(wrapper.text()).toContain("地图目录");
     expect(wrapper.text()).toContain("3");

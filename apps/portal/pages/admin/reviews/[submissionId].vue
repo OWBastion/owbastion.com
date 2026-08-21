@@ -117,10 +117,10 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 
 <template>
   <AdminWorkspace :title="pageTitle">
-    <template #actions><UButton to="/admin/reviews" label="返回审核管理" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
+    <template #actions><UButton to="/admin/reviews" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
     <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @select-challenge="selectChallenge" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @evidence-error="evidenceError = true" />
-    <UEmpty v-else-if="!loading" title="找不到该提交" description="提交记录可能已不存在或链接无效。" />
+    <UEmpty v-else-if="!loading" title="找不到该提交" />
   </AdminWorkspace>
 </template>
 

@@ -125,7 +125,7 @@ describe("admin map editor page", () => {
       global: { stubs: pageStubs },
     });
     await flushPromises();
-    const openReset = wrapper.findAll("button").find((button) => button.text().includes("重置 / 重做"));
+    const openReset = wrapper.findAll("button").find((button) => button.text().includes("新建修订"));
     await openReset!.trigger("click");
     await nextTick();
 
@@ -133,10 +133,10 @@ describe("admin map editor page", () => {
     expect(wrapper.text()).toContain("复制空间配置和挑战分配");
     expect(wrapper.text()).not.toContain("来源 revision");
     expect(wrapper.text()).not.toContain("challenge assignments");
-    expect(wrapper.get("textarea[placeholder^='例如：地图几何']").attributes("required")).toBeUndefined();
+    expect(wrapper.get("#map-reset-form textarea").attributes("required")).toBeUndefined();
     const targetVersion = wrapper.findAll("input").find((input) => (input.element as HTMLInputElement).value === formatCurrentGameVersion());
     expect(targetVersion).toBeDefined();
-    expect(wrapper.findAll("button").find((button) => button.text().includes("创建准备中版本修订"))?.attributes("disabled")).toBeUndefined();
+    expect(wrapper.findAll("button").find((button) => button.text().includes("创建修订"))?.attributes("disabled")).toBeUndefined();
 
     await wrapper.get("#map-reset-form").trigger("submit");
     await flushPromises();

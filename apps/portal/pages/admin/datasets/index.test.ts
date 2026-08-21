@@ -30,6 +30,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 
 const AdminDataTableStub = defineComponent({
   props: ["data", "rowKey", "loading", "empty"],
@@ -67,7 +68,7 @@ describe("admin datasets page", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/datasets/00000000-0000-4000-8000-000000000007");
     expect(wrapper.get('[data-testid="dialog"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("缺少模型版本");
-    expect(wrapper.text()).toContain("定稿冻结");
+    expect(wrapper.text()).toContain("定稿");
   });
 
   it("creates a draft from eligible reviewed annotations", async () => {
@@ -78,7 +79,6 @@ describe("admin datasets page", () => {
     await createButton?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/datasets", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
-    expect(wrapper.text()).toContain("已创建 v2 草稿");
   });
 
   it("finalizes a draft and reports the immutable result", async () => {
@@ -87,10 +87,9 @@ describe("admin datasets page", () => {
     await flushPromises();
     await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
     await flushPromises();
-    const finalizeButton = wrapper.findAll("button").find((button) => button.text().includes("定稿冻结"));
+    const finalizeButton = wrapper.findAll("button").find((button) => button.text().trim() === "定稿");
     await finalizeButton?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/datasets/00000000-0000-4000-8000-000000000007/finalize", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
-    expect(wrapper.text()).toContain("已定稿，快照不可再变更");
   });
 });

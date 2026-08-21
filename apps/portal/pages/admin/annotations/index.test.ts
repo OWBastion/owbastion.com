@@ -56,7 +56,7 @@ const listedSubmission = {
 };
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
-  if (path === "/v1/annotations/proposals?page=1&pageSize=20") return Promise.resolve({ items: [proposal], total: 1 });
+  if (path === "/v1/annotations/proposals?page=1&pageSize=20&state=pending" || path === "/v1/annotations/proposals?page=1&pageSize=20") return Promise.resolve({ items: [proposal], total: 1 });
   if (path === "/v1/annotations/reviewed?page=1&pageSize=20") return Promise.resolve({ items: [reviewed], total: 1 });
   if (path === "/v1/annotations/proposals/00000000-0000-4000-8000-000000000005") return Promise.resolve(detail);
   if (path === "/v1/submissions?page=1&pageSize=50") return Promise.resolve({ items: [listedSubmission], total: 1 });
@@ -65,6 +65,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
 
 // AdminDataTable and AdminResponsiveDialog have their own dedicated tests; here
@@ -118,7 +119,7 @@ describe("admin annotations page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AnnotationsPage, { global: { stubs } });
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals?page=1&pageSize=20");
+    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals?page=1&pageSize=20&state=pending");
     expect(wrapper.text()).toContain("测试地图");
     expect(wrapper.text()).toContain("pending");
     expect(wrapper.text()).toContain("详情");
@@ -144,15 +145,14 @@ describe("admin annotations page", () => {
       method: "POST",
       body: { contractVersion: "1", action: "accept" },
     }));
-    expect(wrapper.text()).toContain("已接受该标注");
   });
 
   it("switches to the reviewed annotations tab", async () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AnnotationsPage, { global: { stubs } });
     await flushPromises();
-    const tabs = wrapper.findAll("button").filter((button) => ["提案队列", "已审标注"].includes(button.text()));
-    await tabs.find((button) => button.text() === "已审标注")?.trigger("click");
+    const tabs = wrapper.findAll("button").filter((button) => ["待审", "已审"].includes(button.text()));
+    await tabs.find((button) => button.text() === "已审")?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/annotations/reviewed?page=1&pageSize=20");
     expect(wrapper.text()).toContain("normalizedValue");
@@ -178,7 +178,6 @@ describe("admin annotations page", () => {
       method: "POST",
       body: { contractVersion: "1", submissionId: "submission-1", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "普通" },
     }));
-    expect(wrapper.text()).toContain("已创建审定标注");
   });
 
   it("opens direct annotation from a submission query without typing an ID", async () => {
@@ -186,7 +185,7 @@ describe("admin annotations page", () => {
     const wrapper = await mountSuspended(AnnotationsPage, { route: "/admin/annotations?submissionId=submission-1", global: { stubs } });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=50");
-    expect(wrapper.get('[data-testid="dialog"]').text()).toContain("直接创建审定标注");
+    expect(wrapper.get('[data-testid="dialog"]').text()).toContain("直接标注");
     expect(wrapper.text()).toContain("查看审核详情");
     expect(wrapper.find('input[aria-label="审定值"]').exists()).toBe(true);
   });

@@ -15,7 +15,7 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
     <section class="annotation-detail__section" aria-labelledby="annotation-source-heading">
       <h2 id="annotation-source-heading">来源提交</h2>
       <dl class="annotation-detail__facts">
-        <div><dt>提交</dt><dd><strong>{{ detail.proposal.submissionMapName }}</strong><span class="table-meta">{{ detail.proposal.submissionId }}</span></dd></div>
+        <div><dt>提交</dt><dd><NuxtLink class="annotation-detail__link" :to="`/admin/reviews/${encodeURIComponent(detail.proposal.submissionId)}`">{{ detail.proposal.submissionMapName }}</NuxtLink><span class="table-meta">{{ detail.proposal.submissionId }}</span></dd></div>
         <div><dt>提交时间</dt><dd>{{ formatTime(detail.proposal.submissionCreatedAt) }}</dd></div>
         <div><dt>模型 / 布局</dt><dd>{{ detail.proposal.modelVersion ?? "—" }} / {{ detail.proposal.layoutVersion ?? "—" }}</dd></div>
         <div><dt>优先级</dt><dd>{{ priorityLabel(detail.proposal.priority.category) }}<span class="table-meta">{{ detail.proposal.priority.reasons.join("、") }}</span></dd></div>
@@ -54,6 +54,9 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 .annotation-detail__facts > div { display: grid; gap: 4px; min-width: 0; }
 .annotation-detail__facts dt { color: var(--quiet); font-size: .74rem; }
 .annotation-detail__facts dd { margin: 0; color: var(--text); font-size: .86rem; overflow-wrap: anywhere; }
+.annotation-detail__link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.annotation-detail__link:hover,
+.annotation-detail__link:focus-visible { text-decoration: underline; }
 .annotation-detail__ocr { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
 @media (max-width: 560px) {
   .annotation-detail__facts { grid-template-columns: minmax(0, 1fr); }

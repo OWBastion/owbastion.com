@@ -6,20 +6,20 @@ import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
 
 definePageMeta({ middleware: ['auth', 'admin-client'] });
-useSeoMeta({ title: '识别标注 · 躲避堡垒 3' });
+useSeoMeta({ title: '标注 · 躲避堡垒 3' });
 
 const api = useAdminApi();
 const route = useRoute();
 const router = useRouter();
+const toast = useToast();
 const activeTab = ref<'proposals' | 'reviewed'>('proposals');
 const proposals = ref<AdminAnnotationProposal[]>([]);
 const reviewed = ref<AdminReviewedAnnotation[]>([]);
 const loading = ref(true);
 const errorMessage = ref('');
-const feedback = ref('');
 const page = ref(1);
 const total = ref(0);
-const proposalState = ref<'all' | AdminAnnotationProposal['reviewState']>('all');
+const proposalState = ref<'all' | AdminAnnotationProposal['reviewState']>('pending');
 const fieldKey = ref<'all' | AdminAnnotationProposal['fieldKey']>('all');
 const kind = ref<'all' | 'correction' | 'confirmation'>('all');
 const promptOrigin = ref<'all' | string>('all');
@@ -88,10 +88,17 @@ async function load() {
       reviewed.value = response.items;
       total.value = response.total;
     }
-    if (page.value > 1 && !total.value) { page.value = 1; }
+    if (page.value > 1 && !total.value) { page.value = 1; await load(); return; }
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, '无法读取标注数据，请确认当前账号有管理员权限。').description;
   } finally { loading.value = false; }
+}
+
+function setProposalQuery(proposalId: string | null) {
+  const query = { ...route.query };
+  if (proposalId) query.proposalId = proposalId;
+  else delete query.proposalId;
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
 }
 
 async function openProposal(proposalId: string) {
@@ -101,9 +108,16 @@ async function openProposal(proposalId: string) {
   selectedDetail.value = null;
   editing.value = false;
   editValue.value = '';
+  setProposalQuery(proposalId);
   try { selectedDetail.value = await api<AdminAnnotationProposalDetail>('/v1/annotations/proposals/' + encodeURIComponent(proposalId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取标注详情。').description; }
   finally { detailLoading.value = false; }
+}
+
+function closeProposal() {
+  detailOpen.value = false;
+  editing.value = false;
+  setProposalQuery(null);
 }
 
 async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue?: string) {
@@ -122,8 +136,8 @@ async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', action },
     });
-    feedback.value = action === 'accept' ? '已接受该标注。' : '已拒绝该标注。';
-    detailOpen.value = false;
+    toast.add({ title: action === 'accept' ? '已接受该标注' : '已拒绝该标注', color: 'success' });
+    closeProposal();
     await load();
   } catch (error) { detailError.value = portalErrorDetails(error, '标注操作未完成，请稍后重试。').description; }
   finally { saving.value = false; }
@@ -139,8 +153,8 @@ async function saveEditAccept() {
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', action: 'edit_accept', reviewedValue: editValue.value.trim() },
     });
-    feedback.value = '已编辑并接受该标注。';
-    detailOpen.value = false;
+    toast.add({ title: '已编辑并接受该标注', color: 'success' });
+    closeProposal();
     await load();
   } catch (error) { detailError.value = portalErrorDetails(error, '编辑操作未完成，请稍后重试。').description; }
   finally { saving.value = false; }
@@ -152,7 +166,7 @@ function openDirect(submissionId = '') {
 }
 
 async function onDirectCreated() {
-  feedback.value = '已创建审定标注。';
+  toast.add({ title: '已创建审定标注', color: 'success' });
   await load();
 }
 
@@ -165,25 +179,35 @@ watch(() => route.query.submissionId, (value) => {
   void router.replace({ path: route.path, query });
 }, { immediate: true });
 
+watch(() => route.query.proposalId, (value) => {
+  const id = Array.isArray(value) ? value[0] : value;
+  if (typeof id === 'string' && id.trim()) {
+    if (selectedDetail.value?.proposal.proposalId === id || (detailOpen.value && detailLoading.value)) return;
+    void openProposal(id);
+    return;
+  }
+  if (detailOpen.value) detailOpen.value = false;
+});
+watch(detailOpen, (open) => { if (!open) setProposalQuery(null); });
+
 watch([activeTab, proposalState, fieldKey, kind, promptOrigin, reviewedState], () => { page.value = 1; void load(); });
 onMounted(() => { void load(); });
 </script>
 
 <template>
-  <AdminWorkspace title='识别标注' :count='loading ? "读取中…" : total + " 条"'>
+  <AdminWorkspace title='标注' :count='loading ? "读取中…" : total + " 条"'>
     <template #actions>
       <UButton label='直接标注' icon='i-lucide-pen-line' color='neutral' variant='outline' @click='openDirect()' />
       <UButton label='刷新' icon='i-lucide-refresh-cw' color='neutral' variant='outline' :loading='loading' @click='load' />
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />
-      <UAlert v-if='feedback' color='success' variant='subtle' :description='feedback' />
     </template>
 
-    <UTabs v-model='activeTab' :items='[{ label: "提案队列", value: "proposals" }, { label: "已审标注", value: "reviewed" }]' class='annotation-tabs' />
+    <UTabs v-model='activeTab' :items='[{ label: "待审", value: "proposals" }, { label: "已审", value: "reviewed" }]' class='annotation-tabs' />
 
     <section v-if='activeTab === "proposals"' aria-label='标注提案队列'>
-      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }, { id: "playerSubmittedAt", priority: "detail", order: 4 }]' row-key='proposalId' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
+      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }]' row-key='proposalId' :mobile-row-link='(row) => `/admin/annotations?proposalId=${encodeURIComponent(row.proposalId)}`' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
         <template #filters><div class='annotation-filters'>
           <USelect v-model='proposalState' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "待审", value: "pending" }, { label: "已接受", value: "accepted" }, { label: "已拒绝", value: "rejected" }]' />
           <USelect v-model='fieldKey' aria-label='筛选字段' :items='fieldFilterItems' />
@@ -218,7 +242,7 @@ onMounted(() => { void load(); });
       <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
 
-    <AdminResponsiveDialog v-model:open='detailOpen' title='标注提案' description='审定后不会影响截图审核结果。' size='lg'>
+    <AdminResponsiveDialog v-model:open='detailOpen' title='标注提案' description='审定后不会影响截图审核结果。' size='lg' @update:open='(open) => { if (!open) closeProposal(); }'>
       <template #body>
         <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='annotation-dialog-error' />
         <p v-if='detailLoading' class='annotation-dialog-message' role='status'>读取详情…</p>
@@ -233,10 +257,12 @@ onMounted(() => { void load(); });
           <UButton label='保存审定' color='primary' :loading='saving' :disabled='saving || !editValue.trim()' @click='saveEditAccept' />
         </template>
         <template v-else-if='selectedDetail.proposal.reviewState === "pending"'>
+          <UButton :to='`/admin/reviews/${encodeURIComponent(selectedDetail.proposal.submissionId)}`' label='查看来源' color='neutral' variant='ghost' />
           <UButton label='拒绝' color='error' variant='outline' :disabled='saving' @click='decide("reject")' />
           <UButton label='编辑并接受' color='neutral' variant='outline' :disabled='saving' @click='decide("edit_accept")' />
           <UButton label='接受' color='primary' :loading='saving' :disabled='saving' @click='decide("accept")' />
         </template>
+        <UButton v-else :to='`/admin/reviews/${encodeURIComponent(selectedDetail.proposal.submissionId)}`' label='查看来源' color='neutral' variant='ghost' />
       </template>
     </AdminResponsiveDialog>
 

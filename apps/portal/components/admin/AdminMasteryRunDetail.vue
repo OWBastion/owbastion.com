@@ -41,7 +41,7 @@ function sourcePath(submissionId: string) {
 
 <template>
   <div class="mastery-run-detail" :aria-busy="actionLoading || undefined">
-    <section class="mastery-run-detail__summary surface-card" aria-labelledby="mastery-run-summary-title">
+    <section class="mastery-run-detail__summary" aria-labelledby="mastery-run-summary-title">
       <div class="card-heading">
         <h3 id="mastery-run-summary-title">通关记录</h3>
         <StatusBadge :label="runStatusLabel(detail.run.status)" :tone="detail.run.status === 'active' ? 'success' : 'warning'" />
@@ -69,7 +69,7 @@ function sourcePath(submissionId: string) {
       </div>
     </section>
 
-    <section class="mastery-run-detail__section surface-card" aria-labelledby="mastery-run-source-title">
+    <section class="mastery-run-detail__section" aria-labelledby="mastery-run-source-title">
       <div class="card-heading">
         <h3 id="mastery-run-source-title">来源提交</h3>
         <StatusBadge :label="sourceStatusLabel" :tone="sourceStatusTone" />
@@ -82,7 +82,7 @@ function sourcePath(submissionId: string) {
       </dl>
     </section>
 
-    <section class="mastery-run-detail__section surface-card" aria-labelledby="mastery-run-xp-title">
+    <section class="mastery-run-detail__section" aria-labelledby="mastery-run-xp-title">
       <div class="card-heading"><h3 id="mastery-run-xp-title">经验规则与地图档案</h3></div>
       <div class="mastery-run-detail__split">
         <dl class="detail-list mastery-run-detail__facts">
@@ -107,7 +107,7 @@ function sourcePath(submissionId: string) {
       </dl>
     </section>
 
-    <section class="mastery-run-detail__section surface-card" aria-labelledby="mastery-run-conflicts-title">
+    <section class="mastery-run-detail__section" aria-labelledby="mastery-run-conflicts-title">
       <div class="card-heading">
         <h3 id="mastery-run-conflicts-title">通关码冲突</h3>
         <span class="mastery-run-detail__quiet">{{ detail.conflicts.length }} 条</span>
@@ -142,7 +142,7 @@ function sourcePath(submissionId: string) {
       </div>
     </section>
 
-    <section class="mastery-run-detail__section surface-card" aria-labelledby="mastery-run-lifecycle-title">
+    <section class="mastery-run-detail__section" aria-labelledby="mastery-run-lifecycle-title">
       <div class="card-heading"><h3 id="mastery-run-lifecycle-title">状态记录</h3></div>
       <ol class="mastery-run-detail__lifecycle">
         <li v-for="event in detail.lifecycle" :key="`${event.transition}:${event.createdAt}:${event.actorId}`">

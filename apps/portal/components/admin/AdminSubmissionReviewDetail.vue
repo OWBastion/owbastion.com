@@ -92,7 +92,7 @@ const challengeSummary = computed(() => {
       <p class="detail-meta">
         <NuxtLink class="detail-meta__player" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">{{ submission.playerName }}</NuxtLink>
         <span class="detail-meta__sep" aria-hidden="true">·</span>
-        <span class="detail-meta__label">截图审核</span>
+        <span class="detail-meta__label">审核</span>
         <span class="detail-meta__sep" aria-hidden="true">·</span>
         <time class="detail-meta__time" :datetime="new Date(submission.updatedAt).toISOString()">{{ formatTime(submission.updatedAt) }}</time>
       </p>
@@ -130,7 +130,6 @@ const challengeSummary = computed(() => {
       <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
-            <p class="rail-kicker">申请目标</p>
             <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
           </div>
           <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
@@ -150,7 +149,6 @@ const challengeSummary = computed(() => {
         aria-label="审核操作"
         :aria-busy="actionLoading || undefined"
       >
-        <p class="rail-kicker">审核决定</p>
         <div class="actions" role="group" aria-label="审核决定">
           <UButton
             class="action-btn action-btn--primary pressable"
@@ -259,14 +257,6 @@ const challengeSummary = computed(() => {
         <summary>提交信息</summary>
         <dl class="detail-list meta-list">
           <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-          <div>
-            <dt>玩家</dt>
-            <dd>
-              <NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(submission.playerAccountId)}`">
-                {{ submission.playerName }}
-              </NuxtLink>
-            </dd>
-          </div>
           <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
           <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
         </dl>
@@ -396,14 +386,6 @@ const challengeSummary = computed(() => {
   text-align: center;
 }
 
-.rail-kicker {
-  margin: 0 0 0.35rem;
-  color: var(--text-on-glass-quiet);
-  font-size: 0.68rem;
-  font-weight: 720;
-  letter-spacing: 0.06em;
-}
-
 .actions-card {
   display: grid;
   gap: 0.5rem;
@@ -514,7 +496,6 @@ const challengeSummary = computed(() => {
 }
 .claim-kind {
   flex: 0 0 auto;
-  margin-top: 1.1rem;
   color: var(--quiet);
   font-size: 0.72rem;
   font-weight: 650;

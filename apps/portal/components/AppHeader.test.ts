@@ -46,7 +46,8 @@ describe("AppHeader", () => {
     expect(wrapper.text()).toContain("内容编辑");
     expect(wrapper.text()).toContain("玩家");
     expect(wrapper.text()).toContain("绑定");
-    expect(wrapper.text()).toContain("成就与称号");
+    expect(wrapper.text()).toContain("核对");
+    expect(wrapper.text()).toContain("称号");
     expect(wrapper.text()).not.toContain("地图称号规则");
     expect(wrapper.text()).not.toContain("天梯排名");
 

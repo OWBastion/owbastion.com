@@ -24,8 +24,8 @@ describe("admin review detail page", () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
     expect(wrapper.text()).toContain("守望先锋");
-    expect(wrapper.text()).toContain("申请目标");
-    expect(wrapper.text()).toContain("审核决定");
+    expect(wrapper.text()).toContain("成就挑战");
+    expect(wrapper.text()).toContain("通过");
     expect(wrapper.text()).toContain("OCRKit");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
     expect(wrapper.text()).toContain("98%");

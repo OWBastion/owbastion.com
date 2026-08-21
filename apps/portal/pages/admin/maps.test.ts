@@ -43,7 +43,7 @@ describe("admin maps directory", () => {
     expect(wrapper.text()).toContain("T3");
     expect(wrapper.text()).toContain("动态掩体");
     expect(wrapper.find("table").text()).not.toContain("map.samoa");
-    const editorLink = wrapper.findAll("a").find((link) => link.text() === "打开编辑器");
+    const editorLink = wrapper.findAll("a").find((link) => link.text() === "编辑");
     expect(editorLink).toBeDefined();
     expect(editorLink!.attributes("href")).toBe("/admin/maps/map.samoa");
     expect(adminApi).toHaveBeenCalledWith("/v1/maps");

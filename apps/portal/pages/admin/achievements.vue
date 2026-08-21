@@ -35,7 +35,8 @@ type TableCell<Item> = {
 
 const api = useAdminApi();
 const items = ref<AdminAchievement[]>([]);
-const status = ref<"all" | AchievementStatus>("all");
+const titleStatus = ref<"all" | AchievementStatus>("all");
+const catalogStatus = ref<"all" | AchievementStatus>("all");
 const editingId = ref<string | null>(null);
 const planningId = ref<string | null>(null);
 const retirementVersions = reactive<Record<string, string>>({});
@@ -93,13 +94,17 @@ const catalogScopeLabel = (scope: CatalogTitle["scope"]) => scope === "map" ? "�
 const catalogDisplayKindLabel = (displayKind: CatalogTitle["displayKind"]) => ({ fixed: "固定称号", map_pioneer: "地图名 + 开拓者", map_name_suffix: "地图名 + 后缀称号" })[displayKind];
 const catalogColorLabel = (color: CatalogTitle["color"]) => color?.kind === "palette" ? color.name : color?.kind === "rgb" ? `RGB ${color.value.join(", ")}` : color?.kind === "heroColor" ? `英雄色 ${color.index}` : "未设置";
 const isSaving = (item: AdminAchievement) => savingId.value === itemIdentity(item);
-const statusColumnFilters = computed({
-  get: () => status.value === "all" ? [] : [{ id: "status", value: status.value }],
-  set: (filters: Array<{ id: string; value: unknown }>) => {
-    const value = filters.find((filter) => filter.id === "status")?.value;
-    status.value = value === "scheduled" || value === "active" || value === "sunsetting" || value === "retired" ? value : "all";
-  },
-});
+function statusFilters(source: typeof titleStatus) {
+  return computed({
+    get: () => source.value === "all" ? [] : [{ id: "status", value: source.value }],
+    set: (filters: Array<{ id: string; value: unknown }>) => {
+      const value = filters.find((filter) => filter.id === "status")?.value;
+      source.value = value === "scheduled" || value === "active" || value === "sunsetting" || value === "retired" ? value : "all";
+    },
+  });
+}
+const titleStatusFilters = statusFilters(titleStatus);
+const catalogStatusFilters = statusFilters(catalogStatus);
 const titleChallengeItems = computed(() => items.value.filter(isChallengeTitle));
 const catalogItems = computed(() => items.value.filter((item): item is CatalogTitle => item.family === "title_catalog"));
 const mapItems = computed(() => items.value.filter(isMap));
@@ -439,13 +444,13 @@ onMounted(() => void load());
       <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="成就类型" class="catalog-tabs">
         <template #generic>
           <section class="catalog-section" aria-labelledby="title-achievements-title">
-            <PageSectionHeader title="称号挑战" heading-id="title-achievements-title" :count="`${titleChallengeItems.length} 项`" />
-            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
+            <h2 id="title-achievements-title" class="sr-only">称号挑战</h2>
+            <AdminDataTable v-model:column-filters="titleStatusFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
               <template #filters>
-                <USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="titleStatus" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #mobile-secondary>
-                <USelect v-model="status" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="titleStatus" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
               <template #titleName-cell="{ row }">
@@ -494,21 +499,21 @@ onMounted(() => void load());
 
         <template #catalog>
           <section class="catalog-section" aria-labelledby="title-catalog-title">
-            <PageSectionHeader title="称号定义" heading-id="title-catalog-title" :count="`${catalogItems.length} 项`" />
-            <AdminDataTable v-model:column-filters="statusColumnFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
+            <h2 id="title-catalog-title" class="sr-only">称号目录</h2>
+            <AdminDataTable v-model:column-filters="catalogStatusFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
-                <USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #mobile-secondary>
-                <USelect v-model="status" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
               </template>
-              <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="table-meta">目录称号</small></template>
+              <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong></template>
               <template #icon-cell="{ row }"><span class="table-meta">{{ row.original.icon }}</span></template>
               <template #category-cell="{ row }"><span class="table-meta">{{ row.original.category }}</span></template>
               <template #scope-cell="{ row }"><span>{{ catalogScopeLabel(row.original.scope) }}</span></template>
               <template #displayKind-cell="{ row }"><span>{{ catalogDisplayKindLabel(row.original.displayKind) }}</span></template>
               <template #color-cell="{ row }"><span>{{ catalogColorLabel(row.original.color) }}</span></template>
-              <template #linkage-cell><span class="table-meta">无挑战，可单独授予</span></template>
+              <template #linkage-cell><span class="table-meta">无关联挑战</span></template>
               <template #status-cell="{ row }">
                 <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementItemStatusTone(row.original)" />
               </template>

@@ -8,10 +8,12 @@ definePageMeta({ middleware: ['auth', 'admin-client'] });
 useSeoMeta({ title: '数据集 · 躲避堡垒 3' });
 
 const api = useAdminApi();
+const route = useRoute();
+const router = useRouter();
+const toast = useToast();
 const datasets = ref<AdminDatasetSnapshot[]>([]);
 const loading = ref(true);
 const errorMessage = ref('');
-const feedback = ref('');
 const page = ref(1);
 const total = ref(0);
 const statusFilter = ref<'all' | AdminDatasetSnapshot['status']>('all');
@@ -57,18 +59,24 @@ async function createDraft() {
   if (creating.value) return;
   creating.value = true;
   errorMessage.value = '';
-  feedback.value = '';
   try {
     const response = await api<AdminDatasetDetail['snapshot']>('/v1/datasets', {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1' },
     });
-    feedback.value = `已创建 v${response.version} 草稿，入选 ${response.counts.eligibleCount} 条、排除 ${response.counts.excludedCount} 条。`;
+    toast.add({ title: `已创建 v${response.version} 草稿`, description: `入选 ${response.counts.eligibleCount} 条，排除 ${response.counts.excludedCount} 条。`, color: 'success' });
     await load();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, '无法创建数据集草稿。').description;
   } finally { creating.value = false; }
+}
+
+function setDatasetQuery(datasetId: string | null) {
+  const query = { ...route.query };
+  if (datasetId) query.datasetId = datasetId;
+  else delete query.datasetId;
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
 }
 
 async function openDetail(datasetId: string) {
@@ -76,9 +84,15 @@ async function openDetail(datasetId: string) {
   detailLoading.value = true;
   detailError.value = '';
   selectedDetail.value = null;
+  setDatasetQuery(datasetId);
   try { selectedDetail.value = await api<AdminDatasetDetail>('/v1/datasets/' + encodeURIComponent(datasetId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取数据集详情。').description; }
   finally { detailLoading.value = false; }
+}
+
+function closeDetail() {
+  detailOpen.value = false;
+  setDatasetQuery(null);
 }
 
 async function finalize() {
@@ -91,14 +105,24 @@ async function finalize() {
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1' },
     });
-    feedback.value = `v${response.version} 已定稿，快照不可再变更。`;
-    detailOpen.value = false;
+    toast.add({ title: `v${response.version} 已定稿`, color: 'success' });
+    closeDetail();
     await load();
   } catch (error) { detailError.value = portalErrorDetails(error, '定稿未完成，请稍后重试。').description; }
   finally { finalizing.value = false; }
 }
 
 watch(statusFilter, () => { page.value = 1; void load(); });
+watch(() => route.query.datasetId, (value) => {
+  const id = Array.isArray(value) ? value[0] : value;
+  if (typeof id === 'string' && id.trim()) {
+    if (selectedDetail.value?.snapshot.datasetId === id || (detailOpen.value && detailLoading.value)) return;
+    void openDetail(id);
+    return;
+  }
+  if (detailOpen.value) detailOpen.value = false;
+});
+watch(detailOpen, (open) => { if (!open) setDatasetQuery(null); });
 onMounted(() => { void load(); });
 </script>
 
@@ -110,11 +134,10 @@ onMounted(() => { void load(); });
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />
-      <UAlert v-if='feedback' color='success' variant='subtle' :description='feedback' />
     </template>
 
     <section aria-label='数据集列表'>
-      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }, { id: "createdAt", priority: "detail", order: 3 }]' row-key='datasetId' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
+      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='datasetId' :mobile-row-link='(row) => `/admin/datasets?datasetId=${encodeURIComponent(row.datasetId)}`' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
         <template #filters><div class='dataset-filters'>
           <USelect v-model='statusFilter' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }]' />
         </div></template>
@@ -127,7 +150,7 @@ onMounted(() => { void load(); });
       <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
 
-    <AdminResponsiveDialog v-model:open='detailOpen' title='数据集详情' description='已定稿快照的成员与来源不可再变更。' size='lg'>
+    <AdminResponsiveDialog v-model:open='detailOpen' :title="selectedDetail ? `数据集 v${selectedDetail.snapshot.version}` : '数据集'" :description="selectedDetail?.snapshot.status === 'finalized' ? '已定稿快照的成员与来源不可再变更。' : undefined" size='lg' @update:open='(open) => { if (!open) closeDetail(); }'>
       <template #body>
         <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='dataset-dialog-error' />
         <p v-if='detailLoading' class='dataset-dialog-message' role='status'>读取详情…</p>
@@ -161,7 +184,7 @@ onMounted(() => { void load(); });
         </template>
       </template>
       <template v-if='selectedDetail?.snapshot.status === "draft"' #footer>
-        <UButton label='定稿冻结' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
+        <UButton label='定稿' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

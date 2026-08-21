@@ -7,7 +7,9 @@ import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
-useSeoMeta({ title: "审核管理 · 躲避堡垒 3" });
+useSeoMeta({ title: "审核 · 躲避堡垒 3" });
+const route = useRoute();
+const router = useRouter();
 const api = useAdminApi();
 const submissions = ref<AdminSubmission[]>([]);
 const loading = ref(true);
@@ -18,9 +20,16 @@ type OcrField = { confidence?: unknown };
 type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown }; fields?: Record<string, OcrField> };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
-type ReviewStatus = "all" | keyof typeof submissionStatusText;
-const reviewStatus = shallowRef<ReviewStatus>("all");
-const reviewStatusOptions = [{ label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).map(([value, label]) => ({ label, value }))];
+type ReviewStatus = "queue" | "all" | keyof typeof submissionStatusText;
+const queueStatuses = "ready_for_review,ocr_review_required";
+function parseReviewStatus(value: unknown): ReviewStatus {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === "all" || raw === "queue") return raw;
+  if (typeof raw === "string" && raw in submissionStatusText) return raw as ReviewStatus;
+  return "queue";
+}
+const reviewStatus = shallowRef<ReviewStatus>(parseReviewStatus(route.query.status));
+const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).map(([value, label]) => ({ label, value }))];
 const spotCheckFilter = shallowRef<"all" | "pending" | "confirmed" | "revoked">("all");
 const spotCheckOptions = [{ label: "全部抽检", value: "all" }, { label: "待抽检", value: "pending" }, { label: "已确认", value: "confirmed" }, { label: "已撤销", value: "revoked" }];
 const spotCheckLabel = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "待抽检" : submission.spotCheck?.status === "confirmed" ? "已确认" : submission.spotCheck?.status === "revoked" ? "已撤销" : "—";
@@ -64,7 +73,7 @@ const columns: TableColumn<AdminSubmission>[] = [
 async function load() {
   loading.value = true; errorMessage.value = "";
   try {
-    const statusQuery = reviewStatus.value === "all" ? "" : `&status=${encodeURIComponent(reviewStatus.value)}`;
+    const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${queueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
     const spotCheckQuery = spotCheckFilter.value === "all" ? "" : `&spotCheck=${spotCheckFilter.value}`;
     const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}`);
     submissions.value = response.items;
@@ -77,14 +86,25 @@ async function load() {
   catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; }
   finally { loading.value = false; }
 }
-watch([reviewStatus, spotCheckFilter], () => { page.value = 1; void load(); });
+watch([reviewStatus, spotCheckFilter], () => {
+  page.value = 1;
+  const query = { ...route.query };
+  if (reviewStatus.value === "queue") delete query.status;
+  else query.status = reviewStatus.value;
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+  void load();
+});
+watch(() => route.query.status, (value) => {
+  const next = parseReviewStatus(value === undefined ? "queue" : value);
+  if (next !== reviewStatus.value) reviewStatus.value = next;
+});
 onMounted(() => { void load(); });
 </script>
 
 <template>
-  <AdminWorkspace title="审核管理" :count="loading ? '读取中…' : `${total} 条`">
+  <AdminWorkspace title="审核" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
-    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'ocrConfidence', priority: 'detail', order: 3 }, { id: 'ocrStatus', priority: 'detail', order: 4 }, { id: 'spotCheck', priority: 'detail', order: 5 }, { id: 'updatedAt', priority: 'detail', order: 6 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}`" class="admin-table">
+    <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'spotCheck', priority: 'detail', order: 3 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}`" class="admin-table">
       <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>
       <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>

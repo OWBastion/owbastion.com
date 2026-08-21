@@ -153,8 +153,9 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 <template>
   <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : map ? `${revisions.length} 个版本修订` : ''">
     <template #actions>
-      <UButton to="/admin/maps" label="返回地图目录" color="neutral" variant="outline" />
-      <UButton v-if="map" class="pressable" label="重置 / 重做" icon="i-lucide-git-branch-plus" color="neutral" @click="openReset" />
+      <UButton to="/admin/maps" label="返回" icon="i-lucide-arrow-left" color="neutral" variant="ghost" />
+      <UButton v-if="map" :to="{ path: '/admin/achievements', query: { section: 'map', mapId: map.mapId } }" label="称号规则" color="neutral" variant="ghost" />
+      <UButton v-if="map" class="pressable" label="新建修订" icon="i-lucide-git-branch-plus" color="neutral" variant="outline" @click="openReset" />
     </template>
     <template #messages>
       <UAlert v-if="api.error.value || actionError" color="error" variant="subtle" :description="api.error.value || actionError" />
@@ -225,14 +226,14 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 
     <UEmpty v-else-if="!api.loading.value" title="地图不存在，或当前账号没有访问权限" />
 
-    <AdminResponsiveDialog v-model:open="resetOpen" title="重置 / 重做 · 创建新版本修订" description="新版本修订从准备中开始。复制配置不会复制任何玩家进度。" size="md" :dismissible="!resetSaving">
+    <AdminResponsiveDialog v-model:open="resetOpen" title="新建版本修订" description="从准备中开始。复制配置不会复制玩家进度。" size="md" :dismissible="!resetSaving">
       <template #body>
         <form id="map-reset-form" class="reset-form" @submit.prevent="createResetRevision">
           <UFormField label="来源版本修订" hint="可选择任意保留的版本修订作为配置来源。">
             <USelect v-model="resetSourceId" :items="[{ label: '不指定来源', value: null }, ...revisions.map((revision) => ({ label: `${revision.revisionId} · ${lifecycleLabels[revision.lifecycle]}`, value: revision.revisionId }))]" :disabled="resetSaving || !resetCopyConfiguration" />
           </UFormField>
           <UCheckbox v-model="resetCopyConfiguration" label="复制空间配置和挑战分配" :disabled="resetSaving" />
-          <UFormField label="重置 / 重做理由"><UTextarea v-model="resetReason" :rows="3" placeholder="例如：地图几何重新制作，重新建立公平边界" :disabled="resetSaving" /></UFormField>
+          <UFormField label="修订理由"><UTextarea v-model="resetReason" :rows="3" :disabled="resetSaving" /></UFormField>
           <div class="reset-form__grid">
             <UFormField label="目标游戏版本" hint="默认使用今天的日期，可由管理员修改。"><UInput v-model="resetGameVersion" required :disabled="resetSaving" /></UFormField>
             <UFormField label="地图变体"><USelect v-model="resetMapVariant" :items="resetMapVariantItems" :disabled="resetSaving" /></UFormField>
@@ -241,7 +242,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
       </template>
       <template #footer>
         <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
-        <UButton type="submit" form="map-reset-form" class="pressable" label="创建准备中版本修订" :loading="resetSaving" :disabled="resetSaving" />
+        <UButton type="submit" form="map-reset-form" class="pressable" label="创建修订" :loading="resetSaving" :disabled="resetSaving" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

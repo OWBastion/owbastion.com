@@ -17,7 +17,7 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
       <div>
         <h2 id="review-queue-title">待核对队列</h2>
       </div>
-      <NuxtLink class="queue-link" to="/admin/reviews">查看全部 <span aria-hidden="true">→</span></NuxtLink>
+      <NuxtLink class="queue-link" to="/admin/reviews">打开队列</NuxtLink>
     </div>
 
     <div class="queue-table" aria-live="polite">

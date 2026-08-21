@@ -46,6 +46,7 @@ const adminApi = vi.fn((path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 
 describe("admin mastery runs page", () => {
   it("loads a document-flow admin list, filters by run code, and opens maintainer detail", async () => {
