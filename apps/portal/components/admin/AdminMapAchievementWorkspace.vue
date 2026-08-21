@@ -98,6 +98,8 @@ const errorMessage = shallowRef("");
 const editingRule = shallowRef<Rule | null>(null);
 const ruleFormOpen = shallowRef(false);
 const editingExceptionId = shallowRef<string | null>(null);
+const managingRule = shallowRef<Rule | null>(null);
+const ruleMapManagerOpen = shallowRef(false);
 const exceptionDraft = reactive<Exception>({ enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null });
 const form = reactive({ titleKey: "", kind: "", condition: "", evidenceRule: "", submissionMode: "manual" as Rule["submissionMode"], displayKind: "fixed" as Rule["displayKind"], slot: null as Rule["slot"], mapVariant: undefined as "classic" | undefined, defaultScope: "all_active" as Rule["defaultScope"], status: "active" as Rule["status"], introducedVersion: "", retiredVersion: "" });
 
@@ -172,7 +174,9 @@ const mapRows = computed<MapViewRow[]>(() => {
   }));
   return [...projections, ...genuineChallenges];
 });
-const selectedException = computed(() => selectedInheritance.value.find((item) => `${item.mapId}:${item.rule.ruleId}` === editingExceptionId.value) ?? null);
+const selectedException = computed(() => inheritances.value.find((item) => `${item.mapId}:${item.rule.ruleId}` === editingExceptionId.value) ?? null);
+const selectedExceptionMapName = computed(() => props.maps.find((map) => map.mapId === selectedException.value?.mapId)?.mapName ?? selectedException.value?.mapId ?? "");
+const managedRuleMaps = computed(() => managingRule.value ? inheritances.value.filter((item) => item.rule.ruleId === managingRule.value?.ruleId) : []);
 const selectedExceptionIsPioneer = computed(() => selectedException.value?.rule.kind.trim().toLocaleLowerCase() === "pioneer");
 const exceptionScheduleValid = computed(() => !selectedExceptionIsPioneer.value || !exceptionDraft.enabled || Boolean(exceptionDraft.startsAt && exceptionDraft.endsAt && exceptionDraft.endsAt > exceptionDraft.startsAt));
 const dialogOpen = computed({ get: () => ruleFormOpen.value, set: (open: boolean) => { if (open) ruleFormOpen.value = true; else closeRuleForm(); } });
@@ -183,7 +187,11 @@ function resetForm(rule?: Rule) {
 }
 function editRule(rule?: Rule) { editingRule.value = rule ?? null; resetForm(rule); ruleFormOpen.value = true; }
 function closeRuleForm() { editingRule.value = null; ruleFormOpen.value = false; resetForm(); }
+function openRuleMapManager(rule: Rule) { managingRule.value = rule; ruleMapManagerOpen.value = true; }
+function closeRuleMapManager() { managingRule.value = null; ruleMapManagerOpen.value = false; }
 function openException(item: Inheritance) {
+  closeRuleMapManager();
+  viewMode.value = "map";
   editingExceptionId.value = `${item.mapId}:${item.rule.ruleId}`;
   Object.assign(exceptionDraft, item.exception ?? { enabled: item.projected, condition: null, evidenceRule: null, submissionMode: null, slot: null, startsAt: null, endsAt: null });
 }
@@ -265,6 +273,19 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     </div>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     <UTabs v-model="viewMode" :items="[{ label: '按规则', value: 'rules' }, { label: '按地图查看', value: 'map' }]" variant="link" aria-label="地图成就视图" />
+    <AdminResponsiveDialog :open="ruleMapManagerOpen" :title="managingRule ? `${managingRule.titleName} · 开放地图` : ''" size="lg" :dismissible="!saving" @update:open="(open) => { if (!open) closeRuleMapManager(); }">
+      <template #body>
+        <div class="rule-map-manager">
+          <p class="type-caption">选择地图后设置独立的开放时间。未启用的地图也可以从这里直接开放。</p>
+          <AdminDataTable :data="managedRuleMaps" :columns="[{ accessorKey: 'mapId', header: '地图' }, { accessorKey: 'projected', header: '状态' }, { id: 'actions', header: '操作', enableHiding: false }]" :loading="loadingRules" empty="暂无可管理的有效地图。" row-key="mapId" table-key="pioneer-rule-map-manager" table-min-width="620px" class="admin-table">
+            <template #mapId-cell="{ row }"><strong>{{ props.maps.find((map) => map.mapId === row.original.mapId)?.mapName ?? row.original.mapId }}</strong></template>
+            <template #projected-cell="{ row }"><StatusBadge :label="row.original.projected ? '已开放' : '未开放'" :tone="row.original.projected ? 'success' : 'warning'" /></template>
+            <template #actions-cell="{ row }"><UButton :label="row.original.projected ? '编辑开放时间' : '开放地图'" size="sm" color="neutral" variant="soft" @click="openException(row.original)" /></template>
+          </AdminDataTable>
+        </div>
+      </template>
+      <template #footer><UButton label="关闭" color="neutral" variant="outline" @click="closeRuleMapManager" /></template>
+    </AdminResponsiveDialog>
 
     <template v-if="viewMode === 'rules'">
       <div class="section-toolbar"><p class="type-caption">规则是地图称号的唯一编辑入口；有效结果只读。</p><UButton label="新建规则" size="sm" @click="editRule()" /></div>
@@ -275,7 +296,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
         <template #displayKind-cell="{ row }"><span>{{ displayKindLabel(row.original.displayKind) }}</span></template>
         <template #submissionMode-cell="{ row }"><span>{{ submissionModeLabel(row.original.submissionMode) }}</span></template>
         <template #status-cell="{ row }"><StatusBadge :label="statusLabel(row.original.status)" :tone="statusTone(row.original.status)" /></template>
-        <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="editRule(row.original)" /></div></template>
+        <template #actions-cell="{ row }"><div class="table-actions"><UButton v-if="row.original.kind.trim().toLocaleLowerCase() === 'pioneer'" label="管理开放地图" size="sm" color="neutral" variant="soft" @click="openRuleMapManager(row.original)" /><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="editRule(row.original)" /></div></template>
       </AdminDataTable>
     </template>
 
@@ -289,7 +310,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
         <template #status-cell="{ row }"><StatusBadge :label="statusLabel(row.original.status)" :tone="statusTone(row.original.status)" /></template>
         <template #actions-cell="{ row }"><div class="table-actions"><template v-if="row.original.rowType === 'projection'"><UButton label="编辑规则" size="sm" color="neutral" variant="outline" @click="editRule(row.original.rule)" /><UButton label="编辑例外" size="sm" color="neutral" variant="soft" @click="openException(row.original.inheritance!)" /></template><UButton v-else label="编辑挑战" size="sm" color="neutral" variant="outline" @click="emit('editChallenge', row.original.challenge!)" /></div></template>
       </AdminDataTable>
-      <AdminResponsiveDialog :open="selectedException !== null" :title="selectedException ? `${mapName} · 地图例外` : ''" size="md" :dismissible="!saving" @update:open="(open) => { if (!open) closeException(); }">
+      <AdminResponsiveDialog :open="selectedException !== null" :title="selectedException ? `${selectedExceptionMapName} · 地图例外` : ''" size="md" :dismissible="!saving" @update:open="(open) => { if (!open) closeException(); }">
         <template #body><form v-if="selectedException" id="map-exception-editor" class="exception-editor" @submit.prevent="saveException"><UFormField label="例外状态"><USwitch v-model="exceptionDraft.enabled" label="在此地图启用规则" /></UFormField><template v-if="selectedExceptionIsPioneer"><UFormField label="开放开始时间" required hint="首次选择开始时间后，默认填充 24 小时窗口。"><AdminDateTimePicker :model-value="exceptionDraft.startsAt" :disabled="saving" placeholder="选择开放开始时间" @update:model-value="setExceptionSchedule('startsAt', $event)" /></UFormField><UFormField label="开放结束时间" required><AdminDateTimePicker :model-value="exceptionDraft.endsAt" :disabled="saving" placeholder="选择开放结束时间" @update:model-value="setExceptionSchedule('endsAt', $event)" /></UFormField></template><UFormField label="覆盖完成条件"><UTextarea :model-value="exceptionDraft.condition ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.condition = $event || null" /></UFormField><UFormField label="覆盖截图规则"><UTextarea :model-value="exceptionDraft.evidenceRule ?? ''" placeholder="留空继承规则" :disabled="saving" @update:model-value="exceptionDraft.evidenceRule = $event || null" /></UFormField><UFormField label="覆盖提交方式"><USelect v-model="exceptionDraft.submissionMode" :items="[{ label: '继承规则', value: null }, { label: '手动提交', value: 'manual' }, { label: '自动提交', value: 'automatic' }]" :disabled="saving" /></UFormField><UFormField label="覆盖称号槽位"><USelect v-model="exceptionDraft.slot" :items="[{ label: '继承规则', value: null }, { label: '开拓者槽位', value: 'pioneer' }, { label: '征服者槽位', value: 'conqueror' }, { label: '主宰槽位', value: 'dominator' }]" :disabled="saving" /></UFormField></form></template>
         <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeException" /><UButton label="保存例外" type="submit" form="map-exception-editor" :loading="saving" :disabled="!exceptionScheduleValid" /></template>
       </AdminResponsiveDialog>

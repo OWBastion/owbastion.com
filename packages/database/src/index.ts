@@ -3264,15 +3264,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const startsAt = input.startsAt ?? null;
       const endsAt = input.endsAt ?? null;
       if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && input.enabled && (startsAt === null || endsAt === null || endsAt <= startsAt)) throw new Error("PIONEER_EXCEPTION_SCHEDULE_REQUIRED");
-      const timestamp = now();
-      await database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, starts_at=excluded.starts_at, ends_at=excluded.ends_at, updated_at=excluded.updated_at")
-        .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, startsAt, endsAt, timestamp, timestamp).run();
       const revision = await selectGameplayRevision({ mapId: input.mapId, mapVariant: rule.mapVariant === "classic" ? "classic" : null });
       if (!revision) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
-      await database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, 'map_title_rule', ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(gameplay_revision_id, challenge_family, challenge_id) DO UPDATE SET enabled = excluded.enabled, condition = excluded.condition, evidence_rule = excluded.evidence_rule, submission_mode = excluded.submission_mode, slot = excluded.slot, updated_at = excluded.updated_at")
-        .bind(`assignment:${revision.id}:map_title_rule:${input.ruleId}`, revision.id, input.mapId, input.ruleId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, timestamp, timestamp).run();
-      await recordIdempotency(db, auth.subject, "admin.map-title-rule-exception.upsert", idempotencyKey, input, {});
-      await recordAudit(db, auth, "admin.map-title-rule-exception.upsert", "map_title_rule_exception", `${input.ruleId}:${input.mapId}`, input);
+      const timestamp = now();
+      const operation = "admin.map-title-rule-exception.upsert";
+      const requestHash = await hashRequest(input);
+      await database.batch([
+        database.prepare("INSERT INTO map_title_rule_exceptions (id,rule_id,map_id,enabled,condition,evidence_rule,submission_mode,slot,starts_at,ends_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(rule_id,map_id) DO UPDATE SET enabled=excluded.enabled, condition=excluded.condition, evidence_rule=excluded.evidence_rule, submission_mode=excluded.submission_mode, slot=excluded.slot, starts_at=excluded.starts_at, ends_at=excluded.ends_at, updated_at=excluded.updated_at")
+          .bind(crypto.randomUUID(), input.ruleId, input.mapId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, startsAt, endsAt, timestamp, timestamp),
+        database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, 'map_title_rule', ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(gameplay_revision_id, challenge_family, challenge_id) DO UPDATE SET enabled = excluded.enabled, condition = excluded.condition, evidence_rule = excluded.evidence_rule, submission_mode = excluded.submission_mode, slot = excluded.slot, updated_at = excluded.updated_at")
+          .bind(`assignment:${revision.id}:map_title_rule:${input.ruleId}`, revision.id, input.mapId, input.ruleId, input.enabled ? 1 : 0, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, timestamp, timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id,actor_id,operation,request_hash,response_json,created_at) VALUES (?,?,?,?,?,?)")
+          .bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify({}), timestamp),
+        database.prepare("INSERT INTO audit_events (id,correlation_id,actor_type,actor_id,operation,entity_type,entity_id,payload_json,created_at) VALUES (?,?,?,?,?,?,?,?,?)")
+          .bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "map_title_rule_exception", `${input.ruleId}:${input.mapId}`, JSON.stringify(input), timestamp),
+      ]);
     },
 
     async createAdminAchievement(input: AdminAchievementCreateRequest, auth, idempotencyKey) {
