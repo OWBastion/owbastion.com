@@ -26,3 +26,4 @@
 0063_normalize_legacy_gameplay_revision_ids.sql
 0066_backfill_initial_gameplay_revision_spatial_configs.sql
 0067_add_alternate_stage_setup_detection.sql
+0073_repair_paraiso_reset_title_grants.sql

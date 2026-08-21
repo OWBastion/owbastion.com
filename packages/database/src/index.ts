@@ -2923,8 +2923,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const sourceAssignments = source
         ? await db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, source.id)).orderBy(asc(gameplayRevisionChallengeAssignments.challengeFamily), asc(gameplayRevisionChallengeAssignments.challengeId))
         : [];
+      const sourceMapTitleRuleIds = sourceAssignments
+        .filter((assignment) => assignment.challengeFamily === "map_title_rule")
+        .map((assignment) => assignment.challengeId);
+      const pioneerRuleIds = sourceMapTitleRuleIds.length
+        ? new Set((await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(and(eq(mapTitleRules.kind, "pioneer"), inArray(mapTitleRules.id, sourceMapTitleRuleIds)))).map((rule) => rule.id))
+        : new Set<string>();
       const assignments: AdminRevisionAssignmentInput[] = input.copyConfiguration
-        ? sourceAssignments.map((assignment) => ({
+        ? sourceAssignments.filter((assignment) => !(assignment.challengeFamily === "map_title_rule" && pioneerRuleIds.has(assignment.challengeId))).map((assignment) => ({
           challengeFamily: assignment.challengeFamily as AdminRevisionAssignmentInput["challengeFamily"],
           challengeId: assignment.challengeId,
           enabled: assignment.enabled === 1,
