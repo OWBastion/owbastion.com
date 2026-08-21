@@ -800,6 +800,7 @@ describe("Admin map revision editor", () => {
     seedTitle(sqlite, "CONQUEROR");
     seedRule(sqlite, "rule.conqueror.editor", "CONQUEROR", "conqueror", { slot: "conqueror" });
     seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.editor:initial", mapId: "map.editor", challengeFamily: "map_title_rule", challengeId: "rule.conqueror.editor", slot: "conqueror" });
+    seedMapTitleChallenge(sqlite, "title.editor", "PIONEER", "map.editor");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.editor', '1001', 'Editor Player', 'editor player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.editor.r1', 'player.editor', 'PIONEER', 'map.editor', 'revision:map.editor:initial', 'pioneer', 'active', 'submission', 'submission.editor.r1', 'admin', ?)").run(now);
     const services = createPlatformServices(database);
@@ -819,8 +820,9 @@ describe("Admin map revision editor", () => {
     expect(r2.gameVersion).toBe("2026.08.13");
     expect(r2.resetReason).toBeNull();
     expect(r2.spatialConfig).toEqual(r1Before.spatialConfig);
-    expect(r2.challengeAssignments).toMatchObject(r1Before.challengeAssignments.filter((assignment) => assignment.challengeFamily !== "map_title_rule").map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment));
+    expect(r2.challengeAssignments).toMatchObject(r1Before.challengeAssignments.filter((assignment) => !["map_title_rule", "title_challenge"].includes(assignment.challengeFamily)).map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment));
     expect(r2.challengeAssignments).not.toEqual(expect.arrayContaining([expect.objectContaining({ challengeFamily: "map_title_rule" })]));
+    expect(r2.challengeAssignments).not.toEqual(expect.arrayContaining([expect.objectContaining({ challengeFamily: "title_challenge" })]));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
 
     const updateInput = (revision: typeof r1Before, lifecycle: "default" | "selectable") => ({

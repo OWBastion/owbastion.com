@@ -2924,7 +2924,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ? await db.select().from(gameplayRevisionChallengeAssignments).where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, source.id)).orderBy(asc(gameplayRevisionChallengeAssignments.challengeFamily), asc(gameplayRevisionChallengeAssignments.challengeId))
         : [];
       const assignments: AdminRevisionAssignmentInput[] = input.copyConfiguration
-        ? sourceAssignments.filter((assignment) => assignment.challengeFamily !== "map_title_rule").map((assignment) => ({
+        ? sourceAssignments.filter((assignment) => !["map_title_rule", "title_challenge"].includes(assignment.challengeFamily)).map((assignment) => ({
           challengeFamily: assignment.challengeFamily as AdminRevisionAssignmentInput["challengeFamily"],
           challengeId: assignment.challengeId,
           enabled: assignment.enabled === 1,

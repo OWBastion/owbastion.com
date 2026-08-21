@@ -9,7 +9,7 @@ WHERE gameplay_revision_id = (
     FROM gameplay_revisions
     WHERE map_id = 'map.paraiso' AND lifecycle = 'default'
   )
-  AND challenge_family = 'map_title_rule'
+  AND challenge_family IN ('map_title_rule', 'title_challenge')
   AND challenge_id IN (SELECT id FROM map_title_rules)
   AND enabled = 1;
 
