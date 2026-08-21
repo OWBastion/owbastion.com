@@ -130,7 +130,7 @@ onMounted(() => { void load(); });
   <AdminWorkspace title='数据集' :count='loading ? "读取中…" : total + " 个"'>
     <template #actions>
       <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='creating' @click='createDraft' />
-      <UButton label='刷新' icon='i-lucide-refresh-cw' color='neutral' variant='outline' :loading='loading' @click='load' />
+      <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />

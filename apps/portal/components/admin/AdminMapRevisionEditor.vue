@@ -223,6 +223,6 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
     align-items: stretch;
     flex-direction: column;
   }
-  .revision-editor__actions :deep(button) { width: 100%; }
+  .revision-editor__actions :deep(button) { width: 100%; min-height: 2.75rem; }
 }
 </style>

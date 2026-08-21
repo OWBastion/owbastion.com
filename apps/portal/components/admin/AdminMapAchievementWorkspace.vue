@@ -285,7 +285,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
     </AdminResponsiveDialog>
 
     <template v-if="viewMode === 'rules'">
-      <div class="section-toolbar"><UButton label="新建规则" size="sm" @click="editRule()" /></div>
+      <div class="section-toolbar"><UButton label="新建规则" @click="editRule()" /></div>
       <AdminDataTable v-model:sorting="ruleSorting" :sorting-options="ruleSortingOptions" :default-sorting="defaultRuleSorting" :data="ruleSummaries" :columns="ruleColumns" :loading="loadingRules" empty="暂无地图称号规则。" row-key="ruleId" table-key="unified-map-achievement-rules" table-min-width="900px" class="admin-table">
         <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong><small class="type-caption">{{ row.original.kind }} · {{ scopeLabel(row.original.defaultScope) }}</small></template>
         <template #effectiveMapCount-cell="{ row }"><span>{{ row.original.effectiveMapCount }} 张</span></template>
@@ -327,7 +327,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 .section-heading .type-headline { margin: 0; }
 .section-toolbar { align-items: center; }
 .section-toolbar > :first-child { min-width: min(18rem, 100%); }
-.table-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; }
+.table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 
 .map-achievement-workspace :deep(table[data-slot="base"]) { min-width: 860px; }
 .map-achievement-workspace :deep(.table-actions [data-slot="base"]),
@@ -343,9 +343,10 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 .exception-editor { padding: 24px; }
 .map-achievement-workspace :deep(.admin-data-table__sort-control) { min-width: 15rem; }
 @media (max-width: 560px) {
-  .section-heading, .section-toolbar { align-items: flex-start; flex-wrap: wrap; }
+  .section-heading, .section-toolbar { align-items: stretch; flex-wrap: wrap; }
   .rule-editor { grid-template-columns: 1fr; }
   .rule-editor__wide { grid-column: auto; }
   .section-toolbar > :first-child { width: 100%; }
+  .section-toolbar :deep(button) { width: 100%; min-height: 2.75rem; }
 }
 </style>

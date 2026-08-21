@@ -426,18 +426,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .table-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
 }
 /* Fixed geometry icon controls — hover only changes color/fill, never size or transform. */
 .table-action {
   display: inline-grid;
   box-sizing: border-box;
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   place-items: center;
   padding: 0;
   border: 0;
@@ -481,7 +481,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 /* Labeled UButtons in row actions must not scale or reflow on hover/press. */
 .table-actions :where(button, a, [role="button"]):not(.table-action) {
-  min-height: 40px;
+  min-height: 2.75rem;
   flex: 0 0 auto;
 }
 .table-actions :where(button, a)[data-slot="base"],

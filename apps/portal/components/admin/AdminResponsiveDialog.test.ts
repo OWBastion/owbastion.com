@@ -49,6 +49,6 @@ describe("AdminResponsiveDialog", () => {
     await nextTick();
     expect(wrapper.get('[data-overlay="drawer"]').text()).toContain("group-1");
     expect(wrapper.findComponent(DrawerStub).props("direction")).toBe("bottom");
-    expect(wrapper.findComponent(DrawerStub).props("ui").body).toContain("safe-area-inset-bottom");
+    expect(wrapper.findComponent(DrawerStub).props("ui").footer).toContain("safe-area-inset-bottom");
   });
 });

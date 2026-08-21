@@ -224,7 +224,6 @@ const challengeSummary = computed(() => {
             label="重新发送 OCRKit 请求"
             color="neutral"
             variant="ghost"
-            size="sm"
             :loading="ocrRetryLoading"
             :disabled="actionsLoading"
             @click="emit('retry-ocr')"
@@ -236,7 +235,6 @@ const challengeSummary = computed(() => {
             label="直接标注"
             color="neutral"
             variant="ghost"
-            size="sm"
           />
         </div>
       </section>
@@ -428,9 +426,9 @@ const challengeSummary = computed(() => {
 .ocr-retry-actions :deep(.action-btn) {
   justify-self: start;
   max-width: 100%;
-  min-height: 2rem;
-  padding-inline: 0.35rem;
-  font-size: 0.76rem;
+  min-height: 2.75rem;
+  padding-inline: 0.5rem;
+  font-size: 0.82rem;
   font-weight: 650;
 }
 .ocr-retry-error {
@@ -594,6 +592,11 @@ const challengeSummary = computed(() => {
   }
   .claim-kind {
     margin-top: 0.15rem;
+  }
+  .ocr-retry-actions :deep(.action-btn) {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: center;
   }
 }
 

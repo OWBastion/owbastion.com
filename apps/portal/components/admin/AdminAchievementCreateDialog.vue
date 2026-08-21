@@ -113,7 +113,7 @@ function submit() {
         </UFormField>
       </form>
     </template>
-    <template #footer><UButton label="取消" color="neutral" variant="outline" size="sm" :disabled="props.saving" @click="dialogOpen = false" /><UButton label="创建挑战" type="submit" form="achievement-create-form" size="sm" :loading="props.saving" :disabled="!canSubmit" /></template>
+    <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="props.saving" @click="dialogOpen = false" /><UButton label="创建挑战" type="submit" form="achievement-create-form" :loading="props.saving" :disabled="!canSubmit" /></template>
   </AdminResponsiveDialog>
 </template>
 

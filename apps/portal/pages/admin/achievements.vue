@@ -463,30 +463,22 @@ onMounted(() => void load());
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
-                  <button class="table-action" type="button" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
-                    <UIcon name="i-lucide-pencil" aria-hidden="true" />
-                  </button>
+                  <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" :label="editingId === itemIdentity(row.original) ? '收起' : '编辑'" :aria-label="editingId === itemIdentity(row.original) ? '收起编辑' : '编辑规则'" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
                   <UPopover v-if="row.original.status !== 'retired'" :open="planningId === row.original.challengeId" @update:open="(open) => { planningId = open ? row.original.challengeId : null; }">
-                    <button class="table-action" type="button" aria-label="计划下线" :disabled="isSaving(row.original)">
-                      <UIcon name="i-lucide-calendar-clock" aria-hidden="true" />
-                    </button>
+                    <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-calendar-clock" label="计划" aria-label="计划下线" :disabled="isSaving(row.original)" />
                     <template #content>
                       <UCard class="plan-popover-card">
                         <form class="plan-popover" @submit.prevent="planSunsetting(row.original)">
                           <UFormField label="计划下线版本" required>
                             <UInput v-model="retirementVersions[row.original.challengeId]" required placeholder="例如 26.0713.1" :disabled="isSaving(row.original)" />
                           </UFormField>
-                          <UButton type="submit" label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" />
+                          <UButton type="submit" block label="确认计划" :loading="isSaving(row.original)" :disabled="!retirementVersions[row.original.challengeId]?.trim()" />
                         </form>
                       </UCard>
                     </template>
                   </UPopover>
-                  <button v-if="row.original.status !== 'retired'" class="table-action table-action-danger" type="button" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
-                    <UIcon name="i-lucide-square-stop" aria-hidden="true" />
-                  </button>
-                  <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
-                    <UIcon name="i-lucide-rotate-ccw" aria-hidden="true" />
-                  </button>
+                  <UButton v-if="row.original.status !== 'retired'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="结束" aria-label="结束挑战" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
+                  <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
                 </div>
               </template>
             </AdminDataTable>
@@ -519,15 +511,9 @@ onMounted(() => void load());
               </template>
               <template #actions-cell="{ row }">
                 <div class="table-actions">
-                  <button class="table-action" type="button" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)">
-                    <UIcon name="i-lucide-pencil" aria-hidden="true" />
-                  </button>
-                  <button v-if="row.original.status === 'active'" class="table-action table-action-danger" type="button" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)">
-                    <UIcon name="i-lucide-square-stop" aria-hidden="true" />
-                  </button>
-                  <button v-else class="table-action" type="button" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)">
-                    <UIcon name="i-lucide-rotate-ccw" aria-hidden="true" />
-                  </button>
+                  <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" label="编辑" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
+                  <UButton v-if="row.original.status === 'active'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="下线" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
+                  <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
                 </div>
               </template>
             </AdminDataTable>
@@ -600,7 +586,7 @@ onMounted(() => void load());
 .achievement-table--titles :deep(.achievement-col-title) { width: 20%; }
 .achievement-table--titles :deep(.achievement-col-condition) { width: 34%; }
 .achievement-table--titles :deep(.achievement-col-status) { width: 12%; }
-.achievement-table--titles :deep(.achievement-col-actions) { width: 8.5rem; min-width: 8.5rem; }
+.achievement-table--titles :deep(.achievement-col-actions) { width: 14.5rem; min-width: 14.5rem; }
 
 .achievement-table--catalog :deep(.catalog-col-title) { width: 14%; }
 .achievement-table--catalog :deep(.catalog-col-icon) { width: 8%; }
@@ -610,7 +596,7 @@ onMounted(() => void load());
 .achievement-table--catalog :deep(.catalog-col-color) { width: 8%; }
 .achievement-table--catalog :deep(.catalog-col-linkage) { width: 14%; }
 .achievement-table--catalog :deep(.catalog-col-status) { width: 10%; }
-.achievement-table--catalog :deep(.catalog-col-actions) { width: 6.5rem; min-width: 6.5rem; }
+.achievement-table--catalog :deep(.catalog-col-actions) { width: 10.5rem; min-width: 10.5rem; }
 
 .condition-cell {
   display: -webkit-box;

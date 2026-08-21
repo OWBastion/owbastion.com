@@ -186,6 +186,6 @@ function sourcePath(submissionId: string) {
   .mastery-run-detail__split,
   .mastery-run-detail__event-counters { grid-template-columns: 1fr; }
   .mastery-run-detail__actions > *,
-  .mastery-run-detail__conflict-actions > * { flex: 1 1 100%; min-height: 2.75rem; }
+  .mastery-run-detail__conflict-actions > * { flex: 1 1 100%; min-height: 2.75rem; justify-content: center; }
 }
 </style>

@@ -154,7 +154,6 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
   <AdminWorkspace :title="title" :count="api.loading.value ? '读取中…' : map ? `${revisions.length} 个版本修订` : ''">
     <template #actions>
       <UButton to="/admin/maps" label="返回" icon="i-lucide-arrow-left" color="neutral" variant="ghost" />
-      <UButton v-if="map" :to="{ path: '/admin/achievements', query: { section: 'map', mapId: map.mapId } }" label="称号规则" color="neutral" variant="ghost" />
       <UButton v-if="map" class="pressable" label="新建修订" icon="i-lucide-git-branch-plus" color="neutral" variant="outline" @click="openReset" />
     </template>
     <template #messages>
@@ -169,6 +168,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
         <section class="map-identity" aria-label="地图身份">
           <p class="map-identity__id">{{ map.mapId }}</p>
           <p class="type-caption">目录版本 {{ map.gameVersion }}</p>
+          <UButton :to="{ path: '/admin/achievements', query: { section: 'map', mapId: map.mapId } }" label="称号规则" color="neutral" variant="ghost" size="sm" class="map-identity__link" />
         </section>
         <AdminMapRevisionList :revisions="revisions" :selected-revision-id="selectedRevisionId" :disabled="api.saving.value" @select="selectedRevisionId = $event" />
       </aside>
@@ -279,6 +279,11 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
   margin: 0;
   color: var(--quiet);
 }
+.map-identity__link {
+  justify-self: start;
+  min-height: 2.75rem;
+  padding-inline: 0;
+}
 .pane-form__fields,
 .reset-form {
   display: grid;
@@ -342,7 +347,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 }
 @media (max-width: 38.75rem) {
   .pane-toolbar { justify-content: stretch; }
-  .pane-toolbar :deep(button) { width: 100%; }
+  .pane-toolbar :deep(button) { width: 100%; min-height: 2.75rem; }
   .audit-list li { flex-direction: column; gap: 0.35rem; }
 }
 </style>

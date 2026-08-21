@@ -198,7 +198,7 @@ onMounted(() => { void load(); });
   <AdminWorkspace title='标注' :count='loading ? "读取中…" : total + " 条"'>
     <template #actions>
       <UButton label='直接标注' icon='i-lucide-pen-line' color='neutral' variant='outline' @click='openDirect()' />
-      <UButton label='刷新' icon='i-lucide-refresh-cw' color='neutral' variant='outline' :loading='loading' @click='load' />
+      <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />
@@ -251,18 +251,16 @@ onMounted(() => { void load(); });
           <UInput v-model='editValue' size='md' placeholder='审定后的准确值' aria-label='审定值' />
         </div>
       </template>
-      <template v-if='!detailLoading && selectedDetail' #footer>
+      <template v-if='!detailLoading && selectedDetail && (editing || selectedDetail.proposal.reviewState === "pending")' #footer>
         <template v-if='editing'>
           <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='editing = false' />
           <UButton label='保存审定' color='primary' :loading='saving' :disabled='saving || !editValue.trim()' @click='saveEditAccept' />
         </template>
         <template v-else-if='selectedDetail.proposal.reviewState === "pending"'>
-          <UButton :to='`/admin/reviews/${encodeURIComponent(selectedDetail.proposal.submissionId)}`' label='查看来源' color='neutral' variant='ghost' />
           <UButton label='拒绝' color='error' variant='outline' :disabled='saving' @click='decide("reject")' />
           <UButton label='编辑并接受' color='neutral' variant='outline' :disabled='saving' @click='decide("edit_accept")' />
           <UButton label='接受' color='primary' :loading='saving' :disabled='saving' @click='decide("accept")' />
         </template>
-        <UButton v-else :to='`/admin/reviews/${encodeURIComponent(selectedDetail.proposal.submissionId)}`' label='查看来源' color='neutral' variant='ghost' />
       </template>
     </AdminResponsiveDialog>
 

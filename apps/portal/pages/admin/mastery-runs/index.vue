@@ -205,7 +205,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="通关记录" :count="loading ? '读取中…' : `${total} 条`">
-    <template #actions><UButton label="刷新" icon="i-lucide-refresh-cw" color="neutral" variant="outline" :loading="loading" @click="load" /></template>
+    <template #actions><UButton class="admin-workspace__icon-action hit-44" icon="i-lucide-refresh-cw" square color="neutral" variant="outline" aria-label="刷新" :loading="loading" @click="load" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     </template>
@@ -253,16 +253,14 @@ onMounted(() => { void load(); });
       <div v-if="detailLoading" class="detail-loading" role="status" aria-label="读取中"><USkeleton v-for="index in 6" :key="index" class="h-12" /></div>
       <UAlert v-else-if="detailError" color="error" variant="subtle" :description="detailError" />
       <AdminMasteryRunDetail v-else-if="selectedDetail" :detail="selectedDetail" :action-loading="saving || Boolean(pendingAction)" @state="beginStateAction" @conflict="beginConflictAction" />
-    </template>
-    <template v-if="pendingAction" #footer>
-      <div class="mastery-run-confirmation">
+      <div v-if="pendingAction" class="mastery-run-confirmation">
         <p>{{ actionDescription }}</p>
         <UFormField label="操作理由"><UTextarea v-model="reason" aria-label="操作理由" :rows="3" :disabled="saving" /></UFormField>
-        <div class="mastery-run-confirmation__actions">
-          <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="cancelAction" />
-          <UButton :label="actionLabel" :color="actionColor" :loading="saving" @click="saveAction" />
-        </div>
       </div>
+    </template>
+    <template v-if="pendingAction" #footer>
+      <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="cancelAction" />
+      <UButton :label="actionLabel" :color="actionColor" :loading="saving" @click="saveAction" />
     </template>
   </AdminResponsiveDialog>
 </template>
@@ -277,13 +275,10 @@ onMounted(() => { void load(); });
 .run-code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .82rem; }
 .pagination { display: flex; justify-content: center; margin-top: .75rem; }
 .detail-loading { display: grid; gap: .625rem; }
-.mastery-run-confirmation { display: grid; flex: 1 1 100%; gap: .75rem; }
+.mastery-run-confirmation { display: grid; gap: .75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .mastery-run-confirmation p { margin: 0; font-size: .875rem; }
-.mastery-run-confirmation__actions { display: flex; justify-content: flex-end; gap: .5rem; }
 @media (max-width: 620px) {
   .mastery-run-filters { display: grid; grid-template-columns: 1fr; }
   .mastery-run-filters > * { min-width: 0; }
-  .mastery-run-confirmation__actions { justify-content: stretch; }
-  .mastery-run-confirmation__actions > * { flex: 1 1 50%; min-height: 2.75rem; }
 }
 </style>

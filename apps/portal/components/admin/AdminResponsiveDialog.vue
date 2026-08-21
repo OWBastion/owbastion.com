@@ -74,7 +74,7 @@ watch(open, async (value) => {
       close
       :should-scale-background="allowMotion"
       :set-background-color-on-scale="allowMotion"
-      :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body pb-[max(1rem,env(safe-area-inset-bottom))]', footer: 'admin-responsive-dialog__footer glass-segment' }"
+      :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer admin-responsive-dialog__footer--drawer glass-segment pb-[max(0.75rem,env(safe-area-inset-bottom))]' }"
     >
       <template #body><slot name="body" /></template>
       <template v-if="$slots.footer" #footer><slot name="footer" /></template>
@@ -94,13 +94,32 @@ watch(open, async (value) => {
   flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 0.5rem;
   border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent);
+}
+.admin-responsive-dialog__footer :where(button, a) {
+  min-height: 2.75rem;
+}
+.admin-responsive-dialog__footer--drawer {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 .admin-responsive-dialog__body {
   min-height: 0;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+@media (max-width: 767px) {
+  .admin-responsive-dialog__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .admin-responsive-dialog__footer > * {
+    width: 100%;
+  }
+  .admin-responsive-dialog__footer :where(button, a) {
+    width: 100%;
+    justify-content: center;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-responsive-dialog__content { transition-duration: 1ms !important; }
