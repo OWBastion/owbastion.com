@@ -43,7 +43,6 @@ export type RuntimeEnv = {
   EVIDENCE_BUCKET?: R2Bucket;
   QQBOT_API_TOKEN?: string;
   BASTION_BUILD_TOKEN?: string;
-  LOGIN_SESSION_TTL_MS?: string;
   PORTAL_ORIGIN?: string;
   LOCAL_DEV_AUTH?: string;
   UPLOAD_ORIGIN?: string;
@@ -108,7 +107,6 @@ const logServiceOperation = async <T>(c: any, operation: string, action: () => P
       routeClass: routeClassForPath(new URL(c.req.url).pathname),
       operation,
       durationMs: Date.now() - startedAt,
-      catalogKvOperationCount: operation.startsWith("catalog_") ? 0 : undefined,
     }));
   }
 };
