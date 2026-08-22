@@ -1,4 +1,4 @@
-import { authenticatePlatformActor } from "@owbastion/auth";
+import { authenticateQqBot } from "@owbastion/auth";
 import { createMasteryEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
@@ -14,7 +14,7 @@ const masteryCompatibility = (env: RuntimeEnv) => createMasteryEvidenceCompatibi
 });
 
 const app = createApp({
-  authenticate: authenticatePlatformActor,
+  authenticate: authenticateQqBot,
   services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.OCRKIT_EVIDENCE_BUCKET, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, env.EVIDENCE_PUBLIC_ORIGIN, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env)),
 });
 

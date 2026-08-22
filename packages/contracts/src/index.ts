@@ -227,7 +227,6 @@ export const achievementChallengeSchema = z.object({
 
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
 
-export const challengeListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) });
 
 export const mapSchema = z.object({
   mapId: externalId,
@@ -239,7 +238,6 @@ export const mapSchema = z.object({
   backgroundUrl: z.string().trim().url().max(2048).nullable(),
 });
 
-export const mapListResponseSchema = z.object({ contractVersion, items: z.array(mapSchema) });
 
 const finiteCoordinate = z.number().refine(Number.isFinite, "Coordinate must be finite");
 const vector3 = z.tuple([finiteCoordinate, finiteCoordinate, finiteCoordinate]);
@@ -331,7 +329,6 @@ const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) });
-export const adminRandomEventImportPreviewSchema = z.object({ sourceHash: z.string(), validRowCount: z.number().int().nonnegative(), errors: z.array(z.object({ row: z.number().int().positive(), message: z.string() })), rows: z.array(z.object({ name: z.string(), category: z.string(), releaseStatus: randomEventStatus })).max(20) });
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.object({ targetType: reviewTargetTypeSchema, targetId: externalId }).strict();
@@ -346,7 +343,6 @@ export const publicReviewSummarySchema = z.object({
   sampleInsufficient: z.boolean(),
 }).strict();
 export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
-export const publicReviewSummaryBatchResponseSchema = z.object({ contractVersion, targetType: reviewTargetTypeSchema, items: z.array(publicReviewSummarySchema).max(100) }).strict();
 export const publicReviewCommentSchema = z.object({
   rating: z.number().int().min(1).max(5),
   comment: reviewComment,
@@ -486,7 +482,6 @@ export const titleSchema = z.object({
   gameVersion: z.string().trim().min(1).max(64),
 });
 
-export const titleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) });
 
 const agentPage = z.object({
   page: z.number().int().positive(),
@@ -505,13 +500,11 @@ export const agentMapTitleHolderSchema = z.object({ mapId: externalId, gameplayR
 export const agentMapTitleHolderListResponseSchema = z.object({ contractVersion, items: z.array(agentMapTitleHolderSchema) }).merge(agentPage);
 export const agentSearchResultSchema = z.object({ kind: z.enum(["event", "map", "achievement", "title"]), id: externalId, name: z.string().trim().min(1).max(256), summary: z.string().trim().min(1).max(4096) });
 export const agentSearchResponseSchema = z.object({ contractVersion, items: z.array(agentSearchResultSchema) }).merge(agentPage);
-export const agentPageQuerySchema = agentPageQuery;
 
 export const ownedTitleSchema = z.object({
   grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().max(2048).nullable().optional(), category: z.string(),
   condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
 });
-export const ownedTitleListResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema) });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
 export const adminHistoricalTitleHolderFilterSchema = z.enum(["all", "pending", "completed"]);
@@ -1083,7 +1076,6 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
 
 export const adminAnnotationProposalStateSchema = z.enum(["pending", "accepted", "rejected"]);
 export const adminAnnotationPriorityCategorySchema = z.enum(["correction", "calibration_failure", "uncertain", "repeat", "confirmation"]);
-export const adminAnnotationKindSchema = z.enum(["correction", "confirmation"]);
 
 export const adminAnnotationProposalSchema = z.object({
   proposalId: z.string().uuid(),
@@ -1383,8 +1375,6 @@ export type BindingClaimStatusResponse = z.infer<typeof bindingClaimStatusRespon
 export type BindingClaimSessionResponse = z.infer<typeof bindingClaimSessionResponseSchema>;
 export type QqBindingClaimVerifyRequest = z.infer<typeof qqBindingClaimVerifyRequestSchema>;
 export type AdminBindingClaimDecisionRequest = z.infer<typeof adminBindingClaimDecisionRequestSchema>;
-export type AdminBindingClaimOperationType = z.infer<typeof adminBindingClaimOperationTypeSchema>;
-export type AdminBindingClaim = z.infer<typeof adminBindingClaimSchema>;
 export type AdminBindingClaimListResponse = z.infer<typeof adminBindingClaimListResponseSchema>;
 export type QqLoginAttemptRequest = z.infer<typeof qqLoginAttemptRequestSchema>;
 export type QqLoginAttemptResponse = z.infer<typeof qqLoginAttemptResponseSchema>;
@@ -1394,9 +1384,7 @@ export type QqLoginVerifyResponse = z.infer<typeof qqLoginVerifyResponseSchema>;
 export type QqGroupAccessRequest = z.infer<typeof qqGroupAccessRequestSchema>;
 export type QqGroupAccessResponse = z.infer<typeof qqGroupAccessResponseSchema>;
 export type QqGroupRegistrationRequest = z.infer<typeof qqGroupRegistrationRequestSchema>;
-export type AdminPlayerSummary = z.infer<typeof adminPlayerSummarySchema>;
 export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
-export type AdminPlayerRecentSubmission = z.infer<typeof adminPlayerRecentSubmissionSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;
 export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;
@@ -1404,7 +1392,6 @@ export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
-export type PlayerSubmissionOcrFeedback = z.infer<typeof playerSubmissionOcrFeedbackSchema>;
 export type PlayerOcrFeedbackRequest = z.infer<typeof playerOcrFeedbackRequestSchema>;
 export type PlayerOcrFeedbackResponse = z.infer<typeof playerOcrFeedbackResponseSchema>;
 export type OcrFeedbackFieldKey = z.infer<typeof ocrFeedbackFieldKeySchema>;
@@ -1420,9 +1407,7 @@ export type AdminAnnotationDirectCreateRequest = z.infer<typeof adminAnnotationD
 export type AdminAnnotationDirectCreateResponse = z.infer<typeof adminAnnotationDirectCreateResponseSchema>;
 export type AdminDatasetSnapshot = z.infer<typeof adminDatasetSnapshotSchema>;
 export type AdminDatasetListResponse = z.infer<typeof adminDatasetListResponseSchema>;
-export type AdminDatasetCreateRequest = z.infer<typeof adminDatasetCreateRequestSchema>;
 export type AdminDatasetCreateResponse = z.infer<typeof adminDatasetCreateResponseSchema>;
-export type AdminDatasetFinalizeRequest = z.infer<typeof adminDatasetFinalizeRequestSchema>;
 export type AdminDatasetFinalizeResponse = z.infer<typeof adminDatasetFinalizeResponseSchema>;
 export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailResponseSchema>;
 export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
@@ -1430,37 +1415,23 @@ export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionCh
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;
 export type PlayerMasteryRun = z.infer<typeof playerMasteryRunSchema>;
-export type PlayerMasteryDifficultyStat = z.infer<typeof playerMasteryDifficultyStatSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
 export type CurrentPlayerMasteryResponse = z.infer<typeof currentPlayerMasteryResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
 export type Challenge = z.infer<typeof challengeSchema>;
 export type Map = z.infer<typeof mapSchema>;
-export type MapListResponse = z.infer<typeof mapListResponseSchema>;
 export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
-export type AgentMapChallengeRef = z.infer<typeof agentMapChallengeRefSchema>;
-export type AgentGameplayRevision = z.infer<typeof agentGameplayRevisionSchema>;
 export type AgentMap = z.infer<typeof agentMapSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
-export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
-export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
-export type PublicReviewSummaryBatchResponse = z.infer<typeof publicReviewSummaryBatchResponseSchema>;
 export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
 export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
 export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
-export type PlayerReviewUpsertRequest = z.infer<typeof playerReviewUpsertRequestSchema>;
-export type PlayerReviewUpsertResponse = z.infer<typeof playerReviewUpsertResponseSchema>;
-export type PlayerReviewWithdrawRequest = z.infer<typeof playerReviewWithdrawRequestSchema>;
-export type PlayerReviewWithdrawResponse = z.infer<typeof playerReviewWithdrawResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
-export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
-export type AdminReviewCommentModerationRequest = z.infer<typeof adminReviewCommentModerationRequestSchema>;
-export type AdminReviewStateModerationRequest = z.infer<typeof adminReviewStateModerationRequestSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
@@ -1473,29 +1444,22 @@ export type AdminMapRevision = z.infer<typeof adminMapRevisionSchema>;
 export type AdminMapEditorAudit = z.infer<typeof adminMapEditorAuditSchema>;
 export type AdminMapEditorResponse = z.infer<typeof adminMapEditorResponseSchema>;
 export type Title = z.infer<typeof titleSchema>;
-export type TitleListResponse = z.infer<typeof titleListResponseSchema>;
 export type AgentEventListResponse = z.infer<typeof agentEventListResponseSchema>;
 export type AgentMapListResponse = z.infer<typeof agentMapListResponseSchema>;
 export type AgentAchievementListResponse = z.infer<typeof agentAchievementListResponseSchema>;
 export type AgentTitleListResponse = z.infer<typeof agentTitleListResponseSchema>;
-export type AgentPlayerTitleGrant = z.infer<typeof agentPlayerTitleGrantSchema>;
 export type AgentPlayerTitleGrantListResponse = z.infer<typeof agentPlayerTitleGrantListResponseSchema>;
-export type AgentMapTitleHolder = z.infer<typeof agentMapTitleHolderSchema>;
 export type AgentMapTitleHolderListResponse = z.infer<typeof agentMapTitleHolderListResponseSchema>;
 export type AgentSearchResult = z.infer<typeof agentSearchResultSchema>;
 export type AgentSearchResponse = z.infer<typeof agentSearchResponseSchema>;
 export type OwnedTitle = z.infer<typeof ownedTitleSchema>;
-export type OwnedTitleListResponse = z.infer<typeof ownedTitleListResponseSchema>;
 export type HistoricalTitleGrant = z.infer<typeof historicalTitleGrantSchema>;
-export type HistoricalTitleGrantListResponse = z.infer<typeof historicalTitleGrantListResponseSchema>;
-export type AdminHistoricalTitleHolder = z.infer<typeof adminHistoricalTitleHolderSchema>;
 export type AdminHistoricalTitleHolderFilter = z.infer<typeof adminHistoricalTitleHolderFilterSchema>;
 export type AdminTitleGrantListResponse = z.infer<typeof adminTitleGrantListResponseSchema>;
 export type AdminTitleGrantHolderDetailResponse = z.infer<typeof adminTitleGrantHolderDetailResponseSchema>;
 export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema>;
 export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
-export type AdminTitleGrantRevokeRequest = z.infer<typeof adminTitleGrantRevokeRequestSchema>;
 export type AdminManualTitleGrantRequest = z.infer<typeof adminManualTitleGrantRequestSchema>;
 export type AdminManualTitleGrantResponse = z.infer<typeof adminManualTitleGrantResponseSchema>;
 export type AdminChallenge = z.infer<typeof adminChallengeSchema>;
@@ -1511,20 +1475,17 @@ export type AdminMapTitleInheritanceResponse = z.infer<typeof adminMapTitleInher
 export type AdminMapTitleRuleExceptionUpsertRequest = z.infer<typeof adminMapTitleRuleExceptionUpsertRequestSchema>;
 export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionRequestSchema>;
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
-export type PlayerUploadCompleteRequest = z.infer<typeof playerUploadCompleteRequestSchema>;
 export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
 export type AdminSubmissionChallengeRequest = z.infer<typeof adminSubmissionChallengeRequestSchema>;
 export type AdminSubmissionChallengeResponse = z.infer<typeof adminSubmissionChallengeResponseSchema>;
-export type AdminSubmissionOcrRetryRequest = z.infer<typeof adminSubmissionOcrRetryRequestSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
 export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;
 export type AdminMasteryRun = z.infer<typeof adminMasteryRunSchema>;
 export type AdminMasteryRunProjection = z.infer<typeof adminMasteryRunProjectionSchema>;
-export type AdminMasteryRunLifecycleEvent = z.infer<typeof adminMasteryRunLifecycleEventSchema>;
 export type AdminMasteryRunConflict = z.infer<typeof adminMasteryRunConflictSchema>;
 export type AdminMasteryRunListResponse = z.infer<typeof adminMasteryRunListResponseSchema>;
 export type AdminMasteryRunDetailResponse = z.infer<typeof adminMasteryRunDetailResponseSchema>;

@@ -50,7 +50,6 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
         PlayerRecentSubmissions: { template: "<div data-testid='submissions'>submissions</div>" },
         MasteryMapOverview: { template: "<div data-testid='mastery'>mastery</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
-        TitleCollection: true,
         UButton: {
           props: ["to", "label", "loading"],
           emits: ["click"],
