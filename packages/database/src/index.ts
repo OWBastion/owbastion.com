@@ -2694,7 +2694,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId })
         .from(playerTitleGrants)
         .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "global")))
+        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global")))
         .where(and(eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId))).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
       const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitleKeys: Set<string> }>();
       for (const row of rows) {
