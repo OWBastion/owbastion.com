@@ -124,7 +124,7 @@ function setRunQuery(runId: string | null) {
   const query = { ...route.query };
   if (runId) query.runId = runId;
   else delete query.runId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
 }
 
 async function openDetail(masteryRunId: string) {

@@ -98,7 +98,7 @@ function setProposalQuery(proposalId: string | null) {
   const query = { ...route.query };
   if (proposalId) query.proposalId = proposalId;
   else delete query.proposalId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
 }
 
 async function openProposal(proposalId: string) {
@@ -176,7 +176,7 @@ watch(() => route.query.submissionId, (value) => {
   openDirect(id.trim());
   const query = { ...route.query };
   delete query.submissionId;
-  void router.replace({ path: route.path, query });
+  void router.replace({ path: route.path, query }).catch(() => {});
 }, { immediate: true });
 
 watch(() => route.query.proposalId, (value) => {

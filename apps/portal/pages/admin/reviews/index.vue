@@ -91,7 +91,7 @@ watch([reviewStatus, spotCheckFilter], () => {
   const query = { ...route.query };
   if (reviewStatus.value === "queue") delete query.status;
   else query.status = reviewStatus.value;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
   void load();
 });
 watch(() => route.query.status, (value) => {

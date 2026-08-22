@@ -76,7 +76,7 @@ function setDatasetQuery(datasetId: string | null) {
   const query = { ...route.query };
   if (datasetId) query.datasetId = datasetId;
   else delete query.datasetId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query });
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
 }
 
 async function openDetail(datasetId: string) {
