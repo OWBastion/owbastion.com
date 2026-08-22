@@ -1,6 +1,6 @@
 import type { AuthContext, Authenticator } from "@owbastion/domain";
 
-export type ServiceAuthEnv = {
+type ServiceAuthEnv = {
   QQBOT_API_TOKEN?: string;
 };
 
@@ -19,5 +19,3 @@ export const authenticateQqBot: Authenticator<ServiceAuthEnv> = async (request, 
     provider: "cloudflare-service-token",
   };
 };
-
-export const authenticatePlatformActor: Authenticator<ServiceAuthEnv> = authenticateQqBot;
