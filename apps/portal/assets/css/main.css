@@ -225,13 +225,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* -------------------------------------------------------------------------- */
-/* N-05 — text on glass                                                       */
-/* -------------------------------------------------------------------------- */
-.glass-text { color: var(--text-on-glass); font-weight: 650; }
-.glass-text-secondary { color: var(--text-on-glass-secondary); font-weight: 650; }
-.glass-text-quiet { color: var(--text-on-glass-quiet); font-weight: 650; }
-
-/* -------------------------------------------------------------------------- */
 /* N-06 — soft scroll edge under sticky floating chrome                       */
 /* -------------------------------------------------------------------------- */
 .scroll-edge {
@@ -470,14 +463,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
-}
-.table-action-danger {
-  color: var(--danger);
-}
-.table-action-danger:hover,
-.table-action-danger:focus-visible {
-  color: var(--danger);
-  background: color-mix(in oklch, var(--danger) 12%, transparent);
 }
 /* Labeled UButtons in row actions must not scale or reflow on hover/press. */
 .table-actions :where(button, a, [role="button"]):not(.table-action) {
