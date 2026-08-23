@@ -340,6 +340,24 @@ export const submissions = sqliteTable("submissions", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const submissionChallengeSelections = sqliteTable("submission_challenge_selections", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull().references(() => submissions.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  challengeType: text("challenge_type").notNull(),
+  challengeId: text("challenge_id").notNull(),
+  targetMapId: text("target_map_id").references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
+  mapName: text("map_name").notNull(),
+  difficulty: text("difficulty"),
+  ruleSnapshotJson: text("rule_snapshot_json"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  submissionPositionIdx: uniqueIndex("submission_challenge_selections_submission_position_idx").on(table.submissionId, table.position),
+  submissionIdx: index("submission_challenge_selections_submission_idx").on(table.submissionId),
+}));
+
 export const masteryRuns = sqliteTable("mastery_runs", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),

@@ -63,7 +63,7 @@ const services: PlatformServices = {
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
-  selectAdminSubmissionChallenge: async ({ submissionId, challengeId }) => ({ contractVersion: "1", submissionId, status: "ready_for_review", challengeId }),
+  selectAdminSubmissionChallenge: async ({ submissionId, challengeId, selections }) => { const selected = selections ?? [{ challengeId: challengeId! }]; return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected[0].challengeId, selections: selected }; },
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, masteryRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
@@ -1422,10 +1422,10 @@ describe("API", () => {
 
   it("lets maintainers select a submission challenge", async () => {
     const selections: string[] = [];
-    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, challengeId, gameplayRevisionId }) => { selections.push(`${submissionId}:${challengeId}:${gameplayRevisionId}`); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId }; } }) });
-    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }) }, env);
+    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, selections: selected }) => { selections.push(...selected!.map((selection) => `${submissionId}:${selection.challengeId}:${selection.gameplayRevisionId ?? ""}`)); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected![0].challengeId, selections: selected! }; } }) });
+    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", selections: [{ challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }, { challengeId: "title.hero" }] }) }, env);
     expect(response.status).toBe(200);
-    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework"]);
+    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework", "00000000-0000-0000-0000-000000000000:title.hero:"]);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

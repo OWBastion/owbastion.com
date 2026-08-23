@@ -19,7 +19,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   review: [decision: ReviewDecision];
-  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }];
+  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "retry-ocr": [];
@@ -62,6 +62,12 @@ function emitSpotCheck(decision: SpotCheckDecision) {
 function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
+
+const selectedChallengeNames = computed(() => (props.submission.challengeSelections ?? []).map((selection) => {
+  const challenge = selection.challenge;
+  if (!challenge) return null;
+  return challenge.family === "achievement" ? challenge.titleName : challenge.name;
+}).filter((name): name is string => Boolean(name)));
 
 const challengeSummary = computed(() => {
   const challenge = props.submission.challenge;
@@ -131,6 +137,7 @@ const challengeSummary = computed(() => {
         <header class="claim-card__header">
           <div class="claim-card__title-block">
             <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
+            <p v-if="selectedChallengeNames.length > 1" class="claim-card__multiple">已选 {{ selectedChallengeNames.length }} 个挑战：{{ selectedChallengeNames.join("、") }}</p>
           </div>
           <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
         </header>

@@ -216,6 +216,7 @@ describe("v1 platform contracts", () => {
 
   it("validates an administrator challenge selection", () => {
     expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso" }).success).toBe(true);
+    expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", selections: [{ challengeId: "title.hero" }, { challengeId: "map.paraiso.conqueror", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:initial" }] }).success).toBe(true);
     expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", challengeId: "" }).success).toBe(false);
   });
 

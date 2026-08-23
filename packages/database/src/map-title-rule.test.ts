@@ -243,6 +243,21 @@ const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE submission_challenge_selections (
+      id TEXT PRIMARY KEY NOT NULL,
+      submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      challenge_type TEXT NOT NULL,
+      challenge_id TEXT NOT NULL,
+      target_map_id TEXT REFERENCES maps(id),
+      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
+      map_name TEXT NOT NULL,
+      difficulty TEXT,
+      rule_snapshot_json TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (submission_id, position)
+    );
     CREATE TABLE mastery_runs (
       id TEXT PRIMARY KEY NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -1340,6 +1355,39 @@ describe("map title rule model – locked invariants", () => {
 
       expect(result).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
       expect(sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, map_name FROM submissions WHERE id = 'submission.achievement'").get()).toMatchObject({ status: "ready_for_review", challenge_type: "title_achievement", challenge_id: "title.hero", target_map_id: null, map_name: "成就挑战" });
+    });
+
+    it("selects and reviews multiple completed achievement candidates", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedTitle(sqlite, "HERO");
+      seedTitle(sqlite, "SECOND");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'SECOND')").run();
+      const insertChallenge = (id: string, key: string) => sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(id, key, now, now);
+      insertChallenge("title.hero", "HERO");
+      insertChallenge("title.second", "SECOND");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.multi', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.multi', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.multi', 'submission.multi', 1, 'review_required', ?, ?, ?)").run(
+        JSON.stringify({ data: {} }),
+        JSON.stringify({ candidates: [
+          { challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } },
+          { challengeId: "title.second", challengeType: "title_achievement", titleName: "称号 SECOND", match: { achievement: true } },
+        ] }),
+        now,
+      );
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      const selection = await services.selectAdminSubmissionChallenge({ submissionId: "submission.multi", selections: [{ challengeId: "title.hero" }, { challengeId: "title.second" }] }, auth, "challenge-select.multi");
+      expect(selection.selections).toEqual([{ challengeId: "title.hero" }, { challengeId: "title.second" }]);
+      expect(sqlite.prepare("SELECT challenge_id FROM submission_challenge_selections WHERE submission_id = ? ORDER BY position").all("submission.multi")).toEqual([{ challenge_id: "title.hero" }, { challenge_id: "title.second" }]);
+
+      const result = await services.reviewSubmission({ submissionId: "submission.multi", decision: "approved" } as never, auth, "review.multi");
+      expect(result).toMatchObject({ decision: "approved", grants: [{ titleKey: "HERO" }, { titleKey: "SECOND" }] });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi'").get()).toEqual({ count: 2 });
+      expect(sqlite.prepare("SELECT outcome_type, COUNT(*) AS count FROM submission_outcomes WHERE submission_id = 'submission.multi' GROUP BY outcome_type ORDER BY outcome_type").all()).toEqual([{ outcome_type: "challenge", count: 2 }, { outcome_type: "title_grant", count: 2 }]);
     });
 
     it("does not expose a legacy map-title row alongside its rule projection", async () => {

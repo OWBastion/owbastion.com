@@ -87,9 +87,11 @@ The current API implements versioned v1 QQ flows:
   become `ocr_review_required`, while an explicit mismatch becomes
   `resubmission_required`;
 - the maintainer Portal can inspect private evidence and OCR output and record
-  an idempotent review decision. A title approval atomically creates or reuses
-  the platform title Grant and links it to the Submission; a mastery-only
-  approval records its accepted mastery outcome without a title Grant.
+  an idempotent review decision. For ambiguous evidence, the maintainer may
+  select every checked achievement supported by the screenshot; approval
+  atomically creates or reuses each platform title Grant and links each
+  selected challenge outcome to the Submission. A mastery-only approval
+  records its accepted mastery outcome without a title Grant.
 - maintainer-only mastery-run reads list and filter verified runs by player,
   map, difficulty, lifecycle state, accepted date, acceptance origin, and run
   code. Detail includes the source Submission/evidence route, recognized
@@ -210,15 +212,17 @@ upload_pending
 ~~~
 
 When an ambiguous automatic match enters `ocr_review_required`, a maintainer
-may select a general achievement with checked title evidence or a challenge
-belonging to the map identified in that submission's OCR evidence. A map
+may select one or more general achievements with checked title evidence or
+map challenges belonging to the map identified in that submission's OCR
+evidence. A map
 candidate must carry the persisted map identity and match the OCR map name;
 when OCR has recognized a difficulty, a manual map candidate must also carry
 that same difficulty. The platform rejects challenges outside that candidate
 set, including legacy candidates with missing scope data; it must not fall
-back to the full active challenge catalog. It persists the selected challenge,
-records an audit event, and moves the submission to `ready_for_review`; the
-final approval still uses the ordinary review and Grant transaction.
+back to the full active challenge catalog. It persists the ordered selection
+set, records an audit event, and moves the submission to `ready_for_review`;
+the final approval grants every selected reward in one review transaction
+while retaining one primary challenge for legacy views.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,

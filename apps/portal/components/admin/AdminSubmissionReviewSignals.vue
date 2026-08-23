@@ -26,7 +26,7 @@ const props = defineProps<{
   /** Force a single-column stack (decision rail / narrow column). */
   stacked?: boolean;
 }>();
-const emit = defineEmits<{ "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }] }>();
+const emit = defineEmits<{ "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]] }>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
@@ -50,7 +50,7 @@ const visibleCandidates = computed(() => candidates.value.filter((candidate) => 
 }));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
-const selectedCandidateId = ref("");
+const selectedCandidateIds = ref<string[]>([]);
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
 const ocrDisplayValue = (name: string, value: unknown) => name === "map_variant" ? mapVariantLabel(value) : ocrValue(value);
@@ -72,9 +72,9 @@ const candidateResultLabel = (candidate: MatchCandidate) => {
 };
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
 const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}:${candidate.gameplayRevisionId ?? ""}`;
-watch([() => props.submission.challengeId, () => props.submission.gameplayRevisionId, visibleCandidates], ([challengeId, gameplayRevisionId, candidates]) => {
-  const currentCandidate = candidates.find((candidate) => candidate.challengeId === challengeId && (!gameplayRevisionId || candidate.gameplayRevisionId === gameplayRevisionId));
-  selectedCandidateId.value = currentCandidate ? candidateKey(currentCandidate) : challengeId || "";
+watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId, visibleCandidates], ([challengeSelections, challengeId, gameplayRevisionId, candidates]) => {
+  const persistedKeys = (challengeSelections?.length ? challengeSelections : [{ challengeId, mapId: undefined, gameplayRevisionId }]).map((selection) => `${selection.challengeId ?? ""}:${selection.mapId ?? ""}:${selection.gameplayRevisionId ?? ""}`);
+  selectedCandidateIds.value = candidates.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
 }, { immediate: true });
 const candidateStatusLabel = (candidate: MatchCandidate) => {
   if (candidate.titleName && candidate.match?.achievement !== true) return "无勾选证据";
@@ -84,12 +84,15 @@ const candidateStatusLabel = (candidate: MatchCandidate) => {
   return "低置信度";
 };
 const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
-const selectedCandidate = computed(() => visibleCandidates.value.find((candidate) => candidateKey(candidate) === selectedCandidateId.value) ?? null);
-const isCurrentCandidate = (candidate: MatchCandidate) => candidate.challengeId === props.submission.challengeId && (!props.submission.gameplayRevisionId || candidate.gameplayRevisionId === props.submission.gameplayRevisionId) && visibleCandidates.value.includes(candidate);
-const selectCandidate = (candidate: MatchCandidate) => { selectedCandidateId.value = candidateKey(candidate); };
+const selectedCandidates = computed(() => visibleCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
+const isCurrentCandidate = (candidate: MatchCandidate) => selectedCandidateIds.value.includes(candidateKey(candidate));
+const selectCandidate = (candidate: MatchCandidate) => {
+  const key = candidateKey(candidate);
+  selectedCandidateIds.value = selectedCandidateIds.value.includes(key) ? selectedCandidateIds.value.filter((value) => value !== key) : [...selectedCandidateIds.value, key];
+};
 const saveSelectedCandidate = () => {
-  if (!selectedCandidate.value?.challengeId || props.challengeSelectionLoading) return;
-  emit("select-challenge", { challengeId: selectedCandidate.value.challengeId, ...(selectedCandidate.value.mapId ? { mapId: selectedCandidate.value.mapId } : {}), ...(selectedCandidate.value.gameplayRevisionId ? { gameplayRevisionId: selectedCandidate.value.gameplayRevisionId } : {}) });
+  if (!selectedCandidates.value.length || props.challengeSelectionLoading) return;
+  emit("select-challenge", selectedCandidates.value.map((candidate) => ({ challengeId: candidate.challengeId!, ...(candidate.mapId ? { mapId: candidate.mapId } : {}), ...(candidate.gameplayRevisionId ? { gameplayRevisionId: candidate.gameplayRevisionId } : {}) })));
 };
 </script>
 
@@ -105,7 +108,7 @@ const saveSelectedCandidate = () => {
       </header>
       <p v-if="submission.reason" class="signal-reason">{{ submission.reason }}</p>
       <div v-if="visibleCandidates.length" class="match-candidates">
-        <button v-for="candidate in visibleCandidates" :key="candidateKey(candidate)" class="match-candidate pressable-soft" :class="{ 'match-candidate--selected': selectedCandidateId === candidateKey(candidate) }" type="button" :aria-pressed="selectedCandidateId === candidateKey(candidate)" :disabled="challengeSelectionLoading" @click="selectCandidate(candidate)">
+        <button v-for="candidate in visibleCandidates" :key="candidateKey(candidate)" class="match-candidate pressable-soft" :class="{ 'match-candidate--selected': selectedCandidateIds.includes(candidateKey(candidate)) }" type="button" :aria-pressed="selectedCandidateIds.includes(candidateKey(candidate))" :disabled="challengeSelectionLoading" @click="selectCandidate(candidate)">
           <div class="match-candidate__title">
             <strong>{{ candidateResultLabel(candidate) }}</strong>
             <span class="candidate-scope">{{ candidateScopeLabel(candidate) }}</span>
@@ -115,8 +118,9 @@ const saveSelectedCandidate = () => {
         </button>
       </div>
       <p v-else class="signal-empty">暂无可选挑战</p>
-      <div v-if="selectedCandidate && !isCurrentCandidate(selectedCandidate)" class="candidate-selection">
-        <UButton class="pressable" type="button" label="设为当前挑战" icon="i-lucide-check" color="primary" :loading="challengeSelectionLoading" :disabled="challengeSelectionLoading" @click="saveSelectedCandidate" />
+      <p v-if="visibleCandidates.length > 1" class="signal-note">可同时选择截图中已完成的多个挑战。</p>
+      <div v-if="selectedCandidates.length" class="candidate-selection">
+        <UButton class="pressable" type="button" label="保存所选挑战" icon="i-lucide-check" color="primary" :loading="challengeSelectionLoading" :disabled="challengeSelectionLoading" @click="saveSelectedCandidate" />
       </div>
       <p v-if="challengeSelectionError" class="signal-error" role="alert">{{ challengeSelectionError }}</p>
     </section>
