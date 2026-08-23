@@ -14,7 +14,7 @@ import {
   adminTitleGrantRequestSchema,
   adminTitleGrantBulkRequestSchema,
   adminTitleGrantRevokeRequestSchema,
-  adminManualTitleGrantRequestSchema,
+  adminManualTitleGrantRequestSchema, adminManualTitleGrantBatchRequestSchema,
   adminChallengeUpdateRequestSchema,
   adminAchievementCreateRequestSchema,
   adminCatalogTitleUpdateRequestSchema,
@@ -1327,7 +1327,24 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_TITLE_GRANT_FAILED";
       if (["PLAYER_NOT_FOUND", "TITLE_NOT_FOUND", "MAP_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The requested player, title, or map does not exist");
-      if (["GLOBAL_TITLE_CANNOT_HAVE_MAP", "MAP_TITLE_REQUIRES_MAP", "TITLE_MAP_REWARD_NOT_CONFIGURED"].includes(code)) return errorResponse(c, 422, code, "The title and map combination is invalid");
+      if (["GLOBAL_TITLE_CANNOT_HAVE_MAP", "MAP_TITLE_REQUIRES_MAP", "TITLE_MAP_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "GAMEPLAY_REVISION_INVALID"].includes(code)) return errorResponse(c, 422, code, "The title, map, and gameplay revision combination is invalid");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/title-grants/manual/batch", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminManualTitleGrantBatchRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createAdminManualTitleGrantBatch(parsed.data, access.auth!, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "MANUAL_TITLE_GRANT_BATCH_FAILED";
+      if (code === "PLAYER_NOT_FOUND" || code === "TITLE_NOT_FOUND" || code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The requested player, title, or map does not exist");
+      if (["GLOBAL_TITLE_CANNOT_HAVE_MAP", "MAP_TITLE_REQUIRES_MAP", "TITLE_MAP_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "GAMEPLAY_REVISION_INVALID", "MANUAL_TITLE_GRANT_BATCH_TOO_LARGE"].includes(code)) return errorResponse(c, 422, code, "The title, map, gameplay revision, or batch size is invalid");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

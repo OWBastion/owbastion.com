@@ -73,9 +73,13 @@ The current API implements versioned v1 QQ flows:
   names are never matched or claimed automatically;
 - maintainers can directly create a `manual` title Grant for an existing
   player and catalog title for leak correction, appeals, or special rewards.
-  Global titles have no map context; map titles require a configured
-  `map_title_rewards` association. Retired catalog titles remain eligible when
-  explicitly selected by a maintainer;
+  Global titles have no map context; map titles require a configured map title
+  rule, challenge, or reward association. Retired catalog titles remain eligible when
+  explicitly selected by a maintainer. The dedicated
+  `/v1/admin/title-grants/manual/batch` route applies the same validation and
+  resolution rules to a bounded Cartesian product of players and title targets;
+  it is distinct from historical migration `/bulk`, and its active Grants are
+  consumed by the existing public and Agents projections;
 - maintainers can update a player's BattleTag display name while keeping the
   numeric player ID stable; the update is idempotent, rejects a normalized-name
   conflict with another account sharing the same numeric ID, and records an

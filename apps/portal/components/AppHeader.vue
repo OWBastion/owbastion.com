@@ -35,6 +35,7 @@ const adminNavigationItems = [
     icon: "i-lucide-award",
     children: [
       { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements" },
+      { label: "批量发放", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants" },
       { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
     ],
   },

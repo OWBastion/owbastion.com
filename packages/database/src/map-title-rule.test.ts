@@ -898,6 +898,50 @@ describe("Admin map revision editor", () => {
   });
 });
 
+describe("manual title grant batches", () => {
+  it("expands, deduplicates, resolves revisions, reuses active grants, and replays atomically", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    const playerOne = "11111111-1111-4111-8111-111111111111";
+    const playerTwo = "22222222-2222-4222-8222-222222222222";
+    seedMap(sqlite, "map.batch");
+    seedTitle(sqlite, "CONQUEROR");
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL', '全局称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+    const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.batch");
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.batch", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', ?, ?), (?, ?, ?, ?, 0, 'active', ?, ?)").run(playerOne, "1001", "One", "one", now, now, playerTwo, "1002", "Two", "two", now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.existing', ?, 'GLOBAL', NULL, NULL, NULL, 'active', 'manual', 'manual:existing', 'admin', ?)").run(playerTwo, now);
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const request = {
+      contractVersion: "1" as const,
+      playerAccountIds: [playerOne, playerTwo, playerOne],
+      targets: [
+        { titleKey: "GLOBAL" },
+        { titleKey: "CONQUEROR", mapId: "map.batch", gameplayRevisionId: reworkRevisionId },
+        { titleKey: "CONQUEROR", mapId: "map.batch", gameplayRevisionId: reworkRevisionId },
+      ],
+      reason: "批量补发",
+    };
+    const first = await services.createAdminManualTitleGrantBatch(request, auth, "manual-batch-1");
+    expect(first).toMatchObject({ playerCount: 2, targetCount: 2, requestedCount: 4, createdCount: 3, alreadyOwnedCount: 1 });
+    expect(first.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerAccountId: playerTwo, titleKey: "GLOBAL", status: "already_owned", grantId: "grant.existing" }),
+      expect.objectContaining({ playerAccountId: playerOne, titleKey: "CONQUEROR", mapId: "map.batch", gameplayRevisionId: reworkRevisionId, status: "created" }),
+    ]));
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_type = 'manual'").get()).toEqual({ count: 4 });
+    expect(sqlite.prepare("SELECT COUNT(DISTINCT source_id) AS count FROM player_title_grants WHERE source_type = 'manual' AND title_key = 'CONQUEROR'").get()).toEqual({ count: 2 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.grant.manual.batch'").get()).toEqual({ count: 1 });
+
+    await expect(services.createAdminManualTitleGrantBatch(request, auth, "manual-batch-1")).resolves.toEqual(first);
+    await expect(services.createAdminManualTitleGrantBatch({ ...request, reason: "不同请求" }, auth, "manual-batch-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    await expect(services.createAdminManualTitleGrantBatch({ ...request, targets: [{ titleKey: "CONQUEROR", mapId: "map.batch", gameplayRevisionId: "revision:other-map:rework" }] }, auth, "manual-batch-invalid")).rejects.toThrow("GAMEPLAY_REVISION_INVALID");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 4 });
+    await expect(services.createAdminManualTitleGrantBatch({ contractVersion: "1", playerAccountIds: [playerOne, playerTwo], targets: Array.from({ length: 251 }, (_, index) => ({ titleKey: `MISSING_${index}` })) }, auth, "manual-batch-too-large")).rejects.toThrow("MANUAL_TITLE_GRANT_BATCH_TOO_LARGE");
+  });
+});
+
 /** Seed helpers */
 const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" = "active") => {
   sqlite.prepare(

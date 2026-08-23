@@ -539,8 +539,12 @@ export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAc
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative(), skippedClaimedCount: z.number().int().nonnegative().default(0) });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
-export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), titleKey: externalId, mapId: externalId.optional(), reason: z.string().trim().min(1).max(512).optional() });
+export const adminManualTitleGrantTargetSchema = z.object({ titleKey: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).strict();
+export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().trim().uuid(), titleKey: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), reason: z.string().trim().min(1).max(512).optional() }).strict();
 export const adminManualTitleGrantResponseSchema = z.object({ contractVersion, grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapId: externalId.nullable(), slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), alreadyOwned: z.boolean() });
+export const adminManualTitleGrantBatchRequestSchema = z.object({ contractVersion, playerAccountIds: z.array(z.string().trim().uuid()).min(1).max(500), targets: z.array(adminManualTitleGrantTargetSchema).min(1).max(500), reason: z.string().trim().min(1).max(512).optional() }).strict();
+export const adminManualTitleGrantBatchItemSchema = z.object({ playerAccountId: z.string().uuid(), titleKey: externalId, mapId: externalId.nullable(), gameplayRevisionId: externalId.nullable(), grantId: z.string().uuid(), status: z.enum(["created", "already_owned"]) });
+export const adminManualTitleGrantBatchResponseSchema = z.object({ contractVersion, batchId: z.string().uuid(), playerCount: z.number().int().nonnegative(), targetCount: z.number().int().nonnegative(), requestedCount: z.number().int().nonnegative(), createdCount: z.number().int().nonnegative(), alreadyOwnedCount: z.number().int().nonnegative(), items: z.array(adminManualTitleGrantBatchItemSchema) });
 
 const adminMapChallengeSchema = mapChallengeSchema.extend({
   condition: z.string().trim().min(1).max(1024).optional(),
@@ -1467,6 +1471,9 @@ export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkReque
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
 export type AdminManualTitleGrantRequest = z.infer<typeof adminManualTitleGrantRequestSchema>;
 export type AdminManualTitleGrantResponse = z.infer<typeof adminManualTitleGrantResponseSchema>;
+export type AdminManualTitleGrantTarget = z.infer<typeof adminManualTitleGrantTargetSchema>;
+export type AdminManualTitleGrantBatchRequest = z.infer<typeof adminManualTitleGrantBatchRequestSchema>;
+export type AdminManualTitleGrantBatchResponse = z.infer<typeof adminManualTitleGrantBatchResponseSchema>;
 export type AdminChallenge = z.infer<typeof adminChallengeSchema>;
 export type AdminChallengeListResponse = z.infer<typeof adminChallengeListResponseSchema>;
 export type AdminChallengeUpdateRequest = z.infer<typeof adminChallengeUpdateRequestSchema>;

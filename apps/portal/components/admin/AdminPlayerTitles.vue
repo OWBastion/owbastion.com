@@ -89,16 +89,12 @@ async function grant() {
   saving.value = true;
   errorMessage.value = "";
   try {
-    const results = [];
-    for (const title of selected) {
-      results.push(await api<{ titleName: string; alreadyOwned: boolean }>("/v1/title-grants/manual", {
-        method: "POST",
-        headers: { "Idempotency-Key": createRequestId() },
-        body: { contractVersion: "1", playerAccountId: props.playerAccountId, titleKey: title.titleKey, ...(title.mapId ? { mapId: title.mapId } : {}), ...(reason.value.trim() ? { reason: reason.value.trim() } : {}) },
-      }));
-    }
-    const ownedCount = results.filter((result) => result.alreadyOwned).length;
-    toast.add({ title: ownedCount === results.length ? `玩家已拥有所选 ${results.length} 个称号，未重复发放` : `已处理 ${results.length} 个称号${ownedCount ? `，其中 ${ownedCount} 个未重复发放` : ""}`, color: "success" });
+    const result = await api<{ requestedCount: number; createdCount: number; alreadyOwnedCount: number }>("/v1/title-grants/manual/batch", {
+      method: "POST",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: { contractVersion: "1", playerAccountIds: [props.playerAccountId], targets: selected.map((title) => ({ titleKey: title.titleKey, ...(title.mapId ? { mapId: title.mapId } : {}) })), ...(reason.value.trim() ? { reason: reason.value.trim() } : {}) },
+    });
+    toast.add({ title: result.alreadyOwnedCount === result.requestedCount ? `玩家已拥有所选 ${result.requestedCount} 个称号，未重复发放` : `已处理 ${result.requestedCount} 个称号${result.alreadyOwnedCount ? `，其中 ${result.alreadyOwnedCount} 个未重复发放` : ""}`, color: "success" });
     selectedGlobalValues.value = [];
     selectedMapValues.value = [];
     reason.value = "";
