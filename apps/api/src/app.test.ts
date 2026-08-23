@@ -47,6 +47,7 @@ const services: PlatformServices = {
   createAdminTitleGrantBulk: async () => ({ contractVersion: "1", grantedCount: 0, skippedClaimedCount: 0 }),
   revokeAdminTitleGrant: async () => {},
   createAdminManualTitleGrant: async () => ({ contractVersion: "1", grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: false }),
+  createAdminManualTitleGrantBatch: async () => ({ contractVersion: "1", batchId: "00000000-0000-4000-8000-000000000010", playerCount: 0, targetCount: 0, requestedCount: 0, createdCount: 0, alreadyOwnedCount: 0, items: [] }),
   listAdminChallenges: async () => ({ contractVersion: "1", items: [] }),
   createAdminAchievement: async () => { throw new Error("TITLE_KEY_CONFLICT"); },
   updateAdminChallenge: async () => { throw new Error("CHALLENGE_NOT_FOUND"); },
@@ -1110,6 +1111,45 @@ describe("API", () => {
     const response = await adminApp.request("http://localhost/v1/admin/title-grants/manual", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "manual-1" }, body }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(manualGrant);
+  });
+
+  it("exposes idempotent manual batch title grants only to maintainers", async () => {
+    const requests: unknown[] = [];
+    const requestByKey = new Map<string, string>();
+    const batchResponse = {
+      contractVersion: "1" as const,
+      batchId: "00000000-0000-4000-8000-000000000011",
+      playerCount: 2,
+      targetCount: 1,
+      requestedCount: 2,
+      createdCount: 1,
+      alreadyOwnedCount: 1,
+      items: [
+        { playerAccountId: "11111111-1111-4111-8111-111111111111", titleKey: "GLOBAL", mapId: null, gameplayRevisionId: null, grantId: "00000000-0000-4000-8000-000000000012", status: "created" as const },
+        { playerAccountId: "22222222-2222-4222-8222-222222222222", titleKey: "GLOBAL", mapId: null, gameplayRevisionId: null, grantId: "00000000-0000-4000-8000-000000000013", status: "already_owned" as const },
+      ],
+    };
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, createAdminManualTitleGrantBatch: async (input, _auth, idempotencyKey) => {
+        const serialized = JSON.stringify(input);
+        const existing = requestByKey.get(idempotencyKey);
+        if (existing && existing !== serialized) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (!existing) { requestByKey.set(idempotencyKey, serialized); requests.push({ input, idempotencyKey }); }
+        return batchResponse;
+      } }),
+    });
+    const body = JSON.stringify({ contractVersion: "1", playerAccountIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"], targets: [{ titleKey: "GLOBAL" }] });
+    expect((await app.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-1" }, body }, env)).status).toBe(403);
+    expect((await adminApp.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
+    const first = await adminApp.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-1" }, body }, env);
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual(batchResponse);
+    const replay = await adminApp.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-1" }, body }, env);
+    expect(await replay.json()).toEqual(batchResponse);
+    const conflict = await adminApp.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-1" }, body: JSON.stringify({ contractVersion: "1", playerAccountIds: ["11111111-1111-4111-8111-111111111111"], targets: [{ titleKey: "OTHER" }] }) }, env);
+    expect(conflict.status).toBe(409);
+    expect(requests).toHaveLength(1);
   });
 
   it("bulk-links every unclaimed title held by one exact historical player name", async () => {

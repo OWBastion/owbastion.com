@@ -38,7 +38,7 @@ import type {
   Challenge,
   Map,
   Title,
-  OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse,
+  OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest,
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest,
   AdminCatalogTitleUpdateRequest,
@@ -204,6 +204,7 @@ export type PlatformServices = {
   createAdminTitleGrantBulk(input: AdminTitleGrantBulkRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleGrantBulkResponse>;
   revokeAdminTitleGrant(input: { grantId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createAdminManualTitleGrant(input: AdminManualTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantResponse>;
+  createAdminManualTitleGrantBatch(input: AdminManualTitleGrantBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantBatchResponse>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;
   createAdminAchievement(input: AdminAchievementCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;
   updateAdminChallenge(input: AdminChallengeUpdateRequest & { challengeId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminChallenge>;

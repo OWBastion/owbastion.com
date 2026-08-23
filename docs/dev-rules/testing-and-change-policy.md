@@ -147,7 +147,8 @@ player-facing title result.
 - Unit and contract tests for current API, Portal, and package behavior.
 - D1 migration and repository tests when persistence changes.
 - Title-grant tests for account isolation, map and global title scope, manual
-  grant validation and idempotency, empty
+  grant validation and idempotency, manual batch Cartesian expansion and cell
+  cap, duplicate normalization, mixed created/already-owned outcomes, empty
   results, duplicate historical-holder associations, explicit invitation
   authorization, automatic clean-binding migration, conflict/retry handling,
   revocation, administrator authorization, idempotency, and audit records.
