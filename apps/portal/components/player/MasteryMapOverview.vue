@@ -33,7 +33,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .mastery-map:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .mastery-map-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
 .mastery-map-heading strong { min-width: 0; color: var(--text); letter-spacing: var(--type-headline-tracking); overflow-wrap: anywhere; }
-.mastery-map-heading span { flex: 0 0 auto; color: var(--accent); font-size: .84rem; font-weight: 750; }
+.mastery-map-heading span { flex: 0 0 auto; color: var(--text); font-size: .84rem; font-weight: 750; }
 .mastery-map-facts { display: grid; gap: 8px; margin: 0; }
 .mastery-map-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
 .mastery-map-facts dt { color: var(--muted); font-size: .75rem; }

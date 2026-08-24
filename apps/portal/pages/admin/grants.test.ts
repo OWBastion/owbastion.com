@@ -21,6 +21,7 @@ describe("admin grants page", () => {
       global: {
         stubs: {
           AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
         },
       },
     });

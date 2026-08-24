@@ -14,8 +14,8 @@ onMounted(async () => {
 </script>
 <template>
   <main class="events-page directory-page page-shell">
-    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1><p class="body-copy">浏览已发布的随机事件与规则变化。</p></section>
-    <section class="events-panel surface-card" aria-labelledby="events-title">
+    <section class="page-intro" aria-labelledby="events-title"><h1 id="events-title" class="page-title">随机事件</h1></section>
+    <section class="events-panel surface-card" aria-label="随机事件列表">
       <div v-if="loading" class="event-skeleton-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="event-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
           <div class="event-skeleton-top"><USkeleton class="event-skeleton-badge" /><USkeleton class="event-skeleton-status" /></div>
@@ -30,7 +30,7 @@ onMounted(async () => {
   </main>
 </template>
 <style scoped>
-.page-intro { margin-bottom:32px; }.page-intro .body-copy { margin: 10px 0 0; }.events-panel { padding:clamp(18px,4vw,36px); }
+.page-intro { margin-bottom: 2rem; }.events-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
 .event-skeleton-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
 .event-skeleton-card { display:grid; min-height:210px; align-content:start; gap:13px; padding:18px; border-radius:14px; }
 .event-skeleton-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }.event-skeleton-badge { width:52px; height:22px; border-radius:999px; }.event-skeleton-status { width:70px; height:22px; border-radius:999px; }

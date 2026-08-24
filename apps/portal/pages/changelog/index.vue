@@ -41,7 +41,7 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
 
 <style scoped>
 .editorial-page { padding-block: clamp(64px, 9vh, 104px) 4.5rem; }
-.page-intro { max-width: 690px; margin-bottom: 2rem; }
+.page-intro { margin-bottom: 2rem; }
 .editorial-directory { min-width: 0; padding: clamp(20px, 4vw, 36px); }
 .editorial-loading { min-height: 170px; display: grid; place-items: center; color: var(--muted); }
 .editorial-changelog-list :deep(article) { min-width: 0; }

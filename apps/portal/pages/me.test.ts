@@ -71,21 +71,20 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
 describe("me page", () => {
   it("shows only the three most recently granted titles and links to achievements", async () => {
     player.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
-    titles.value = Array.from({ length: 4 }, (_, index) => ({
-      grantId: `grant-${index}`,
-      titleKey: `TITLE-${index}`,
-      label: `称号${index}`,
-      category: "测试",
-      condition: "完成挑战",
-      scope: "global" as const,
-      grantedAt: 4 - index,
-    }));
+    titles.value = [
+      { grantId: "grant-old", titleKey: "TITLE-OLD", label: "旧称号", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 1 },
+      { grantId: "grant-newest", titleKey: "TITLE-NEW", label: "最新称号", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 4 },
+      { grantId: "grant-mid-b", titleKey: "TITLE-B", label: "中间称号乙", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 2 },
+      { grantId: "grant-mid-a", titleKey: "TITLE-A", label: "中间称号甲", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 3 },
+    ];
     status.value = "authenticated";
     refreshPlayer.mockResolvedValue(player.value);
     refreshTitles.mockResolvedValue(titles.value);
 
     const wrapper = await mountPage();
-    expect(wrapper.findAll("[data-testid='titles'] .recent-title")).toHaveLength(3);
+    const recent = wrapper.findAll("[data-testid='titles'] .recent-title");
+    expect(recent).toHaveLength(3);
+    expect(recent.map((item) => item.find("strong").text())).toEqual(["最新称号", "中间称号甲", "中间称号乙"]);
     expect(wrapper.find('button[data-to="/achievements"]').text()).toContain("查看全部成就");
     expect(wrapper.text()).not.toContain("更多功能");
     expect(wrapper.find(".upcoming-card").exists()).toBe(false);

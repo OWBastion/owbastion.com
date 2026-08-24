@@ -34,8 +34,7 @@ describe("achievements page", () => {
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
     expect(wrapper.text()).toContain("我的成就");
-    expect(wrapper.text()).toContain("完成率");
-    expect(wrapper.text()).toContain("100%");
+    expect(wrapper.text()).toContain("已获得 1 / 1");
     expect(wrapper.text()).toContain("最近获得");
     expect(wrapper.findAll(".earned-status-icon")).toHaveLength(2);
     expect(wrapper.text()).toContain("历史称号");

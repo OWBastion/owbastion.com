@@ -19,7 +19,19 @@ const props = defineProps<{
 
 const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{ "review-changed": []; "retry-mastery": []; "history-page": [page: number]; "retry-history": [] }>();
-const mapChallenges = computed(() => props.map ? props.challenges.filter((challenge) => challenge.mapId === props.map?.mapId) : []);
+const difficultyRank = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
+const mapChallenges = computed(() => {
+  if (!props.map) return [];
+  return [...props.challenges.filter((challenge) => challenge.mapId === props.map?.mapId)].sort((left, right) => {
+    if (left.kind === "pioneer" && right.kind !== "pioneer") return -1;
+    if (right.kind === "pioneer" && left.kind !== "pioneer") return 1;
+    const rank = (value?: string) => {
+      const index = difficultyRank.indexOf(value as (typeof difficultyRank)[number]);
+      return index === -1 ? difficultyRank.length : index;
+    };
+    return rank(left.difficulty) - rank(right.difficulty) || left.name.localeCompare(right.name, "zh-CN");
+  });
+});
 const difficultyLabel = computed(() => mapChallenges.value.map((challenge) => challenge.difficulty).filter(Boolean).join("、") || "暂无记录");
 const challengeStatusLabel = (status: MapChallenge["status"]) => status === "sunsetting" ? "即将结束" : "";
 const hydrated = shallowRef(false);

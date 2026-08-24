@@ -75,7 +75,12 @@ async function loadOptions() {
     ]);
     const mapNames = new Map(mapResponse.items.map((map) => [map.mapId, map.mapName]));
     const options = responses.flatMap((response) => response.items).map((title) => ({ ...title, mapName: title.mapId ? mapNames.get(title.mapId) : undefined, value: `${title.titleKey}:${title.mapId ?? ""}` }));
-    titles.value = [...new Map(options.map((title) => [title.value, title])).values()].sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+    titles.value = [...new Map(options.map((title) => [title.value, title])).values()].sort((left, right) => {
+      if (left.scope !== right.scope) return left.scope === "global" ? -1 : 1;
+      const map = (left.mapName ?? "").localeCompare(right.mapName ?? "", "zh-CN");
+      if (map) return map;
+      return left.label.localeCompare(right.label, "zh-CN");
+    });
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取称号目录，请稍后重试。").description;
   } finally {
@@ -159,7 +164,7 @@ onMounted(() => { void loadOptions(); });
       :default-sorting="[{ id: 'grantedAt', desc: true }]"
       row-key="grantId"
       :loading="props.loading"
-      empty="暂无称号记录。"
+      :empty="activeTab === 'global' ? '暂无通用称号。' : '暂无地图称号。'"
       table-key="player-title-grants"
       table-min-width="640px"
     >
@@ -172,7 +177,6 @@ onMounted(() => { void loadOptions(); });
         </div>
       </template>
     </AdminDataTable>
-    <UEmpty v-if="!activeGrants.length && !props.loading" :title="activeTab === 'global' ? '暂无通用称号' : '暂无地图称号'" variant="naked" />
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
@@ -207,7 +211,7 @@ onMounted(() => { void loadOptions(); });
 
 <style scoped>
 .player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
-.grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
+.grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; min-height: 2.75rem; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
 .grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
 .player-titles :deep(td strong) { display: block; }.player-titles :deep(td small) { display: block; margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }
 @media (max-width: 620px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }

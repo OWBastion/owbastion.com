@@ -5,31 +5,25 @@ import { mapVariantLabel } from "../utils/map-variant";
 const props = withDefaults(defineProps<{ maps: Array<{ mapId: string; mapName: string }>; challenges: AchievementChallenge[]; selectedChallengeId: string; selectedMapId?: string }>(), { selectedMapId: "" });
 const emit = defineEmits<{ select: [selection: { challengeId: string; mapId?: string }] }>();
 const selectedMapId = shallowRef("");
-const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
 const mapChallenge = (challenge: AchievementChallenge) => challenge.scope === "map";
 const mapAllowed = (challenge: AchievementChallenge, mapId: string) => !challenge.mapIds?.length || challenge.mapIds.includes(mapId);
 const isSelected = (challenge: AchievementChallenge, mapId = "") => props.selectedChallengeId === challenge.challengeId && props.selectedMapId === mapId;
 const mapChallenges = computed(() => props.challenges.filter(mapChallenge));
 const globalChallenges = computed(() => props.challenges.filter((challenge) => !mapChallenge(challenge)));
 
-const automaticChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "automatic"));
-const scheduledChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "manual" && challenge.status === "scheduled"));
-const manualGroups = computed(() => {
+const compareChallenges = (left: AchievementChallenge, right: AchievementChallenge) => left.titleName.localeCompare(right.titleName, "zh-CN");
+const groupedChallenges = (challenges: AchievementChallenge[]) => {
   const groups = new Map<string, AchievementChallenge[]>();
-  for (const challenge of globalChallenges.value) {
-    if (challenge.submissionMode === "automatic" || challenge.status === "scheduled") continue;
-    groups.set(challenge.category, [...(groups.get(challenge.category) ?? []), challenge]);
-  }
-  return [...groups].map(([category, challenges]) => ({ category, challenges }));
-});
-const mapManualGroups = computed(() => {
-  const groups = new Map<string, AchievementChallenge[]>();
-  for (const challenge of mapChallenges.value) {
-    if (challenge.submissionMode === "automatic" || challenge.status === "scheduled" || !mapAllowed(challenge, selectedMapId.value)) continue;
-    groups.set(challenge.category, [...(groups.get(challenge.category) ?? []), challenge]);
-  }
-  return [...groups].map(([category, challenges]) => ({ category, challenges }));
-});
+  for (const challenge of challenges) groups.set(challenge.category, [...(groups.get(challenge.category) ?? []), challenge]);
+  return [...groups]
+    .map(([category, items]) => ({ category, challenges: [...items].sort(compareChallenges) }))
+    .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
+};
+const mapItems = computed(() => [...props.maps].sort((left, right) => left.mapName.localeCompare(right.mapName, "zh-CN")).map((map) => ({ label: map.mapName, value: map.mapId })));
+const automaticChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "automatic").sort(compareChallenges));
+const scheduledChallenges = computed(() => [...globalChallenges.value, ...mapChallenges.value.filter((challenge) => selectedMapId.value && mapAllowed(challenge, selectedMapId.value))].filter((challenge) => challenge.submissionMode === "manual" && challenge.status === "scheduled").sort(compareChallenges));
+const manualGroups = computed(() => groupedChallenges(globalChallenges.value.filter((challenge) => challenge.submissionMode !== "automatic" && challenge.status !== "scheduled")));
+const mapManualGroups = computed(() => groupedChallenges(mapChallenges.value.filter((challenge) => challenge.submissionMode !== "automatic" && challenge.status !== "scheduled" && mapAllowed(challenge, selectedMapId.value))));
 </script>
 
 <template>

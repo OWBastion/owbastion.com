@@ -21,8 +21,7 @@ describe("MyAchievementOverview", () => {
       },
     });
 
-    expect(wrapper.text()).toContain("1 / 1");
-    expect(wrapper.text()).toContain("100%");
+    expect(wrapper.text()).toContain("已获得 1 / 1");
     expect(wrapper.text()).not.toContain("历史成就");
     expect(wrapper.text()).toContain("旧记录");
     expect(wrapper.text()).toContain("不再发放");
@@ -32,15 +31,17 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.findAll(".map-title-group")).toHaveLength(2);
     expect(wrapper.find(".map-title-collection").text()).not.toContain("不再发放");
     expect(wrapper.findAll(".retired-status")).toHaveLength(1);
-    expect(wrapper.find(".progress-ring").attributes("aria-label")).toBe("成就完成率 100%");
+    expect(wrapper.find(".progress-ring").exists()).toBe(false);
     expect(wrapper.find(".achievement-icon.has-image").exists()).toBe(true);
     expect(wrapper.find(".earned-status-icon").text()).toBe("");
-    expect(wrapper.findAll(".summary-icon")).toHaveLength(3);
+    expect(wrapper.findAll(".summary-icon")).toHaveLength(0);
+    const mapHeadings = wrapper.findAll(".map-title-heading h3").map((heading) => heading.text());
+    expect(mapHeadings).toEqual(["国王大道", "哈瓦那"]);
   });
 
   it("shows the factual empty state for a player without titles", async () => {
     const wrapper = await mountSuspended(MyAchievementOverview, { props: { challenges, titles: [] } });
-    expect(wrapper.text()).toContain("0%");
+    expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("暂无称号");
     expect(wrapper.find(".earned-status-icon").exists()).toBe(false);
   });

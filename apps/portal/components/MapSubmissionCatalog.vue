@@ -6,15 +6,25 @@ const props = withDefaults(defineProps<{ maps: Map[]; challenges: MapChallenge[]
 const emit = defineEmits<{ select: [selection: { challengeId: string; mapId: string; gameplayRevisionId: string }] }>();
 const selectedMapId = shallowRef("");
 
+const difficultyRank = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 const selectedMap = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value));
-const selectedMapChallenges = computed(() => props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value));
+const mapItems = computed(() => [...props.maps].sort((left, right) => left.mapName.localeCompare(right.mapName, "zh-CN")).map((map) => ({ label: map.mapName, value: map.mapId })));
+const selectedMapChallenges = computed(() => [...props.challenges.filter((challenge) => challenge.mapId === selectedMapId.value)].sort((left, right) => {
+  if (left.kind === "pioneer" && right.kind !== "pioneer") return -1;
+  if (right.kind === "pioneer" && left.kind !== "pioneer") return 1;
+  const rank = (value?: string) => {
+    const index = difficultyRank.indexOf(value as (typeof difficultyRank)[number]);
+    return index === -1 ? difficultyRank.length : index;
+  };
+  return rank(left.difficulty) - rank(right.difficulty) || left.name.localeCompare(right.name, "zh-CN");
+}));
 
 </script>
 
 <template>
   <section class="catalog-section" aria-labelledby="map-catalog-title">
     <div class="catalog-heading"><h2 id="map-catalog-title">选择地图挑战</h2></div>
-    <UFormField label="选择地图"><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="maps.map((map) => ({ label: map.mapName, value: map.mapId }))" /></UFormField>
+    <UFormField label="选择地图"><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="mapItems" /></UFormField>
     <div v-if="selectedMap" class="map-selection">
       <div class="selection-heading"><strong>{{ selectedMap.mapName }}</strong></div>
       <div v-if="selectedMapChallenges.length" class="map-objectives">

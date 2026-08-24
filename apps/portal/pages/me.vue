@@ -16,7 +16,7 @@ const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
 const masteryRetrying = shallowRef(false);
 const masteryMapNames = shallowRef<Record<string, string>>({});
-const recentTitles = computed(() => titles.value.slice(0, 3));
+const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
@@ -205,14 +205,23 @@ onMounted(() => {
         </div>
       </section>
 
+      <section class="me-skeleton-section" aria-hidden="true">
+        <div class="me-skeleton-section-heading">
+          <USkeleton class="me-skeleton-section-title" />
+          <USkeleton class="me-skeleton-action" />
+        </div>
+        <div class="me-skeleton-mastery-grid">
+          <USkeleton v-for="card in 2" :key="`mastery-${card}`" class="me-skeleton-mastery-card" />
+        </div>
+      </section>
+
       <section class="me-skeleton-section titles-section" aria-hidden="true">
         <div class="me-skeleton-section-heading">
           <USkeleton class="me-skeleton-section-title" />
           <USkeleton class="me-skeleton-action" />
         </div>
-        <div class="me-skeleton-title-grid">
-          <article v-for="card in 3" :key="`title-${card}`" class="me-skeleton-title-card">
-            <USkeleton class="me-skeleton-title-kicker" />
+        <div class="me-skeleton-title-list">
+          <article v-for="card in 3" :key="`title-${card}`" class="me-skeleton-title-row">
             <USkeleton class="me-skeleton-title-name" />
             <USkeleton class="me-skeleton-title-copy" />
           </article>
@@ -238,7 +247,7 @@ onMounted(() => {
 <style scoped>
 .me-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
 .intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
-.intro-copy { min-width: 0; max-width: 690px; }
+.intro-copy { min-width: 0; }
 .intro-copy .page-title { overflow-wrap: anywhere; }
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.75rem; }
 .intro-action { flex: 0 0 auto; }
@@ -256,7 +265,7 @@ onMounted(() => {
 .me-state .body-copy { margin: 0; }
 .me-skeleton { display: grid; }
 .me-skeleton-intro { display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; margin-bottom: 32px; }
-.me-skeleton-intro-copy { display: grid; gap: 14px; min-width: 0; max-width: 690px; }
+.me-skeleton-intro-copy { display: grid; gap: 14px; min-width: 0; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: 999px; }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
 .me-skeleton-identity { display: flex; align-items: center; gap: 15px; padding: 22px; }
@@ -270,20 +279,20 @@ onMounted(() => {
 .me-skeleton-section-heading-plain { align-items: flex-start; flex-direction: column; gap: 10px; }
 .me-skeleton-section-title { width: 150px; height: 22px; }
 .me-skeleton-action { width: 118px; height: 40px; border-radius: 999px; }
-.me-skeleton-title-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.me-skeleton-title-card {
+.me-skeleton-mastery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.me-skeleton-mastery-card { min-height: 132px; border-radius: 16px; }
+.me-skeleton-title-list { display: grid; gap: 10px; }
+.me-skeleton-title-row {
   display: grid;
-  min-height: 132px;
-  align-content: start;
-  gap: 10px;
-  padding: 18px;
+  gap: 5px;
+  min-height: 0;
+  padding: 18px 20px;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface-raised);
+  border-radius: 18px;
+  background: var(--surface);
 }
-.me-skeleton-title-kicker { width: 64px; height: 11px; }
-.me-skeleton-title-name { width: 72%; height: 21px; }
-.me-skeleton-title-copy { width: 92%; height: 13px; }
+.me-skeleton-title-name { width: 42%; height: 18px; }
+.me-skeleton-title-copy { width: 28%; height: 12px; }
 .me-skeleton-submission-list { display: grid; gap: 10px; }
 .me-skeleton-submission-row {
   display: flex;
@@ -301,7 +310,7 @@ onMounted(() => {
 .me-skeleton-submission-date { width: 30%; height: 12px; }
 .me-skeleton-submission-status { width: 68px; height: 24px; border-radius: 999px; }
 @media (max-width: 760px) {
-  .titles-loading, .mastery-loading, .me-skeleton-title-grid { grid-template-columns: 1fr; }
+  .titles-loading, .mastery-loading, .me-skeleton-mastery-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
   .intro { align-items: stretch; flex-direction: column; gap: 22px; }
