@@ -45,14 +45,14 @@ importers:
   apps/portal:
     dependencies:
       '@internationalized/date':
-        specifier: ^3.12.2
-        version: 3.12.2
+        specifier: ^3.12.3
+        version: 3.12.3
       '@nuxt/content':
         specifier: ^3.15.2
         version: 3.15.2(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260723.1)(@opentelemetry/api@1.9.1))(esbuild@0.28.1)(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.133.0)(rollup@4.62.2)(valibot@1.4.2(typescript@5.9.3))(vite@7.3.6(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       '@nuxt/ui':
         specifier: ^4.10.0
-        version: 4.10.0(e39736130914363896778ce7292c0593)
+        version: 4.10.0(a1832ea38895d5a3bc7ad3d53f31c1b4)
       '@nuxtjs/color-mode':
         specifier: ^4.0.1
         version: 4.0.1(magicast@0.5.3)
@@ -1397,8 +1397,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@internationalized/date@3.12.2':
-    resolution: {integrity: sha512-FY1Y+H64NDs+HAF6omlnWxm3mEpfgaCSWtL5l551ZZfImA+kGjPFgrnJrGjH6lfmLL0g8Z/mBu1R3kufeCp6Jw==}
+  '@internationalized/date@3.12.3':
+    resolution: {integrity: sha512-fuLX+3ZKLsxI73y8b01EG/WjHb6gE6weCqlfawPO27kBWGMh9G1yH6Csv1uU7/cac9H2GHmOMt6CjmuQ1aia4Q==}
 
   '@internationalized/number@3.6.7':
     resolution: {integrity: sha512-3ji1fcrT+FPAK86UqEhB/psHixYo6niWPJtt7+qRaYFynt/BaJG8GhAPimtWUpEiVSTq8ZM8L5psMxGquiB/Vg==}
@@ -7810,7 +7810,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.2':
     optional: true
 
-  '@internationalized/date@3.12.2':
+  '@internationalized/date@3.12.3':
     dependencies:
       '@swc/helpers': 0.5.23
 
@@ -8577,7 +8577,7 @@ snapshots:
       - vite
       - webpack
 
-  '@nuxt/ui@4.10.0(e39736130914363896778ce7292c0593)':
+  '@nuxt/ui@4.10.0(a1832ea38895d5a3bc7ad3d53f31c1b4)':
     dependencies:
       '@floating-ui/dom': 1.8.0
       '@iconify/vue': 5.0.1(vue@3.5.40(typescript@5.9.3))
@@ -8644,7 +8644,7 @@ snapshots:
       vaul-vue: 0.4.1(reka-ui@2.10.1(vue@3.5.40(typescript@5.9.3)))(vue@3.5.40(typescript@5.9.3))
       vue-component-type-helpers: 3.3.7
     optionalDependencies:
-      '@internationalized/date': 3.12.2
+      '@internationalized/date': 3.12.3
       '@internationalized/number': 3.6.7
       '@nuxt/content': 3.15.2(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260723.1)(@opentelemetry/api@1.9.1))(esbuild@0.28.1)(magic-string@1.1.0)(magicast@0.5.3)(oxc-parser@0.133.0)(rollup@4.62.2)(valibot@1.4.2(typescript@5.9.3))(vite@7.3.6(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)(yaml@2.9.0))
       ai: 6.0.244(zod@4.4.3)
@@ -13467,7 +13467,7 @@ snapshots:
     dependencies:
       '@floating-ui/dom': 1.8.0
       '@floating-ui/vue': 1.1.11(vue@3.5.40(typescript@5.9.3))
-      '@internationalized/date': 3.12.2
+      '@internationalized/date': 3.12.3
       '@internationalized/number': 3.6.7
       '@tanstack/vue-virtual': 3.13.32(vue@3.5.40(typescript@5.9.3))
       '@vueuse/core': 14.4.0(vue@3.5.40(typescript@5.9.3))
