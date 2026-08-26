@@ -12,7 +12,7 @@
   "dependencies": {
     "@internationalized/date": "^3.12.3",
     "@nuxt/content": "^3.15.2",
-    "@nuxt/ui": "^4.10.0",
+    "@nuxt/ui": "^4.11.0",
     "@nuxtjs/color-mode": "^4.0.1",
     "@nuxtjs/mdc": "^0.23.0",
     "@tanstack/vue-table": "^8.21.3",
