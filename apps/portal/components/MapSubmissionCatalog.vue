@@ -4,7 +4,8 @@ import { mapVariantLabel } from "../utils/map-variant";
 
 const props = withDefaults(defineProps<{ maps: Map[]; challenges: MapChallenge[]; selectedChallengeId: string; selectedMapId?: string; selectedGameplayRevisionId?: string }>(), { selectedMapId: "", selectedGameplayRevisionId: "" });
 const emit = defineEmits<{ select: [selection: { challengeId: string; mapId: string; gameplayRevisionId: string }] }>();
-const selectedMapId = shallowRef("");
+const selectedMapId = shallowRef(props.selectedMapId);
+watch(() => props.selectedMapId, (value) => { if (value) selectedMapId.value = value; });
 
 const difficultyRank = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 const selectedMap = computed(() => props.maps.find((map) => map.mapId === selectedMapId.value));

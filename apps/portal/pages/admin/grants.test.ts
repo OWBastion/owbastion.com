@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import GrantsAdminPage from "./grants.vue";
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
-  if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerId: "1001", playerName: "玩家一", status: "active" }, { playerAccountId: "player-2", playerId: "1002", playerName: "玩家二", status: "active" }] });
+  if (path.startsWith("/v1/player-accounts?")) return Promise.resolve({ items: [{ playerAccountId: "player-1", playerId: "1001", playerName: "玩家一", status: "active" }, { playerAccountId: "player-2", playerId: "1002", playerName: "玩家二", status: "active" }], total: 2 });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.samoa", mapName: "萨摩亚" }] });
   if (path === "/v1/titles") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", availability: "active", scope: "global" }] });
   if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "MAP_TITLE", label: "地图称号", category: "地图", availability: "retired", scope: "map", mapId: "map.samoa" }] });
@@ -29,12 +29,29 @@ describe("admin grants page", () => {
     const checkboxes = wrapper.findAll('input[type="checkbox"]');
     await checkboxes[0]!.setValue(true);
     await checkboxes[2]!.setValue(true);
-    await wrapper.get("button").trigger("click");
+    expect(wrapper.get('button[aria-label="取消选择 玩家一#1001"]').exists()).toBe(true);
+    await wrapper.findAll("button").filter((button) => button.text() === "确认发放")[0]!.trigger("click");
     await flushPromises();
     const confirmButtons = wrapper.findAll("button").filter((button) => button.text() === "确认发放");
     await confirmButtons.at(-1)!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/manual/batch", expect.objectContaining({ method: "POST", body: { contractVersion: "1", playerAccountIds: ["player-1"], targets: [{ titleKey: "GLOBAL" }] } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "已处理 1 个称号授予", color: "success" });
+  });
+
+  it("keeps selected players when the current page no longer lists them", async () => {
+    const wrapper = await mountSuspended(GrantsAdminPage, {
+      global: {
+        stubs: {
+          AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' },
+          UCheckbox: { props: ["modelValue"], emits: ["update:modelValue"], template: '<label><input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" /><slot /></label>' },
+        },
+      },
+    });
+    await flushPromises();
+    await wrapper.findAll('input[type="checkbox"]')[0]!.setValue(true);
+    await wrapper.get('button[aria-label="取消选择 玩家一#1001"]').trigger("click");
+    await flushPromises();
+    expect(wrapper.find('button[aria-label="取消选择 玩家一#1001"]').exists()).toBe(false);
   });
 });

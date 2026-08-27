@@ -59,15 +59,21 @@ const openMap = (map: Map) => {
 
 const openSelectedMap = () => {
   if (syncingQuery.value) return;
-  if (!props.selectedMapId) return;
+  if (!props.selectedMapId) {
+    modalOpen.value = false;
+    return;
+  }
   const map = props.maps.find((candidate) => candidate.mapId === props.selectedMapId);
-  if (map && selectedMap.value?.mapId !== map.mapId) openMap(map);
+  if (!map) {
+    void writeMapQuery(undefined);
+    return;
+  }
+  if (selectedMap.value?.mapId !== map.mapId) openMap(map);
 };
 
 watch([() => props.selectedMapId, () => props.maps], openSelectedMap, { immediate: true });
 watch(modalOpen, (open) => {
   if (open) return;
-  selectedMap.value = null;
   void writeMapQuery(undefined);
 });
 

@@ -150,10 +150,10 @@ onMounted(() => { void loadOptions(); });
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">成就与称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
-    <p v-if="errorMessage" class="title-error" role="alert">{{ errorMessage }}</p>
+    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <p v-if="errorMessage && !grantOpen && !revokeTarget" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
-      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">通用称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
+      <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">全局称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" :aria-pressed="activeTab === 'map'" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
     </nav>
     <AdminDataTable
@@ -164,7 +164,7 @@ onMounted(() => { void loadOptions(); });
       :default-sorting="[{ id: 'grantedAt', desc: true }]"
       row-key="grantId"
       :loading="props.loading"
-      :empty="activeTab === 'global' ? '暂无通用称号。' : '暂无地图称号。'"
+      :empty="activeTab === 'global' ? '暂无全局称号。' : '暂无地图称号。'"
       table-key="player-title-grants"
       table-min-width="640px"
     >
@@ -180,6 +180,7 @@ onMounted(() => { void loadOptions(); });
     <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
+          <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
           <div class="grant-section">
             <div class="grant-section__heading"><strong>全局称号</strong></div>
             <UInputMenu v-model="selectedGlobalValues" multiple :items="globalTitleItems" placeholder="选择全局称号" :loading="loadingOptions" :disabled="loadingOptions || saving" />
@@ -200,6 +201,7 @@ onMounted(() => { void loadOptions(); });
     <AdminResponsiveDialog :open="revokeTarget !== null" title="回收玩家称号" :description="revokeDescription" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body>
         <form id="revoke-player-title" class="revoke-form" @submit.prevent="revoke">
+          <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
           <p class="revoke-note">回收后，该称号将不再计入玩家当前称号；历史记录会保留。</p>
           <UFormField label="回收原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：误授或资格变更" :disabled="revoking" /></UFormField>
         </form>

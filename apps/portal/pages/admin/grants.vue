@@ -20,7 +20,12 @@ const selectedTitleValues = shallowRef<string[]>([]);
 const playerQuery = shallowRef("");
 const titleQuery = shallowRef("");
 const reason = shallowRef("");
+const playerPage = shallowRef(1);
+const playerTotal = shallowRef(0);
+const playerPageSize = 20;
+const playerRequest = shallowRef(0);
 const loadingPlayers = shallowRef(true);
+const searchingPlayers = shallowRef(false);
 const loadingTitles = shallowRef(true);
 const saving = shallowRef(false);
 const confirmOpen = shallowRef(false);
@@ -48,7 +53,7 @@ const selectedTitles = computed(() => titles.value.filter((title) => selectedTit
 const selectedPlayerList = computed(() => [...selectedPlayers.value].sort((left, right) => left.playerName.localeCompare(right.playerName, "zh-CN") || left.playerId.localeCompare(right.playerId)));
 const requestedCount = computed(() => selectedPlayers.value.length * selectedTitles.value.length);
 const tooLarge = computed(() => requestedCount.value > 500);
-const canConfirm = computed(() => !saving.value && !loadingPlayers.value && !loadingTitles.value && selectedPlayers.value.length > 0 && selectedTitles.value.length > 0 && !tooLarge.value);
+const canConfirm = computed(() => !saving.value && !loadingTitles.value && selectedPlayers.value.length > 0 && selectedTitles.value.length > 0 && !tooLarge.value);
 
 function titleLabel(title: TitleOption) {
   return `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
@@ -72,14 +77,24 @@ function resetResult() {
 }
 
 async function loadPlayers() {
-  loadingPlayers.value = true;
+  const request = playerRequest.value + 1;
+  playerRequest.value = request;
+  const initial = players.value.length === 0 && playerTotal.value === 0;
+  if (initial) loadingPlayers.value = true;
+  else searchingPlayers.value = true;
   try {
-    const response = await api<{ items: Player[] }>(`/v1/player-accounts?query=${encodeURIComponent(playerQuery.value.trim())}&status=active&page=1&pageSize=50`);
+    const response = await api<{ items: Player[]; total: number }>(`/v1/player-accounts?query=${encodeURIComponent(playerQuery.value.trim())}&status=active&page=${playerPage.value}&pageSize=${playerPageSize}`);
+    if (request !== playerRequest.value) return;
     players.value = response.items;
+    playerTotal.value = response.total;
   } catch (error) {
+    if (request !== playerRequest.value) return;
     errorMessage.value = portalErrorDetails(error, "无法读取玩家目录，请稍后重试。").description;
   } finally {
-    loadingPlayers.value = false;
+    if (request === playerRequest.value) {
+      loadingPlayers.value = false;
+      searchingPlayers.value = false;
+    }
   }
 }
 
@@ -126,10 +141,10 @@ async function grant() {
     });
     result.value = response;
     toast.add({ title: `已处理 ${response.requestedCount} 个称号授予`, color: "success" });
+    closeConfirm(true);
     selectedPlayers.value = [];
     selectedTitleValues.value = [];
     reason.value = "";
-    closeConfirm(true);
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法批量发放称号，请检查选择后重试。").description;
   } finally {
@@ -137,7 +152,11 @@ async function grant() {
   }
 }
 
-watchDebounced(playerQuery, () => { void loadPlayers(); }, { debounce: 250 });
+watchDebounced(playerQuery, () => {
+  if (playerPage.value === 1) void loadPlayers();
+  else playerPage.value = 1;
+}, { debounce: 250 });
+watch(playerPage, () => { void loadPlayers(); });
 onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
 </script>
 
@@ -150,18 +169,23 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
     <section class="grant-workspace" aria-label="批量发放称号工作区">
       <div class="grant-panel surface-card">
         <div class="panel-heading"><h2>选择玩家</h2><span>{{ selectedPlayers.length }} 人</span></div>
-        <UInput v-model="playerQuery" aria-label="搜索玩家" placeholder="搜索战网 ID" :disabled="saving" />
-        <div v-if="selectedPlayerList.length" class="selection-chips" aria-live="polite"><UBadge v-for="player in selectedPlayerList" :key="player.playerAccountId" :label="`${player.playerName}#${player.playerId}`" color="primary" variant="subtle" /></div>
+        <UInput v-model="playerQuery" aria-label="搜索玩家" placeholder="搜索战网 ID" :disabled="saving" :loading="searchingPlayers" />
+        <div v-if="selectedPlayerList.length" class="selection-chips" aria-live="polite">
+          <UButton v-for="player in selectedPlayerList" :key="player.playerAccountId" size="xs" color="primary" variant="subtle" :label="`${player.playerName}#${player.playerId}`" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${player.playerName}#${player.playerId}`" :disabled="saving" @click="togglePlayer(player, false)" />
+        </div>
         <div v-if="loadingPlayers" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!players.length" class="selector-state">暂无匹配玩家。</div>
         <div v-else class="selector-list" role="group" aria-label="玩家结果">
           <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
         </div>
+        <UPagination v-if="playerTotal > playerPageSize" v-model:page="playerPage" :total="playerTotal" :items-per-page="playerPageSize" :disabled="saving || searchingPlayers" class="selector-pagination" />
       </div>
       <div class="grant-panel surface-card">
         <div class="panel-heading"><h2>选择称号</h2><span>{{ selectedTitles.length }} 项</span></div>
         <UInput v-model="titleQuery" aria-label="搜索称号" placeholder="搜索称号、地图或系列" :disabled="saving" />
-        <div v-if="selectedTitles.length" class="selection-chips" aria-live="polite"><UBadge v-for="title in selectedTitles" :key="title.value" :label="titleDescription(title)" color="primary" variant="subtle" /></div>
+        <div v-if="selectedTitles.length" class="selection-chips" aria-live="polite">
+          <UButton v-for="title in selectedTitles" :key="title.value" size="xs" color="primary" variant="subtle" :label="titleDescription(title)" trailing-icon="i-lucide-x" :aria-label="`取消选择 ${titleDescription(title)}`" :disabled="saving" @click="toggleTitle(title, false)" />
+        </div>
         <div v-if="loadingTitles" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!filteredTitles.length" class="selector-state">暂无匹配称号。</div>
         <div v-else class="selector-list" role="group" aria-label="称号结果">
@@ -177,13 +201,19 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
       <UButton block label="确认发放" :disabled="!canConfirm" @click="openConfirm" />
     </section>
     <AdminResponsiveDialog v-model:open="confirmOpen" title="确认批量发放" size="sm" :dismissible="!saving">
-      <template #body><div class="confirm-body"><p>将为 {{ selectedPlayerList.length }} 名玩家处理 {{ selectedTitles.length }} 个称号，共 {{ requestedCount }} 个授予单元。</p><div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span></div></div></template>
+      <template #body>
+        <div class="confirm-body">
+          <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
+          <p>将为 {{ selectedPlayerList.length }} 名玩家处理 {{ selectedTitles.length }} 个称号，共 {{ requestedCount }} 个授予单元。</p>
+          <div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span></div>
+        </div>
+      </template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /><UButton label="确认发放" :loading="saving" @click="grant" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
-.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.5rem); }.grant-panel, .grant-summary { display: grid; gap: 0.875rem; padding: clamp(1rem, 2.5vw, 1.375rem); }.grant-summary { gap: 1rem; }.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }.panel-heading h2 { margin: 0; font-size: 1rem; letter-spacing: -0.02em; }.panel-heading > span { color: var(--quiet); font-size: 0.78rem; }.selector-list { display: grid; gap: 0.25rem; max-height: 22rem; overflow-y: auto; }.selector-option { display: flex; align-items: start; gap: 0.6875rem; min-width: 0; min-height: 2.75rem; padding: 0.625rem 0.5rem; border-radius: 0.5625rem; cursor: pointer; }.selector-option:hover { background: var(--accent-surface); }.selector-copy { display: grid; min-width: 0; gap: 0.1875rem; }.selector-option strong { overflow-wrap: anywhere; }.selector-option small { color: var(--quiet); overflow-wrap: anywhere; }.selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: 0.82rem; }.selection-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 5.5rem; overflow-y: auto; }.grant-count { margin: 0; color: var(--muted); }.grant-count strong { color: var(--text); }.confirm-body { display: grid; gap: 1rem; }.confirm-body p { margin: 0; line-height: 1.55; }.confirm-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.75rem; font-size: 0.82rem; }.confirm-list span { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.5rem); }.grant-panel, .grant-summary { display: grid; gap: 0.875rem; padding: clamp(1rem, 2.5vw, 1.375rem); }.grant-summary { gap: 1rem; }.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }.panel-heading h2 { margin: 0; font-size: 1rem; letter-spacing: -0.02em; }.panel-heading > span { color: var(--quiet); font-size: 0.78rem; }.selector-list { display: grid; gap: 0.25rem; max-height: 22rem; overflow-y: auto; }.selector-option { display: flex; align-items: start; gap: 0.6875rem; min-width: 0; min-height: 2.75rem; padding: 0.625rem 0.5rem; border-radius: 0.5625rem; cursor: pointer; }.selector-option:hover { background: var(--accent-surface); }.selector-copy { display: grid; min-width: 0; gap: 0.1875rem; }.selector-option strong { overflow-wrap: anywhere; }.selector-option small { color: var(--quiet); overflow-wrap: anywhere; }.selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: 0.82rem; }.selection-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 5.5rem; overflow-y: auto; }.selector-pagination { display: flex; justify-content: center; }.grant-count { margin: 0; color: var(--muted); }.grant-count strong { color: var(--text); }.confirm-body { display: grid; gap: 1rem; }.confirm-body p { margin: 0; line-height: 1.55; }.confirm-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.75rem; font-size: 0.82rem; }.confirm-list span { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 760px) { .grant-workspace { grid-template-columns: 1fr; } }
 </style>

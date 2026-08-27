@@ -120,7 +120,8 @@ const achievementStatusText = (item: AdminAchievement) =>
       ? item.status === "active" ? "开发保留" : "已下线"
       : item.status === "active" ? "已开放" : "已下线";
 const achievementItemStatusTone = (item: AdminAchievement) =>
-  isChallengeTitle(item) ? achievementStatusTone(item.status) : "warning";
+  isCatalog(item) && isDeveloperOnly(item) && item.status === "active" ? "warning" : achievementStatusTone(item.status);
+const endingCatalog = computed(() => endTarget.value !== null && isCatalog(endTarget.value));
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
   const rowIndex = rows.findIndex((row) => row.id === cell.row.id);
@@ -534,16 +535,16 @@ onMounted(() => void load());
       @upload-icon="uploadIcon"
     />
 
-    <AdminResponsiveDialog :open="endTarget !== null" title="结束挑战" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }">
+    <AdminResponsiveDialog :open="endTarget !== null" :title="endingCatalog ? '下线称号' : '结束挑战'" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }">
       <template #body>
         <form v-if="endTarget" id="end-challenge-dialog" class="end-dialog" @submit.prevent="endChallenge">
-          <p>结束后不再接受新的截图提交。</p>
+          <p>{{ endingCatalog ? "下线后该称号不再发放。" : "结束后不再接受新的截图提交。" }}</p>
         </form>
       </template>
       <template #footer>
         <template v-if="endTarget">
           <UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" />
-          <UButton label="结束挑战" color="error" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
+          <UButton :label="endingCatalog ? '确认下线' : '结束挑战'" color="error" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
         </template>
       </template>
     </AdminResponsiveDialog>

@@ -6,12 +6,16 @@ import PlayerReviewPanel from "~/components/reviews/PlayerReviewPanel.vue";
 import { useReviewSummaries } from "~/composables/useReviewSummaries";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 
-const props = defineProps<{ events: RandomEvent[]; authenticated: boolean }>();
+const props = defineProps<{ events: RandomEvent[]; authenticated: boolean; selectedEventId?: string }>();
 const query = shallowRef("");
 const category = shallowRef("all");
 const rarity = shallowRef("all");
 const status = shallowRef<RandomEvent["releaseStatus"] | "all">("implemented");
 const selected = shallowRef<RandomEvent | null>(null);
+const overlayOpen = shallowRef(false);
+const route = useRoute();
+const router = useRouter();
+const syncingQuery = shallowRef(false);
 const hydrated = shallowRef(false);
 const isDesktop = useMediaQuery("(min-width: 768px)");
 const reducedMotion = usePreferredReducedMotion();
@@ -29,9 +33,38 @@ const groupedEvents = computed(() => {
     .sort(([left], [right]) => right.localeCompare(left, undefined, { numeric: true }))
     .map(([version, events]) => ({ version, events: events.sort((left, right) => left.name.localeCompare(right.name)) }));
 });
-const detailOpen = computed({
-  get: () => selected.value !== null,
-  set: (open) => { if (!open) selected.value = null; },
+const writeEventQuery = async (eventId: string | undefined) => {
+  const current = typeof route.query.eventId === "string" ? route.query.eventId : undefined;
+  if (current === eventId) return;
+  syncingQuery.value = true;
+  const nextQuery = { ...route.query };
+  if (eventId) nextQuery.eventId = eventId;
+  else delete nextQuery.eventId;
+  await router.replace({ query: nextQuery });
+  syncingQuery.value = false;
+};
+const openEvent = (event: RandomEvent) => {
+  selected.value = event;
+  overlayOpen.value = true;
+  void writeEventQuery(event.eventId);
+};
+const openSelectedEvent = () => {
+  if (syncingQuery.value) return;
+  if (!props.selectedEventId) {
+    overlayOpen.value = false;
+    return;
+  }
+  const event = props.events.find((candidate) => candidate.eventId === props.selectedEventId);
+  if (!event) {
+    void writeEventQuery(undefined);
+    return;
+  }
+  if (selected.value?.eventId !== event.eventId) openEvent(event);
+};
+watch([() => props.selectedEventId, () => props.events], openSelectedEvent, { immediate: true });
+watch(overlayOpen, (open) => {
+  if (open) return;
+  void writeEventQuery(undefined);
 });
 const statusText = (value: RandomEvent["releaseStatus"]) => value === "implemented" ? "已实装" : value === "removed" ? "已移除" : "开发中";
 const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
@@ -74,7 +107,7 @@ onMounted(() => { hydrated.value = true; });
           <span>{{ group.events.length }} 项事件</span>
         </div>
         <div class="event-grid">
-          <button v-for="event in group.events" :key="event.eventId" class="event-card interactive-card pressable-soft" type="button" @click="selected = event">
+          <button v-for="event in group.events" :key="event.eventId" class="event-card interactive-card pressable-soft" type="button" aria-haspopup="dialog" @click="openEvent(event)">
             <h3>{{ event.name }}</h3>
             <div class="card-meta">
               <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
@@ -94,7 +127,7 @@ onMounted(() => { hydrated.value = true; });
         </div>
       </section>
     </div>
-    <UEmpty v-else title="暂无事件" description="没有符合当前筛选条件的事件，试试调整状态、类别或稀有度筛选。" variant="naked" />
+    <UEmpty v-else title="暂无事件" variant="naked" />
 
     <DefineHeaderTags>
       <div v-if="selected" class="detail-header-tags">
@@ -147,7 +180,7 @@ onMounted(() => { hydrated.value = true; });
     <template v-if="hydrated">
       <UModal
         v-if="isDesktop"
-        v-model:open="detailOpen"
+        v-model:open="overlayOpen"
         :title="selected?.name ?? '事件详情'"
         close
         scrollable
@@ -164,7 +197,7 @@ onMounted(() => { hydrated.value = true; });
 
       <UDrawer
         v-else
-        v-model:open="detailOpen"
+        v-model:open="overlayOpen"
         direction="bottom"
         :title="selected?.name ?? '事件详情'"
         close

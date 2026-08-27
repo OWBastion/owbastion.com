@@ -268,6 +268,9 @@ describe("achievement admin page", () => {
     const endButton = wrapper.get('button[aria-label="下线称号"]');
     await endButton.trigger("click");
     await flushPromises();
+    expect(document.body.textContent).toContain("下线后该称号不再发放。");
+    expect(document.body.textContent).toContain("确认下线");
+    expect(document.body.textContent).not.toContain("结束后不再接受新的截图提交。");
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", label: "内部称号", icon: "wrench", category: "开发保留" }) }));

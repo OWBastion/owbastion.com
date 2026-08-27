@@ -4,7 +4,8 @@ import { mapVariantLabel } from "../utils/map-variant";
 
 const props = withDefaults(defineProps<{ maps: Array<{ mapId: string; mapName: string }>; challenges: AchievementChallenge[]; selectedChallengeId: string; selectedMapId?: string }>(), { selectedMapId: "" });
 const emit = defineEmits<{ select: [selection: { challengeId: string; mapId?: string }] }>();
-const selectedMapId = shallowRef("");
+const selectedMapId = shallowRef(props.selectedMapId);
+watch(() => props.selectedMapId, (value) => { if (value) selectedMapId.value = value; });
 const mapChallenge = (challenge: AchievementChallenge) => challenge.scope === "map";
 const mapAllowed = (challenge: AchievementChallenge, mapId: string) => !challenge.mapIds?.length || challenge.mapIds.includes(mapId);
 const isSelected = (challenge: AchievementChallenge, mapId = "") => props.selectedChallengeId === challenge.challengeId && props.selectedMapId === mapId;
