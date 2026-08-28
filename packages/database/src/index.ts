@@ -1329,6 +1329,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     compat_rule_id: string | null;
   };
   const loadAgentMapProjectionsFast = async (input: { mapId?: string }): Promise<AgentMap[]> => {
+    const timestamp = now();
     const mapFilter = input.mapId ? " AND m.id = ?" : "";
     const mapQuery = database.prepare([
       "SELECT m.id AS map_id, m.name AS map_name, m.game_version AS map_game_version,",
@@ -1375,8 +1376,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       "FROM gameplay_revision_challenge_assignments a",
       "INNER JOIN gameplay_revisions r ON r.id = a.gameplay_revision_id AND r.lifecycle IN ('default', 'selectable')",
       "INNER JOIN maps m ON m.id = r.map_id AND m.status = 'active'",
-      "WHERE a.enabled = 1" + assignmentFilter,
-    ].join(" ")).bind(...(input.mapId ? [input.mapId] : [])).all<AgentRevisionAssignmentRow>();
+      "WHERE a.enabled = 1",
+      "AND NOT (a.challenge_family = 'map_title_rule' AND EXISTS (",
+      "  SELECT 1 FROM map_title_rules rule",
+      "  LEFT JOIN map_title_rule_exceptions exception ON exception.rule_id = rule.id AND exception.map_id = a.map_id",
+      "  WHERE rule.id = a.challenge_id",
+      "    AND rule.status IN ('active', 'sunsetting')",
+      "    AND lower(trim(rule.kind)) = 'pioneer'",
+      "    AND (rule.default_scope <> 'explicit' OR COALESCE(exception.enabled, 0) <> 1",
+      "      OR exception.starts_at IS NULL OR exception.ends_at IS NULL",
+      "      OR exception.ends_at <= exception.starts_at OR ? < exception.starts_at OR ? >= exception.ends_at)",
+      "))" + assignmentFilter,
+    ].join(" ")).bind(...(input.mapId ? [timestamp, timestamp, input.mapId] : [timestamp, timestamp])).all<AgentRevisionAssignmentRow>();
     const [mapResult, assignmentResult] = await Promise.all([mapQuery, assignmentQuery]);
     const revisionsByMap = new globalThis.Map<string, AgentMapProjectionRow[]>();
     for (const row of mapResult.results) {

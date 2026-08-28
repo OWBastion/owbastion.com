@@ -677,6 +677,26 @@ describe("Agents map gameplay projection", () => {
       items: [expect.objectContaining({ mapId: "map.classic", gameplayRevisionId: classicRevisionId, titleKey: "CLASSIC", slot: null, slotSemantics: "none" })],
     });
   });
+
+  it("does not reference an expired Pioneer rule in the map projection", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.expired-pioneer");
+    seedTitle(sqlite, "PIONEER");
+    seedRule(sqlite, "rule.pioneer.expired", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+    seedException(sqlite, "exception.pioneer.expired", "rule.pioneer.expired", "map.expired-pioneer", { startsAt: now - 120_000, endsAt: now - 60_000 });
+    seedAgentSpatialConfig(sqlite, "revision:map.expired-pioneer:initial");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.expired-pioneer', '1003', 'Expired Pioneer', 'expired pioneer', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.expired-pioneer', 'player.expired-pioneer', 'PIONEER', 'map.expired-pioneer', 'revision:map.expired-pioneer:initial', 'pioneer', 'active', 'submission', 'submission.expired-pioneer', 'admin', ?)").run(now);
+    const services = createPlatformServices(database);
+
+    const map = (await services.getAgentMap({ mapId: "map.expired-pioneer" }))!;
+    expect(map.gameplayRevisions[0]?.challengeRefs).toEqual([]);
+    await expect(services.listAgentAchievements({ page: 1, pageSize: 20, mapId: "map.expired-pioneer" })).resolves.toMatchObject({ items: [] });
+    await expect(services.listAgentMapTitleHolders({ mapId: "map.expired-pioneer", page: 1, pageSize: 20 })).resolves.toMatchObject({
+      items: [expect.objectContaining({ titleKey: "PIONEER", gameplayRevisionId: "revision:map.expired-pioneer:initial" })],
+    });
+  });
 });
 
 describe("Agents map projection readiness", () => {
