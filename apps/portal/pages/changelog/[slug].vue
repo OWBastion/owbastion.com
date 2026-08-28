@@ -29,7 +29,14 @@ useSeoMeta({
   description: () => description.value,
   ogTitle: () => title.value,
   ogDescription: () => description.value,
+  ogUrl: () => canonical.value,
   ogType: "article",
+  ogSiteName: "躲避堡垒 3",
+  ogLocale: "zh_CN",
+  articlePublishedTime: () => entry.value?.releasedAt ? String(entry.value.releasedAt) : undefined,
+  twitterCard: "summary",
+  twitterTitle: () => title.value,
+  twitterDescription: () => description.value,
 });
 useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 

@@ -40,7 +40,7 @@ describe("Portal SSR", async () => {
       }),
       $fetch("/__nuxt_content/changelog/query", {
         method: "POST",
-        body: { sql: "SELECT \"title\", \"path\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"releasedAt\" DESC" },
+        body: { sql: "SELECT \"title\", \"description\", \"path\", \"version\", \"releasedAt\" FROM _content_changelog ORDER BY \"releasedAt\" DESC" },
       }),
     ]);
 
@@ -74,5 +74,12 @@ describe("Portal SSR", async () => {
     expect(changelogIndex).toContain(`href="${latestChangelog.path}"`);
     expect(changelogIndex).toContain(`版本 ${latestChangelog.version}`);
     expect(changelogDetail).toContain(latestChangelog.title);
+    expect(changelogDetail).toContain('property="og:title"');
+    expect(changelogDetail).toContain('property="og:description"');
+    expect(changelogDetail).toContain('property="og:url"');
+    expect(changelogDetail).toContain('name="twitter:card"');
+    expect(changelogDetail).toContain('name="twitter:title"');
+    expect(changelogDetail).toContain('name="twitter:description"');
+    expect(changelogDetail).toContain(latestChangelog.description);
   });
 });
