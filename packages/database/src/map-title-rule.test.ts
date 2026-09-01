@@ -1614,6 +1614,74 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("UPDATE map_title_rule_exceptions SET ends_at = ? WHERE id = ?").run(now - 1, "exception.pioneer.paris");
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
     });
+
+    it("uses submission.createdAt for Pioneer OCR after the window ends", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "PIONEER");
+      seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+      const startsAt = now - 10_000;
+      const endsAt = now - 1;
+      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris", { startsAt, endsAt });
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.pioneer', 'pioneer-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.pioneer', 'identity.pioneer', 'player.pioneer', 'qq', 'group.pioneer', 'member.pioneer', 'active', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.pioneer.inside', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.inside', ?, ?), ('submission.pioneer.at-end', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.at-end', ?, ?)").run(endsAt - 1, endsAt - 1, endsAt, endsAt);
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        fields: {
+          challenge_completed: { status: "ok", confidence: 0.99 },
+          viewer_player: { status: "ok", confidence: 0.99 },
+          map_name: { status: "ok", confidence: 0.99 },
+          difficulty: { status: "ok", confidence: 0.99 },
+        },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", difficulty: "地狱" },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", undefined, "ocr-bucket");
+        await services.processOcrJob({ submissionId: "submission.pioneer.inside", objectKey: "evidence/inside.png", attempt: 1, requestId: "request.inside" });
+        await services.processOcrJob({ submissionId: "submission.pioneer.at-end", objectKey: "evidence/at-end.png", attempt: 1, requestId: "request.at-end" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      expect(sqlite.prepare("SELECT id, status FROM submissions WHERE id LIKE 'submission.pioneer.%' ORDER BY id").all()).toEqual([
+        { id: "submission.pioneer.at-end", status: "resubmission_required" },
+        { id: "submission.pioneer.inside", status: "approved" },
+      ]);
+      expect(sqlite.prepare("SELECT title_key, map_id, slot FROM player_title_grants WHERE source_id = 'submission.pioneer.inside'").get()).toEqual({ title_key: "PIONEER", map_id: "map.paris", slot: "pioneer" });
+    });
+
+    it("allows expired Pioneer selection and review for an in-window submission", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.paris");
+      seedTitle(sqlite, "PIONEER");
+      seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+      const startsAt = now - 10_000;
+      const endsAt = now - 1;
+      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris", { startsAt, endsAt });
+      seedCompat(sqlite, "map.paris.pioneer", "rule.pioneer", "map.paris");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.pioneer.review', 'pioneer-review-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.pioneer.review', 'identity.pioneer.review', 'player.pioneer.review', 'qq', 'group.pioneer.review', 'member.pioneer.review', 'active', ?)").run(now);
+      const createdAt = endsAt - 1;
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.pioneer.review', 'binding.pioneer.review', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.review', ?, ?)").run(createdAt, createdAt);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.pioneer.review', 'submission.pioneer.review', 1, 'review_required', ?, ?, ?)").run(
+        JSON.stringify({ data: { map_name: "地图 map.paris", difficulty: "地狱" } }),
+        JSON.stringify({ candidates: [{ challengeId: "map.paris.pioneer", mapId: "map.paris", gameplayRevisionId: "revision:map.paris:initial", challengeType: "map_title_achievement", targetMapName: "地图 map.paris", targetDifficulty: "地狱", titleName: "称号 PIONEER", match: { achievement: true } }] }),
+        now,
+      );
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.pioneer.review", challengeId: "map.paris.pioneer", mapId: "map.paris" }, auth, "pioneer-review-select")).resolves.toMatchObject({ status: "ready_for_review" });
+      await expect(services.reviewSubmission({ submissionId: "submission.pioneer.review", decision: "approved" } as never, auth, "pioneer-review-approve")).resolves.toMatchObject({ decision: "approved", titleKey: "PIONEER" });
+      expect(sqlite.prepare("SELECT status, rule_snapshot_json FROM submissions WHERE id = 'submission.pioneer.review'").get()).toMatchObject({ status: "approved" });
+      expect(sqlite.prepare("SELECT title_key, map_id, slot FROM player_title_grants WHERE source_id = 'submission.pioneer.review'").get()).toEqual({ title_key: "PIONEER", map_id: "map.paris", slot: "pioneer" });
+    });
   });
 
   // ─── Invariant: Slot semantics ───────────────────────────────────────────

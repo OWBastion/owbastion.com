@@ -226,7 +226,11 @@ set, including legacy candidates with missing scope data; it must not fall
 back to the full active challenge catalog. It persists the ordered selection
 set, records an audit event, and moves the submission to `ready_for_review`;
 the final approval grants every selected reward in one review transaction
-while retaining one primary challenge for legacy views.
+while retaining one primary challenge for legacy views. Challenge eligibility for
+an already-created submission is evaluated at `submissions.created_at`, not at
+OCR, queue, selection, or review time. Thus a Pioneer submission created in its
+half-open window remains processable after `endsAt`, while a submission created
+before `startsAt` or at/after `endsAt` never gains Pioneer eligibility later.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
@@ -240,7 +244,12 @@ evidence can become `approved` directly; ambiguity or low confidence enters
 `ocr_review_required`, and an explicit mismatch becomes
 `resubmission_required`. `ocr_review_required` therefore represents a usable
 but non-automatic record that a maintainer must inspect.
-Automatic matching evaluates map challenges only for the map recognized in the
+A submission-time rule snapshot or selection snapshot is authoritative for
+downstream processing when present. For an unknown/unselected submission, the
+candidate catalog and time-limited rule projections are resolved using the
+persisted submission timestamp; public challenge visibility and new upload
+sessions continue to use the current time. Automatic matching evaluates map
+challenges only for the map recognized in the
 screenshot and requires reliable map-name evidence; without a recognized map or
 with low-confidence map evidence the record stays in maintainer review instead
 of auto-approving. Difficulty coverage follows the hierarchy described in

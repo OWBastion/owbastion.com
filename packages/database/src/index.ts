@@ -618,6 +618,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     ruleId: string,
     mapId: string,
     gameplayRevisionId?: string | null,
+    eligibilityAt = now(),
   ): Promise<MapTitleRuleSnapshot | null> => {
     // Step 1: check map status.
     const map = await db.select({ id: maps.id, status: maps.status }).from(maps).where(eq(maps.id, mapId)).get();
@@ -645,7 +646,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
       .get();
     if (!assignment || assignment.enabled === 0) return null;
-    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, now())) return null;
+    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt)) return null;
     return {
       ruleId: rule.id,
       ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt),
@@ -672,23 +673,24 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     legacyChallengeId: string,
     mapId: string,
     gameplayRevisionId?: string | null,
+    eligibilityAt = now(),
   ): Promise<MapTitleRuleSnapshot | null> => {
     const compat = await db.select({ ruleId: mapTitleRuleCompat.ruleId })
       .from(mapTitleRuleCompat)
       .where(and(eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId), eq(mapTitleRuleCompat.mapId, mapId)))
       .get();
     if (!compat) return null;
-    return resolveMapTitleProjection(compat.ruleId, mapId, gameplayRevisionId);
+    return resolveMapTitleProjection(compat.ruleId, mapId, gameplayRevisionId, eligibilityAt);
   };
 
-  const resolveLegacyProjection = async (legacyChallengeId: string, mapId?: string, gameplayRevisionId?: string | null): Promise<MapTitleRuleSnapshot | null> => {
+  const resolveLegacyProjection = async (legacyChallengeId: string, mapId?: string, gameplayRevisionId?: string | null, eligibilityAt = now()): Promise<MapTitleRuleSnapshot | null> => {
     const rows = await db.select({ ruleId: mapTitleRuleCompat.ruleId, mapId: mapTitleRuleCompat.mapId })
       .from(mapTitleRuleCompat)
       .where(mapId ? and(eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId), eq(mapTitleRuleCompat.mapId, mapId)) : eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId));
     if (!rows.length) return null;
     if (!mapId && rows.length > 1) throw new Error("MAP_REQUIRED");
     const target = rows[0];
-    return resolveMapTitleProjection(target.ruleId, target.mapId, gameplayRevisionId);
+    return resolveMapTitleProjection(target.ruleId, target.mapId, gameplayRevisionId, eligibilityAt);
   };
 
   const snapshotTitleChallenge = async (
@@ -951,7 +953,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   // Fetch all currently public challenges in a bounded number of queries.
   // Used by the batch event list path and other composed catalog reads.
-  const fetchAllPublicChallenges = async (): Promise<Challenge[]> => {
+  const fetchAllPublicChallenges = async (eligibilityAt = now()): Promise<Challenge[]> => {
     const [mapRows, titleRows, mapIdsByChallenge] = await Promise.all([
       db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions }).from(achievementChallenges)
         .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
@@ -977,7 +979,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
       loadChallengeMapIds(),
     ]);
-    const timestamp = now();
+    const timestamp = eligibilityAt;
     const items: Challenge[] = [];
     items.push(...mapRows.map(({ challenge, map, assignment, revision }) => toPublicMapChallenge(challenge, map, assignment, revision)));
     for (const { challenge, title } of titleRows) {
@@ -988,10 +990,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return items;
   };
 
-  const fetchAllAutoMatchChallenges = async (): Promise<Challenge[]> => [
-    ...await fetchAllPublicChallenges(),
-    ...await loadMapTitleRuleChallenges(),
-    ...await loadMapScopedTitleChallenges(),
+  const fetchAllAutoMatchChallenges = async (eligibilityAt = now()): Promise<Challenge[]> => [
+    ...await fetchAllPublicChallenges(eligibilityAt),
+    ...await loadMapTitleRuleChallenges(false, eligibilityAt),
+    ...await loadMapScopedTitleChallenges(eligibilityAt),
   ];
 
   // Single-event path: load only linked challenges (bounded), not the full catalog.
@@ -1031,7 +1033,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     return items;
   };
-  const loadMapTitleRuleChallenges = async (includeInactive = false): Promise<Challenge[]> => {
+  const loadMapTitleRuleChallenges = async (includeInactive = false, eligibilityAt = now()): Promise<Challenge[]> => {
     const [rows, revisionRows, assignments, compat, exceptions] = await Promise.all([
       db.select({ rule: mapTitleRules, title: titleCatalog }).from(mapTitleRules).innerJoin(titleCatalog, eq(mapTitleRules.titleKey, titleCatalog.key))
         .where(and(includeInactive ? undefined : inArray(mapTitleRules.status, ["active", "sunsetting"]), eq(titleCatalog.availability, "active"))),
@@ -1045,7 +1047,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const assignmentByRevisionRule = new globalThis.Map(assignments.map((item) => [`${item.gameplayRevisionId}:${item.challengeId}`, item]));
     const compatByRuleMap = new globalThis.Map(compat.map((item) => [`${item.ruleId}:${item.mapId}`, item.legacyChallengeId]));
     const exceptionByRuleMap = new globalThis.Map(exceptions.map((item) => [`${item.ruleId}:${item.mapId}`, item]));
-    const timestamp = now();
+    const timestamp = eligibilityAt;
     const items: Challenge[] = [];
     for (const { rule, title } of rows) {
       if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") continue;
@@ -1072,7 +1074,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     return items;
   };
-  const loadMapScopedTitleChallenges = async (): Promise<Challenge[]> => {
+  const loadMapScopedTitleChallenges = async (eligibilityAt = now()): Promise<Challenge[]> => {
     const rows = await db.select({ challenge: titleChallenges, title: titleCatalog, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions, map: maps })
       .from(gameplayRevisionChallengeAssignments)
       .innerJoin(titleChallenges, eq(gameplayRevisionChallengeAssignments.challengeId, titleChallenges.id))
@@ -1093,7 +1095,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const compatIds = new Set(compatRows.map(({ legacyChallengeId }) => legacyChallengeId));
     return rows.flatMap(({ challenge, title, assignment, revision, map }) => {
       if (compatIds.has(challenge.id)) return [];
-      const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, now());
+      const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, eligibilityAt);
       if (!status || (status !== "active" && status !== "sunsetting")) return [];
       const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
       return [{
@@ -1811,7 +1813,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     if (!row.challengeId) return null;
     if (row.targetMapId) {
-      const projection = await resolveLegacyProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row));
+      const projection = await resolveLegacyProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row), row.createdAt);
       if (projection) return projection.mapVariant;
     }
     const challenge = await db.select({ type: achievementChallenges.type }).from(achievementChallenges).where(eq(achievementChallenges.id, row.challengeId)).get();
@@ -2313,9 +2315,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return Number.parseInt(digest.slice(0, 8), 16) / 0xffffffff < ocrAutoReviewSampleRate;
   };
 
-  const automaticSnapshot = async (candidate: Awaited<ReturnType<typeof matchOcrAgainstChallenges>>["exact"][number]): Promise<MapTitleRuleSnapshot | null> => {
+  const automaticSnapshot = async (candidate: Awaited<ReturnType<typeof matchOcrAgainstChallenges>>["exact"][number], eligibilityAt: number): Promise<MapTitleRuleSnapshot | null> => {
     if (candidate.challenge.family === "map") {
-      if (candidate.challenge.mapTitleRule) return resolveMapTitleProjection(candidate.challenge.mapTitleRule.ruleId, candidate.challenge.mapId, candidate.challenge.gameplayRevisionId);
+      if (candidate.challenge.mapTitleRule) return resolveMapTitleProjection(candidate.challenge.mapTitleRule.ruleId, candidate.challenge.mapId, candidate.challenge.gameplayRevisionId, eligibilityAt);
       const titleChallenge = await db.select({ challenge: titleChallenges, title: titleCatalog })
         .from(titleChallenges)
         .innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key))
@@ -3977,11 +3979,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (submission.status !== "awaiting_player_confirmation" || submission.challengeId) throw new Error("SUBMISSION_NOT_CONFIRMABLE");
       const mapChallenge = await db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(and(eq(achievementChallenges.id, input.challengeId), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"))).get();
       const ruleProjection = !mapChallenge
-        ? await resolveLegacyProjection(input.challengeId, input.mapId, input.gameplayRevisionId)
+        ? await resolveLegacyProjection(input.challengeId, input.mapId, input.gameplayRevisionId, submission.createdAt)
         : null;
       const titleChallenge = !mapChallenge && !ruleProjection ? await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(and(eq(titleChallenges.id, input.challengeId), inArray(titleChallenges.status, ["scheduled", "active", "sunsetting"]), eq(titleCatalog.availability, "active"))).get() : null;
       if (!mapChallenge && !ruleProjection && !titleChallenge) throw new Error("CHALLENGE_NOT_FOUND");
-      if (titleChallenge && (!titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now()) || titleChallenge.challenge.submissionMode === "automatic")) throw new Error("CHALLENGE_NOT_FOUND");
+      if (titleChallenge && (!titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, submission.createdAt) || titleChallenge.challenge.submissionMode === "automatic")) throw new Error("CHALLENGE_NOT_FOUND");
       let targetMap = mapChallenge?.map ?? null;
       if (titleChallenge?.challenge.scope === "global" && input.mapId) throw new Error("GLOBAL_CHALLENGE_CANNOT_HAVE_MAP");
       if (ruleProjection && input.mapId && input.mapId !== ruleProjection.mapId) throw new Error("MAP_NOT_IN_CHALLENGE");
@@ -4118,7 +4120,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       const recognizedMapName = normalizedOcrLabel(ocrData.map_name);
       const recognizedDifficulty = normalizedOcrDifficulty(ocrData.difficulty);
-      const allChallenges = await fetchAllAutoMatchChallenges();
+      const allChallenges = await fetchAllAutoMatchChallenges(row.createdAt);
       const resolvedSelections: Array<{ challengeId: string; mapId: string | null; gameplayRevisionId: string | null; challengeType: string; mapName: string; difficulty: string | null; snapshot: MapTitleRuleSnapshot | null }> = [];
       for (const selection of requestedSelections) {
         const matchedCandidates = matchCandidates.filter((candidate) => {
@@ -4149,7 +4151,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         let snapshot: MapTitleRuleSnapshot | null = null;
         if (challenge.family === "achievement") {
           const titleChallenge = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
-          if (!titleChallenge || titleChallenge.challenge.scope === "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now())) throw new Error("CHALLENGE_NOT_FOUND");
+          if (!titleChallenge || titleChallenge.challenge.scope === "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, row.createdAt)) throw new Error("CHALLENGE_NOT_FOUND");
           challengeType = "title_achievement";
         } else {
           targetMapId = challenge.mapId;
@@ -4157,12 +4159,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           difficulty = challengeTargetDifficulty(challenge);
           challengeType = challenge.kind === "map_title_achievement" ? "map_title_achievement" : challenge.kind;
           if (challenge.mapTitleRule) {
-            snapshot = await resolveMapTitleProjection(challenge.mapTitleRule.ruleId, challenge.mapId, challenge.gameplayRevisionId);
+            snapshot = await resolveMapTitleProjection(challenge.mapTitleRule.ruleId, challenge.mapId, challenge.gameplayRevisionId, row.createdAt);
             if (!snapshot) throw new Error("CHALLENGE_NOT_FOUND");
           } else if (challengeType === "map_title_achievement") {
             const titleChallenge = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
             if (titleChallenge) {
-              if (titleChallenge.challenge.scope !== "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, now()) || titleChallenge.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_NOT_FOUND");
+              if (titleChallenge.challenge.scope !== "map" || !titleChallengeIsSubmittable(titleChallenge.challenge.status, titleChallenge.challenge.startsAt, titleChallenge.challenge.endsAt, row.createdAt) || titleChallenge.challenge.submissionMode === "automatic") throw new Error("CHALLENGE_NOT_FOUND");
               const target = await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(and(eq(achievementChallengeMaps.challengeId, titleChallenge.challenge.id), eq(achievementChallengeMaps.mapId, challenge.mapId))).get();
               if (!target) throw new Error("MAP_NOT_IN_CHALLENGE");
               snapshot = await snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, challenge.mapId, challenge.gameplayRevisionId);
@@ -4767,7 +4769,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             if (!challenge || challenge.scope === "map" || !challenge.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
             reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, gameplayRevisionId: null, slot: null, snapshot: null };
           } else {
-            const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId) : null;
+            const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId, row.createdAt) : null;
             if (snap) {
               const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
               reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
@@ -4840,7 +4842,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           reward = { titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.scope === "map" ? row.targetMapId : null, gameplayRevisionId: challenge.scope === "map" ? row.gameplayRevisionId : null, slot: null };
         } else {
           // Legacy map challenge path: check compat table first, then fall back to direct join.
-          const snap = row.targetMapId ? await resolveCompatProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row)) : null;
+          const snap = row.targetMapId ? await resolveCompatProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row), row.createdAt) : null;
           if (snap) {
             const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
             reward = { titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot };
@@ -4992,7 +4994,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }
         if (row.challengeType === "unknown") {
           stage = "resolve_auto_candidates";
-          const decision = matchOcrAgainstChallenges(await fetchAllAutoMatchChallenges(), result, row.playerName ?? "");
+          const decision = matchOcrAgainstChallenges(await fetchAllAutoMatchChallenges(row.createdAt), result, row.playerName ?? "");
           const candidates = decision.candidates.map(({ challenge, challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }) => ({ challengeId: challenge.challengeId, family: challenge.family, ...(challenge.family === "map" ? { mapId: challenge.mapId, gameplayRevisionId: challenge.gameplayRevisionId } : {}), challengeType, targetMapName, targetDifficulty, titleName, requiredMapVariant, match, quality, grantable }));
           const matchJson = JSON.stringify({ mode: "automatic", outcome: decision.outcome, candidates, masteryOutcome: { status: masteryOutcome.status } });
           if (decision.outcome === "automatic") {
@@ -5002,7 +5004,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             const uniqueGrantCandidates = [...new Map(grantCandidates.map((item) => [`${item.challenge.titleKey ?? ""}:${item.challenge.family === "map" ? item.challenge.mapId : ""}`, item])).values()];
             const grants: Array<{ snapshot: MapTitleRuleSnapshot; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean; existingGrantId: string | null }> = [];
             for (const grantCandidate of uniqueGrantCandidates) {
-              const snapshot = await automaticSnapshot(grantCandidate);
+              const snapshot = await automaticSnapshot(grantCandidate, row.createdAt);
               if (!snapshot) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
               const mapId = snapshot.mapId;
               const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).innerJoin(bindings, eq(bindings.playerAccountId, playerTitleGrants.playerAccountId)).where(and(eq(bindings.id, row.bindingId), eq(playerTitleGrants.titleKey, snapshot.titleKey), eq(playerTitleGrants.status, "active"), mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId), snapshot.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, snapshot.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId))).get();
@@ -5025,22 +5027,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }
         stage = "resolve_challenge";
         const storedSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
+        const hasStoredVariant = storedSnapshot && Object.prototype.hasOwnProperty.call(storedSnapshot, "mapVariant");
+        const needsSnapshotResolution = !storedSnapshot || !hasStoredVariant;
         const legacyProjection = row.challengeId && row.targetMapId
-          ? await resolveLegacyProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row))
+          ? needsSnapshotResolution ? await resolveLegacyProjection(row.challengeId, row.targetMapId, snapshotGameplayRevisionId(row), row.createdAt) : null
           : null;
         const titleChallenge = row.challengeId
           ? await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, row.challengeId)).get()
           : null;
-        const directProjection = titleChallenge
+        const directProjection = titleChallenge && needsSnapshotResolution
           ? await snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, titleChallenge.challenge.scope === "map" ? row.targetMapId : null, snapshotGameplayRevisionId(row))
           : null;
-        const directChallenge = row.challengeId && row.challengeType !== "title_achievement"
+        const directChallenge = needsSnapshotResolution && row.challengeId && row.challengeType !== "title_achievement"
           ? await db.select({ challenge: achievementChallenges, title: titleCatalog }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).where(eq(achievementChallenges.id, row.challengeId)).get()
           : null;
         const directMapSnapshot = directChallenge?.challenge.rewardTitleKey && directChallenge.title
           ? await snapshotMapChallenge(directChallenge.challenge, directChallenge.title, snapshotGameplayRevisionId(row))
           : null;
-        const hasStoredVariant = storedSnapshot && Object.prototype.hasOwnProperty.call(storedSnapshot, "mapVariant");
         const snapshot = storedSnapshot
           ? hasStoredVariant
             ? storedSnapshot
