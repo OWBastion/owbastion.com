@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionChallengeOption } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 
@@ -17,16 +17,21 @@ type MatchCandidate = {
   match?: Record<string, unknown>;
   quality?: { accepted?: boolean; reasons?: string[] };
   grantable?: boolean;
+  source?: "ocr" | "manual";
 };
 
 const props = defineProps<{
   submission: AdminSubmission;
+  challengeOptions?: AdminSubmissionChallengeOption[];
   challengeSelectionError?: string;
   challengeSelectionLoading?: boolean;
   /** Force a single-column stack (decision rail / narrow column). */
   stacked?: boolean;
 }>();
-const emit = defineEmits<{ "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]] }>();
+const emit = defineEmits<{
+  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
+  "review-achievements": [value: { complete: boolean; titles: string[] }];
+}>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
@@ -50,6 +55,19 @@ const visibleCandidates = computed(() => candidates.value.filter((candidate) => 
 }));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
+const manualSearchOpen = ref(false);
+const manualSearch = ref("");
+const achievementTitlesInput = ref("");
+const achievementTitlesComplete = ref(false);
+const initializedAchievementTitles = ref(false);
+watch(checkedTitles, (titles) => {
+  if (initializedAchievementTitles.value) return;
+  achievementTitlesInput.value = titles.join("、");
+  initializedAchievementTitles.value = true;
+}, { immediate: true });
+const parseAchievementTitles = () => achievementTitlesInput.value.split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean);
+const emitAchievementReview = () => emit("review-achievements", { complete: achievementTitlesComplete.value, titles: parseAchievementTitles() });
+watch([achievementTitlesInput, achievementTitlesComplete], emitAchievementReview);
 const selectedCandidateIds = ref<string[]>([]);
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
@@ -72,11 +90,28 @@ const candidateResultLabel = (candidate: MatchCandidate) => {
 };
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
 const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}:${candidate.gameplayRevisionId ?? ""}`;
-watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId, visibleCandidates], ([challengeSelections, challengeId, gameplayRevisionId, candidates]) => {
+const manualCandidates = computed<MatchCandidate[]>(() => {
+  const query = manualSearch.value.trim().toLocaleLowerCase();
+  if (!manualSearchOpen.value && !selectedCandidateIds.value.length) return [];
+  const ocrKeys = new Set(visibleCandidates.value.map(candidateKey));
+  return (props.challengeOptions ?? []).filter((option) => {
+    const key = `${option.challengeId}:${option.mapId ?? ""}:${option.gameplayRevisionId ?? ""}`;
+    if (ocrKeys.has(key)) return false;
+    if (!query) return selectedCandidateIds.value.includes(key);
+    const challenge = option.challenge;
+    const label = challenge.family === "map" ? `${challenge.name} ${challenge.mapName} ${challenge.difficulty ?? ""}` : `${challenge.titleName} ${challenge.category}`;
+    return label.toLocaleLowerCase().includes(query);
+  }).map((option) => option.challenge.family === "map"
+    ? { challengeId: option.challengeId, mapId: option.mapId, gameplayRevisionId: option.gameplayRevisionId, challengeType: option.challenge.kind ?? "difficulty_completion", targetMapName: option.challenge.mapName, targetDifficulty: option.challenge.difficulty, ...(option.challenge.kind === "map_title_achievement" ? { titleName: option.challenge.name } : {}), requiredMapVariant: option.challenge.mapVariant ?? null, match: {}, quality: { accepted: true }, grantable: true, source: "manual" }
+    : { challengeId: option.challengeId, challengeType: "title_achievement", titleName: option.challenge.titleName, match: {}, quality: { accepted: true }, grantable: true, source: "manual" });
+});
+const selectableCandidates = computed(() => [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...manualCandidates.value]);
+watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId], ([challengeSelections, challengeId, gameplayRevisionId]) => {
   const persistedKeys = (challengeSelections?.length ? challengeSelections : [{ challengeId, mapId: undefined, gameplayRevisionId }]).map((selection) => `${selection.challengeId ?? ""}:${selection.mapId ?? ""}:${selection.gameplayRevisionId ?? ""}`);
-  selectedCandidateIds.value = candidates.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
+  selectedCandidateIds.value = selectableCandidates.value.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
 }, { immediate: true });
 const candidateStatusLabel = (candidate: MatchCandidate) => {
+  if (candidate.source === "manual") return "待人工核对";
   if (candidate.titleName && candidate.match?.achievement !== true) return "无勾选证据";
   const booleanMatches = Object.entries(candidate.match ?? {}).filter(([, value]) => typeof value === "boolean").map(([, value]) => value);
   if (candidate.quality?.accepted && booleanMatches.length > 0 && booleanMatches.every(Boolean)) return "匹配";
@@ -84,7 +119,7 @@ const candidateStatusLabel = (candidate: MatchCandidate) => {
   return "低置信度";
 };
 const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
-const selectedCandidates = computed(() => visibleCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
+const selectedCandidates = computed(() => selectableCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
 const isCurrentCandidate = (candidate: MatchCandidate) => selectedCandidateIds.value.includes(candidateKey(candidate));
 const selectCandidate = (candidate: MatchCandidate) => {
   const key = candidateKey(candidate);
@@ -98,31 +133,47 @@ const saveSelectedCandidate = () => {
 
 <template>
   <div class="signals-grid" :class="{ 'signals-grid--stacked': stacked }" aria-label="自动判定与 OCR 证据">
-    <section v-if="matchPayload" class="signal-panel match-panel" aria-labelledby="auto-match-title">
+    <section v-if="matchPayload || challengeOptions?.length" class="signal-panel match-panel" aria-labelledby="auto-match-title">
       <header class="signal-panel__header">
         <div>
           <p class="signal-kicker">核对</p>
           <h3 id="auto-match-title">自动判定</h3>
         </div>
-        <StatusBadge :label="matchOutcomeLabel(matchPayload.outcome)" :tone="matchPayload.outcome === 'automatic' ? 'success' : 'warning'" />
+        <StatusBadge :label="matchPayload ? matchOutcomeLabel(matchPayload.outcome) : '待人工核对'" :tone="matchPayload?.outcome === 'automatic' ? 'success' : 'warning'" />
       </header>
       <p v-if="submission.reason" class="signal-reason">{{ submission.reason }}</p>
-      <div v-if="visibleCandidates.length" class="match-candidates">
-        <button v-for="candidate in visibleCandidates" :key="candidateKey(candidate)" class="match-candidate pressable-soft" :class="{ 'match-candidate--selected': selectedCandidateIds.includes(candidateKey(candidate)) }" type="button" :aria-pressed="selectedCandidateIds.includes(candidateKey(candidate))" :disabled="challengeSelectionLoading" @click="selectCandidate(candidate)">
+      <div v-if="selectableCandidates.length" class="match-candidates">
+        <button v-for="candidate in selectableCandidates" :key="candidateKey(candidate)" class="match-candidate pressable-soft" :class="{ 'match-candidate--selected': selectedCandidateIds.includes(candidateKey(candidate)) }" type="button" :aria-pressed="selectedCandidateIds.includes(candidateKey(candidate))" :disabled="challengeSelectionLoading" @click="selectCandidate(candidate)">
           <div class="match-candidate__title">
             <strong>{{ candidateResultLabel(candidate) }}</strong>
             <span class="candidate-scope">{{ candidateScopeLabel(candidate) }}</span>
           </div>
-          <div class="match-candidate__meta"><StatusBadge :label="candidateStatusLabel(candidate)" :tone="candidateStatusTone(candidate)" /><span v-if="candidate.grantable" class="candidate-reward">可获得称号</span></div>
+          <div class="match-candidate__meta"><StatusBadge :label="candidateStatusLabel(candidate)" :tone="candidateStatusTone(candidate)" /><span class="candidate-source">{{ candidate.source === "manual" ? "人工添加" : "OCR 建议" }}</span><span v-if="candidate.grantable" class="candidate-reward">可获得称号</span></div>
           <span v-if="isCurrentCandidate(candidate)" class="candidate-current">当前挑战</span>
         </button>
       </div>
       <p v-else class="signal-empty">暂无可选挑战</p>
-      <p v-if="visibleCandidates.length > 1" class="signal-note">可同时选择截图中已完成的多个挑战。</p>
+      <p v-if="selectableCandidates.length > 1" class="signal-note">可同时选择截图中已完成的多个挑战。</p>
+      <div v-if="challengeOptions?.length" class="manual-add">
+        <UButton class="pressable" type="button" :label="manualSearchOpen ? '收起手动添加' : '手动添加'" icon="i-lucide-search" color="neutral" variant="outline" :disabled="challengeSelectionLoading" @click="manualSearchOpen = !manualSearchOpen" />
+        <template v-if="manualSearchOpen">
+          <UInput v-model="manualSearch" icon="i-lucide-search" placeholder="搜索可验证的挑战或称号" aria-label="搜索可验证的挑战或称号" :disabled="challengeSelectionLoading" />
+          <p v-if="!manualSearch.trim()" class="signal-note">输入名称后，从按提交时间资格筛选的挑战中添加。</p>
+          <p v-else-if="!manualCandidates.length" class="signal-empty">没有符合条件的挑战。</p>
+        </template>
+      </div>
       <div v-if="selectedCandidates.length" class="candidate-selection">
         <UButton class="pressable" type="button" label="保存所选挑战" icon="i-lucide-check" color="primary" :loading="challengeSelectionLoading" :disabled="challengeSelectionLoading" @click="saveSelectedCandidate" />
       </div>
       <p v-if="challengeSelectionError" class="signal-error" role="alert">{{ challengeSelectionError }}</p>
+      <section v-if="checkedTitles.length || selectedCandidates.some((candidate) => Boolean(candidate.titleName))" class="achievement-review" aria-labelledby="achievement-review-title">
+        <div>
+          <h4 id="achievement-review-title">完整成就列表</h4>
+          <p>只有确认截图中的完整列表，才会生成 achievement_titles 训练标注；称号发放仍按上方选择独立处理。</p>
+        </div>
+        <UCheckbox v-model="achievementTitlesComplete" label="我已确认截图中的成就列表完整" :disabled="challengeSelectionLoading" />
+        <UInput v-if="achievementTitlesComplete" v-model="achievementTitlesInput" aria-label="截图中的完整成就列表" placeholder="例如：成就一、成就二" :disabled="challengeSelectionLoading" />
+      </section>
     </section>
 
     <section class="signal-panel ocr-panel" aria-labelledby="ocr-title">
@@ -276,6 +327,29 @@ const saveSelectedCandidate = () => {
 .candidate-selection :deep(button) {
   min-height: 42px;
   max-width: 100%;
+}
+.manual-add,
+.achievement-review {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.manual-add :deep(button) {
+  justify-self: start;
+}
+.achievement-review h4,
+.achievement-review p {
+  margin: 0;
+}
+.achievement-review h4 {
+  font-size: .82rem;
+}
+.achievement-review p {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
 }
 .signal-empty {
   margin: 0;

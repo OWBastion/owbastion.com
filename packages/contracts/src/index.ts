@@ -786,7 +786,7 @@ export const playerUploadSessionResponseSchema = z.object({
 export const playerUploadCompleteRequestSchema = z.object({ contractVersion, uploadId: z.string().uuid() });
 
 export const adminSubmissionChallengeSchema = z.union([
-  z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), mapVariant: z.literal("classic").optional() }),
+  z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), kind: z.enum(["difficulty_completion", "pioneer", "classic_completion", "map_title_achievement"]).optional(), mapVariant: z.literal("classic").optional() }),
   z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
 ]);
 export const adminSubmissionChallengeSelectionSchema = z.object({ challengeId: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional() });
@@ -818,15 +818,26 @@ export const adminSubmissionSchema = z.object({
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+export const adminSubmissionChallengeOptionSchema = z.object({
+  challengeId: externalId,
+  mapId: externalId.optional(),
+  gameplayRevisionId: externalId.optional(),
+  challenge: adminSubmissionChallengeSchema,
+}).strict();
+export const adminSubmissionChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionChallengeOptionSchema).max(256) }).strict();
 export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
+  achievementTitlesReview: z.object({
+    complete: z.boolean(),
+    titles: z.array(z.string().trim().min(1).max(256)).max(64),
+  }).strict().optional(),
 });
 export const adminSubmissionReviewResponseSchema = z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(),
 }).or(z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema,
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(),
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1).max(32).optional(), challengeId: externalId.optional(), mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).superRefine((value, ctx) => {
   if (!value.selections?.length && !value.challengeId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["selections"], message: "At least one challenge selection is required" });
@@ -1489,6 +1500,8 @@ export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionReque
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
+export type AdminSubmissionChallengeOption = z.infer<typeof adminSubmissionChallengeOptionSchema>;
+export type AdminSubmissionChallengeListResponse = z.infer<typeof adminSubmissionChallengeListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
 export type AdminSubmissionChallengeRequest = z.infer<typeof adminSubmissionChallengeRequestSchema>;

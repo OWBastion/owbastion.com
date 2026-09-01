@@ -62,6 +62,7 @@ const services: PlatformServices = {
   completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
   confirmPlayerSubmissionChallenge: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2 }),
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
+  listAdminSubmissionChallenges: async () => ({ contractVersion: "1", items: [] }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
   getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   selectAdminSubmissionChallenge: async ({ submissionId, challengeId, selections }) => { const selected = selections ?? [{ challengeId: challengeId! }]; return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected[0].challengeId, selections: selected }; },
@@ -1466,6 +1467,13 @@ describe("API", () => {
     const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", selections: [{ challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }, { challengeId: "title.hero" }] }) }, env);
     expect(response.status).toBe(200);
     expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework", "00000000-0000-0000-0000-000000000000:title.hero:"]);
+  });
+
+  it("lists maintainer-only submission challenge options", async () => {
+    const listingApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listAdminSubmissionChallenges: async () => ({ contractVersion: "1" as const, items: [{ challengeId: "title.hero", challenge: { family: "achievement" as const, titleName: "称号 HERO", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } }] }) }) });
+    const response = await listingApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenges", {}, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.hero" }] });
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

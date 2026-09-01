@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionChallengeOption } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 
@@ -14,11 +14,12 @@ const props = defineProps<{
   actionLoading?: boolean;
   challengeSelectionError?: string;
   challengeSelectionLoading?: boolean;
+  challengeOptions?: AdminSubmissionChallengeOption[];
   ocrRetryError?: string;
   ocrRetryLoading?: boolean;
 }>();
 const emit = defineEmits<{
-  review: [decision: ReviewDecision];
+  review: [decision: ReviewDecision, achievementTitlesReview?: { complete: boolean; titles: string[] }];
   "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
@@ -32,6 +33,7 @@ const actionsLoading = computed(() => Boolean(props.actionLoading || props.chall
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
 const pendingSpotCheck = ref<SpotCheckDecision | null>(null);
+const achievementTitlesReview = ref<{ complete: boolean; titles: string[] } | undefined>();
 
 watch(
   () => props.actionLoading,
@@ -46,7 +48,11 @@ watch(
 function emitReview(decision: ReviewDecision) {
   if (actionsLoading.value) return;
   pendingDecision.value = decision;
-  emit("review", decision);
+  emit("review", decision, achievementTitlesReview.value);
+}
+
+function updateAchievementTitlesReview(value: { complete: boolean; titles: string[] }) {
+  achievementTitlesReview.value = value;
 }
 
 function decisionLoading(decision: ReviewDecision) {
@@ -248,13 +254,15 @@ const challengeSummary = computed(() => {
 
       <!-- Verify: match + OCR stacked beside evidence -->
       <div class="flow-signals">
-        <AdminSubmissionReviewSignals
-          stacked
-          :submission="submission"
-          :challenge-selection-error="challengeSelectionError"
-          :challenge-selection-loading="challengeSelectionLoading"
-          @select-challenge="emit('select-challenge', $event)"
-        />
+          <AdminSubmissionReviewSignals
+            stacked
+            :submission="submission"
+            :challenge-options="challengeOptions"
+            :challenge-selection-error="challengeSelectionError"
+            :challenge-selection-loading="challengeSelectionLoading"
+            @select-challenge="emit('select-challenge', $event)"
+            @review-achievements="updateAchievementTitlesReview"
+          />
       </div>
 
       <!-- Traceability (low priority) -->

@@ -218,19 +218,28 @@ upload_pending
 When an ambiguous automatic match enters `ocr_review_required`, a maintainer
 may select one or more general achievements with checked title evidence or
 map challenges belonging to the map identified in that submission's OCR
-evidence. A map
-candidate must carry the persisted map identity and match the OCR map name;
-when OCR has recognized a difficulty, a manual map candidate must also carry
-that same difficulty. The platform rejects challenges outside that candidate
-set, including legacy candidates with missing scope data; it must not fall
-back to the full active challenge catalog. It persists the ordered selection
-set, records an audit event, and moves the submission to `ready_for_review`;
-the final approval grants every selected reward in one review transaction
-while retaining one primary challenge for legacy views. Challenge eligibility for
-an already-created submission is evaluated at `submissions.created_at`, not at
-OCR, queue, selection, or review time. Thus a Pioneer submission created in its
-half-open window remains processable after `endsAt`, while a submission created
-before `startsAt` or at/after `endsAt` never gains Pioneer eligibility later.
+evidence. OCR candidates are recommendations only: the maintainer may use the
+maintainer-only challenge options endpoint and its searchable `手动添加` path
+to add an eligible challenge that OCR did not recommend. Every manual choice
+still passes the authoritative catalog, lifecycle, map scope, gameplay
+revision, difficulty, evidence, and submission-time eligibility checks; a map
+choice must match the OCR map context, and a global achievement does not need
+an OCR candidate. The platform persists the ordered selection set, records an
+audit event, and moves the submission to `ready_for_review`; the final approval
+grants every selected reward in one review transaction while retaining one
+primary challenge for legacy views. Challenge eligibility for an already-created
+submission is evaluated at `submissions.created_at`, not at OCR, queue,
+selection, or review time. Thus a Pioneer submission created in its half-open
+window remains processable after `endsAt`, while a submission created before
+`startsAt` or at/after `endsAt` never gains Pioneer eligibility later.
+
+During approval, a maintainer may confirm the complete visible
+`achievement_titles` list from the source screenshot. A complete confirmation
+creates or supersedes an accepted reviewed annotation linked to the exact OCR
+result, preserving the original OCR value, model/layout versions, reviewer,
+time, and submission evidence provenance. An incomplete confirmation does not
+create a training annotation, and review/grant processing remains independent.
+This path does not mutate finalized dataset snapshots or trigger training.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
