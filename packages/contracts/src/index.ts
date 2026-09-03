@@ -316,6 +316,7 @@ export const agentGameplayRevisionSchema = z.object({
 export const agentMapSchema = mapSchema.extend({ gameplayRevisions: z.array(agentGameplayRevisionSchema).max(32) }).strict();
 
 const randomEventStatus = z.enum(["development", "implemented", "removed"]);
+const randomEventVersionAvailability = z.enum(["available", "suspended"]);
 const randomEventLinkSchema = z.object({ family: z.enum(["map", "achievement"]), challengeId: externalId });
 const effectGlossaryTermSchema = z.object({ key: z.string().trim().min(1).max(64), nameZh: z.string().trim().min(1).max(128), aliases: z.array(z.string().trim().min(1).max(128)).max(16), category: z.string().trim().min(1).max(64), summary: z.string().trim().min(1).max(512), definition: z.string().trim().min(1).max(4096), rules: z.array(z.string().trim().min(1).max(512)).max(16), sourceVersion: z.string().trim().min(1).max(64) });
 const randomEventEffectAnnotationSchema = z.object({ tag: z.string().trim().min(1).max(64), term: effectGlossaryTermSchema });
@@ -329,6 +330,9 @@ const randomEventWriteFields = z.object({ name: z.string().trim().min(1).max(256
 export const adminRandomEventCreateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventUpdateRequestSchema = z.object({ contractVersion }).merge(randomEventWriteFields);
 export const adminRandomEventImportRequestSchema = z.object({ contractVersion, fileName: z.string().trim().min(1).max(256), csv: z.string().min(1).max(512 * 1024) });
+export const randomEventVersionSchema = z.object({ gameVersion: z.string().trim().min(1).max(64), availability: randomEventVersionAvailability, eventCount: z.number().int().nonnegative() }).strict();
+export const adminRandomEventVersionListResponseSchema = z.object({ contractVersion, items: z.array(randomEventVersionSchema) }).strict();
+export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
 export const reviewTargetSchema = z.object({ targetType: reviewTargetTypeSchema, targetId: externalId }).strict();
@@ -1455,6 +1459,9 @@ export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSche
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
+export type RandomEventVersion = z.infer<typeof randomEventVersionSchema>;
+export type AdminRandomEventVersionListResponse = z.infer<typeof adminRandomEventVersionListResponseSchema>;
+export type AdminRandomEventVersionAvailabilityRequest = z.infer<typeof adminRandomEventVersionAvailabilityRequestSchema>;
 export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdateRequestSchema>;
 export type AdminMapRevisionChallengeAssignment = z.infer<typeof adminMapRevisionChallengeAssignmentSchema>;
 export type AdminMapRevisionCreateRequest = z.infer<typeof adminMapRevisionCreateRequestSchema>;

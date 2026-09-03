@@ -401,6 +401,11 @@ metadata, and linked challenges that are currently open. Maintainers create,
 edit, archive, and link events in the Portal. The same Portal/API path accepts
 a CSV preview and confirmed import; it validates every row before an atomic
 write, records the source hash and audit event, and never stores the CSV.
+Maintainers may suspend or restore a whole game version through a separate,
+idempotent operational state. Suspension leaves event lifecycle, balancing
+metadata, and admin visibility unchanged, but omits that version's events from
+the Bastion-facing `/v1/agents/events` projection. It takes effect on the next
+Bastion sync/build/release; the platform does not trigger those operations.
 
 ## Agents content API
 

@@ -44,7 +44,7 @@ import type {
   AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
-  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest,
+  RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
   PlayerSubmissionChallengeRequest,
@@ -189,6 +189,8 @@ export type PlatformServices = {
   archiveAdminRandomEvent(input: { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   previewAdminRandomEventImport(input: AdminRandomEventImportRequest, auth: AuthContext): Promise<{ sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: "development" | "implemented" | "removed" }> }>;
   importAdminRandomEvents(input: AdminRandomEventImportRequest, auth: AuthContext, idempotencyKey: string): Promise<{ importedCount: number }>;
+  listAdminRandomEventVersions(auth: AuthContext): Promise<AdminRandomEventVersionListResponse>;
+  updateAdminRandomEventVersion(input: AdminRandomEventVersionAvailabilityRequest & { gameVersion: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEventVersion>;
   listMaps(): Promise<Map[]>;
   updateAdminMapMetadata(input: AdminMapMetadataUpdateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<Map>;
   getAdminMapEditor(input: { mapId: string }, auth: AuthContext): Promise<AdminMapEditorResponse>;

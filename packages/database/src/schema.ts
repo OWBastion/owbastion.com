@@ -119,6 +119,14 @@ export const randomEvents = sqliteTable("random_events", {
   gameVersion: text("game_version").notNull(), effectTagsJson: text("effect_tags_json").notNull().default("[]"),
   releaseStatus: text("release_status").notNull(), archivedAt: integer("archived_at"), archivedBy: text("archived_by"), createdAt: integer("created_at").notNull(), updatedAt: integer("updated_at").notNull(),
 });
+export const randomEventVersions = sqliteTable("random_event_versions", {
+  gameVersion: text("game_version").primaryKey(),
+  availability: text("availability").notNull().default("available"),
+  suspendedAt: integer("suspended_at"),
+  suspendedBy: text("suspended_by"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
 export const effectGlossaryTerms = sqliteTable("effect_glossary_terms", {
   key: text("key").primaryKey(), nameZh: text("name_zh").notNull(), aliasesJson: text("aliases_json").notNull().default("[]"), category: text("category").notNull(), summary: text("summary").notNull(), definition: text("definition").notNull(), rulesJson: text("rules_json").notNull().default("[]"), sourceVersion: text("source_version").notNull(), updatedAt: integer("updated_at").notNull(),
 });

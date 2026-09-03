@@ -23,6 +23,7 @@ const adminApi = vi.fn(async (path: string) => {
       }],
     };
   }
+  if (path === "/v1/event-versions") return { items: [{ gameVersion: "2026.07.18", availability: "available", eventCount: 1 }] };
   throw new Error(`Unexpected request: ${path}`);
 });
 

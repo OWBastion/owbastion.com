@@ -31,6 +31,8 @@ const services: PlatformServices = {
   archiveAdminRandomEvent: async () => { throw new Error("EVENT_NOT_FOUND"); },
   previewAdminRandomEventImport: async () => ({ sourceHash: "hash", validRowCount: 0, errors: [], rows: [] }),
   importAdminRandomEvents: async () => ({ importedCount: 0 }),
+  listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [] }),
+  updateAdminRandomEventVersion: async ({ gameVersion, availability }) => ({ gameVersion, availability, eventCount: 0 }),
   listMaps: async () => [],
   updateAdminMapMetadata: async () => { throw new Error("MAP_NOT_FOUND"); },
   getAdminMapEditor: async () => { throw new Error("MAP_NOT_FOUND"); },
@@ -339,6 +341,19 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);
     const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => services });
     expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
+  });
+  it("lists and updates random-event version availability through maintainer routes", async () => {
+    const calls: Array<{ gameVersion: string; availability: string; key: string }> = [];
+    const maintainerApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({
+      ...services,
+      listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [{ gameVersion: "26.0901.1", availability: "available" as const, eventCount: 2 }] }),
+      updateAdminRandomEventVersion: async (input, _auth, key) => { calls.push({ gameVersion: input.gameVersion, availability: input.availability, key }); return { gameVersion: input.gameVersion, availability: input.availability, eventCount: 2 }; },
+    }) });
+    const listed = await maintainerApp.request("http://localhost/v1/admin/event-versions", {}, env);
+    const updated = await maintainerApp.request("http://localhost/v1/admin/event-versions/26.0901.1/availability", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "version-1" }, body: JSON.stringify({ contractVersion: "1", availability: "suspended" }) }, env);
+    expect(listed.status).toBe(200);
+    expect(updated.status).toBe(200);
+    expect(calls).toEqual([{ gameVersion: "26.0901.1", availability: "suspended", key: "version-1" }]);
   });
   it("reports health without external services and identifies its deployment revision", async () => {
     const response = await app.request("http://localhost/health", {}, { ...env, DEPLOYMENT_REVISION: "sha-0123456789abcdef" });
