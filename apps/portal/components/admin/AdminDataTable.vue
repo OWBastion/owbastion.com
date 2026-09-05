@@ -393,12 +393,16 @@ onBeforeUnmount(() => {
    table is actually wider (see --x class / flowHorizontalScroll). */
 .admin-data-table__table-viewport { min-width: 0; overflow: visible; }
 .admin-data-table__table-viewport--x { overflow-x: auto; overflow-y: clip; }
-.admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; }
+.admin-data-table :deep(table[data-slot="base"]) { width: 100%; min-width: var(--admin-table-min-width, 0); table-layout: fixed; overflow: visible; }
 /* Flow: stick under app header + controls. Bounded: stick under controls only.
    Background/blur come from Nuxt UI's thead theme (bg-default/75 backdrop-blur);
-   do not paint a solid surface here or the frosted-glass header is lost. */
+   do not paint a solid surface here or the frosted-glass header is lost.
+   Override Nuxt UI inset-x-0 so overflowed tables keep header/body column tracks. */
 .admin-data-table :deep([data-slot="thead"]) {
   top: calc(var(--sticky-chrome-top, 0px) + var(--admin-table-controls-height, 0px));
+  right: auto;
+  left: auto;
+  inset-inline: auto;
   z-index: 2;
 }
 .admin-data-table__scroll--bounded :deep([data-slot="thead"]) {
