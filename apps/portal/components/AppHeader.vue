@@ -156,7 +156,7 @@ async function signOut() {
         type="button"
         :aria-label="menuOpen ? '关闭菜单' : '打开菜单'"
         :aria-expanded="menuOpen"
-        aria-controls="mobile-nav"
+        :aria-controls="menuOpen ? 'mobile-nav' : undefined"
         @click="toggleMenu"
       >
         <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" aria-hidden="true" />

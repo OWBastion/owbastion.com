@@ -52,7 +52,8 @@ describe("AppHeader", () => {
     expect(wrapper.text()).not.toContain("天梯排名");
 
     const toggle = wrapper.get(".mobile-menu-toggle");
-    expect(toggle.attributes("aria-controls")).toBe("mobile-nav");
+    // aria-controls must be absent while the panel is not in the DOM (no-missing-references regression).
+    expect(toggle.attributes("aria-controls")).toBeUndefined();
     expect(toggle.attributes("aria-expanded")).toBe("false");
     const studioLink = wrapper.find(".main-nav a[href=\"/api/studio/login?redirect=%2Fstudio\"]");
     expect(studioLink.exists()).toBe(true);
@@ -60,6 +61,8 @@ describe("AppHeader", () => {
     expect(studioLink.attributes("rel")).toBe("noopener");
     await toggle.trigger("click");
     expect(toggle.attributes("aria-expanded")).toBe("true");
+    // aria-controls must be present and reference the panel once it is in the DOM.
+    expect(toggle.attributes("aria-controls")).toBe("mobile-nav");
     expect(wrapper.get("#mobile-nav").attributes("aria-label")).toBe("移动端管理导航");
     focusSpy.mockRestore();
   });
