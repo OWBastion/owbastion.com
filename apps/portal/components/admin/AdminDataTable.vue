@@ -456,7 +456,7 @@ onBeforeUnmount(() => {
   .admin-data-table__mobile-drawer-body { padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
   .admin-data-table__mobile-controls-content, .admin-data-table__mobile-secondary-filters { display: grid; gap: 12px; }
   .admin-data-table__mobile-secondary-filters { padding-bottom: 4px; }
-  .admin-data-table__controls { position: relative; }
+  .admin-data-table__controls { position: relative; top: auto; }
   .admin-data-table :deep(table[data-slot="base"]) { display: none; }
   .admin-data-table__mobile-list { display: block; }
 }
