@@ -79,7 +79,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace :title="player ? `${player.playerName}#${player.playerId}` : '玩家详情'">
-    <template #actions><NuxtLink class="back-link" to="/admin/players">返回玩家列表</NuxtLink></template>
+    <template #actions><UButton to="/admin/players" label="返回玩家列表" color="neutral" variant="outline" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
     <section v-if="player" class="player-detail-page"><AdminPlayerDetail :player="player" :loading="actionLoading || identityLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="load" @edit-identity="identityEditorOpen = true" /></section>
     <UEmpty v-else-if="!loading" title="找不到该玩家" description="玩家帐号可能已不存在或链接无效。" />
@@ -92,5 +92,5 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.back-link { color:var(--accent); font-size:.8rem; font-weight:650; text-decoration:none; }.back-link:hover { text-decoration:underline; }.detail-loading { width:100%; height:120px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
+.detail-loading { width:100%; height:120px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
 </style>

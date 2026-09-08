@@ -99,11 +99,11 @@ async function mountPage(): Promise<VueWrapper> {
 }
 
 describe("title migration page", () => {
-  it("shows migration metrics and selects a holder without opening the dialog", async () => {
+  it("selects a holder without opening the dialog", async () => {
     const wrapper = await mountPage();
     expect(wrapper.findAll(".holder-item")).toHaveLength(3);
-    expect(wrapper.text()).toContain("待处理持有者");
-    expect(wrapper.text()).toContain("3");
+    expect(wrapper.text()).toContain("3 位持有者");
+    expect(wrapper.find(".title-migration-metrics").exists()).toBe(false);
     expect(wrapper.find("[role=dialog]").exists()).toBe(false);
     expect(wrapper.find(".detail-panel").text()).toContain("Cold");
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("/v1/title-grants/holder?holderName=Cold"));

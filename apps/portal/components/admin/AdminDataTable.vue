@@ -151,6 +151,24 @@ const rowIdentity = (row: TData) => {
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`AdminDataTable row key must resolve to a string or number for ${props.tableKey}`);
   return String(value);
 };
+const interactiveRowSelector = "a, button, input, select, textarea, label, [role='button'], [role='switch'], [role='menuitem'], [role='checkbox']";
+function rowFromTableEvent(event: Event): TData | undefined {
+  if (!props.mobileRowLink) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest(interactiveRowSelector)) return;
+  const rowEl = target.closest("tbody tr");
+  const viewport = tableViewport.value;
+  if (!rowEl || !viewport?.contains(rowEl)) return;
+  const index = Array.from(viewport.querySelectorAll("tbody tr")).indexOf(rowEl);
+  if (index < 0) return;
+  return table.value?.tableApi.getRowModel().rows[index]?.original ?? props.data[index];
+}
+function onTableClick(event: MouseEvent) {
+  const row = rowFromTableEvent(event);
+  if (!row || !props.mobileRowLink) return;
+  void navigateTo(props.mobileRowLink(row));
+}
 const mobileData = computed(() => {
   const sourceData = props.data;
   globalFilter.value;
@@ -265,7 +283,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="tableRoot" class="admin-data-table" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
+  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink) }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
       <div ref="controls" class="admin-data-table__controls scroll-edge-sticky">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
@@ -296,6 +314,7 @@ onBeforeUnmount(() => {
         ref="tableViewport"
         class="admin-data-table__table-viewport"
         :class="{ 'admin-data-table__table-viewport--x': flowHorizontalScroll }"
+        @click="onTableClick"
       >
         <UTable
           ref="table"
@@ -325,7 +344,7 @@ onBeforeUnmount(() => {
         <p v-else-if="!mobileData.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
         <ul v-else class="admin-data-table__mobile-records">
           <li v-for="item in mobileData" :key="rowIdentity(item)" class="admin-data-table__mobile-record">
-            <NuxtLink v-if="props.mobileRowLink" class="admin-data-table__mobile-primary-link" :to="props.mobileRowLink(item)">
+            <NuxtLink v-if="props.mobileRowLink" class="admin-data-table__mobile-primary-link pressable-soft" :to="props.mobileRowLink(item)">
               <div class="admin-data-table__mobile-primary">
                 <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
@@ -342,7 +361,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
             <div v-if="mobileHasDetails" class="admin-data-table__mobile-disclosure">
-              <button class="admin-data-table__mobile-disclosure-trigger" type="button" :aria-expanded="Boolean(mobileExpanded[rowIdentity(item)])" :aria-controls="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" @click="mobileExpanded[rowIdentity(item)] = !mobileExpanded[rowIdentity(item)]">
+              <button class="admin-data-table__mobile-disclosure-trigger pressable" type="button" :aria-expanded="Boolean(mobileExpanded[rowIdentity(item)])" :aria-controls="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" @click="mobileExpanded[rowIdentity(item)] = !mobileExpanded[rowIdentity(item)]">
                 <span>{{ mobileExpanded[rowIdentity(item)] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
               </button>
               <div v-if="mobileExpanded[rowIdentity(item)]" :id="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" class="admin-data-table__mobile-details">
@@ -374,6 +393,10 @@ onBeforeUnmount(() => {
 /* overflow:visible so sticky controls/thead can anchor to the document (clip
    would create a containing block that kills page-level sticky). */
 .admin-data-table { overflow: visible; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
+.admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
+.admin-data-table--row-link :deep(tbody tr:hover),
+.admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
+.admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
 .admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 16px 16px 0 0; background: var(--surface); }
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }

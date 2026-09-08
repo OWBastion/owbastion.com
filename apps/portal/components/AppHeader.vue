@@ -14,35 +14,38 @@ function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
     .filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
 }
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
-const adminNavigationItems = [
-  { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin" },
+const adminPathActive = (to: string, exact = false) => exact ? route.path === to : route.path === to || route.path.startsWith(`${to}/`);
+const adminNavigationItems = computed(() => [
+  { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
   { label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink },
-  { label: "玩家", icon: "i-lucide-users", to: "/admin/players" },
-  { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings" },
+  { label: "玩家", icon: "i-lucide-users", to: "/admin/players", active: adminPathActive("/admin/players") },
+  { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
   {
     label: "核对",
     icon: "i-lucide-clipboard-check",
+    active: ["/admin/reviews", "/admin/mastery-runs", "/admin/player-reviews", "/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to)),
     children: [
-      { label: "审核", description: "截图核对队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews" },
-      { label: "通关记录", description: "已验证通关与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs" },
-      { label: "评价", description: "玩家评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews" },
-      { label: "标注", description: "识别标注队列", icon: "i-lucide-scan-text", to: "/admin/annotations" },
-      { label: "数据集", description: "审定标注快照", icon: "i-lucide-database", to: "/admin/datasets" },
+      { label: "审核", description: "截图核对队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
+      { label: "通关记录", description: "已验证通关与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
+      { label: "评价", description: "玩家评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
+      { label: "标注", description: "识别标注队列", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
+      { label: "数据集", description: "审定标注快照", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
     ],
   },
   {
     label: "称号",
     icon: "i-lucide-award",
+    active: ["/admin/achievements", "/admin/grants", "/admin/titles", "/admin/map-titles"].some((to) => adminPathActive(to)),
     children: [
-      { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements" },
-      { label: "批量发放", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants" },
-      { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles" },
+      { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements", active: adminPathActive("/admin/achievements") },
+      { label: "批量发放", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
+      { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
     ],
   },
-  { label: "地图", icon: "i-lucide-map", to: "/admin/maps" },
-  { label: "事件", icon: "i-lucide-zap", to: "/admin/events" },
-  { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels" },
-];
+  { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
+  { label: "事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
+  { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
+]);
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
@@ -193,8 +196,9 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
-.main-nav :deep(ul) { gap: 2px; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
+.main-nav::-webkit-scrollbar { display: none; }
+.main-nav :deep(ul) { flex-wrap: nowrap; gap: 2px; }
 .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
 .main-nav a {
   display: inline-flex;

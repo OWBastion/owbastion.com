@@ -16,6 +16,7 @@ const editorOpen = shallowRef(false);
 const editingGroup = shallowRef<AdminGroup | null>(null);
 const editor = reactive({ displayName: "", environment: "test" as AdminGroup["environment"] });
 const savingGroup = shallowRef(false);
+const savingGroupIds = shallowRef(new Set<string>());
 const defaultGroupSorting: SortingState = [{ id: "updatedAt", desc: true }];
 const groupSorting = shallowRef<SortingState>([...defaultGroupSorting]);
 const groupSortingOptions = [
@@ -35,7 +36,21 @@ const columns = [
   { id: "actions", header: "", enableHiding: false },
 ];
 async function load() { loading.value = true; errorMessage.value = ""; try { groups.value = (await api<{ items: AdminGroup[] }>("/v1/qq/groups")).items; } catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取群配置，请确认当前账号有管理员权限。").description; } finally { loading.value = false; } }
-async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) { const next = { ...group, ...changes }; try { await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, displayName: next.displayName, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } }); Object.assign(group, next); toast.add({ title: next.status === "active" ? "已设为当前活动群" : "群配置已更新", color: "success" }); } catch (error) { throw error; } }
+async function save(group: AdminGroup, changes: Partial<AdminGroup> = {}) {
+  const next = { ...group, ...changes };
+  savingGroupIds.value = new Set(savingGroupIds.value).add(group.groupOpenId);
+  try {
+    await api(`/v1/qq/groups/${encodeURIComponent(group.groupOpenId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", groupOpenId: next.groupOpenId, displayName: next.displayName, environment: next.environment, status: next.status, bindEnabled: next.bindEnabled, verifyEnabled: next.verifyEnabled } });
+    Object.assign(group, next);
+    toast.add({ title: next.status === "active" ? "已设为当前活动群" : "群配置已更新", color: "success" });
+  } catch (error) {
+    throw error;
+  } finally {
+    const nextIds = new Set(savingGroupIds.value);
+    nextIds.delete(group.groupOpenId);
+    savingGroupIds.value = nextIds;
+  }
+}
 function openEditor(group: AdminGroup) { editingGroup.value = group; editor.displayName = group.displayName; editor.environment = group.environment; editorOpen.value = true; }
 function closeEditor() { if (!savingGroup.value) { editorOpen.value = false; editingGroup.value = null; } }
 async function saveEditor() { if (!editingGroup.value || !editor.displayName.trim()) return; savingGroup.value = true; try { await save(editingGroup.value, { displayName: editor.displayName.trim(), environment: editor.environment }); editorOpen.value = false; editingGroup.value = null; } catch (error) { errorMessage.value = portalErrorDetails(error, "无法保存群配置，请稍后重试。").description; } finally { savingGroup.value = false; } }
@@ -49,8 +64,8 @@ onMounted(() => { void load(); });
       <template #displayName-cell="{ row }"><strong>{{ row.original.displayName || '未命名群组' }}</strong><small class="table-meta">{{ row.original.groupOpenId }}</small></template>
       <template #environment-cell="{ row }"><span>{{ row.original.environment === 'production' ? '正式群' : '测试群' }}</span></template>
       <template #status-cell="{ row }"><StatusBadge :label="{ pending: '待启用', active: '已启用', legacy: '历史群', disconnected: '已断开' }[row.original.status]" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
-      <template #verifyEnabled-cell="{ row }"><USwitch :model-value="row.original.verifyEnabled" :disabled="row.original.status !== 'active'" @update:model-value="save(row.original, { verifyEnabled: !row.original.verifyEnabled })" /></template>
-      <template #bindEnabled-cell="{ row }"><USwitch :model-value="row.original.bindEnabled" :disabled="row.original.status !== 'active'" @update:model-value="save(row.original, { bindEnabled: !row.original.bindEnabled })" /></template>
+      <template #verifyEnabled-cell="{ row }"><USwitch :model-value="row.original.verifyEnabled" :aria-label="`切换${row.original.displayName || '未命名群组'}的 /验证`" :disabled="row.original.status !== 'active' || savingGroupIds.has(row.original.groupOpenId)" @update:model-value="save(row.original, { verifyEnabled: !row.original.verifyEnabled })" /></template>
+      <template #bindEnabled-cell="{ row }"><USwitch :model-value="row.original.bindEnabled" :aria-label="`切换${row.original.displayName || '未命名群组'}的 /绑定`" :disabled="row.original.status !== 'active' || savingGroupIds.has(row.original.groupOpenId)" @update:model-value="save(row.original, { bindEnabled: !row.original.bindEnabled })" /></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton label="编辑" size="sm" color="neutral" variant="outline" @click="openEditor(row.original)" /><UButton v-if="row.original.status !== 'active' && row.original.status !== 'disconnected'" label="设为活动群" size="sm" color="neutral" variant="outline" @click="save(row.original, { status: 'active', bindEnabled: true, verifyEnabled: true })" /></div></template>
     </AdminDataTable></section>

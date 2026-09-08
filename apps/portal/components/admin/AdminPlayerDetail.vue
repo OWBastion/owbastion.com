@@ -71,7 +71,7 @@ onBeforeUnmount(() => {
       <a
         v-for="section in sections"
         :key="section.id"
-        class="detail-tab"
+        class="detail-tab pressable"
         :class="{
           'detail-tab--active': activeSection === section.id,
           'detail-tab--mobile-only': section.id === 'submissions',
@@ -117,12 +117,6 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="identity-card__metrics" aria-label="玩家概览">
-            <div><span>有效称号</span><strong>{{ props.player.titleGrants.length }}</strong></div>
-            <div><span>最近提交</span><strong>{{ props.player.recentSubmissions.length }}</strong></div>
-            <div><span>QQ 绑定</span><strong>{{ props.player.bindings.length }}</strong></div>
-          </div>
-
           <div class="identity-card__meta">
             <dl class="info-grid">
               <div>
@@ -149,7 +143,7 @@ onBeforeUnmount(() => {
                     <strong>{{ binding.groupOpenId }}</strong>
                     <small>{{ binding.memberOpenId }}</small>
                   </div>
-                  <UButton label="解绑" color="neutral" variant="link" size="sm" :disabled="props.loading" @click="emit('unbind', binding.bindingId)" />
+                  <UButton label="解绑" color="neutral" variant="outline" size="sm" :disabled="props.loading" @click="emit('unbind', binding.bindingId)" />
                 </div>
               </div>
               <p v-else class="bindings-inline__empty">暂无 QQ 绑定</p>
@@ -345,43 +339,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-}
-
-.identity-card__metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.identity-card__metrics div {
-  display: grid;
-  gap: 5px;
-  padding-inline: 14px;
-  border-right: 1px solid var(--line);
-}
-
-.identity-card__metrics div:first-child {
-  padding-left: 0;
-}
-
-.identity-card__metrics div:last-child {
-  padding-right: 0;
-  border-right: 0;
-}
-
-.identity-card__metrics span {
-  color: var(--quiet);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
-}
-
-.identity-card__metrics strong {
-  font-size: 0.86rem;
-  font-weight: 680;
 }
 
 .identity-card__meta {
@@ -599,24 +556,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
-  .identity-card__metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px 0;
-  }
-
-  .identity-card__metrics div:nth-child(2) {
-    border-right: 0;
-  }
-
-  .identity-card__metrics div:nth-child(3) {
-    padding-left: 0;
-  }
-
-  .identity-card__metrics div:nth-child(-n + 2) {
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--line);
-  }
-
   .info-grid {
     grid-template-columns: 1fr;
   }

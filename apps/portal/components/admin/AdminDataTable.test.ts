@@ -143,6 +143,12 @@ describe("AdminDataTable mobile presentation", () => {
     expect(viewport.classes()).not.toContain("admin-data-table__table-viewport--x");
   });
 
+  it("marks navigable records and applies press feedback on the mobile primary link", () => {
+    const wrapper = mountTable({ mobileRowLink: (row: { id: string }) => `/admin/records/${row.id}` });
+    expect(wrapper.get(".admin-data-table").classes()).toContain("admin-data-table--row-link");
+    expect(wrapper.get(".admin-data-table__mobile-primary-link").classes()).toContain("pressable-soft");
+  });
+
   it("returns flow resets to the workspace start and bounded resets its internal scroll", async () => {
     const flow = mountTable();
     const flowRoot = flow.get(".admin-data-table").element;

@@ -45,10 +45,7 @@ describe("AdminPlayerDetail", () => {
   it("consolidates duplicated summary/detail facts while keeping scan counts and actions", async () => {
     const wrapper = await mountDetail();
 
-    // Scan counts stay in the overview strip; the update timestamp lives only in the detail grid.
-    expect(wrapper.find(".identity-card__metrics").text()).toContain("有效称号");
-    expect(wrapper.find(".identity-card__metrics").text()).toContain("最近提交");
-    expect(wrapper.find(".identity-card__metrics").text()).toContain("QQ 绑定");
+    expect(wrapper.find(".identity-card__metrics").exists()).toBe(false);
     expect(wrapper.text().match(/最近更新/g)?.length).toBe(1);
 
     // The account ID is a detail fact, not repeated inline next to the battle tag.

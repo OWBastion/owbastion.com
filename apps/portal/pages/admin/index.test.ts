@@ -8,27 +8,20 @@ const adminApi = vi.fn((path: string) => {
     { submissionId: "submission-1", mapName: "帕拉伊苏", difficulty: "困难", playerName: "他又", status: "ready_for_review", updatedAt: 0 },
     { submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "阿澈", status: "ready_for_review", updatedAt: 0 },
   ] });
-  if (path === "/v1/submissions?status=upload_pending,ocr_pending&page=1&pageSize=1") return Promise.resolve({ total: 2, items: [] });
-  if (path === "/v1/player-accounts?status=active&page=1&pageSize=1") return Promise.resolve({ total: 42 });
-  if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map-1" }, { mapId: "map-2" }, { mapId: "map-3" }] });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin dashboard", () => {
-  it("shows dashboard metrics and review queue without duplicating the management navigation", async () => {
+  it("shows the pending review queue without duplicating the management navigation", async () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AdminDashboard, { global: { stubs: { NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" } } } });
     await flushPromises();
 
-    expect(wrapper.text()).toContain("待核对");
-    expect(wrapper.text()).toContain("识别中");
-    expect(wrapper.text()).toContain("活跃玩家");
-    expect(wrapper.text()).toContain("地图目录");
-    expect(wrapper.text()).toContain("3");
-    expect(wrapper.text()).toContain("2");
-    expect(wrapper.text()).toContain("42");
-    expect(wrapper.findAll(".metric-value")[3]?.text()).toBe("3");
+    expect(wrapper.text()).toContain("3 条待核对");
+    expect(wrapper.text()).not.toContain("活跃玩家");
+    expect(wrapper.text()).not.toContain("地图目录");
+    expect(wrapper.find(".metric-value").exists()).toBe(false);
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("等待核对");
     expect(wrapper.find('input[aria-label="搜索玩家"]').exists()).toBe(false);

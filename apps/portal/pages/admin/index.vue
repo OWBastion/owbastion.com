@@ -11,22 +11,14 @@ const submissions = ref<AdminSubmission[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
 const reviewTotal = ref(0);
-const processingTotal = ref(0);
-const activePlayerTotal = ref(0);
-const mapTotal = ref(0);
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
-const metrics = computed(() => {
-  const value = (count: number) => loading.value ? "读取中…" : `${count}`;
-  return [
-    { label: "待核对", value: value(reviewTotal.value), detail: "等待人工核对", to: "/admin/reviews", tone: "accent" as const },
-    { label: "识别中", value: value(processingTotal.value), detail: "OCR 处理中", to: "/admin/reviews?status=ocr_pending", tone: "accent" as const },
-    { label: "活跃玩家", value: value(activePlayerTotal.value), detail: "账号状态正常", to: "/admin/players", tone: "quiet" as const },
-    { label: "地图目录", value: value(mapTotal.value), detail: "已登记地图", to: "/admin/maps", tone: "quiet" as const },
-  ];
-});
+const queueMapName = (submission: AdminSubmission) => {
+  const mapName = (submission.ocr as { data?: { map_name?: unknown } } | null)?.data?.map_name;
+  return typeof mapName === "string" && mapName.trim() ? mapName : submission.mapName;
+};
 const reviewQueue = computed(() => submissions.value.map((submission) => ({
   submissionId: submission.submissionId,
-  mapName: submission.mapName,
+  mapName: queueMapName(submission),
   difficulty: submission.difficulty,
   playerName: submission.playerName,
   status: submissionStatusText[submission.status] ?? submission.status,
@@ -35,17 +27,9 @@ const reviewQueue = computed(() => submissions.value.map((submission) => ({
 
 onMounted(async () => {
   try {
-    const [reviewResponse, processingResponse, playerResponse, mapResponse] = await Promise.all([
-      api<{ items: AdminSubmission[]; total: number }>("/v1/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5"),
-	      api<{ total: number }>("/v1/submissions?status=upload_pending,ocr_pending&page=1&pageSize=1"),
-	      api<{ total: number }>("/v1/player-accounts?status=active&page=1&pageSize=1"),
-	      api<{ items: Array<{ mapId: string }> }>("/v1/maps"),
-	    ]);
+    const reviewResponse = await api<{ items: AdminSubmission[]; total: number }>("/v1/submissions?status=received,evidence_pending,evidence_stored,upload_pending,ocr_pending,ready_for_review,ocr_review_required&page=1&pageSize=5");
     submissions.value = reviewResponse.items;
-	    reviewTotal.value = reviewResponse.total;
-	    processingTotal.value = processingResponse.total;
-	    activePlayerTotal.value = playerResponse.total;
-	    mapTotal.value = mapResponse.items.length;
+    reviewTotal.value = reviewResponse.total;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法读取管理概览，请确认当前账号有管理员权限。").description;
   } finally {
@@ -55,9 +39,8 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AdminWorkspace title="管理概览">
-    <template #messages><p v-if="errorMessage" class="admin-alert" role="alert">{{ errorMessage }}</p></template>
-    <AdminDashboardMetrics :metrics="metrics" />
+  <AdminWorkspace title="管理概览" :count="loading ? '读取中…' : `${reviewTotal} 条待核对`">
+    <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <AdminReviewQueue class="dashboard-queue" :loading="loading" :reviews="reviewQueue" />
   </AdminWorkspace>
 </template>

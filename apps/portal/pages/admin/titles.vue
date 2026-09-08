@@ -19,7 +19,6 @@ const toast = useToast();
 const api = useAdminApi();
 const query = shallowRef("");
 const holders = shallowRef<HolderSummary[]>([]);
-const stats = shallowRef<MigrationStats>({ pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 });
 const selectedPlayerId = shallowRef("");
 const selectedPlayer = shallowRef<Player | null>(null);
 const playerOptions = shallowRef<Player[]>([]);
@@ -49,11 +48,6 @@ const bulkPreview = shallowRef<BulkPreviewGrant[]>([]);
 const bulkAffectedCount = shallowRef(0);
 const bulkLoading = shallowRef(false);
 
-const metrics = computed(() => [
-  { label: "待处理持有者", value: loading.value ? "读取中…" : `${stats.value.pendingHolderCount}`, detail: "存在未关联称号的历史持有者", icon: "i-lucide-user-round", tone: "accent" as const },
-  { label: "未关联称号", value: loading.value ? "读取中…" : `${stats.value.unclaimedGrantCount}`, detail: "待重新关联的称号数量", icon: "i-lucide-link-2-off", tone: "warning" as const },
-  { label: "已完成迁移", value: loading.value ? "读取中…" : `${stats.value.migratedGrantCount}`, detail: "历史累计完成迁移", icon: "i-lucide-circle-check", tone: "success" as const },
-]);
 const pendingGrantsPreview = computed(() => bulkPreview.value.slice(0, 8));
 const pendingGrantsOverflow = computed(() => Math.max(0, bulkAffectedCount.value - pendingGrantsPreview.value.length));
 const panelOpen = computed({
@@ -68,7 +62,6 @@ async function loadHolders(options: { resetSelection?: boolean } = {}) {
   try {
     const response = await api<HolderListResponse>(`/v1/title-grants?query=${encodeURIComponent(query.value)}&filter=${filter.value}&page=${page.value}&pageSize=${pageSize}`);
     holders.value = response.holders;
-    stats.value = response.stats;
     total.value = response.total;
     const retained = previousHolderName ? response.holders.find((holder) => holder.holderName === previousHolderName) : null;
     if (retained) {
@@ -306,7 +299,6 @@ onMounted(() => {
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
       <UAlert v-else-if="detailError" color="error" variant="subtle" :description="detailError" />
     </template>
-    <AdminTitleMigrationMetrics :metrics="metrics" />
     <section class="migration-workspace" aria-label="称号迁移工作台">
       <AdminTitleMigrationHolders
         :holders="holders"

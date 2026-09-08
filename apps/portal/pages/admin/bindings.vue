@@ -47,6 +47,7 @@ const revealingCode = shallowRef(false);
 
 const detailTarget = ref<Claim | null>(null);
 const conflictTarget = ref<Claim | null>(null);
+const rejectTarget = ref<Claim | null>(null);
 const deciding = ref(false);
 
 /* A-04 — briefly flash a row after an in-place update so the change is
@@ -174,6 +175,9 @@ function handleApprove(claim: Claim) {
     decide(claim, "approved");
   }
 }
+function handleReject(claim: Claim) {
+  rejectTarget.value = claim;
+}
 
 async function decide(claim: Claim, decision: "approved" | "rejected") {
   const action = decision === "approved" ? "批准" : "拒绝";
@@ -186,6 +190,7 @@ async function decide(claim: Claim, decision: "approved" | "rejected") {
     });
     toast.add({ title: `申请已${action}`, color: "success" });
     conflictTarget.value = null;
+    rejectTarget.value = null;
     detailTarget.value = null;
     // A-04 — update the row in place instead of reloading the whole page.
     const updated = claims.value.find((candidate) => candidate.claimId === claim.claimId);
@@ -284,7 +289,7 @@ onMounted(load);
     <section class="binding-section" aria-label="绑定记录">
       <UTabs v-model="activeTab" :items="bindingTabs" variant="link" aria-label="绑定记录类型" class="binding-tabs">
         <template #claims>
-          <AdminDataTable v-model:sorting="claimSorting" :data="claims" :columns="columns" :loading="loading" :sorting-options="claimSortingOptions" :default-sorting="defaultClaimSorting" empty="暂无绑定申请。" row-key="claimId" table-key="binding-claims">
+          <AdminDataTable v-model:sorting="claimSorting" :data="claims" :columns="columns" :mobile-columns="[{ id: 'playerName', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'operationType', priority: 'detail', order: 2 }, { id: 'createdAt', priority: 'detail', order: 3 }]" :loading="loading" :sorting-options="claimSortingOptions" :default-sorting="defaultClaimSorting" empty="暂无绑定申请。" row-key="claimId" table-key="binding-claims">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #operationType-cell="{ row }"><StatusBadge :label="operationTypeLabel(row.original.operationType)" :tone="operationTypeTone(row.original.operationType)" /></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedClaimIds.has(row.original.claimId) ? 'row-update-flash' : undefined" :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
@@ -294,14 +299,14 @@ onMounted(load);
                 <UButton label="详情" color="neutral" variant="outline" size="sm" @click="detailTarget = row.original" />
                 <template v-if="row.original.status === 'pending_review'">
                   <UButton label="批准" size="sm" :disabled="deciding" @click="handleApprove(row.original)" />
-                  <UButton label="拒绝" color="error" variant="soft" size="sm" :disabled="deciding" @click="decide(row.original, 'rejected')" />
+                  <UButton label="拒绝" color="error" variant="soft" size="sm" :disabled="deciding" @click="handleReject(row.original)" />
                 </template>
               </div>
             </template>
           </AdminDataTable>
         </template>
         <template #invitations>
-          <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" row-key="inviteId" table-key="binding-invites">
+          <AdminDataTable v-model:sorting="invitationSorting" :data="invitations" :columns="invitationColumns" :mobile-columns="[{ id: 'playerName', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'historicalMigration', priority: 'detail', order: 2 }, { id: 'expiresAt', priority: 'detail', order: 3 }]" :loading="loading" :sorting-options="invitationSortingOptions" :default-sorting="defaultInvitationSorting" empty="暂无邀请码。" row-key="inviteId" table-key="binding-invites">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #historicalMigration-cell="{ row }"><StatusBadge :label="historicalMigrationLabel(row.original.historicalMigration)" :tone="historicalMigrationTone(row.original.historicalMigration)" /></template>
@@ -310,7 +315,7 @@ onMounted(load);
           </AdminDataTable>
         </template>
         <template #active>
-          <AdminDataTable v-model:sorting="activeBindingSorting" :data="activeBindings" :columns="activeBindingColumns" :loading="loading" :sorting-options="activeBindingSortingOptions" :default-sorting="defaultActiveBindingSorting" empty="暂无当前绑定。" row-key="bindingId" table-key="active-bindings">
+          <AdminDataTable v-model:sorting="activeBindingSorting" :data="activeBindings" :columns="activeBindingColumns" :mobile-columns="[{ id: 'playerName', priority: 'primary', order: 0 }, { id: 'createdAt', priority: 'primary', order: 1 }, { id: 'memberOpenId', priority: 'detail', order: 2 }, { id: 'groupOpenId', priority: 'detail', order: 3 }]" :loading="loading" :sorting-options="activeBindingSortingOptions" :default-sorting="defaultActiveBindingSorting" empty="暂无当前绑定。" row-key="bindingId" table-key="active-bindings">
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #memberOpenId-cell="{ row }"><span class="table-meta">{{ row.original.memberOpenId }}</span></template>
             <template #groupOpenId-cell="{ row }"><span class="table-meta">{{ row.original.groupOpenId }}</span></template>
@@ -364,7 +369,7 @@ onMounted(load);
         <UButton label="关闭" color="neutral" variant="outline" @click="detailTarget = null" />
         <template v-if="detailTarget && detailTarget.status === 'pending_review'">
           <UButton label="批准" :disabled="deciding" @click="handleApprove(detailTarget)" />
-          <UButton label="拒绝" color="error" variant="soft" :disabled="deciding" @click="decide(detailTarget, 'rejected')" />
+          <UButton label="拒绝" color="error" variant="soft" :disabled="deciding" @click="handleReject(detailTarget)" />
         </template>
       </template>
     </AdminResponsiveDialog>
@@ -406,6 +411,10 @@ onMounted(load);
       </template>
     </AdminResponsiveDialog>
 
+    <AdminResponsiveDialog :open="rejectTarget !== null" title="确认拒绝申请" :description="rejectTarget ? `${rejectTarget.playerName}#${rejectTarget.playerId}` : undefined" size="sm" :dismissible="!deciding" @update:open="(open) => { if (!open && !deciding) rejectTarget = null; }">
+      <template #body><p class="revoke-note">拒绝后该申请关闭，玩家需要重新发起绑定。</p></template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="deciding" @click="rejectTarget = null" /><UButton label="确认拒绝" color="error" :loading="deciding" @click="decide(rejectTarget!, 'rejected')" /></template>
+    </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="revokeTarget !== null" title="撤销邀请码" :description="revokeTarget ? `${revokeTarget.playerName}#${revokeTarget.playerId}` : undefined" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body><form v-if="revokeTarget" id="invite-revoke" class="revoke-form" @submit.prevent="revokeInvitation"><p class="revoke-note">撤销后无法恢复。</p><UFormField label="撤销原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：发送对象有误" :disabled="revoking" /></UFormField></form></template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke" /><UButton label="确认撤销" color="error" type="submit" form="invite-revoke" :loading="revoking" /></template>
