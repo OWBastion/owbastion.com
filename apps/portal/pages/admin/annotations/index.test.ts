@@ -180,13 +180,4 @@ describe("admin annotations page", () => {
     }));
   });
 
-  it("opens direct annotation from a submission query without typing an ID", async () => {
-    adminApi.mockClear();
-    const wrapper = await mountSuspended(AnnotationsPage, { route: "/admin/annotations?submissionId=submission-1", global: { stubs } });
-    await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=50");
-    expect(wrapper.get('[data-testid="dialog"]').text()).toContain("直接标注");
-    expect(wrapper.text()).toContain("查看审核详情");
-    expect(wrapper.find('input[aria-label="审定值"]').exists()).toBe(true);
-  });
 });

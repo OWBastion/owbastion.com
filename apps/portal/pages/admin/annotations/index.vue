@@ -9,8 +9,6 @@ definePageMeta({ middleware: ['auth', 'admin-client'] });
 useSeoMeta({ title: '标注 · 躲避堡垒 3' });
 
 const api = useAdminApi();
-const route = useRoute();
-const router = useRouter();
 const toast = useToast();
 const activeTab = ref<'proposals' | 'reviewed'>('proposals');
 const proposals = ref<AdminAnnotationProposal[]>([]);
@@ -32,7 +30,6 @@ const editing = ref(false);
 const editValue = ref('');
 const saving = ref(false);
 const directOpen = ref(false);
-const directSubmissionId = ref('');
 const fieldFilterItems = [{ label: '全部字段', value: 'all' }, ...annotationFieldItems];
 
 const formatTime = (value: number) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value);
@@ -94,13 +91,6 @@ async function load() {
   } finally { loading.value = false; }
 }
 
-function setProposalQuery(proposalId: string | null) {
-  const query = { ...route.query };
-  if (proposalId) query.proposalId = proposalId;
-  else delete query.proposalId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
-}
-
 async function openProposal(proposalId: string) {
   detailOpen.value = true;
   detailLoading.value = true;
@@ -108,7 +98,6 @@ async function openProposal(proposalId: string) {
   selectedDetail.value = null;
   editing.value = false;
   editValue.value = '';
-  setProposalQuery(proposalId);
   try { selectedDetail.value = await api<AdminAnnotationProposalDetail>('/v1/annotations/proposals/' + encodeURIComponent(proposalId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取标注详情。').description; }
   finally { detailLoading.value = false; }
@@ -117,7 +106,6 @@ async function openProposal(proposalId: string) {
 function closeProposal() {
   detailOpen.value = false;
   editing.value = false;
-  setProposalQuery(null);
 }
 
 async function decide(action: 'accept' | 'edit_accept' | 'reject', reviewedValue?: string) {
@@ -160,8 +148,7 @@ async function saveEditAccept() {
   finally { saving.value = false; }
 }
 
-function openDirect(submissionId = '') {
-  directSubmissionId.value = submissionId;
+function openDirect() {
   directOpen.value = true;
 }
 
@@ -169,26 +156,6 @@ async function onDirectCreated() {
   toast.add({ title: '已创建审定标注', color: 'success' });
   await load();
 }
-
-watch(() => route.query.submissionId, (value) => {
-  const id = Array.isArray(value) ? value[0] : value;
-  if (typeof id !== 'string' || !id.trim()) return;
-  openDirect(id.trim());
-  const query = { ...route.query };
-  delete query.submissionId;
-  void router.replace({ path: route.path, query }).catch(() => {});
-}, { immediate: true });
-
-watch(() => route.query.proposalId, (value) => {
-  const id = Array.isArray(value) ? value[0] : value;
-  if (typeof id === 'string' && id.trim()) {
-    if (selectedDetail.value?.proposal.proposalId === id || (detailOpen.value && detailLoading.value)) return;
-    void openProposal(id);
-    return;
-  }
-  if (detailOpen.value) detailOpen.value = false;
-});
-watch(detailOpen, (open) => { if (!open) setProposalQuery(null); });
 
 watch([activeTab, proposalState, fieldKey, kind, promptOrigin, reviewedState], () => { page.value = 1; void load(); });
 onMounted(() => { void load(); });
@@ -207,7 +174,7 @@ onMounted(() => { void load(); });
     <UTabs v-model='activeTab' :items='[{ label: "待审", value: "proposals" }, { label: "已审", value: "reviewed" }]' class='annotation-tabs' />
 
     <section v-if='activeTab === "proposals"' aria-label='标注提案队列'>
-      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }]' row-key='proposalId' :mobile-row-link='(row) => `/admin/annotations?proposalId=${encodeURIComponent(row.proposalId)}`' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
+      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }]' row-key='proposalId' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
         <template #filters><div class='annotation-filters'>
           <USelect v-model='proposalState' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "待审", value: "pending" }, { label: "已接受", value: "accepted" }, { label: "已拒绝", value: "rejected" }]' />
           <USelect v-model='fieldKey' aria-label='筛选字段' :items='fieldFilterItems' />
@@ -264,7 +231,7 @@ onMounted(() => { void load(); });
       </template>
     </AdminResponsiveDialog>
 
-    <AdminAnnotationDirectDialog v-model:open='directOpen' :initial-submission-id='directSubmissionId' @created='onDirectCreated' />
+    <AdminAnnotationDirectDialog v-model:open='directOpen' @created='onDirectCreated' />
   </AdminWorkspace>
 </template>
 

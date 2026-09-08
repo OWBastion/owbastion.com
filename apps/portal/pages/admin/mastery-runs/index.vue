@@ -13,8 +13,6 @@ type PendingAction =
 type MasteryRunActionResponse = { contractVersion: "1"; run: AdminMasteryRun; projection: AdminMasteryRunProjection };
 
 const api = useAdminApi();
-const route = useRoute();
-const router = useRouter();
 const toast = useToast();
 const runs = shallowRef<AdminMasteryRun[]>([]);
 const loading = ref(true);
@@ -120,18 +118,10 @@ async function loadDetail(masteryRunId: string) {
   }
 }
 
-function setRunQuery(runId: string | null) {
-  const query = { ...route.query };
-  if (runId) query.runId = runId;
-  else delete query.runId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
-}
-
 async function openDetail(masteryRunId: string) {
   detailOpen.value = true;
   pendingAction.value = null;
   reason.value = "";
-  setRunQuery(masteryRunId);
   await loadDetail(masteryRunId);
 }
 
@@ -139,7 +129,6 @@ function closeDetail() {
   detailOpen.value = false;
   pendingAction.value = null;
   reason.value = "";
-  setRunQuery(null);
 }
 
 function beginStateAction(action: "invalidate" | "restore") {
@@ -184,22 +173,6 @@ watch([runCode, playerAccountId, mapId, difficulty, runStatus, acceptanceSource,
   page.value = 1;
   void load();
 });
-watch(() => route.query.runId, (value) => {
-  const id = Array.isArray(value) ? value[0] : value;
-  if (typeof id === "string" && id.trim()) {
-    if (selectedDetail.value?.run.runId === id || (detailOpen.value && detailLoading.value)) return;
-    void openDetail(id);
-    return;
-  }
-  if (detailOpen.value) {
-    detailOpen.value = false;
-    pendingAction.value = null;
-    reason.value = "";
-  }
-});
-watch(detailOpen, (open) => {
-  if (!open) setRunQuery(null);
-});
 onMounted(() => { void load(); });
 </script>
 
@@ -210,7 +183,7 @@ onMounted(() => { void load(); });
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     </template>
     <section aria-label="通关记录列表">
-      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'runCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :mobile-row-link="(row) => `/admin/mastery-runs?runId=${encodeURIComponent(row.runId)}`" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
+      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'runCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
         <template #filters>
           <div class="mastery-run-filters">
             <UInput v-model="runCode" aria-label="按通关码筛选" placeholder="通关码" />
