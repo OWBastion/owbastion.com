@@ -16,6 +16,7 @@ const props = defineProps<{
   masteryHistoryMapId: string | null;
   masteryHistoryLoading: boolean;
   masteryHistoryError: string;
+  selectedMapId?: string;
 }>();
 
 const selectedMap = shallowRef<Map | null>(null);
@@ -39,6 +40,14 @@ const openMap = (map: Map) => {
   modalOpen.value = true;
   if (props.authenticated) emit("history-page", { mapId: map.mapId, page: 1 });
 };
+
+const openSelectedMap = () => {
+  if (!props.selectedMapId) return;
+  const map = props.maps.find((candidate) => candidate.mapId === props.selectedMapId);
+  if (map && selectedMap.value?.mapId !== map.mapId) openMap(map);
+};
+
+watch([() => props.selectedMapId, () => props.maps], openSelectedMap, { immediate: true });
 
 const requestHistoryPage = (page: number) => {
   if (selectedMap.value) emit("history-page", { mapId: selectedMap.value.mapId, page });

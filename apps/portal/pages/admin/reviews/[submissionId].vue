@@ -127,8 +127,8 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
     <template #actions><UButton to="/admin/reviews" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
     <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :challenge-options="challengeOptions" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @select-challenge="selectChallenge" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @open-direct-annotation="annotationOpen = true" @evidence-error="evidenceError = true" />
-    <AdminAnnotationDirectDialog v-model:open="annotationOpen" :initial-submission-id="submissionId" @created="toast.add({ title: '已创建审定标注', color: 'success' })" />
     <UEmpty v-else-if="!loading" title="找不到该提交" />
+    <AdminAnnotationDirectDialog v-model:open="annotationOpen" :initial-submission-id="submissionId" @created="toast.add({ title: '已创建审定标注', color: 'success' })" />
   </AdminWorkspace>
 </template>
 

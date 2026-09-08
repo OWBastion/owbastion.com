@@ -47,7 +47,7 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
     <ul class="map-progress-list">
       <li v-for="row in rows" :key="row.map.mapId" class="map-progress-item">
         <article class="map-progress-card">
-          <NuxtLink to="/maps" class="map-progress-link interactive-card pressable-soft" :aria-label="`查看${row.map.mapName}详情`">
+          <NuxtLink :to="`/maps?mapId=${encodeURIComponent(row.map.mapId)}`" class="map-progress-link interactive-card pressable-soft" :aria-label="`查看${row.map.mapName}详情`">
             <div class="map-progress-heading">
               <h3 :id="`map-progress-${row.map.mapId}`">{{ row.map.mapName }}</h3>
               <span class="map-progress-status" :class="{ complete: isComplete(row) }">{{ statusLabel(row) }}</span>

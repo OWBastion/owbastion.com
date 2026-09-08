@@ -107,8 +107,7 @@ describe("EventDirectory", () => {
     await wrapper.get(".event-card").trigger("click");
     await wrapper.vm.$nextTick();
     const links = wrapper.findAll(".challenge-link");
-    expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).toContain("/maps");
-    expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).not.toContain("mapId=");
+    expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).toContain("/maps?mapId=map.samoa");
     expect(links[0]?.text()).toContain("查看地图");
     expect(links[1]?.attributes("href") ?? links[1]?.attributes("to")).toContain("/achievements");
     expect(links[1]?.text()).toContain("查看成就");

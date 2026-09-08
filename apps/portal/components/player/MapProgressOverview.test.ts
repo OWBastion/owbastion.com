@@ -22,7 +22,8 @@ describe("MapProgressOverview", () => {
     expect(wrapper.text()).toContain("哈瓦那");
     expect(wrapper.text()).toContain("地图称号 0 / 2");
     expect(wrapper.text()).toContain("暂无地图成就");
-    expect(wrapper.findAll('a[href="/maps"]').length).toBe(2);
+    expect(wrapper.find('a[href="/maps?mapId=map.samoa"]').exists()).toBe(true);
+    expect(wrapper.find('a[href="/maps?mapId=map.havana"]').exists()).toBe(true);
   });
 
   it("renders earned and unearned current targets with text markers", async () => {
