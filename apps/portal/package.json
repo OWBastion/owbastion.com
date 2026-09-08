@@ -19,7 +19,7 @@
     "@vueuse/core": "^14.4.0",
     "nuxt": "^4.4.8",
     "nuxt-studio": "^1.7.0",
-    "vue": "^3.5.40"
+    "vue": "^3.5.42"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.122",
