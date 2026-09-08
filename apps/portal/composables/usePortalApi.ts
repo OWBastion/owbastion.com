@@ -25,6 +25,8 @@ export type PlayerMasteryRun = {
 
 export type PlayerMasteryMapProfile = {
   mapId: string;
+  gameplayRevisionId?: string;
+  gameplayRevisionLifecycle?: "preparing" | "default" | "selectable" | "historical";
   totalXp: number;
   verifiedRunCount: number;
   difficultyStats: Array<{ difficulty: MasteryDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
@@ -33,6 +35,12 @@ export type PlayerMasteryMapProfile = {
   highestSingleRunXp: number | null;
   highestCompletedDifficulty: MasteryDifficulty | null;
   recentRuns: PlayerMasteryRun[];
+};
+
+export type PortalMap = {
+  mapId: string;
+  mapName: string;
+  defaultGameplayRevisionId?: string | null;
 };
 
 export type CurrentPlayerMasteryResponse = {

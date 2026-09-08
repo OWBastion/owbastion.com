@@ -7,6 +7,8 @@ export type OwnedTitle = {
   category: string;
   condition: string;
   scope: "global" | "map";
+  mapId?: string;
+  gameplayRevisionId?: string;
   mapName?: string;
   slot?: "pioneer" | "conqueror" | "dominator";
   grantedAt: number;

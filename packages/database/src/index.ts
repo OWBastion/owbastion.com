@@ -2977,10 +2977,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await database.batch(statements); return response;
     },
     async listMaps() {
-      const rows = await db.select({ map: maps, metadata: mapMetadata }).from(maps).leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id)).where(eq(maps.status, "active")).orderBy(maps.name);
-      return rows.map(({ map, metadata }): Map => ({
+      const rows = await db.select({ map: maps, metadata: mapMetadata, defaultRevisionId: gameplayRevisions.id }).from(maps)
+        .leftJoin(mapMetadata, eq(mapMetadata.mapId, maps.id))
+        .leftJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)))
+        .where(eq(maps.status, "active")).orderBy(maps.name);
+      return rows.map(({ map, metadata, defaultRevisionId }): Map => ({
           mapId: map.id,
           mapName: map.name,
+          defaultGameplayRevisionId: defaultRevisionId,
           gameVersion: map.gameVersion,
           difficultyRating: (metadata?.difficultyRating as Map["difficultyRating"]) ?? null,
           mechanics: metadata?.mechanicsJson ? JSON.parse(metadata.mechanicsJson) as string[] : [],
@@ -3701,7 +3705,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           eq(playerTitleGrants.status, "active"),
           or(isNull(playerTitleGrants.mapId), eq(gameplayRevisions.lifecycle, "default")),
         )).orderBy(desc(playerTitleGrants.grantedAt));
-      return rows.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt }));
+      return rows.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt }));
     },
 
     async listHistoricalTitleGrants(input) {

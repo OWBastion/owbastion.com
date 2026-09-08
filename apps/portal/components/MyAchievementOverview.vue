@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "./AchievementCatalog.vue";
 import type { OwnedTitle } from "~/types/title";
+import type { PortalMap } from "~/composables/usePortalApi";
+import type { MapProgressChallenge } from "~/utils/map-progress";
 
 type HistoricalTitleGroup = {
   name: string;
@@ -11,7 +13,12 @@ type AchievementCard =
   | { kind: "retired"; title: OwnedTitle };
 type AchievementGroup = { category: string; cards: AchievementCard[] };
 
-const props = defineProps<{ challenges: PublicAchievement[]; titles: OwnedTitle[] }>();
+const props = withDefaults(defineProps<{
+  challenges: PublicAchievement[];
+  titles: OwnedTitle[];
+  maps?: PortalMap[];
+  mapChallenges?: MapProgressChallenge[];
+}>(), { maps: () => [], mapChallenges: () => [] });
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
@@ -55,24 +62,32 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 <template>
   <div class="achievement-layout">
     <div class="achievement-main">
-      <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
-      <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
-        <header class="section-heading"><h2 :id="`my-category-${group.category}`">{{ group.category }}</h2><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
-        <div class="achievement-grid">
-          <article v-for="card in group.cards" :key="card.kind === 'catalog' ? card.challenge.challengeId : card.title.grantId" class="achievement-card" :class="{ earned: isAchievementCardEarned(card) }">
-            <div class="achievement-icon" :class="{ 'has-image': card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl }" aria-hidden="true"><img v-if="card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl" :src="card.kind === 'catalog' ? card.challenge.iconUrl! : card.title.iconUrl!" alt="" /><UIcon v-else :name="`i-lucide-${card.kind === 'catalog' ? card.challenge.icon : card.title.icon}`" /></div>
-            <div class="achievement-copy">
-              <div class="achievement-title-row">
-                <strong>{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
-                <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
+      <section class="general-achievement-section" aria-labelledby="general-achievements-title">
+        <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2></header>
+        <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
+        <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
+          <header class="section-heading"><h2 :id="`my-category-${group.category}`">{{ group.category }}</h2><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
+          <div class="achievement-grid">
+            <article v-for="card in group.cards" :key="card.kind === 'catalog' ? card.challenge.challengeId : card.title.grantId" class="achievement-card" :class="{ earned: isAchievementCardEarned(card) }">
+              <div class="achievement-icon" :class="{ 'has-image': card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl }" aria-hidden="true"><img v-if="card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl" :src="card.kind === 'catalog' ? card.challenge.iconUrl! : card.title.iconUrl!" alt="" /><UIcon v-else :name="`i-lucide-${card.kind === 'catalog' ? card.challenge.icon : card.title.icon}`" /></div>
+              <div class="achievement-copy">
+                <div class="achievement-title-row">
+                  <strong>{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
+                  <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
+                </div>
+                <span>{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
+                <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="status">未开放</span>
+                <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="status">即将结束</span>
               </div>
-              <span>{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
-              <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="status">未开放</span>
-              <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="status">即将结束</span>
-            </div>
-            <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
-          </article>
-        </div>
+              <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <section class="map-achievement-section" aria-labelledby="map-achievements-title">
+        <header class="achievement-type-heading"><h2 id="map-achievements-title">地图成就</h2></header>
+        <MapProgressOverview :maps="maps" :challenges="mapChallenges" :titles="titles" :show-mastery-facts="false" :show-targets="true" />
       </section>
 
       <section v-if="mapTitleGroups.length" class="achievement-section map-title-collection" aria-labelledby="map-titles-title">
@@ -89,7 +104,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
           </section>
       </section>
 
-      <UEmpty v-if="!groups.length && !mapTitleGroups.length" title="暂无记录" variant="naked" />
+      <UEmpty v-if="!groups.length && !mapTitleGroups.length && !maps.length" title="暂无记录" variant="naked" />
     </div>
 
     <aside class="achievement-sidebar" aria-label="最近获得">
@@ -101,6 +116,10 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 <style scoped>
 .achievement-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15.625rem, 18.75rem); align-items: start; gap: 1.25rem; }
 .achievement-main { display: grid; gap: 1.25rem; }
+.general-achievement-section { display: grid; gap: 1.25rem; }
+.map-achievement-section { display: grid; gap: 1rem; }
+.achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.achievement-type-heading h2 { margin: 0; color: var(--text); font-size: 1.15rem; }
 .achievement-count { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 .achievement-section { padding: clamp(1.125rem, 3vw, 1.625rem); border: 1px solid var(--line); border-radius: 1.125rem; background: var(--surface); }
 .section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
