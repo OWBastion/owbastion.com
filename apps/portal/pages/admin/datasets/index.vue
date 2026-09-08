@@ -116,7 +116,7 @@ onMounted(() => { void load(); });
     </template>
 
     <section aria-label='数据集列表'>
-      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='datasetId' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
+      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='datasetId' :mobile-row-action='(row) => openDetail(row.datasetId)' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
         <template #filters><div class='dataset-filters'>
           <USelect v-model='statusFilter' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }]' />
         </div></template>

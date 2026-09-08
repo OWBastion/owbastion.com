@@ -183,7 +183,7 @@ onMounted(() => { void load(); });
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     </template>
     <section aria-label="通关记录列表">
-      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'runCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
+      <AdminDataTable :data="runs" :columns="columns" :mobile-columns="[{ id: 'map', priority: 'primary', order: 0 }, { id: 'playerName', priority: 'primary', order: 1 }, { id: 'status', priority: 'detail', order: 2 }, { id: 'runCode', priority: 'detail', order: 3 }, { id: 'conflictCount', priority: 'detail', order: 4 }]" row-key="runId" :mobile-row-action="(row) => openDetail(row.runId)" :loading="loading" empty="暂无匹配通关记录。" table-key="mastery-runs" manual-filtering :reset-scroll-key="`${page}-${query}`">
         <template #filters>
           <div class="mastery-run-filters">
             <UInput v-model="runCode" aria-label="按通关码筛选" placeholder="通关码" />

@@ -174,7 +174,7 @@ onMounted(() => { void load(); });
     <UTabs v-model='activeTab' :items='[{ label: "待审", value: "proposals" }, { label: "已审", value: "reviewed" }]' class='annotation-tabs' />
 
     <section v-if='activeTab === "proposals"' aria-label='标注提案队列'>
-      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }]' row-key='proposalId' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
+      <AdminDataTable :data='proposals' :columns='columns' :mobile-columns='[{ id: "field", priority: "primary", order: 0 }, { id: "submissionMapName", priority: "primary", order: 1 }, { id: "proposed", priority: "detail", order: 2 }, { id: "reviewState", priority: "detail", order: 3 }]' row-key='proposalId' :mobile-row-action='(row) => openProposal(row.proposalId)' :loading='loading' empty='暂无匹配提案。' table-key='admin-annotations-proposals' manual-filtering :reset-scroll-key='`${page}-${proposalState}-${fieldKey}-${kind}-${promptOrigin}`'>
         <template #filters><div class='annotation-filters'>
           <USelect v-model='proposalState' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "待审", value: "pending" }, { label: "已接受", value: "accepted" }, { label: "已拒绝", value: "rejected" }]' />
           <USelect v-model='fieldKey' aria-label='筛选字段' :items='fieldFilterItems' />
