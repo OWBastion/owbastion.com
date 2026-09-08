@@ -40,6 +40,7 @@ type Props = {
   tableKey: string;
   rowKey: RowKey<TData>;
   mobileRowLink?: (row: TData) => string;
+  mobileRowAction?: (row: TData) => void;
   resetScrollKey?: string | number;
   sticky?: boolean | "header" | "footer";
   virtualize?: boolean | TableVirtualizeOptions;
@@ -57,6 +58,7 @@ const props = withDefaults(defineProps<Props>(), {
   tableMinWidth: undefined,
   resetScrollKey: undefined,
   mobileRowLink: undefined,
+  mobileRowAction: undefined,
   sticky: "header",
   virtualize: false,
 });
@@ -153,7 +155,7 @@ const rowIdentity = (row: TData) => {
 };
 const interactiveRowSelector = "a, button, input, select, textarea, label, [role='button'], [role='switch'], [role='menuitem'], [role='checkbox']";
 function rowFromTableEvent(event: Event): TData | undefined {
-  if (!props.mobileRowLink) return;
+  if (!props.mobileRowLink && !props.mobileRowAction) return;
   const target = event.target;
   if (!(target instanceof Element)) return;
   if (target.closest(interactiveRowSelector)) return;
@@ -166,8 +168,12 @@ function rowFromTableEvent(event: Event): TData | undefined {
 }
 function onTableClick(event: MouseEvent) {
   const row = rowFromTableEvent(event);
-  if (!row || !props.mobileRowLink) return;
-  void navigateTo(props.mobileRowLink(row));
+  if (!row) return;
+  if (props.mobileRowLink) {
+    void navigateTo(props.mobileRowLink(row));
+    return;
+  }
+  props.mobileRowAction?.(row);
 }
 const mobileData = computed(() => {
   const sourceData = props.data;
@@ -283,7 +289,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink) }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
+  <div ref="tableRoot" class="admin-data-table" :class="{ 'admin-data-table--row-link': Boolean(props.mobileRowLink || props.mobileRowAction) }" :style="props.tableMinWidth ? { '--admin-table-min-width': props.tableMinWidth } : undefined">
     <div ref="scrollContainer" class="admin-data-table__scroll" :class="{ 'admin-data-table__scroll--bounded': boundedScroll }" :style="boundedScroll && tableScrollHeight ? { height: tableScrollHeight } : undefined">
       <div ref="controls" class="admin-data-table__controls scroll-edge-sticky">
         <div v-if="$slots.filters" class="admin-data-table__filters admin-data-table__filters--desktop"><slot name="filters" /></div>
@@ -353,6 +359,15 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </NuxtLink>
+            <button v-else-if="props.mobileRowAction" class="admin-data-table__mobile-primary-link pressable-soft" type="button" @click="props.mobileRowAction(item)">
+              <div class="admin-data-table__mobile-primary">
+                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
+                  <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
+                  <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
+                  <span v-else>{{ mobileValue(item, field.column) }}</span>
+                </div>
+              </div>
+            </button>
             <div v-else class="admin-data-table__mobile-primary">
               <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
                 <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
@@ -372,7 +387,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div v-if="tableSlots['actions-cell'] && !props.mobileRowLink" class="admin-data-table__mobile-actions">
+            <div v-if="tableSlots['actions-cell'] && !props.mobileRowLink && !props.mobileRowAction" class="admin-data-table__mobile-actions">
               <UDropdownMenu :items="[]" :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }" :ui="{ content: 'admin-data-table__mobile-action-menu elevation-2' }">
                 <UButton icon="i-lucide-ellipsis" square color="neutral" variant="outline" class="hit-44" aria-label="打开更多操作" />
                 <template #content-bottom>
@@ -443,7 +458,7 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-records { margin: 0; padding: 0; list-style: none; }
 .admin-data-table__mobile-record { padding: 14px; border-bottom: 1px solid var(--line); }
 .admin-data-table__mobile-record:last-child { border-bottom: 0; }
-.admin-data-table__mobile-primary-link { display: block; color: inherit; text-decoration: none; border-radius: 10px; }
+.admin-data-table__mobile-primary-link { display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; color: inherit; background: transparent; font: inherit; text-align: left; text-decoration: none; }
 .admin-data-table__mobile-primary-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: 12px; }
 .admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }

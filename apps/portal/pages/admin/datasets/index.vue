@@ -8,8 +8,6 @@ definePageMeta({ middleware: ['auth', 'admin-client'] });
 useSeoMeta({ title: '数据集 · 躲避堡垒 3' });
 
 const api = useAdminApi();
-const route = useRoute();
-const router = useRouter();
 const toast = useToast();
 const datasets = ref<AdminDatasetSnapshot[]>([]);
 const loading = ref(true);
@@ -72,19 +70,11 @@ async function createDraft() {
   } finally { creating.value = false; }
 }
 
-function setDatasetQuery(datasetId: string | null) {
-  const query = { ...route.query };
-  if (datasetId) query.datasetId = datasetId;
-  else delete query.datasetId;
-  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
-}
-
 async function openDetail(datasetId: string) {
   detailOpen.value = true;
   detailLoading.value = true;
   detailError.value = '';
   selectedDetail.value = null;
-  setDatasetQuery(datasetId);
   try { selectedDetail.value = await api<AdminDatasetDetail>('/v1/datasets/' + encodeURIComponent(datasetId)); }
   catch (error) { detailError.value = portalErrorDetails(error, '无法读取数据集详情。').description; }
   finally { detailLoading.value = false; }
@@ -92,7 +82,6 @@ async function openDetail(datasetId: string) {
 
 function closeDetail() {
   detailOpen.value = false;
-  setDatasetQuery(null);
 }
 
 async function finalize() {
@@ -113,16 +102,6 @@ async function finalize() {
 }
 
 watch(statusFilter, () => { page.value = 1; void load(); });
-watch(() => route.query.datasetId, (value) => {
-  const id = Array.isArray(value) ? value[0] : value;
-  if (typeof id === 'string' && id.trim()) {
-    if (selectedDetail.value?.snapshot.datasetId === id || (detailOpen.value && detailLoading.value)) return;
-    void openDetail(id);
-    return;
-  }
-  if (detailOpen.value) detailOpen.value = false;
-});
-watch(detailOpen, (open) => { if (!open) setDatasetQuery(null); });
 onMounted(() => { void load(); });
 </script>
 
@@ -137,7 +116,7 @@ onMounted(() => { void load(); });
     </template>
 
     <section aria-label='数据集列表'>
-      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='datasetId' :mobile-row-link='(row) => `/admin/datasets?datasetId=${encodeURIComponent(row.datasetId)}`' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
+      <AdminDataTable :data='datasets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='datasetId' :mobile-row-action='(row) => openDetail(row.datasetId)' :loading='loading' empty='暂无数据集。' table-key='admin-datasets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
         <template #filters><div class='dataset-filters'>
           <USelect v-model='statusFilter' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }]' />
         </div></template>

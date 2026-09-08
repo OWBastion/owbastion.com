@@ -23,6 +23,7 @@ const emit = defineEmits<{
   "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
+  "open-direct-annotation": [];
   "retry-ocr": [];
 }>();
 
@@ -243,11 +244,12 @@ const challengeSummary = computed(() => {
           />
           <UButton
             class="action-btn action-btn--utility pressable"
-            :to="`/admin/annotations?submissionId=${encodeURIComponent(submission.submissionId)}`"
+            type="button"
             icon="i-lucide-pen-line"
             label="直接标注"
             color="neutral"
             variant="ghost"
+            @click="emit('open-direct-annotation')"
           />
         </div>
       </section>

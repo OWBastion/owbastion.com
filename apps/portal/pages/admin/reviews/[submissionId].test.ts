@@ -39,7 +39,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("查看原始识别数据");
     expect(wrapper.text()).toContain("提交信息");
     expect(wrapper.findAll(".actions button")).toHaveLength(3);
-    expect(wrapper.get(".ocr-retry-actions a").attributes("href") ?? wrapper.get(".ocr-retry-actions a").attributes("to")).toContain("/admin/annotations?submissionId=submission-1");
+    expect(wrapper.findAll(".ocr-retry-actions button")).toHaveLength(2);
     expect(wrapper.find(".claim-card").exists()).toBe(true);
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
@@ -66,6 +66,14 @@ describe("admin review detail page", () => {
     await wrapper.get(".ocr-retry-actions button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/ocr/retry", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("opens direct annotation locally without changing the route", async () => {
+    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    await flushPromises();
+    await wrapper.findAll(".ocr-retry-actions button")[1]?.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("直接标注");
   });
 
   it("lets maintainers select multiple automatic-match challenges", async () => {

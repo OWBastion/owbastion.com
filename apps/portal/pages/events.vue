@@ -3,8 +3,7 @@ import type { RandomEvent } from "~/types/random-event";
 import EventDirectory from "~/components/events/EventDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 useSeoMeta({ title: "随机事件 · 躲避堡垒 3", description: "查看当前随机事件与开放挑战。" });
-const api = usePortalApi(); const { player, refresh } = useCurrentPlayer(); const route = useRoute(); const events = ref<RandomEvent[]>([]); const loading = shallowRef(true); const error = shallowRef("");
-const selectedEventId = computed(() => typeof route.query.eventId === "string" ? route.query.eventId : undefined);
+const api = usePortalApi(); const { player, refresh } = useCurrentPlayer(); const events = ref<RandomEvent[]>([]); const loading = shallowRef(true); const error = shallowRef("");
 onMounted(async () => {
   const [eventResult, playerResult] = await Promise.allSettled([api<{ items: RandomEvent[] }>("/v1/events"), refresh()]);
   if (eventResult.status === "fulfilled") events.value = eventResult.value.items;
@@ -26,7 +25,7 @@ onMounted(async () => {
         </div>
       </div>
       <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取事件" :description="error" />
-      <EventDirectory v-else :events="events" :authenticated="Boolean(player)" :selected-event-id="selectedEventId" />
+      <EventDirectory v-else :events="events" :authenticated="Boolean(player)" />
     </section>
   </main>
 </template>
