@@ -34,6 +34,7 @@ import {
   adminDatasetFinalizeRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
+  playerEquippedTitlesRequestSchema,
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
@@ -618,6 +619,22 @@ export const createApp = (dependencies: AppDependencies) => {
     const items = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken });
     if (!items) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", items });
+  });
+  app.put("/v1/me/titles/equipped", async (c) => {
+    allowPortal(c);
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = playerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
+      if (["UNAUTHENTICATED", "EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/me/reviews/:targetType/:targetId", async (c) => {

@@ -296,6 +296,12 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey),
 }));
 
+export const playerEquippedTitles = sqliteTable("player_equipped_titles", {
+  grantId: text("grant_id").primaryKey().references(() => playerTitleGrants.id),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  equippedAt: integer("equipped_at").notNull(),
+});
+
 export const titleChallenges = sqliteTable("title_challenges", {
   id: text("id").primaryKey(),
   titleKey: text("title_key").notNull().references(() => titleCatalog.key),
