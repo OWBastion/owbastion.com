@@ -68,7 +68,7 @@ describe("MyAchievementOverview", () => {
     expect(mapSection.text()).toContain("地图成就");
     expect(mapSection.text()).toContain("哈瓦那");
     expect(mapSection.text()).toContain("帕拉伊苏");
-    expect(mapSection.text()).toContain("未完成");
+    expect(mapSection.text()).toContain("已完成 0 / 1");
     expect(wrapper.text()).toContain("通用成就");
   });
 });

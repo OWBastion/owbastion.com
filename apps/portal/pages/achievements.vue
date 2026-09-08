@@ -34,7 +34,7 @@ onMounted(async () => {
       challenges.value = (await api<{ items: PublicAchievement[] }>("/v1/public/achievements")).items;
     }
   } catch (cause) {
-    error.value = portalErrorDetails(cause, "请稍后重试。").description;
+    error.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
   } finally {
     loading.value = false;
   }

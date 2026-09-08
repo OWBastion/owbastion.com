@@ -23,20 +23,21 @@ const rows = computed(() => buildMapProgressRows({
   profiles: props.profiles,
 }));
 const targetMapCount = computed(() => rows.value.filter((row) => row.challenges.length).length);
-const completedMapCount = computed(() => rows.value.filter((row) => row.challenges.length > 0 && row.earnedChallenges.length === row.challenges.length).length);
+const totalChallengeCount = computed(() => rows.value.reduce((count, row) => count + row.challenges.length, 0));
+const earnedChallengeCount = computed(() => rows.value.reduce((count, row) => count + row.earnedChallenges.length, 0));
 const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const statusLabel = (row: (typeof rows.value)[number]) => {
   if (!row.challenges.length) return "暂无地图成就";
   if (row.earnedChallenges.length === row.challenges.length) return "已完成";
   if (row.earnedChallenges.length) return `已完成 ${row.earnedChallenges.length} / ${row.challenges.length}`;
-  return "未完成";
+  return `已完成 ${row.earnedChallenges.length} / ${row.challenges.length}`;
 };
 const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChallenge) => row.earnedChallenges.some((item) => item.challengeId === challenge.challengeId);
 </script>
 
 <template>
   <div v-if="rows.length" class="map-progress-overview">
-    <p v-if="showTargets && targetMapCount" class="map-progress-summary" aria-live="polite">已完成 {{ completedMapCount }} / {{ targetMapCount }}</p>
+    <p v-if="showTargets && targetMapCount" class="map-progress-summary" aria-live="polite">已获得 {{ earnedChallengeCount }} / {{ totalChallengeCount }} 个地图成就</p>
     <ul class="map-progress-list">
       <li v-for="row in rows" :key="row.map.mapId" class="map-progress-item">
         <NuxtLink :to="`/maps?mapId=${encodeURIComponent(row.map.mapId)}`" class="map-progress-card interactive-card pressable-soft">
@@ -55,12 +56,12 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
           </ul>
 
           <dl v-if="showMasteryFacts && row.profile" class="mastery-facts">
-            <div><dt>精通 XP</dt><dd>{{ row.profile.totalXp }}</dd></div>
+            <div><dt>精通 XP</dt><dd>{{ row.profile.totalXp }} XP</dd></div>
             <div><dt>已验证通关</dt><dd>{{ row.profile.verifiedRunCount }} 次</dd></div>
             <div><dt>最高难度</dt><dd>{{ row.profile.highestCompletedDifficulty ?? "暂无记录" }}</dd></div>
             <div v-if="row.profile.recentRuns[0]"><dt>最近记录</dt><dd>{{ formatDate(row.profile.recentRuns[0].acceptedAt) }}</dd></div>
           </dl>
-          <span v-else-if="showMasteryFacts" class="mastery-empty">暂无通关记录</span>
+          <span v-else-if="showMasteryFacts" class="mastery-empty">暂无精通记录</span>
         </NuxtLink>
       </li>
     </ul>

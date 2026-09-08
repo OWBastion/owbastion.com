@@ -20,7 +20,7 @@ describe("MapProgressOverview", () => {
 
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("哈瓦那");
-    expect(wrapper.text()).toContain("未完成");
+    expect(wrapper.text()).toContain("已完成 0 / 2");
     expect(wrapper.text()).toContain("暂无地图成就");
     expect(wrapper.find('a[href="/maps?mapId=map.samoa"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/maps?mapId=map.havana"]').exists()).toBe(true);
@@ -43,6 +43,6 @@ describe("MapProgressOverview", () => {
     expect(wrapper.text()).toContain("✓");
     expect(wrapper.text()).toContain("○");
     expect(wrapper.text()).toContain("已完成 1 / 2");
-    expect(wrapper.text()).not.toContain("个地图成就");
+    expect(wrapper.text()).toContain("已获得 1 / 2 个地图成就");
   });
 });

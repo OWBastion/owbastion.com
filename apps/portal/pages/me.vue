@@ -142,7 +142,7 @@ onMounted(() => {
       </section>
 
       <section class="section-block mastery-section" aria-labelledby="mastery-title">
-        <PageSectionHeader title="地图精通" heading-id="mastery-title">
+        <PageSectionHeader title="地图进度" heading-id="mastery-title">
           <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
         </PageSectionHeader>
         <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
@@ -151,7 +151,7 @@ onMounted(() => {
         <UAlert v-else-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
-        <div v-else-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取精通记录…"><USkeleton /><USkeleton /></div>
+        <div v-else-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
         <MapProgressOverview v-else :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" />
       </section>
 

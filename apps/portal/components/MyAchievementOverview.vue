@@ -25,6 +25,12 @@ const earnedCatalogCount = computed(() => props.challenges.filter((challenge) =>
 const recentTitles = computed(() => [...props.titles].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const catalogTitleKeys = computed(() => new Set(props.challenges.map((challenge) => challenge.titleKey)));
 const retiredGlobalTitles = computed(() => props.titles.filter((title) => title.scope === "global" && !catalogTitleKeys.value.has(title.titleKey)));
+const currentMapTitleKeys = computed(() => new Set(props.mapChallenges
+  .filter((challenge) => challenge.titleKey && props.maps.some((map) => map.mapId === challenge.mapId && map.defaultGameplayRevisionId === challenge.gameplayRevisionId))
+  .map((challenge) => `${challenge.mapId}:${challenge.gameplayRevisionId}:${challenge.titleKey}`)));
+const isCurrentMapTitle = (title: OwnedTitle) => title.scope === "map"
+  && Boolean(title.mapId && title.gameplayRevisionId)
+  && currentMapTitleKeys.value.has(`${title.mapId}:${title.gameplayRevisionId}:${title.titleKey}`);
 const groupHistoricalTitles = (titles: OwnedTitle[], groupName: (title: OwnedTitle) => string): HistoricalTitleGroup[] => {
   const grouped = new Map<string, OwnedTitle[]>();
   for (const title of titles) grouped.set(groupName(title), [...(grouped.get(groupName(title)) ?? []), title]);
@@ -38,7 +44,7 @@ const groupHistoricalTitles = (titles: OwnedTitle[], groupName: (title: OwnedTit
     .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
 };
 const mapTitleGroups = computed(() => groupHistoricalTitles(
-  props.titles.filter((title) => title.scope === "map"),
+  props.titles.filter((title) => title.scope === "map" && !isCurrentMapTitle(title)),
   (title) => title.mapName ?? "地图称号",
 ));
 const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) => count + group.titles.length, 0));
@@ -91,13 +97,13 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
       </section>
 
       <section v-if="mapTitleGroups.length" class="achievement-section map-title-collection" aria-labelledby="map-titles-title">
-        <header class="section-heading"><h2 id="map-titles-title">地图称号</h2><span>{{ mapTitleCount }} 项</span></header>
+        <header class="section-heading"><h2 id="map-titles-title">其他地图称号</h2><span>{{ mapTitleCount }} 项</span></header>
         <section v-for="(group, index) in mapTitleGroups" :key="group.name" class="map-title-group" :aria-labelledby="`map-title-${index}`">
             <header class="map-title-heading"><h3 :id="`map-title-${index}`">{{ group.name }}</h3><span>{{ group.titles.length }} 项</span></header>
             <div class="achievement-grid">
               <article v-for="title in group.titles" :key="title.grantId" class="achievement-card earned">
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
-                <div class="achievement-copy"><strong>{{ title.label }}</strong><span>{{ title.condition }}</span></div>
+                <div class="achievement-copy"><div class="achievement-title-row"><strong>{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span>{{ title.condition }}</span></div>
                 <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
               </article>
             </div>
