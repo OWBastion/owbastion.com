@@ -2781,7 +2781,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .from(playerTitleGrants)
         .innerJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
         .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global")))
+        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")))
         .where(and(eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId))).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
       const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitleKeys: Set<string> }>();
       for (const row of rows) {
@@ -3706,7 +3706,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .where(and(
           eq(playerTitleGrants.playerAccountId, binding.playerAccountId),
           eq(playerTitleGrants.status, "active"),
-          or(isNull(playerTitleGrants.mapId), eq(gameplayRevisions.lifecycle, "default")),
+          or(
+            and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active")),
+            and(eq(titleCatalog.scope, "map"), eq(titleCatalog.availability, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+          ),
         )).orderBy(desc(playerTitleGrants.grantedAt));
       return rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: Boolean(equipped) }));
     },
@@ -3720,7 +3723,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const request = { grantIds: input.grantIds };
       const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(db, binding.playerAccountId, operation, idempotencyKey, request);
       if (replay) return replay;
-      const grants = input.grantIds.length ? await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(inArray(playerTitleGrants.id, input.grantIds), eq(playerTitleGrants.playerAccountId, binding.playerAccountId), eq(playerTitleGrants.status, "active"))) : [];
+      const grants = input.grantIds.length ? await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
+        .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
+        .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
+        .where(and(inArray(playerTitleGrants.id, input.grantIds), eq(playerTitleGrants.playerAccountId, binding.playerAccountId), eq(playerTitleGrants.status, "active"), eq(titleCatalog.availability, "active"), or(
+          and(eq(titleCatalog.scope, "global"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
+          and(eq(titleCatalog.scope, "map"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+        ))) : [];
       if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
       const timestamp = now(); const response = { contractVersion: "1" as const, grantIds: [...input.grantIds] };
       await database.batch([

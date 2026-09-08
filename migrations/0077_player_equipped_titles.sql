@@ -5,7 +5,7 @@ CREATE TABLE player_equipped_titles (
 );
 CREATE INDEX player_equipped_titles_player_idx ON player_equipped_titles(player_account_id);
 CREATE TRIGGER player_equipped_titles_validate_insert BEFORE INSERT ON player_equipped_titles BEGIN
-  SELECT CASE WHEN (SELECT player_account_id FROM player_title_grants WHERE id = NEW.grant_id AND status = 'active') != NEW.player_account_id THEN RAISE(ABORT, 'EQUIPPED_TITLE_GRANT_INVALID') END;
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM player_title_grants WHERE id = NEW.grant_id AND player_account_id = NEW.player_account_id AND status = 'active') THEN RAISE(ABORT, 'EQUIPPED_TITLE_GRANT_INVALID') END;
   SELECT CASE WHEN (SELECT COUNT(*) FROM player_equipped_titles WHERE player_account_id = NEW.player_account_id) >= 10 THEN RAISE(ABORT, 'EQUIPPED_TITLE_LIMIT_EXCEEDED') END;
 END;
 INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at)

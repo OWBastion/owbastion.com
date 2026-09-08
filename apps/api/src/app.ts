@@ -631,7 +631,8 @@ export const createApp = (dependencies: AppDependencies) => {
     try { return c.json(await dependencies.services(c.env).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
-      if (["UNAUTHENTICATED", "EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
+      if (code === "UNAUTHENTICATED") return errorResponse(c, 401, code, "Authentication is required");
+      if (["EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

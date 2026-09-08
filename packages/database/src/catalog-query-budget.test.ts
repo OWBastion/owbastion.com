@@ -301,6 +301,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       revoked_at INTEGER,
       revoke_reason TEXT
     );
+    CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
   `);
 };
 
@@ -465,7 +466,7 @@ describe("catalog query budgets", () => {
     expect(getCount()).toBeLessThanOrEqual(3);
   });
 
-  it("keeps retired global titles for active holders while excluding revoked and map grants", async () => {
+  it("excludes retired, revoked, and map grants from the equipped global projection", async () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();
     sqlite.prepare("UPDATE title_catalog SET availability = 'retired' WHERE key = 'GLOBAL_ONE'").run();
@@ -474,10 +475,7 @@ describe("catalog query budgets", () => {
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.retired', 'player.1', 'GLOBAL_RETIRED', NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?), ('grant.revoked', 'player.2', 'GLOBAL_ONE', NULL, NULL, 'revoked', 'historical', 'source.revoked', 'admin', ?), ('grant.map', 'player.1', 'PIONEER_0', 'map.0', 'pioneer', 'active', 'submission', 'source.map', 'admin', ?)").run(timestamp, timestamp, timestamp);
 
     const response = await services.listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
-    expect(response.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ playerId: "1001", titleKeys: expect.arrayContaining(["GLOBAL_ONE", "GLOBAL_RETIRED"]) }),
-    ]));
+    expect(response.items).toEqual([]);
     expect(response.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ playerId: "1002" })]));
-    expect(response.items.find((item) => item.playerId === "1001")?.titleKeys).not.toContain("PIONEER_0");
   });
 });
