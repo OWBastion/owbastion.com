@@ -5,7 +5,8 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants.XXXXXX")"
 empty_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-empty.XXXXXX")"
 repair_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-repair.XXXXXX")"
-trap 'rm -f "$database" "$empty_database" "$repair_database"' EXIT
+equipped_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-equipped.XXXXXX")"
+trap 'rm -f "$database" "$empty_database" "$repair_database" "$equipped_database"' EXIT
 
 for migration in "$root_dir"/migrations/*.sql; do
   [[ "$(basename "$migration")" == "0040_generic_title_grants.sql" || "$(basename "$migration")" == "0041_challenge_reward_mapping.sql" ]] && break
@@ -64,5 +65,35 @@ SQL
 sqlite3 -bail "$repair_database" "INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('migration-trigger-dominator', 'migration-trigger-player', 'DOMINATOR', 'map.migration-repair', 'revision:map.migration-repair:initial', 'dominator', 'active', 'manual', 'migration-trigger-manual', 'admin', 2);"
 [[ "$(sqlite3 "$repair_database" "SELECT COUNT(*) FROM player_title_grants WHERE player_account_id = 'migration-trigger-player' AND title_key = 'CONQUEROR' AND gameplay_revision_id = 'revision:map.migration-repair:initial' AND status = 'active';")" == "1" ]]
 [[ "$(sqlite3 "$repair_database" "SELECT COUNT(*) FROM audit_events WHERE operation = 'title_grant.inherit' AND actor_id = 'trigger:player_title_grants_inherit_conqueror';")" == "1" ]]
+
+for migration in "$root_dir"/migrations/*.sql; do
+  [[ "$(basename "$migration")" == "0077_player_equipped_titles.sql" ]] && break
+  sqlite3 -bail "$equipped_database" < "$migration"
+done
+
+sqlite3 -bail "$equipped_database" <<'SQL'
+INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES
+  ('equipped-zero', 'zero', 'Zero', 'zero', 0, 'active', 1, 1),
+  ('equipped-one', 'one', 'One', 'one', 0, 'active', 1, 1),
+  ('equipped-ten', 'ten', 'Ten', 'ten', 0, 'active', 1, 1),
+  ('equipped-eleven', 'eleven', 'Eleven', 'eleven', 0, 'active', 1, 1);
+WITH RECURSIVE number(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM number WHERE value < 11)
+INSERT INTO title_catalog (key, label, category, condition, availability, scope, display_kind, game_version)
+SELECT 'EQUIPPED_TEST_' || value, 'Equipped Test ' || value, 'Test', 'Test', 'active', 'global', 'fixed', 'test' FROM number;
+INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at)
+VALUES ('equipped-one-grant', 'equipped-one', 'EQUIPPED_TEST_1', 'active', 'manual', 'equipped-one-source', 'test', 1);
+WITH RECURSIVE number(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM number WHERE value < 10)
+INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at)
+SELECT 'equipped-ten-grant-' || value, 'equipped-ten', 'EQUIPPED_TEST_' || value, 'active', 'manual', 'equipped-ten-source-' || value, 'test', 1 FROM number;
+WITH RECURSIVE number(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM number WHERE value < 11)
+INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at)
+SELECT 'equipped-eleven-grant-' || value, 'equipped-eleven', 'EQUIPPED_TEST_' || value, 'active', 'manual', 'equipped-eleven-source-' || value, 'test', 1 FROM number;
+SQL
+
+sqlite3 -bail "$equipped_database" < "$root_dir/migrations/0077_player_equipped_titles.sql"
+[[ "$(sqlite3 "$equipped_database" "SELECT COUNT(*) FROM player_equipped_titles WHERE player_account_id = 'equipped-zero';")" == "0" ]]
+[[ "$(sqlite3 "$equipped_database" "SELECT COUNT(*) FROM player_equipped_titles WHERE player_account_id = 'equipped-one';")" == "1" ]]
+[[ "$(sqlite3 "$equipped_database" "SELECT COUNT(*) FROM player_equipped_titles WHERE player_account_id = 'equipped-ten';")" == "10" ]]
+[[ "$(sqlite3 "$equipped_database" "SELECT COUNT(*) FROM player_equipped_titles WHERE player_account_id = 'equipped-eleven';")" == "0" ]]
 
 echo "Title grant migration scenarios passed."
