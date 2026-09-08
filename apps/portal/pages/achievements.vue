@@ -45,7 +45,7 @@ const updateEquipped = async (grantId: string) => {
   const prior = ownedTitles.value;
   const title = prior.find((item) => item.grantId === grantId);
   if (!title) return;
-  const next = title.equipped ? prior.filter((item) => item.grantId !== grantId) : [...prior.filter((item) => item.equipped), title];
+  const next = title.equipped ? prior.filter((item) => item.equipped && item.grantId !== grantId) : [...prior.filter((item) => item.equipped), title];
   if (next.length > 10) { equipError.value = "最多佩戴 10 个称号"; return; }
   ownedTitles.value = prior.map((item) => item.grantId === grantId ? { ...item, equipped: !item.equipped } : item);
   savingEquip.value = true; equipError.value = "";

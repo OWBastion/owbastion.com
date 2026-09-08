@@ -3723,6 +3723,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const request = { grantIds: input.grantIds };
       const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(db, binding.playerAccountId, operation, idempotencyKey, request);
       if (replay) return replay;
+      if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
       const grants = input.grantIds.length ? await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
         .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
         .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))

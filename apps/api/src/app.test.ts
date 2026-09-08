@@ -651,6 +651,11 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
   });
 
+  it("requires a Portal session before replacing equipped titles", async () => {
+    const response = await app.request("http://localhost/v1/me/titles/equipped", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "equip-auth" }, body: JSON.stringify({ grantIds: [] }) }, env);
+    expect(response.status).toBe(401);
+  });
+
   it("reads and writes only the signed-in player's current review", async () => {
     const calls: Array<{ operation: string; subject?: string; target?: unknown; key?: string }> = [];
     let currentStatus: "active" | "withdrawn" = "active";
