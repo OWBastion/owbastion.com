@@ -1,6 +1,7 @@
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
 import MyAchievementOverview from "./MyAchievementOverview.vue";
+import MapProgressOverview from "./player/MapProgressOverview.vue";
 
 const challenges = [
   { challengeId: "title-1", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const, titleKey: "TEST", titleName: "测试称号", icon: "trophy", iconUrl: "https://example.test/icon.png", category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active" as const, submissionMode: "manual" as const },
@@ -44,5 +45,30 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("暂无称号");
     expect(wrapper.find(".earned-status-icon").exists()).toBe(false);
+  });
+
+  it("keeps map achievement progress separate and includes a zero-progress map", async () => {
+    const wrapper = await mountSuspended(MyAchievementOverview, {
+      props: {
+        challenges,
+        titles: [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }],
+        maps: [
+          { mapId: "map.havana", mapName: "哈瓦那", defaultGameplayRevisionId: "revision:havana:default" },
+          { mapId: "map.paraiso", mapName: "帕拉伊苏", defaultGameplayRevisionId: "revision:paraiso:default" },
+        ],
+        mapChallenges: [
+          { challengeId: "havana.pioneer", mapId: "map.havana", gameplayRevisionId: "revision:havana:default", titleKey: "HAVANA_PIONEER", name: "开拓者", status: "active" },
+          { challengeId: "paraiso.pioneer", mapId: "map.paraiso", gameplayRevisionId: "revision:paraiso:default", titleKey: "PARAISO_PIONEER", name: "开拓者", status: "active" },
+        ],
+      },
+      global: { stubs: { MapProgressOverview } },
+    });
+
+    const mapSection = wrapper.find(".map-achievement-section");
+    expect(mapSection.text()).toContain("地图成就");
+    expect(mapSection.text()).toContain("哈瓦那");
+    expect(mapSection.text()).toContain("帕拉伊苏");
+    expect(mapSection.text()).toContain("已获得 0 / 1");
+    expect(wrapper.text()).toContain("通用成就");
   });
 });

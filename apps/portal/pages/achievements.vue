@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { PublicAchievement } from "~/components/AchievementCatalog.vue";
 import MyAchievementOverview from "~/components/MyAchievementOverview.vue";
+import type { PortalMap } from "~/composables/usePortalApi";
+import type { MapProgressChallenge } from "~/utils/map-progress";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
@@ -9,6 +11,8 @@ const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
 const { items: ownedTitles, refresh: refreshTitles } = usePlayerTitles();
 const challenges = ref<PublicAchievement[]>([]);
+const maps = ref<PortalMap[]>([]);
+const mapChallenges = ref<MapProgressChallenge[]>([]);
 const loading = ref(true);
 const error = shallowRef("");
 
@@ -16,17 +20,21 @@ onMounted(async () => {
   try {
     const currentPlayer = await refresh();
     if (currentPlayer) {
-      const [challengeResult, titleResult] = await Promise.all([
+      const [challengeResult, titleResult, mapResult, mapChallengeResult] = await Promise.all([
         api<{ items: PublicAchievement[] }>("/v1/public/achievements"),
         refreshTitles(),
+        api<{ items: PortalMap[] }>("/v1/maps"),
+        api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
       ]);
       challenges.value = challengeResult.items;
       ownedTitles.value = titleResult;
+      maps.value = mapResult.items;
+      mapChallenges.value = mapChallengeResult.items;
     } else {
       challenges.value = (await api<{ items: PublicAchievement[] }>("/v1/public/achievements")).items;
     }
   } catch (cause) {
-    error.value = portalErrorDetails(cause, "请稍后重试。").description;
+    error.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
   } finally {
     loading.value = false;
   }
@@ -50,7 +58,7 @@ onMounted(async () => {
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" /></template>
+    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" /></template>
     <section v-else class="achievement-directory surface-card" aria-label="成就列表">
       <AchievementCatalog :challenges="challenges" />
     </section>

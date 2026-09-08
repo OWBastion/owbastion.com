@@ -231,6 +231,7 @@ export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchem
 export const mapSchema = z.object({
   mapId: externalId,
   mapName: z.string().trim().min(1).max(256),
+  defaultGameplayRevisionId: externalId.nullable().optional(),
   gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
@@ -507,7 +508,7 @@ export const agentSearchResponseSchema = z.object({ contractVersion, items: z.ar
 
 export const ownedTitleSchema = z.object({
   grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().max(2048).nullable().optional(), category: z.string(),
-  condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
+  condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
 });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });

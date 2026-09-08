@@ -27,7 +27,7 @@ const masteryProfiles = ref([]);
 const masteryLoading = ref(false);
 const masteryError = ref("");
 const refreshMastery = vi.fn(async () => ({ contractVersion: "1" as const, profiles: masteryProfiles.value, runs: [], page: 1, pageSize: 1, total: 0, hasMore: false }));
-const portalApi = vi.fn(async (path: string) => path === "/v1/maps" ? { items: [] } : Promise.reject(new Error(`Unexpected request: ${path}`)));
+const portalApi = vi.fn(async (path: string) => path === "/v1/maps" || path === "/v1/challenges?family=map" ? { items: [] } : Promise.reject(new Error(`Unexpected request: ${path}`)));
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player, status, refresh: refreshPlayer }));
 mockNuxtImport("usePlayerTitles", () => () => ({ items: titles, refresh: refreshTitles }));
@@ -48,7 +48,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
         PlayerIdentityCard: { template: "<div data-testid='identity'>identity</div>" },
         StatusBadge: true,
         PlayerRecentSubmissions: { template: "<div data-testid='submissions'>submissions</div>" },
-        MasteryMapOverview: { template: "<div data-testid='mastery'>mastery</div>" },
+        MapProgressOverview: { template: "<div data-testid='mastery'>mastery</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
         UButton: {
           props: ["to", "label", "loading"],

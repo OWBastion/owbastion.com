@@ -10,6 +10,7 @@ const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const refreshTitles = vi.fn(async () => ownedTitles.value);
 const portalApi = vi.fn(async (path: string) => {
   if (path === "/v1/public/achievements") return { items: [{ challengeId: "title-1", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "TEST", titleName: "测试称号", icon: "trophy", iconUrl: null, category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" }] };
+  if (path === "/v1/maps" || path === "/v1/challenges?family=map") return { items: [] };
   throw new Error(`Unexpected request: ${path}`);
 });
 

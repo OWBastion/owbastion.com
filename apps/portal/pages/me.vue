@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
+import type { PortalMap } from "~/composables/usePortalApi";
+import type { MapProgressChallenge } from "~/utils/map-progress";
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "玩家中心 · 躲避堡垒 3" });
@@ -15,7 +17,9 @@ const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
 const retrying = shallowRef(false);
 const masteryRetrying = shallowRef(false);
-const masteryMapNames = shallowRef<Record<string, string>>({});
+const masteryMaps = shallowRef<PortalMap[]>([]);
+const masteryChallenges = shallowRef<MapProgressChallenge[]>([]);
+const masteryCatalogError = shallowRef("");
 const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
 const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
@@ -25,12 +29,20 @@ const sessionUnavailable = computed(() => !loading.value && !player.value && !pl
 const playerLoadFailed = computed(() => !loading.value && !player.value && Boolean(playerError.value));
 
 async function loadMastery() {
-  const [mastery, maps] = await Promise.all([
+  masteryCatalogError.value = "";
+  const [masteryResult, mapsResult, challengesResult] = await Promise.allSettled([
     refreshMastery(),
-    api<{ items: Array<{ mapId: string; mapName: string }> }>("/v1/maps").catch(() => null),
+    api<{ items: PortalMap[] }>("/v1/maps"),
+    api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
   ]);
-  if (maps) masteryMapNames.value = Object.fromEntries(maps.items.map((map) => [map.mapId, map.mapName]));
-  return mastery;
+  if (mapsResult.status === "fulfilled") masteryMaps.value = mapsResult.value.items;
+  if (challengesResult.status === "fulfilled") masteryChallenges.value = challengesResult.value.items;
+  if (mapsResult.status === "rejected") {
+    masteryCatalogError.value = portalErrorDetails(mapsResult.reason, "无法读取地图，请稍后重试。").description;
+  } else if (challengesResult.status === "rejected") {
+    masteryCatalogError.value = portalErrorDetails(challengesResult.reason, "无法读取地图成就，请稍后重试。").description;
+  }
+  return masteryResult.status === "fulfilled" ? masteryResult.value : null;
 }
 
 async function load(options: { forcePlayer?: boolean } = {}) {
@@ -130,14 +142,17 @@ onMounted(() => {
       </section>
 
       <section class="section-block mastery-section" aria-labelledby="mastery-title">
-        <PageSectionHeader title="地图精通" heading-id="mastery-title">
+        <PageSectionHeader title="地图进度" heading-id="mastery-title">
           <template #actions><UButton to="/maps" label="查看地图" color="neutral" variant="outline" /></template>
         </PageSectionHeader>
         <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
-        <div v-else-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取精通记录…"><USkeleton /><USkeleton /></div>
-        <MasteryMapOverview v-else :profiles="masteryProfiles" :map-names="masteryMapNames" />
+        <UAlert v-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
+          <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
+        </UAlert>
+        <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
+        <MapProgressOverview v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
       </section>
 
       <section class="section-block titles-section" aria-labelledby="titles-title">
