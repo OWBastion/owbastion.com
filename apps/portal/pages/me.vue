@@ -30,19 +30,19 @@ const playerLoadFailed = computed(() => !loading.value && !player.value && Boole
 
 async function loadMastery() {
   masteryCatalogError.value = "";
-  try {
-    const [mastery, maps, challenges] = await Promise.all([
-      refreshMastery(),
-      api<{ items: PortalMap[] }>("/v1/maps"),
-      api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
-    ]);
-    masteryMaps.value = maps.items;
-    masteryChallenges.value = challenges.items;
-    return mastery;
-  } catch (error) {
-    masteryCatalogError.value = portalErrorDetails(error, "无法读取地图，请稍后重试。").description;
-    return null;
+  const [masteryResult, mapsResult, challengesResult] = await Promise.allSettled([
+    refreshMastery(),
+    api<{ items: PortalMap[] }>("/v1/maps"),
+    api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
+  ]);
+  if (mapsResult.status === "fulfilled") masteryMaps.value = mapsResult.value.items;
+  if (challengesResult.status === "fulfilled") masteryChallenges.value = challengesResult.value.items;
+  if (mapsResult.status === "rejected") {
+    masteryCatalogError.value = portalErrorDetails(mapsResult.reason, "无法读取地图，请稍后重试。").description;
+  } else if (challengesResult.status === "rejected") {
+    masteryCatalogError.value = portalErrorDetails(challengesResult.reason, "无法读取地图成就，请稍后重试。").description;
   }
+  return masteryResult.status === "fulfilled" ? masteryResult.value : null;
 }
 
 async function load(options: { forcePlayer?: boolean } = {}) {
@@ -148,11 +148,11 @@ onMounted(() => {
         <UAlert v-if="masteryError" color="error" variant="subtle" title="无法读取精通记录" :description="masteryError" class="me-alert">
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
-        <UAlert v-else-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
+        <UAlert v-if="masteryCatalogError" color="error" variant="subtle" title="无法读取地图" :description="masteryCatalogError" class="me-alert">
           <template #actions><UButton label="重试" color="neutral" variant="outline" size="sm" :loading="masteryRetrying" @click="retryMastery" /></template>
         </UAlert>
-        <div v-else-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
-        <MapProgressOverview v-else :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" />
+        <div v-if="masteryLoading" class="mastery-loading" role="status" aria-label="读取地图进度…"><USkeleton /><USkeleton /></div>
+        <MapProgressOverview v-else-if="!masteryCatalogError" :maps="masteryMaps" :challenges="masteryChallenges" :titles="titles" :profiles="masteryProfiles" :title-progress-available="titlesReady" />
       </section>
 
       <section class="section-block titles-section" aria-labelledby="titles-title">

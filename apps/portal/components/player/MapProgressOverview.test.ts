@@ -20,7 +20,7 @@ describe("MapProgressOverview", () => {
 
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("哈瓦那");
-    expect(wrapper.text()).toContain("已完成 0 / 2");
+    expect(wrapper.text()).toContain("地图称号 0 / 2");
     expect(wrapper.text()).toContain("暂无地图成就");
     expect(wrapper.find('a[href="/maps?mapId=map.samoa"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/maps?mapId=map.havana"]').exists()).toBe(true);
@@ -42,7 +42,25 @@ describe("MapProgressOverview", () => {
     expect(wrapper.text()).toContain("征服者");
     expect(wrapper.text()).toContain("✓");
     expect(wrapper.text()).toContain("○");
-    expect(wrapper.text()).toContain("已完成 1 / 2");
+    expect(wrapper.text()).toContain("已获得 1 / 2");
     expect(wrapper.text()).toContain("已获得 1 / 2 个地图成就");
+    expect(wrapper.find("a .map-target-list").exists()).toBe(false);
+  });
+
+  it("does not show false title zeros when title progress is unavailable", async () => {
+    const wrapper = await mountSuspended(MapProgressOverview, {
+      props: {
+        maps: [maps[0]],
+        challenges,
+        titles: [],
+        profiles: [{ mapId: "map.samoa", gameplayRevisionId: "revision:map.samoa:default", totalXp: 120, verifiedRunCount: 2, difficultyStats: [], highestCompletedDifficulty: "T2", recentRuns: [] }],
+        titleProgressAvailable: false,
+      },
+      global: { stubs: { NuxtLink: { template: "<a><slot /></a>" }, UEmpty: { template: "<div />" } } },
+    });
+
+    expect(wrapper.text()).toContain("称号进度暂不可用");
+    expect(wrapper.text()).not.toContain("0 / 2");
+    expect(wrapper.text()).toContain("精通 XP");
   });
 });

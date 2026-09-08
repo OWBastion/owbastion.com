@@ -72,7 +72,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
         <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2></header>
         <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
         <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
-          <header class="section-heading"><h2 :id="`my-category-${group.category}`">{{ group.category }}</h2><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
+          <header class="section-heading"><h3 :id="`my-category-${group.category}`">{{ group.category }}</h3><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
           <div class="achievement-grid">
             <article v-for="card in group.cards" :key="card.kind === 'catalog' ? card.challenge.challengeId : card.title.grantId" class="achievement-card" :class="{ earned: isAchievementCardEarned(card) }">
               <div class="achievement-icon" :class="{ 'has-image': card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl }" aria-hidden="true"><img v-if="card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl" :src="card.kind === 'catalog' ? card.challenge.iconUrl! : card.title.iconUrl!" alt="" /><UIcon v-else :name="`i-lucide-${card.kind === 'catalog' ? card.challenge.icon : card.title.icon}`" /></div>
@@ -130,8 +130,8 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .achievement-section { padding: clamp(1.125rem, 3vw, 1.625rem); border: 1px solid var(--line); border-radius: 1.125rem; background: var(--surface); }
 .section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .section-heading { margin-bottom: 1rem; }
-.section-heading h2, .sidebar-heading h2, .map-title-heading h3 { margin: 0; color: var(--text); }
-.section-heading h2, .sidebar-heading h2 { font-size: 1.05rem; }
+.section-heading h2, .section-heading h3, .sidebar-heading h2, .map-title-heading h3 { margin: 0; color: var(--text); }
+.section-heading h2, .section-heading h3, .sidebar-heading h2 { font-size: 1.05rem; }
 .map-title-heading h3 { font-size: 0.94rem; }
 .section-heading span, .map-title-heading span { color: var(--quiet); font-size: 0.78rem; }
 .map-title-collection { display: grid; gap: 1rem; }
