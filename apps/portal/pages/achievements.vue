@@ -9,7 +9,7 @@ useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的
 
 const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
-const { items: ownedTitles, refresh: refreshTitles } = usePlayerTitles();
+const { items: ownedTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
 const challenges = ref<PublicAchievement[]>([]);
 const maps = ref<PortalMap[]>([]);
 const mapChallenges = ref<MapProgressChallenge[]>([]);
@@ -39,6 +39,20 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+const equipError = shallowRef("");
+const savingEquip = shallowRef(false);
+const updateEquipped = async (grantId: string) => {
+  const prior = ownedTitles.value;
+  const title = prior.find((item) => item.grantId === grantId);
+  if (!title) return;
+  const next = title.equipped ? prior.filter((item) => item.equipped && item.grantId !== grantId) : [...prior.filter((item) => item.equipped), title];
+  if (next.length > 10) { equipError.value = "最多佩戴 10 个称号"; return; }
+  ownedTitles.value = prior.map((item) => item.grantId === grantId ? { ...item, equipped: !item.equipped } : item);
+  savingEquip.value = true; equipError.value = "";
+  try { await replaceEquipped(next.map((item) => item.grantId)); }
+  catch (cause) { ownedTitles.value = prior; equipError.value = portalErrorDetails(cause, "无法保存佩戴称号，请稍后重试。").description; }
+  finally { savingEquip.value = false; }
+};
 </script>
 
 <template>
@@ -58,7 +72,7 @@ onMounted(async () => {
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" /></template>
+    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :saving-equip="savingEquip" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
     <section v-else class="achievement-directory surface-card" aria-label="成就列表">
       <AchievementCatalog :challenges="challenges" />
     </section>
@@ -67,6 +81,7 @@ onMounted(async () => {
 
 <style scoped>
 .page-intro { margin-bottom: 2rem; }.achievement-directory { padding: clamp(1.375rem, 4vw, 2.25rem); }
+.equip-error { margin-top: 1rem; }
 .achievement-skeleton-groups, .achievement-skeleton-section { display: grid; gap: 18px; }.achievement-skeleton-section + .achievement-skeleton-section { margin-top: 40px; }.achievement-skeleton-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; }.achievement-skeleton-heading-title { width: 28%; height: 30px; }.achievement-skeleton-heading-count { width: 48px; height: 13px; }.achievement-skeleton-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.achievement-skeleton-card { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-content: start; gap: 16px; min-height: 124px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }.achievement-skeleton-icon { width: 58px; height: 58px; border-radius: 14px; }.achievement-skeleton-copy { display: grid; align-content: start; gap: 9px; min-width: 0; }.achievement-skeleton-title { width: 72%; height: 20px; }.achievement-skeleton-condition { width: 100%; height: 13px; }.achievement-skeleton-condition-short { width: 76%; }
 @media (max-width: 620px) { .page-intro { margin-bottom: 20px; } }
 @media (max-width: 620px) { .achievement-directory { padding: 16px; }.achievement-skeleton-grid { grid-template-columns: 1fr; }.achievement-skeleton-card { min-height: 0; padding: 18px; }.achievement-skeleton-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.achievement-skeleton-heading-title { width: 46%; } }

@@ -43,6 +43,7 @@ const services: PlatformServices = {
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
   getPublicTitleIcon: async () => null,
   listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
+  replaceCurrentPlayerEquippedTitles: async ({ grantIds, sessionToken }) => { if (sessionToken !== "session-token") throw new Error("UNAUTHENTICATED"); return { contractVersion: "1" as const, grantIds }; },
   listHistoricalTitleGrants: async () => ({ contractVersion: "1", holders: [], page: 1, pageSize: 20, total: 0, hasMore: false, filter: "all", stats: { pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 } }),
   getHistoricalTitleHolder: async () => ({ contractVersion: "1", holder: { holderName: "Cold", totalCount: 0, unclaimedCount: 0, status: "completed" }, items: [], page: 1, pageSize: 50, total: 0, hasMore: false, grantStatus: "all" }),
   createAdminTitleGrant: async () => {},
@@ -648,6 +649,11 @@ describe("API", () => {
     const response = await app.request("http://localhost/v1/me/titles", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
+  });
+
+  it("requires a Portal session before replacing equipped titles", async () => {
+    const response = await app.request("http://localhost/v1/me/titles/equipped", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "equip-auth" }, body: JSON.stringify({ grantIds: [] }) }, env);
+    expect(response.status).toBe(401);
   });
 
   it("reads and writes only the signed-in player's current review", async () => {

@@ -18,7 +18,11 @@ const props = withDefaults(defineProps<{
   titles: OwnedTitle[];
   maps?: PortalMap[];
   mapChallenges?: MapProgressChallenge[];
+  savingEquip?: boolean;
 }>(), { maps: () => [], mapChallenges: () => [] });
+const emit = defineEmits<{ toggleEquipped: [grantId: string] }>();
+const equippedCount = computed(() => props.titles.filter((title) => title.equipped).length);
+const canEquip = (title: OwnedTitle) => title.equipped || equippedCount.value < 10;
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
@@ -49,6 +53,7 @@ const mapTitleGroups = computed(() => groupHistoricalTitles(
 ));
 const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) => count + group.titles.length, 0));
 const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retired" || ownedTitleKeys.value.has(card.challenge.titleKey);
+const ownedTitleForCard = (card: AchievementCard) => card.kind === "retired" ? card.title : props.titles.find((title) => title.titleKey === card.challenge.titleKey);
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
@@ -69,7 +74,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
   <div class="achievement-layout">
     <div class="achievement-main">
       <section class="general-achievement-section" aria-labelledby="general-achievements-title">
-        <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2></header>
+        <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2><div class="equipped-count"><strong>已佩戴 {{ equippedCount }} / 10</strong><UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" aria-label="佩戴称号说明：佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" title="佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" /></div></header>
         <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
         <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
           <header class="section-heading"><h3 :id="`my-category-${group.category}`">{{ group.category }}</h3><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
@@ -86,6 +91,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="status">即将结束</span>
               </div>
               <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
+              <UButton v-if="ownedTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedTitleForCard(card)!)" :aria-label="ownedTitleForCard(card)!.equipped ? `取消佩戴 ${ownedTitleForCard(card)!.label}` : `佩戴 ${ownedTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedTitleForCard(card)!.grantId)">{{ ownedTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
             </article>
           </div>
         </section>
@@ -105,6 +111,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
                 <div class="achievement-copy"><div class="achievement-title-row"><strong>{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span>{{ title.condition }}</span></div>
                 <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
+                <UButton class="equip-action" size="xs" :disabled="savingEquip || !canEquip(title)" :aria-label="title.equipped ? `取消佩戴 ${title.label}` : `佩戴 ${title.label}`" @click="emit('toggleEquipped', title.grantId)">{{ title.equipped ? "取消佩戴" : "佩戴" }}</UButton>
               </article>
             </div>
           </section>
@@ -126,6 +133,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .map-achievement-section { display: grid; gap: 1rem; }
 .achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .achievement-type-heading h2 { margin: 0; color: var(--text); font-size: 1.15rem; }
+.equipped-count { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted); font-size: var(--type-caption-size); }.equipped-count strong { font-weight: 650; }
 .achievement-count { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
 .achievement-section { padding: clamp(1.125rem, 3vw, 1.625rem); border: 1px solid var(--line); border-radius: 1.125rem; background: var(--surface); }
 .section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -152,6 +160,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 .achievement-copy strong, .recent-item strong { overflow-wrap: anywhere; color: var(--text); }
 .achievement-copy > span:not(.earned-status-icon):not(.status), .recent-item span { color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
 .earned-status-icon { display: inline-grid; width: fit-content; place-items: center; color: var(--success); font-size: 1rem; }
+.equip-action { grid-column: 2 / -1; justify-self: start; margin-top: .25rem; }
 .status { width: fit-content; color: var(--quiet); font-size: 0.7rem; font-weight: 720; }
 .achievement-sidebar { display: grid; gap: 1.25rem; }
 .sidebar-card { padding: 1.25rem; }

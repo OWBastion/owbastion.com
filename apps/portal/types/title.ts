@@ -12,4 +12,5 @@ export type OwnedTitle = {
   mapName?: string;
   slot?: "pioneer" | "conqueror" | "dominator";
   grantedAt: number;
+  equipped?: boolean;
 };

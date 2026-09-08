@@ -508,8 +508,12 @@ export const agentSearchResponseSchema = z.object({ contractVersion, items: z.ar
 
 export const ownedTitleSchema = z.object({
   grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().max(2048).nullable().optional(), category: z.string(),
-  condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(),
+  condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(), equipped: z.boolean().optional(),
 });
+export const playerEquippedTitlesRequestSchema = z.object({ grantIds: z.array(z.string().uuid()).max(10) }).superRefine((value, context) => {
+  if (new Set(value.grantIds).size !== value.grantIds.length) context.addIssue({ code: "custom", message: "Grant IDs must be unique" });
+});
+export const playerEquippedTitlesResponseSchema = z.object({ contractVersion, grantIds: z.array(z.string().uuid()).max(10) });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
 export const adminHistoricalTitleHolderFilterSchema = z.enum(["all", "pending", "completed"]);

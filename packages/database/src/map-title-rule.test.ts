@@ -186,6 +186,11 @@ const installSchema = (sqlite: DatabaseSync) => {
     );
     CREATE UNIQUE INDEX player_title_grants_source_idx
       ON player_title_grants (source_type, source_id, title_key);
+    CREATE TABLE player_equipped_titles (
+      grant_id TEXT PRIMARY KEY REFERENCES player_title_grants(id),
+      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+      equipped_at INTEGER NOT NULL
+    );
     CREATE TABLE achievement_challenges (
       id TEXT PRIMARY KEY NOT NULL,
       map_id TEXT NOT NULL,
@@ -687,6 +692,7 @@ describe("Agents map gameplay projection", () => {
     seedAgentSpatialConfig(sqlite, classicRevisionId);
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.classic', '1002', 'Classic Player', 'classic player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.classic', 'player.classic', 'CLASSIC', 'map.classic', ?, NULL, 'active', 'submission', 'source.classic', 'admin', ?)").run(classicRevisionId, now);
+    sqlite.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES ('grant.classic', 'player.classic', ?)").run(now);
     const services = createPlatformServices(database);
 
     const map = (await services.getAgentMap({ mapId: "map.classic" }))!;
@@ -710,6 +716,7 @@ describe("Agents map gameplay projection", () => {
     seedAgentSpatialConfig(sqlite, "revision:map.expired-pioneer:initial");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.expired-pioneer', '1003', 'Expired Pioneer', 'expired pioneer', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.expired-pioneer', 'player.expired-pioneer', 'PIONEER', 'map.expired-pioneer', 'revision:map.expired-pioneer:initial', 'pioneer', 'active', 'submission', 'submission.expired-pioneer', 'admin', ?)").run(now);
+    sqlite.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES ('grant.expired-pioneer', 'player.expired-pioneer', ?)").run(now);
     const services = createPlatformServices(database);
 
     const map = (await services.getAgentMap({ mapId: "map.expired-pioneer" }))!;
@@ -805,6 +812,7 @@ describe("Agents map projection readiness", () => {
     seedAgentSpatialConfig(sqlite, "revision:map.agents:historical");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.agents', '1001', 'Agent Player', 'agent player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.default', 'player.agents', 'PIONEER', 'map.agents', 'revision:map.agents:initial', 'pioneer', 'active', 'submission', 'source.default', 'admin', ?), ('grant.selectable', 'player.agents', 'PIONEER', 'map.agents', ?, 'pioneer', 'active', 'submission', 'source.selectable', 'admin', ?), ('grant.historical', 'player.agents', 'PIONEER', 'map.agents', 'revision:map.agents:historical', 'pioneer', 'active', 'submission', 'source.historical', 'admin', ?)").run(now, selectableRevisionId, now, now);
+    sqlite.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES ('grant.default', 'player.agents', ?), ('grant.selectable', 'player.agents', ?)").run(now, now);
     const services = createPlatformServices(database);
 
     const response = await services.listAgentMapTitleHolders({ mapId: "map.agents", page: 1, pageSize: 20 });

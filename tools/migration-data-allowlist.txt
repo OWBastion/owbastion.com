@@ -28,3 +28,4 @@
 0067_add_alternate_stage_setup_detection.sql
 0073_repair_paraiso_reset_title_grants.sql
 0075_enforce_dominator_conqueror_inheritance.sql
+0077_player_equipped_titles.sql
