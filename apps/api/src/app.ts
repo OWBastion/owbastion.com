@@ -273,9 +273,9 @@ export const createApp = (dependencies: AppDependencies) => {
     for (const [name, value] of Object.entries(portalResponseHeaders(c))) c.header(name, value);
   };
   const decoratePortalCacheHit = (c: any) => (response: Response) => {
-    const decorated = response.clone();
-    for (const [name, value] of Object.entries(portalResponseHeaders(c))) decorated.headers.set(name, value);
-    return decorated;
+    const headers = new Headers(response.headers);
+    for (const [name, value] of Object.entries(portalResponseHeaders(c))) headers.set(name, value);
+    return new Response(response.clone().body, { status: response.status, statusText: response.statusText, headers });
   };
   const waitUntil = (c: any) => {
     try {
