@@ -35,19 +35,51 @@ const emit = defineEmits<{
   "retry-mastery": [];
   "history-page": [input: { mapId: string; page: number }];
 }>();
-const openMap = (map: Map) => {
+const route = useRoute();
+const router = useRouter();
+const syncingQuery = shallowRef(false);
+
+const writeMapQuery = async (mapId: string | undefined) => {
+  const current = typeof route.query.mapId === "string" ? route.query.mapId : undefined;
+  if (current === mapId) return;
+  syncingQuery.value = true;
+  const query = { ...route.query };
+  if (mapId) query.mapId = mapId;
+  else delete query.mapId;
+  await router.replace({ path: route.path, query }).catch(() => {});
+  syncingQuery.value = false;
+};
+
+const showMap = (map: Map) => {
   selectedMap.value = map;
   modalOpen.value = true;
   if (props.authenticated) emit("history-page", { mapId: map.mapId, page: 1 });
 };
 
+const openMap = (map: Map) => {
+  showMap(map);
+  void writeMapQuery(map.mapId);
+};
+
 const openSelectedMap = () => {
-  if (!props.selectedMapId) return;
+  if (syncingQuery.value) return;
+  if (!props.selectedMapId) {
+    modalOpen.value = false;
+    return;
+  }
   const map = props.maps.find((candidate) => candidate.mapId === props.selectedMapId);
-  if (map && selectedMap.value?.mapId !== map.mapId) openMap(map);
+  if (!map) {
+    void writeMapQuery(undefined);
+    return;
+  }
+  if (selectedMap.value?.mapId !== map.mapId || !modalOpen.value) showMap(map);
 };
 
 watch([() => props.selectedMapId, () => props.maps], openSelectedMap, { immediate: true });
+watch(modalOpen, (open) => {
+  if (open) return;
+  void writeMapQuery(undefined);
+});
 
 const requestHistoryPage = (page: number) => {
   if (selectedMap.value) emit("history-page", { mapId: selectedMap.value.mapId, page });

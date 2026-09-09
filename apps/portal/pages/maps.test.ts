@@ -46,6 +46,7 @@ describe("maps page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("登录后查看");
+    expect(wrapper.text()).toContain("登录后可查看精通与评价。");
     expect(wrapper.find(".map-card-visual img").attributes("src")).toBe("https://cdn.example.com/samoa-cover.png");
     expect(portalApi).toHaveBeenCalledWith("/v1/maps");
     expect(portalApi).toHaveBeenCalledWith("/v1/challenges?family=map");
@@ -69,6 +70,15 @@ describe("maps page", () => {
     expect(wrapper.text()).not.toContain("暂无机制");
   });
 
+  it("opens map detail from a shared mapId query", async () => {
+    currentPlayer.value = null;
+    const wrapper = await mountSuspended(MapsPage, { route: "/maps?mapId=map.samoa" });
+    await flushPromises();
+    expect(document.body.textContent).toContain("地图概览");
+    expect(document.body.textContent).toContain("地狱难度通关");
+    wrapper.unmount();
+  });
+
   it("opens the mobile detail drawer for the selected map", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);
@@ -81,6 +91,7 @@ describe("maps page", () => {
     expect(document.body.textContent).toContain("地狱难度通关");
     expect(wrapper.text()).toContain("1 项");
     expect(wrapper.text()).not.toContain("挑战进度");
+    expect(wrapper.text()).not.toContain("登录后可查看精通与评价。");
     expect(portalApi).toHaveBeenCalledWith("/v1/me/mastery?mapId=map.samoa&page=1&pageSize=10");
     wrapper.unmount();
   });

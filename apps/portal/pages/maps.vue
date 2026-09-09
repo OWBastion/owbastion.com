@@ -36,7 +36,10 @@ onMounted(async () => {
 
 <template>
   <main class="maps-page directory-page page-shell">
-    <section class="page-intro" aria-labelledby="maps-title"><h1 id="maps-title" class="page-title">地图</h1><p class="body-copy">浏览已发布地图；登录后可查看精通与评价。</p></section>
+    <section class="page-intro" aria-labelledby="maps-title">
+      <h1 id="maps-title" class="page-title">地图</h1>
+      <p v-if="!loading && !player" class="body-copy">登录后可查看精通与评价。</p>
+    </section>
     <section class="map-directory-panel surface-card" aria-label="地图列表">
       <div v-if="loading" class="map-skeleton-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">

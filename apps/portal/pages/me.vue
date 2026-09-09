@@ -267,8 +267,8 @@ onMounted(() => {
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.75rem; }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: 20px; }
-.section-block { margin-top: clamp(3.5rem, 8vw, 5.5rem); }
-.titles-section { margin-top: clamp(3.25rem, 8vw, 5.375rem); }
+.section-block { margin-top: clamp(2rem, 5vw, 3rem); }
+.titles-section { margin-top: clamp(2rem, 5vw, 3rem); }
 .recent-titles { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .recent-title { display: grid; gap: 5px; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .recent-title strong { overflow-wrap: anywhere; font-weight: 650; letter-spacing: var(--type-headline-tracking); }
@@ -288,8 +288,8 @@ onMounted(() => {
 .me-skeleton-identity-copy { display: grid; flex: 1; gap: 8px; min-width: 0; }
 .me-skeleton-identity-label { width: 54px; height: 12px; }
 .me-skeleton-identity-name { width: min(44%, 220px); height: 25px; }
-.me-skeleton-section { display: grid; gap: 16px; margin-top: clamp(56px, 8vw, 88px); }
-.me-skeleton-section.titles-section { margin-top: clamp(52px, 8vw, 86px); }
+.me-skeleton-section { display: grid; gap: 16px; margin-top: clamp(2rem, 5vw, 3rem); }
+.me-skeleton-section.titles-section { margin-top: clamp(2rem, 5vw, 3rem); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .me-skeleton-section-heading-plain { align-items: flex-start; flex-direction: column; gap: 10px; }
 .me-skeleton-section-title { width: 150px; height: 22px; }
