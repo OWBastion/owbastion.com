@@ -30,7 +30,7 @@ const isChangelog = computed(() => props.kind === "changelog");
           <p class="changelog-version">
             <span class="sr-only">版本 </span>{{ entry.version }}
           </p>
-          <time v-if="date" class="type-caption changelog-date" :datetime="String(dateValue)">{{ date }}</time>
+          <time v-if="date" class="type-caption changelog-date" :datetime="String(dateValue)">{{ date }}<ChangelogRelativeDay v-if="dateValue" :value="dateValue" /></time>
         </div>
         <h1 class="type-headline changelog-title">{{ entry.title }}</h1>
       </template>

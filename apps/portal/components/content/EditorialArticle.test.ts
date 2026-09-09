@@ -29,6 +29,7 @@ describe("EditorialArticle", () => {
     });
 
     expect(wrapper.get(".changelog-version").text()).toContain("26.0801.1");
+    expect(wrapper.get("time").text()).toContain("2026年8月1日");
     expect(wrapper.get("h1").text()).toBe("随机事件调整");
     expect(wrapper.get("h1").classes()).toContain("type-headline");
     expect(wrapper.text().indexOf("26.0801.1")).toBeLessThan(wrapper.text().indexOf("随机事件调整"));

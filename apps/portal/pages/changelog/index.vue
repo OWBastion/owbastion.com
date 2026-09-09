@@ -34,7 +34,13 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
         </template>
       </UAlert>
       <UEmpty v-else-if="!changelogVersions.length" title="暂无版本更新" variant="naked" />
-      <UChangelogVersions v-else :versions="changelogVersions" :indicator-motion="false" class="editorial-changelog-list" />
+      <UChangelogVersions v-else :versions="changelogVersions" :indicator-motion="false" class="editorial-changelog-list">
+        <template #date="{ version }">
+          <template v-if="version.date">
+            {{ formatEditorialDate(version.date) }}<ChangelogRelativeDay :value="version.date" />
+          </template>
+        </template>
+      </UChangelogVersions>
     </section>
   </main>
 </template>
