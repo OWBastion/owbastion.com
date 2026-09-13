@@ -87,6 +87,9 @@ function setCategoryOverride(value: string) {
 function setRetiredVersion(value: string) {
   if (props.item && (isTitle(props.item) || isMap(props.item))) props.item.retiredVersion = value || null;
 }
+function setGameVersion(value: string) {
+  if (props.item && isChallengeTitle(props.item)) props.item.gameVersion = value || null;
+}
 function setScheduleTime(field: "startsAt" | "endsAt", value: number | null) {
   if (props.item && isTitle(props.item)) props.item[field] = value;
 }
@@ -166,6 +169,10 @@ function onIconFile(value: File | null | undefined) {
 
         <UFormField v-if="!asCatalog(item)" class="editor-field" label="计划下线版本">
           <UInput class="editor-control" :model-value="(item as TitleAchievement | MapAchievement).retiredVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setRetiredVersion" />
+        </UFormField>
+
+        <UFormField v-if="asChallenge(item)" class="editor-field" label="游戏版本">
+          <UInput class="editor-control" :model-value="asChallenge(item)!.gameVersion ?? ''" placeholder="例如 26.0713.1" :disabled="saving" @update:model-value="setGameVersion" />
         </UFormField>
 
         <template v-if="asTitle(item) && !asCatalog(item)">
