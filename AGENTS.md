@@ -1,156 +1,70 @@
 # OWBastion Web Platform: Agent Work Entry
 
-> This file is the canonical project-instruction source shared by Codex,
-> Claude Code, and Gemini. Keep `CLAUDE.md` and `GEMINI.md` limited to their
-> tool-specific entrypoints and behavior; do not duplicate project rules there.
+This is the repository-specific agent entrypoint shared by Codex, Claude Code, and Gemini. Workspace guidance owns shared engineering policy; this file specializes platform ownership, risk routing, local invariants, and validation. Keep `CLAUDE.md` and `GEMINI.md` limited to tool-specific entry behavior.
 
-## Repository boundaries
+## Repository role
 
-- The repository is `OWBastion/owbastion.com`. The local directory intentionally
-  remains `owbastion.codes` to preserve Codex conversation history. Never infer
-  GitHub ownership from the checkout name.
-- This repository is the Bastion web platform and operational control plane. It
-  contains a Hono Cloudflare Worker API, a Nuxt Portal with Git-backed editorial
-  content and an admin-gated Studio, shared contracts/domain/database/auth
-  packages, and forward-only D1 migrations.
-- This repository owns current event, map, title, and challenge metadata,
-  Git-backed Portal editorial content, platform business data, API and Portal
-  behavior, private evidence, and review/grant orchestration.
-- `OWBastion/Bastion` owns game implementation, builds, releases, and published
-  game artifacts. Bastion reads platform metadata through the Agents API and
-  does not export a formal content snapshot to this repository.
-- `OWBastion/qqbot` owns QQ ingress, deterministic command UX, and channel
-  notifications. `OWBastion/ocrkit` owns stateless screenshot recognition and
-  model lifecycle. Do not modify sibling repositories unless the user explicitly
-  asks for cross-repository work.
-- Start every task by inspecting the worktree and relevant source. Preserve
-  existing or concurrent changes, and inspect code and tests before claiming
-  current behavior.
+The repository is `OWBastion/owbastion.com`. The local directory may remain `owbastion.codes`; never infer GitHub ownership from the checkout name.
 
-For issue work, verify `git remote get-url origin` and use
-`rtk gh issue view <number> --repo OWBastion/owbastion.com`. When an
-implementation completely resolves an issue in this repository, use
-`Fixes #<number>`; use `Refs` for related or partial work.
+This repository owns platform business metadata and state, player identities, submissions and private evidence, review/grant orchestration, public/platform APIs, Portal/admin behavior, Git-backed editorial content, and platform persistence.
 
-## Rule organization
+`OWBastion/Bastion` owns gameplay implementation, game builds/releases, and game-side behavior. `OWBastion/qqbot` owns QQ channel ingress and reply behavior. `OWBastion/ocrkit` owns screenshot-recognition evidence and OCR model lifecycle. Do not move another repository's authoritative responsibility into the platform for implementation convenience.
 
-- Development and engineering rules live in `docs/dev-rules/`.
-- Product behavior and cross-service workflows live in `docs/product-rules/`.
-- Portal visual, layout, component, interaction, accessibility, motion, and
-  content rules live in `docs/design-rules/`. The authoritative topic router is
-  `docs/design-rules/DESIGN.md`; root `DESIGN.md` is only the repository entry
-  point, and `docs/design-rules/README.md` is the directory governance index.
-- Architecture decisions live in `docs/adr/`, deployment and production
-  verification runbooks in `docs/deployment/`, and the machine-readable API
-  contract in `docs/api/`.
-- Root `AGENTS.md` contains only repository-wide rules, risk entrypoints, and
-  document routing. Module-specific rules belong in a nested `AGENTS.md` when
-  one is needed; reusable specialist guidance belongs under `docs/`.
+For cross-repository work, change the authoritative contract at its owner and integrate this repository as a consumer or producer separately.
 
-Read the applicable directory index first, then the smallest relevant set of
-documents. Do not recreate feature-status lists or detailed rule copies here.
+## Start here
 
-## Current rule index
+For substantive work:
 
-- For initial orientation, README work, or a repository overview, read
-  `README.md` and `docs/README.md`.
-- Before changing architecture, ownership, package responsibilities, or service
-  boundaries, read `docs/dev-rules/README.md`, then
-  `docs/dev-rules/architecture-overview.md`.
-- Before changing QQBot, OCRKit, Bastion, submissions, reviews, grants, or state
-  transitions, read `docs/product-rules/README.md`, then
-  `docs/product-rules/integrations-and-workflows.md`.
-- Before making or verifying a capability-status claim, read
-  `docs/product-rules/README.md`, then
-  `docs/product-rules/feature-status.md`. The Feature Status Matrix is the only
-  implementation and verification status source.
-- Before changing authentication, privacy, credentials, storage, caching, or a
-  public/private data boundary, read `docs/dev-rules/README.md`, then
-  `docs/dev-rules/data-and-security.md`.
-- Before changing D1 schema, migrations, fixtures, catalog imports, or data
-  repair/reconciliation, read `docs/dev-rules/README.md`, then
-  `docs/dev-rules/database-migrations-and-seeds.md`.
-- Before changing tests, queues, release behavior, CI, or implementation code,
-  read `docs/dev-rules/README.md`, then
-  `docs/dev-rules/testing-and-change-policy.md`.
-- Before changing any Portal UI, component, layout, style, interaction, motion,
-  accessibility behavior, or copy, read root `DESIGN.md`, then
-  `docs/design-rules/README.md` and the routed topic documents.
-- Before adding or changing Portal copy or product terminology, also read
-  `docs/design-rules/terminology.md` and
-  `docs/design-rules/portal-copy-guidelines.md`; reuse canonical terms instead
-  of inventing variants.
-- Before changing Nuxt Content collections, editorial schemas, Blog/Changelog
-  surfaces, Studio authentication, Git publishing, or editorial deployment,
-  read the applicable development and design indexes plus
-  `docs/deployment/portal-studio.md` or
-  `docs/deployment/portal-editorial-pilot.md`.
-- Before deployment or production verification, read the applicable runbook in
-  `docs/deployment/`. Treat local tests, integration evidence, deployment
-  success, and production business-path verification as distinct statuses.
-- When changing API routes or public contracts, update and validate
-  `docs/api/openapi.json` together with the implementation.
+1. Inspect the worktree, linked Issue, relevant source, and existing tests/evidence before claiming current behavior.
+2. Route the task through the indexes below and read only the smallest relevant rule set.
+3. Trace business behavior through producer, domain/service ownership, persistence, API/adapters, and consumers as applicable.
+4. Compare the Issue contract, current authoritative contract, and current implementation. Report material mismatches rather than resolving product or architecture questions through implementation convenience.
+5. Verify at the narrowest decisive surface, then run the broader gates required by the affected risk.
 
-## Cross-cutting invariants
+For issue work, verify the actual repository remote before using repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
 
-- Keep one authoritative owner for each fact. Preserve idempotency, audit
-  records, private/public separation, and QQ member-identity semantics.
-- Business rules belong in domain/database services, not HTTP or Portal
-  adapters. Browser clients must not access D1, R2, OCRKit, Bastion, or Git
-  providers directly.
-- Administrative approvals, rejections, revocations, and similar decisions must
-  not require a reason, note, or other additional input. Audit fields may be
-  optional and should record missing input as null/empty without blocking the
-  decision.
-- Update the relevant authoritative documentation when a change alters a
-  contract, data owner, security boundary, operational procedure, or verified
-  capability status.
+## Rule routing
 
-## General workflow
+- Repository orientation: `README.md`, then `docs/README.md`.
+- Architecture, package responsibility, or service boundaries: `docs/dev-rules/README.md`, then `docs/dev-rules/architecture-overview.md`.
+- Bastion/QQBot/OCRKit integration, submissions, review, grants, or state transitions: `docs/product-rules/README.md`, then `docs/product-rules/integrations-and-workflows.md`.
+- Current capability/verification status: `docs/product-rules/README.md`, then `docs/product-rules/feature-status.md`. Do not recreate mutable status inventories in this file.
+- Authentication, privacy, credentials, storage, caching, or public/private boundaries: `docs/dev-rules/README.md`, then `docs/dev-rules/data-and-security.md`.
+- D1 schema, migrations, fixtures, imports, repair, or reconciliation: `docs/dev-rules/README.md`, then `docs/dev-rules/database-migrations-and-seeds.md`.
+- Tests, queues, CI, release behavior, or implementation-change policy: `docs/dev-rules/README.md`, then `docs/dev-rules/testing-and-change-policy.md`.
+- Portal UI, components, layout, interaction, motion, accessibility, or copy: root `DESIGN.md`, then `docs/design-rules/README.md` and the routed topic document.
+- Product terminology/copy: also read `docs/design-rules/terminology.md` and `docs/design-rules/portal-copy-guidelines.md`.
+- Nuxt Content, editorial schemas, Studio/Git publishing, or editorial deployment: applicable development/design indexes plus the relevant runbook under `docs/deployment/`.
+- Deployment or production verification: applicable runbook under `docs/deployment/`. Local implementation, integration evidence, deployment, and production business-path verification are distinct states.
+- Public API routes/contracts: update and validate `docs/api/openapi.json` with the implementation.
 
-1. Confirm the requested outcome, repository boundary, branch, worktree, and
-   current changes.
-2. Route the task through the indexes above and read only the relevant rules.
-3. Trace the current behavior through producer, consumer, and persisted state;
-   read the implementation and tests before deciding what to change.
-4. Make the smallest coherent change while preserving user-owned work.
-5. Run checks proportional to the affected risk and review the complete diff.
-6. Keep local implementation, local integration evidence, deployment, and
-   production verification separate in documentation and reporting.
-7. Report what changed, what passed, what remains unverified, and any decision
-   still required from the user.
+Root `AGENTS.md` is a router and repository-wide invariant source. Module-specific rules belong in nested `AGENTS.md` files when needed; reusable detailed guidance belongs under `docs/`.
 
-## Git and delivery
+## Platform invariants
 
-- For code changes, `pnpm check` is the default full local repository gate. If
-  it cannot run, execute the most relevant focused tests/typechecks/builds and
-  report the exact gap; focused checks do not prove the full gate.
-- Use local fakes for external services in normal tests. Real QQ, GitHub,
-  OCRKit, deployment, or production checks are separate evidence and may require
-  explicit authorization or configured environments.
-- Before committing, review the task-owned staged diff and run
-  `git diff --cached --check`. Do not stage unrelated files, generated runtime
-  data, credentials, or private evidence.
-- Do not push, publish, deploy, merge, modify remote issues, or otherwise perform
-  external writes unless the user explicitly requests it.
+- Each business fact has one authoritative owner. Do not create parallel sources of truth for identities, metadata, submissions, reviews, grants, or external-service state.
+- Business rules belong in domain/database services rather than HTTP or Portal adapters.
+- Browser clients must not access D1, R2, OCRKit, Bastion, or Git providers directly.
+- Preserve idempotency, auditability, retry behavior, and state consistency for writes and external workflows.
+- Preserve private/public separation. Never expose private evidence, credentials, signed URLs, QQ identifiers, internal risk signals, or production logs through public surfaces.
+- Administrative approvals, rejections, revocations, and similar decisions must not require a reason or note. Optional audit text may be absent without blocking the decision.
+- Applied D1 migrations are forward-only. Migrations contain schema changes and necessary data repair, not routine seed/catalog snapshots or demo/user data.
+- An HTTP success, health check, build, deployment, or local integration test does not by itself prove a production business path is working.
 
-## Safety gates
+## High-risk stop conditions
 
-- Assume every committed file is public. Never commit secrets, tokens, signed
-  URLs, private screenshots, QQ identifiers, internal risk signals, personal
-  data, production logs, or copied private payloads.
-- Migrations contain schema changes and necessary data repairs only. Do not add
-  bulk seed data, catalog snapshots, historical holder records, local accounts,
-  or demo submissions to new migrations.
-- Use `pnpm db:seed:local` for local fixtures. Use
-  `pnpm db:import:catalog --snapshot <path>` only for explicit legacy catalog
-  migration or recovery; it is not a Bastion synchronization path. Imports are
-  append/update operations, record their source hash, and must never target a
-  remote database unless `--remote` is explicitly passed.
-- Run `pnpm check:migrations` for migration data-write exceptions. Existing
-  historical data migrations must remain listed there, and applied migrations
-  are forward-only.
-- Stop and re-check the specialist rule before touching credentials, permission
-  boundaries, private evidence, production data, historical migrations, or
-  external publishing. Do not treat an HTTP 200, health check, build, or deploy
-  as proof that the business path succeeded.
+Re-read the routed specialist rule before changing credentials, authorization/permission boundaries, private evidence handling, production data, historical/applied migrations, public API compatibility, external publishing, or production deployment.
+
+If the requested implementation requires changing another repository's ownership, an unresolved product behavior, public contract semantics, privacy boundary, or migration compatibility policy, report that decision rather than self-authorizing it in code.
+
+Material state-machine, migration, security, public-contract, or cross-service behavior changes should receive independent falsification appropriate to the risk; rerunning the author's tests alone is not sufficient evidence.
+
+## Local validation and delivery
+
+- For code changes, `pnpm check` is the default full local repository gate. If it cannot run, execute the most relevant focused checks and report the exact gap; focused checks do not prove the full gate.
+- Use local fakes for external services in normal automated tests. Real QQ, GitHub, OCRKit, deployment, or production checks are separate evidence and may require explicit authorization/configuration.
+- Run `pnpm check:migrations` for migration data-write exceptions.
+- Use `pnpm db:seed:local` for local fixtures. `pnpm db:import:catalog --snapshot <path>` is for explicit legacy catalog migration/recovery, not Bastion synchronization; never target a remote database unless `--remote` is explicitly intended.
+- Before committing, review the task-owned staged diff and run `git diff --cached --check`. Do not stage unrelated files, runtime-generated data, credentials, or private evidence.
+- Do not push, publish, deploy, merge, modify remote issues, or perform other external writes unless the user explicitly requested that action.
