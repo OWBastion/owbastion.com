@@ -49,7 +49,7 @@ const form = reactive({
 });
 
 const mapItems = computed(() => props.maps.map((map) => ({ label: map.mapName, value: map.mapId })));
-const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status !== "sunsetting" || form.retiredVersion.trim())));
+const canSubmit = computed(() => Boolean(form.titleKey.trim() && form.titleName.trim() && form.category.trim() && form.condition.trim() && form.evidenceRule.trim() && (form.status === "scheduled" || form.gameVersion.trim()) && (form.status !== "sunsetting" || form.retiredVersion.trim())));
 const setScheduleTime = (field: "startsAt" | "endsAt", value: number | null) => { form[field] = value; };
 
 function submit() {
@@ -96,7 +96,7 @@ function submit() {
         <UFormField class="editor-field" label="状态"><USelect v-model="form.status" class="editor-control" :disabled="props.saving" :items="[{ label: '已开放', value: 'active' }, { label: '未开放', value: 'scheduled' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" /></UFormField>
         <template v-if="form.status === 'scheduled'"><UFormField class="editor-field" label="开始时间"><AdminDateTimePicker class="editor-control" :model-value="form.startsAt" :disabled="props.saving" @update:model-value="setScheduleTime('startsAt', $event)" /></UFormField><UFormField class="editor-field" label="结束时间"><AdminDateTimePicker class="editor-control" :model-value="form.endsAt" :disabled="props.saving" @update:model-value="setScheduleTime('endsAt', $event)" /></UFormField></template>
         <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
-        <UFormField class="editor-field" label="游戏版本"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.0728.1" :disabled="props.saving" /></UFormField>
+        <UFormField class="editor-field" label="游戏版本" :required="form.status !== 'scheduled'"><UInput v-model="form.gameVersion" class="editor-control" placeholder="例如 26.0728.1" :disabled="props.saving" :required="form.status !== 'scheduled'" /></UFormField>
         <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
           <div class="icon-upload">

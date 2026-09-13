@@ -210,6 +210,7 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting" }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0713.2" }).success).toBe(true);
     expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, retiredVersion: "2026.07.16" }).success).toBe(false);
+    expect(adminChallengeUpdateRequestSchema.safeParse({ ...input, gameVersion: null }).success).toBe(false);
     expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "retired" }).success).toBe(true);
   });
 
@@ -243,6 +244,9 @@ describe("v1 platform contracts", () => {
   it("allows a future achievement to omit release metadata", () => {
     const input = { contractVersion: "1", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "global", mapIds: [], status: "scheduled" };
     expect(adminAchievementCreateRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "active" }).success).toBe(false);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "sunsetting", retiredVersion: "26.0901.1" }).success).toBe(false);
+    expect(adminAchievementCreateRequestSchema.safeParse({ ...input, status: "retired" }).success).toBe(false);
     expect(adminChallengeSchema.safeParse({ challengeId: "title.FUTURE_TITLE", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: null, status: "scheduled", introducedVersion: null, submissionMode: "manual", categoryOverride: null, retiredVersion: null, startsAt: null, endsAt: null }).success).toBe(true);
   });
 

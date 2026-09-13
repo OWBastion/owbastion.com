@@ -129,6 +129,8 @@ The current API implements versioned v1 QQ flows:
   start time never opens the challenge automatically, a missing end time leaves
   it open-ended after its start, and a missing game version keeps it out of the
   public projection and submission flow until an administrator adds the version.
+  Active, sunsetting, and retired challenges require a game version; an already
+  public challenge cannot clear its release metadata.
   Scheduled challenges remain visible as `未开放` when their release metadata is
   complete and stop accepting new submissions after an end time without a cron job.
 - the Portal can publicly browse the active map catalog and map challenge
@@ -310,7 +312,8 @@ condition. Title challenges may update
 their conditions, evidence rules, submission mode, and optional Portal display
 category. A title challenge may also be `scheduled` with optional start and end
 timestamps; the platform derives its public availability from the current time,
-requires a known game version for public projection and submission, and rejects
+requires a known game version for every non-scheduled lifecycle state and for
+public projection and submission, and rejects
 upload-session creation outside the applicable window. Catalog-only
 titles use the same administrator editor; saving a non-developer catalog title
 creates its challenge record with the edited rules and selected lifecycle

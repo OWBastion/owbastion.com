@@ -66,6 +66,7 @@ describe("scheduled title challenge availability", () => {
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const input = { contractVersion: "1" as const, titleKey: "FUTURE_TITLE", titleName: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual" as const, scope: "global" as const, mapIds: [], status: "scheduled" as const, gameVersion: null, categoryOverride: null, iconUrl: null };
 
+    await expect(services.createAdminAchievement({ ...input, titleKey: "ACTIVE_WITHOUT_VERSION", status: "active" }, auth, "reject-active-without-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
     await expect(services.createAdminAchievement(input, auth, "create-future")).resolves.toMatchObject({ gameVersion: null, introducedVersion: null, status: "scheduled" });
     expect(sqlite.prepare("SELECT game_version, introduced_version FROM title_challenges WHERE id = 'title.FUTURE_TITLE'").get()).toEqual({ game_version: null, introduced_version: null });
     await expect(services.listChallenges({ family: "achievement" })).resolves.toEqual([]);
@@ -73,6 +74,9 @@ describe("scheduled title challenge availability", () => {
     await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: "26.0901.1" }, auth, "add-version")).resolves.toMatchObject({ gameVersion: "26.0901.1", introducedVersion: "26.0901.1" });
     expect(sqlite.prepare("SELECT game_version, introduced_version FROM title_challenges WHERE id = 'title.FUTURE_TITLE'").get()).toEqual({ game_version: "26.0901.1", introduced_version: "26.0901.1" });
     await expect(services.listChallenges({ family: "achievement" })).resolves.toHaveLength(1);
+
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "active", gameVersion: "26.0901.1" }, auth, "activate-future")).resolves.toMatchObject({ status: "active" });
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: null }, auth, "reject-clearing-public-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
   });
 
   it("uses a half-open Pioneer window at every boundary", () => {

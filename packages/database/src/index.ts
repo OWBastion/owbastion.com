@@ -3409,6 +3409,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async createAdminAchievement(input: AdminAchievementCreateRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<AdminChallenge>(db, auth.subject, "admin.achievement.create", idempotencyKey, input);
       if (replay) return replay;
+      if (input.status !== "scheduled" && !input.gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
       const targetMapIds = [...new Set(input.mapIds)];
@@ -3513,6 +3514,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }
         const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
         const introducedVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.introducedVersion;
+        const currentPublicStatus = publicTitleChallengeStatus(row.challenge.status, row.challenge.startsAt, row.challenge.endsAt, timestamp, row.challenge.gameVersion);
+        if (input.gameVersion === null && (row.challenge.status !== "scheduled" || currentPublicStatus === "active" || currentPublicStatus === "sunsetting")) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+        if (input.status !== "scheduled" && !gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
         await db.update(titleChallenges).set({
           condition: input.condition,
           evidenceRule: input.evidenceRule,
