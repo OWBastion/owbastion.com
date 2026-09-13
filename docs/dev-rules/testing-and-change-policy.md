@@ -116,8 +116,13 @@ must preserve the introduced and retired game-version fields.
 Administrator catalog management supports creating and editing title-backed
 achievement challenges. A challenge uses a unique title key and may be global
 or map-scoped. Map-scoped challenges use an optional map allowlist; an empty
-allowlist means all active maps. Title challenges may change their conditions,
-evidence rules, submission mode, map scope, and optional Portal display-category override. A `sunsetting` challenge requires a
+allowlist means all active maps. Future challenges may omit their game version
+and may use scheduled status with no start or end time; missing release metadata
+keeps them out of public projections and submission eligibility. Title challenges
+may change their conditions, evidence rules, submission mode, map scope, game
+version, and active, sunsetting, or retired challenges require one. Once a
+challenge is public, its game version cannot be cleared. Title challenges may
+also change their optional Portal display-category override. A `sunsetting` challenge requires a
 planned Bastion version in `YY.MMDD.N` format; an administrator may also move a
 challenge directly to `retired` without a planned version. Sunsetting challenges
 remain visible and accept new uploads; retired challenges

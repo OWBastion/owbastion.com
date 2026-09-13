@@ -204,6 +204,7 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
     iconUrl: item.iconUrl?.trim() || null,
     status,
     ...(item.scope ? { scope: item.scope, mapIds: item.scope === "map" ? item.mapIds ?? [] : [] } : {}),
+    gameVersion: item.gameVersion?.trim() || null,
     ...(item.scope === "map" ? { mapVariant: item.mapVariant } : {}),
     ...(status === "sunsetting" && (retiredVersion ?? item.retiredVersion)?.trim() ? { retiredVersion: (retiredVersion ?? item.retiredVersion)!.trim() } : {}),
     ...(status === "scheduled" ? {
@@ -456,7 +457,7 @@ onMounted(() => void load());
               <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
               <template #titleName-cell="{ row }">
                 <strong>{{ itemTitleName(row.original) }}</strong>
-                <small class="table-meta">{{ isChallengeTitle(row.original) ? `${row.original.scope === 'map' ? `${mapVariantLabel(row.original.mapVariant)} · ` : ''}引入版本 ${row.original.introducedVersion}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small>
+                <small class="table-meta">{{ isChallengeTitle(row.original) ? `${row.original.scope === 'map' ? `${mapVariantLabel(row.original.mapVariant)} · ` : ''}引入版本 ${row.original.introducedVersion ?? '未设置'}` : itemScope(row.original) === 'map' ? '地图称号' : '目录称号' }}</small>
               </template>
               <template #condition-cell="{ row }"><span class="condition-cell">{{ row.original.condition }}</span></template>
               <template #status-cell="{ row }">

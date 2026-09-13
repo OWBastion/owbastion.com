@@ -1056,6 +1056,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "ACHIEVEMENT_CREATE_FAILED";
       if (code === "TITLE_KEY_CONFLICT") return errorResponse(c, 409, code, "The title key already exists");
       if (code === "MAP_NOT_FOUND" || code === "MAP_NOT_ACTIVE") return errorResponse(c, 422, code, "One or more target maps are unavailable");
+      if (code === "ACHIEVEMENT_GAME_VERSION_REQUIRED") return errorResponse(c, 422, code, "Active, sunsetting, and retired challenges require a game version");
       if (code === "DEVELOPER_TITLE_CANNOT_BE_A_CHALLENGE") return errorResponse(c, 422, code, "A developer-retained title cannot become a player challenge");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
@@ -1238,7 +1239,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminChallengeUpdateRequestSchema.safeParse({ ...body, family: body?.family ?? (c.req.param("challengeId").startsWith("title.") ? "achievement" : "map") });
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).updateAdminChallenge({ ...parsed.data, challengeId: c.req.param("challengeId") }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE"].includes(code)) return errorResponse(c, 422, code, "The challenge map scope is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "ACHIEVEMENT_UPDATE_FAILED"; if (code === "CHALLENGE_NOT_FOUND") return errorResponse(c, 404, code, "The achievement does not exist"); if (["MAP_NOT_FOUND", "MAP_NOT_ACTIVE", "INVALID_MAP_SCOPE", "ACHIEVEMENT_GAME_VERSION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge lifecycle metadata is invalid"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/player-accounts/:playerAccountId", async (c) => {

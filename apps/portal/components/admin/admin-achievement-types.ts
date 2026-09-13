@@ -14,8 +14,8 @@ export type TitleAchievement = {
   evidenceRule: string;
   submissionMode: "manual" | "automatic";
   status: AchievementStatus;
-  gameVersion: string;
-  introducedVersion: string;
+  gameVersion: string | null;
+  introducedVersion: string | null;
   retiredVersion: string | null;
   startsAt?: number | null;
   endsAt?: number | null;
@@ -39,7 +39,7 @@ export type MapAchievement = {
   evidenceRule: string;
   submissionMode: "manual" | "automatic";
   status: AchievementStatus;
-  gameVersion: string;
+  gameVersion: string | null;
   introducedVersion: string;
   retiredVersion: string | null;
   mapVariant?: "classic";
@@ -67,7 +67,7 @@ export type CatalogTitle = {
   displayKind: "fixed" | "map_pioneer" | "map_name_suffix";
   color?: { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
   status: AchievementStatus;
-  gameVersion: string;
+  gameVersion: string | null;
   hasChallenge: false;
 };
 

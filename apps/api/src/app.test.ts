@@ -1247,7 +1247,7 @@ describe("API", () => {
         ...services,
         createAdminAchievement: async (input) => {
           created.push(input);
-          return { challengeId: `title.${input.titleKey}`, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: input.titleKey, titleName: input.titleName, icon: input.icon, category: input.category, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: input.gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion: input.gameVersion, retiredVersion: null, scope: input.scope, mapIds: input.mapIds };
+          return { challengeId: `title.${input.titleKey}`, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: input.titleKey, titleName: input.titleName, icon: input.icon, category: input.category, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: input.gameVersion ?? null, status: input.status, submissionMode: input.submissionMode, introducedVersion: input.gameVersion ?? null, retiredVersion: null, scope: input.scope, mapIds: input.mapIds };
         },
       }),
     });

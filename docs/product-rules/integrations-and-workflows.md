@@ -124,9 +124,16 @@ The current API implements versioned v1 QQ flows:
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.
-- maintainers may schedule a title challenge with a start and end timestamp;
-  scheduled challenges remain visible as `未开放`, become submittable during
-  the window, and stop accepting new submissions after it without a cron job.
+- maintainers may create a future title challenge without release metadata;
+  `scheduled` challenges accept optional start and end timestamps. A missing
+  start time never opens the challenge automatically (but an end time still
+  expires it), a missing end time leaves it open-ended after its start, and a
+  missing game version keeps it out of the public projection and submission
+  flow until an administrator adds the version.
+  Active, sunsetting, and retired challenges require a game version; an already
+  public challenge cannot clear its release metadata.
+  Scheduled challenges remain visible as `未开放` when their release metadata is
+  complete and stop accepting new submissions after an end time without a cron job.
 - the Portal can publicly browse the active map catalog and map challenge
   directory; player authentication remains required for submissions, titles,
   and player-specific data.
@@ -304,9 +311,11 @@ including global and map-scoped titles, as well as existing platform
 challenges. It does not create challenge records for titles that have no public
 condition. Title challenges may update
 their conditions, evidence rules, submission mode, and optional Portal display
-category. A title challenge may also be `scheduled` with an explicit start and
-end timestamp; the platform derives its public availability from the current
-time and rejects upload-session creation outside that window. Catalog-only
+category. A title challenge may also be `scheduled` with optional start and end
+timestamps; the platform derives its public availability from the current time,
+requires a known game version for every non-scheduled lifecycle state and for
+public projection and submission, and rejects
+upload-session creation outside the applicable window. Catalog-only
 titles use the same administrator editor; saving a non-developer catalog title
 creates its challenge record with the edited rules and selected lifecycle
 status. Developer-retained catalog titles are a separate case: they are

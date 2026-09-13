@@ -146,7 +146,7 @@ export const titleCatalog = sqliteTable("title_catalog", {
   scope: text("scope").notNull(),
   displayKind: text("display_kind").notNull(),
   colorJson: text("color_json").notNull().default("null"),
-  gameVersion: text("game_version").notNull(),
+  gameVersion: text("game_version"),
 });
 
 export const mapTitleRewards = sqliteTable("map_title_rewards", {
@@ -309,9 +309,9 @@ export const titleChallenges = sqliteTable("title_challenges", {
   condition: text("condition").notNull(),
   evidenceRule: text("evidence_rule").notNull(),
   submissionMode: text("submission_mode").notNull(),
-  gameVersion: text("game_version").notNull(),
+  gameVersion: text("game_version"),
   status: text("status").notNull(),
-  introducedVersion: text("introduced_version").notNull(),
+  introducedVersion: text("introduced_version"),
   retiredVersion: text("retired_version"),
   startsAt: integer("starts_at"),
   endsAt: integer("ends_at"),
