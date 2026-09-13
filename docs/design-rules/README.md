@@ -22,6 +22,7 @@
 | [audit-portal-uiux-2026-08.md](audit-portal-uiux-2026-08.md) | Portal UI/UX 审计档案 | reference | 2026-08 三轮审计：已解决 / 待修 / 豁免状态 |
 | [audit-portal-uiux-2026-08-15.md](audit-portal-uiux-2026-08-15.md) | Portal UI/UX 综合审计报告 | reference | 2026-08-15 综合审计：Apple Design 与 Kill-AI-Slop 全量检视与重构路线 |
 | [audit-portal-uiux-2026-08-17.md](audit-portal-uiux-2026-08-17.md) | Portal UI/UX 独立审计 | reference | 2026-08-17：按模块功能对照设计支柱 / Apple Design / Kill-AI-Slop，不依据既有审计档 |
+| [audit-portal-admin-mobile-2026-09-13.md](audit-portal-admin-mobile-2026-09-13.md) | 管理侧移动端审计 | reference | 2026-09-13：编辑 / 新增 / 审核弹层裁切、叠层不可点、审核 sticky 与顶栏冲突 |
 
 ## 使用规则
 
