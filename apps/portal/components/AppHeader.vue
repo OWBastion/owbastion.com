@@ -196,9 +196,12 @@ async function signOut() {
 .brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
-.main-nav::-webkit-scrollbar { display: none; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
+.main-nav :deep([data-slot="root"]) { width: max-content; max-width: 100%; }
+.main-nav :deep([data-slot="root"] > div:first-child) { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.main-nav :deep([data-slot="root"] > div:first-child)::-webkit-scrollbar { display: none; }
 .main-nav :deep(ul) { flex-wrap: nowrap; gap: 2px; }
+.main-nav :deep([data-slot="list"]) { width: max-content; min-width: 100%; }
 .main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
 .main-nav a {
   display: inline-flex;
