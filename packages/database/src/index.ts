@@ -4273,7 +4273,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           return candidate.targetDifficulty === null || candidate.targetDifficulty === undefined || Boolean(recognizedDifficulty) && normalizedOcrDifficulty(candidate.targetDifficulty) === recognizedDifficulty;
         });
         const matchedCandidate = matchedCandidates[0];
-        if (matchedCandidate?.titleName && matchedCandidate.match?.achievement !== true) throw new Error("CHALLENGE_NOT_SELECTABLE");
 
         const candidateRevisionIds = new Set(matchedCandidates.flatMap((candidate) => typeof candidate.gameplayRevisionId === "string" ? [candidate.gameplayRevisionId] : []));
         if (!selection.gameplayRevisionId && candidateRevisionIds.size > 1) throw new Error("GAMEPLAY_REVISION_REQUIRED");

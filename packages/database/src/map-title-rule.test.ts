@@ -1432,7 +1432,7 @@ describe("map title rule model – locked invariants", () => {
       expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ gameplayRevisionId: reworkRevisionId });
     });
 
-    it("lets a maintainer select a global achievement candidate", async () => {
+    it("lets a maintainer select a global achievement despite OCR match state", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedTitle(sqlite, "HERO");
@@ -1443,9 +1443,11 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, match_json, created_at) VALUES ('ocr.achievement', 'submission.achievement', 1, 'review_required', ?, ?)").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }), now);
       const services = createPlatformServices(database);
       sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: false } }] }));
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-no-evidence")).rejects.toThrow("CHALLENGE_NOT_SELECTABLE");
-      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }));
-      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.2");
+      const negativeMatch = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-negative-match");
+      expect(negativeMatch).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
+
+      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [] }));
+      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-no-candidate");
 
       expect(result).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
       expect(sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, map_name FROM submissions WHERE id = 'submission.achievement'").get()).toMatchObject({ status: "ready_for_review", challenge_type: "title_achievement", challenge_id: "title.hero", target_map_id: null, map_name: "成就挑战" });
