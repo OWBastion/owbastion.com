@@ -289,7 +289,7 @@ const challengeSummary = computed(() => {
   --review-gap: clamp(0.75rem, 2.2vw, 1.25rem);
   --review-inset: clamp(0.75rem, 2vw, 1rem);
   --review-radius: clamp(0.75rem, 1.5vw, 0.875rem);
-  --review-sticky-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  --review-sticky-top: var(--sticky-chrome-top, max(0.75rem, env(safe-area-inset-top, 0px)));
   --review-touch: 2.75rem;
 
   display: grid;

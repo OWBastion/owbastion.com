@@ -207,9 +207,6 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   gap: 0.5625rem 1rem;
 }
 .revision-editor__actions {
-  position: sticky;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;

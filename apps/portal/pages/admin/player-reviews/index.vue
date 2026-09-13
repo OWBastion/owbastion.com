@@ -131,15 +131,18 @@ onMounted(() => { void load(); });
     <template #body>
       <div v-if='detailLoading' class='detail-loading'><USkeleton v-for='index in 5' :key='index' class='h-12' /></div>
       <UAlert v-else-if='detailError' color='error' variant='subtle' :description='detailError' />
-      <AdminReviewDetail v-else-if='selectedDetail' :detail='selectedDetail' @moderate='beginModeration' />
+      <template v-else-if='selectedDetail'>
+        <AdminReviewDetail :detail='selectedDetail' @moderate='beginModeration' />
+        <div v-if='pendingAction' class='moderation-confirmation'>
+          <p>确认{{ actionLabel(pendingAction) }}？</p>
+          <p v-if="pendingAction === 'invalidate'" class='moderation-consequence'>评价将不再对玩家公开展示；历史记录保留。</p>
+          <UTextarea v-model='reason' aria-label='操作理由' placeholder='操作理由' :rows='3' :disabled='saving' />
+        </div>
+      </template>
     </template>
     <template v-if='pendingAction' #footer>
-      <div class='moderation-confirmation'>
-        <p>确认{{ actionLabel(pendingAction) }}？</p>
-        <p v-if="pendingAction === 'invalidate'" class='moderation-consequence'>评价将不再对玩家公开展示；历史记录保留。</p>
-        <UTextarea v-model='reason' aria-label='操作理由' placeholder='操作理由' :rows='3' :disabled='saving' />
-        <div class='moderation-confirmation__actions'><UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='cancelModeration' /><UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :loading='saving' @click='saveModeration' /></div>
-      </div>
+      <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='cancelModeration' />
+      <UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :loading='saving' @click='saveModeration' />
     </template>
   </AdminResponsiveDialog>
 </template>
@@ -151,9 +154,8 @@ onMounted(() => { void load(); });
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; }
 .pagination { display: flex; justify-content: center; margin-top: 12px; }
 .detail-loading { display: grid; gap: 10px; }
-.moderation-confirmation { display: grid; flex: 1 1 100%; gap: 10px; }
+.moderation-confirmation { display: grid; gap: 10px; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .moderation-confirmation p { margin: 0; font-size: .86rem; }
 .moderation-consequence { color: var(--muted); line-height: 1.55; }
-.moderation-confirmation__actions { display: flex; justify-content: flex-end; gap: 8px; }
-@media (max-width: 620px) { .review-filters { display: grid; grid-template-columns: 1fr; }.review-filters > :first-child, .review-filters > :not(:first-child) { min-width: 0; }.moderation-confirmation__actions { justify-content: stretch; }.moderation-confirmation__actions > * { flex: 1 1 50%; min-height: 44px; } }
+@media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; }.review-filters > :first-child, .review-filters > :not(:first-child) { min-width: 0; } }
 </style>

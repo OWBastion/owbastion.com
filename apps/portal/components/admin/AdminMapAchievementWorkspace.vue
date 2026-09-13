@@ -274,11 +274,17 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
       <template #body>
         <div class="rule-map-manager">
           <p class="type-caption">选择地图后设置独立的开放时间。未启用的地图也可以从这里直接开放。</p>
-          <AdminDataTable :data="managedRuleMaps" :columns="[{ accessorKey: 'mapId', header: '地图' }, { accessorKey: 'projected', header: '状态' }, { id: 'actions', header: '操作', enableHiding: false }]" :loading="loadingRules" empty="暂无可管理的有效地图。" row-key="mapId" table-key="pioneer-rule-map-manager" table-min-width="620px" class="admin-table">
-            <template #mapId-cell="{ row }"><strong>{{ props.maps.find((map) => map.mapId === row.original.mapId)?.mapName ?? row.original.mapId }}</strong></template>
-            <template #projected-cell="{ row }"><StatusBadge :label="row.original.projected ? '已开放' : '未开放'" :tone="row.original.projected ? 'success' : 'warning'" /></template>
-            <template #actions-cell="{ row }"><UButton :label="row.original.projected ? '编辑开放时间' : '开放地图'" size="sm" color="neutral" variant="soft" @click="openException(row.original)" /></template>
-          </AdminDataTable>
+          <p v-if="loadingRules" class="type-caption" role="status">读取中…</p>
+          <p v-else-if="!managedRuleMaps.length" class="type-caption">暂无可管理的有效地图。</p>
+          <ul v-else class="rule-map-list">
+            <li v-for="item in managedRuleMaps" :key="item.mapId" class="rule-map-list__item">
+              <div class="rule-map-list__identity">
+                <strong>{{ props.maps.find((map) => map.mapId === item.mapId)?.mapName ?? item.mapId }}</strong>
+                <StatusBadge :label="item.projected ? '已开放' : '未开放'" :tone="item.projected ? 'success' : 'warning'" />
+              </div>
+              <UButton :label="item.projected ? '编辑开放时间' : '开放地图'" size="sm" color="neutral" variant="soft" @click="openException(item)" />
+            </li>
+          </ul>
         </div>
       </template>
       <template #footer><UButton label="关闭" color="neutral" variant="outline" @click="closeRuleMapManager" /></template>
@@ -342,11 +348,19 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 .rule-editor__wide { grid-column: 1 / -1; }
 .exception-editor { padding: 24px; }
 .map-achievement-workspace :deep(.admin-data-table__sort-control) { min-width: 15rem; }
-@media (max-width: 560px) {
+@media (max-width: 48rem) {
   .section-heading, .section-toolbar { align-items: stretch; flex-wrap: wrap; }
   .rule-editor { grid-template-columns: 1fr; }
   .rule-editor__wide { grid-column: auto; }
   .section-toolbar > :first-child { width: 100%; }
   .section-toolbar :deep(button) { width: 100%; min-height: 2.75rem; }
+}
+.rule-map-list { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.rule-map-list__item { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 0; padding: 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; }
+.rule-map-list__identity { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
+.rule-map-list__identity strong { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 48rem) {
+  .rule-map-list__item { align-items: stretch; flex-direction: column; }
+  .rule-map-list__item :deep(button) { width: 100%; min-height: 2.75rem; }
 }
 </style>

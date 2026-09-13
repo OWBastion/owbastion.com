@@ -58,7 +58,7 @@ watch(open, async (value) => {
       close
       :transition="allowMotion"
       scrollable
-      :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer glass-segment' }"
+      :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body flex-1 min-h-0 overflow-y-auto', footer: 'admin-responsive-dialog__footer glass-segment' }"
     >
       <template #body><slot name="body" /></template>
       <template v-if="$slots.footer" #footer><slot name="footer" /></template>
@@ -72,9 +72,9 @@ watch(open, async (value) => {
       :description="description"
       :dismissible="dismissible"
       close
-      :should-scale-background="allowMotion"
-      :set-background-color-on-scale="allowMotion"
-      :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body', footer: 'admin-responsive-dialog__footer admin-responsive-dialog__footer--drawer glass-segment pb-[max(0.75rem,env(safe-area-inset-bottom))]' }"
+      :should-scale-background="false"
+      :set-background-color-on-scale="false"
+      :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', container: 'admin-responsive-dialog__container', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body flex-1 min-h-0 overflow-y-auto', footer: 'admin-responsive-dialog__footer admin-responsive-dialog__footer--drawer glass-segment pb-[max(0.75rem,env(safe-area-inset-bottom))]' }"
     >
       <template #body><slot name="body" /></template>
       <template v-if="$slots.footer" #footer><slot name="footer" /></template>
@@ -86,8 +86,28 @@ watch(open, async (value) => {
 .admin-responsive-dialog__content {
   border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
 }
-.admin-responsive-dialog__modal { border-radius: 20px; overflow: hidden; }
-.admin-responsive-dialog__drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
+.admin-responsive-dialog__modal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 20px;
+  overflow: hidden;
+}
+.admin-responsive-dialog__drawer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+}
+.admin-responsive-dialog__container {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 /* Header/footer are solid segments on glass — no second backdrop blur (A-01). */
 .admin-responsive-dialog__footer {
   display: flex;
@@ -104,17 +124,20 @@ watch(open, async (value) => {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 .admin-responsive-dialog__body {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 @media (max-width: 767px) {
   .admin-responsive-dialog__footer {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
   }
-  .admin-responsive-dialog__footer > * {
-    width: 100%;
+  .admin-responsive-dialog__footer > :empty {
+    display: none;
   }
   .admin-responsive-dialog__footer :where(button, a) {
     width: 100%;

@@ -298,9 +298,6 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
   gap: 0.75rem;
 }
 .pane-toolbar {
-  position: sticky;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  z-index: 1;
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;

@@ -232,7 +232,7 @@ async function createAnnotation() {
 .annotation-direct-ocr dd { margin: 0; overflow-wrap: anywhere; font-size: .82rem; }
 .annotation-direct-form { display: grid; gap: 8px; }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
-@media (max-width: 560px) {
+@media (max-width: 48rem) {
   .annotation-direct-ocr { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

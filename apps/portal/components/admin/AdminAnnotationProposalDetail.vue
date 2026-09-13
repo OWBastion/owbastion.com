@@ -58,7 +58,7 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 .annotation-detail__link:hover,
 .annotation-detail__link:focus-visible { text-decoration: underline; }
 .annotation-detail__ocr { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
-@media (max-width: 560px) {
+@media (max-width: 48rem) {
   .annotation-detail__facts { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

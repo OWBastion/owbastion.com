@@ -182,7 +182,7 @@ function submit() {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 48rem) {
   .editor {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;

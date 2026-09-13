@@ -223,7 +223,7 @@ function onIconFile(value: File | null | undefined) {
   background: var(--surface-raised);
 }
 .icon-preview img { width: 42px; height: 42px; object-fit: contain; }
-@media (max-width: 560px) {
+@media (max-width: 48rem) {
   .editor { grid-template-columns: minmax(0, 1fr); }
   .editor-field--wide { grid-column: auto; }
 }

@@ -51,16 +51,6 @@ function updateModel() {
   emit("update:modelValue", d.getTime());
 }
 
-function handleCalendarChange(val: unknown) {
-  if (val && typeof val === "object" && "year" in val && "month" in val && "day" in val) {
-    const v = val as { year: number; month: number; day: number };
-    calendarValue.value = new CalendarDate(v.year, v.month, v.day);
-  } else {
-    calendarValue.value = undefined;
-  }
-  updateModel();
-}
-
 function handleTimeChange(val: string) {
   timeValue.value = val;
   updateModel();
@@ -72,44 +62,44 @@ function clear() {
   emit("update:modelValue", null);
 }
 
-const formattedDisplay = computed(() => {
-  if (!props.modelValue || props.modelValue <= 0) return props.placeholder ?? "选择日期与时间";
-  const d = new Date(props.modelValue);
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return `${dateStr} ${timeValue.value}`;
+const dateValue = computed(() => {
+  const date = calendarValue.value;
+  return date ? `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}` : "";
 });
+
+function handleDateChange(value: string) {
+  if (!value) {
+    calendarValue.value = undefined;
+    updateModel();
+    return;
+  }
+  const [year, month, day] = value.split("-").map(Number);
+  if (year && month && day) {
+    calendarValue.value = new CalendarDate(year, month, day);
+    updateModel();
+  }
+}
 </script>
 
 <template>
-  <div class="datetime-picker flex items-center gap-1.5">
-    <UPopover>
-      <UButton
-        type="button"
-        color="neutral"
-        variant="outline"
-        icon="i-lucide-calendar"
-        class="w-full justify-between"
-        :disabled="disabled"
-      >
-        <span :class="{ 'text-muted-foreground': !modelValue }">{{ formattedDisplay }}</span>
-      </UButton>
-      <template #content>
-        <div class="p-3 flex flex-col gap-3">
-          <UCalendar :model-value="(calendarValue as any)" @update:model-value="handleCalendarChange" />
-          <div class="flex items-center justify-between pt-2 border-t border-[var(--line)]">
-            <span class="text-xs font-medium text-muted">具体时间</span>
-            <UInput
-              type="time"
-              size="sm"
-              class="w-28"
-              aria-label="具体时间"
-              :model-value="timeValue"
-              @update:model-value="handleTimeChange"
-            />
-          </div>
-        </div>
-      </template>
-    </UPopover>
+  <div class="datetime-picker flex flex-wrap items-center gap-1.5">
+    <UInput
+      type="date"
+      class="min-w-0 flex-1"
+      :placeholder="placeholder ?? '选择日期'"
+      :aria-label="placeholder ?? '日期'"
+      :model-value="dateValue"
+      :disabled="disabled"
+      @update:model-value="handleDateChange"
+    />
+    <UInput
+      type="time"
+      class="w-32"
+      aria-label="具体时间"
+      :model-value="timeValue"
+      :disabled="disabled || !dateValue"
+      @update:model-value="handleTimeChange"
+    />
     <UButton
       v-if="modelValue"
       type="button"

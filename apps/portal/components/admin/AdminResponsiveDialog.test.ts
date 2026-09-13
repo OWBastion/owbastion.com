@@ -16,7 +16,7 @@ const ModalStub = {
   template: '<section data-overlay="modal"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
 };
 const DrawerStub = {
-  props: ["open", "title", "description", "dismissible", "direction", "ui"],
+  props: ["open", "title", "description", "dismissible", "direction", "shouldScaleBackground", "setBackgroundColorOnScale", "ui"],
   emits: ["update:open"],
   template: '<section data-overlay="drawer"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
 };
@@ -39,6 +39,7 @@ describe("AdminResponsiveDialog", () => {
     expect(wrapper.get('[data-overlay="modal"]').text()).toContain("编辑群配置");
     expect(wrapper.text()).toContain("表单内容");
     expect(wrapper.findComponent(ModalStub).props("ui").content).toContain("max-w-3xl");
+    expect(wrapper.findComponent(ModalStub).props("ui").body).toContain("overflow-y-auto");
     await wrapper.findAll("button").at(-1)!.trigger("click");
     expect(onUpdate).toHaveBeenCalledWith(false);
   });
@@ -49,6 +50,9 @@ describe("AdminResponsiveDialog", () => {
     await nextTick();
     expect(wrapper.get('[data-overlay="drawer"]').text()).toContain("group-1");
     expect(wrapper.findComponent(DrawerStub).props("direction")).toBe("bottom");
+    expect(wrapper.findComponent(DrawerStub).props("shouldScaleBackground")).toBe(false);
+    expect(wrapper.findComponent(DrawerStub).props("setBackgroundColorOnScale")).toBe(false);
+    expect(wrapper.findComponent(DrawerStub).props("ui").container).toContain("admin-responsive-dialog__container");
     expect(wrapper.findComponent(DrawerStub).props("ui").footer).toContain("safe-area-inset-bottom");
   });
 });

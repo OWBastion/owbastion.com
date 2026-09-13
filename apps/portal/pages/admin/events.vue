@@ -150,7 +150,7 @@ onMounted(() => void loadAll());
         <form id="event-editor" class="grid gap-6" @submit.prevent="save">
           <section class="grid gap-4">
             <h3 class="text-base font-semibold">基本信息</h3>
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="名称"><UInput v-model="form.name" required /></UFormField>
               <UFormField label="类别"><UInput v-model="form.category" required /></UFormField>
               <UFormField label="稀有度"><UInput v-model="form.rarity" required /></UFormField>
@@ -165,7 +165,7 @@ onMounted(() => void loadAll());
           <section class="grid gap-4">
             <h3 class="text-base font-semibold">概率信息</h3>
             <p class="text-sm text-muted">以下字段根据当前事件目录和运行时抽样规则即时计算，不会写入数据库。</p>
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2">
               <template v-if="selectedEvent">
                 <UFormField label="类别概率"><UInput :model-value="formatProbability(probability(selectedEvent).categoryProbability)" readonly /></UFormField>
                 <UFormField label="组内总权重"><UInput :model-value="probability(selectedEvent).groupTotalWeight === null ? '暂无记录' : String(probability(selectedEvent).groupTotalWeight)" readonly /></UFormField>
@@ -175,7 +175,7 @@ onMounted(() => void loadAll());
                 <UFormField label="最终出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).appearanceProbability)" readonly /></UFormField>
                 <UFormField label="全局出现概率"><UInput :model-value="formatProbability(probability(selectedEvent).globalAppearanceProbability)" readonly /></UFormField>
               </template>
-              <p v-else class="text-sm text-muted sm:col-span-2">保存事件后，根据目录中的同类事件计算概率。</p>
+              <p v-else class="text-sm text-muted md:col-span-2">保存事件后，根据目录中的同类事件计算概率。</p>
             </div>
           </section>
 

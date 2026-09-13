@@ -211,7 +211,7 @@ onBeforeUnmount(() => {
 .detail-tabs {
   position: sticky;
   z-index: 3;
-  top: 12px;
+  top: var(--sticky-chrome-top);
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
@@ -462,7 +462,7 @@ onBeforeUnmount(() => {
   align-content: start;
   gap: 14px;
   position: sticky;
-  top: 72px;
+  top: var(--sticky-chrome-top);
 }
 
 .detail-card__heading {

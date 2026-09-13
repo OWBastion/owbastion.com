@@ -69,5 +69,5 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 .review-detail__audit li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: 4px; }
 .review-detail__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 4px; }
-@media (max-width: 620px) { .review-detail__facts { grid-template-columns: 1fr; }.review-detail__audit li { display: grid; }.review-detail__actions { justify-content: stretch; }.review-detail__actions > * { flex: 1 1 100%; min-height: 44px; } }
+@media (max-width: 48rem) { .review-detail__facts { grid-template-columns: 1fr; }.review-detail__audit li { display: grid; }.review-detail__actions { justify-content: stretch; }.review-detail__actions > * { flex: 1 1 100%; min-height: 44px; } }
 </style>
