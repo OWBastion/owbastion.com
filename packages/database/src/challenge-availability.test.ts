@@ -53,6 +53,12 @@ describe("scheduled title challenge availability", () => {
     expect(titleChallengeIsSubmittable("scheduled", 2_000, 3_000, 3_000)).toBe(false);
   });
 
+  it("expires an end-only scheduled challenge at its end time", () => {
+    expect(publicTitleChallengeStatus("scheduled", null, 3_000, 2_999)).toBe("scheduled");
+    expect(publicTitleChallengeStatus("scheduled", null, 3_000, 3_000)).toBe(null);
+    expect(publicTitleChallengeStatus("scheduled", null, 3_000, 3_001)).toBe(null);
+  });
+
   it("keeps missing release metadata unavailable", () => {
     expect(publicTitleChallengeStatus("active", null, null, 2_000, null)).toBe(null);
     expect(publicTitleChallengeStatus("scheduled", 1_000, null, 2_000, null)).toBe(null);
@@ -71,12 +77,15 @@ describe("scheduled title challenge availability", () => {
     expect(sqlite.prepare("SELECT game_version, introduced_version FROM title_challenges WHERE id = 'title.FUTURE_TITLE'").get()).toEqual({ game_version: null, introduced_version: null });
     await expect(services.listChallenges({ family: "achievement" })).resolves.toEqual([]);
 
-    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: "26.0901.1" }, auth, "add-version")).resolves.toMatchObject({ gameVersion: "26.0901.1", introducedVersion: "26.0901.1" });
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: "26.0901.1", startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 }, auth, "add-version")).resolves.toMatchObject({ gameVersion: "26.0901.1", introducedVersion: "26.0901.1", startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 });
     expect(sqlite.prepare("SELECT game_version, introduced_version FROM title_challenges WHERE id = 'title.FUTURE_TITLE'").get()).toEqual({ game_version: "26.0901.1", introduced_version: "26.0901.1" });
     await expect(services.listChallenges({ family: "achievement" })).resolves.toHaveLength(1);
 
-    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "active", gameVersion: "26.0901.1" }, auth, "activate-future")).resolves.toMatchObject({ status: "active" });
-    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: null }, auth, "reject-clearing-public-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: "26.0902.1", startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 }, auth, "edit-release-version")).resolves.toMatchObject({ gameVersion: "26.0902.1", introducedVersion: "26.0901.1" });
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: null, startsAt: 4_000_000_000_000, endsAt: 4_000_000_000_100 }, auth, "reject-clearing-scheduled-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: "26.0902.1", startsAt: 1, endsAt: 2 }, auth, "expire-future")).resolves.toMatchObject({ gameVersion: "26.0902.1", introducedVersion: "26.0901.1" });
+    await expect(services.updateAdminChallenge({ contractVersion: "1", family: "achievement", challengeId: "title.FUTURE_TITLE", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", gameVersion: null, startsAt: 1, endsAt: 2 }, auth, "reject-clearing-expired-version")).rejects.toThrow("ACHIEVEMENT_GAME_VERSION_REQUIRED");
   });
 
   it("uses a half-open Pioneer window at every boundary", () => {

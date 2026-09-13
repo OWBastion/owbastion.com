@@ -126,9 +126,10 @@ The current API implements versioned v1 QQ flows:
   remain available for submission.
 - maintainers may create a future title challenge without release metadata;
   `scheduled` challenges accept optional start and end timestamps. A missing
-  start time never opens the challenge automatically, a missing end time leaves
-  it open-ended after its start, and a missing game version keeps it out of the
-  public projection and submission flow until an administrator adds the version.
+  start time never opens the challenge automatically (but an end time still
+  expires it), a missing end time leaves it open-ended after its start, and a
+  missing game version keeps it out of the public projection and submission
+  flow until an administrator adds the version.
   Active, sunsetting, and retired challenges require a game version; an already
   public challenge cannot clear its release metadata.
   Scheduled challenges remain visible as `未开放` when their release metadata is

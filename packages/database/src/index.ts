@@ -175,8 +175,8 @@ const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg
 export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   if (!gameVersion?.trim()) return null;
   if (status !== "scheduled") return status === "active" || status === "sunsetting" ? status : null;
-  if (startsAt === null || timestamp < startsAt) return "scheduled";
   if (endsAt !== null && timestamp >= endsAt) return null;
+  if (startsAt === null || timestamp < startsAt) return "scheduled";
   return "active";
 };
 export const titleChallengeIsSubmittable = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
@@ -3513,9 +3513,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
         }
         const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
-        const introducedVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.introducedVersion;
-        const currentPublicStatus = publicTitleChallengeStatus(row.challenge.status, row.challenge.startsAt, row.challenge.endsAt, timestamp, row.challenge.gameVersion);
-        if (input.gameVersion === null && (row.challenge.status !== "scheduled" || currentPublicStatus === "active" || currentPublicStatus === "sunsetting")) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+        const introducedVersion = row.challenge.introducedVersion ?? input.gameVersion ?? null;
+        const hasReleaseHistory = row.challenge.introducedVersion !== null || row.challenge.gameVersion !== null;
+        if (input.gameVersion === null && hasReleaseHistory) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
         if (input.status !== "scheduled" && !gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
         await db.update(titleChallenges).set({
           condition: input.condition,
