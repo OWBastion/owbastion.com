@@ -77,12 +77,13 @@ migrations. The Portal container does not receive this value.
 ## Workflow behavior
 
 The workflow runs for pull requests and pushes to `main` only when API inputs
-change: `apps/api`, shared packages, D1 migrations, `wrangler.toml`, shared
+change: `apps/api`, API-owned packages, D1 migrations, API tooling,
+`wrangler.toml`, `wrangler.staging-d1.toml`, the OpenAPI document, shared
 pnpm/TypeScript/Vitest build inputs, or the API workflow itself. Pull requests
-run install, tests, typecheck, and build only. Typecheck runs `tsc --noEmit`
-for the workspace, while the API build runs Wrangler's local Worker bundling
-and validation with `wrangler deploy --dry-run`; it does not upload or deploy
-the Worker. A qualifying push to `main` or a manual dispatch runs those checks,
+run migration checks, API/package/tool tests, the API dependency typecheck, and
+the Worker build only. The API build runs Wrangler's local Worker bundling and
+validation with `wrangler deploy --dry-run`; it does not upload or deploy the
+Worker. A qualifying push to `main` or a manual dispatch runs those checks,
 first applies migrations to the isolated staging D1 database and verifies the
 submission/review schema there, then applies forward-only production D1
 migrations, validates and bootstraps `ADMIN_BATTLETAG`, updates the Worker

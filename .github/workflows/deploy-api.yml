@@ -56,18 +56,12 @@ jobs:
         include:
           - name: migration checks
             command: pnpm run check:migrations
-          - name: unit tests
-            command: pnpm run test:unit
-          - name: Portal UI tests
-            command: pnpm run test:portal-ui --run
-          - name: typecheck
-            command: pnpm run typecheck
+          - name: API and dependency tests
+            command: pnpm exec vitest run apps/api packages tools
+          - name: API and dependency typecheck
+            command: pnpm --filter @owbastion/api... run typecheck
           - name: API build
             command: pnpm run build:api
-          - name: Portal build and SSR smoke
-            command: >-
-              pnpm run build:portal && NUXT_TEST_PORT=3000
-              pnpm run test:portal-e2e:built
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -207,7 +201,7 @@ jobs:
           printf '%s' "$BINDING_INVITE_CODE_ENCRYPTION_KEY" | pnpm exec wrangler secret put BINDING_INVITE_CODE_ENCRYPTION_KEY
 
       - name: Deploy Worker
-        run: pnpm exec wrangler deploy --var DEPLOYMENT_REVISION:${GITHUB_SHA} --var PUBLIC_HTTP_CACHE_ENABLED:true
+        run: pnpm exec wrangler deploy --var "DEPLOYMENT_REVISION:${GITHUB_SHA}" --var PUBLIC_HTTP_CACHE_ENABLED:true
 
       - name: Deploy API Shield endpoint operations
         run: pnpm deploy:api-endpoints
