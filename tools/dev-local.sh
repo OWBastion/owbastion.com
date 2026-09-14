@@ -39,15 +39,36 @@ load_dev_var STUDIO_GITHUB_TOKEN
 pnpm exec wrangler d1 migrations apply DB --local
 pnpm run db:seed:local
 
-pnpm run dev:api:local &
-api_pid=$!
-pnpm run dev:portal:local &
-portal_pid=$!
+api_pid=""
+portal_pid=""
+
+stop_tree() {
+  local pid="$1"
+  local child
+  for child in $(pgrep -P "$pid" 2>/dev/null || true); do
+    stop_tree "$child"
+  done
+  kill "$pid" 2>/dev/null || true
+}
 
 cleanup() {
-  kill "$api_pid" "$portal_pid" 2>/dev/null || true
+  local status=$?
+  trap - EXIT INT TERM
+  [[ -z "$api_pid" ]] || stop_tree "$api_pid"
+  [[ -z "$portal_pid" ]] || stop_tree "$portal_pid"
+  [[ -z "$api_pid" ]] || wait "$api_pid" 2>/dev/null || true
+  [[ -z "$portal_pid" ]] || wait "$portal_pid" 2>/dev/null || true
+  exit "$status"
 }
-trap cleanup EXIT INT TERM
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+pnpm run dev:api:local </dev/null &
+api_pid=$!
+pnpm run dev:portal:local </dev/null &
+portal_pid=$!
 
 while kill -0 "$api_pid" 2>/dev/null && kill -0 "$portal_pid" 2>/dev/null; do
   sleep 1
