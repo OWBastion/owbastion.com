@@ -10,7 +10,7 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@internationalized/date": "^3.12.3",
+    "@internationalized/date": "^3.12.4",
     "@nuxt/content": "^3.16.0",
     "@nuxt/ui": "^4.11.1",
     "@nuxtjs/color-mode": "^4.0.1",
