@@ -115,6 +115,8 @@ describe("admin review detail page", () => {
     await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
     await input.setValue("把他们上市");
     await flushPromises();
+    const selectedManualCandidate = wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"));
+    expect(selectedManualCandidate?.classes()).toContain("match-candidate--selected");
     await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
     await wrapper.get(".candidate-selection button").trigger("click");
     await flushPromises();

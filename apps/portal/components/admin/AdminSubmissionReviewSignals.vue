@@ -105,7 +105,11 @@ const manualCandidates = computed<MatchCandidate[]>(() => {
     return candidate.searchText?.toLocaleLowerCase().includes(query) ?? false;
   });
 });
-const selectableCandidates = computed(() => [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...manualCandidates.value]);
+const selectedManualCandidates = computed(() => manualCandidateOptions.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
+const selectableCandidates = computed(() => {
+  const selectedKeys = new Set(selectedManualCandidates.value.map(candidateKey));
+  return [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...selectedManualCandidates.value, ...manualCandidates.value.filter((candidate) => !selectedKeys.has(candidateKey(candidate)))];
+});
 const allSelectableCandidates = computed(() => [...visibleCandidates.value, ...manualCandidateOptions.value]);
 watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId, allSelectableCandidates], ([challengeSelections, challengeId, gameplayRevisionId]) => {
   const persistedKeys = (challengeSelections?.length ? challengeSelections : [{ challengeId, mapId: undefined, gameplayRevisionId }]).map((selection) => `${selection.challengeId ?? ""}:${selection.mapId ?? ""}:${selection.gameplayRevisionId ?? ""}`);
