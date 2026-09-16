@@ -464,7 +464,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_GRANT_NOT_FOUND", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
         continue;
       }
-      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id))).get();
+      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id), eq(playerTitleGrants.titleKey, historical.titleKey))).get();
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
       if (existing && existing.playerAccountId !== input.playerAccountId) {
@@ -3776,7 +3776,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
             migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
           }).from(historicalTitleGrants)
-            .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)));
+            .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)));
           return {
             contractVersion: "1" as const,
             holders: [],
@@ -3808,7 +3808,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         totalCount: totalCountExpr.as("total_count"),
         unclaimedCount: unclaimedCountExpr.as("unclaimed_count"),
       }).from(historicalTitleGrants)
-        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)))
         .where(holderScope)
         .groupBy(historicalTitleGrants.holderName)
         .having(havingClause)
@@ -3829,7 +3829,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
           migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
         }).from(historicalTitleGrants)
-          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))),
+          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))),
       ]);
 
       return {
@@ -3868,7 +3868,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         totalCount: sql<number>`count(*)`,
         unclaimedCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
       }).from(historicalTitleGrants)
-        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)))
         .where(eq(historicalTitleGrants.holderName, holderName));
       const totalCount = Number(totals?.totalCount ?? 0);
       if (!totalCount) throw new Error("HISTORICAL_HOLDER_NOT_FOUND");
@@ -3891,12 +3891,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const itemWhere = and(eq(historicalTitleGrants.holderName, holderName), statusCondition);
       const [[{ filteredTotal }], rows] = await Promise.all([
         db.select({ filteredTotal: count() }).from(historicalTitleGrants)
-          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)))
           .where(itemWhere),
         db.select({ historical: historicalTitleGrants, grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, player: playerAccounts }).from(historicalTitleGrants)
           .innerJoin(titleCatalog, eq(historicalTitleGrants.titleKey, titleCatalog.key))
           .leftJoin(maps, eq(historicalTitleGrants.mapId, maps.id))
-          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)))
           .leftJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
           .where(itemWhere)
           .orderBy(asc(titleCatalog.category), asc(titleCatalog.label))
@@ -3942,7 +3942,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const historical = await db.select().from(historicalTitleGrants).where(eq(historicalTitleGrants.id, input.historicalTitleGrantId)).get();
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!historical) throw new Error("HISTORICAL_TITLE_GRANT_NOT_FOUND"); if (!player) throw new Error("PLAYER_NOT_FOUND");
-      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id))).get(); if (existing?.status === "active") throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
+      const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id), eq(playerTitleGrants.titleKey, historical.titleKey))).get(); if (existing?.status === "active") throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
       const timestamp = now(); const id = crypto.randomUUID();
       if (existing) await db.update(playerTitleGrants).set({ playerAccountId: player.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id));
       else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: auth.subject, grantedAt: timestamp });
@@ -4038,15 +4038,38 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!player) throw new Error("PLAYER_NOT_FOUND");
       const holderRows = await db.select({ id: historicalTitleGrants.id, titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, gameplayRevisionId: historicalTitleGrants.gameplayRevisionId, slot: historicalTitleGrants.slot, grantId: playerTitleGrants.id }).from(historicalTitleGrants)
-        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id)))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)))
         .where(eq(historicalTitleGrants.holderName, input.holderName));
-      const unclaimed = holderRows.filter((row) => !row.grantId);
-      const skippedClaimedCount = holderRows.length - unclaimed.length;
+      const activePlayerGrants = await db.select({ id: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, sourceType: playerTitleGrants.sourceType, sourceId: playerTitleGrants.sourceId }).from(playerTitleGrants)
+        .where(and(eq(playerTitleGrants.playerAccountId, player.id), eq(playerTitleGrants.status, "active")));
+      const activeByIdentity = new Map(activePlayerGrants.map((grant) => [`${grant.titleKey}:${grant.mapId ?? ""}`, grant]));
+      const historicalById = new Map(holderRows.map((row) => [row.id, row]));
+      const unclaimed: typeof holderRows = [];
+      const reconciled: Array<{ historical: typeof holderRows[number]; existing: typeof activePlayerGrants[number] }> = [];
+      let skippedClaimedCount = 0;
+      for (const row of holderRows) {
+        if (row.grantId) {
+          skippedClaimedCount += 1;
+          continue;
+        }
+        const existing = activeByIdentity.get(`${row.titleKey}:${row.mapId ?? ""}`);
+        const inheritedFromDominator = existing
+          && existing.sourceType === "historical"
+          && historicalById.get(existing.sourceId)?.titleKey === "DOMINATOR"
+          && historicalById.get(existing.sourceId)?.mapId === row.mapId
+          && historicalById.get(existing.sourceId)?.gameplayRevisionId === row.gameplayRevisionId;
+        if (inheritedFromDominator) reconciled.push({ historical: row, existing });
+        else if (existing) skippedClaimedCount += 1;
+        else unclaimed.push(row);
+      }
       const timestamp = now();
-      const grants = unclaimed.map((item) => ({ id: crypto.randomUUID(), historical: item }));
-      const response = { contractVersion: "1" as const, grantedCount: grants.length, skippedClaimedCount };
+      const grantPriority = (titleKey: string) => titleKey === "CONQUEROR" ? 0 : titleKey === "DOMINATOR" ? 1 : 2;
+      const grants = [...unclaimed].sort((left, right) => grantPriority(left.titleKey) - grantPriority(right.titleKey)).map((item) => ({ id: crypto.randomUUID(), historical: item }));
+      const response = { contractVersion: "1" as const, grantedCount: grants.length + reconciled.length, skippedClaimedCount };
       const statements = [
+        ...reconciled.map(({ historical, existing }) => db.update(playerTitleGrants).set({ sourceId: historical.id }).where(eq(playerTitleGrants.id, existing.id))),
         ...grants.map((grant) => db.insert(playerTitleGrants).values({ id: grant.id, playerAccountId: player.id, titleKey: grant.historical.titleKey, mapId: grant.historical.mapId, gameplayRevisionId: grant.historical.gameplayRevisionId, slot: grant.historical.slot, status: "active", sourceType: "historical", sourceId: grant.historical.id, grantedBy: auth.subject, grantedAt: timestamp })),
+        ...reconciled.map(({ historical, existing }) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: existing.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: historical.id, previousSourceId: existing.sourceId, reconciled: true }), createdAt: timestamp })),
         ...grants.map((grant) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "admin.title.grant.bulk", entityType: "player_title_grant", entityId: grant.id, payloadJson: JSON.stringify({ playerAccountId: player.id, historicalTitleGrantId: grant.historical.id, holderName: input.holderName }), createdAt: timestamp })),
         db.insert(idempotencyKeys).values({ id: `${auth.subject}:admin.title.grant.bulk:${idempotencyKey}`, actorId: auth.subject, operation: "admin.title.grant.bulk", requestHash: await hashRequest(input), responseJson: JSON.stringify(response), createdAt: timestamp }),
       ];
@@ -5618,7 +5641,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<ReturnType<PlatformServices["createAdminBindingInvite"]> extends Promise<infer T> ? T : never>(db, auth.subject, "admin.binding_invite.create", idempotencyKey, input);
       if (replay) return replay;
       const historicalIds = input.historicalTitleGrantIds ?? [];
-      const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
+      const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
       if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
       const timestamp = now(); const code = randomInviteCode(); const inviteId = crypto.randomUUID();
       const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs, historicalMigration: { status: historicalIds.length ? "authorized" as const : "not_requested" as const, requestedCount: historicalIds.length, completedCount: 0, conflictCount: 0, retryCount: 0 } };
@@ -5642,7 +5665,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const code = [...codes][index]!;
         const inviteId = crypto.randomUUID();
         const historicalIds = invitation.historicalTitleGrantIds ?? [];
-        const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
+        const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
         if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
         return {
           invite: { id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: invitation.playerName, normalizedPlayerName: normalizePlayerName(invitation.playerName), playerId: invitation.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: timestamp + inviteTtlMs },

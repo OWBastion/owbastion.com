@@ -1253,6 +1253,38 @@ describe("map title rule model – locked invariants", () => {
     });
   });
 
+  describe("historical title migration", () => {
+    it("reconciles inherited conqueror grants before linking historical records", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      sqlite.exec("CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, '')) WHERE status = 'active';");
+      seedMap(sqlite, "map.inherited");
+      seedTitle(sqlite, "CONQUEROR");
+      seedTitle(sqlite, "DOMINATOR");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.migration', 'migration-1', 'Migration Player', 'migration player', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.conqueror', 'map', 'map.inherited', 'revision:map.inherited:initial', 'conqueror', 'CONQUEROR', 'Migration Player', 'test'), ('historical.dominator', 'map', 'map.inherited', 'revision:map.inherited:initial', 'dominator', 'DOMINATOR', 'Migration Player', 'test')").run();
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.dominator', 'player.migration', 'DOMINATOR', 'map.inherited', 'revision:map.inherited:initial', 'dominator', 'active', 'historical', 'historical.dominator', 'admin', ?), ('grant.inherited.conqueror', 'player.migration', 'CONQUEROR', 'map.inherited', 'revision:map.inherited:initial', 'conqueror', 'active', 'historical', 'historical.dominator', 'admin', ?)").run(now, now);
+
+      const services = createPlatformServices(database);
+      const summary = await services.listHistoricalTitleGrants({ contractVersion: "1", page: 1, pageSize: 10, filter: "all" });
+      expect(summary.holders).toEqual([{ holderName: "Migration Player", totalCount: 2, unclaimedCount: 1, status: "pending" }]);
+      const detail = await services.getHistoricalTitleHolder({ contractVersion: "1", holderName: "Migration Player", page: 1, pageSize: 10, grantStatus: "all" });
+      expect(detail.total).toBe(2);
+      expect(detail.items.map((item) => ({ titleKey: item.titleKey, status: item.status }))).toEqual([
+        { titleKey: "CONQUEROR", status: "unclaimed" },
+        { titleKey: "DOMINATOR", status: "active" },
+      ]);
+      const response = await services.createAdminTitleGrantBulk({ contractVersion: "1", holderName: "Migration Player", playerAccountId: "player.migration" } as never, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "bulk-reconcile");
+
+      expect(response).toEqual({ contractVersion: "1", grantedCount: 1, skippedClaimedCount: 1 });
+      expect(sqlite.prepare("SELECT title_key, source_id FROM player_title_grants WHERE player_account_id = 'player.migration' ORDER BY title_key").all()).toEqual([
+        { title_key: "CONQUEROR", source_id: "historical.conqueror" },
+        { title_key: "DOMINATOR", source_id: "historical.dominator" },
+      ]);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.grant.bulk'").get()).toEqual({ count: 1 });
+    });
+  });
+
   // ─── Invariant: Stable IDs ────────────────────────────────────────────────
   describe("stable IDs – compat table preserves map.<mapId>.<kind> IDs", () => {
     it("resolves a legacy challenge ID via the compat table", async () => {
