@@ -17,7 +17,7 @@
     "@nuxtjs/mdc": "^0.23.1",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^14.4.0",
-    "katex": "^0.18.7",
+    "katex": "^0.16.47",
     "nuxt": "^4.4.8",
     "nuxt-studio": "^1.7.0",
     "rehype-katex": "^7.0.1",

@@ -89,6 +89,7 @@ describe("Portal SSR", async () => {
     expect(html).toContain("katex");
     expect(html).toContain("katex-display");
     expect(html).toContain("katex-mathml");
+    expect(html).toMatch(/<span class="katex"><span class="katex-mathml">[\s\S]*?<annotation encoding="application\/x-tex">W_\{total\}<\/annotation>/u);
     expect(html).not.toContain("$P(i)");
     expect(html).not.toContain("$Q =");
   });
