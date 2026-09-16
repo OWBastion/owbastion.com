@@ -507,7 +507,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         statements.push(db.insert(playerTitleGrants).values({ id: grantId, playerAccountId: input.playerAccountId, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: `binding:${input.claimId}`, grantedAt: timestamp }));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
       }
-      audits.push({ entityId: grantId, payload: { inviteId: input.inviteId, claimId: input.claimId, historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode } });
+      audits.push({ entityId: grantId, payload: { inviteId: input.inviteId, claimId: input.claimId, historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } });
     }
     if (!statements.length) return;
     const auditStatements = audits.map(({ entityId, payload }) => db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: input.auth.actorType, actorId: input.auth.subject, operation: "binding_invite.historical_migration.item", entityType: "player_title_grant", entityId, payloadJson: JSON.stringify(payload), createdAt: timestamp }));

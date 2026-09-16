@@ -96,6 +96,7 @@ describe("invitation binding flow", () => {
 
     expect(sqlite.prepare("SELECT source_id FROM player_title_grants WHERE id = 'grant.inherited.conqueror'").get()).toEqual({ source_id: "hist.conqueror" });
     expect(sqlite.prepare("SELECT status FROM binding_invite_historical_title_grants WHERE historical_title_grant_id = 'hist.conqueror'").get()).toEqual({ status: "reused" });
+    expect(sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'binding_invite.historical_migration.item' AND entity_id = 'grant.inherited.conqueror'").get()).toMatchObject({ payload_json: expect.stringContaining('"reconciled":true') });
   });
 
   it("does not authorize a name-equal historical holder without explicit selection", async () => {
