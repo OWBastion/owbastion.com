@@ -76,7 +76,7 @@ onMounted(() => { hydrated.value = true; });
       scrollable
       close
       :transition="allowMotion"
-      :ui="{ content: 'map-detail-surface map-detail-modal glass-heavy elevation-3 w-[calc(100vw-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)]', body: 'p-0 sm:p-0' }"
+      :ui="{ content: 'overlay-sheet overlay-sheet--modal map-detail-surface glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]', header: 'overlay-sheet__header glass-segment', body: 'overlay-sheet__body p-0 sm:p-0' }"
     >
       <template #body>
         <ReuseDetailContent />
@@ -90,9 +90,9 @@ onMounted(() => { hydrated.value = true; });
       :title="map?.mapName ?? '地图详情'"
       :description="map ? `版本 ${map.gameVersion}` : undefined"
       close
-      :should-scale-background="allowMotion"
-      :set-background-color-on-scale="allowMotion"
-      :ui="{ content: 'map-detail-surface map-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', body: 'p-0' }"
+      :should-scale-background="false"
+      :set-background-color-on-scale="false"
+      :ui="{ content: 'overlay-sheet overlay-sheet--drawer map-detail-surface glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', container: 'overlay-sheet__container', header: 'overlay-sheet__header glass-segment', body: 'overlay-sheet__body p-0 pb-[max(1.5rem,env(safe-area-inset-bottom))]' }"
     >
       <template #body>
         <ReuseDetailContent />
@@ -126,7 +126,7 @@ onMounted(() => { hydrated.value = true; });
 </style>
 
 <style>
-.map-detail-surface { border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent); }
-.map-detail-modal { border-radius: 20px; overflow: hidden; }
-.map-detail-drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .map-detail-surface { transition-duration: 1ms !important; }
+}
 </style>

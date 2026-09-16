@@ -45,7 +45,7 @@ onMounted(() => {
     :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }"
     :ui="{
       content: 'portal-menu-surface theme-menu-content elevation-2 min-w-40',
-      item: 'min-h-10 items-center gap-2.5 px-2.5 py-0',
+      item: 'min-h-11 items-center gap-2.5 px-2.5 py-0',
     }"
   >
     <button
@@ -61,8 +61,8 @@ onMounted(() => {
 <style scoped>
 .theme-trigger {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 2.75rem;
+  height: 2.75rem;
   place-items: center;
   padding: 0;
   border: 1px solid var(--line-strong);

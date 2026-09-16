@@ -75,14 +75,16 @@ onMounted(() => { hydrated.value = true; });
           <span>{{ group.events.length }} 项事件</span>
         </div>
         <div class="event-grid">
-          <button v-for="event in group.events" :key="event.eventId" class="event-card interactive-card pressable-soft" type="button" aria-haspopup="dialog" @click="openEvent(event)">
-            <h3>{{ event.name }}</h3>
-            <div class="card-meta">
-              <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
-              <span class="event-category">{{ event.category }}</span>
-              <span class="event-rarity">{{ event.rarity }}</span>
-            </div>
-            <p>{{ event.description }}</p>
+          <article v-for="event in group.events" :key="event.eventId" class="event-card interactive-card">
+            <button class="event-card-main pressable-soft" type="button" aria-haspopup="dialog" @click="openEvent(event)">
+              <h3>{{ event.name }}</h3>
+              <div class="card-meta">
+                <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
+                <span class="event-category">{{ event.category }}</span>
+                <span class="event-rarity">{{ event.rarity }}</span>
+              </div>
+              <p>{{ event.description }}</p>
+            </button>
             <div class="event-card-footer">
               <div class="event-tags">
                 <EffectGlossaryTooltip v-for="annotation in visibleEffectChips(event).annotations" :key="annotation.term.key" :annotation="annotation" />
@@ -91,7 +93,7 @@ onMounted(() => { hydrated.value = true; });
               </div>
               <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
             </div>
-          </button>
+          </article>
         </div>
       </section>
     </div>
@@ -153,7 +155,7 @@ onMounted(() => { hydrated.value = true; });
         close
         scrollable
         :transition="allowMotion"
-        :ui="{ content: 'event-detail-surface event-detail-modal glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]', header: 'event-detail-header glass-segment p-4 sm:p-6', body: 'event-detail-body p-4 sm:p-6' }"
+        :ui="{ content: 'overlay-sheet overlay-sheet--modal event-detail-surface glass-heavy elevation-3 w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)]', header: 'overlay-sheet__header glass-segment p-4 sm:p-6', body: 'overlay-sheet__body p-4 sm:p-6' }"
       >
         <template #description>
           <ReuseHeaderTags />
@@ -169,9 +171,9 @@ onMounted(() => { hydrated.value = true; });
         direction="bottom"
         :title="selected?.name ?? '事件详情'"
         close
-        :should-scale-background="allowMotion"
-        :set-background-color-on-scale="allowMotion"
-        :ui="{ content: 'event-detail-surface event-detail-drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', header: 'event-detail-header glass-segment p-4', body: 'event-detail-body p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]' }"
+        :should-scale-background="false"
+        :set-background-color-on-scale="false"
+        :ui="{ content: 'overlay-sheet overlay-sheet--drawer event-detail-surface glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', container: 'overlay-sheet__container', header: 'overlay-sheet__header glass-segment p-4', body: 'overlay-sheet__body p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]' }"
       >
         <template #description>
           <ReuseHeaderTags />
@@ -185,7 +187,7 @@ onMounted(() => { hydrated.value = true; });
 </template>
 
 <style scoped>
-.event-card { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.event-card { grid-template-rows: minmax(0, 1fr) auto; }
 .event-directory { display: grid; gap: 22px; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(140px, 160px)); gap: 10px; align-items: stretch; }
 .filters :deep([data-slot="base"]),
@@ -205,8 +207,19 @@ onMounted(() => { hydrated.value = true; });
   padding: 18px;
   border-radius: 14px;
   background: color-mix(in oklch, var(--surface-raised) 88%, transparent);
+}
+.event-card-main {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 13px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   text-align: left;
   font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 .card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .event-category { color: var(--quiet); font-size: .72rem; font-weight: 650; letter-spacing: .04em; }
@@ -259,6 +272,8 @@ onMounted(() => { hydrated.value = true; });
 .probability-dl dd { margin: 0; font-size: .82rem; font-weight: 650; }
 
 @media (max-width: 620px) {
+  .filters { grid-template-columns: 1fr; }
+  .filters > :first-child { grid-column: auto; }
   .event-grid { grid-template-columns: 1fr; }
   .detail dl, .probability-dl { grid-template-columns: 1fr; }
   .detail dl div:nth-child(odd), .probability-dl div:nth-child(odd) { padding-right: 0; }
@@ -270,23 +285,6 @@ onMounted(() => { hydrated.value = true; });
 </style>
 
 <style>
-.event-detail-surface {
-  display: flex !important;
-  flex-direction: column !important;
-  border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
-}
-.event-detail-modal { border-radius: 20px; overflow: hidden; }
-.event-detail-drawer { border-bottom: 0; border-radius: 20px 20px 0 0; overflow: hidden; }
-.event-detail-header {
-  flex: 0 0 auto !important;
-}
-.event-detail-body {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
 @media (prefers-reduced-motion: reduce) {
   .event-detail-surface { transition-duration: 1ms !important; }
 }

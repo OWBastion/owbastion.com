@@ -62,8 +62,8 @@ describe("EventDirectory", () => {
 
     expect(wrapper.text()).toContain("26.0718.1");
     expect(wrapper.text()).toContain("26.0717.1");
-    expect(wrapper.findAll(".event-card h3").map((heading) => heading.text())).not.toContain("已移除事件");
-    expect(wrapper.findAll(".event-card h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
+    expect(wrapper.findAll(".event-card-main h3").map((heading) => heading.text())).not.toContain("已移除事件");
+    expect(wrapper.findAll(".event-card-main h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
     expect(portalApi.mock.calls.filter(([path]) => path.startsWith("/v1/public/reviews/summaries?")).length).toBe(1);
     expect(portalApi.mock.calls.find(([path]) => path.startsWith("/v1/public/reviews/summaries?"))?.[0]).toContain("event.removed");
     expect(wrapper.text()).toContain("暂无评分");
@@ -82,7 +82,7 @@ describe("EventDirectory", () => {
       global,
     });
 
-    await wrapper.get(".event-card").trigger("click");
+    await wrapper.get(".event-card-main").trigger("click");
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain("详情说明");
     expect(wrapper.text()).toContain("普通");
@@ -104,7 +104,7 @@ describe("EventDirectory", () => {
       global,
     });
 
-    await wrapper.get(".event-card").trigger("click");
+    await wrapper.get(".event-card-main").trigger("click");
     await wrapper.vm.$nextTick();
     const links = wrapper.findAll(".challenge-link");
     expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).toContain("/maps?mapId=map.samoa");

@@ -93,8 +93,12 @@ function handleDocumentPointerDown(event: PointerEvent) {
   if (!menuOpen.value) return;
   const target = event.target;
   if (!(target instanceof Node)) return;
-  const root = menuButton.value?.parentElement;
-  if (root?.contains(target)) return;
+  const wrap = menuButton.value?.closest(".app-header-wrap");
+  if (target instanceof Element && target.closest(".mobile-nav-scrim")) {
+    closeMenu(false);
+    return;
+  }
+  if (wrap?.contains(target)) return;
   closeMenu(false);
 }
 
@@ -108,6 +112,11 @@ watch(() => route.fullPath, () => {
   if (menuOpen.value) closeMenu(false);
 });
 
+watch(menuOpen, (open) => {
+  if (!import.meta.client) return;
+  document.body.style.overflow = open ? "hidden" : "";
+});
+
 onMounted(() => {
   document.addEventListener("pointerdown", handleDocumentPointerDown);
   document.addEventListener("keydown", handleDocumentKeydown);
@@ -116,6 +125,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", handleDocumentPointerDown);
   document.removeEventListener("keydown", handleDocumentKeydown);
+  if (import.meta.client) document.body.style.overflow = "";
 });
 
 async function signOut() {
@@ -131,6 +141,14 @@ async function signOut() {
 
 <template>
   <header class="app-header-wrap scroll-edge">
+    <Transition name="mobile-nav-scrim">
+      <div
+        v-if="menuOpen"
+        class="mobile-nav-scrim"
+        aria-hidden="true"
+        @pointerdown="closeMenu(false)"
+      />
+    </Transition>
     <div class="app-header glass elevation-1">
       <NuxtLink to="/" class="brand pressable" aria-label="躲避堡垒 3 首页">
         <span class="brand-mark" aria-hidden="true">O</span>
@@ -164,51 +182,51 @@ async function signOut() {
       >
         <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" aria-hidden="true" />
       </button>
-      <!-- No mode="out-in": leave can be interrupted mid-flight when reopening. -->
-      <Transition name="mobile-nav">
-        <nav
-          v-if="menuOpen"
-          id="mobile-nav"
-          ref="menuPanel"
-          class="mobile-nav glass-heavy elevation-2"
-          :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
-          @keydown="handleMenuKeydown"
-        >
-          <template v-if="isAdminPage">
-            <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
-          </template>
-          <template v-else>
-            <NuxtLink to="/events" class="pressable" @click="closeMenu()">随机事件</NuxtLink>
-            <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
-            <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
-            <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
-            <NuxtLink to="/blog" class="pressable" @click="closeMenu()">开发日志</NuxtLink>
-          </template>
-        </nav>
-      </Transition>
     </div>
+    <!-- No mode="out-in": leave can be interrupted mid-flight when reopening. -->
+    <Transition name="mobile-nav">
+      <nav
+        v-if="menuOpen"
+        id="mobile-nav"
+        ref="menuPanel"
+        class="mobile-nav glass-heavy elevation-2"
+        :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
+        @keydown="handleMenuKeydown"
+      >
+        <template v-if="isAdminPage">
+          <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
+        </template>
+        <template v-else>
+          <NuxtLink to="/events" class="pressable" @click="closeMenu()">随机事件</NuxtLink>
+          <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
+          <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
+          <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
+          <NuxtLink to="/blog" class="pressable" @click="closeMenu()">开发日志</NuxtLink>
+        </template>
+      </nav>
+    </Transition>
   </header>
 </template>
 
 <style scoped>
-.app-header-wrap { position: sticky; z-index: 10; top: 14px; width: min(100% - 1.75rem, 92.5rem); margin: 0 auto; }
-.app-header { display: flex; align-items: center; gap: 28px; min-height: 54px; padding: 0 16px 0 12px; border: 1px solid var(--line); border-radius: 12px; }
-.brand { display: inline-flex; min-width: 0; align-items: center; gap: 9px; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
+.app-header-wrap { position: sticky; z-index: 10; top: 0.875rem; width: min(100% - 3rem, 90rem); margin: 0 auto; }
+.app-header { position: relative; z-index: 2; display: flex; align-items: center; gap: 1.75rem; min-height: 3.375rem; padding: 0 1rem 0 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; }
+.brand { display: inline-flex; min-width: 0; align-items: center; gap: 0.5625rem; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 3px; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
+.brand-mark { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 0.1875rem; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
 .main-nav :deep([data-slot="root"]) { width: max-content; max-width: 100%; }
 .main-nav :deep([data-slot="root"] > div:first-child) { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .main-nav :deep([data-slot="root"] > div:first-child)::-webkit-scrollbar { display: none; }
-.main-nav :deep(ul) { flex-wrap: nowrap; gap: 2px; }
+.main-nav :deep(ul) { flex-wrap: nowrap; gap: 0.125rem; }
 .main-nav :deep([data-slot="list"]) { width: max-content; min-width: 100%; }
-.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 0.5625rem; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
 .main-nav a {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  padding: 0 11px;
-  border-radius: 9px;
+  padding: 0 0.6875rem;
+  border-radius: 0.5625rem;
   color: var(--text-on-glass-secondary);
   text-decoration: none;
   white-space: nowrap;
@@ -221,31 +239,37 @@ async function signOut() {
   color: var(--text-on-glass);
   background: color-mix(in oklch, var(--surface-raised) 72%, transparent);
 }
-.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; font-size: .78rem; font-weight: 650; }
-.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: var(--surface-raised); text-decoration: none; }
-.mobile-menu-toggle, .mobile-nav { display: none; }
+.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.625rem; font-size: .78rem; font-weight: 650; }
+.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 0.875rem; border: 1px solid var(--line); border-radius: 0.5625rem; color: var(--text); background: var(--surface-raised); text-decoration: none; }
+.mobile-menu-toggle, .mobile-nav, .mobile-nav-scrim { display: none; }
 @media (max-width: 900px) {
-  .app-header-wrap { top: max(8px, env(safe-area-inset-top)); }
-  .app-header { position: relative; gap: 10px; min-height: 52px; padding: 6px 8px 6px 10px; }
+  .app-header-wrap { top: max(0.5rem, env(safe-area-inset-top)); }
+  .app-header { gap: 0.625rem; min-height: 3.25rem; padding: 0.375rem 0.5rem 0.375rem 0.625rem; }
   .main-nav { display: none; }
   .account-actions { margin-left: auto; }
-  .login-link { min-height: 44px; }
+  .mobile-nav-scrim {
+    display: block;
+    position: fixed;
+    z-index: 0;
+    inset: 0;
+    background: color-mix(in oklch, black 36%, transparent);
+  }
   .mobile-menu-toggle {
     display: inline-grid;
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
     place-items: center;
     padding: 0;
     border: 1px solid var(--line-strong);
-    border-radius: 9px;
+    border-radius: 0.5625rem;
     color: var(--text);
     background: var(--surface-raised);
   }
   .mobile-menu-toggle svg,
   .mobile-menu-toggle [class*="i-lucide-"] {
-    width: 19px;
-    height: 19px;
+    width: 1.1875rem;
+    height: 1.1875rem;
     fill: none;
     stroke: currentColor;
     stroke-linecap: round;
@@ -255,20 +279,23 @@ async function signOut() {
   .mobile-nav {
     position: absolute;
     z-index: 2;
-    inset: calc(100% + 8px) 0 auto;
+    inset: calc(100% + 0.5rem) 0 auto;
     display: grid;
-    gap: 3px;
-    padding: 8px;
+    gap: 0.1875rem;
+    max-height: min(70dvh, calc(100dvh - var(--sticky-chrome-top) - 1rem));
+    padding: 0.5rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--line);
-    border-radius: 14px;
-    transform-origin: top center;
+    border-radius: 0.875rem;
+    transform-origin: top right;
   }
   .mobile-nav a {
     display: flex;
-    min-height: 44px;
+    min-height: 2.75rem;
     align-items: center;
-    padding: 0 12px;
-    border-radius: 8px;
+    padding: 0 0.75rem;
+    border-radius: 0.5rem;
     color: var(--text-on-glass-secondary);
     font-weight: 650;
     text-decoration: none;
@@ -280,11 +307,11 @@ async function signOut() {
     color: var(--text-on-glass);
     background: var(--surface);
   }
-  .mobile-nav :deep(ul) { display: grid; gap: 3px; }
+  .mobile-nav :deep(ul) { display: grid; gap: 0.1875rem; }
   .mobile-nav :deep([data-slot="link"]),
   .mobile-nav :deep([data-slot="trigger"]) {
-    min-height: 44px;
-    border-radius: 8px;
+    min-height: 2.75rem;
+    border-radius: 0.5rem;
     color: var(--text-on-glass-secondary);
     font-weight: 650;
   }
@@ -292,6 +319,9 @@ async function signOut() {
   .mobile-nav :deep([data-active="true"]) {
     color: var(--text-on-glass);
   }
+}
+@media (max-width: 620px) {
+  .app-header-wrap { width: min(100% - 1.5rem, 90rem); }
 }
 /* Symmetric enter/leave; no spatial transform under reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
@@ -304,7 +334,7 @@ async function signOut() {
   .mobile-nav-enter-from,
   .mobile-nav-leave-to {
     opacity: 0;
-    transform: translateY(-6px) scale(.98);
+    transform: translateY(-0.375rem) scale(.98);
   }
   .mobile-nav-enter-to,
   .mobile-nav-leave-from {
@@ -312,9 +342,19 @@ async function signOut() {
     transform: translateY(0) scale(1);
   }
 }
+.mobile-nav-scrim-enter-active,
+.mobile-nav-scrim-leave-active {
+  transition: opacity 160ms ease;
+}
+.mobile-nav-scrim-enter-from,
+.mobile-nav-scrim-leave-to {
+  opacity: 0;
+}
 @media (prefers-reduced-motion: reduce) {
   .mobile-nav-enter-active,
-  .mobile-nav-leave-active {
+  .mobile-nav-leave-active,
+  .mobile-nav-scrim-enter-active,
+  .mobile-nav-scrim-leave-active {
     transition: opacity 150ms ease;
   }
   .mobile-nav-enter-from,
@@ -324,13 +364,14 @@ async function signOut() {
   }
 }
 @media (max-width: 380px) {
-  .app-header { gap: 6px; }
-  .account-actions { gap: 8px; }
-  .brand { gap: 7px; font-size: .82rem; }
-  .brand-mark { width: 26px; height: 26px; }
+  .app-header { gap: 0.375rem; }
+  .account-actions { gap: 0.5rem; }
+  .brand { gap: 0.4375rem; font-size: .82rem; }
+  .brand-mark { width: 1.625rem; height: 1.625rem; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .mobile-nav { background: var(--surface); }
+  .mobile-nav-scrim { background: color-mix(in oklch, black 48%, transparent); }
 }
 @media (prefers-contrast: more) {
   .mobile-menu-toggle,

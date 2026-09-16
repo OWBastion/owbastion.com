@@ -58,10 +58,10 @@
   --text-on-glass-quiet: color-mix(in oklch, var(--text) 58%, var(--quiet));
 
   /* S-01 sticky page chrome clears the floating app header (AppHeader.vue):
-     top 14px + min-height 54px, plus an 8px gap; below 900px: max(8px,
-     safe-area-inset-top) + 52px, plus a 4px gap. Keep in sync with
-     AppHeader.vue. */
-  --sticky-chrome-top: calc(14px + 54px + 8px);
+     top 0.875rem + min-height 3.375rem, plus a 0.5rem gap; below 900px:
+     max(0.5rem, safe-area-inset-top) + 3.25rem, plus a 0.25rem gap.
+     Keep in sync with AppHeader.vue. */
+  --sticky-chrome-top: calc(0.875rem + 3.375rem + 0.5rem);
 
   /* G-05 type scale (size + tracking + leading as a set) */
   --type-display-size: clamp(3.2rem, 8vw, 6.5rem);
@@ -96,7 +96,7 @@
 
 @media (max-width: 900px) {
   :root {
-    --sticky-chrome-top: calc(max(8px, env(safe-area-inset-top)) + 52px + 4px);
+    --sticky-chrome-top: calc(max(0.5rem, env(safe-area-inset-top)) + 3.25rem + 0.25rem);
   }
 }
 
@@ -135,7 +135,7 @@ html.dark {
 html {
   min-width: 320px;
   background: var(--page);
-  scroll-padding-top: 92px;
+  scroll-padding-top: var(--sticky-chrome-top);
   transition: background-color var(--theme-transition), color var(--theme-transition);
 }
 body {
@@ -154,7 +154,7 @@ button { cursor: pointer; }
 button, a { -webkit-tap-highlight-color: transparent; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 *:focus:not(:focus-visible) { outline: none; }
-[id] { scroll-margin-top: 92px; }
+[id] { scroll-margin-top: var(--sticky-chrome-top); }
 
 .page-shell,
 .page-shell--readable,
@@ -324,6 +324,35 @@ button, a { -webkit-tap-highlight-color: transparent; }
   background: var(--surface);
   box-shadow: var(--elevation-2);
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
+}
+
+/* Shared Modal / Drawer sheet: pinned header, scrolling body, no Vaul page scale. */
+.overlay-sheet {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
+}
+.overlay-sheet--modal { border-radius: 1.25rem; }
+.overlay-sheet--drawer {
+  border-bottom: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+}
+.overlay-sheet__container {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.overlay-sheet__header { flex: 0 0 auto; }
+.overlay-sheet__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Shared domain patterns: card headers and key-value detail lists. */
@@ -608,7 +637,9 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   .glass-chip,
   .app-header,
   .mobile-nav,
+  .overlay-sheet,
   .event-detail-surface,
+  .map-detail-surface,
   .admin-responsive-dialog__content,
   .admin-responsive-dialog__header,
   .admin-responsive-dialog__footer {
@@ -618,7 +649,9 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
 
   .glass,
   .app-header,
+  .overlay-sheet,
   .event-detail-surface,
+  .map-detail-surface,
   .admin-responsive-dialog__content,
   .admin-responsive-dialog__header,
   .admin-responsive-dialog__footer {
@@ -644,7 +677,9 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   .app-header,
   .glass,
   .glass-heavy,
+  .overlay-sheet,
   .event-detail-surface,
+  .map-detail-surface,
   .admin-responsive-dialog__content {
     border-color: var(--text) !important;
   }

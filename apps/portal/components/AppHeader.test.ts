@@ -121,6 +121,27 @@ describe("AppHeader", () => {
     focusSpy.mockRestore();
   });
 
+  it("dims the page behind the mobile nav and closes from the scrim", async () => {
+    route.path = "/";
+    route.fullPath = "/";
+    const wrapper = await mountHeader();
+    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await flushPromises();
+
+    const scrim = wrapper.get(".mobile-nav-scrim");
+    expect(scrim.attributes("aria-hidden")).toBe("true");
+    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
+
+    focused = [];
+    await scrim.trigger("pointerdown");
+    await flushPromises();
+
+    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
+    expect(wrapper.find(".mobile-nav-scrim").exists()).toBe(false);
+    expect(focused).toHaveLength(0);
+    focusSpy.mockRestore();
+  });
+
   it("closes on outside pointer interaction without restoring focus", async () => {
     route.path = "/admin";
     route.fullPath = "/admin";
