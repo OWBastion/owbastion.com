@@ -349,6 +349,12 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
 
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02): PlatformServices => {
   const db = drizzle(database);
+  const isInheritedConquerorGrant = (
+    source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
+    historical: { mapId: string | null; gameplayRevisionId: string | null },
+  ) => source?.titleKey === "DOMINATOR"
+    && source.mapId === historical.mapId
+    && source.gameplayRevisionId === historical.gameplayRevisionId;
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
 
@@ -465,6 +471,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         continue;
       }
       const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id), eq(playerTitleGrants.titleKey, historical.titleKey))).get();
+      const activeIdentity = existing ? null : await db.select().from(playerTitleGrants).where(and(
+        eq(playerTitleGrants.playerAccountId, input.playerAccountId),
+        eq(playerTitleGrants.titleKey, historical.titleKey),
+        eq(playerTitleGrants.status, "active"),
+        historical.mapId ? eq(playerTitleGrants.mapId, historical.mapId) : isNull(playerTitleGrants.mapId),
+      )).get();
+      const inheritedSource = activeIdentity?.sourceType === "historical"
+        ? await db.select({ titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, gameplayRevisionId: historicalTitleGrants.gameplayRevisionId }).from(historicalTitleGrants).where(eq(historicalTitleGrants.id, activeIdentity.sourceId)).get()
+        : null;
+      const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
       let outcome: "created" | "reused" | "conflict";
       let grantId: string;
       if (existing && existing.playerAccountId !== input.playerAccountId) {
@@ -479,6 +495,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } else if (existing) {
         outcome = "reused";
         grantId = existing.id;
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      } else if (activeIdentity) {
+        outcome = "reused";
+        grantId = activeIdentity.id;
+        if (inherited) statements.push(db.update(playerTitleGrants).set({ sourceId: historical.id }).where(eq(playerTitleGrants.id, activeIdentity.id)));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
       } else {
         outcome = "created";
@@ -3943,11 +3964,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!historical) throw new Error("HISTORICAL_TITLE_GRANT_NOT_FOUND"); if (!player) throw new Error("PLAYER_NOT_FOUND");
       const existing = await db.select().from(playerTitleGrants).where(and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historical.id), eq(playerTitleGrants.titleKey, historical.titleKey))).get(); if (existing?.status === "active") throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
+      const activeIdentity = existing ? null : await db.select().from(playerTitleGrants).where(and(
+        eq(playerTitleGrants.playerAccountId, player.id),
+        eq(playerTitleGrants.titleKey, historical.titleKey),
+        eq(playerTitleGrants.status, "active"),
+        historical.mapId ? eq(playerTitleGrants.mapId, historical.mapId) : isNull(playerTitleGrants.mapId),
+      )).get();
+      const inheritedSource = activeIdentity?.sourceType === "historical"
+        ? await db.select({ titleKey: historicalTitleGrants.titleKey, mapId: historicalTitleGrants.mapId, gameplayRevisionId: historicalTitleGrants.gameplayRevisionId }).from(historicalTitleGrants).where(eq(historicalTitleGrants.id, activeIdentity.sourceId)).get()
+        : null;
+      const inherited = activeIdentity && isInheritedConquerorGrant(inheritedSource, historical);
+      if (activeIdentity && !inherited) throw new Error("HISTORICAL_TITLE_GRANT_CLAIMED");
       const timestamp = now(); const id = crypto.randomUUID();
-      if (existing) await db.update(playerTitleGrants).set({ playerAccountId: player.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id));
+      if (inherited) await db.update(playerTitleGrants).set({ sourceId: historical.id }).where(eq(playerTitleGrants.id, activeIdentity.id));
+      else if (existing) await db.update(playerTitleGrants).set({ playerAccountId: player.id, status: "active", grantedBy: auth.subject, grantedAt: timestamp, revokedBy: null, revokedAt: null, revokeReason: null }).where(eq(playerTitleGrants.id, existing.id));
       else await db.insert(playerTitleGrants).values({ id, playerAccountId: player.id, titleKey: historical.titleKey, mapId: historical.mapId, gameplayRevisionId: historical.gameplayRevisionId, slot: historical.slot, status: "active", sourceType: "historical", sourceId: historical.id, grantedBy: auth.subject, grantedAt: timestamp });
-      const grantId = existing?.id ?? id;
-      await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id });
+      const grantId = inherited ? activeIdentity.id : existing?.id ?? id;
+      await recordIdempotency(db, auth.subject, "admin.title.grant", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.grant", "player_title_grant", grantId, { playerAccountId: player.id, historicalTitleGrantId: historical.id, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) });
     },
 
     async createAdminManualTitleGrant(input, auth, idempotencyKey): Promise<AdminManualTitleGrantResponse> {
@@ -4053,11 +4086,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           continue;
         }
         const existing = activeByIdentity.get(`${row.titleKey}:${row.mapId ?? ""}`);
-        const inheritedFromDominator = existing
-          && existing.sourceType === "historical"
-          && historicalById.get(existing.sourceId)?.titleKey === "DOMINATOR"
-          && historicalById.get(existing.sourceId)?.mapId === row.mapId
-          && historicalById.get(existing.sourceId)?.gameplayRevisionId === row.gameplayRevisionId;
+        const inheritedFromDominator = existing && isInheritedConquerorGrant(historicalById.get(existing.sourceId), row);
         if (inheritedFromDominator) reconciled.push({ historical: row, existing });
         else if (existing) skippedClaimedCount += 1;
         else unclaimed.push(row);
