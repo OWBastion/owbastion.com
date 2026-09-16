@@ -6,7 +6,11 @@ import ReviewDetailPage from "./[submissionId].vue";
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" } }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework", challengeType: "difficulty_completion", targetMapName: "帕拉伊苏", targetDifficulty: "地狱", match: { map: true, difficulty: false, completed: true, player: true }, quality: { accepted: true }, grantable: true }, { challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true }, quality: { accepted: true }, grantable: true }, { challengeId: "map.paraiso.legend", mapId: "map.paraiso", challengeType: "difficulty_completion", targetMapName: "帕拉伊苏", targetDifficulty: "传奇", match: { map: true, difficulty: true, completed: true, player: true }, quality: { accepted: true }, grantable: true }, { challengeId: "map.hanamura.hell", mapId: "map.hanamura", challengeType: "difficulty_completion", targetMapName: "花村", targetDifficulty: "地狱", match: { map: false, difficulty: true, completed: true, player: true }, quality: { accepted: true }, grantable: true }] }});
-  if (path === "/v1/submissions/submission-1/challenges") return Promise.resolve({ contractVersion: "1", items: [{ challengeId: "title.manual", challenge: { family: "achievement", titleName: "称号 MANUAL", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } }] });
+  if (path === "/v1/submissions/submission-1/challenges") return Promise.resolve({ contractVersion: "1", items: [
+    { challengeId: "title.manual", challenge: { family: "achievement", titleName: "称号 MANUAL", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } },
+    { challengeId: "title.manual-a", challenge: { family: "achievement", titleName: "生命守护生命", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } },
+    { challengeId: "title.manual-b", challenge: { family: "achievement", titleName: "把他们上市", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } },
+  ] });
   if (path === "/v1/submissions/submission-2/challenges") return Promise.resolve({ contractVersion: "1", items: [] });
   if (path === "/v1/submissions/submission-3/challenges") return Promise.resolve({ contractVersion: "1", items: [] });
   if (path === "/v1/submissions/submission-2") return Promise.resolve({ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null });
@@ -98,6 +102,50 @@ describe("admin review detail page", () => {
     await wrapper.get(".candidate-selection button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: expect.arrayContaining([{ challengeId: "title.manual" }]) }) }));
+  });
+
+  it("keeps manual selections when the search query changes", async () => {
+    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    await flushPromises();
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("称号 HERO"))!.trigger("click");
+    await wrapper.get(".manual-add button").trigger("click");
+    const input = wrapper.get(".manual-add input");
+    await input.setValue("生命守护生命");
+    await flushPromises();
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await input.setValue("把他们上市");
+    await flushPromises();
+    const selectedManualCandidate = wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"));
+    expect(selectedManualCandidate?.classes()).toContain("match-candidate--selected");
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
+    await wrapper.get(".candidate-selection button").trigger("click");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: [
+      { challengeId: "title.hero" },
+      { challengeId: "title.manual-a" },
+      { challengeId: "title.manual-b" },
+    ] }) }));
+  });
+
+  it("removes only the selected manual challenge", async () => {
+    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    await flushPromises();
+    await wrapper.get(".manual-add button").trigger("click");
+    const input = wrapper.get(".manual-add input");
+    await input.setValue("生命守护生命");
+    await flushPromises();
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await input.setValue("把他们上市");
+    await flushPromises();
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
+    await input.setValue("生命守护生命");
+    await flushPromises();
+    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await wrapper.get(".candidate-selection button").trigger("click");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: [
+      { challengeId: "title.manual-b" },
+    ] }) }));
   });
 
   it("can resolve a pending automatic-decision spot check", async () => {

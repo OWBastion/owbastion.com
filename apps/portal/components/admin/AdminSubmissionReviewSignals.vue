@@ -18,6 +18,7 @@ type MatchCandidate = {
   quality?: { accepted?: boolean; reasons?: string[] };
   grantable?: boolean;
   source?: "ocr" | "manual";
+  searchText?: string;
 };
 
 const props = defineProps<{
@@ -90,25 +91,29 @@ const candidateResultLabel = (candidate: MatchCandidate) => {
 };
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
 const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}:${candidate.gameplayRevisionId ?? ""}`;
+const manualCandidateOptions = computed<MatchCandidate[]>(() => {
+  const ocrKeys = new Set(visibleCandidates.value.map(candidateKey));
+  return (props.challengeOptions ?? []).filter((option) => !ocrKeys.has(`${option.challengeId}:${option.mapId ?? ""}:${option.gameplayRevisionId ?? ""}`)).map((option) => option.challenge.family === "map"
+    ? { challengeId: option.challengeId, mapId: option.mapId, gameplayRevisionId: option.gameplayRevisionId, challengeType: option.challenge.kind ?? "difficulty_completion", targetMapName: option.challenge.mapName, targetDifficulty: option.challenge.difficulty, ...(option.challenge.kind === "map_title_achievement" ? { titleName: option.challenge.name } : {}), requiredMapVariant: option.challenge.mapVariant ?? null, match: {}, quality: { accepted: true }, grantable: true, source: "manual", searchText: `${option.challenge.name} ${option.challenge.mapName} ${option.challenge.difficulty ?? ""}` }
+    : { challengeId: option.challengeId, challengeType: "title_achievement", titleName: option.challenge.titleName, match: {}, quality: { accepted: true }, grantable: true, source: "manual", searchText: `${option.challenge.titleName} ${option.challenge.category}` });
+});
 const manualCandidates = computed<MatchCandidate[]>(() => {
   const query = manualSearch.value.trim().toLocaleLowerCase();
   if (!manualSearchOpen.value && !selectedCandidateIds.value.length) return [];
-  const ocrKeys = new Set(visibleCandidates.value.map(candidateKey));
-  return (props.challengeOptions ?? []).filter((option) => {
-    const key = `${option.challengeId}:${option.mapId ?? ""}:${option.gameplayRevisionId ?? ""}`;
-    if (ocrKeys.has(key)) return false;
-    if (!query) return selectedCandidateIds.value.includes(key);
-    const challenge = option.challenge;
-    const label = challenge.family === "map" ? `${challenge.name} ${challenge.mapName} ${challenge.difficulty ?? ""}` : `${challenge.titleName} ${challenge.category}`;
-    return label.toLocaleLowerCase().includes(query);
-  }).map((option) => option.challenge.family === "map"
-    ? { challengeId: option.challengeId, mapId: option.mapId, gameplayRevisionId: option.gameplayRevisionId, challengeType: option.challenge.kind ?? "difficulty_completion", targetMapName: option.challenge.mapName, targetDifficulty: option.challenge.difficulty, ...(option.challenge.kind === "map_title_achievement" ? { titleName: option.challenge.name } : {}), requiredMapVariant: option.challenge.mapVariant ?? null, match: {}, quality: { accepted: true }, grantable: true, source: "manual" }
-    : { challengeId: option.challengeId, challengeType: "title_achievement", titleName: option.challenge.titleName, match: {}, quality: { accepted: true }, grantable: true, source: "manual" });
+  return manualCandidateOptions.value.filter((candidate) => {
+    if (!query) return selectedCandidateIds.value.includes(candidateKey(candidate));
+    return candidate.searchText?.toLocaleLowerCase().includes(query) ?? false;
+  });
 });
-const selectableCandidates = computed(() => [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...manualCandidates.value]);
-watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId], ([challengeSelections, challengeId, gameplayRevisionId]) => {
+const selectedManualCandidates = computed(() => manualCandidateOptions.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
+const selectableCandidates = computed(() => {
+  const selectedKeys = new Set(selectedManualCandidates.value.map(candidateKey));
+  return [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...selectedManualCandidates.value, ...manualCandidates.value.filter((candidate) => !selectedKeys.has(candidateKey(candidate)))];
+});
+const allSelectableCandidates = computed(() => [...visibleCandidates.value, ...manualCandidateOptions.value]);
+watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId, allSelectableCandidates], ([challengeSelections, challengeId, gameplayRevisionId]) => {
   const persistedKeys = (challengeSelections?.length ? challengeSelections : [{ challengeId, mapId: undefined, gameplayRevisionId }]).map((selection) => `${selection.challengeId ?? ""}:${selection.mapId ?? ""}:${selection.gameplayRevisionId ?? ""}`);
-  selectedCandidateIds.value = selectableCandidates.value.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
+  selectedCandidateIds.value = allSelectableCandidates.value.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
 }, { immediate: true });
 const candidateStatusLabel = (candidate: MatchCandidate) => {
   if (candidate.source === "manual") return "待人工核对";
@@ -119,7 +124,7 @@ const candidateStatusLabel = (candidate: MatchCandidate) => {
   return "低置信度";
 };
 const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
-const selectedCandidates = computed(() => selectableCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
+const selectedCandidates = computed(() => allSelectableCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
 const isCurrentCandidate = (candidate: MatchCandidate) => selectedCandidateIds.value.includes(candidateKey(candidate));
 const selectCandidate = (candidate: MatchCandidate) => {
   const key = candidateKey(candidate);
