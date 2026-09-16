@@ -159,6 +159,39 @@ describe("AppHeader", () => {
     focusSpy.mockRestore();
   });
 
+  it("expands nested admin groups without closing the mobile panel", async () => {
+    route.path = "/admin";
+    route.fullPath = "/admin";
+    const wrapper = await mountHeader();
+    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await flushPromises();
+
+    const nav = wrapper.get("#mobile-nav");
+    const reviewTrigger = nav.findAll("button").find((button) => button.text().includes("核对"));
+    const titleTrigger = nav.findAll("button").find((button) => button.text().includes("称号"));
+    expect(reviewTrigger).toBeTruthy();
+    expect(titleTrigger).toBeTruthy();
+
+    await reviewTrigger!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
+    expect(nav.text()).toContain("审核");
+    expect(nav.text()).toContain("通关记录");
+    expect(nav.find("a[href=\"/admin/reviews\"]").exists()).toBe(true);
+
+    await titleTrigger!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
+    expect(nav.text()).toContain("成就与称号");
+    expect(nav.text()).toContain("批量发放");
+    expect(nav.find("a[href=\"/admin/achievements\"]").exists()).toBe(true);
+
+    await nav.get("a[href=\"/admin/reviews\"]").trigger("click");
+    await flushPromises();
+    expect(wrapper.find("#mobile-nav").exists()).toBe(false);
+    focusSpy.mockRestore();
+  });
+
   it("closes the mobile panel when the route changes", async () => {
     route.path = "/admin";
     route.fullPath = "/admin";

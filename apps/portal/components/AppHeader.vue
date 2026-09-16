@@ -15,37 +15,43 @@ function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
 }
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminPathActive = (to: string, exact = false) => exact ? route.path === to : route.path === to || route.path.startsWith(`${to}/`);
-const adminNavigationItems = computed(() => [
-  { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
-  { label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink },
-  { label: "玩家", icon: "i-lucide-users", to: "/admin/players", active: adminPathActive("/admin/players") },
-  { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
-  {
-    label: "核对",
-    icon: "i-lucide-clipboard-check",
-    active: ["/admin/reviews", "/admin/mastery-runs", "/admin/player-reviews", "/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to)),
-    children: [
-      { label: "审核", description: "截图核对队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
-      { label: "通关记录", description: "已验证通关与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
-      { label: "评价", description: "玩家评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
-      { label: "标注", description: "识别标注队列", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
-      { label: "数据集", description: "审定标注快照", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
-    ],
-  },
-  {
-    label: "称号",
-    icon: "i-lucide-award",
-    active: ["/admin/achievements", "/admin/grants", "/admin/titles", "/admin/map-titles"].some((to) => adminPathActive(to)),
-    children: [
-      { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements", active: adminPathActive("/admin/achievements") },
-      { label: "批量发放", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
-      { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
-    ],
-  },
-  { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
-  { label: "事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
-  { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
-]);
+const adminNavigationItems = computed(() => {
+  const reviewActive = ["/admin/reviews", "/admin/mastery-runs", "/admin/player-reviews", "/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to));
+  const titleActive = ["/admin/achievements", "/admin/grants", "/admin/titles", "/admin/map-titles"].some((to) => adminPathActive(to));
+  return [
+    { label: "概览", icon: "i-lucide-layout-dashboard", to: "/admin", active: route.path === "/admin" },
+    { label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink },
+    { label: "玩家", icon: "i-lucide-users", to: "/admin/players", active: adminPathActive("/admin/players") },
+    { label: "绑定", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
+    {
+      label: "核对",
+      icon: "i-lucide-clipboard-check",
+      active: reviewActive,
+      defaultOpen: reviewActive,
+      children: [
+        { label: "审核", description: "截图核对队列", icon: "i-lucide-clipboard-check", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
+        { label: "通关记录", description: "已验证通关与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
+        { label: "评价", description: "玩家评价审核", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
+        { label: "标注", description: "识别标注队列", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
+        { label: "数据集", description: "审定标注快照", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
+      ],
+    },
+    {
+      label: "称号",
+      icon: "i-lucide-award",
+      active: titleActive,
+      defaultOpen: titleActive,
+      children: [
+        { label: "成就与称号", description: "成就、地图规则与称号目录", icon: "i-lucide-settings-2", to: "/admin/achievements", active: adminPathActive("/admin/achievements") },
+        { label: "批量发放", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
+        { label: "历史称号", description: "历史数据与称号关联", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
+      ],
+    },
+    { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
+    { label: "事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
+    { label: "渠道", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
+  ];
+});
 
 onMounted(() => { if (!loaded.value) void refresh(); });
 
@@ -65,6 +71,14 @@ function focusFirstMenuControl() {
 function toggleMenu() {
   menuOpen.value = !menuOpen.value;
   if (menuOpen.value) nextTick(focusFirstMenuControl);
+}
+
+/** Dismiss the sheet only after a leaf destination is chosen, not when expanding a group. */
+function handleMobileNavClick(event: MouseEvent) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (!target.closest("a[href]")) return;
+  closeMenu(false);
 }
 
 /** Keep Tab ownership inside the open mobile nav (last -> first, Shift+Tab first -> last). */
@@ -192,16 +206,17 @@ async function signOut() {
         class="mobile-nav glass-heavy elevation-2"
         :aria-label="isAdminPage ? '移动端管理导航' : '移动端主导航'"
         @keydown="handleMenuKeydown"
+        @click="handleMobileNavClick"
       >
         <template v-if="isAdminPage">
-          <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" @click="closeMenu()" />
+          <LazyUNavigationMenu :items="adminNavigationItems" orientation="vertical" highlight variant="pill" />
         </template>
         <template v-else>
-          <NuxtLink to="/events" class="pressable" @click="closeMenu()">随机事件</NuxtLink>
-          <NuxtLink to="/maps" class="pressable" @click="closeMenu()">地图</NuxtLink>
-          <NuxtLink to="/achievements" class="pressable" @click="closeMenu()">成就</NuxtLink>
-          <NuxtLink to="/changelog" class="pressable" @click="closeMenu()">版本更新</NuxtLink>
-          <NuxtLink to="/blog" class="pressable" @click="closeMenu()">开发日志</NuxtLink>
+          <NuxtLink to="/events" class="pressable">随机事件</NuxtLink>
+          <NuxtLink to="/maps" class="pressable">地图</NuxtLink>
+          <NuxtLink to="/achievements" class="pressable">成就</NuxtLink>
+          <NuxtLink to="/changelog" class="pressable">版本更新</NuxtLink>
+          <NuxtLink to="/blog" class="pressable">开发日志</NuxtLink>
         </template>
       </nav>
     </Transition>
@@ -314,6 +329,9 @@ async function signOut() {
     border-radius: 0.5rem;
     color: var(--text-on-glass-secondary);
     font-weight: 650;
+  }
+  .mobile-nav :deep([data-slot="content"]) {
+    padding-inline-start: 0.5rem;
   }
   .mobile-nav :deep([data-slot="link"]:hover),
   .mobile-nav :deep([data-active="true"]) {
