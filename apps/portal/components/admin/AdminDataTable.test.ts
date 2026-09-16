@@ -46,20 +46,22 @@ describe("AdminDataTable mobile presentation", () => {
     { accessorKey: "status", header: "状态" },
     { id: "actions", header: "操作", enableHiding: false },
   ];
-  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown }) => void) => defineComponent({
+  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown; ui: unknown; loading: unknown }) => void) => defineComponent({
     props: {
       data: { type: Array, default: () => [] },
       columns: { type: Array, default: () => [] },
       virtualize: { default: false },
       sticky: { default: false },
+      ui: { type: Object, default: () => ({}) },
+      loading: { type: Boolean, default: false },
     },
     setup(props, { expose }) {
-      onProps?.({ virtualize: props.virtualize, sticky: props.sticky, columns: props.columns });
+      onProps?.({ virtualize: props.virtualize, sticky: props.sticky, columns: props.columns, ui: props.ui, loading: props.loading });
       expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
       return () => h("div");
     },
   });
-  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown }) => void) => mount(AdminDataTable, {
+  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown; ui: unknown; loading: unknown }) => void) => mount(AdminDataTable, {
     props: {
       data: rows,
       columns,
@@ -135,6 +137,19 @@ describe("AdminDataTable mobile presentation", () => {
     mountTable({ scrollHeight: "30rem" }, (props) => { boundedProps = props; });
     await nextTick();
     expect(boundedProps?.sticky).toBe("header");
+  });
+
+  it("keeps the loading indicator inside the table chrome", async () => {
+    const idle = mountTable();
+    expect(idle.find(".admin-data-table__loading-bar").exists()).toBe(false);
+
+    let tableProps: { ui: unknown; loading: unknown } | undefined;
+    const loading = mountTable({ loading: true }, (props) => { tableProps = props; });
+    await nextTick();
+    const bar = loading.get(".admin-data-table__loading-bar");
+    expect(bar.attributes("aria-label")).toBe("正在加载");
+    expect(loading.get(".admin-data-table__controls").element.contains(bar.element)).toBe(true);
+    expect((tableProps?.ui as { thead?: string })?.thead).toContain("after:content-none");
   });
 
   it("does not create a horizontal scrollport on the table viewport by default", () => {

@@ -83,7 +83,7 @@ const scrollContainer = useTemplateRef<HTMLElement>("scrollContainer");
 const tableViewport = useTemplateRef<HTMLElement>("tableViewport");
 const slots = useSlots();
 const tableSlots = Object.fromEntries(Object.entries(slots).filter(([name]) => !["filters", "mobile-primary", "mobile-secondary"].includes(name)));
-const tableUi = { root: "overflow-visible" };
+const tableUi = { root: "overflow-visible", thead: "after:content-none" };
 const tableColumns = computed(() => {
   const allowHeaderSorting = props.sortingOptions.length > 0;
   return props.columns.map((column) => {
@@ -305,6 +305,7 @@ onBeforeUnmount(() => {
             </UDropdownMenu>
           </div>
         </div>
+        <span v-if="loading" class="admin-data-table__loading-bar" role="status" aria-label="正在加载" />
         <UDrawer v-if="mobileHasSecondaryControls" v-model:open="secondaryControlsOpen" direction="bottom" title="筛选与排序" description="调整当前列表的显示顺序与筛选条件。" close :ui="{ content: 'admin-data-table__mobile-drawer glass-heavy elevation-3', header: 'glass-segment', body: 'admin-data-table__mobile-drawer-body' }">
           <UButton class="admin-data-table__mobile-controls-trigger" label="筛选与排序" color="neutral" variant="outline" size="md" icon="i-lucide-sliders-horizontal" aria-label="打开筛选与排序" />
           <template #body>
@@ -413,6 +414,37 @@ onBeforeUnmount(() => {
 .admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
 .admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 16px 16px 0 0; background: var(--surface); }
+.admin-data-table__loading-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 4;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 0;
+}
+.admin-data-table__loading-bar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  width: 40%;
+  background: var(--accent);
+  transform: translateX(-100%);
+  animation: admin-table-loading 1.1s ease-in-out infinite;
+}
+@keyframes admin-table-loading {
+  to { transform: translateX(250%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-data-table__loading-bar::after {
+    width: 100%;
+    transform: none;
+    animation: none;
+    opacity: 0.55;
+  }
+}
 .admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
