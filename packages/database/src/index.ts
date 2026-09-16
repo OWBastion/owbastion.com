@@ -351,8 +351,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const db = drizzle(database);
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
-    historical: { mapId: string | null; gameplayRevisionId: string | null },
-  ) => source?.titleKey === "DOMINATOR"
+    historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
+  ) => historical.titleKey === "CONQUEROR"
+    && source?.titleKey === "DOMINATOR"
     && source.mapId === historical.mapId
     && source.gameplayRevisionId === historical.gameplayRevisionId;
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
@@ -496,11 +497,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         outcome = "reused";
         grantId = existing.id;
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
-      } else if (activeIdentity) {
+      } else if (activeIdentity && inherited) {
         outcome = "reused";
         grantId = activeIdentity.id;
-        if (inherited) statements.push(db.update(playerTitleGrants).set({ sourceId: historical.id }).where(eq(playerTitleGrants.id, activeIdentity.id)));
+        statements.push(db.update(playerTitleGrants).set({ sourceId: historical.id }).where(eq(playerTitleGrants.id, activeIdentity.id)));
         statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: null, processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
+      } else if (activeIdentity) {
+        outcome = "conflict";
+        grantId = activeIdentity.id;
+        statements.push(db.update(bindingInviteHistoricalTitleGrants).set({ status: outcome, playerTitleGrantId: grantId, lastError: "HISTORICAL_TITLE_GRANT_CLAIMED", processedAt: timestamp }).where(eq(bindingInviteHistoricalTitleGrants.id, item.id)));
       } else {
         outcome = "created";
         grantId = crypto.randomUUID();

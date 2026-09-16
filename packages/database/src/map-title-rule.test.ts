@@ -1301,6 +1301,21 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT title_key, source_id FROM player_title_grants WHERE id = 'grant.single.inherited.conqueror'").get()).toEqual({ title_key: "CONQUEROR", source_id: "historical.single.conqueror" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.grant'").get()).toEqual({ count: 1 });
     });
+
+    it("does not rebind a dominator grant from a different historical source", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      sqlite.exec("CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, '')) WHERE status = 'active';");
+      seedMap(sqlite, "map.dominator");
+      seedTitle(sqlite, "DOMINATOR");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.dominator', 'dominator-1', 'Dominator Player', 'dominator player', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.dominator.target', 'map', 'map.dominator', 'revision:map.dominator:initial', 'dominator', 'DOMINATOR', 'Dominator Player', 'test'), ('historical.dominator.source', 'map', 'map.dominator', 'revision:map.dominator:initial', 'dominator', 'DOMINATOR', 'Other Player', 'test')").run();
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.dominator.source', 'player.dominator', 'DOMINATOR', 'map.dominator', 'revision:map.dominator:initial', 'dominator', 'active', 'historical', 'historical.dominator.source', 'admin', ?)").run(now);
+
+      const services = createPlatformServices(database);
+      await expect(services.createAdminTitleGrant({ contractVersion: "1", playerAccountId: "player.dominator", historicalTitleGrantId: "historical.dominator.target" } as never, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "dominator-source-conflict")).rejects.toThrow("HISTORICAL_TITLE_GRANT_CLAIMED");
+      expect(sqlite.prepare("SELECT source_id FROM player_title_grants WHERE id = 'grant.dominator.source'").get()).toEqual({ source_id: "historical.dominator.source" });
+    });
   });
 
   // ─── Invariant: Stable IDs ────────────────────────────────────────────────

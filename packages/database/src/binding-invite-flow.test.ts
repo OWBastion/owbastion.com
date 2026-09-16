@@ -99,6 +99,27 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'binding_invite.historical_migration.item' AND entity_id = 'grant.inherited.conqueror'").get()).toMatchObject({ payload_json: expect.stringContaining('"reconciled":true') });
   });
 
+  it("records a conflict for a non-inherited active identity during binding migration", async () => {
+    const { database, sqlite } = createD1();
+    const now = Date.now();
+    sqlite.exec("CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, '')) WHERE status = 'active';");
+    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('hist.pending.conqueror', 'map', 'map.manual', 'revision:map.manual:initial', 'conqueror', 'CONQUEROR', 'Player', 'test')").run();
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.old', 'member.old', ?)").run(now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.manual', 'player.1', 'CONQUEROR', 'map.manual', 'revision:map.manual:initial', 'conqueror', 'active', 'manual', 'manual.source', 'admin', ?)").run(now);
+    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
+
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.pending.conqueror"] }, auth, "invite.manual");
+    const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
+    await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.manual" }, auth, "verify.manual");
+    await services.decideAdminBindingClaim({ claimId: claim.claimId, contractVersion: "1", decision: "approved" }, { ...auth, actorType: "user", subject: "admin.1", roles: ["admin"] }, "decision.manual");
+
+    expect(sqlite.prepare("SELECT source_id FROM player_title_grants WHERE id = 'grant.manual'").get()).toEqual({ source_id: "manual.source" });
+    expect(sqlite.prepare("SELECT status, last_error FROM binding_invite_historical_title_grants WHERE historical_title_grant_id = 'hist.pending.conqueror'").get()).toEqual({ status: "conflict", last_error: "HISTORICAL_TITLE_GRANT_CLAIMED" });
+  });
+
   it("does not authorize a name-equal historical holder without explicit selection", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
