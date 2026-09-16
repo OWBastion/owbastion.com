@@ -50,6 +50,15 @@ const listMarkdownFiles = async (directory: string): Promise<string[]> => {
 };
 
 describe("editorial content boundary", () => {
+  it("keeps the weighted-random article formulas in the shared math syntax", async () => {
+    const document = await readFile(resolve(contentRoot, "blog/random-system-weighted-algorithm.md"), "utf8");
+
+    expect(document).toContain("$w_i$");
+    expect(document).toContain("$W_{total}$");
+    expect(document).toContain("$$\nP(i) = \\frac{w_i}{M \\cdot C} \\times \\frac{1 - Q^{N-1}}{1 - Q} + Q^{N-1} \\times \\frac{1}{M}\n$$");
+    expect(document).toContain("$$\nQ = 1 - \\frac{W_{\\text{total}}}{M \\cdot C}\n$$");
+  });
+
   it("keeps migrated entries formatted and checks every editorial file for unsafe content", async () => {
     const migratedFiles = [
       ...migratedBlogFiles,

@@ -79,6 +79,7 @@ const isChangelog = computed(() => props.kind === "changelog");
 .editorial-article-body :deep(code) { padding: .12em .35em; border-radius: 5px; background: var(--surface-raised); font-size: .9em; }
 .editorial-article-body :deep(pre) { max-width: 100%; overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); }
 .editorial-article-body :deep(pre code) { padding: 0; background: transparent; }
+.editorial-article-body :deep(.katex-display) { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-block: .2rem; }
 
 .changelog-masthead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem 0.85rem; }
 .changelog-version {

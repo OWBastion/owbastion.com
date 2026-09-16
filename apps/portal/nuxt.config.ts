@@ -14,6 +14,18 @@ export default defineNuxtConfig({
       sqliteConnector: "native",
     },
   },
+  mdc: {
+    remarkPlugins: {
+      "remark-math": {
+        src: "remark-math",
+      },
+    },
+    rehypePlugins: {
+      "rehype-katex": {
+        src: "rehype-katex",
+      },
+    },
+  },
   studio: {
     route: "/_studio",
     dev: false,

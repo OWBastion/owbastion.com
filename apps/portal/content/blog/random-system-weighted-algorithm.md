@@ -64,11 +64,15 @@ tags:
 
 - $W_{total}$: 所有事件权重的总和。
 
-$P(i) = \frac{w_i}{M \cdot C} \times \frac{1 - Q^{N-1}}{1 - Q} + Q^{N-1} \times \frac{1}{M}$
+$$
+P(i) = \frac{w_i}{M \cdot C} \times \frac{1 - Q^{N-1}}{1 - Q} + Q^{N-1} \times \frac{1}{M}
+$$
 
 其中 $Q$ 是单次抽取的失败率（所有事件都没被选中的概率）：
 
-$Q = 1 - \frac{W_{\text{total}}}{M \cdot C}$
+$$
+Q = 1 - \frac{W_{\text{total}}}{M \cdot C}
+$$
 
 #### 🧠 简单来说：
 

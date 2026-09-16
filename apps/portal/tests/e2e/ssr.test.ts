@@ -82,4 +82,14 @@ describe("Portal SSR", async () => {
     expect(changelogDetail).toContain('name="twitter:description"');
     expect(changelogDetail).toContain(latestChangelog.description);
   });
+
+  it("renders the weighted-random article formulas as KaTeX", async () => {
+    const html = await $fetch("/blog/random-system-weighted-algorithm");
+
+    expect(html).toContain("katex");
+    expect(html).toContain("katex-display");
+    expect(html).toContain("katex-mathml");
+    expect(html).not.toContain("$P(i)");
+    expect(html).not.toContain("$Q =");
+  });
 });
