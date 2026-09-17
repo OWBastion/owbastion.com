@@ -49,6 +49,18 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.find(".earned-status-icon").exists()).toBe(false);
   });
 
+  it("does not show equipment actions for map-scoped catalog cards", async () => {
+    const wrapper = await mountSuspended(MyAchievementOverview, {
+      props: {
+        challenges: [...challenges, { ...challenges[0], challengeId: "map-title-1", titleKey: "MAP_TITLE", titleName: "地图称号" }],
+        titles: [{ grantId: "map-grant-1", titleKey: "MAP_TITLE", label: "地图称号", icon: "map", category: "地图", condition: "完成地图挑战", scope: "map", mapName: "哈瓦那", grantedAt: 1 }],
+      },
+    });
+
+    const mapCard = wrapper.findAll(".achievement-card").find((card) => card.text().includes("地图称号"));
+    expect(mapCard?.find(".equip-action").exists()).toBe(false);
+  });
+
   it("keeps map achievement progress separate and includes a zero-progress map", async () => {
     const wrapper = await mountSuspended(MyAchievementOverview, {
       props: {
