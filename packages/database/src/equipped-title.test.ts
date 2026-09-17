@@ -8,6 +8,7 @@ const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(`
     CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
     CREATE TABLE qq_sessions (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, availability TEXT NOT NULL, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
@@ -39,13 +40,29 @@ describe("equipped title selection", () => {
     const otherGrant = "10000000-0000-4000-8000-000000000001";
     sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.other', 'TITLE_0', NULL, NULL, NULL, 'active', 'manual', 'other', 'admin', ?, NULL, NULL, NULL)").run(otherGrant, now);
     const services = createPlatformServices(database);
-    await expect(services.listCurrentPlayerTitles({ sessionToken: "token.player.zero" })).resolves.toEqual([]);
+    await expect(services.listCurrentPlayerTitles({ sessionToken: "token.player.zero" })).resolves.toEqual({ items: [], allTitles: false });
+    const migratedTitles = await services.listCurrentPlayerTitles({ sessionToken: "token.player.one" });
+    expect(migratedTitles?.items).toHaveLength(11);
+    expect(migratedTitles?.items.every((title) => !title.equipped)).toBe(true);
+    await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.one", grantIds: grantIds.slice(0, 10) }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "recover")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id = 'player.one'").get()).toEqual({ count: 10 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.player.title.equipped.replace'").get()).toEqual({ count: 1 });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [grantIds[0]!] }, "one")).resolves.toMatchObject({ grantIds: [grantIds[0]] });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [grantIds[0]!] }, "one")).resolves.toMatchObject({ grantIds: [grantIds[0]] });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 1 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 2 });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: grantIds.slice(0, 10) }, "ten")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds }, "eleven")).rejects.toThrow("EQUIPPED_TITLE_LIMIT_EXCEEDED");
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [otherGrant] }, "foreign")).rejects.toThrow("EQUIPPED_TITLE_GRANT_INVALID");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id = 'player.one'").get()).toEqual({ count: 10 });
+  });
+
+  it("projects an explicit all-title entitlement without equipped rows", async () => {
+    const { sqlite, database } = createD1();
+    const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts VALUES ('player.all', '9999', 'Developer', 'developer', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_entitlements VALUES ('player.all', 1)").run();
+    sqlite.prepare("INSERT INTO title_catalog VALUES ('TITLE_NEW', '新称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
+    const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
+    expect(response.items).toEqual([{ playerId: "9999", playerName: "Developer", titleKeys: [], allTitles: true }]);
   });
 });

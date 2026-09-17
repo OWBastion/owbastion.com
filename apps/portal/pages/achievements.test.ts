@@ -6,6 +6,7 @@ import AchievementsPage from "./achievements.vue";
 
 const currentPlayer = ref<{ player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean }; recentSubmissions: never[] } | null>(null);
 const ownedTitles = ref<any[]>([]);
+const allTitles = ref(false);
 const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const refreshTitles = vi.fn(async () => ownedTitles.value);
 const replaceEquipped = vi.fn(async (grantIds: string[]) => ({ grantIds }));
@@ -16,13 +17,14 @@ const portalApi = vi.fn(async (path: string) => {
 });
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, refresh: refreshPlayer }));
-mockNuxtImport("usePlayerTitles", () => () => ({ items: ownedTitles, refresh: refreshTitles, replaceEquipped }));
+mockNuxtImport("usePlayerTitles", () => () => ({ items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped }));
 mockNuxtImport("usePortalApi", () => () => portalApi);
 
 describe("achievements page", () => {
   it("renders the public catalog for signed-out visitors", async () => {
     currentPlayer.value = null;
     ownedTitles.value = [];
+    allTitles.value = false;
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
     expect(wrapper.text()).toContain("测试称号");
@@ -32,6 +34,7 @@ describe("achievements page", () => {
 
   it("renders the signed-in player's achievement overview and historical titles", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    allTitles.value = false;
     ownedTitles.value = [{ grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 }, { grantId: "grant-2", titleKey: "OLD", label: "历史称号", icon: "scroll", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1 }];
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
@@ -49,6 +52,15 @@ describe("achievements page", () => {
     const wrapper = await mountSuspended(AchievementsPage);
     await flushPromises();
     expect(wrapper.text()).toContain("无法读取成就");
+  });
+
+  it("shows recovery guidance when a normal player has migrated titles but no equipped selection", async () => {
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    allTitles.value = false;
+    ownedTitles.value = Array.from({ length: 11 }, (_, index) => ({ grantId: `grant-${index}`, titleKey: `TEST-${index}`, label: `称号 ${index}`, icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: index, equipped: false }));
+    const wrapper = await mountSuspended(AchievementsPage);
+    await flushPromises();
+    expect(wrapper.text()).toContain("需要选择佩戴称号");
   });
 
   it("unequips only the remaining equipped titles", async () => {

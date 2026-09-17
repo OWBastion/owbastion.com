@@ -168,6 +168,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE player_title_grants (
       id TEXT PRIMARY KEY NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -1889,7 +1890,7 @@ describe("map title rule model – locked invariants", () => {
 
       const titles = await createPlatformServices(database).listCurrentPlayerTitles({ sessionToken: "revision-title-session" });
 
-      expect(titles).toEqual([expect.objectContaining({ titleKey: "CURRENT" })]);
+      expect(titles).toMatchObject({ allTitles: false, items: [expect.objectContaining({ titleKey: "CURRENT" })] });
       expect(sqlite.prepare("SELECT id, status FROM player_title_grants ORDER BY id").all()).toEqual([
         { id: "grant.current", status: "active" },
         { id: "grant.legacy", status: "active" },

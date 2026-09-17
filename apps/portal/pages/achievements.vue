@@ -9,7 +9,7 @@ useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的
 
 const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
-const { items: ownedTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
+const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
 const challenges = ref<PublicAchievement[]>([]);
 const maps = ref<PortalMap[]>([]);
 const mapChallenges = ref<MapProgressChallenge[]>([]);
@@ -72,7 +72,7 @@ const updateEquipped = async (grantId: string) => {
       </div>
     </section>
     <UAlert v-else-if="error" color="error" variant="subtle" title="无法读取成就" :description="error" />
-    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :saving-equip="savingEquip" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
+    <template v-else-if="player"><MyAchievementOverview :challenges="challenges" :titles="ownedTitles" :maps="maps" :map-challenges="mapChallenges" :saving-equip="savingEquip" :all-titles="allTitles" @toggle-equipped="updateEquipped" /><UAlert v-if="equipError" class="equip-error" color="error" variant="subtle" :description="equipError" /></template>
     <section v-else class="achievement-directory surface-card" aria-label="成就列表">
       <AchievementCatalog :challenges="challenges" />
     </section>

@@ -512,10 +512,15 @@ export const ownedTitleSchema = z.object({
   grantId: z.string().uuid(), titleKey: externalId, label: z.string(), icon: achievementIcon, iconUrl: z.string().url().max(2048).nullable().optional(), category: z.string(),
   condition: z.string().trim().min(1).max(1024), scope: z.enum(["global", "map"]), mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), mapName: z.string().optional(), slot: z.enum(["pioneer", "conqueror", "dominator"]).optional(), grantedAt: z.number().int(), equipped: z.boolean().optional(),
 });
-export const playerEquippedTitlesRequestSchema = z.object({ grantIds: z.array(z.string().uuid()).max(10) }).superRefine((value, context) => {
+const equippedTitleGrantIdsSchema = z.object({ grantIds: z.array(z.string().uuid()).max(10) }).superRefine((value, context) => {
   if (new Set(value.grantIds).size !== value.grantIds.length) context.addIssue({ code: "custom", message: "Grant IDs must be unique" });
 });
+export const playerEquippedTitlesRequestSchema = equippedTitleGrantIdsSchema;
 export const playerEquippedTitlesResponseSchema = z.object({ contractVersion, grantIds: z.array(z.string().uuid()).max(10) });
+export const adminPlayerEquippedTitlesRequestSchema = z.object({ contractVersion, grantIds: z.array(z.string().uuid()).max(10) }).superRefine((value, context) => {
+  if (new Set(value.grantIds).size !== value.grantIds.length) context.addIssue({ code: "custom", message: "Grant IDs must be unique" });
+});
+export const currentPlayerTitlesResponseSchema = z.object({ contractVersion, items: z.array(ownedTitleSchema), allTitles: z.boolean() });
 export const historicalTitleGrantSchema = ownedTitleSchema.extend({ grantId: historicalTitleGrantId, holderName: z.string(), playerAccountId: z.string().uuid().optional(), playerName: z.string().optional(), playerId: playerId.optional(), status: z.enum(["unclaimed", "active", "revoked"]), revokeReason: z.string().optional() });
 export const adminTitleGrantStatsSchema = z.object({ pendingHolderCount: z.number().int().nonnegative(), unclaimedGrantCount: z.number().int().nonnegative(), migratedGrantCount: z.number().int().nonnegative() });
 export const adminHistoricalTitleHolderFilterSchema = z.enum(["all", "pending", "completed"]);
@@ -1325,7 +1330,7 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(adminPlayerRecentSubmissionSchema).max(10),
-  titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string() })),
+  titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
 });
 
 export const currentPlayerResponseSchema = z.object({
@@ -1447,6 +1452,7 @@ export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailRespon
 export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
 export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
+export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;
 export type PlayerMasteryRun = z.infer<typeof playerMasteryRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;

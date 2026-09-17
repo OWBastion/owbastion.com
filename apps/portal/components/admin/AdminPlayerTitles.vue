@@ -11,7 +11,7 @@ type TitleMenuItem = { label: string; value: string };
 type GrantRow = AdminPlayerDetail["titleGrants"][number] & { sourceLabel: string; mapLabel: string };
 
 const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDetail["titleGrants"]; loading?: boolean }>();
-const emit = defineEmits<{ granted: []; revoked: [] }>();
+const emit = defineEmits<{ granted: []; revoked: []; recovered: [] }>();
 const api = useAdminApi();
 const toast = useToast();
 const maps = shallowRef<Array<{ mapId: string; mapName: string }>>([]);
@@ -26,6 +26,10 @@ const errorMessage = shallowRef("");
 const revokeTarget = shallowRef<AdminPlayerDetail["titleGrants"][number] | null>(null);
 const revokeReason = shallowRef("");
 const revoking = shallowRef(false);
+const recoveryOpen = shallowRef(false);
+const recoveryGrantIds = ref<string[]>([]);
+const recovering = shallowRef(false);
+const recoveryError = shallowRef("");
 const titleLabel = (title: TitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
 const selectedTitleLabel = (title: TitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
 const globalTitleItems = computed(() => titles.value.filter((title) => title.scope === "global").map((title) => ({ label: titleLabel(title), value: title.value })));
@@ -63,6 +67,9 @@ const revokeDescription = computed(() => {
   if (!revokeTarget.value) return undefined;
   return `${revokeTarget.value.label}${revokeTarget.value.mapName ? ` · ${revokeTarget.value.mapName}` : ""}`;
 });
+const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.equipable !== false));
+const recoveryRequired = computed(() => equipableGrants.value.length > 10 && equipableGrants.value.every((grant) => !grant.equipped));
+const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10 ? "最多选择 10 个称号。" : "");
 
 async function loadOptions() {
   loadingOptions.value = true;
@@ -145,12 +152,39 @@ async function revoke() {
   }
 }
 
+function openRecovery() {
+  recoveryGrantIds.value = [];
+  recoveryError.value = "";
+  recoveryOpen.value = true;
+}
+
+async function recover() {
+  if (recoveryGrantIds.value.length > 10) return;
+  recovering.value = true;
+  recoveryError.value = "";
+  try {
+    await api(`/v1/admin/player-accounts/${encodeURIComponent(props.playerAccountId)}/titles/equipped`, {
+      method: "PUT",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: { contractVersion: "1", grantIds: recoveryGrantIds.value },
+    });
+    toast.add({ title: "佩戴称号已修复", color: "success" });
+    recoveryOpen.value = false;
+    emit("recovered");
+  } catch (error) {
+    recoveryError.value = portalErrorDetails(error, "无法修复佩戴称号，请稍后重试。").description;
+  } finally {
+    recovering.value = false;
+  }
+}
+
 onMounted(() => { void loadOptions(); });
 </script>
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton v-if="recoveryRequired" data-testid="open-title-recovery" label="修复佩戴选择" size="sm" color="warning" @click="openRecovery" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="该玩家需要选择佩戴称号" description="迁移保留了全部称号，但没有初始化佩戴选择。可在这里选择最多 10 个，不会改变称号授予记录。" />
     <p v-if="errorMessage && !grantOpen && !revokeTarget" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">全局称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
@@ -168,7 +202,7 @@ onMounted(() => { void loadOptions(); });
       table-key="player-title-grants"
       table-min-width="640px"
     >
-      <template #label-cell="{ row }"><strong>{{ row.original.label }}</strong><small>{{ row.original.category }}</small></template>
+      <template #label-cell="{ row }"><strong>{{ row.original.label }}<span v-if="row.original.equipped" class="equipped-mark"> · 已佩戴</span></strong><small>{{ row.original.category }}</small></template>
       <template #sourceLabel-cell="{ row }"><span>{{ row.original.sourceLabel }}</span></template>
       <template #grantedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.grantedAt) }}</span></template>
       <template #actions-cell="{ row }">
@@ -198,6 +232,23 @@ onMounted(() => { void loadOptions(); });
       </template>
       <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /></template>
     </AdminResponsiveDialog>
+    <AdminResponsiveDialog v-model:open="recoveryOpen" title="修复佩戴称号" size="md" :dismissible="!recovering">
+      <template #body>
+        <form id="recover-player-titles" class="recovery-form" @submit.prevent="recover">
+          <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
+          <p class="recovery-note">选择 0–10 个称号。修复只更新佩戴选择，不会回收或删除其他称号。</p>
+          <fieldset class="recovery-list">
+            <legend>可佩戴称号（已选择 {{ recoveryGrantIds.length }} / 10）</legend>
+            <label v-for="grant in equipableGrants" :key="grant.grantId" class="recovery-item">
+              <input v-model="recoveryGrantIds" type="checkbox" :value="grant.grantId" :disabled="recovering || (recoveryGrantIds.length >= 10 && !recoveryGrantIds.includes(grant.grantId))" />
+              <span>{{ grant.label }}<small>{{ grant.scope === 'map' ? grant.mapName ?? '地图称号' : grant.category }}</small></span>
+            </label>
+          </fieldset>
+          <p v-if="recoverySelectionError" class="title-error" role="alert">{{ recoverySelectionError }}</p>
+        </form>
+      </template>
+      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="recovering" @click="recoveryOpen = false" /><UButton label="保存佩戴选择" type="submit" form="recover-player-titles" :loading="recovering" :disabled="recovering || Boolean(recoverySelectionError)" /></template>
+    </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="revokeTarget !== null" title="回收玩家称号" :description="revokeDescription" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body>
         <form id="revoke-player-title" class="revoke-form" @submit.prevent="revoke">
@@ -215,7 +266,7 @@ onMounted(() => { void loadOptions(); });
 .player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
 .grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; min-height: 2.75rem; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
 .grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
-.player-titles :deep(td strong) { display: block; }.player-titles :deep(td small) { display: block; margin-top: 4px; color: var(--quiet); }.table-meta { color: var(--quiet); }
+.player-titles :deep(td strong) { display: block; }.player-titles :deep(td small) { display: block; margin-top: 4px; color: var(--quiet); }.equipped-mark { color: var(--success); font-size: .75rem; }.table-meta { color: var(--quiet); }.recovery-form { display: grid; gap: 16px; }.recovery-note { margin: 0; color: var(--muted); line-height: 1.55; }.recovery-list { display: grid; gap: 8px; max-height: 360px; margin: 0; padding: 0; border: 0; overflow: auto; }.recovery-list legend { margin-bottom: 4px; color: var(--text); font-size: .84rem; font-weight: 700; }.recovery-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }.recovery-item input { margin-top: 3px; }.recovery-item span { display: grid; gap: 3px; }.recovery-item small { color: var(--quiet); }
 @media (max-width: 620px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .grants-tab { transition: color 140ms ease, background 140ms ease; } }
 </style>

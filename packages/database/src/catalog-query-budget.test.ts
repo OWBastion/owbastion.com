@@ -285,6 +285,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE player_title_grants (
       id TEXT PRIMARY KEY NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),

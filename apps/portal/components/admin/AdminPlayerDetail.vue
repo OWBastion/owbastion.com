@@ -159,6 +159,7 @@ onBeforeUnmount(() => {
           :loading="props.loading"
           @granted="emit('grantCompleted')"
           @revoked="emit('grantCompleted')"
+          @recovered="emit('grantCompleted')"
         />
       </div>
 

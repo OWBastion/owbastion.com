@@ -42,8 +42,9 @@ const services: PlatformServices = {
   listTitles: async () => [],
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
   getPublicTitleIcon: async () => null,
-  listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }] : null,
+  listCurrentPlayerTitles: async ({ sessionToken }) => sessionToken === "session-token" ? { items: [{ grantId: "00000000-0000-0000-0000-000000000006", titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "完成萨摩亚地狱难度。", scope: "map", mapName: "萨摩亚", slot: "pioneer", grantedAt: 4 }], allTitles: false } : null,
   replaceCurrentPlayerEquippedTitles: async ({ grantIds, sessionToken }) => { if (sessionToken !== "session-token") throw new Error("UNAUTHENTICATED"); return { contractVersion: "1" as const, grantIds }; },
+  replaceAdminPlayerEquippedTitles: async ({ grantIds }) => ({ contractVersion: "1" as const, grantIds }),
   listHistoricalTitleGrants: async () => ({ contractVersion: "1", holders: [], page: 1, pageSize: 20, total: 0, hasMore: false, filter: "all", stats: { pendingHolderCount: 0, unclaimedGrantCount: 0, migratedGrantCount: 0 } }),
   getHistoricalTitleHolder: async () => ({ contractVersion: "1", holder: { holderName: "Cold", totalCount: 0, unclaimedCount: 0, status: "completed" }, items: [], page: 1, pageSize: 50, total: 0, hasMore: false, grantStatus: "all" }),
   createAdminTitleGrant: async () => {},
@@ -1524,6 +1525,18 @@ describe("API", () => {
     const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/identity", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "identity-1" }, body: JSON.stringify({ contractVersion: "1", playerName: "新名称" }) }, env);
     expect(response.status).toBe(204);
     expect(updates).toEqual([{ playerAccountId: "player-1", playerName: "新名称", key: "identity-1" }]);
+  });
+
+  it("lets maintainers repair a player's equipped titles", async () => {
+    const requests: Array<{ playerAccountId: string; grantIds: string[]; key: string }> = [];
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, replaceAdminPlayerEquippedTitles: async (input, _auth, key) => { requests.push({ ...input, key }); return { contractVersion: "1" as const, grantIds: input.grantIds }; } }),
+    });
+    const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/titles/equipped", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "recover-1" }, body: JSON.stringify({ contractVersion: "1", grantIds: ["00000000-0000-4000-8000-000000000006"] }) }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ contractVersion: "1", grantIds: ["00000000-0000-4000-8000-000000000006"] });
+    expect(requests).toEqual([{ playerAccountId: "player-1", grantIds: ["00000000-0000-4000-8000-000000000006"], key: "recover-1" }]);
   });
 
   it("pages administrative lists and accepts a comma-separated submission status filter", async () => {

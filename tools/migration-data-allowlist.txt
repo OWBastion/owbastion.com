@@ -30,3 +30,4 @@
 0075_enforce_dominator_conqueror_inheritance.sql
 0077_player_equipped_titles.sql
 0078_allow_future_achievement_metadata.sql
+0079_player_title_entitlements.sql
