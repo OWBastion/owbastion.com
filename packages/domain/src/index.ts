@@ -19,6 +19,7 @@ import type {
   AdminPlayerStatusRequest,
   AdminPlayerIdentityRequest,
   CurrentPlayerResponse,
+  CurrentPlayerTitlesResponse,
   CurrentPlayerMasteryResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
@@ -200,8 +201,9 @@ export type PlatformServices = {
   listTitles(input: { mapId?: string }): Promise<Title[]>;
   uploadAdminTitleIcon(input: { titleKey: string; body: ArrayBuffer; contentType: string }, auth: AuthContext): Promise<{ iconUrl: string }>;
   getPublicTitleIcon(input: { titleKey: string }): Promise<{ body: ReadableStream; contentType: string; etag?: string } | null>;
-  listCurrentPlayerTitles(input: { sessionToken: string }): Promise<OwnedTitle[] | null>;
+  listCurrentPlayerTitles(input: { sessionToken: string }): Promise<Omit<CurrentPlayerTitlesResponse, "contractVersion"> | null>;
   replaceCurrentPlayerEquippedTitles(input: { grantIds: string[]; sessionToken: string }, idempotencyKey: string): Promise<{ contractVersion: "1"; grantIds: string[] }>;
+  replaceAdminPlayerEquippedTitles(input: { playerAccountId: string; grantIds: string[] }, auth: AuthContext, idempotencyKey: string): Promise<{ contractVersion: "1"; grantIds: string[] }>;
   listHistoricalTitleGrants(input: { query?: string; filter?: AdminHistoricalTitleHolderFilter; page: number; pageSize: number }, auth: AuthContext): Promise<AdminTitleGrantListResponse>;
   getHistoricalTitleHolder(input: { holderName: string; page: number; pageSize: number; grantStatus?: "all" | "unclaimed" | "active" | "revoked" }, auth: AuthContext): Promise<AdminTitleGrantHolderDetailResponse>;
   createAdminTitleGrant(input: AdminTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;

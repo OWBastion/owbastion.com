@@ -60,6 +60,11 @@ export const maps = sqliteTable("maps", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+export const playerTitleEntitlements = sqliteTable("player_title_entitlements", {
+  playerAccountId: text("player_account_id").primaryKey().references(() => playerAccounts.id),
+  allTitles: integer("all_titles").notNull().default(1),
+});
+
 // A gameplay revision is the fairness/progression boundary beneath the stable
 // map identity. The lifecycle is intentionally independent from the map's
 // catalog visibility: preparation and historical rows remain retained, while

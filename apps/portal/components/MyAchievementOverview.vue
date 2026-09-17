@@ -19,9 +19,11 @@ const props = withDefaults(defineProps<{
   maps?: PortalMap[];
   mapChallenges?: MapProgressChallenge[];
   savingEquip?: boolean;
+  allTitles?: boolean;
 }>(), { maps: () => [], mapChallenges: () => [] });
 const emit = defineEmits<{ toggleEquipped: [grantId: string] }>();
 const equippedCount = computed(() => props.titles.filter((title) => title.equipped).length);
+const recoveryRequired = computed(() => !props.allTitles && props.titles.length > 10 && equippedCount.value === 0);
 const canEquip = (title: OwnedTitle) => title.equipped || equippedCount.value < 10;
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
@@ -75,6 +77,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
     <div class="achievement-main">
       <section class="general-achievement-section" aria-labelledby="general-achievements-title">
         <header class="achievement-type-heading"><h2 id="general-achievements-title">通用成就</h2><div class="equipped-count"><strong>已佩戴 {{ equippedCount }} / 10</strong><UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" aria-label="佩戴称号说明：佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" title="佩戴的称号会在游戏内可用。修改会在后续游戏版本同步后生效。" /></div></header>
+        <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="需要选择佩戴称号" description="迁移后仍保留了你的全部称号，但尚未初始化佩戴选择。请从下方选择最多 10 个称号。" />
         <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
         <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
           <header class="section-heading"><h3 :id="`my-category-${group.category}`">{{ group.category }}</h3><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>

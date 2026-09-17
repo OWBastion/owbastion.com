@@ -9,6 +9,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", availability: "retired", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
   if (path === "/v1/title-grants/manual/batch" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", batchId: "batch-1", playerCount: 1, targetCount: 2, requestedCount: 2, createdCount: 2, alreadyOwnedCount: 0, items: [] });
   if (path === "/v1/title-grants/grant-1/revoke" && options?.method === "POST") return Promise.resolve();
+  if (path === "/v1/admin/player-accounts/player-1/titles/equipped" && options?.method === "PUT") return Promise.resolve({ contractVersion: "1", grantIds: [] });
   throw new Error(`Unexpected request: ${path}`);
 });
 const toastAdd = vi.fn();
@@ -32,6 +33,7 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
+    expect(wrapper.get("[data-testid='open-title-recovery']").text()).toContain("编辑佩戴选择");
     await wrapper.get("[data-testid='open-title-grant']").trigger("click");
     expect(wrapper.text()).not.toContain("（可选）");
     expect(wrapper.text()).toContain("地图称号");
@@ -66,5 +68,22 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/grant-1/revoke", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "已回收全局称号", color: "success" });
+  });
+
+  it("lets maintainers recover an uninitialized ten-title selection", async () => {
+    const titleGrants = Array.from({ length: 11 }, (_, index) => ({ grantId: `00000000-0000-4000-8000-0000000000${String(index + 1).padStart(2, "0")}`, titleKey: `GLOBAL_${index}`, label: `称号 ${index}`, icon: "award", category: "测试", condition: "测试", scope: "global" as const, grantedAt: index, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true }));
+    const wrapper = await mountSuspended(AdminPlayerTitles, {
+      props: { playerAccountId: "player-1", titleGrants },
+      global: { stubs: { AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' } } },
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("该玩家需要选择佩戴称号");
+    await wrapper.get("[data-testid='open-title-recovery']").trigger("click");
+    const checkboxes = wrapper.findAll("input[type='checkbox']");
+    await checkboxes[0].setValue(true);
+    await wrapper.get("form#recover-player-titles").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/admin/player-accounts/player-1/titles/equipped", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", grantIds: [titleGrants[0].grantId] } }));
+    expect(toastAdd).toHaveBeenCalledWith({ title: "佩戴称号已修复", color: "success" });
   });
 });

@@ -5,7 +5,7 @@ import { buildMasteryProfiles, calculateMasteryXpV1, annotationProposalPriority,
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeListResponse, AdminSubmissionChallengeOption, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerEquippedTitles, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionChallengeSelections, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionChallengeSelections, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { difficultyCovers, matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
@@ -358,6 +358,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     && source.gameplayRevisionId === historical.gameplayRevisionId;
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
+  const findEquipableGrantIds = async (playerAccountId: string, grantIds: string[]) => {
+    if (!grantIds.length) return [];
+    return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
+      .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
+      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
+      .where(and(
+        inArray(playerTitleGrants.id, grantIds),
+        eq(playerTitleGrants.playerAccountId, playerAccountId),
+        eq(playerTitleGrants.status, "active"),
+        eq(titleCatalog.availability, "active"),
+        isNotNull(titleCatalog.gameVersion),
+        or(
+          and(eq(titleCatalog.scope, "global"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
+          and(eq(titleCatalog.scope, "map"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+        ),
+      ));
+  };
 
   const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
   const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
@@ -2807,22 +2824,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
-      const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId })
-        .from(playerTitleGrants)
-        .innerJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
-        .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
-        .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion)))
-        .where(and(eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId))).orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
-      const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitleKeys: Set<string> }>();
+      const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, equipped: playerEquippedTitles.grantId, allTitles: playerTitleEntitlements.allTitles })
+        .from(playerAccounts)
+        .leftJoin(playerTitleEntitlements, eq(playerTitleEntitlements.playerAccountId, playerAccounts.id))
+        .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)))
+        .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
+        .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion)))
+        .where(or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key))))
+        .orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
+      const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitles: boolean }>();
       for (const row of rows) {
-        const current = grouped.get(row.playerId) ?? { playerId: row.playerId, playerName: row.playerName, titleKeys: [], allTitleKeys: new Set<string>() };
-        current.allTitleKeys.add(row.titleKey);
-        if (!current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
+        const current = grouped.get(row.playerId) ?? { playerId: row.playerId, playerName: row.playerName, titleKeys: [], allTitles: row.allTitles === 1 };
+        if (row.equipped && row.titleKey && !current.allTitles && !current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
         grouped.set(row.playerId, current);
       }
-      const titleCount = (await db.select({ key: titleCatalog.key }).from(titleCatalog).where(and(eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)))).length;
-      const items = [...grouped.values()].map(({ allTitleKeys, ...player }) => ({ ...player, allTitles: allTitleKeys.size === titleCount }));
-      return { contractVersion: "1" as const, ...paginate(items, input.page, input.pageSize) };
+      return { contractVersion: "1" as const, ...paginate([...grouped.values()], input.page, input.pageSize) };
     },
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
       const map = await this.getAgentMap({ mapId: input.mapId });
@@ -3752,7 +3768,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             and(eq(titleCatalog.scope, "map"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
           ),
         )).orderBy(desc(playerTitleGrants.grantedAt));
-      return rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: Boolean(equipped) }));
+      const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, binding.playerAccountId)).get();
+      return { items: rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: Boolean(equipped) })), allTitles: entitlement?.allTitles === 1 };
     },
 
     async replaceCurrentPlayerEquippedTitles(input, idempotencyKey) {
@@ -3765,13 +3782,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(db, binding.playerAccountId, operation, idempotencyKey, request);
       if (replay) return replay;
       if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
-      const grants = input.grantIds.length ? await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
-        .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
-        .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-        .where(and(inArray(playerTitleGrants.id, input.grantIds), eq(playerTitleGrants.playerAccountId, binding.playerAccountId), eq(playerTitleGrants.status, "active"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion), or(
-          and(eq(titleCatalog.scope, "global"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
-          and(eq(titleCatalog.scope, "map"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
-        ))) : [];
+      const grants = await findEquipableGrantIds(binding.playerAccountId, input.grantIds);
       if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
       const timestamp = now(); const response = { contractVersion: "1" as const, grantIds: [...input.grantIds] };
       await database.batch([
@@ -3779,6 +3790,27 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ...response.grantIds.map((grantId) => database.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES (?, ?, ?)").bind(grantId, binding.playerAccountId, timestamp)),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${binding.playerAccountId}:${operation}:${idempotencyKey}`, binding.playerAccountId, operation, await hashRequest(request), JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), "user", binding.playerAccountId, operation, "player_equipped_titles", binding.playerAccountId, JSON.stringify(request), timestamp),
+      ]);
+      return response;
+    },
+
+    async replaceAdminPlayerEquippedTitles(input, auth, idempotencyKey) {
+      const operation = "admin.player.title.equipped.replace";
+      const request = { playerAccountId: input.playerAccountId, grantIds: input.grantIds };
+      const replay = await replayOrConflict<{ contractVersion: "1"; grantIds: string[] }>(db, auth.subject, operation, idempotencyKey, request);
+      if (replay) return replay;
+      const account = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
+      if (!account) throw new Error("PLAYER_NOT_FOUND");
+      if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
+      const grants = await findEquipableGrantIds(account.id, input.grantIds);
+      if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
+      const timestamp = now();
+      const response = { contractVersion: "1" as const, grantIds: [...input.grantIds] };
+      await database.batch([
+        database.prepare("DELETE FROM player_equipped_titles WHERE player_account_id = ?").bind(account.id),
+        ...response.grantIds.map((grantId) => database.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES (?, ?, ?)").bind(grantId, account.id, timestamp)),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(request), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, "player_equipped_titles", account.id, JSON.stringify({ grantIds: input.grantIds, recovery: true }), timestamp),
       ]);
       return response;
     },
@@ -5366,8 +5398,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ? await db.select().from(submissions).where(or(...playerBindings.map((binding) => eq(submissions.bindingId, binding.id)))).orderBy(desc(submissions.createdAt)).limit(10)
         : [];
       const recentSubmissionDetails = recentSubmissions.length ? await resolveAdminSubmissionDetails(recentSubmissions) : null;
-      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name })
-        .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id))
+      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId, revisionLifecycle: gameplayRevisions.lifecycle })
+        .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id)).leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
         .where(and(eq(playerTitleGrants.playerAccountId, account.id), eq(playerTitleGrants.status, "active"))).orderBy(desc(playerTitleGrants.grantedAt));
       return {
         contractVersion: "1" as const,
@@ -5390,7 +5422,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
-        titleGrants: titleGrants.map(({ grant, title, mapName }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy })),
+        titleGrants: titleGrants.map(({ grant, title, mapName, equipped, revisionLifecycle }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: Boolean(equipped), equipable: title.availability === "active" && title.gameVersion !== null && ((title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null) || (title.scope === "map" && ["default", "selectable"].includes(revisionLifecycle ?? ""))) })),
       };
     },
 

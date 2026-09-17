@@ -4,13 +4,14 @@ export type { OwnedTitle } from "~/types/title";
 
 export function usePlayerTitles() {
   const items = useState<OwnedTitle[]>("player-titles", () => []);
+  const allTitles = useState("player-all-titles", () => false);
   const api = usePortalApi();
-  const refresh = async () => { items.value = (await api<{ items: OwnedTitle[] }>("/v1/me/titles")).items; return items.value; };
+  const refresh = async () => { const response = await api<{ items: OwnedTitle[]; allTitles: boolean }>("/v1/me/titles"); items.value = response.items; allTitles.value = response.allTitles; return items.value; };
   const replaceEquipped = async (grantIds: string[]) => {
     const result = await api<{ grantIds: string[] }>("/v1/me/titles/equipped", { method: "PUT", body: { grantIds }, headers: { "Idempotency-Key": crypto.randomUUID() } });
     const equipped = new Set(result.grantIds);
     items.value = items.value.map((title) => ({ ...title, equipped: equipped.has(title.grantId) }));
     return result.grantIds;
   };
-  return { items, refresh, replaceEquipped };
+  return { items, allTitles, refresh, replaceEquipped };
 }

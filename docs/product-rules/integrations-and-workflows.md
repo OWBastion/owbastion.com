@@ -80,6 +80,16 @@ The current API implements versioned v1 QQ flows:
   resolution rules to a bounded Cartesian product of players and title targets;
   it is distinct from historical migration `/bulk`, and its active Grants are
   consumed by the existing public and Agents projections;
+- the platform stores the developer/all-title capability independently from
+  equipped rows. Ordinary players may own any number of active eligible title
+  Grants, but their Agents projection contains only the selected maximum of
+  ten. An all-title player is projected with `allTitles: true` and therefore
+  receives newly published global titles automatically. If a legacy migration
+  leaves an ordinary player with more than ten grants and no equipped rows,
+  the Portal surfaces expose an idempotent selection editor, and the
+  maintainer surface highlights the migration gap while allowing authorized
+  general equipped-set management. Both paths replace only the equipped
+  selection after the same active-projectability validation;
 - maintainers can update a player's BattleTag display name while keeping the
   numeric player ID stable; the update is idempotent, rejects a normalized-name
   conflict with another account sharing the same numeric ID, and records an
