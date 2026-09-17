@@ -82,14 +82,16 @@ The current API implements versioned v1 QQ flows:
   consumed by the existing public and Agents projections;
 - the platform stores the developer/all-title capability independently from
   equipped rows. Ordinary players may own any number of active eligible title
-  Grants, but their Agents projection contains only the selected maximum of
-  ten. An all-title player is projected with `allTitles: true` and therefore
-  receives newly published global titles automatically. If a legacy migration
-  leaves an ordinary player with more than ten grants and no equipped rows,
-  the Portal surfaces expose an idempotent selection editor, and the
-  maintainer surface highlights the migration gap while allowing authorized
-  general equipped-set management. Both paths replace only the equipped
-  selection after the same active-projectability validation;
+  Grants, but only eligible global Grants can be selected, and their Agents
+  projection contains only the selected maximum of ten. Map-scoped Grants are
+  applied automatically by their map/revision projection and never consume an
+  equipped slot. An all-title player is projected with `allTitles: true` and
+  therefore receives newly published global titles automatically. If a legacy
+  migration leaves an ordinary player with more than ten eligible global Grants
+  and no equipped rows, the Portal surfaces expose an idempotent selection
+  editor, and the maintainer surface highlights the migration gap while
+  allowing authorized global equipped-set management. Both paths replace only
+  the equipped selection after the same active-global validation;
 - maintainers can update a player's BattleTag display name while keeping the
   numeric player ID stable; the update is idempotent, rejects a normalized-name
   conflict with another account sharing the same numeric ID, and records an
@@ -450,7 +452,9 @@ needed to generate Bastion's in-game title database. Bastion reads this API
 during its build and release process; the platform does not import or consume a
 formal Bastion content snapshot. The API provides paginated event, map,
 achievement, and title queries, resource details, bounded cross-content search,
-active global title grants, and map title-holder relationships. The player
+active global title grants, and map title-holder relationships. Map title-holder
+relationships are resolved from active map-scoped Grants and their projectable
+map/revision context, independently of equipped global rows. The player
 projection is intentionally narrow: ordinary requests omit numeric player IDs;
 requests carrying the Bastion build token expose only the current display name,
 stable game player ID, active title keys, and required map scope. It does not

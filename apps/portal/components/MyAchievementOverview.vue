@@ -22,9 +22,10 @@ const props = withDefaults(defineProps<{
   allTitles?: boolean;
 }>(), { maps: () => [], mapChallenges: () => [] });
 const emit = defineEmits<{ toggleEquipped: [grantId: string] }>();
-const equippedCount = computed(() => props.titles.filter((title) => title.equipped).length);
-const recoveryRequired = computed(() => !props.allTitles && props.titles.length > 10 && equippedCount.value === 0);
-const canEquip = (title: OwnedTitle) => title.equipped || equippedCount.value < 10;
+const globalTitles = computed(() => props.titles.filter((title) => title.scope === "global"));
+const equippedCount = computed(() => globalTitles.value.filter((title) => title.equipped).length);
+const recoveryRequired = computed(() => !props.allTitles && globalTitles.value.length > 10 && equippedCount.value === 0);
+const canEquip = (title: OwnedTitle) => title.scope === "global" && (title.equipped || equippedCount.value < 10);
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
@@ -55,7 +56,9 @@ const mapTitleGroups = computed(() => groupHistoricalTitles(
 ));
 const mapTitleCount = computed(() => mapTitleGroups.value.reduce((count, group) => count + group.titles.length, 0));
 const isAchievementCardEarned = (card: AchievementCard) => card.kind === "retired" || ownedTitleKeys.value.has(card.challenge.titleKey);
-const ownedTitleForCard = (card: AchievementCard) => card.kind === "retired" ? card.title : props.titles.find((title) => title.titleKey === card.challenge.titleKey);
+const ownedGlobalTitleForCard = (card: AchievementCard) => card.kind === "retired"
+  ? card.title
+  : props.titles.find((title) => title.titleKey === card.challenge.titleKey && title.scope === "global");
 const groups = computed(() => {
   const grouped = new Map<string, AchievementCard[]>();
   for (const challenge of props.challenges) grouped.set(challenge.category, [...(grouped.get(challenge.category) ?? []), { kind: "catalog", challenge }]);
@@ -94,7 +97,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="status">即将结束</span>
               </div>
               <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
-              <UButton v-if="ownedTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedTitleForCard(card)!)" :aria-label="ownedTitleForCard(card)!.equipped ? `取消佩戴 ${ownedTitleForCard(card)!.label}` : `佩戴 ${ownedTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedTitleForCard(card)!.grantId)">{{ ownedTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
+              <UButton v-if="ownedGlobalTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedGlobalTitleForCard(card)!)" :aria-label="ownedGlobalTitleForCard(card)!.equipped ? `取消佩戴 ${ownedGlobalTitleForCard(card)!.label}` : `佩戴 ${ownedGlobalTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedGlobalTitleForCard(card)!.grantId)">{{ ownedGlobalTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
             </article>
           </div>
         </section>
@@ -114,7 +117,6 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
                 <div class="achievement-copy"><div class="achievement-title-row"><strong>{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span>{{ title.condition }}</span></div>
                 <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
-                <UButton class="equip-action" size="xs" :disabled="savingEquip || !canEquip(title)" :aria-label="title.equipped ? `取消佩戴 ${title.label}` : `佩戴 ${title.label}`" @click="emit('toggleEquipped', title.grantId)">{{ title.equipped ? "取消佩戴" : "佩戴" }}</UButton>
               </article>
             </div>
           </section>

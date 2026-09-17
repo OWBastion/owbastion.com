@@ -362,17 +362,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!grantIds.length) return [];
     return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
       .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
-      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
       .where(and(
         inArray(playerTitleGrants.id, grantIds),
         eq(playerTitleGrants.playerAccountId, playerAccountId),
         eq(playerTitleGrants.status, "active"),
         eq(titleCatalog.availability, "active"),
         isNotNull(titleCatalog.gameVersion),
-        or(
-          and(eq(titleCatalog.scope, "global"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
-          and(eq(titleCatalog.scope, "map"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
-        ),
+        eq(titleCatalog.scope, "global"),
+        isNull(playerTitleGrants.mapId),
+        isNull(playerTitleGrants.gameplayRevisionId),
       ));
   };
 
@@ -2847,7 +2845,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!projectableRevisionIds.length) throw new Error("AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE");
       const rows = await db.select({ mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId, titleKey: playerTitleGrants.titleKey, slot: playerTitleGrants.slot, playerId: playerAccounts.playerId, playerName: playerAccounts.playerName })
         .from(playerTitleGrants)
-        .innerJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
         .innerJoin(playerAccounts, eq(playerTitleGrants.playerAccountId, playerAccounts.id))
         .innerJoin(gameplayRevisions, and(eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id), eq(gameplayRevisions.mapId, input.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.availability, "active"), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
@@ -3769,7 +3766,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           ),
         )).orderBy(desc(playerTitleGrants.grantedAt));
       const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, binding.playerAccountId)).get();
-      return { items: rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: Boolean(equipped) })), allTitles: entitlement?.allTitles === 1 };
+      return { items: rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped) })), allTitles: entitlement?.allTitles === 1 };
     },
 
     async replaceCurrentPlayerEquippedTitles(input, idempotencyKey) {
@@ -5422,7 +5419,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
-        titleGrants: titleGrants.map(({ grant, title, mapName, equipped, revisionLifecycle }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: Boolean(equipped), equipable: title.availability === "active" && title.gameVersion !== null && ((title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null) || (title.scope === "map" && ["default", "selectable"].includes(revisionLifecycle ?? ""))) })),
+        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: title.availability === "active" && title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
       };
     },
 
