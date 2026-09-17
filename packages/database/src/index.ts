@@ -358,9 +358,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     && source.gameplayRevisionId === historical.gameplayRevisionId;
   const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
-  const findEquipableGrantIds = async (playerAccountId: string, grantIds?: string[]) => {
-    if (grantIds && !grantIds.length) return [];
-    const conditions = [
+  const findEquipableGrantIds = async (playerAccountId: string, grantIds: string[]) => {
+    if (!grantIds.length) return [];
+    return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
+      .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
+      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
+      .where(and(
+        inArray(playerTitleGrants.id, grantIds),
         eq(playerTitleGrants.playerAccountId, playerAccountId),
         eq(playerTitleGrants.status, "active"),
         eq(titleCatalog.availability, "active"),
@@ -369,12 +373,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           and(eq(titleCatalog.scope, "global"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
           and(eq(titleCatalog.scope, "map"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
         ),
-      ];
-    if (grantIds) conditions.unshift(inArray(playerTitleGrants.id, grantIds));
-    return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
-      .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
-      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
-      .where(and(...conditions));
+      ));
   };
 
   const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
@@ -3803,10 +3802,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const account = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, input.playerAccountId)).get();
       if (!account) throw new Error("PLAYER_NOT_FOUND");
       if (input.grantIds.length > 10 || new Set(input.grantIds).size !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_LIMIT_EXCEEDED");
-      const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, account.id)).get();
-      const eligibleGrantIds = await findEquipableGrantIds(account.id);
-      const equippedCount = await db.select({ count: count() }).from(playerEquippedTitles).where(eq(playerEquippedTitles.playerAccountId, account.id)).get();
-      if (entitlement?.allTitles === 1 || eligibleGrantIds.length <= 10 || Number(equippedCount?.count ?? 0) !== 0) throw new Error("EQUIPPED_TITLE_RECOVERY_NOT_REQUIRED");
       const grants = await findEquipableGrantIds(account.id, input.grantIds);
       if (grants.length !== input.grantIds.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
       const timestamp = now();

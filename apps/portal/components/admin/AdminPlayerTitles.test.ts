@@ -33,6 +33,7 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
+    expect(wrapper.get("[data-testid='open-title-recovery']").text()).toContain("编辑佩戴选择");
     await wrapper.get("[data-testid='open-title-grant']").trigger("click");
     expect(wrapper.text()).not.toContain("（可选）");
     expect(wrapper.text()).toContain("地图称号");

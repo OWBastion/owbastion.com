@@ -183,7 +183,7 @@ onMounted(() => { void loadOptions(); });
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton v-if="recoveryRequired" data-testid="open-title-recovery" label="修复佩戴选择" size="sm" color="warning" @click="openRecovery" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton data-testid="open-title-recovery" label="编辑佩戴选择" size="sm" :color="recoveryRequired ? 'warning' : 'neutral'" @click="openRecovery" /><UButton data-testid="open-title-grant" label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
     <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="该玩家需要选择佩戴称号" description="迁移保留了全部称号，但没有初始化佩戴选择。可在这里选择最多 10 个，不会改变称号授予记录。" />
     <p v-if="errorMessage && !grantOpen && !revokeTarget" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
