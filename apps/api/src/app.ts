@@ -651,6 +651,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
       if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player does not exist");
       if (["EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
+      if (code === "EQUIPPED_TITLE_RECOVERY_NOT_REQUIRED") return errorResponse(c, 422, code, "The player does not have an unrecovered title migration gap");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

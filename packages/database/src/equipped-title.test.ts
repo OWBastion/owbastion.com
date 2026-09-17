@@ -41,10 +41,12 @@ describe("equipped title selection", () => {
     sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.other', 'TITLE_0', NULL, NULL, NULL, 'active', 'manual', 'other', 'admin', ?, NULL, NULL, NULL)").run(otherGrant, now);
     const services = createPlatformServices(database);
     await expect(services.listCurrentPlayerTitles({ sessionToken: "token.player.zero" })).resolves.toEqual({ items: [], allTitles: false });
+    await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.zero", grantIds: [] }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "not-a-gap")).rejects.toThrow("EQUIPPED_TITLE_RECOVERY_NOT_REQUIRED");
     const migratedTitles = await services.listCurrentPlayerTitles({ sessionToken: "token.player.one" });
     expect(migratedTitles?.items).toHaveLength(11);
     expect(migratedTitles?.items.every((title) => !title.equipped)).toBe(true);
     await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.one", grantIds: grantIds.slice(0, 10) }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "recover")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
+    await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.one", grantIds: grantIds.slice(0, 10) }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "already-recovered")).rejects.toThrow("EQUIPPED_TITLE_RECOVERY_NOT_REQUIRED");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id = 'player.one'").get()).toEqual({ count: 10 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.player.title.equipped.replace'").get()).toEqual({ count: 1 });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [grantIds[0]!] }, "one")).resolves.toMatchObject({ grantIds: [grantIds[0]] });
