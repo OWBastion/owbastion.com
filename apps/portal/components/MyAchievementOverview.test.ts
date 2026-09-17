@@ -13,9 +13,9 @@ describe("MyAchievementOverview", () => {
       props: {
         challenges,
         titles: [
-          { grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2 },
+          { grantId: "grant-1", titleKey: "TEST", label: "测试称号", icon: "trophy", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 2, equipped: true },
           { grantId: "grant-2", titleKey: "OLD", label: "历史称号", icon: "scroll", category: "旧记录", condition: "旧条件", scope: "global", grantedAt: 1 },
-          { grantId: "grant-3", titleKey: "HAVANA_CONQUEROR", label: "征服者", icon: "trophy", category: "地图精通", condition: "完成哈瓦那", scope: "map", mapName: "哈瓦那", grantedAt: 4 },
+          { grantId: "grant-3", titleKey: "HAVANA_CONQUEROR", label: "征服者", icon: "trophy", category: "地图精通", condition: "完成哈瓦那", scope: "map", mapName: "哈瓦那", grantedAt: 4, equipped: true },
           { grantId: "grant-4", titleKey: "HAVANA_DOMINATOR", label: "主宰", icon: "crown", category: "地图精通", condition: "精通哈瓦那", scope: "map", mapName: "哈瓦那", grantedAt: 3 },
           { grantId: "grant-5", titleKey: "KINGS_ROW_CONQUEROR", label: "征服者", icon: "trophy", category: "地图精通", condition: "完成国王大道", scope: "map", mapName: "国王大道", grantedAt: 5 },
         ],
@@ -30,6 +30,8 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.text()).toContain("哈瓦那");
     expect(wrapper.text()).toContain("国王大道");
     expect(wrapper.findAll(".map-title-group")).toHaveLength(2);
+    expect(wrapper.find(".map-title-collection").findAll(".equip-action")).toHaveLength(0);
+    expect(wrapper.text()).toContain("已佩戴 1 / 10");
     expect(wrapper.find(".map-title-collection").text()).not.toContain("不再发放");
     expect(wrapper.findAll(".retired-status")).toHaveLength(1);
     expect(wrapper.find(".progress-ring").exists()).toBe(false);

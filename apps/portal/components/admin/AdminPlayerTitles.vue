@@ -67,7 +67,7 @@ const revokeDescription = computed(() => {
   if (!revokeTarget.value) return undefined;
   return `${revokeTarget.value.label}${revokeTarget.value.mapName ? ` · ${revokeTarget.value.mapName}` : ""}`;
 });
-const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.equipable !== false));
+const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.scope === "global" && grant.equipable !== false));
 const recoveryRequired = computed(() => equipableGrants.value.length > 10 && equipableGrants.value.every((grant) => !grant.equipped));
 const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10 ? "最多选择 10 个称号。" : "");
 

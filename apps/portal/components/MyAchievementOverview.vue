@@ -22,9 +22,10 @@ const props = withDefaults(defineProps<{
   allTitles?: boolean;
 }>(), { maps: () => [], mapChallenges: () => [] });
 const emit = defineEmits<{ toggleEquipped: [grantId: string] }>();
-const equippedCount = computed(() => props.titles.filter((title) => title.equipped).length);
-const recoveryRequired = computed(() => !props.allTitles && props.titles.length > 10 && equippedCount.value === 0);
-const canEquip = (title: OwnedTitle) => title.equipped || equippedCount.value < 10;
+const globalTitles = computed(() => props.titles.filter((title) => title.scope === "global"));
+const equippedCount = computed(() => globalTitles.value.filter((title) => title.equipped).length);
+const recoveryRequired = computed(() => !props.allTitles && globalTitles.value.length > 10 && equippedCount.value === 0);
+const canEquip = (title: OwnedTitle) => title.scope === "global" && (title.equipped || equippedCount.value < 10);
 
 const ownedTitleKeys = computed(() => new Set(props.titles.map((title) => title.titleKey)));
 const earnedCatalogCount = computed(() => props.challenges.filter((challenge) => ownedTitleKeys.value.has(challenge.titleKey)).length);
@@ -114,7 +115,6 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
                 <div class="achievement-copy"><div class="achievement-title-row"><strong>{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span>{{ title.condition }}</span></div>
                 <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
-                <UButton class="equip-action" size="xs" :disabled="savingEquip || !canEquip(title)" :aria-label="title.equipped ? `取消佩戴 ${title.label}` : `佩戴 ${title.label}`" @click="emit('toggleEquipped', title.grantId)">{{ title.equipped ? "取消佩戴" : "佩戴" }}</UButton>
               </article>
             </div>
           </section>

@@ -31,3 +31,4 @@
 0077_player_equipped_titles.sql
 0078_allow_future_achievement_metadata.sql
 0079_player_title_entitlements.sql
+0080_scope_equipped_titles_to_global.sql

@@ -67,4 +67,30 @@ describe("equipped title selection", () => {
     const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
     expect(response.items).toEqual([{ playerId: "9999", playerName: "Developer", titleKeys: [], allTitles: true }]);
   });
+
+  it("rejects map grants from equipment while preserving their player projection", async () => {
+    const { sqlite, database } = createD1();
+    const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts VALUES ('player.map', 'map-player', 'Map Player', 'map player', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.map', NULL, 'player.map', 'qq', 'group', 'member.map', 'active', ?)").run(now);
+    sqlite.prepare("INSERT INTO qq_sessions VALUES ('session.map', 'attempt', 'group', 'member.map', 'production', ?, ?, ?)").run(hash("token.map"), now + 60_000, now);
+    sqlite.prepare("INSERT INTO maps VALUES ('map.test', '测试地图')").run();
+    sqlite.prepare("INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'map.test', 'default')").run();
+    sqlite.prepare("INSERT INTO title_catalog VALUES ('GLOBAL_MAP_TEST', '全局测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO title_catalog VALUES ('MAP_TEST', '地图测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'map', 'map_name_suffix', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO player_title_grants VALUES ('global-map-test', 'player.map', 'GLOBAL_MAP_TEST', NULL, NULL, NULL, 'active', 'manual', 'source.global', 'admin', ?, NULL, NULL, NULL)").run(now);
+    sqlite.prepare("INSERT INTO player_title_grants VALUES ('map-test', 'player.map', 'MAP_TEST', 'map.test', 'revision:map.test:default', 'conqueror', 'active', 'manual', 'source.map', 'admin', ?, NULL, NULL, NULL)").run(now);
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('map-test', 'player.map', ?)").run(now);
+    const services = createPlatformServices(database);
+
+    await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.map", grantIds: ["map-test"] }, "map-rejected")).rejects.toThrow("EQUIPPED_TITLE_GRANT_INVALID");
+    await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.map", grantIds: ["map-test"] }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "admin-map-rejected")).rejects.toThrow("EQUIPPED_TITLE_GRANT_INVALID");
+    await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.map", grantIds: ["global-map-test"] }, "global-accepted")).resolves.toMatchObject({ grantIds: ["global-map-test"] });
+    await expect(services.listCurrentPlayerTitles({ sessionToken: "token.map" })).resolves.toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({ grantId: "map-test", scope: "map", equipped: false }),
+        expect.objectContaining({ grantId: "global-map-test", scope: "global", equipped: true }),
+      ]),
+    });
+  });
 });
