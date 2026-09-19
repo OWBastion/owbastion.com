@@ -402,6 +402,20 @@ describe("catalog query budgets", () => {
     expect(largeCount).toBeLessThanOrEqual(smallCount + 2);
   });
 
+  it("keeps every title catalog row and records challenge linkage", async () => {
+    const { services, auth } = runWithSize(2, 2);
+
+    const response = await services.listAdminChallenges({}, auth);
+    const catalog = response.items.filter((item) => item.family === "title_catalog");
+
+    expect(catalog.filter((item) => item.titleKey === "GLOBAL_ONE")).toEqual([
+      expect.objectContaining({ titleKey: "GLOBAL_ONE", hasChallenge: true }),
+    ]);
+    expect(catalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ titleKey: "PIONEER_0", hasChallenge: false }),
+    ]));
+  });
+
   it("keeps map-scoped title list statement count bounded as title count grows", async () => {
     const small = runWithSize(5, 8);
     await small.services.listTitles({ mapId: "map.0" });
@@ -467,7 +481,7 @@ describe("catalog query budgets", () => {
     expect(getCount()).toBeLessThanOrEqual(3);
   });
 
-  it("excludes retired, revoked, and map grants from the equipped global projection", async () => {
+  it("projects equipped retired grants while excluding revoked and map grants", async () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();
     sqlite.prepare("UPDATE title_catalog SET availability = 'retired' WHERE key = 'GLOBAL_ONE'").run();
@@ -475,8 +489,12 @@ describe("catalog query budgets", () => {
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.2', '1002', 'Revoked Holder', 'revoked holder', 0, 'active', ?, ?)").run(timestamp, timestamp);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.retired', 'player.1', 'GLOBAL_RETIRED', NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?), ('grant.revoked', 'player.2', 'GLOBAL_ONE', NULL, NULL, 'revoked', 'historical', 'source.revoked', 'admin', ?), ('grant.map', 'player.1', 'PIONEER_0', 'map.0', 'pioneer', 'active', 'submission', 'source.map', 'admin', ?)").run(timestamp, timestamp, timestamp);
 
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('grant.retired', 'player.1', ?)").run(timestamp);
+
     const response = await services.listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
-    expect(response.items).toEqual([]);
+    expect(response.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ playerId: "1001", titleKeys: ["GLOBAL_RETIRED"] }),
+    ]));
     expect(response.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ playerId: "1002" })]));
   });
 });

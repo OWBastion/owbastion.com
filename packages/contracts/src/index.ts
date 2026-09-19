@@ -597,7 +597,7 @@ const adminCatalogTitleSchema = z.object({
   color: titleColorSchema.nullable().optional(),
   status: z.enum(["active", "retired"]),
   gameVersion: z.string().trim().min(1).max(64).nullable(),
-  hasChallenge: z.literal(false),
+  hasChallenge: z.boolean(),
 });
 export const adminChallengeSchema = z.discriminatedUnion("family", [adminMapChallengeSchema, adminAchievementChallengeSchema, adminCatalogTitleSchema]);
 export const adminChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminChallengeSchema) });

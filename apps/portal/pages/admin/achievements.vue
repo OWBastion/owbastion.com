@@ -507,7 +507,7 @@ onMounted(() => void load());
               <template #scope-cell="{ row }"><span>{{ catalogScopeLabel(row.original.scope) }}</span></template>
               <template #displayKind-cell="{ row }"><span>{{ catalogDisplayKindLabel(row.original.displayKind) }}</span></template>
               <template #color-cell="{ row }"><span>{{ catalogColorLabel(row.original.color) }}</span></template>
-              <template #linkage-cell><span class="table-meta">无关联挑战</span></template>
+              <template #linkage-cell="{ row }"><span class="table-meta">{{ row.original.hasChallenge ? "有关联挑战" : "无关联挑战" }}</span></template>
               <template #status-cell="{ row }">
                 <StatusBadge :class="updatedCatalogIds.has(row.original.challengeId) ? 'row-update-flash' : undefined" :label="achievementStatusText(row.original)" :tone="achievementItemStatusTone(row.original)" />
               </template>

@@ -68,7 +68,7 @@ export type CatalogTitle = {
   color?: { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
   status: AchievementStatus;
   gameVersion: string | null;
-  hasChallenge: false;
+  hasChallenge: boolean;
 };
 
 export type AdminAchievement = TitleAchievement | MapAchievement | CatalogTitle;

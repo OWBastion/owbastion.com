@@ -37,13 +37,19 @@ describe("equipped title selection", () => {
       sqlite.prepare("INSERT INTO title_catalog VALUES (?, ?, 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run(key, key);
       sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.one', ?, NULL, NULL, NULL, 'active', 'manual', ?, 'admin', ?, NULL, NULL, NULL)").run(grantId, key, `source.${index}`, now);
     }
+    const retiredGrantId = "20000000-0000-4000-8000-000000000001";
+    sqlite.prepare("INSERT INTO title_catalog VALUES ('TITLE_RETIRED', '历史称号', 'award', NULL, NULL, '历史', '历史条件', 'retired', 'global', 'fixed', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.one', 'TITLE_RETIRED', NULL, NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?, NULL, NULL, NULL)").run(retiredGrantId, now);
     const otherGrant = "10000000-0000-4000-8000-000000000001";
     sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.other', 'TITLE_0', NULL, NULL, NULL, 'active', 'manual', 'other', 'admin', ?, NULL, NULL, NULL)").run(otherGrant, now);
     const services = createPlatformServices(database);
     await expect(services.listCurrentPlayerTitles({ sessionToken: "token.player.zero" })).resolves.toEqual({ items: [], allTitles: false });
     await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.zero", grantIds: [] }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "admin-empty")).resolves.toMatchObject({ grantIds: [] });
     const migratedTitles = await services.listCurrentPlayerTitles({ sessionToken: "token.player.one" });
-    expect(migratedTitles?.items).toHaveLength(11);
+    expect(migratedTitles?.items).toHaveLength(12);
+    expect(migratedTitles?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ grantId: retiredGrantId, titleKey: "TITLE_RETIRED" }),
+    ]));
     expect(migratedTitles?.items.every((title) => !title.equipped)).toBe(true);
     await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.one", grantIds: grantIds.slice(0, 10) }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "recover")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
     await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.one", grantIds: grantIds.slice(0, 10) }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "already-recovered")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
@@ -54,6 +60,11 @@ describe("equipped title selection", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 4 });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: grantIds.slice(0, 10) }, "ten")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds }, "eleven")).rejects.toThrow("EQUIPPED_TITLE_LIMIT_EXCEEDED");
+    await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [retiredGrantId] }, "retired")).resolves.toMatchObject({ grantIds: [retiredGrantId] });
+    await expect(services.listAgentPlayerTitleGrants({ page: 1, pageSize: 20 })).resolves.toEqual(expect.objectContaining({
+      items: expect.arrayContaining([expect.objectContaining({ playerId: "player.one", titleKeys: ["TITLE_RETIRED"] })]),
+    }));
+    await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: grantIds.slice(0, 10) }, "restore-after-retired")).resolves.toMatchObject({ grantIds: grantIds.slice(0, 10) });
     await expect(services.replaceCurrentPlayerEquippedTitles({ sessionToken: "token.player.one", grantIds: [otherGrant] }, "foreign")).rejects.toThrow("EQUIPPED_TITLE_GRANT_INVALID");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id = 'player.one'").get()).toEqual({ count: 10 });
   });

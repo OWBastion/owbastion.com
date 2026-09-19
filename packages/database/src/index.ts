@@ -366,7 +366,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         inArray(playerTitleGrants.id, grantIds),
         eq(playerTitleGrants.playerAccountId, playerAccountId),
         eq(playerTitleGrants.status, "active"),
-        eq(titleCatalog.availability, "active"),
         isNotNull(titleCatalog.gameVersion),
         eq(titleCatalog.scope, "global"),
         isNull(playerTitleGrants.mapId),
@@ -2827,7 +2826,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .leftJoin(playerTitleEntitlements, eq(playerTitleEntitlements.playerAccountId, playerAccounts.id))
         .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.playerAccountId, playerAccounts.id), eq(playerTitleGrants.status, "active"), isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)))
         .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
-        .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion)))
+        .leftJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)))
         .where(or(eq(playerTitleEntitlements.allTitles, 1), and(isNotNull(playerEquippedTitles.grantId), isNotNull(titleCatalog.key))))
         .orderBy(playerAccounts.playerId, playerTitleGrants.titleKey);
       const grouped = new Map<string, { playerId: string; playerName: string; titleKeys: string[]; allTitles: boolean }>();
@@ -3336,7 +3335,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           .from(titleCatalog)
           .leftJoin(titleChallenges, eq(titleChallenges.titleKey, titleCatalog.key))
           .where(input.status && input.status !== "sunsetting" ? eq(titleCatalog.availability, input.status) : undefined);
-        items.push(...rows.filter(({ challenge }) => !challenge).map(({ title }): AdminChallenge => ({
+        const catalogTitles = new Map<string, { title: typeof titleCatalog.$inferSelect; hasChallenge: boolean }>();
+        for (const { title, challenge } of rows) {
+          const existing = catalogTitles.get(title.key);
+          catalogTitles.set(title.key, { title, hasChallenge: Boolean(existing?.hasChallenge || challenge) });
+        }
+        items.push(...[...catalogTitles.values()].map(({ title, hasChallenge }): AdminChallenge => ({
           challengeId: `title.${title.key}`,
           family: "title_catalog",
           type: "title_catalog",
@@ -3352,7 +3356,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           color: titleColor(title.colorJson),
           status: title.availability as "active" | "retired",
           gameVersion: title.gameVersion,
-          hasChallenge: false,
+          hasChallenge,
         })));
       }
       return { contractVersion: "1" as const, items };
@@ -3761,8 +3765,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           eq(playerTitleGrants.playerAccountId, binding.playerAccountId),
           eq(playerTitleGrants.status, "active"),
           or(
-            and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId), eq(titleCatalog.scope, "global"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion)),
-            and(eq(titleCatalog.scope, "map"), eq(titleCatalog.availability, "active"), isNotNull(titleCatalog.gameVersion), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+            and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)),
+            and(eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
           ),
         )).orderBy(desc(playerTitleGrants.grantedAt));
       const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, binding.playerAccountId)).get();
@@ -5419,7 +5423,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
-        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: title.availability === "active" && title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
+        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
       };
     },
 
