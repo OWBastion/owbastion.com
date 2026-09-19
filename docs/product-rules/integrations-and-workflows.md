@@ -92,6 +92,11 @@ The current API implements versioned v1 QQ flows:
   editor, and the maintainer surface highlights the migration gap while
   allowing authorized global equipped-set management. Both paths replace only
   the equipped selection after the same active-global validation;
+- the current player title read preserves active Grants whose catalog definition
+  is retired, so historical ownership remains visible. Retired definitions stay
+  outside ordinary active acquisition and review issuance; the equipped
+  selection path accepts active global Grants even when their catalog definition
+  is retired.
 - maintainers can update a player's BattleTag display name while keeping the
   numeric player ID stable; the update is idempotent, rejects a normalized-name
   conflict with another account sharing the same numeric ID, and records an

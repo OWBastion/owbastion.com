@@ -32,6 +32,11 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.findAll(".map-title-group")).toHaveLength(2);
     expect(wrapper.find(".map-title-collection").findAll(".equip-action")).toHaveLength(0);
     expect(wrapper.text()).toContain("已佩戴 1 / 10");
+    const retiredCard = wrapper.findAll(".achievement-card").find((card) => card.text().includes("历史称号"));
+    expect(retiredCard?.find(".equip-action").exists()).toBe(true);
+    expect(retiredCard?.find(".equip-action").attributes("disabled")).toBeUndefined();
+    await retiredCard?.find(".equip-action").trigger("click");
+    expect(wrapper.emitted("toggleEquipped")).toEqual([["grant-2"]]);
     expect(wrapper.find(".map-title-collection").text()).not.toContain("不再发放");
     expect(wrapper.findAll(".retired-status")).toHaveLength(1);
     expect(wrapper.find(".progress-ring").exists()).toBe(false);

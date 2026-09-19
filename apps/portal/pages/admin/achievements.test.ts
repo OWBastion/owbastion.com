@@ -7,13 +7,14 @@ import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue"
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
 const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", status: "scheduled" };
 const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
+const linkedCatalogTitle = { ...catalogTitle, challengeId: "title.FLAWLESS", titleKey: "FLAWLESS", titleName: "守望先锋", category: "战绩", condition: "完成挑战", hasChallenge: true };
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
 const duplicateMap = { ...map, mapId: "map.route-66", mapName: "66号公路", name: "66号公路挑战" };
 const mapRule = { ruleId: "rule.conqueror", titleKey: "CONQUEROR", titleName: "征服者", kind: "conqueror", condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", displayKind: "map_name_suffix", slot: "conqueror", defaultScope: "all_active", status: "active", introducedVersion: "3.1.0", retiredVersion: null };
 const mapInheritance = { mapId: "map.kings-row", rule: mapRule, projected: true, source: "map_title_rule", effective: { condition: "完成地图", evidenceRule: "完整截图", submissionMode: "manual", slot: "conqueror" }, exception: null };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record<string, unknown> }) => {
-  if (path === "/v1/achievements") return Promise.resolve({ items: [{ ...title }, { ...secondTitle }, { ...catalogTitle }, { ...map }, { ...secondMap }, { ...duplicateMap }] });
+  if (path === "/v1/achievements") return Promise.resolve({ items: [{ ...title }, { ...secondTitle }, { ...catalogTitle }, { ...linkedCatalogTitle }, { ...map }, { ...secondMap }, { ...duplicateMap }] });
   if (path === "/v1/maps") return Promise.resolve({ items: [{ mapId: "map.kings-row", mapName: "国王大道" }, { mapId: "map.route-66", mapName: "66号公路" }] });
   if (path === "/v1/map-title-rules") return Promise.resolve({ items: [mapRule] });
   if (path === "/v1/map-title-rules/rule.conqueror" && options?.method === "PUT") return Promise.resolve({ ...mapRule, ...options.body });
@@ -113,6 +114,7 @@ describe("achievement admin page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("内部称号");
     expect(wrapper.text()).toContain("开发保留");
+    expect(wrapper.text()).toContain("有关联挑战");
   });
 
   it("applies the status filter to the mobile record list", async () => {
