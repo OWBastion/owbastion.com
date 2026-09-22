@@ -1,6 +1,6 @@
 # OWBastion Web Platform: Agent Work Entry
 
-This is the repository-specific agent entrypoint shared by coding agents. Workspace guidance owns shared engineering policy; this file specializes platform ownership, risk routing, authorization, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
+This is the repository-specific agent entrypoint shared by coding agents. Workspace guidance owns shared engineering policy; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
 
 ## Repository role
 
@@ -27,15 +27,9 @@ For substantive work:
 
 For issue work, verify the actual repository remote before repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
 
-## Authorization and delivery
+## Repository delivery constraints
 
-- For answer, diagnosis, planning, or review requests, inspect the necessary material and report or record the result; do not implement unrelated changes.
-- For implementation/fix requests, make in-scope local changes and run relevant non-destructive validation without asking again.
-- Unless local-only work was requested, implementation is not delivered until the task branch is pushed and the PR is opened or updated.
-- A PR review request authorizes posting the review result on the PR. Review the complete relevant diff in one pass where practical; leave actionable findings directly rather than telling the user to post them. Approve/LGTM when no blocking findings remain.
-- Review-fix work is complete only after verified corrections are pushed, affected threads are handled, and the PR is handed back for review.
-- Never push implementation commits directly to the default branch unless explicitly authorized.
-- Merge, deployment, production data mutation, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Never push implementation commits directly to the default branch. Merge, deployment, production data mutation, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
