@@ -29,7 +29,7 @@ For issue work, verify the actual repository remote before repository-scoped Git
 
 ## Repository delivery constraints
 
-Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Never push implementation commits directly to the default branch. Merge, deployment, production data mutation, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Review comments should contain only actionable findings; if none remain, approve with no body or a minimal `LGTM`. Do not add a PR summary or generic praise unless specifically useful. Never push implementation commits directly to the default branch. Merge, deployment, production data mutation, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
