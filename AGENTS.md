@@ -8,7 +8,7 @@ The repository is `OWBastion/owbastion.com`. The local directory may remain `owb
 
 This repository owns platform business metadata and state, player identities, submissions/private evidence, review/grant orchestration, public/platform APIs, Portal/admin behavior, Git-backed editorial content, and platform persistence.
 
-`OWBastion/Bastion` owns gameplay implementation and game builds/releases. `OWBastion/qqbot` owns QQ channel ingress/replies. `OWBastion/ocrkit` owns screenshot-recognition evidence and OCR model lifecycle. Do not move another repository's authoritative responsibility into the platform for implementation convenience.
+`OWBastion/Bastion` owns gameplay, Workshop/OverPy source, game builds/releases, and game-side behavior and UI. `OWBastion/qqbot` owns QQ channel ingress/replies. `OWBastion/ocrkit` owns screenshot-recognition evidence and OCR model lifecycle. Do not move another repository's authoritative responsibility into the platform for implementation convenience.
 
 For cross-repository work, change the authoritative contract at its owner and integrate this repository separately as a consumer or producer.
 
@@ -29,7 +29,7 @@ For issue work, verify the actual repository remote before repository-scoped Git
 
 ## Repository delivery constraints
 
-Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Review comments should contain only actionable findings; if none remain, approve with no body or a minimal `LGTM`. Do not add a PR summary or generic praise unless specifically useful. Never push implementation commits directly to the default branch. Merge, deployment, production data mutation, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Review comments should contain only actionable findings; if none remain, approve with no body or a minimal `LGTM`. Do not add a PR summary or generic praise unless specifically useful. Never push implementation commits directly to the default branch. Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
