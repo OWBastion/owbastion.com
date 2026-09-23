@@ -147,6 +147,7 @@ describe("admin bindings page", () => {
     // not re-fetched, so the page does not flash through a full reload.
     expect(wrapper.text()).toContain("已批准");
     expect(adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length).toBe(listCallsBefore);
+    wrapper.unmount();
   });
 
   it("can reveal routine binding claims from the secondary all-claims filter", async () => {
@@ -165,6 +166,7 @@ describe("admin bindings page", () => {
     await wrapper.get('select[aria-label="筛选申请状态"]').setValue("all");
     await flushPromises();
     expect(wrapper.text()).toContain("等待玩家");
+    wrapper.unmount();
   });
 
   it("opens invitation and migration work from its tab deep link", async () => {
