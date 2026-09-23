@@ -228,7 +228,6 @@ export type PlatformServices = {
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; spotCheck?: "pending" | "confirmed" | "revoked"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   listAdminSubmissionChallenges(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmissionChallengeListResponse>;
-  getAdminEvidence(input: { submissionId: string }, auth: AuthContext): Promise<{ body: ArrayBuffer; contentType: string }>;
   selectAdminSubmissionChallenge(input: AdminSubmissionChallengeRequest & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionChallengeResponse>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
@@ -252,7 +251,6 @@ export type PlatformServices = {
   createSubmission(input: SubmissionRequest, auth: AuthContext, idempotencyKey: string): Promise<SubmissionResponse>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
-  getPlayerEvidence(input: { submissionId: string }, sessionToken: string): Promise<{ body: ArrayBuffer; contentType: string }>;
   submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   listAdminAnnotationProposals(input: { page: number; pageSize: number; state?: "pending" | "accepted" | "rejected"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string; kind?: "correction" | "confirmation" }, auth: AuthContext): Promise<AdminAnnotationProposalListResponse>;

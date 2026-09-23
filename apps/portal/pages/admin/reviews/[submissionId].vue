@@ -19,7 +19,6 @@ const challengeSelectionError = ref("");
 const ocrRetryError = ref("");
 const spotCheckError = ref("");
 const annotationOpen = shallowRef(false);
-const evidenceImageUrl = ref<string | null>(null);
 const evidenceError = ref(false);
 const submissionId = computed(() => String(route.params.submissionId));
 /** Single page title: challenge target only (detail body no longer repeats an h2). */
@@ -29,14 +28,12 @@ const pageTitle = computed(() => {
   if (detail.challenge?.family === "achievement") return detail.challenge.titleName;
   return detail.difficulty ? `${detail.mapName} · ${detail.difficulty}` : detail.mapName;
 });
-const evidenceSrc = computed(() => evidenceImageUrl.value ?? `/api/admin/evidence/${encodeURIComponent(submissionId.value)}`);
-const evidenceCdnHeader = { "x-owbastion-review": "portal-admin" };
+const evidenceSrc = computed(() => submission.value?.evidenceUrl ?? null);
 
 async function load() {
   loading.value = true;
   errorMessage.value = "";
   evidenceError.value = false;
-  clearEvidenceImage();
   try {
     const [detail, options] = await Promise.all([
       api<AdminSubmission>(`/v1/submissions/${encodeURIComponent(submissionId.value)}`),
@@ -44,11 +41,6 @@ async function load() {
     ]);
     submission.value = detail;
     challengeOptions.value = options.items;
-    const source = detail.evidenceUrl;
-    if (!source || !source.startsWith("https://evidence.owbastion.codes/")) return;
-    const response = await fetch(source, { headers: evidenceCdnHeader, credentials: "omit" });
-    if (!response.ok) throw new Error(`EVIDENCE_CDN_${response.status}`);
-    evidenceImageUrl.value = URL.createObjectURL(await response.blob());
   } catch (error) {
     if (submission.value) evidenceError.value = true;
     else errorMessage.value = portalErrorDetails(error, "无法读取审核详情，请稍后重试。").description;
@@ -112,13 +104,7 @@ async function retryOcr() {
   } finally { ocrRetryLoading.value = false; }
 }
 
-function clearEvidenceImage() {
-  if (evidenceImageUrl.value?.startsWith("blob:")) URL.revokeObjectURL(evidenceImageUrl.value);
-  evidenceImageUrl.value = null;
-}
-
 onMounted(() => { void load(); });
-onBeforeUnmount(clearEvidenceImage);
 useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 </script>
 

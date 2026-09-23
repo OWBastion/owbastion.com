@@ -63,7 +63,7 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("重新提交建议");
     expect(wrapper.text()).toContain("处理未通过");
     expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
-    expect(wrapper.get('img[alt="帕拉伊苏的提交截图"]').attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
+    expect(wrapper.get('img[alt="帕拉伊苏的提交截图"]').attributes("src")).toBe("https://example.test/evidence.png");
 
     await wrapper.get('img[alt="帕拉伊苏的提交截图"]').trigger("error");
     expect(wrapper.text()).toContain("无法读取截图");

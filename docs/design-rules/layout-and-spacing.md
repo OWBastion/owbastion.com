@@ -80,7 +80,7 @@ Rules:
   both remain operable; otherwise stack or open detail in
   `AdminResponsiveDialog`.
 - Evidence / media: natural aspect ratio (`width: 100%; height: auto`). Do not
-  crop private evidence into a fixed-height frame unless the product rule
+  crop submission screenshots into a fixed-height frame unless the product rule
   explicitly requires a crop.
 
 ## Positioning: sticky vs fixed

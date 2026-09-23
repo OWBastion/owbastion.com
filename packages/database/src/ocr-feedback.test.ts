@@ -120,7 +120,7 @@ const uncertainDifficultyOcr = {
 const setup = async (options: { response?: unknown; playerStatus?: string; submissionStatus?: string; calibrationRate?: number } = {}) => {
   const { database, sqlite } = createD1();
   installSchema(sqlite);
-  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, options.calibrationRate ?? 0);
+  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, options.calibrationRate ?? 0, "https://evidence.owbastion.codes");
   const now = Date.now();
   const tokenHash = await sha256Hex("session-token");
   const otherTokenHash = await sha256Hex("other-session-token");
@@ -148,6 +148,15 @@ const countProposals = (sqlite: DatabaseSync, submissionId = "submission-1") =>
   (sqlite.prepare("SELECT COUNT(*) AS count FROM ocr_feedback_proposals WHERE submission_id = ?").get(submissionId) as { count: number }).count;
 
 describe("player OCR feedback", () => {
+  it("returns the unlisted CDN evidence URL in player detail", async () => {
+    const { services, sqlite } = await setup();
+    sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, object_key, upload_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("attachment-evidence", "submission-1", "portal", "upload-1", "image/png", "uploads/submissions/submission-1/evidence.png", "stored", 1);
+
+    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
+    expect(detail.evidenceUrl).toBe("https://evidence.owbastion.codes/uploads/submissions/submission-1/evidence.png");
+  });
+
   it("records a confirmed prompt response with immutable recognition context", async () => {
     const { sqlite, services } = await setup({ response: uncertainDifficultyOcr });
     const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-1");
