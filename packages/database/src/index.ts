@@ -1165,10 +1165,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const revisionLifecycles = new Set(["preparing", "default", "selectable", "historical"]);
   const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
   const nullableEditorText = (value: string | null) => value?.trim() || null;
-  const normalizeSpatialConfig = (config: AgentSpatialConfig): AgentSpatialConfig => ({
-    ...config,
-    alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)),
-  });
+  const normalizeSpatialConfig = (config: AgentSpatialConfig): AgentSpatialConfig => "stages" in config
+    ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) }
+    : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) };
   const parseSpatialConfig = (value: unknown): AgentSpatialConfig => {
     const parsed = agentSpatialConfigSchema.safeParse(value);
     if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");

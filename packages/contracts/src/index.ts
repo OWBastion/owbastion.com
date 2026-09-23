@@ -282,7 +282,7 @@ const alternateSpatialStageSchema = z.object({
   ...spatialConfigFields,
 }).strict();
 
-export const agentSpatialConfigSchema = z.object({
+const legacyAgentSpatialConfigSchema = z.object({
   ...spatialConfigFields,
   alternateStages: z.array(alternateSpatialStageSchema).max(15).default([]),
 }).strict().superRefine((value, context) => {
@@ -294,6 +294,57 @@ export const agentSpatialConfigSchema = z.object({
     seen.add(stage.stageId);
   }
 });
+
+const compositeStageSchema = z.object({
+  stageId: spatialStageId,
+  setupDetection: alternateStageSetupDetectionSchema.optional(),
+  ...spatialConfigFields,
+}).strict();
+
+const compositeSpatialConfigSchema = z.object({
+  composition: z.object({
+    selectionCount: z.number().int().min(2).max(16),
+    firstStageSelection: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
+      z.object({ mode: z.literal("random") }).strict(),
+    ]),
+    remainingStageSelection: z.literal("random_unique"),
+  }).strict(),
+  stages: z.array(compositeStageSchema).min(2).max(16),
+}).strict().superRefine((value, context) => {
+  const stagesById = new Map<string, (typeof value.stages)[number]>();
+  for (const [index, stage] of value.stages.entries()) {
+    if (stagesById.has(stage.stageId)) {
+      context.addIssue({ code: "custom", path: ["stages", index, "stageId"], message: "Duplicate composite spatial stage" });
+    }
+    stagesById.set(stage.stageId, stage);
+  }
+  if (value.composition.selectionCount > value.stages.length) {
+    context.addIssue({ code: "custom", path: ["composition", "selectionCount"], message: "Selection count exceeds the number of available stages" });
+  }
+  const firstStageSelection = value.composition.firstStageSelection;
+  if (firstStageSelection.mode === "setup_detection") {
+    const fallback = stagesById.get(firstStageSelection.fallbackStageId);
+    if (!fallback) {
+      context.addIssue({ code: "custom", path: ["composition", "firstStageSelection", "fallbackStageId"], message: "Fallback stage does not exist" });
+    } else if (fallback.setupDetection) {
+      context.addIssue({ code: "custom", path: ["stages", value.stages.indexOf(fallback), "setupDetection"], message: "Fallback stage cannot also be setup-detected" });
+    }
+    for (const [index, stage] of value.stages.entries()) {
+      if (stage.stageId !== firstStageSelection.fallbackStageId && !stage.setupDetection) {
+        context.addIssue({ code: "custom", path: ["stages", index, "setupDetection"], message: "Every non-fallback stage requires setup detection" });
+      }
+    }
+  } else {
+    for (const [index, stage] of value.stages.entries()) {
+      if (stage.setupDetection) {
+        context.addIssue({ code: "custom", path: ["stages", index, "setupDetection"], message: "Random first-stage selection cannot use setup detection" });
+      }
+    }
+  }
+});
+
+export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, compositeSpatialConfigSchema]);
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({

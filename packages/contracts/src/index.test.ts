@@ -175,7 +175,7 @@ describe("v1 platform contracts", () => {
       challengeRefs: [{ family: "map", challengeId: "map.samoa.hell" }],
     } as const;
     expect(agentSpatialConfigSchema.safeParse(spatialConfig).success).toBe(true);
-    expect(agentSpatialConfigSchema.parse(spatialConfig).alternateStages).toEqual([]);
+    expect(agentSpatialConfigSchema.parse(spatialConfig)).toMatchObject({ alternateStages: [] });
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [revision] }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, endPosition: [Number.POSITIVE_INFINITY, 0, 0] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, control: { centerPositions: [], jumpPositions: [[0, 0, 0]], respawnPositions: [[0, 0, 0], [1, 1, 1]], respawnAxis: "x", respawnAxisThreshold: 1 } }).success).toBe(true);
@@ -185,6 +185,32 @@ describe("v1 platform contracts", () => {
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage] }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [{ ...alternateStage, setupDetection: { position: [16, 17, 18], radius: 0 } }] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...spatialConfig, alternateStages: [alternateStage, alternateStage] }).success).toBe(false);
+    const compositeStage = (stageId: string, offset: number, setupDetection?: { position: [number, number, number]; radius: number }) => ({
+      stageId,
+      ...(setupDetection ? { setupDetection } : {}),
+      ...spatialConfig,
+      bastionPositions: [[offset, offset + 1, offset + 2]],
+    });
+    const composite = {
+      composition: {
+        selectionCount: 2,
+        firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+        remainingStageSelection: "random_unique",
+      },
+      stages: [
+        compositeStage("base", 1),
+        compositeStage("icebreaker", 10, { position: [20, 21, 22], radius: 30 }),
+        compositeStage("laboratory", 30, { position: [40, 41, 42], radius: 30 }),
+      ],
+    } as const;
+    expect(agentSpatialConfigSchema.safeParse(composite).success).toBe(true);
+    expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, spatialConfig: composite }] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, selectionCount: 4 } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, firstStageSelection: { mode: "setup_detection", fallbackStageId: "missing" } } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], composite.stages[1], { ...composite.stages[2], stageId: "icebreaker" }] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: undefined }, composite.stages[2]] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [{ ...composite.stages[0], setupDetection: { position: [2, 3, 4], radius: 30 } }, composite.stages[1], composite.stages[2]] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: { position: [20, 21, 22], radius: 0 } }, composite.stages[2]] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 

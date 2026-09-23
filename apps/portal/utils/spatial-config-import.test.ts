@@ -108,4 +108,39 @@ describe("spatial-config-import", () => {
     expect(result).toContain("Global.bastionPosition[0] = Vector(1, 2, 3);");
     expect(result).toContain("Global.heroRingPosition = Vector(10, 11, 12);");
   });
+
+  it("preserves composed stage JSON and summarizes every atomic stage", () => {
+    const config = {
+      composition: {
+        selectionCount: 2,
+        firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+        remainingStageSelection: "random_unique",
+      },
+      stages: [
+        { stageId: "base", bastionPositions: [[1, 2, 3]], resetPosition: [4, 5, 6] },
+        { stageId: "icebreaker", setupDetection: { position: [7, 8, 9], radius: 30 }, bastionPositions: [[10, 11, 12]] },
+        { stageId: "laboratory", setupDetection: { position: [13, 14, 15], radius: 30 }, bastionPositions: [[16, 17, 18]] },
+      ],
+    };
+    const result = parseSpatialConfigSource(JSON.stringify(config));
+
+    expect(result).toMatchObject({ ok: true, config, summary: { totalPositions: 6 } });
+    expect(formatWorkshopSpatialConfig(config)).toBe(JSON.stringify(config, null, 2));
+  });
+
+  it("does not flatten a composed route when Raw Workshop code is pasted", () => {
+    const composite = {
+      composition: {
+        selectionCount: 2,
+        firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+        remainingStageSelection: "random_unique",
+      },
+      stages: [{ stageId: "base" }],
+    };
+
+    expect(parseSpatialConfigSource(source, composite)).toEqual({
+      ok: false,
+      error: "组合路线请使用平台空间 JSON 编辑原子阶段与选择约束。",
+    });
+  });
 });

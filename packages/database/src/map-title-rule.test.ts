@@ -1,5 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
+import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createMasteryEvidenceCompatibilityV1, legacyGameplayRevisionId } from "@owbastion/domain";
 import { assessMasteryOcrEvidence, createPlatformServices } from "./index";
 
@@ -728,6 +729,58 @@ describe("Agents map gameplay projection", () => {
 });
 
 describe("Agents map projection readiness", () => {
+  it("projects atomic composite stages in stable ID order without changing the legacy revision shape", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.composite");
+    seedAgentSpatialConfig(sqlite, "revision:map.composite:initial");
+    const composite = compositeSpatialConfig();
+    sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(composite), "revision:map.composite:initial");
+    const services = createPlatformServices(database);
+
+    const map = (await services.getAgentMap({ mapId: "map.composite" }))!;
+    expect(map.gameplayRevisions[0]?.spatialConfig).toEqual({
+      ...composite,
+      stages: [...composite.stages].sort((left, right) => left.stageId.localeCompare(right.stageId)),
+    });
+    expect(map.gameplayRevisions[0]?.spatialConfig).toMatchObject({
+      composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" }, remainingStageSelection: "random_unique" },
+      stages: [
+        { stageId: "base", bastionPositions: [[1, 2, 3]] },
+        { stageId: "icebreaker", bastionPositions: [[10, 11, 12]], setupDetection: { position: [20, 21, 22], radius: 30 } },
+        { stageId: "laboratory", bastionPositions: [[30, 31, 32]], setupDetection: { position: [40, 41, 42], radius: 30 } },
+      ],
+    });
+    expect(map.gameplayRevisions[0]?.spatialConfig).not.toHaveProperty("alternateStages");
+  });
+
+  it("keeps preparing composite revisions out of the Agents projection", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.preparing-composite");
+    seedAgentSpatialConfig(sqlite, "revision:map.preparing-composite:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    const revision = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.preparing-composite",
+      sourceRevisionId: "revision:map.preparing-composite:initial",
+      gameVersion: "2026.09.23",
+      mapVariant: null,
+      copyConfiguration: false,
+      spatialConfig: compositeSpatialConfig(),
+      challengeAssignments: [],
+    }, auth, "prepare-composite-route");
+    expect(revision.lifecycle).toBe("preparing");
+    expect(revision.spatialConfig && "stages" in revision.spatialConfig ? revision.spatialConfig.stages.map((stage) => stage.stageId) : []).toEqual(["base", "icebreaker", "laboratory"]);
+
+    const projected = (await services.getAgentMap({ mapId: "map.preparing-composite" }))!;
+    expect(projected.gameplayRevisions).toHaveLength(1);
+    expect(projected.gameplayRevisions[0]?.gameplayRevisionId).toBe("revision:map.preparing-composite:initial");
+    expect(projected.gameplayRevisions[0]?.spatialConfig).not.toHaveProperty("composition");
+  });
+
   it("fails the whole map closed for an incomplete enabled revision and never projects historical or preparing rows", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -944,6 +997,11 @@ describe("Admin map revision editor", () => {
     await expect(services.updateAdminMapRevision({
       contractVersion: "1", mapId: "map.editor.invalid", revisionId: revision.revisionId, lifecycle: "selectable", gameVersion: revision.gameVersion, mapVariant: null, spatialConfig: null, challengeAssignments: [],
     }, auth, "invalid-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    const impossibleComposition = compositeSpatialConfig();
+    await expect(services.createAdminMapRevision({
+      contractVersion: "1", mapId: "map.editor.invalid", mapVariant: null, copyConfiguration: false,
+      spatialConfig: { ...impossibleComposition, composition: { ...impossibleComposition.composition, selectionCount: 4 } } as never,
+    }, auth, "invalid-composite-selection")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
     await expect(services.createAdminMapRevision({
       contractVersion: "1", mapId: "map.editor.invalid", resetReason: "invalid assignment", mapVariant: null, copyConfiguration: false,
       challengeAssignments: [{ challengeFamily: "map_challenge", challengeId: "missing.challenge", enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null }],
@@ -1033,6 +1091,33 @@ const seedAgentSpatialConfig = (sqlite: DatabaseSync, gameplayRevisionId: string
     ...overrides,
   };
   sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(spatialConfig), gameplayRevisionId);
+};
+
+const compositeSpatialConfig = (): AgentSpatialConfig => {
+  const stage = (stageId: string, offset: number, setupDetection?: { position: [number, number, number]; radius: number }) => ({
+    stageId,
+    ...(setupDetection ? { setupDetection } : {}),
+    bastionPositions: [[offset, offset + 1, offset + 2]],
+    resetPosition: [offset + 3, offset + 4, offset + 5],
+    endPosition: [offset + 6, offset + 7, offset + 8],
+    thirdPersonPosition: [offset + 9, offset + 10, offset + 11],
+    creditsPosition: [offset + 12, offset + 13, offset + 14],
+    control: null,
+    portalPositions: [],
+    springboardPositions: [],
+  });
+  return {
+    composition: {
+      selectionCount: 2,
+      firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+      remainingStageSelection: "random_unique",
+    },
+    stages: [
+      stage("laboratory", 30, { position: [40, 41, 42], radius: 30 }),
+      stage("base", 1),
+      stage("icebreaker", 10, { position: [20, 21, 22], radius: 30 }),
+    ],
+  } as AgentSpatialConfig;
 };
 
 const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
