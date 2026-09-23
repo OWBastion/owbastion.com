@@ -27,6 +27,32 @@ export type AdminPlayerDetail = AdminPlayer & {
 };
 
 export type AdminGroup = { groupOpenId: string; displayName: string; environment: "production" | "test"; status: "pending" | "active" | "legacy" | "disconnected"; bindEnabled: boolean; verifyEnabled: boolean; updatedAt: number };
+export type AdminBindingClaim = {
+  claimId: string;
+  playerName: string;
+  playerId: string;
+  status: "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired";
+  createdAt: number;
+  invitedBy: string;
+  affectedPlayerAccountId?: string;
+  memberOpenId?: string;
+  groupOpenId?: string;
+  targetAccountBinding?: { bindingId: string; memberOpenId: string; groupOpenId?: string };
+  qqBoundAccounts?: Array<{ playerAccountId: string; playerName: string; playerId: string }>;
+  revokingBindingCount?: number;
+  invalidatingSessionCount?: number;
+  operationType?: "initial_binding" | "rebind_account" | "qq_transfer" | "conflict";
+};
+export type AdminBindingInvitation = {
+  inviteId: string;
+  playerName: string;
+  playerId: string;
+  status: "active" | "redeemed" | "expired" | "revoked";
+  codeAvailable: boolean;
+  createdAt: number;
+  expiresAt: number;
+  historicalMigration: { status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled"; requestedCount: number; completedCount: number; conflictCount: number; retryCount: number };
+};
 export type AdminSubmissionChallengeOption = { challengeId: string; mapId?: string; gameplayRevisionId?: string; challenge: NonNullable<AdminSubmission["challenge"]> };
 export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; challengeSelections?: Array<{ challengeId: string; mapId?: string; gameplayRevisionId?: string; challenge: AdminSubmission["challenge"] }>; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; masteryOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; masteryRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"run_code" | "map" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
 export type AdminMasteryDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";

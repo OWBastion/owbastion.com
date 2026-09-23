@@ -41,13 +41,15 @@ describe("AppHeader", () => {
     route.fullPath = "/admin";
     const wrapper = await mountHeader();
 
-    expect(wrapper.get('nav[aria-label="管理导航"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain("概览");
+    expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
+    expect(wrapper.text()).toContain("待处理");
     expect(wrapper.text()).toContain("内容编辑");
     expect(wrapper.text()).toContain("玩家");
-    expect(wrapper.text()).toContain("绑定");
-    expect(wrapper.text()).toContain("核对");
-    expect(wrapper.text()).toContain("称号");
+    expect(wrapper.text()).toContain("游戏数据");
+    expect(wrapper.text()).toContain("OCR 数据质量");
+    expect(wrapper.text()).toContain("设置");
+    expect(wrapper.text()).toContain("维护工具");
+    expect(wrapper.text()).not.toContain("核对");
     expect(wrapper.text()).not.toContain("地图称号规则");
     expect(wrapper.text()).not.toContain("天梯排名");
 
@@ -167,26 +169,26 @@ describe("AppHeader", () => {
     await flushPromises();
 
     const nav = wrapper.get("#mobile-nav");
-    const reviewTrigger = nav.findAll("button").find((button) => button.text().includes("核对"));
-    const titleTrigger = nav.findAll("button").find((button) => button.text().includes("称号"));
-    expect(reviewTrigger).toBeTruthy();
-    expect(titleTrigger).toBeTruthy();
+    const playerTrigger = nav.findAll("button").find((button) => button.text().includes("玩家"));
+    const maintenanceTrigger = nav.findAll("button").find((button) => button.text().includes("维护工具"));
+    expect(playerTrigger).toBeTruthy();
+    expect(maintenanceTrigger).toBeTruthy();
 
-    await reviewTrigger!.trigger("click");
+    await playerTrigger!.trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-    expect(nav.text()).toContain("审核");
+    expect(nav.text()).toContain("玩家列表");
+    expect(nav.text()).toContain("绑定例外与邀请");
+    expect(nav.find("a[href=\"/admin/bindings\"]").exists()).toBe(true);
+
+    await maintenanceTrigger!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
     expect(nav.text()).toContain("通关记录");
-    expect(nav.find("a[href=\"/admin/reviews\"]").exists()).toBe(true);
+    expect(nav.text()).toContain("批量发放称号");
+    expect(nav.find("a[href=\"/admin/mastery-runs\"]").exists()).toBe(true);
 
-    await titleTrigger!.trigger("click");
-    await flushPromises();
-    expect(wrapper.find("#mobile-nav").exists()).toBe(true);
-    expect(nav.text()).toContain("成就与称号");
-    expect(nav.text()).toContain("批量发放");
-    expect(nav.find("a[href=\"/admin/achievements\"]").exists()).toBe(true);
-
-    await nav.get("a[href=\"/admin/reviews\"]").trigger("click");
+    await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(false);
     focusSpy.mockRestore();

@@ -190,10 +190,10 @@ export const mapTitleRules = sqliteTable("map_title_rules", {
   titleKeyIdx: uniqueIndex("map_title_rules_title_key_idx").on(table.titleKey),
 }));
 
-// Optional per-(ruleId, mapId) overrides.
-// enabled=0: disabled exception — removes the projection for this map.
-// enabled=1: active exception — override fields win over rule defaults.
-// title_key and display_kind cannot be overridden by an exception.
+// Optional per-(ruleId, mapId) overrides and the bounded Pioneer submission window.
+// Applicability is controlled by gameplay_revision_challenge_assignments.
+// enabled controls these overrides and, for Pioneer, its submission window.
+// title_key and display_kind remain rule-level fields.
 export const mapTitleRuleExceptions = sqliteTable("map_title_rule_exceptions", {
   id: text("id").primaryKey(),
   ruleId: text("rule_id").notNull().references(() => mapTitleRules.id),

@@ -14,13 +14,15 @@ type MasteryRunActionResponse = { contractVersion: "1"; run: AdminMasteryRun; pr
 
 const api = useAdminApi();
 const toast = useToast();
+const route = useRoute();
 const runs = shallowRef<AdminMasteryRun[]>([]);
 const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
 const runCode = ref("");
-const playerAccountId = ref("");
+const playerAccountId = ref(typeof route.query.playerAccountId === "string" ? route.query.playerAccountId : "");
+const unresolvedConflictsOnly = ref(route.query.unresolvedConflictsOnly === "true");
 const mapId = ref("");
 const difficulty = ref<"all" | AdminMasteryRun["difficulty"]>("all");
 const runStatus = ref<"all" | AdminMasteryRun["status"]>("all");
@@ -77,6 +79,7 @@ const query = computed(() => {
   const params = new URLSearchParams({ page: String(page.value), pageSize: "20" });
   if (runCode.value.trim()) params.set("runCode", runCode.value.trim());
   if (playerAccountId.value.trim()) params.set("playerAccountId", playerAccountId.value.trim());
+  if (unresolvedConflictsOnly.value) params.set("unresolvedConflictsOnly", "true");
   if (mapId.value.trim()) params.set("mapId", mapId.value.trim());
   if (difficulty.value !== "all") params.set("difficulty", difficulty.value);
   if (runStatus.value !== "all") params.set("status", runStatus.value);
@@ -169,7 +172,7 @@ async function saveAction() {
   }
 }
 
-watch([runCode, playerAccountId, mapId, difficulty, runStatus, acceptanceSource, fromDate, toDate], () => {
+watch([runCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, runStatus, acceptanceSource, fromDate, toDate], () => {
   page.value = 1;
   void load();
 });
@@ -188,6 +191,7 @@ onMounted(() => { void load(); });
           <div class="mastery-run-filters">
             <UInput v-model="runCode" aria-label="按通关码筛选" placeholder="通关码" />
             <UInput v-model="playerAccountId" aria-label="按玩家账号筛选" placeholder="玩家账号 ID" />
+            <USelect v-model="unresolvedConflictsOnly" aria-label="筛选冲突状态" :items="[{ label: '全部通关记录', value: false }, { label: '待处理冲突', value: true }]" />
             <UInput v-model="mapId" aria-label="按地图筛选" placeholder="地图 ID" />
             <USelect v-model="difficulty" aria-label="筛选难度" :items="[{ label: '全部难度', value: 'all' }, ...difficulties.map((value) => ({ label: value, value }))]" />
             <USelect v-model="runStatus" aria-label="筛选记录状态" :items="[{ label: '全部记录状态', value: 'all' }, { label: '有效', value: 'active' }, { label: '已作废', value: 'invalidated' }]" />
@@ -200,6 +204,7 @@ onMounted(() => { void load(); });
         <template #mobile-secondary>
           <div class="mastery-run-filters">
             <UInput v-model="playerAccountId" aria-label="按玩家账号筛选" placeholder="玩家账号 ID" />
+            <USelect v-model="unresolvedConflictsOnly" aria-label="筛选冲突状态" :items="[{ label: '全部通关记录', value: false }, { label: '待处理冲突', value: true }]" />
             <UInput v-model="mapId" aria-label="按地图筛选" placeholder="地图 ID" />
             <USelect v-model="difficulty" aria-label="筛选难度" :items="[{ label: '全部难度', value: 'all' }, ...difficulties.map((value) => ({ label: value, value }))]" />
             <USelect v-model="runStatus" aria-label="筛选记录状态" :items="[{ label: '全部记录状态', value: 'all' }, { label: '有效', value: 'active' }, { label: '已作废', value: 'invalidated' }]" />

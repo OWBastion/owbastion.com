@@ -35,13 +35,23 @@ const adminApi = vi.fn((path: string, options?: any) => {
           invalidatingSessionCount: 0,
           operationType: "initial_binding",
         },
+        {
+          claimId: "claim-3",
+          playerName: "等待玩家",
+          playerId: "2468",
+          status: "pending_confirmation",
+          createdAt: 3000,
+          invitedBy: "admin",
+          memberOpenId: "member-4",
+          groupOpenId: "group-4",
+          revokingBindingCount: 0,
+          invalidatingSessionCount: 0,
+          operationType: "initial_binding",
+        },
       ],
     });
   }
   if (path === "/v1/binding-invites") {
-    return Promise.resolve({ items: [] });
-  }
-  if (path === "/v1/bindings") {
     return Promise.resolve({ items: [] });
   }
   if (path.startsWith("/v1/binding-claims/") && path.endsWith("/decision")) {
@@ -52,15 +62,27 @@ const adminApi = vi.fn((path: string, options?: any) => {
 
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
+const USelectStub = {
+  props: ["modelValue", "items"],
+  emits: ["update:modelValue"],
+  template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>',
+};
+
 describe("admin bindings page", () => {
   it("renders claims with operation type badges and handles conflict secondary confirmation", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(BindingsPage, { attachTo: document.body });
+    const wrapper = await mountSuspended(BindingsPage, { attachTo: document.body, global: { stubs: { USelect: USelectStub } } });
     await flushPromises();
 
     expect(wrapper.text()).toContain("PlayerOne");
     expect(wrapper.text()).toContain("冲突");
     expect(wrapper.text()).toContain("首次绑定");
+    expect(wrapper.text()).toContain("绑定例外与邀请");
+    expect(wrapper.text()).not.toContain("等待玩家");
+    expect(wrapper.text()).not.toContain("当前绑定");
+    expect(adminApi).not.toHaveBeenCalledWith("/v1/bindings");
+    await wrapper.get('select[aria-label="筛选申请状态"]').setValue("all");
+    await flushPromises();
 
     // Click details button on claim-1. The table's default sorting may place
     // newer claims before it, so target the row by its player identity.
@@ -107,5 +129,22 @@ describe("admin bindings page", () => {
     // not re-fetched, so the page does not flash through a full reload.
     expect(wrapper.text()).toContain("已批准");
     expect(adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length).toBe(listCallsBefore);
+  });
+
+  it("can reveal routine binding claims from the secondary all-claims filter", async () => {
+    adminApi.mockClear();
+    const wrapper = await mountSuspended(BindingsPage, {
+      global: {
+        stubs: {
+          USelect: USelectStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).not.toContain("等待玩家");
+    await wrapper.get('select[aria-label="筛选申请状态"]').setValue("all");
+    await flushPromises();
+    expect(wrapper.text()).toContain("等待玩家");
   });
 });

@@ -998,12 +998,13 @@ describe("API", () => {
     expect((await unauthenticated.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(401);
     expect((await app.request("http://localhost/v1/admin/mastery-runs", {}, env)).status).toBe(403);
 
-    const list = await masteryApp.request("http://localhost/v1/admin/mastery-runs?playerAccountId=00000000-0000-4000-8000-000000000011&mapId=map.test&gameplayRevisionId=revision%3Amap.test%3Ainitial&difficulty=%E5%9B%B0%E9%9A%BE&status=active&acceptanceSource=submission_review&runCode=1234-5678-9012&from=1&to=2&page=2&pageSize=10", {}, env);
+    const list = await masteryApp.request("http://localhost/v1/admin/mastery-runs?playerAccountId=00000000-0000-4000-8000-000000000011&mapId=map.test&gameplayRevisionId=revision%3Amap.test%3Ainitial&difficulty=%E5%9B%B0%E9%9A%BE&status=active&unresolvedConflictsOnly=true&acceptanceSource=submission_review&runCode=1234-5678-9012&from=1&to=2&page=2&pageSize=10", {}, env);
     expect(list.status).toBe(200);
     expect(list.headers.get("cache-control")).toBe("private, no-store");
     expect(await list.json()).toMatchObject({ items: [{ runCode: "1234-5678-9012", playerAccountId: run.playerAccountId }], page: 2, pageSize: 10 });
-    expect(calls[0]).toEqual({ operation: "list", input: { playerAccountId: run.playerAccountId, mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", difficulty: "困难", status: "active", acceptanceSource: "submission_review", runCode: "1234-5678-9012", from: 1, to: 2, page: 2, pageSize: 10 } });
+    expect(calls[0]).toEqual({ operation: "list", input: { playerAccountId: run.playerAccountId, mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", difficulty: "困难", status: "active", unresolvedConflictsOnly: true, acceptanceSource: "submission_review", runCode: "1234-5678-9012", from: 1, to: 2, page: 2, pageSize: 10 } });
     expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs?status=unknown", {}, env)).status).toBe(422);
+    expect((await masteryApp.request("http://localhost/v1/admin/mastery-runs?unresolvedConflictsOnly=false", {}, env)).status).toBe(422);
 
     const detail = await masteryApp.request(`http://localhost/v1/admin/mastery-runs/${masteryRunId}`, {}, env);
     expect(detail.status).toBe(200);

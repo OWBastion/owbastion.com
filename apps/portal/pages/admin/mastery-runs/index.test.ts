@@ -1,5 +1,6 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
+import { reactive } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import MasteryRunsPage from "./index.vue";
 
@@ -40,27 +41,32 @@ const detail = {
   lifecycle: [{ transition: "accepted" as const, actorType: "service" as const, actorId: "submission_review", reason: null, createdAt: 1 }],
   conflicts: [],
 };
+const route = reactive({ query: {} as Record<string, string> });
 const adminApi = vi.fn((path: string) => {
-  if (path === "/v1/mastery-runs?page=1&pageSize=20" || path === "/v1/mastery-runs?page=1&pageSize=20&runCode=1234-5678-9012") return Promise.resolve({ items: [run], total: 1 });
+  if (path.startsWith("/v1/mastery-runs?")) return Promise.resolve({ items: [run], total: 1 });
   if (path === `/v1/mastery-runs/${run.runId}`) return Promise.resolve(detail);
   throw new Error(`Unexpected request: ${path}`);
 });
+mockNuxtImport("useRoute", () => () => route);
 mockNuxtImport("useAdminApi", () => () => adminApi);
 mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
+
+const stubs = {
+  StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
+  NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" },
+  AdminResponsiveDialog: { template: "<div><slot name=\"body\" /><slot name=\"footer\" /></div>" },
+  USelect: {
+    props: ["modelValue", "items"],
+    emits: ["update:modelValue"],
+    template: `<select :value="JSON.stringify(modelValue)" @change="$emit('update:modelValue', JSON.parse($event.target.value))"><option v-for="item in items" :key="JSON.stringify(item.value)" :value="JSON.stringify(item.value)">{{ item.label }}</option></select>`,
+  },
+};
 
 describe("admin mastery runs page", () => {
   it("loads a document-flow admin list, filters by run code, and opens maintainer detail", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(MasteryRunsPage, {
-      attachTo: document.body,
-      global: {
-        stubs: {
-          StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
-          NuxtLink: { props: ["to"], template: "<a :href=\"to\"><slot /></a>" },
-          AdminResponsiveDialog: { template: "<div><slot name=\"body\" /><slot name=\"footer\" /></div>" },
-        },
-      },
-    });
+    route.query = {};
+    const wrapper = await mountSuspended(MasteryRunsPage, { attachTo: document.body, global: { stubs } });
     await flushPromises();
 
     expect(adminApi).toHaveBeenCalledWith("/v1/mastery-runs?page=1&pageSize=20");
@@ -76,5 +82,17 @@ describe("admin mastery runs page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(`/v1/mastery-runs/${run.runId}`);
     expect(wrapper.text()).toContain("经验规则与地图档案");
+    wrapper.unmount();
+  });
+
+  it("opens with player and unresolved-conflict filters from a deep link", async () => {
+    adminApi.mockClear();
+    route.query = { playerAccountId: run.playerAccountId, unresolvedConflictsOnly: "true" };
+    const wrapper = await mountSuspended(MasteryRunsPage, { global: { stubs } });
+    await flushPromises();
+
+    expect(adminApi).toHaveBeenCalledWith(`/v1/mastery-runs?page=1&pageSize=20&playerAccountId=${run.playerAccountId}&unresolvedConflictsOnly=true`);
+    expect(wrapper.find('select[aria-label="筛选冲突状态"]').element.value).toBe("true");
+    wrapper.unmount();
   });
 });
