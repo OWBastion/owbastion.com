@@ -31,6 +31,13 @@ describe("AdminMapRevisionEditor", () => {
           kind: "clear",
           status: "active",
           gameVersion: "26.0812.1",
+        }, {
+          challengeFamily: "map_title_rule",
+          challengeId: "rule.conqueror",
+          label: "CONQUEROR",
+          kind: "conqueror",
+          status: "active",
+          gameVersion: "26.0812.1",
         }],
       },
       global: {
@@ -45,7 +52,7 @@ describe("AdminMapRevisionEditor", () => {
           UInput: { props: ["modelValue", "readonly"], emits: ["update:modelValue"], template: "<input :value=\"modelValue\" :readonly=\"readonly\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
           UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: "<textarea :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
           AdminSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: "<div />" },
-          UCheckbox: { props: ["label"], template: "<label><input type=\"checkbox\" />{{ label }}</label>" },
+          UCheckbox: { props: ["label", "modelValue"], emits: ["update:modelValue"], template: "<label><input type=\"checkbox\" :checked=\"modelValue\" @change=\"$emit('update:modelValue', $event.target.checked)\" />{{ label }}</label>" },
           UButton: { props: ["disabled"], template: "<button :disabled=\"disabled\"><slot /></button>" },
         },
       },
@@ -53,6 +60,8 @@ describe("AdminMapRevisionEditor", () => {
 
     expect(wrapper.text()).not.toContain("版本修订配置");
     expect(wrapper.text()).toContain("地狱通关 · 地图挑战");
+    expect(wrapper.text()).toContain("CONQUEROR · 地图称号规则");
+    expect(wrapper.text()).toContain("决定哪些挑战和称号规则应用于此 Gameplay Revision");
     expect(wrapper.text()).not.toContain("单图挑战");
     expect(wrapper.text()).not.toContain("地图称号挑战");
     expect(wrapper.get("details").text()).toContain("空间配置");
@@ -61,6 +70,7 @@ describe("AdminMapRevisionEditor", () => {
     const versionInput = wrapper.findAll("input")[0]!;
     expect((versionInput.element as HTMLInputElement).value).toBe("26.0812.1");
     await versionInput.setValue("2026.08.13");
+    await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true);
 
     await wrapper.findAll("select")[0]!.setValue("default");
     await wrapper.findAll("select")[2]!.setValue("historical");
@@ -74,7 +84,15 @@ describe("AdminMapRevisionEditor", () => {
         gameVersion: "2026.08.13",
         mapVariant: null,
         spatialConfig: null,
-        challengeAssignments: [],
+        challengeAssignments: [{
+          challengeFamily: "map_title_rule",
+          challengeId: "rule.conqueror",
+          enabled: true,
+          condition: null,
+          evidenceRule: null,
+          submissionMode: null,
+          slot: null,
+        }],
       },
     ]]);
   });

@@ -176,7 +176,7 @@ const playerMasteryQuery = (request: Request) => {
 
 const adminMasteryRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
-  const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "acceptanceSource", "runCode", "from", "to", "page", "pageSize"];
+  const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "unresolvedConflictsOnly", "acceptanceSource", "runCode", "from", "to", "page", "pageSize"];
   const names = new Set<string>();
   params.forEach((_value, name) => names.add(name));
   if ([...names].some((name) => !allowed.includes(name)) || allowed.some((name) => params.getAll(name).length > 1)) return null;
@@ -187,6 +187,7 @@ const adminMasteryRunQuery = (request: Request) => {
   const gameplayRevisionId = params.get("gameplayRevisionId")?.trim() || undefined;
   const difficulty = params.get("difficulty")?.trim() || undefined;
   const status = params.get("status")?.trim() || undefined;
+  const unresolvedConflictsOnly = params.get("unresolvedConflictsOnly");
   const acceptanceSource = params.get("acceptanceSource")?.trim() || undefined;
   const runCode = params.get("runCode")?.trim() || undefined;
   const fromValue = params.get("from");
@@ -200,6 +201,7 @@ const adminMasteryRunQuery = (request: Request) => {
   if (gameplayRevisionId && gameplayRevisionId.length > 256) return null;
   if (difficulty && !["简单", "一般", "困难", "专家", "传奇", "地狱"].includes(difficulty)) return null;
   if (status && !["active", "invalidated"].includes(status)) return null;
+  if (unresolvedConflictsOnly !== null && unresolvedConflictsOnly !== "true") return null;
   if (acceptanceSource && !["submission_automatic", "submission_review"].includes(acceptanceSource)) return null;
   if (runCode && !/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(runCode)) return null;
   if (from !== undefined && (!Number.isInteger(from) || from < 0)) return null;
@@ -213,6 +215,7 @@ const adminMasteryRunQuery = (request: Request) => {
     ...(gameplayRevisionId ? { gameplayRevisionId } : {}),
     ...(difficulty ? { difficulty: difficulty as "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱" } : {}),
     ...(status ? { status: status as "active" | "invalidated" } : {}),
+    ...(unresolvedConflictsOnly === "true" ? { unresolvedConflictsOnly: true } : {}),
     ...(acceptanceSource ? { acceptanceSource: acceptanceSource as "submission_automatic" | "submission_review" } : {}),
     ...(runCode ? { runCode } : {}),
     ...(from !== undefined ? { from } : {}),
@@ -1119,7 +1122,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminMapTitleRuleExceptionUpsertRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).upsertAdminMapTitleRuleException({ ...parsed.data, mapId: c.req.param("mapId"), ruleId: c.req.param("ruleId") }, access.auth!, key); return c.body(null, 204); }
-    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_EXCEPTION_UPDATE_FAILED"; if (["MAP_NOT_FOUND", "MAP_TITLE_RULE_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The map or map title rule does not exist"); if (["PIONEER_EXCEPTION_SCHEDULE_REQUIRED", "GAMEPLAY_REVISION_NOT_FOUND"].includes(code)) return errorResponse(c, 422, code, code === "GAMEPLAY_REVISION_NOT_FOUND" ? "This map has no available gameplay revision for the rule" : "Pioneer map exceptions require a valid start and end time"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "MAP_TITLE_EXCEPTION_UPDATE_FAILED"; if (["MAP_NOT_FOUND", "MAP_TITLE_RULE_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The map or map title rule does not exist"); if (code === "PIONEER_EXCEPTION_SCHEDULE_REQUIRED") return errorResponse(c, 422, code, "Pioneer map exceptions require a valid start and end time"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.get("/v1/admin/titles", async (c) => {

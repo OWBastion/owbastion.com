@@ -1,6 +1,7 @@
 <script setup lang='ts'>
 import type { TableColumn } from '@nuxt/ui';
 import type { AdminAnnotationProposal, AdminAnnotationProposalDetail, AdminReviewedAnnotation } from '~/composables/useAdminApi';
+import AdminOcrQualityStages from '~/components/admin/AdminOcrQualityStages.vue';
 import { annotationFieldItems, annotationFieldLabel } from '~/utils/annotation-labels';
 import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
@@ -163,6 +164,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title='标注' :count='loading ? "读取中…" : total + " 条"'>
+    <template #toolbar><AdminOcrQualityStages active='annotations' /></template>
     <template #actions>
       <UButton label='直接标注' icon='i-lucide-pen-line' color='neutral' variant='outline' @click='openDirect()' />
       <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />

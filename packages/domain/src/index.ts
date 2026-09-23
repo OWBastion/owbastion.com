@@ -157,6 +157,7 @@ export type AdminMasteryRunQuery = AgentPageInput & {
   gameplayRevisionId?: string;
   difficulty?: MasteryDifficulty;
   status?: "active" | "invalidated";
+  unresolvedConflictsOnly?: boolean;
   acceptanceSource?: "submission_automatic" | "submission_review";
   runCode?: string;
   from?: number;

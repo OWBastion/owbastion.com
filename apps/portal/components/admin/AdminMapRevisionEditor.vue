@@ -115,7 +115,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
       </div>
 
       <fieldset class="assignment-fieldset">
-        <legend>挑战分配</legend>
+        <legend>当前修订的挑战分配</legend>
+        <p class="assignment-note">在这里决定哪些挑战和称号规则应用于此 Gameplay Revision。规则定义和地图级覆盖仍由各自的规则页面维护。</p>
         <div v-if="challengeCatalog.length" class="assignment-list">
           <UCheckbox
             v-for="option in challengeCatalog"
@@ -196,6 +197,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   border: 1px solid var(--line);
   border-radius: 0.8125rem;
 }
+.assignment-note { margin: 0 0 0.75rem; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
 .assignment-fieldset legend {
   padding-inline: 0.25rem;
   font-size: 0.875rem;

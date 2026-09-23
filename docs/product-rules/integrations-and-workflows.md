@@ -383,24 +383,29 @@ configuration cannot reopen it globally.
 
 Administrators manage these entities on the dedicated map-title-rule surface.
 The ordinary map-completion screen may display a projection, but it is read-only
-and links back to its authoritative rule. Per-map management exposes resolved
-inheritance and writes only the permitted exception fields, including the
-Pioneer submission window; it never updates
-`achievement_challenges` for a map-title projection.
+and links back to its authoritative rule. Applicability belongs to the exact
+Gameplay Revision: only an enabled `map_title_rule` assignment on a `default` or
+`selectable` revision projects the challenge. For `all_active` rules, the service
+materializes those assignments on eligible revisions; `explicit` rules require
+an explicit assignment. Per-map management exposes resolved inheritance and
+writes only the permitted override fields and Pioneer submission window; it does
+not change revision assignment or update `achievement_challenges` for a
+map-title projection.
 
-**Exception precedence** — the deterministic resolution algorithm for a
-`(ruleId, mapId)` pair follows five steps:
+**Projection and exception resolution** — the deterministic resolution for a
+`(ruleId, mapId, gameplayRevisionId)` follows these steps:
 
-1. A retired or inactive map produces no projection regardless of the rule.
-2. A disabled exception (`enabled = 0`) removes the projection for that map,
-   overriding even an `all_active` rule default.
-3. An enabled exception — override fields win over the rule default. Only
-   `condition`, `evidence_rule`, `submission_mode`, and `slot` may be
-   overridden; `title_key` and `display_kind` remain rule-level and cannot be
-   changed by an exception.
-4. No exception exists and the rule's `default_scope` is `all_active` — the
-   rule default applies to the map.
-5. No exception and `default_scope` is `explicit` — no projection.
+1. An inactive map or rule produces no projection.
+2. A missing or disabled revision assignment produces no projection. The
+   exception's `enabled` field never assigns or unassigns a challenge.
+3. `PIONEER` additionally requires an explicit-scope rule and an enabled,
+   bounded map exception whose window contains the submission creation time.
+4. An enabled map exception may override `condition`, `evidence_rule`,
+   `submission_mode`, and `slot` for the map. These values take precedence over
+   the revision assignment's optional field overrides and the rule defaults.
+   `title_key` and `display_kind` remain rule-level and cannot be changed by an
+   exception. A disabled exception contributes no overrides, but leaves the
+   revision assignment unchanged.
 
 **Compatibility mapping** — the `map_title_rule_compat` table retains the
 legacy `map.<mapId>.<kind>` public IDs used by existing `achievement_challenges`

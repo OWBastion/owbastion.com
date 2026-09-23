@@ -843,6 +843,7 @@ describe("Admin map revision editor", () => {
 
     sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = ?").run("rule.pioneer.catalog");
     seedException(sqlite, "exception.pioneer.catalog", "rule.pioneer.catalog", "map.editor.catalog", { startsAt: now - 60_000, endsAt: now + 60_000 });
+    sqlite.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE map_id = 'map.editor.catalog' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.pioneer.catalog'").run();
     const repaired = await services.getAdminMapEditor({ mapId: "map.editor.catalog" }, auth);
     expect(repaired.challengeCatalog).toEqual(expect.arrayContaining([
       expect.objectContaining({ challengeId: "rule.pioneer.catalog" }),
@@ -919,6 +920,11 @@ describe("Admin map revision editor", () => {
       ["revision:map.editor:initial", "selectable"],
       [r2.revisionId, "default"],
     ]));
+    await expect(services.listChallenges({ family: "map", mapId: "map.editor" })).resolves.toContainEqual(expect.objectContaining({
+      challengeId: "map.editor.conqueror",
+      titleKey: "CONQUEROR",
+      gameplayRevisionId: r2.revisionId,
+    }));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
     const audit = sqlite.prepare("SELECT operation, entity_id, json_extract(payload_json, '$.progressCopied') AS progress_copied, json_extract(payload_json, '$.resetReason') AS reset_reason, json_extract(payload_json, '$.gameVersion') AS game_version, json_extract(payload_json, '$.replacedByRevisionId') AS replaced_by_revision_id, json_extract(payload_json, '$.replacedDefaultLifecycle') AS replaced_default_lifecycle FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update')").all();
     expect(audit).toEqual(expect.arrayContaining([
@@ -1650,44 +1656,26 @@ describe("map title rule model – locked invariants", () => {
       await expect(services.getAgentAchievement({ challengeId: "title.CLASSIC", mapId: "map.hanamura" })).resolves.toMatchObject({ mapId: "map.hanamura", mapVariant: "classic" });
     });
 
-    it("disabled exception removes the projection even for an all_active rule", async () => {
+    it("disabled standard-rule exception does not remove an enabled revision assignment", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror", defaultScope: "all_active" });
-      // Disabled exception: map.paris should not receive a projection.
-      seedException(sqlite, "exc.1", "rule.conqueror", "map.paris", { enabled: 0 });
-
-      // Verify exception is disabled.
-      const exc = sqlite.prepare(
-        "SELECT enabled FROM map_title_rule_exceptions WHERE rule_id = 'rule.conqueror' AND map_id = 'map.paris'",
-      ).get() as { enabled: number } | undefined;
-      expect(exc?.enabled).toBe(0);
-
-      // reviewSubmission path: creating a submission with a legacy challenge ID
-      // via the compat table must not resolve when the exception is disabled.
-      // We test this by verifying the compat row exists but that resolveCompatProjection
-      // would find the disabled exception and return null.
-      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
+      seedException(sqlite, "exc.1", "rule.conqueror", "map.paris", { enabled: 0, condition: "不生效的地图覆盖" });
+      sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET enabled = 1, condition = '修订条件' WHERE gameplay_revision_id = 'revision:map.paris:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
       const services = createPlatformServices(database);
-
-      // A submission review for a disabled projection should throw CHALLENGE_REWARD_NOT_CONFIGURED
-      // because resolveCompatProjection returns null and the legacy row also has no reward_title_key.
-      const bindingId = "binding.1";
-      const submissionId = "sub.1";
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES (?, 'id.1', 'player.1', 'qq', 'group.1', 'member.1', 'active', ?)").run(bindingId, now);
-      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, ?, 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', '地图 map.paris', 'portal', 'portal', 'msg.1', ?, ?)").run(submissionId, bindingId, now, now);
-
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-      await expect(
-        services.reviewSubmission({ submissionId, decision: "approved", idempotencyKey: "key.1" } as never, auth, "key.1"),
-      ).rejects.toThrow("CHALLENGE_REWARD_NOT_CONFIGURED");
+
+      const result = await services.listAdminMapTitleInheritance({ mapId: "map.paris" }, auth);
+      expect(result.items.find((item) => item.rule.ruleId === "rule.conqueror")).toMatchObject({
+        projected: true,
+        effective: { condition: "修订条件", slot: "conqueror" },
+      });
     });
 
-    it("enabled exception overrides condition and slot while keeping title_key from the rule", async () => {
-      const { sqlite } = createD1();
+    it("enabled map overrides take precedence over revision values while keeping title_key in the rule", async () => {
+      const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
       seedTitle(sqlite, "CONQUEROR");
@@ -1697,17 +1685,77 @@ describe("map title rule model – locked invariants", () => {
         condition: "巴黎专属条件",
         slot: "pioneer", // overrides rule default slot
       });
+      sqlite.prepare("UPDATE map_title_rule_exceptions SET evidence_rule = '巴黎截图规则', submission_mode = 'automatic' WHERE rule_id = 'rule.conqueror' AND map_id = 'map.paris'").run();
+      sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET condition = '修订条件', evidence_rule = '修订截图规则', submission_mode = 'manual', slot = 'dominator' WHERE gameplay_revision_id = 'revision:map.paris:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
 
       // Exception must not create a new title_key; rule's title_key is authoritative.
       const rule = sqlite.prepare("SELECT title_key FROM map_title_rules WHERE id = 'rule.conqueror'").get() as { title_key: string };
       const exc = sqlite.prepare("SELECT condition, slot FROM map_title_rule_exceptions WHERE id = 'exc.1'").get() as { condition: string; slot: string };
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      const inheritance = await services.listAdminMapTitleInheritance({ mapId: "map.paris" }, auth);
 
       expect(rule.title_key).toBe("CONQUEROR");
       expect(exc.condition).toBe("巴黎专属条件");
       expect(exc.slot).toBe("pioneer");
+      expect(inheritance.items.find((item) => item.rule.ruleId === "rule.conqueror")).toMatchObject({
+        projected: true,
+        effective: { condition: "巴黎专属条件", slot: "pioneer" },
+      });
+      await expect(services.listChallenges({ family: "map", mapId: "map.paris" })).resolves.toContainEqual(expect.objectContaining({
+        challengeId: "map.paris.conqueror",
+        gameplayRevisionId: "revision:map.paris:initial",
+        condition: "巴黎专属条件",
+        evidenceRule: "巴黎截图规则",
+        submissionMode: "automatic",
+        mapTitleRule: expect.objectContaining({ slot: "pioneer" }),
+      }));
       // The exception does not carry its own title_key column — the rule owns it.
       const hasOwnTitleKey = sqlite.prepare("SELECT COUNT(*) AS c FROM pragma_table_info('map_title_rule_exceptions') WHERE name = 'title_key'").get() as { c: number };
       expect(hasOwnTitleKey.c).toBe(0);
+    });
+
+    it("saves map overrides without changing revision applicability or assignment values", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.override");
+      seedTitle(sqlite, "CONQUEROR");
+      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
+      sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET condition = '修订条件', evidence_rule = '修订截图规则', submission_mode = 'automatic', slot = 'dominator' WHERE gameplay_revision_id = 'revision:map.override:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
+      const assignmentBefore = sqlite.prepare("SELECT enabled, condition, evidence_rule, submission_mode, slot FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.override:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").get();
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      await services.upsertAdminMapTitleRuleException({
+        contractVersion: "1",
+        mapId: "map.override",
+        ruleId: "rule.conqueror",
+        enabled: true,
+        condition: "地图级条件",
+        evidenceRule: "地图级截图规则",
+        submissionMode: "manual",
+        slot: "pioneer",
+      }, auth, "map-exception-enabled");
+      expect(sqlite.prepare("SELECT enabled, condition, evidence_rule, submission_mode, slot FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.override:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").get()).toEqual(assignmentBefore);
+      let inheritance = await services.listAdminMapTitleInheritance({ mapId: "map.override" }, auth);
+      expect(inheritance.items.find((item) => item.rule.ruleId === "rule.conqueror")).toMatchObject({
+        projected: true,
+        effective: { condition: "地图级条件", evidenceRule: "地图级截图规则", submissionMode: "manual", slot: "pioneer" },
+      });
+
+      await services.upsertAdminMapTitleRuleException({
+        contractVersion: "1",
+        mapId: "map.override",
+        ruleId: "rule.conqueror",
+        enabled: false,
+        condition: "已停用的地图级条件",
+      }, auth, "map-exception-disabled");
+      expect(sqlite.prepare("SELECT enabled, condition, evidence_rule, submission_mode, slot FROM gameplay_revision_challenge_assignments WHERE gameplay_revision_id = 'revision:map.override:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").get()).toEqual(assignmentBefore);
+      inheritance = await services.listAdminMapTitleInheritance({ mapId: "map.override" }, auth);
+      expect(inheritance.items.find((item) => item.rule.ruleId === "rule.conqueror")).toMatchObject({
+        projected: true,
+        effective: { condition: "修订条件", evidenceRule: "修订截图规则", submissionMode: "automatic", slot: "dominator" },
+      });
     });
 
     it("rule default applies when no exception exists and scope is all_active", async () => {
@@ -1728,38 +1776,40 @@ describe("map title rule model – locked invariants", () => {
       expect(rule.slot).toBe("conqueror");
     });
 
-    it("explicit-scope rule does not project to maps without an enabled exception", async () => {
-      const { sqlite } = createD1();
+    it("explicit-scope rule does not project without a revision assignment", async () => {
+      const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
       seedTitle(sqlite, "SPECIAL");
       seedRule(sqlite, "rule.special", "SPECIAL", "special", { defaultScope: "explicit" });
+      const services = createPlatformServices(database);
 
-      // No exception for map.paris → no projection.
-      const noException = sqlite.prepare(
-        "SELECT COUNT(*) AS c FROM map_title_rule_exceptions WHERE rule_id = 'rule.special' AND map_id = 'map.paris'",
-      ).get() as { c: number };
-      expect(noException.c).toBe(0);
-
-      const rule = sqlite.prepare("SELECT default_scope FROM map_title_rules WHERE id = 'rule.special'").get() as { default_scope: string };
-      expect(rule.default_scope).toBe("explicit");
+      await expect(services.listChallenges({ family: "map", mapId: "map.paris" })).resolves.not.toContainEqual(expect.objectContaining({ mapTitleRule: expect.objectContaining({ ruleId: "rule.special" }) }));
     });
 
-    it("keeps Pioneer closed until a map exception is explicitly enabled", async () => {
+    it("requires both a revision assignment and a valid Pioneer window", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
       seedTitle(sqlite, "PIONEER");
       seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
       const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
 
       sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = 'rule.pioneer'").run();
-      seedException(sqlite, "exception.pioneer.paris", "rule.pioneer", "map.paris", { startsAt: now - 60_000, endsAt: now + 60_000 });
+      sqlite.prepare("DELETE FROM gameplay_revision_challenge_assignments WHERE map_id = 'map.paris' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.pioneer'").run();
+      await services.upsertAdminMapTitleRuleException({
+        contractVersion: "1", mapId: "map.paris", ruleId: "rule.pioneer", enabled: true,
+        startsAt: now - 60_000, endsAt: now + 60_000,
+      }, auth, "pioneer-window");
+      await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
+
+      seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.paris:initial", mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.pioneer" });
       await expect(services.listChallenges({ family: "map" })).resolves.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris", mapTitleRule: expect.objectContaining({ kind: "pioneer" }) }));
 
-      sqlite.prepare("UPDATE map_title_rule_exceptions SET ends_at = ? WHERE id = ?").run(now - 1, "exception.pioneer.paris");
+      sqlite.prepare("UPDATE map_title_rule_exceptions SET ends_at = ? WHERE rule_id = 'rule.pioneer' AND map_id = 'map.paris'").run(now - 1);
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
     });
 
@@ -2318,6 +2368,8 @@ describe("submission mastery outcomes", () => {
     const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
     const listed = await publicServices.listAdminMasteryRuns({ playerAccountId: "player.one", mapId: "map.mastery", difficulty: "困难", acceptanceSource: "submission_automatic", status: "active", runCode: "1234-5678-9012", page: 1, pageSize: 20 }, maintainer);
     expect(listed).toMatchObject({ total: 1, items: [{ runId: masteryRunId, conflictCount: 1, playerAccountId: "player.one", mapName: "地图 map.mastery", runCode: "1234-5678-9012" }] });
+    const pendingConflicts = await publicServices.listAdminMasteryRuns({ unresolvedConflictsOnly: true, page: 1, pageSize: 20 }, maintainer);
+    expect(pendingConflicts).toMatchObject({ total: 1, items: [{ runId: masteryRunId }] });
 
     const inspected = await publicServices.getAdminMasteryRun({ masteryRunId }, maintainer);
     expect(inspected).toMatchObject({
@@ -2330,6 +2382,7 @@ describe("submission mastery outcomes", () => {
 
     const invalidated = await publicServices.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: "submission.conflict", action: "invalidate_existing", reason: "以修正截图为准" }, maintainer, "mastery-conflict-invalidate");
     expect(invalidated).toMatchObject({ action: "invalidate_existing", run: { status: "invalidated", invalidationReason: "以修正截图为准" }, projection: { totalXp: 0, verifiedRunCount: 0 } });
+    expect(await publicServices.listAdminMasteryRuns({ unresolvedConflictsOnly: true, page: 1, pageSize: 20 }, maintainer)).toMatchObject({ total: 0, items: [] });
     expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.first' AND outcome_key = 'mastery_run'").get()).toEqual({ status: "invalidated" });
     expect(await publicServices.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: "submission.conflict", action: "invalidate_existing", reason: "以修正截图为准" }, maintainer, "mastery-conflict-invalidate")).toEqual(invalidated);
     expect(sqlite.prepare("SELECT action, actor_type, actor_id, reason FROM mastery_run_conflict_resolutions").all()).toEqual([{ action: "invalidate_existing", actor_type: "user", actor_id: "admin", reason: "以修正截图为准" }]);

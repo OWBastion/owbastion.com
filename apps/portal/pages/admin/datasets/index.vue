@@ -1,6 +1,7 @@
 <script setup lang='ts'>
 import type { TableColumn } from '@nuxt/ui';
 import type { AdminDatasetDetail, AdminDatasetSnapshot } from '~/composables/useAdminApi';
+import AdminOcrQualityStages from '~/components/admin/AdminOcrQualityStages.vue';
 import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
 
@@ -107,6 +108,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title='数据集' :count='loading ? "读取中…" : total + " 个"'>
+    <template #toolbar><AdminOcrQualityStages active='datasets' /></template>
     <template #actions>
       <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='creating' @click='createDraft' />
       <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
