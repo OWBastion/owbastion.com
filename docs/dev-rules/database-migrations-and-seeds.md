@@ -26,6 +26,17 @@ pnpm check:migrations
 pnpm exec wrangler d1 migrations apply DB --local
 ```
 
+对尚未应用 `0031_invite_binding_claims.sql` 的数据库，先运行只读预检，并在
+管理员绑定管理界面中解决每个重复账号，再应用该迁移。不要让部分唯一索引
+替用户选择保留哪个 QQ 身份：
+
+```sql
+SELECT player_account_id, COUNT(*) AS binding_count
+FROM bindings
+GROUP BY player_account_id
+HAVING COUNT(*) > 1;
+```
+
 `0049_migrate_standard_map_title_rules.sql` 是标准地图称号的必要数据修复：它从
 既有 `title_catalog` 与 `map_title_rewards` 建立 `PIONEER`、`CONQUEROR`、
 `DOMINATOR` 规则，只为实际存在的旧挑战建立 compatibility 记录，并把没有旧奖励

@@ -1,69 +1,15 @@
 # Testing and Change Policy
 
-Current capability implementation and verification status is maintained in the
-[feature status matrix](../product-rules/feature-status.md).
+## Authoritative sources
 
-Apply local migrations with:
+- Capability and verification status: [feature status matrix](../product-rules/feature-status.md).
+- Local setup and workspace commands: [repository README](../../README.md).
+- Migration rules and operational steps: [database migrations and seeds](database-migrations-and-seeds.md).
+- Deployment configuration and administrator bootstrap: [API deployment guide](../deployment/api-github-actions.md).
+- Public API request and response contracts: [OpenAPI document](../api/openapi.json).
 
-~~~bash
-pnpm exec wrangler d1 migrations apply DB --local
-~~~
-
-Production deployments bootstrap the administrator automatically from the
-GitHub production-environment `ADMIN_BATTLETAG` secret after applying remote
-migrations. For manual recovery, update the account directly in D1 with a
-reviewed BattleTag:
-
-~~~bash
-pnpm exec wrangler d1 execute owbastion-codes-prod --remote --command "UPDATE player_accounts SET is_admin = 1, updated_at = CAST(strftime('%s','now') AS INTEGER) * 1000 WHERE normalized_player_name = 'yourname' AND player_id = '1234';"
-~~~
-
-The account must log in again after promotion so the Portal refreshes its session
-state. Remove the flag with `is_admin = 0` when access should be revoked.
-
-For Portal development, use the complete local environment:
-
-~~~bash
-pnpm dev:local
-~~~
-
-This applies local migrations, seeds deterministic player/submission fixtures,
-starts the Worker at `http://localhost:8787`, and starts the Portal at
-`http://localhost:3000`. The login page exposes local development accounts only
-when `LOCAL_DEV_AUTH=true`; the selected account receives a real D1-backed
-Portal session. The local administrator account can use `/admin`, while the
-ordinary local player cannot.
-
-`pnpm dev:portal` and `pnpm dev:local` both use the Nuxt hot-reload development
-server. Portal source changes are picked up without rebuilding or restarting the
-production output server.
-
-Before generating invitations locally, add a non-production
-`BINDING_INVITE_CODE_ENCRYPTION_KEY` to the ignored `.dev.vars` file. It must
-remain unchanged while local invitations need to be copied again.
-
-The local login does not represent QQ authentication and never enables the
-local branch in production. Real invitation confirmation through `/验证`, QQ
-webhook, and QQ gateway tests still require a test QQ application and real QQ
-credentials.
-
-Administrator player and review queues use server-side pagination. Their list
-responses include `page`, `pageSize`, `total`, and `hasMore`; the submissions
-endpoint accepts one or more comma-separated status values in `status`.
-
-Migrations are forward-only. Add a corrective migration instead of rewriting
-an applied migration, and verify it against a restored local database.
-
-Before applying the invitation-binding migration, run this read-only D1 query
-and resolve each result through the administrator binding UI; do not let the
-partial unique index choose which QQ identity is retained:
-
-~~~sql
-SELECT player_account_id, COUNT(*) AS binding_count
-FROM bindings
-GROUP BY player_account_id
-HAVING COUNT(*) > 1;
-~~~
+Resolve mutable status and detailed operational instructions from these owners;
+do not duplicate capability inventories here.
 
 ## Before implementation
 
@@ -81,7 +27,7 @@ without an architecture decision record.
 
 ## Testing layers
 
-- Unit and contract tests for current API, Portal, and package behavior.
+- Unit and contract tests for observable API, Portal, and package behavior.
 - D1 migration and repository tests when persistence changes.
 - Title-grant tests for account isolation, map and global title scope, manual
   grant validation and idempotency, manual batch Cartesian expansion and cell
@@ -96,8 +42,8 @@ without an architecture decision record.
   challenges must also be tested before, during, and after their time window.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.
-- Queue redelivery, review, grant, and end-to-end tests for the implemented
-  submission approval flow, including rollback and idempotent replay.
+- Queue redelivery, review, grant, and end-to-end tests for submission approval,
+  including rollback and idempotent replay.
 - Review integration tests must cover both event and map targets through the
   D1-backed player, public, and maintainer projections, including update,
   withdrawal, comment moderation, whole-review invalidation/restore, aggregate
@@ -105,6 +51,9 @@ without an architecture decision record.
   rows or audit effects.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
+- Local authentication fixtures do not represent QQ authentication. Tests that
+  exercise real invitation confirmation, QQ webhooks, or QQ gateway behavior
+  require a test QQ application and its credentials.
 - Portal built-server SSR smoke (`pnpm test:portal-e2e:built` after
   `pnpm build:portal`): home HTML from the existing Nuxt production artifact
   via `@nuxt/test-utils/e2e` with `browser: false`.
