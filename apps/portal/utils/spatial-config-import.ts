@@ -1,3 +1,5 @@
+import { agentSpatialConfigSchema } from "@owbastion/contracts";
+
 export type SpatialConfigValue = Record<string, unknown>;
 
 export type SpatialConfigImportSummary = {
@@ -173,6 +175,12 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
       const parsed: unknown = JSON.parse(trimmed);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "空间配置必须是对象。" };
       const config = parsed as SpatialConfigValue;
+      if ("stages" in config || "composition" in config) {
+        const validated = agentSpatialConfigSchema.safeParse(config);
+        if (!validated.success || !("stages" in validated.data)) {
+          return { ok: false, error: "组合路线 JSON 无效，请检查阶段 ID、选择数量和检测配置。" };
+        }
+      }
       return { ok: true, config, summary: summaryFor(config) };
     } catch {
       return { ok: false, error: "无法解析内容，请粘贴游戏内 Vector 点位代码。" };

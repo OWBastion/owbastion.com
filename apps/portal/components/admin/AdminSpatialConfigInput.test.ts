@@ -21,9 +21,9 @@ const compositeConfig = {
     remainingStageSelection: "random_unique",
   },
   stages: [
-    { stageId: "base", bastionPositions: [[1, 2, 3]], resetPosition: [4, 5, 6] },
-    { stageId: "icebreaker", setupDetection: { position: [7, 8, 9], radius: 30 }, bastionPositions: [[10, 11, 12]] },
-    { stageId: "laboratory", setupDetection: { position: [13, 14, 15], radius: 30 }, bastionPositions: [[16, 17, 18]] },
+    { stageId: "base", bastionPositions: [[1, 2, 3]], resetPosition: [4, 5, 6], endPosition: [7, 8, 9], thirdPersonPosition: [10, 11, 12], creditsPosition: [13, 14, 15], control: null, portalPositions: [], springboardPositions: [] },
+    { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], resetPosition: [13, 14, 15], endPosition: [16, 17, 18], thirdPersonPosition: [19, 20, 21], creditsPosition: [22, 23, 24], control: null, portalPositions: [], springboardPositions: [] },
+    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], resetPosition: [33, 34, 35], endPosition: [36, 37, 38], thirdPersonPosition: [39, 40, 41], creditsPosition: [42, 43, 44], control: null, portalPositions: [], springboardPositions: [] },
   ],
 };
 
@@ -73,7 +73,7 @@ describe("AdminSpatialConfigInput", () => {
 
     const textarea = wrapper.get("textarea");
     expect(JSON.parse((textarea.element as HTMLTextAreaElement).value)).toEqual(compositeConfig);
-    expect(wrapper.text()).toContain("已识别 6 个点位");
+    expect(wrapper.text()).toContain("已识别 17 个点位");
     expect(wrapper.text()).toContain("icebreaker · Bastion 出生点 1");
     expect(wrapper.text()).toContain("laboratory · 初始阶段检测点 1");
     const formatButton = wrapper.findAll("button").find((button) => button.text().includes("整理格式"));

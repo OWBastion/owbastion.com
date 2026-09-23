@@ -781,6 +781,43 @@ describe("Agents map projection readiness", () => {
     expect(projected.gameplayRevisions[0]?.spatialConfig).not.toHaveProperty("composition");
   });
 
+  it("blocks composite revisions from becoming projectable until consumer support is enabled", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.composite-rollout");
+    seedAgentSpatialConfig(sqlite, "revision:map.composite-rollout:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const createRevision = (key: string) => services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.composite-rollout",
+      sourceRevisionId: "revision:map.composite-rollout:initial",
+      gameVersion: "2026.09.23",
+      mapVariant: null,
+      copyConfiguration: false,
+      spatialConfig: compositeSpatialConfig(),
+      challengeAssignments: [],
+    }, auth, key);
+    const selectable = await createRevision("composite-rollout-selectable");
+    const defaultRevision = await createRevision("composite-rollout-default");
+    const updateRevision = (revisionId: string, lifecycle: "default" | "selectable", key: string) => services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.composite-rollout",
+      revisionId,
+      lifecycle,
+      replacedDefaultLifecycle: lifecycle === "default" ? "selectable" : null,
+      gameVersion: "2026.09.23",
+      mapVariant: null,
+      spatialConfig: compositeSpatialConfig(),
+      challengeAssignments: [],
+    }, auth, key);
+
+    await expect(updateRevision(selectable.revisionId, "selectable", "activate-composite-selectable")).rejects.toThrow("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
+    await expect(updateRevision(defaultRevision.revisionId, "default", "activate-composite-default")).rejects.toThrow("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
+    expect((await services.getAdminMapEditor({ mapId: "map.composite-rollout" }, auth)).revisions.filter((revision) => revision.lifecycle === "preparing")).toHaveLength(2);
+    expect((await services.getAgentMap({ mapId: "map.composite-rollout" }))?.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.composite-rollout:initial"]);
+  });
+
   it("fails the whole map closed for an incomplete enabled revision and never projects historical or preparing rows", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
