@@ -2532,10 +2532,11 @@ describe("submission mastery outcomes", () => {
     expect(inspected).toMatchObject({
       run: { sourceSubmissionId: "submission.first", acceptanceSource: "submission_automatic", xpRuleVersion: "v1", xpInputSnapshot: { ruleVersion: "v1" } },
       projection: { mapId: "map.mastery", verifiedRunCount: 1 },
-      sourceSubmission: { submissionId: "submission.first", evidenceUrl: `https://evidence.owbastion.codes/${firstEvidenceKey}` },
+      sourceSubmission: { submissionId: "submission.first", evidenceUrl: null },
       lifecycle: [{ transition: "accepted", actorType: "service" }],
       conflicts: [{ submissionId: "submission.conflict", conflictFields: ["difficulty"], facts: { mapName: "地图 map.mastery", difficulty: "传奇", runCode: "1234-5678-9012" }, resolution: null }],
     });
+    expect((await publicServices.getAdminSubmission({ submissionId: "submission.first" })).evidenceUrl).toBe(`https://evidence.owbastion.codes/${firstEvidenceKey}`);
 
     const invalidated = await publicServices.resolveAdminMasteryRunConflict({ masteryRunId, submissionId: "submission.conflict", action: "invalidate_existing", reason: "以修正截图为准" }, maintainer, "mastery-conflict-invalidate");
     expect(invalidated).toMatchObject({ action: "invalidate_existing", run: { status: "invalidated", invalidationReason: "以修正截图为准" }, projection: { totalXp: 0, verifiedRunCount: 0 } });

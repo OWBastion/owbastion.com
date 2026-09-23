@@ -2734,9 +2734,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!loaded) throw new Error("MASTERY_RUN_NOT_FOUND");
       const sourceRow = await db.select().from(submissions).where(eq(submissions.id, loaded.row.run.sourceSubmissionId)).get();
       if (!sourceRow) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
-      const [projection, sourceSubmission, lifecycle, conflicts] = await Promise.all([
+      const [projection, sourceDetails, lifecycle, conflicts] = await Promise.all([
         adminMasteryProjection({ playerAccountId: loaded.row.run.playerAccountId, mapId: loaded.row.run.mapId, gameplayRevisionId: loaded.row.run.gameplayRevisionId }),
-        loadAdminSubmission(sourceRow),
+        resolveAdminSubmissionDetails([sourceRow]),
         db.select().from(masteryRunLifecycleEvents).where(eq(masteryRunLifecycleEvents.masteryRunId, loaded.row.run.id)).orderBy(desc(masteryRunLifecycleEvents.createdAt)).limit(50),
         listAdminMasteryRunConflicts(loaded.row.run.id),
       ]);
@@ -2744,7 +2744,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         contractVersion: "1",
         run: loaded.view,
         projection,
-        sourceSubmission,
+        sourceSubmission: asAdminSubmission(sourceRow, sourceDetails),
         lifecycle: lifecycle.map((event) => ({
           transition: event.transition as "accepted" | "invalidated" | "restored",
           actorType: event.actorType as "service" | "user",
