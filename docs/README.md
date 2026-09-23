@@ -14,6 +14,7 @@
 | [product-rules/README.md](product-rules/README.md) | 产品规则索引 | authoritative | 产品行为、体验、流程与边界 | 平台 |
 | [feature-status.md](product-rules/feature-status.md) | 能力状态矩阵 | authoritative | 能力实现、测试和生产验证状态 | 平台 |
 | [integrations-and-workflows.md](product-rules/integrations-and-workflows.md) | 产品流程与跨仓契约 | authoritative | API、Portal、QQBot、OCRKit、Bastion 的业务流程 | 平台 |
+| [platform-domain-model.md](product-rules/platform-domain-model.md) | 平台领域模型 | authoritative | 统一事实模型、生命周期、称号获取、进度、身份与管理信息架构 | 平台 |
 | [design-rules/README.md](design-rules/README.md) | 设计规则索引 | authoritative | UI 视觉、交互、可访问性与内容规则 | Portal |
 | [design-rules/DESIGN.md](design-rules/DESIGN.md) | 设计主题索引 | authoritative | 设计规则按职责路由与冲突边界 | Portal |
 | [design-rules/visual-foundation.md](design-rules/visual-foundation.md) | 视觉基础 | authoritative | 语义 token、颜色状态、字体、材料和深度 | Portal |
@@ -32,6 +33,7 @@
 | [testing-and-change-policy.md](dev-rules/testing-and-change-policy.md) | 测试与变更规则 | authoritative | workspace 测试、迁移检查、发布前验证和完成标准 | 全仓 |
 | [0001-platform-technology-stack.md](adr/0001-platform-technology-stack.md) | 架构决策 | reference | 技术栈、仓库组织、服务边界和跨仓 owner | 平台 |
 | [0002-submission-status-d1-reads.md](adr/0002-submission-status-d1-reads.md) | 架构决策 | reference | 提交状态读取、D1 新鲜度与缓存边界 | API / 数据层 |
+| [0003-platform-domain-convergence.md](adr/0003-platform-domain-convergence.md) | 架构决策 | reference | Verified Run、Challenge、Completion、Grant 与进度统一事实模型 | 平台 |
 | [openapi.json](api/openapi.json) | API 契约 | artifact | Worker API 路由、请求响应和部署契约 | API |
 | [api-github-actions.md](deployment/api-github-actions.md) | API 部署手册 | authoritative | GitHub Actions、Worker、Queue、QQBot 集成部署 | API / 运维 |
 | [api-observability.md](deployment/api-observability.md) | API 运维手册 | authoritative | 生产 revision、缓存、Queue OCR 和请求追踪验证 | API / 运维 |

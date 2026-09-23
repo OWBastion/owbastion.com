@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | [feature-status.md](feature-status.md) | 能力状态矩阵 | authoritative | 能力实现、测试和生产验证状态；唯一状态来源 |
 | [integrations-and-workflows.md](integrations-and-workflows.md) | 产品流程与跨仓契约 | authoritative | API、Portal、QQBot、OCRKit、Bastion 的业务流程和状态转换 |
+| [platform-domain-model.md](platform-domain-model.md) | 平台领域模型 | authoritative | 已接受的事实模型、生命周期、称号获取、进度、身份与管理信息架构 contract |
 
 ## 使用规则
 
