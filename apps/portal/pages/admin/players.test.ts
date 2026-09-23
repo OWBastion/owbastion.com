@@ -17,8 +17,7 @@ describe("admin players page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(PlayersPage, { attachTo: document.body, global: { stubs: { StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" } } } });
     await flushPromises();
-    expect(wrapper.find(".admin-table [aria-label='搜索玩家']").exists()).toBe(true);
-    expect(wrapper.find(".admin-workspace__toolbar").exists()).toBe(false);
+    expect(wrapper.find('input[aria-label="搜索玩家"]').exists()).toBe(true);
     expect(wrapper.get('a[href="/admin/players/player-1"]').text()).toBe("查看详情");
   });
 });

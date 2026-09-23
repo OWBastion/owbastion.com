@@ -35,8 +35,8 @@ mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 const AdminDataTableStub = defineComponent({
   props: ["data", "rowKey", "loading", "empty"],
   setup(props, { slots }) {
-    return () => h("div", { class: "table-stub" }, [
-      (props.data as Array<Record<string, unknown>>).map((row) => h("div", { class: "table-stub-row", key: String(row[props.rowKey as string]), "data-testid": "table-row" }, [
+    return () => h("div", { role: "table" }, [
+      (props.data as Array<Record<string, unknown>>).map((row) => h("div", { role: "row", key: String(row[props.rowKey as string]) }, [
         JSON.stringify(row),
         slots["actions-cell"] ? slots["actions-cell"]({ row: { original: row } }) : null,
       ])),
@@ -46,7 +46,7 @@ const AdminDataTableStub = defineComponent({
 const AdminResponsiveDialogStub = defineComponent({
   props: ["open", "title"],
   setup(props, { slots }) {
-    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
+    return () => (props.open ? h("div", { role: "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
   },
 });
 const stubs = {
@@ -63,10 +63,10 @@ describe("admin datasets page", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/datasets?page=1&pageSize=20");
     expect(wrapper.text()).toContain("eligibleCount");
-    await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
+    await wrapper.get('[role="row"]').find("button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/datasets/00000000-0000-4000-8000-000000000007");
-    expect(wrapper.get('[data-testid="dialog"]').exists()).toBe(true);
+    expect(wrapper.get('[role="dialog"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("缺少模型版本");
     expect(wrapper.text()).toContain("定稿");
   });
@@ -85,7 +85,7 @@ describe("admin datasets page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(DatasetsPage, { global: { stubs } });
     await flushPromises();
-    await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
+    await wrapper.get('[role="row"]').find("button").trigger("click");
     await flushPromises();
     const finalizeButton = wrapper.findAll("button").find((button) => button.text().trim() === "定稿");
     await finalizeButton?.trigger("click");

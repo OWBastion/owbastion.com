@@ -11,17 +11,21 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
 }));
 
 const ModalStub = {
+  name: "UModal",
   props: ["open", "title", "description", "dismissible", "ui"],
   emits: ["update:open"],
-  template: '<section data-overlay="modal"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
-};
-const DrawerStub = {
-  props: ["open", "title", "description", "dismissible", "direction", "shouldScaleBackground", "setBackgroundColorOnScale", "ui"],
-  emits: ["update:open"],
-  template: '<section data-overlay="drawer"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button aria-label="关闭" @click="$emit(\'update:open\', false)">关闭</button></section>',
 };
 
-function mountDialog() {
+const DrawerStub = {
+  name: "UDrawer",
+  props: ["open", "title", "description", "dismissible", "ui"],
+  emits: ["update:open"],
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button aria-label="关闭" @click="$emit(\'update:open\', false)">关闭</button></section>',
+};
+
+function mountDialog(desktop: boolean) {
+  media.desktop = desktop;
   const onUpdate = vi.fn();
   const wrapper = mount(AdminResponsiveDialog, {
     props: { open: true, title: "编辑群配置", description: "group-1", size: "lg", "onUpdate:open": onUpdate },
@@ -32,27 +36,23 @@ function mountDialog() {
 }
 
 describe("AdminResponsiveDialog", () => {
-  it("renders a scroll-constrained desktop modal and forwards title, slots, and close events", async () => {
-    media.desktop = true;
-    const { wrapper, onUpdate } = mountDialog();
+  it.each([
+    { desktop: true, selectedOverlay: ModalStub, otherOverlay: DrawerStub },
+    { desktop: false, selectedOverlay: DrawerStub, otherOverlay: ModalStub },
+  ])("renders the accessible overlay for the current viewport mode", async ({ desktop, selectedOverlay, otherOverlay }) => {
+    const { wrapper, onUpdate } = mountDialog(desktop);
     await nextTick();
-    expect(wrapper.get('[data-overlay="modal"]').text()).toContain("编辑群配置");
-    expect(wrapper.text()).toContain("表单内容");
-    expect(wrapper.findComponent(ModalStub).props("ui").content).toContain("max-w-3xl");
-    expect(wrapper.findComponent(ModalStub).props("ui").body).toContain("overflow-y-auto");
-    await wrapper.findAll("button").at(-1)!.trigger("click");
-    expect(onUpdate).toHaveBeenCalledWith(false);
-  });
 
-  it("renders a bottom drawer below the desktop breakpoint", async () => {
-    media.desktop = false;
-    const { wrapper } = mountDialog();
-    await nextTick();
-    expect(wrapper.get('[data-overlay="drawer"]').text()).toContain("group-1");
-    expect(wrapper.findComponent(DrawerStub).props("direction")).toBe("bottom");
-    expect(wrapper.findComponent(DrawerStub).props("shouldScaleBackground")).toBe(false);
-    expect(wrapper.findComponent(DrawerStub).props("setBackgroundColorOnScale")).toBe(false);
-    expect(wrapper.findComponent(DrawerStub).props("ui").container).toContain("admin-responsive-dialog__container");
-    expect(wrapper.findComponent(DrawerStub).props("ui").footer).toContain("safe-area-inset-bottom");
+    expect(wrapper.findComponent(selectedOverlay).exists()).toBe(true);
+    expect(wrapper.findComponent(otherOverlay).exists()).toBe(false);
+
+    const dialog = wrapper.get('[role="dialog"]');
+    expect(dialog.attributes("aria-label")).toBe("编辑群配置");
+    expect(dialog.text()).toContain("group-1");
+    expect(dialog.text()).toContain("表单内容");
+    expect(dialog.text()).toContain("保存");
+    await wrapper.get('button[aria-label="关闭"]').trigger("click");
+    expect(onUpdate).toHaveBeenCalledWith(false);
+    wrapper.unmount();
   });
 });

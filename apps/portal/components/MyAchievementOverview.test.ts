@@ -29,21 +29,14 @@ describe("MyAchievementOverview", () => {
     expect(wrapper.text()).toContain("地图称号");
     expect(wrapper.text()).toContain("哈瓦那");
     expect(wrapper.text()).toContain("国王大道");
-    expect(wrapper.findAll(".map-title-group")).toHaveLength(2);
-    expect(wrapper.find(".map-title-collection").findAll(".equip-action")).toHaveLength(0);
     expect(wrapper.text()).toContain("已佩戴 1 / 10");
-    const retiredCard = wrapper.findAll(".achievement-card").find((card) => card.text().includes("历史称号"));
-    expect(retiredCard?.find(".equip-action").exists()).toBe(true);
-    expect(retiredCard?.find(".equip-action").attributes("disabled")).toBeUndefined();
-    await retiredCard?.find(".equip-action").trigger("click");
+    const equipRetiredTitle = wrapper.find('button[aria-label="佩戴 历史称号"]');
+    expect(equipRetiredTitle.exists()).toBe(true);
+    expect(equipRetiredTitle.attributes("disabled")).toBeUndefined();
+    await equipRetiredTitle.trigger("click");
     expect(wrapper.emitted("toggleEquipped")).toEqual([["grant-2"]]);
-    expect(wrapper.find(".map-title-collection").text()).not.toContain("不再发放");
-    expect(wrapper.findAll(".retired-status")).toHaveLength(1);
-    expect(wrapper.find(".progress-ring").exists()).toBe(false);
-    expect(wrapper.find(".achievement-icon.has-image").exists()).toBe(true);
-    expect(wrapper.find(".earned-status-icon").text()).toBe("");
-    expect(wrapper.findAll(".summary-icon")).toHaveLength(0);
-    const mapHeadings = wrapper.findAll(".map-title-heading h3").map((heading) => heading.text());
+    expect(wrapper.text().match(/不再发放/g)).toHaveLength(1);
+    const mapHeadings = wrapper.findAll("h3").map((heading) => heading.text()).filter((heading) => ["国王大道", "哈瓦那"].includes(heading));
     expect(mapHeadings).toEqual(["国王大道", "哈瓦那"]);
   });
 
@@ -51,7 +44,7 @@ describe("MyAchievementOverview", () => {
     const wrapper = await mountSuspended(MyAchievementOverview, { props: { challenges, titles: [] } });
     expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("暂无称号");
-    expect(wrapper.find(".earned-status-icon").exists()).toBe(false);
+    expect(wrapper.find('[role="img"][aria-label="已获得"]').exists()).toBe(false);
   });
 
   it("does not show equipment actions for map-scoped catalog cards", async () => {
@@ -62,8 +55,7 @@ describe("MyAchievementOverview", () => {
       },
     });
 
-    const mapCard = wrapper.findAll(".achievement-card").find((card) => card.text().includes("地图称号"));
-    expect(mapCard?.find(".equip-action").exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="佩戴 地图称号"]').exists()).toBe(false);
   });
 
   it("keeps map achievement progress separate and includes a zero-progress map", async () => {
@@ -83,11 +75,10 @@ describe("MyAchievementOverview", () => {
       global: { stubs: { MapProgressOverview } },
     });
 
-    const mapSection = wrapper.find(".map-achievement-section");
-    expect(mapSection.text()).toContain("地图成就");
-    expect(mapSection.text()).toContain("哈瓦那");
-    expect(mapSection.text()).toContain("帕拉伊苏");
-    expect(mapSection.text()).toContain("已获得 0 / 1");
+    expect(wrapper.text()).toContain("地图成就");
+    expect(wrapper.text()).toContain("哈瓦那");
+    expect(wrapper.text()).toContain("帕拉伊苏");
+    expect(wrapper.text()).toContain("已获得 0 / 1");
     expect(wrapper.text()).toContain("通用成就");
   });
 });

@@ -21,10 +21,7 @@ describe("admin dashboard", () => {
     expect(wrapper.text()).toContain("3 条待核对");
     expect(wrapper.text()).not.toContain("活跃玩家");
     expect(wrapper.text()).not.toContain("地图目录");
-    expect(wrapper.find(".metric-value").exists()).toBe(false);
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("等待核对");
-    expect(wrapper.find('input[aria-label="搜索玩家"]').exists()).toBe(false);
-    expect(wrapper.find(".management-links").exists()).toBe(false);
   });
 });

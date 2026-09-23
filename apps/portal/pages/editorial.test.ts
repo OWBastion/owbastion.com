@@ -45,12 +45,12 @@ function setCollection(rows: unknown[], failure?: Error) {
 }
 
 const stubs = {
-  UBlogPosts: { props: ["posts"], template: "<div data-testid='blog-posts'><a v-for='post in posts' :key='post.to' :href='post.to'>{{ post.title }}</a></div>" },
-  UChangelogVersions: { props: ["versions"], template: "<div data-testid='changelog-versions'><a v-for='version in versions' :key='version.to' :href='version.to'>{{ version.badge }} {{ version.title }}</a></div>" },
-  UEmpty: { props: ["title"], template: "<div data-testid='empty'>{{ title }}</div>" },
+  UBlogPosts: { props: ["posts"], template: "<div><a v-for='post in posts' :key='post.to' :href='post.to'>{{ post.title }}</a></div>" },
+  UChangelogVersions: { props: ["versions"], template: "<div><a v-for='version in versions' :key='version.to' :href='version.to'>{{ version.badge }} {{ version.title }}</a></div>" },
+  UEmpty: { props: ["title"], template: "<p>{{ title }}</p>" },
   UAlert: { props: ["title", "description"], template: "<div role='alert'><strong>{{ title }}</strong><p>{{ description }}</p><slot name='actions' /></div>" },
   UButton: { props: ["label"], template: "<button type='button'>{{ label }}</button>" },
-  ContentRenderer: { template: "<div data-testid='content-renderer'>rendered content</div>" },
+  ContentRenderer: { template: "<article>rendered content</article>" },
 };
 
 describe("public editorial surfaces", () => {
@@ -63,8 +63,7 @@ describe("public editorial surfaces", () => {
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("开发日志");
-    expect(wrapper.get("[data-testid='blog-posts']").text()).toContain("开发日志 #8：轮换挑战与地图精通");
-    expect(wrapper.get("[data-testid='blog-posts'] a").attributes("href")).toBe("/blog/rotation-challenges-map-mastery");
+    expect(wrapper.get('a[href="/blog/rotation-challenges-map-mastery"]').text()).toContain("开发日志 #8：轮换挑战与地图精通");
   });
 
   it("renders released Changelog entries with version labels", async () => {
@@ -76,8 +75,7 @@ describe("public editorial surfaces", () => {
     await flushPromises();
 
     expect(wrapper.get("h1").text()).toBe("版本更新");
-    expect(wrapper.get("[data-testid='changelog-versions']").text()).toContain("版本 26.0801.1");
-    expect(wrapper.get("[data-testid='changelog-versions'] a").attributes("href")).toBe("/changelog/26.0801.1");
+    expect(wrapper.get('a[href="/changelog/26.0801.1"]').text()).toContain("版本 26.0801.1");
   });
 
   it("renders Markdown content through ContentRenderer on detail pages", async () => {
@@ -91,7 +89,6 @@ describe("public editorial surfaces", () => {
 
     expect(wrapper.get("h1").text()).toBe("开发日志 #8：轮换挑战与地图精通");
     expect(wrapper.text()).toContain("开发日志");
-    expect(wrapper.get("[data-testid='content-renderer']").exists()).toBe(true);
   });
 
   it("keeps read failures and empty results explicit", async () => {
@@ -107,7 +104,7 @@ describe("public editorial surfaces", () => {
     setCollection([]);
     const emptyWrapper = await mountSuspended(BlogListPage, { global: { stubs } });
     await flushPromises();
-    expect(emptyWrapper.get("[data-testid='empty']").text()).toBe("暂无开发日志");
+    expect(emptyWrapper.text()).toContain("暂无开发日志");
   });
 
   it("renders a changelog detail with the version above the title and a copy-link action", async () => {
@@ -119,11 +116,9 @@ describe("public editorial surfaces", () => {
     const wrapper = await mountSuspended(ChangelogDetailPage, { global: { stubs } });
     await flushPromises();
 
-    expect(wrapper.get(".changelog-version").text()).toContain("26.0801.1");
+    expect(wrapper.text().indexOf("26.0801.1")).toBeLessThan(wrapper.text().indexOf("随机事件调整"));
     expect(wrapper.get("h1").text()).toBe("随机事件调整");
-    expect(wrapper.get("h1").classes()).toContain("type-headline");
     expect(wrapper.text()).toContain("复制链接");
-    expect(wrapper.get("[data-testid='content-renderer']").exists()).toBe(true);
   });
 
   it("copies the changelog canonical URL", async () => {

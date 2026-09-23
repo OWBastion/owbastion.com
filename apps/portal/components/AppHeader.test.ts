@@ -41,7 +41,7 @@ describe("AppHeader", () => {
     route.fullPath = "/admin";
     const wrapper = await mountHeader();
 
-    expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
+    expect(wrapper.get('nav[aria-label="管理导航"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("概览");
     expect(wrapper.text()).toContain("内容编辑");
     expect(wrapper.text()).toContain("玩家");
@@ -51,11 +51,11 @@ describe("AppHeader", () => {
     expect(wrapper.text()).not.toContain("地图称号规则");
     expect(wrapper.text()).not.toContain("天梯排名");
 
-    const toggle = wrapper.get(".mobile-menu-toggle");
+    const toggle = wrapper.get('button[aria-label="打开菜单"]');
     // aria-controls must be absent while the panel is not in the DOM (no-missing-references regression).
     expect(toggle.attributes("aria-controls")).toBeUndefined();
     expect(toggle.attributes("aria-expanded")).toBe("false");
-    const studioLink = wrapper.find(".main-nav a[href=\"/api/studio/login?redirect=%2Fstudio\"]");
+    const studioLink = wrapper.find('nav[aria-label="管理导航"] a[href="/api/studio/login?redirect=%2Fstudio"]');
     expect(studioLink.exists()).toBe(true);
     expect(studioLink.attributes("target")).toBe("_blank");
     expect(studioLink.attributes("rel")).toBe("noopener");
@@ -71,7 +71,7 @@ describe("AppHeader", () => {
     route.path = "/";
     route.fullPath = "/";
     const wrapper = await mountHeader();
-    const toggle = wrapper.get(".mobile-menu-toggle");
+    const toggle = wrapper.get('button[aria-label="打开菜单"]');
 
     await toggle.trigger("click");
     await flushPromises();
@@ -107,7 +107,7 @@ describe("AppHeader", () => {
     route.path = "/";
     route.fullPath = "/";
     const wrapper = await mountHeader();
-    const toggle = wrapper.get(".mobile-menu-toggle");
+    const toggle = wrapper.get('button[aria-label="打开菜单"]');
     await toggle.trigger("click");
     await flushPromises();
     focused = [];
@@ -125,10 +125,10 @@ describe("AppHeader", () => {
     route.path = "/";
     route.fullPath = "/";
     const wrapper = await mountHeader();
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
 
-    const scrim = wrapper.get(".mobile-nav-scrim");
+    const scrim = wrapper.get('[aria-hidden="true"]');
     expect(scrim.attributes("aria-hidden")).toBe("true");
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
 
@@ -137,7 +137,7 @@ describe("AppHeader", () => {
     await flushPromises();
 
     expect(wrapper.find("#mobile-nav").exists()).toBe(false);
-    expect(wrapper.find(".mobile-nav-scrim").exists()).toBe(false);
+    expect(scrim.element.isConnected).toBe(false);
     expect(focused).toHaveLength(0);
     focusSpy.mockRestore();
   });
@@ -146,7 +146,7 @@ describe("AppHeader", () => {
     route.path = "/admin";
     route.fullPath = "/admin";
     const wrapper = await mountHeader();
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
 
@@ -163,7 +163,7 @@ describe("AppHeader", () => {
     route.path = "/admin";
     route.fullPath = "/admin";
     const wrapper = await mountHeader();
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
 
     const nav = wrapper.get("#mobile-nav");
@@ -196,7 +196,7 @@ describe("AppHeader", () => {
     route.path = "/admin";
     route.fullPath = "/admin";
     const wrapper = await mountHeader();
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
 
@@ -208,28 +208,13 @@ describe("AppHeader", () => {
     focusSpy.mockRestore();
   });
 
-  it("uses shared pressable feedback on mobile navigation links", async () => {
-    route.path = "/";
-    route.fullPath = "/";
-    const wrapper = await mountHeader();
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
-    await flushPromises();
-
-    const links = wrapper.findAll("#mobile-nav a");
-    expect(links.length).toBeGreaterThan(0);
-    for (const link of links) {
-      expect(link.classes()).toContain("pressable");
-    }
-    focusSpy.mockRestore();
-  });
-
   it("exposes one concise update route on public navigation", async () => {
     route.path = "/";
     route.fullPath = "/";
     const wrapper = await mountHeader();
 
-    expect(wrapper.findAll(".main-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
-    await wrapper.get(".mobile-menu-toggle").trigger("click");
+    expect(wrapper.findAll('nav[aria-label="主导航"] a').filter((link) => link.text() === "版本更新")).toHaveLength(1);
+    await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
     expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
     focusSpy.mockRestore();

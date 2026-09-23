@@ -12,7 +12,11 @@ describe("SubmissionProgress", () => {
   ])("maps %s to its lifecycle state", async (status, states) => {
     const wrapper = await mountSuspended(SubmissionProgress, { props: { status, updatedAt: 0 } });
 
-    expect(wrapper.findAll(".progress-title span").map((item) => item.text())).toEqual(states);
+    const actualStates = wrapper.findAll("[aria-label]")
+      .map((item) => item.attributes("aria-label"))
+      .filter((label) => label?.includes("："))
+      .map((label) => label!.split("：")[1]);
+    expect(actualStates).toEqual(states);
   });
 
   it("shows player confirmation as the current OCR step", async () => {

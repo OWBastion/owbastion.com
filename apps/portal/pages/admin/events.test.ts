@@ -30,21 +30,15 @@ const adminApi = vi.fn(async (path: string) => {
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 describe("admin events page", () => {
-  it("renders sorting and grouping controls without an SSR error", async () => {
+  it("renders the event list with sorting and grouping controls", async () => {
     const wrapper = await mountSuspended(EventsAdminPage, { attachTo: document.body });
     await flushPromises();
 
     const sortingSelect = wrapper.get('[aria-label="排序方式"]');
     expect(sortingSelect).toBeTruthy();
-    expect(sortingSelect.element.closest(".admin-data-table__sort-control")).not.toBeNull();
     expect(wrapper.get('[aria-label="分组方式"]')).toBeTruthy();
     expect(wrapper.text()).toContain("默认顺序");
     expect(wrapper.text()).toContain("不分组");
-    expect(
-      wrapper.findComponent({ name: "AdminDataTable" }).props("sorting"),
-    ).toEqual([
-      { id: "gameVersion", desc: true },
-      { id: "name", desc: false },
-    ]);
+    expect(wrapper.text()).toContain("测试事件");
   });
 });

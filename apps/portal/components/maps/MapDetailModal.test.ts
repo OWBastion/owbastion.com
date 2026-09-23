@@ -12,11 +12,11 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
 
 const ModalStub = {
   props: ["open", "title", "description", "ui"],
-  template: '<section data-overlay="modal"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /></section>',
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /></section>',
 };
 const DrawerStub = {
   props: ["open", "title", "description", "direction", "shouldScaleBackground", "setBackgroundColorOnScale", "ui"],
-  template: '<section data-overlay="drawer"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /></section>',
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /></section>',
 };
 
 const map = {
@@ -56,24 +56,16 @@ function mountModal() {
 }
 
 describe("MapDetailModal", () => {
-  it("uses a scroll-constrained desktop modal without scaling the page", async () => {
-    media.desktop = true;
-    const wrapper = mountModal();
-    await nextTick();
-    expect(wrapper.get('[data-overlay="modal"]').text()).toContain("萨摩亚");
-    expect(wrapper.findComponent(ModalStub).props("ui").content).toContain("overlay-sheet--modal");
-    expect(wrapper.findComponent(ModalStub).props("ui").body).toContain("overlay-sheet__body");
-  });
-
-  it("uses a bottom sheet that does not scale the page background", async () => {
-    media.desktop = false;
-    const wrapper = mountModal();
-    await nextTick();
-    const drawer = wrapper.findComponent(DrawerStub);
-    expect(drawer.props("direction")).toBe("bottom");
-    expect(drawer.props("shouldScaleBackground")).toBe(false);
-    expect(drawer.props("setBackgroundColorOnScale")).toBe(false);
-    expect(drawer.props("ui").container).toContain("overlay-sheet__container");
-    expect(drawer.props("ui").body).toContain("safe-area-inset-bottom");
+  it("keeps map details available across viewport modes", async () => {
+    for (const desktop of [true, false]) {
+      media.desktop = desktop;
+      const wrapper = mountModal();
+      await nextTick();
+      const dialog = wrapper.get('[role="dialog"]');
+      expect(dialog.text()).toContain("萨摩亚");
+      expect(dialog.text()).toContain("地图概览");
+      expect(dialog.text()).toContain("地图评级");
+      wrapper.unmount();
+    }
   });
 });

@@ -87,8 +87,8 @@ describe("PlayerReviewPanel", () => {
     expect(wrapper.text()).toContain("4.2");
     expect(wrapper.text()).toContain("节奏很好");
     expect(wrapper.text()).toContain("登录后评分");
-    expect(wrapper.get(".review-login").attributes("href")).toContain("/login?returnTo=");
-    expect(wrapper.find(".review-editor").exists()).toBe(false);
+    expect(wrapper.get('a[href^="/login?returnTo="]').text()).toContain("登录后评分");
+    expect(wrapper.find('textarea[placeholder="分享你的实际体验"]').exists()).toBe(false);
     expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/v1/me/reviews/"), expect.anything());
   });
 
@@ -105,7 +105,7 @@ describe("PlayerReviewPanel", () => {
     expect(wrapper.text()).toContain("样本不足");
     expect(wrapper.text()).toContain("暂无文字评价");
     expect(wrapper.text()).toContain("匿名展示只对其他玩家隐藏身份");
-    expect(wrapper.get(".review-rating-button.selected").text()).toContain("5 星");
+    expect(wrapper.get('button[aria-label="5 星"][aria-pressed="true"]').text()).toContain("5 星");
   });
 
   it("preserves the editor flow for edit and anonymous save without duplicate writes", async () => {
@@ -113,7 +113,7 @@ describe("PlayerReviewPanel", () => {
     const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
     await flushPromises();
 
-    await wrapper.get(".review-rating-button[aria-label=\"5 星\"]").trigger("click");
+    await wrapper.get('button[aria-label="5 星"]').trigger("click");
     await wrapper.get("textarea").setValue("已修改");
     const form = wrapper.get("form");
     await Promise.all([form.trigger("submit"), form.trigger("submit")]);
@@ -130,7 +130,7 @@ describe("PlayerReviewPanel", () => {
     const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
     await flushPromises();
 
-    await wrapper.get(".review-withdraw").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("撤回评价"))!.trigger("click");
     await flushPromises();
 
     const withdrawal = api.mock.calls.find(([path, options]) => path.includes("/withdraw") && options?.method === "POST");
@@ -156,8 +156,8 @@ describe("PlayerReviewPanel", () => {
     const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
     await flushPromises();
 
-    expect(wrapper.get(".review-editor").exists()).toBe(true);
+    expect(wrapper.get('textarea[placeholder="分享你的实际体验"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("无法读取评价");
-    expect(wrapper.get(".review-retry").exists()).toBe(true);
+    expect(wrapper.findAll("button").some((button) => button.text() === "重新读取评价")).toBe(true);
   });
 });

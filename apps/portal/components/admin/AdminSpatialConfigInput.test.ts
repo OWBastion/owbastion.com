@@ -131,16 +131,16 @@ describe("AdminSpatialConfigInput", () => {
       },
     });
 
-    expect(wrapper.find(".point-sections").exists()).toBe(true);
+    expect(wrapper.text()).toContain("-121.979");
     const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("收起坐标明细"));
     expect(toggleButton).toBeDefined();
 
     await toggleButton?.trigger("click");
-    expect(wrapper.find(".point-sections").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("-121.979");
     expect(wrapper.text()).toContain("展开坐标明细");
 
     const expandButton = wrapper.findAll("button").find((btn) => btn.text().includes("展开坐标明细"));
     await expandButton?.trigger("click");
-    expect(wrapper.find(".point-sections").exists()).toBe(true);
+    expect(wrapper.text()).toContain("-121.979");
   });
 });
