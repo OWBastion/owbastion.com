@@ -916,6 +916,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (kind.trim().toLocaleLowerCase() === "pioneer" && defaultScope !== "explicit") throw new Error("PIONEER_RULE_SCOPE_MUST_BE_EXPLICIT");
   };
 
+  const insertDefaultMapTitleRuleAssignment = (revisionId: string, mapId: string, ruleId: string, timestamp: number) => database.prepare(
+    "INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, 'map_title_rule', ?, 1, NULL, NULL, NULL, NULL, ?, ?) ON CONFLICT (gameplay_revision_id, challenge_family, challenge_id) DO NOTHING",
+  ).bind(`assignment:${revisionId}:map_title_rule:${ruleId}`, revisionId, mapId, ruleId, timestamp, timestamp);
+
   const materializeDefaultMapTitleRuleAssignments = async (rule: typeof mapTitleRules.$inferSelect) => {
     if (rule.status === "inactive" || rule.defaultScope !== "all_active" || rule.kind.trim().toLocaleLowerCase() === "pioneer") return;
     const mapVariant = (rule.mapVariant as "classic" | null) ?? null;
@@ -924,20 +928,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       .where(and(eq(maps.status, "active"), mapVariant === "classic" ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic")) : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant))));
     if (!revisions.length) return;
     const timestamp = now();
-    await db.insert(gameplayRevisionChallengeAssignments).values(revisions.map(({ revision }) => ({
-      id: `assignment:${revision.id}:map_title_rule:${rule.id}`,
-      gameplayRevisionId: revision.id,
-      mapId: revision.mapId,
-      challengeFamily: "map_title_rule",
-      challengeId: rule.id,
-      enabled: 1,
-      condition: null,
-      evidenceRule: null,
-      submissionMode: null,
-      slot: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    }))).onConflictDoNothing();
+    await database.batch(revisions.map(({ revision }) => insertDefaultMapTitleRuleAssignment(revision.id, revision.mapId, rule.id, timestamp)));
   };
 
 
@@ -1104,15 +1095,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (!assignment || assignment.mapId !== map.id || assignment.enabled === 0) continue;
         const exception = exceptionByRuleMap.get(`${rule.id}:${map.id}`);
         if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, timestamp)) continue;
-        const slot = assignment.slot ?? rule.slot ?? null;
+        const activeException = exception?.enabled === 1 ? exception : null;
+        const slot = activeException?.slot ?? assignment.slot ?? rule.slot ?? null;
         items.push({
           challengeId: compatByRuleMap.get(`${rule.id}:${map.id}`) ?? `${map.id}.${rule.kind}`,
           family: "map", gameplayRevisionId: revision.id, type: "map_completion", kind: "map_title_achievement",
           name: title.label, mapId: map.id, mapName: map.name, titleKey: title.key,
           ...(rule.mapVariant ? { mapVariant: rule.mapVariant as "classic" } : {}),
-          condition: assignment.condition ?? rule.condition,
-          evidenceRule: assignment.evidenceRule ?? rule.evidenceRule,
-          submissionMode: (assignment.submissionMode ?? rule.submissionMode) as "manual" | "automatic",
+          condition: activeException?.condition ?? assignment.condition ?? rule.condition,
+          evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
+          submissionMode: (activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode) as "manual" | "automatic",
           mapTitleRule: { ruleId: rule.id, kind: rule.kind, displayKind: rule.displayKind as "fixed" | "map_pioneer" | "map_name_suffix", slot: slot as "pioneer" | "conqueror" | "dominator" | null, dynamic: true },
           gameVersion: rule.introducedVersion,
           status: rule.status as "active" | "sunsetting",
@@ -3158,6 +3150,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
 
+      const becomesDefaultMapRevision = input.lifecycle === "default" && input.mapVariant !== "classic";
+      const becomesClassicMapRevision = input.lifecycle === "selectable" && input.mapVariant === "classic";
+      const activeMap = becomesDefaultMapRevision || becomesClassicMapRevision
+        ? await db.select({ id: maps.id }).from(maps).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get()
+        : null;
+      const defaultMapTitleRules = activeMap && (becomesDefaultMapRevision || becomesClassicMapRevision)
+        ? await db.select().from(mapTitleRules).where(and(
+          eq(mapTitleRules.defaultScope, "all_active"),
+          inArray(mapTitleRules.status, ["active", "sunsetting"]),
+          input.mapVariant === "classic" ? eq(mapTitleRules.mapVariant, "classic") : isNull(mapTitleRules.mapVariant),
+        ))
+        : [];
+
       const timestamp = now();
       const statements = [
         ...(otherDefault ? [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
@@ -3172,6 +3177,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         statements.push(database.prepare("INSERT INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
           `assignment:${input.revisionId}:${crypto.randomUUID()}`, input.revisionId, input.mapId, assignment.challengeFamily, assignment.challengeId, assignment.enabled ? 1 : 0, assignment.condition, assignment.evidenceRule, assignment.submissionMode, assignment.slot, timestamp, timestamp,
         ));
+      }
+      for (const rule of defaultMapTitleRules) {
+        if (rule.kind.trim().toLocaleLowerCase() !== "pioneer") {
+          statements.push(insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, rule.id, timestamp));
+        }
       }
       await database.batch(statements);
       const response = await loadAdminMapRevision(input.revisionId);

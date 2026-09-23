@@ -920,6 +920,11 @@ describe("Admin map revision editor", () => {
       ["revision:map.editor:initial", "selectable"],
       [r2.revisionId, "default"],
     ]));
+    await expect(services.listChallenges({ family: "map", mapId: "map.editor" })).resolves.toContainEqual(expect.objectContaining({
+      challengeId: "map.editor.conqueror",
+      titleKey: "CONQUEROR",
+      gameplayRevisionId: r2.revisionId,
+    }));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
     const audit = sqlite.prepare("SELECT operation, entity_id, json_extract(payload_json, '$.progressCopied') AS progress_copied, json_extract(payload_json, '$.resetReason') AS reset_reason, json_extract(payload_json, '$.gameVersion') AS game_version, json_extract(payload_json, '$.replacedByRevisionId') AS replaced_by_revision_id, json_extract(payload_json, '$.replacedDefaultLifecycle') AS replaced_default_lifecycle FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update')").all();
     expect(audit).toEqual(expect.arrayContaining([
@@ -1680,7 +1685,8 @@ describe("map title rule model – locked invariants", () => {
         condition: "巴黎专属条件",
         slot: "pioneer", // overrides rule default slot
       });
-      sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET condition = '修订条件', slot = 'dominator' WHERE gameplay_revision_id = 'revision:map.paris:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
+      sqlite.prepare("UPDATE map_title_rule_exceptions SET evidence_rule = '巴黎截图规则', submission_mode = 'automatic' WHERE rule_id = 'rule.conqueror' AND map_id = 'map.paris'").run();
+      sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET condition = '修订条件', evidence_rule = '修订截图规则', submission_mode = 'manual', slot = 'dominator' WHERE gameplay_revision_id = 'revision:map.paris:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
 
       // Exception must not create a new title_key; rule's title_key is authoritative.
       const rule = sqlite.prepare("SELECT title_key FROM map_title_rules WHERE id = 'rule.conqueror'").get() as { title_key: string };
@@ -1696,6 +1702,14 @@ describe("map title rule model – locked invariants", () => {
         projected: true,
         effective: { condition: "巴黎专属条件", slot: "pioneer" },
       });
+      await expect(services.listChallenges({ family: "map", mapId: "map.paris" })).resolves.toContainEqual(expect.objectContaining({
+        challengeId: "map.paris.conqueror",
+        gameplayRevisionId: "revision:map.paris:initial",
+        condition: "巴黎专属条件",
+        evidenceRule: "巴黎截图规则",
+        submissionMode: "automatic",
+        mapTitleRule: expect.objectContaining({ slot: "pioneer" }),
+      }));
       // The exception does not carry its own title_key column — the rule owns it.
       const hasOwnTitleKey = sqlite.prepare("SELECT COUNT(*) AS c FROM pragma_table_info('map_title_rule_exceptions') WHERE name = 'title_key'").get() as { c: number };
       expect(hasOwnTitleKey.c).toBe(0);

@@ -1,8 +1,10 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { reactive } from "vue";
 import BindingsPage from "./bindings.vue";
 
+const route = reactive({ query: {} as Record<string, string> });
 const adminApi = vi.fn((path: string, options?: any) => {
   if (path === "/v1/binding-claims") {
     return Promise.resolve({
@@ -52,7 +54,16 @@ const adminApi = vi.fn((path: string, options?: any) => {
     });
   }
   if (path === "/v1/binding-invites") {
-    return Promise.resolve({ items: [] });
+    return Promise.resolve({ items: [{
+      inviteId: "invite-retry",
+      playerName: "迁移玩家",
+      playerId: "4567",
+      status: "active",
+      codeAvailable: false,
+      createdAt: 1000,
+      expiresAt: 5000,
+      historicalMigration: { status: "retry_required", requestedCount: 1, completedCount: 0, conflictCount: 0, retryCount: 1 },
+    }] });
   }
   if (path.startsWith("/v1/binding-claims/") && path.endsWith("/decision")) {
     return Promise.resolve();
@@ -60,6 +71,7 @@ const adminApi = vi.fn((path: string, options?: any) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 
+mockNuxtImport("useRoute", () => () => route);
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
 const USelectStub = {
@@ -67,10 +79,16 @@ const USelectStub = {
   emits: ["update:modelValue"],
   template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>',
 };
+const UTabsStub = {
+  props: ["modelValue", "items"],
+  emits: ["update:modelValue"],
+  template: '<div><button v-for="item in items" :key="item.value" :aria-selected="modelValue === item.value" @click="$emit(\'update:modelValue\', item.value)">{{ item.label }}</button><slot :name="modelValue" /></div>',
+};
 
 describe("admin bindings page", () => {
   it("renders claims with operation type badges and handles conflict secondary confirmation", async () => {
     adminApi.mockClear();
+    route.query = {};
     const wrapper = await mountSuspended(BindingsPage, { attachTo: document.body, global: { stubs: { USelect: USelectStub } } });
     await flushPromises();
 
@@ -133,6 +151,7 @@ describe("admin bindings page", () => {
 
   it("can reveal routine binding claims from the secondary all-claims filter", async () => {
     adminApi.mockClear();
+    route.query = {};
     const wrapper = await mountSuspended(BindingsPage, {
       global: {
         stubs: {
@@ -146,5 +165,19 @@ describe("admin bindings page", () => {
     await wrapper.get('select[aria-label="筛选申请状态"]').setValue("all");
     await flushPromises();
     expect(wrapper.text()).toContain("等待玩家");
+  });
+
+  it("opens invitation and migration work from its tab deep link", async () => {
+    adminApi.mockClear();
+    route.query = { tab: "invitations" };
+    const wrapper = await mountSuspended(BindingsPage, {
+      global: { stubs: { USelect: USelectStub, UTabs: UTabsStub } },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('button[aria-selected="true"]').text()).toBe("邀请与迁移");
+    expect(wrapper.text()).toContain("迁移玩家");
+    expect(wrapper.text()).toContain("重试迁移");
+    wrapper.unmount();
   });
 });

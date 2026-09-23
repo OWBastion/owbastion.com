@@ -47,6 +47,7 @@ describe("admin pending work landing page", () => {
     expect(wrapper.find(".management-links").exists()).toBe(false);
     expect(wrapper.find('a[href="/admin/reviews/submission-1"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/admin/bindings"]').exists()).toBe(true);
+    expect(wrapper.find('a[href="/admin/bindings?tab=invitations"]').exists()).toBe(true);
     expect(wrapper.find('a[href="/admin/mastery-runs?unresolvedConflictsOnly=true"]').exists()).toBe(true);
     expect(adminApi).toHaveBeenCalledTimes(6);
     expect(adminApi).not.toHaveBeenCalledWith(expect.stringContaining("/v1/player-reviews"));

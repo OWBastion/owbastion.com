@@ -93,7 +93,7 @@ export function useAdminInbox() {
             id: `migration:${invite.inviteId}`,
             title: `${invite.playerName}#${invite.playerId} · 历史称号迁移`,
             detail: "迁移需要重试",
-            href: "/admin/bindings",
+            href: "/admin/bindings?tab=invitations",
           },
         })),
     ].sort((a, b) => b.sortAt - a.sortAt);

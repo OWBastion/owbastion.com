@@ -14,6 +14,8 @@ type HistoricalMigration = AdminBindingInvitation["historicalMigration"];
 
 const toast = useToast();
 const api = useAdminApi();
+const route = useRoute();
+const router = useRouter();
 const claims = ref<AdminBindingClaim[]>([]);
 const invitations = ref<AdminBindingInvitation[]>([]);
 const loading = ref(true);
@@ -42,7 +44,20 @@ function flashRow(id: string, updatedIds: Set<string>) {
   window.setTimeout(() => updatedIds.delete(id), 420);
 }
 
-const activeTab = shallowRef("claims");
+const bindingTabValues = ["claims", "invitations", "create", "batch"] as const;
+type BindingTab = (typeof bindingTabValues)[number];
+const tabFromRoute = (value: unknown): BindingTab => typeof value === "string" && bindingTabValues.includes(value as BindingTab) ? value as BindingTab : "claims";
+const activeTab = shallowRef(tabFromRoute(route.query.tab));
+watch(() => route.query.tab, (value) => {
+  const next = tabFromRoute(value);
+  if (next !== activeTab.value) activeTab.value = next;
+});
+watch(activeTab, (value) => {
+  const query = { ...route.query };
+  if (value === "claims") delete query.tab;
+  else query.tab = value;
+  if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
+});
 const visibleClaims = computed(() => claimStatus.value === "pending_review" ? claims.value.filter((claim) => claim.status === "pending_review") : claims.value);
 const workspaceCount = computed(() => {
   if (loading.value) return "读取中…";
