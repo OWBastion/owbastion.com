@@ -53,6 +53,10 @@ pnpm dev:local
 
 `pnpm dev:local` 会自动启用本地登录 fixture；该模式只用于本地调试，不代表生产环境的 QQ 身份认证，也不会在生产环境启用。
 
+本地生成可重新复制的绑定邀请时，将仅用于本地的
+`BINDING_INVITE_CODE_ENCRYPTION_KEY` 写入被 `.gitignore` 忽略的 `.dev.vars`。
+活动邀请仍需要重新复制期间，不要更换此密钥。
+
 本地开发需要 Studio 时，先将仅用于本地的 `STUDIO_GITHUB_TOKEN` 写入被 `.gitignore` 忽略的 `.dev.vars`。`pnpm dev:local` 只将它传给 Portal 服务端；token 不会进入 `NUXT_PUBLIC_*` 配置或浏览器代码。缺少该变量时，Studio 保持不可用。
 
 也可以分别启动服务：
