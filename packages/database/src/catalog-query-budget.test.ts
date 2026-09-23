@@ -251,6 +251,10 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
+    CREATE TABLE random_event_versions (
+      game_version TEXT PRIMARY KEY NOT NULL,
+      availability TEXT NOT NULL DEFAULT 'available'
+    );
     CREATE TABLE random_event_map_challenges (
       event_id TEXT NOT NULL REFERENCES random_events(id),
       challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),
@@ -447,12 +451,24 @@ describe("catalog query budgets", () => {
     const { services, sqlite } = runWithSize(2, 2);
     const timestamp = Date.now();
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('FUTURE_TITLE', '未来称号', 'award', '未来系列', '完成挑战', 'active', 'global', 'fixed', 'null', NULL)").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('RETIRED_TITLE', '历史称号', 'award', '历史系列', '历史条件', 'retired', 'global', 'fixed', 'null', NULL)").run();
     sqlite.prepare("INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES ('title.future', 'FUTURE_TITLE', NULL, '完成挑战', '截图', 'manual', NULL, 'scheduled', NULL, NULL, NULL, NULL, 'global', ?, ?)").run(timestamp, timestamp);
 
     const buildProjection = await services.listAgentTitles({ page: 1, pageSize: 20 });
     expect(buildProjection.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ titleKey: "FUTURE_TITLE", scope: "global", gameVersion: null }),
+      expect.objectContaining({ titleKey: "RETIRED_TITLE", scope: "global", availability: "retired", gameVersion: null }),
     ]));
+    await expect(services.getAgentTitle({ titleKey: "FUTURE_TITLE" })).resolves.toEqual(
+      expect.objectContaining({ titleKey: "FUTURE_TITLE", scope: "global", gameVersion: null }),
+    );
+    await expect(services.getAgentTitle({ titleKey: "RETIRED_TITLE" })).resolves.toEqual(
+      expect.objectContaining({ titleKey: "RETIRED_TITLE", scope: "global", availability: "retired", gameVersion: null }),
+    );
+    const search = await services.searchAgentContent({ page: 1, pageSize: 20, query: "未来称号", kind: "title" });
+    expect(search.items).toContainEqual({ kind: "title", id: "FUTURE_TITLE", name: "未来称号", summary: "完成挑战" });
+    const retiredSearch = await services.searchAgentContent({ page: 1, pageSize: 20, query: "历史称号", kind: "title" });
+    expect(retiredSearch.items).toContainEqual({ kind: "title", id: "RETIRED_TITLE", name: "历史称号", summary: "历史条件" });
 
     const playerTitles = await services.listTitles({});
     expect(playerTitles.map((title) => title.titleKey)).not.toContain("FUTURE_TITLE");

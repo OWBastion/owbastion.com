@@ -436,11 +436,11 @@ Bastion sync/build/release; the platform does not trigger those operations.
 ## Agents content API
 
 Bastion consumes current title metadata and active player grants through separate
-read-only Agents endpoints. `/v1/agents/titles` is a build projection of stable
-title definitions; it may include a global title before its player-facing
-challenge is released, with `gameVersion: null` until release metadata exists.
-That inclusion does not make the title visible, earnable, or equipable through
-player-facing flows. Global active grants come from
+read-only Agents endpoints. The global title list, detail, and title search are
+one build projection of stable title definitions; they may include a global
+title before its player-facing challenge is released, with `gameVersion: null`
+until release metadata exists. That inclusion does not make the title visible,
+earnable, or equipable through player-facing flows. Global active grants come from
 `/v1/agents/player-title-grants`; map holders are queried per map through
 `/v1/agents/map-title-holders?mapId=...`. These responses read D1 as the
 authoritative source and never expose historical or revoked grants to the
