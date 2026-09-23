@@ -6,6 +6,12 @@ and private operational data.
 
 Capability status is maintained only in the [feature status matrix](feature-status.md).
 
+The accepted convergence target for gameplay facts, title acquisition, progression,
+identity, and administrator information architecture is defined in
+[platform-domain-model.md](platform-domain-model.md). Where this document records a
+transitional implementation mechanism that differs from that accepted model, treat the
+mechanism as current implementation evidence, not as the desired end-state contract.
+
 Gameplay Revision (`gameplayRevisionId`) is the current map progression and
 build identity, scoped to a stable map. `CLASSIC`, `map_variant`, and
 `mapVariant` are retained only as legacy compatibility or OCR evidence facts;
