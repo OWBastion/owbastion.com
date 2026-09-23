@@ -63,7 +63,7 @@ import type {
   AdminDatasetDetailResponse,
   AdminDatasetFinalizeResponse,
   OcrkitDatasetResponse,
-  AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
+  AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
 import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerifiedMasteryRunResult, VerifiedMasteryRun, VerifiedMasteryRunInput } from "./mastery";
@@ -181,7 +181,7 @@ export type PlatformServices = {
   listAgentTitles(input: AgentTitleQuery): Promise<AgentTitleListResponse>;
   listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery): Promise<AgentPlayerTitleGrantListResponse>;
   listAgentMapTitleHolders(input: AgentMapTitleHolderQuery): Promise<AgentMapTitleHolderListResponse>;
-  getAgentTitle(input: { titleKey: string }): Promise<Title | null>;
+  getAgentTitle(input: { titleKey: string }): Promise<AgentTitle | null>;
   searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
   listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
   getRandomEvent(input: { eventId: string; includeArchived?: boolean }): Promise<RandomEvent | null>;

@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, annotationProposalPriority, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeListResponse, AdminSubmissionChallengeOption, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeListResponse, AdminSubmissionChallengeOption, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionChallengeSelections, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { difficultyCovers, matchOcrResult } from "./ocr-match";
@@ -302,6 +302,19 @@ const asReviewRecord = (row: typeof reviews.$inferSelect): ReviewRecord => ({
 const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase();
 
 const titleColor = (value: string) => JSON.parse(value) as { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
+const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
+  titleKey: row.key,
+  label: row.label,
+  icon: row.icon,
+  iconUrl: row.iconUrl,
+  category: row.category,
+  condition: row.condition,
+  availability: row.availability as Title["availability"],
+  scope: row.scope as Title["scope"],
+  displayKind: row.displayKind as Title["displayKind"],
+  color: titleColor(row.colorJson),
+  gameVersion: row.gameVersion?.trim() || null,
+});
 
 const digestHex = async (value: ArrayBuffer) => {
   const digest = await crypto.subtle.digest("SHA-256", value);
@@ -372,6 +385,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         isNull(playerTitleGrants.gameplayRevisionId),
       ));
   };
+  const listGlobalAgentTitles = async () => (await db.select().from(titleCatalog)
+    .where(eq(titleCatalog.scope, "global"))
+    .orderBy(titleCatalog.key)).map(toAgentTitle);
 
   const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
   const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
@@ -2815,7 +2831,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return null;
     },
     async listAgentTitles(input: AgentTitleQuery) {
-      const titles = await this.listTitles({ mapId: input.mapId });
+      const globalTitles = await listGlobalAgentTitles();
+      const mapTitles = input.mapId
+        ? (await this.listTitles({ mapId: input.mapId })).filter((title) => title.scope === "map")
+        : [];
+      const titles = globalTitles.concat(mapTitles);
       const query = input.query?.toLocaleLowerCase();
       const filtered = titles.filter((title) => (!query || [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.category || title.category === input.category) && (!input.scope || title.scope === input.scope) && (!input.mapId || title.scope === "global" || title.mapId === input.mapId));
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
@@ -2852,24 +2872,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, ...paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize) };
     },
     async getAgentTitle(input) {
-      const title = await db.select().from(titleCatalog).where(and(eq(titleCatalog.key, input.titleKey), eq(titleCatalog.availability, "active"))).get();
+      const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
+      if (title?.scope === "global") return toAgentTitle(title);
       const titleGameVersion = title?.gameVersion?.trim();
-      if (!title || !titleGameVersion) return null;
-      if (title.scope === "global") {
-        return {
-          titleKey: title.key,
-          label: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: title.category,
-          condition: title.condition,
-          availability: title.availability as Title["availability"],
-          scope: "global" as const,
-          displayKind: title.displayKind as Title["displayKind"],
-          color: titleColor(title.colorJson),
-          gameVersion: titleGameVersion,
-        };
-      }
+      if (!title || title.availability !== "active" || !titleGameVersion) return null;
       // Deterministic first match: lowest mapId, then slot — mirrors prior listMaps+listTitles flatten order.
       const reward = await db.select({ title: titleCatalog, reward: mapTitleRewards })
         .from(mapTitleRewards)
@@ -2930,12 +2936,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
     async searchAgentContent(input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({}), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), this.listTitles({})]);
+      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({}), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
       const results: AgentSearchResult[] = [];
       if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
       if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
-      if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => title.availability === "active" && [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
+      if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
       return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
     },
     async listRandomEvents(input) {
