@@ -96,8 +96,9 @@ pre-release display without inventing a `preview` lifecycle state.
 "Obtainable" is derived, not stored. A Title is obtainable only when at least
 one of its Challenges is currently completable.
 
-Retiring a Title prevents new Challenge Completions for it. Historical
-Completion and Grant records remain auditable.
+Retiring a Title prevents new Challenge Completions for it. Existing current
+Grants remain owned unless an explicit revoke or reset rule removes them, and
+historical Completion and Grant records remain auditable.
 
 ### Category
 
@@ -554,8 +555,10 @@ adding profile-specific title visibility.
 ## Player reviews
 
 A player review binds to `(Player, Gameplay Revision)` for maps so ratings
-reflect the version actually played. The same principle applies to any future
-review target whose user experience has an explicit version boundary.
+reflect the version actually played. Random Event reviews bind to the stable
+Event because the platform does not create Event Revisions. The same versioned
+principle applies to any future review target that introduces a real experience
+version boundary.
 
 One Player keeps at most one current review per target/version and edits that
 record rather than creating rating spam.
