@@ -101,11 +101,12 @@ async function mountPage(): Promise<VueWrapper> {
 describe("title migration page", () => {
   it("selects a holder without opening the dialog", async () => {
     const wrapper = await mountPage();
-    expect(wrapper.findAll(".holder-item")).toHaveLength(3);
+    expect(wrapper.text()).toContain("Cold");
+    expect(wrapper.text()).toContain("Boo");
+    expect(wrapper.text()).toContain("Bin");
     expect(wrapper.text()).toContain("3 位持有者");
-    expect(wrapper.find(".title-migration-metrics").exists()).toBe(false);
     expect(wrapper.find("[role=dialog]").exists()).toBe(false);
-    expect(wrapper.find(".detail-panel").text()).toContain("Cold");
+    expect(wrapper.text()).toContain("传奇挑战者");
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("/v1/title-grants/holder?holderName=Cold"));
   });
 
@@ -115,7 +116,6 @@ describe("title migration page", () => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("query=Cold"));
-    expect(wrapper.findAll(".holder-item")).toHaveLength(1);
     expect(wrapper.text()).toContain("Cold");
     expect(wrapper.text()).not.toContain("Boo");
   });

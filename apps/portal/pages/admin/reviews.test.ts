@@ -19,12 +19,11 @@ describe("admin reviews page", () => {
     const wrapper = await mountSuspended(ReviewsPage, { global: { stubs: { USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select aria-label="筛选提交状态" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' } } } });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=20&status=ready_for_review,ocr_review_required");
-    expect(wrapper.findAll(".admin-table tbody tr")).toHaveLength(2);
-    expect(wrapper.findAll(".admin-data-table__mobile-record")).toHaveLength(2);
+    expect(wrapper.text()).toContain("成就挑战：守望先锋");
+    expect(wrapper.text()).toContain("成就挑战：未识别地图");
     expect(wrapper.text()).toContain("等待核对");
     expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("成就挑战：守望先锋");
-    expect(wrapper.text()).not.toContain("面板：");
     expect(wrapper.text()).toContain("地图 98%");
     expect(wrapper.text()).toContain("成就 94%");
     expect(wrapper.get('a[href="/admin/reviews/submission-1"]').text()).toContain("查看");

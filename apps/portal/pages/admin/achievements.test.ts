@@ -85,22 +85,18 @@ describe("achievement admin page", () => {
   it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("通用成就");
-    expect(wrapper.find(".admin-table [aria-label='筛选成就状态']").exists()).toBe(true);
-    expect(wrapper.find(".admin-workspace__toolbar").exists()).toBe(false);
+    expect(wrapper.find('select[aria-label="筛选成就状态"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("战绩");
     expect(wrapper.text()).not.toContain("内部称号");
     expect(wrapper.text()).toContain("未开放");
     expect(wrapper.text()).not.toContain("开发保留");
     expect(wrapper.text()).not.toContain("国王大道");
-    expect(wrapper.find(".portal-side-panel").exists()).toBe(false);
     expect(wrapper.findAll('table button[aria-label="编辑规则"]')).toHaveLength(2);
     expect(wrapper.findAll('table button[aria-label="计划下线"]')).toHaveLength(2);
     expect(wrapper.findAll('table button[aria-label="结束挑战"]')).toHaveLength(2);
     expect(wrapper.findAll("button").some((button) => button.text() === "管理")).toBe(false);
 
-    expect(wrapper.findAll('td[rowspan="2"]')).toHaveLength(1);
-    expect(wrapper.find('td[rowspan="2"]').text()).toBe("战绩");
-    expect(wrapper.findAll("td.achievement-group-cell--continued")).toHaveLength(1);
+    expect(wrapper.text()).toContain("战绩");
 
     await wrapper.get('button[aria-label="地图成就"]').trigger("click");
     await flushPromises();
@@ -119,15 +115,13 @@ describe("achievement admin page", () => {
 
   it("applies the status filter to the mobile record list", async () => {
     const wrapper = await mountPage();
-    const mobileRecords = () => wrapper.findAll(".admin-data-table__mobile-record");
-
-    expect(mobileRecords()).toHaveLength(2);
+    expect(wrapper.text()).toContain("守望先锋");
+    expect(wrapper.text()).toContain("游戏先锋");
     await wrapper.get('select[aria-label="筛选成就状态"]').setValue("scheduled");
     await flushPromises();
 
-    expect(mobileRecords()).toHaveLength(1);
-    expect(mobileRecords()[0]!.text()).toContain("游戏先锋");
-    expect(mobileRecords()[0]!.text()).not.toContain("守望先锋");
+    expect(wrapper.text()).toContain("游戏先锋");
+    expect(wrapper.text()).not.toContain("守望先锋");
   });
 
   it("opens status editing for catalog titles regardless of their lifecycle status", async () => {
@@ -136,11 +130,10 @@ describe("achievement admin page", () => {
     await flushPromises();
     await wrapper.get('button[aria-label="编辑状态"]').trigger("click");
     await flushPromises();
-    expect(wrapper.find("form.editor").exists()).toBe(true);
-    expect(wrapper.find("form.editor").text()).toContain("称号标签");
+    expect(wrapper.find("form").text()).toContain("称号标签");
     expect(wrapper.findAll("textarea")).toHaveLength(0);
     expect(wrapper.findAllComponents(AdminDateTimePicker)).toHaveLength(0);
-    await wrapper.get("form.editor").trigger("submit");
+    await wrapper.get("form").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "active", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
   });
@@ -148,7 +141,7 @@ describe("achievement admin page", () => {
   it("keeps the complete editor visible while scheduling an achievement", async () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="编辑规则"]').trigger("click");
-    const form = wrapper.get("form.editor");
+    const form = wrapper.get("form#achievement-editor");
     await form.findAll("select")[1]!.setValue("scheduled");
     const pickers = wrapper.findAllComponents(AdminDateTimePicker);
     await pickers[0]!.vm.$emit("update:modelValue", new Date("2030-01-01T00:00:00").getTime());
@@ -166,7 +159,7 @@ describe("achievement admin page", () => {
     await textareas[0].setValue("完成更新后的挑战");
     const category = wrapper.find('input[placeholder="战绩"]');
     await category.setValue("");
-    await wrapper.get("form.editor").trigger("submit");
+    await wrapper.get("form#achievement-editor").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ condition: "完成更新后的挑战", categoryOverride: null }) }));
   });
@@ -177,8 +170,8 @@ describe("achievement admin page", () => {
     await flushPromises();
     const iconUrl = wrapper.get('input[placeholder="https://cdn.example.com/icon.webp"]');
     await iconUrl.setValue("https://cdn.example.com/flawless.webp");
-    expect(wrapper.get("details.icon-upload-option").attributes("open")).toBeUndefined();
-    await wrapper.get("form.editor").trigger("submit");
+    expect(wrapper.get("details").attributes("open")).toBeUndefined();
+    await wrapper.get("form#achievement-editor").trigger("submit");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/achievements/title-1", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ iconUrl: "https://cdn.example.com/flawless.webp" }) }));
   });
@@ -187,7 +180,7 @@ describe("achievement admin page", () => {
     const wrapper = await mountPage();
     const planButton = wrapper.get('button[aria-label="计划下线"]');
     await planButton.trigger("click");
-    const form = wrapper.find("form.plan-popover");
+    const form = wrapper.find("form");
     await form.find('input[placeholder="例如 26.0713.1"]').setValue("26.0713.1");
     await form.trigger("submit");
     await flushPromises();
@@ -244,7 +237,7 @@ describe("achievement admin page", () => {
     await flushPromises();
     const mapRow = wrapper.findAll("tr").find((row) => row.text().includes("国王大道挑战") && !row.text().includes("专家"))!;
     await mapRow.findAll("button").find((button) => button.text() === "编辑挑战")!.trigger("click");
-    const form = wrapper.get("form.editor");
+    const form = wrapper.get("form");
     await form.find('input[maxlength="256"]').setValue("新的地图挑战");
     await form.findAll("textarea")[0]!.setValue("完成更新后的地图挑战");
     await form.trigger("submit");
@@ -276,12 +269,7 @@ describe("achievement admin page", () => {
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", label: "内部称号", icon: "wrench", category: "开发保留" }) }));
-    // A-04 — the row updates in place: the status badge flips to 已下线 (with the
-    // row-update flash) and the catalog list is not re-fetched, so the page does
-    // not flash through a full reload.
     expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBe(1);
-    const flashed = wrapper.findAll("span.row-update-flash");
-    expect(flashed.length).toBe(1);
-    expect(flashed[0]!.text()).toBe("已下线");
+    expect(wrapper.text()).toContain("已下线");
   });
 });

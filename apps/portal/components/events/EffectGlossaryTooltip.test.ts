@@ -25,7 +25,7 @@ const annotation: EffectAnnotation = {
 const PopoverStub = {
   props: ["open", "dismissible"],
   emits: ["update:open"],
-  template: '<div @click="$emit(\'update:open\', !open)"><slot /><div v-if="open" data-testid="glossary-tooltip"><slot name="content" /></div></div>',
+  template: '<div @click="$emit(\'update:open\', !open)"><slot /><div v-if="open" role="tooltip"><slot name="content" /></div></div>',
 };
 
 describe("EffectGlossaryTooltip", () => {
@@ -45,10 +45,10 @@ describe("EffectGlossaryTooltip", () => {
       },
     });
 
-    const term = wrapper.get(".effect-glossary-term");
+    const term = wrapper.get('button[aria-label="减速，效果说明"]');
     await term.trigger("click");
 
-    expect(wrapper.get('[data-testid="glossary-tooltip"]').text()).toContain("降低移动速度。");
+    expect(wrapper.get('[role="tooltip"]').text()).toContain("降低移动速度。");
     expect(term.attributes("aria-expanded")).toBe("true");
     expect(parentClick).not.toHaveBeenCalled();
   });

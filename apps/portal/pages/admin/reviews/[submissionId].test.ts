@@ -42,16 +42,16 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).not.toContain("98% · ok");
     expect(wrapper.text()).toContain("查看原始识别数据");
     expect(wrapper.text()).toContain("提交信息");
-    expect(wrapper.findAll(".actions button")).toHaveLength(3);
-    expect(wrapper.findAll(".ocr-retry-actions button")).toHaveLength(2);
-    expect(wrapper.find(".claim-card").exists()).toBe(true);
+    for (const label of ["通过", "要求重新提交", "驳回", "重新发送 OCRKit 请求", "直接标注"]) {
+      expect(wrapper.text()).toContain(label);
+    }
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
   });
 
   it("submits a review and navigates back to the queue", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.get(".actions button").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST" }));
   });
@@ -60,14 +60,15 @@ describe("admin review detail page", () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-2" });
     await flushPromises();
     expect(wrapper.text()).toContain("已通过");
-    expect(wrapper.find(".actions-card").exists()).toBe(true);
-    expect(wrapper.findAll(".actions button")).toHaveLength(3);
+    expect(wrapper.text()).toContain("通过");
+    expect(wrapper.text()).toContain("要求重新提交");
+    expect(wrapper.text()).toContain("驳回");
   });
 
   it("can resend the OCRKit request", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.get(".ocr-retry-actions button").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/ocr/retry", expect.objectContaining({ method: "POST" }));
   });
@@ -75,7 +76,7 @@ describe("admin review detail page", () => {
   it("opens direct annotation locally without changing the route", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll(".ocr-retry-actions button")[1]?.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("直接标注"))?.trigger("click");
     await flushPromises();
     expect(wrapper.text()).toContain("直接标注");
   });
@@ -83,10 +84,9 @@ describe("admin review detail page", () => {
   it("lets maintainers select multiple automatic-match challenges", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    expect(wrapper.findAll(".match-candidate")).toHaveLength(2);
-    await wrapper.findAll(".match-candidate")[0].trigger("click");
-    await wrapper.findAll(".match-candidate")[1].trigger("click");
-    await wrapper.get(".candidate-selection button").trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((button) => button.text().includes("帕拉伊苏"))!.trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((button) => button.text().includes("称号 HERO"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("保存所选挑战"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ method: "POST", body: { contractVersion: "1", selections: [{ challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }, { challengeId: "title.hero" }] } }));
   });
@@ -94,12 +94,12 @@ describe("admin review detail page", () => {
   it("lets maintainers search and add an eligible manual challenge", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.get(".manual-add button").trigger("click");
-    await wrapper.get(".manual-add input").setValue("MANUAL");
+    await wrapper.findAll("button").find((button) => button.text().includes("手动添加"))!.trigger("click");
+    await wrapper.get('input[aria-label="搜索可验证的挑战或称号"]').setValue("MANUAL");
     await flushPromises();
     expect(wrapper.text()).toContain("称号 MANUAL");
-    await wrapper.findAll(".match-candidate")[2].trigger("click");
-    await wrapper.get(".candidate-selection button").trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((button) => button.text().includes("称号 MANUAL"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("保存所选挑战"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: expect.arrayContaining([{ challengeId: "title.manual" }]) }) }));
   });
@@ -107,18 +107,18 @@ describe("admin review detail page", () => {
   it("keeps manual selections when the search query changes", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("称号 HERO"))!.trigger("click");
-    await wrapper.get(".manual-add button").trigger("click");
-    const input = wrapper.get(".manual-add input");
+    await wrapper.findAll('button[aria-pressed="false"]').find((candidate) => candidate.text().includes("称号 HERO"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("手动添加"))!.trigger("click");
+    const input = wrapper.get('input[aria-label="搜索可验证的挑战或称号"]');
     await input.setValue("生命守护生命");
     await flushPromises();
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
     await input.setValue("把他们上市");
     await flushPromises();
-    const selectedManualCandidate = wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"));
-    expect(selectedManualCandidate?.classes()).toContain("match-candidate--selected");
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
-    await wrapper.get(".candidate-selection button").trigger("click");
+    const selectedManualCandidate = wrapper.findAll('button[aria-pressed="true"]').find((candidate) => candidate.text().includes("生命守护生命"));
+    expect(selectedManualCandidate).toBeDefined();
+    await wrapper.findAll('button[aria-pressed="false"]').find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("保存所选挑战"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: [
       { challengeId: "title.hero" },
@@ -130,18 +130,18 @@ describe("admin review detail page", () => {
   it("removes only the selected manual challenge", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.get(".manual-add button").trigger("click");
-    const input = wrapper.get(".manual-add input");
+    await wrapper.findAll("button").find((button) => button.text().includes("手动添加"))!.trigger("click");
+    const input = wrapper.get('input[aria-label="搜索可验证的挑战或称号"]');
     await input.setValue("生命守护生命");
     await flushPromises();
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
     await input.setValue("把他们上市");
     await flushPromises();
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
+    await wrapper.findAll('button[aria-pressed="false"]').find((candidate) => candidate.text().includes("把他们上市"))!.trigger("click");
     await input.setValue("生命守护生命");
     await flushPromises();
-    await wrapper.findAll(".match-candidate").find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
-    await wrapper.get(".candidate-selection button").trigger("click");
+    await wrapper.findAll('button[aria-pressed="true"]').find((candidate) => candidate.text().includes("生命守护生命"))!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("保存所选挑战"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/challenge", expect.objectContaining({ body: expect.objectContaining({ selections: [
       { challengeId: "title.manual-b" },
@@ -151,7 +151,7 @@ describe("admin review detail page", () => {
   it("can resolve a pending automatic-decision spot check", async () => {
     const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-3" });
     await flushPromises();
-    await wrapper.get(".spot-check-actions button").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("确认抽检"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-3/spot-check", expect.objectContaining({ method: "POST" }));
   });

@@ -1,6 +1,6 @@
 import { defineComponent, h, nextTick, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { useTableColumnVisibility } from "~/composables/useTableColumnVisibility";
 import AdminDataTable from "./AdminDataTable.vue";
 
@@ -46,22 +46,17 @@ describe("AdminDataTable mobile presentation", () => {
     { accessorKey: "status", header: "状态" },
     { id: "actions", header: "操作", enableHiding: false },
   ];
-  const createTableStub = (onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown; ui: unknown; loading: unknown }) => void) => defineComponent({
+  const createTableStub = () => defineComponent({
     props: {
       data: { type: Array, default: () => [] },
       columns: { type: Array, default: () => [] },
-      virtualize: { default: false },
-      sticky: { default: false },
-      ui: { type: Object, default: () => ({}) },
-      loading: { type: Boolean, default: false },
     },
     setup(props, { expose }) {
-      onProps?.({ virtualize: props.virtualize, sticky: props.sticky, columns: props.columns, ui: props.ui, loading: props.loading });
       expose({ tableApi: { getRowModel: () => ({ rows: props.data.map((original) => ({ original })) }) } });
       return () => h("div");
     },
   });
-  const mountTable = (extraProps: Record<string, unknown> = {}, onProps?: (value: { virtualize: unknown; sticky: unknown; columns: unknown; ui: unknown; loading: unknown }) => void) => mount(AdminDataTable, {
+  const mountTable = (extraProps: Record<string, unknown> = {}) => mount(AdminDataTable, {
     props: {
       data: rows,
       columns,
@@ -80,126 +75,59 @@ describe("AdminDataTable mobile presentation", () => {
     },
     global: {
       stubs: {
-        UTable: createTableStub(onProps),
+        UTable: createTableStub(),
         UDrawer: defineComponent({ template: "<div><slot /><slot name=\"body\" /></div>" }),
-        UButton: defineComponent({ template: "<button><slot /></button>" }),
-        USelect: defineComponent({ template: "<select />" }),
+        UButton: defineComponent({ props: ["label"], template: "<button><slot />{{ label }}</button>" }),
+        USelect: defineComponent({
+          props: ["modelValue", "items"],
+          emits: ["update:modelValue"],
+          template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>',
+        }),
         UDropdownMenu: defineComponent({ template: "<div><slot /><slot name=\"content-bottom\" /></div>" }),
         USkeleton: defineComponent({ template: "<div />" }),
-        NuxtLink: defineComponent({ template: "<a><slot /></a>" }),
+        NuxtLink: defineComponent({ props: ["to"], template: '<a :href="to"><slot /></a>' }),
       },
     },
   });
 
-  it("uses document flow by default and keeps controls before the table", () => {
-    const wrapper = mountTable();
-    const scroll = wrapper.get(".admin-data-table__scroll");
-    const controls = wrapper.get(".admin-data-table__controls").element;
-    const tableViewport = wrapper.get(".admin-data-table__table-viewport").element;
-
-    expect(scroll.classes()).not.toContain("admin-data-table__scroll--bounded");
-    expect(scroll.element.style.height).toBe("");
-    expect(controls.compareDocumentPosition(tableViewport) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("keeps explicit bounded mode and virtualization on the same scroll element", async () => {
-    let virtualize: unknown;
-    const wrapper = mountTable({ scrollHeight: "30rem", virtualize: { estimateSize: 65, overscan: 8 } }, (props) => { virtualize = props.virtualize; });
-    await nextTick();
-    const scroll = wrapper.get(".admin-data-table__scroll");
-
-    expect(scroll.classes()).toContain("admin-data-table__scroll--bounded");
-    expect(scroll.attributes("style")).toContain("height: 30rem");
-    expect(virtualize).toEqual(expect.objectContaining({ estimateSize: 65, overscan: 8 }));
-    expect((virtualize as { getScrollElement: () => HTMLElement | null }).getScrollElement()).toBe(scroll.element);
-  });
-
-  it("disables header sorting unless the page opts in with sortingOptions", async () => {
-    let unsortedColumns: Array<{ enableSorting?: boolean; id?: string; accessorKey?: string }> | undefined;
-    mountTable({ sortingOptions: [] }, (props) => { unsortedColumns = props.columns as typeof unsortedColumns; });
-    await nextTick();
-    expect(unsortedColumns?.every((column) => column.enableSorting === false)).toBe(true);
-
-    let sortedColumns: Array<{ enableSorting?: boolean; accessorKey?: string; id?: string }> | undefined;
-    mountTable({ sortingOptions: [{ id: "name", label: "记录" }] }, (props) => { sortedColumns = props.columns as typeof sortedColumns; });
-    await nextTick();
-    expect(sortedColumns?.find((column) => column.accessorKey === "name")?.enableSorting).toBe(true);
-    expect(sortedColumns?.find((column) => column.id === "actions")?.enableSorting).toBe(false);
-  });
-
-  it("keeps sticky table headers enabled by default in flow and bounded modes", async () => {
-    let flowProps: { virtualize: unknown; sticky: unknown } | undefined;
-    mountTable({}, (props) => { flowProps = props; });
-    await nextTick();
-    expect(flowProps?.sticky).toBe("header");
-
-    let boundedProps: { virtualize: unknown; sticky: unknown } | undefined;
-    mountTable({ scrollHeight: "30rem" }, (props) => { boundedProps = props; });
-    await nextTick();
-    expect(boundedProps?.sticky).toBe("header");
-  });
-
-  it("keeps the loading indicator inside the table chrome", async () => {
-    const idle = mountTable();
-    expect(idle.find(".admin-data-table__loading-bar").exists()).toBe(false);
-
-    let tableProps: { ui: unknown; loading: unknown } | undefined;
-    const loading = mountTable({ loading: true }, (props) => { tableProps = props; });
-    await nextTick();
-    const bar = loading.get(".admin-data-table__loading-bar");
-    expect(bar.attributes("aria-label")).toBe("正在加载");
-    expect(loading.get(".admin-data-table__controls").element.contains(bar.element)).toBe(true);
-    expect((tableProps?.ui as { thead?: string })?.thead).toContain("after:content-none");
-  });
-
-  it("does not create a horizontal scrollport on the table viewport by default", () => {
-    const wrapper = mountTable();
-    const viewport = wrapper.get(".admin-data-table__table-viewport");
-    expect(viewport.classes()).not.toContain("admin-data-table__table-viewport--x");
-  });
-
-  it("marks navigable records and applies press feedback on the mobile primary link", () => {
+  it("shows row details on demand and links each record to its destination", async () => {
     const wrapper = mountTable({ mobileRowLink: (row: { id: string }) => `/admin/records/${row.id}` });
-    expect(wrapper.get(".admin-data-table").classes()).toContain("admin-data-table--row-link");
-    expect(wrapper.get(".admin-data-table__mobile-primary-link").classes()).toContain("pressable-soft");
+    const recordLink = wrapper.get('a[href="/admin/records/record-a"]');
+    expect(recordLink.text()).toContain("第一条");
+    expect(wrapper.text()).not.toContain("待处理");
+
+    const disclosure = wrapper.findAll("button").find((button) => button.text().includes("查看详情"))!;
+    expect(disclosure.text()).toContain("查看详情");
+    await disclosure.trigger("click");
+    expect(disclosure.attributes("aria-expanded")).toBe("true");
+    expect(wrapper.text()).toContain("待处理");
   });
 
-  it("returns flow resets to the workspace start and bounded resets its internal scroll", async () => {
-    const flow = mountTable();
-    const flowRoot = flow.get(".admin-data-table").element;
-    const flowViewport = flow.get(".admin-data-table__table-viewport").element;
-    const flowScrollIntoView = vi.fn();
-    const flowHorizontalScroll = vi.fn();
-    Object.defineProperty(flowRoot, "scrollIntoView", { configurable: true, value: flowScrollIntoView });
-    Object.defineProperty(flowViewport, "scrollTo", { configurable: true, value: flowHorizontalScroll });
-
-    await flow.setProps({ resetScrollKey: "next-page" });
-    await nextTick();
-
-    expect(flowHorizontalScroll).toHaveBeenCalledWith({ top: 0, left: 0 });
-    expect(flowScrollIntoView).toHaveBeenCalledWith({ block: "start", inline: "nearest", behavior: "auto" });
-
-    const bounded = mountTable({ scrollHeight: "30rem" });
-    const boundedScroll = bounded.get(".admin-data-table__scroll").element;
-    const boundedScrollTo = vi.fn();
-    Object.defineProperty(boundedScroll, "scrollTo", { configurable: true, value: boundedScrollTo });
-
-    await bounded.setProps({ resetScrollKey: "next-page" });
-    await nextTick();
-
-    expect(boundedScrollTo).toHaveBeenCalledWith({ top: 0, left: 0 });
-  });
-
-  it("renders stable record ids, mobile control disclosure, and an overflow action trigger", async () => {
+  it("shows the secondary-control entry point when sorting is available", async () => {
     const wrapper = mountTable();
     await nextTick();
 
-    expect(wrapper.findAll(".admin-data-table__mobile-record")).toHaveLength(2);
-    expect(wrapper.findAll(".admin-data-table__mobile-disclosure-trigger")).toHaveLength(2);
-    expect(wrapper.get(".admin-data-table__mobile-controls-trigger").attributes("aria-label")).toBe("打开筛选与排序");
-    expect(wrapper.findAll(".hit-44")).toHaveLength(2);
+    expect(wrapper.get('button[aria-label="打开筛选与排序"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("第一条");
+    expect(wrapper.text()).toContain("第二条");
+  });
 
-    await wrapper.get(".admin-data-table__mobile-disclosure-trigger").trigger("click");
-    expect(wrapper.get(".admin-data-table__mobile-disclosure-trigger").attributes("aria-expanded")).toBe("true");
+  it("lets the user choose an available record ordering", async () => {
+    const wrapper = mountTable();
+    const sorting = wrapper.get('select[aria-label="排序方式"]');
+
+    expect(sorting.text()).toContain("记录：升序");
+    expect(sorting.text()).toContain("记录：降序");
+    await sorting.setValue("name:desc");
+
+    expect(wrapper.emitted("update:sorting")).toEqual([[ [{ id: "name", desc: true }] ]]);
+  });
+
+  it("announces loading while records are being refreshed", () => {
+    const idle = mountTable();
+    expect(idle.find('[role="status"][aria-label="正在加载"]').exists()).toBe(false);
+
+    const loading = mountTable({ loading: true });
+    expect(loading.find('[role="status"][aria-label="正在加载"]').exists()).toBe(true);
   });
 });

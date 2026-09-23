@@ -44,7 +44,6 @@ describe("MapProgressOverview", () => {
     expect(wrapper.text()).toContain("○");
     expect(wrapper.text()).toContain("已获得 1 / 2");
     expect(wrapper.text()).toContain("已获得 1 / 2 个地图成就");
-    expect(wrapper.find("a .map-target-list").exists()).toBe(false);
   });
 
   it("does not show false title zeros when title progress is unavailable", async () => {

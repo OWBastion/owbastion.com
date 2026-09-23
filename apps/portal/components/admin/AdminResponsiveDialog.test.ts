@@ -10,15 +10,10 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
   useMediaQuery: () => ({ __v_isRef: true, value: media.desktop }),
 }));
 
-const ModalStub = {
+const OverlayStub = {
   props: ["open", "title", "description", "dismissible", "ui"],
   emits: ["update:open"],
-  template: '<section data-overlay="modal"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
-};
-const DrawerStub = {
-  props: ["open", "title", "description", "dismissible", "direction", "shouldScaleBackground", "setBackgroundColorOnScale", "ui"],
-  emits: ["update:open"],
-  template: '<section data-overlay="drawer"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button @click="$emit(\'update:open\', false)">关闭</button></section>',
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button aria-label="关闭" @click="$emit(\'update:open\', false)">关闭</button></section>',
 };
 
 function mountDialog() {
@@ -26,33 +21,25 @@ function mountDialog() {
   const wrapper = mount(AdminResponsiveDialog, {
     props: { open: true, title: "编辑群配置", description: "group-1", size: "lg", "onUpdate:open": onUpdate },
     slots: { body: "<div>表单内容</div>", footer: "<button>保存</button>" },
-    global: { stubs: { UModal: ModalStub, UDrawer: DrawerStub } },
+    global: { stubs: { UModal: OverlayStub, UDrawer: OverlayStub } },
   });
   return { wrapper, onUpdate };
 }
 
 describe("AdminResponsiveDialog", () => {
-  it("renders a scroll-constrained desktop modal and forwards title, slots, and close events", async () => {
-    media.desktop = true;
-    const { wrapper, onUpdate } = mountDialog();
-    await nextTick();
-    expect(wrapper.get('[data-overlay="modal"]').text()).toContain("编辑群配置");
-    expect(wrapper.text()).toContain("表单内容");
-    expect(wrapper.findComponent(ModalStub).props("ui").content).toContain("max-w-3xl");
-    expect(wrapper.findComponent(ModalStub).props("ui").body).toContain("overflow-y-auto");
-    await wrapper.findAll("button").at(-1)!.trigger("click");
-    expect(onUpdate).toHaveBeenCalledWith(false);
-  });
+  it("keeps the dialog content and actions available across viewport modes", async () => {
+    for (const desktop of [true, false]) {
+      media.desktop = desktop;
+      const { wrapper, onUpdate } = mountDialog();
+      await nextTick();
 
-  it("renders a bottom drawer below the desktop breakpoint", async () => {
-    media.desktop = false;
-    const { wrapper } = mountDialog();
-    await nextTick();
-    expect(wrapper.get('[data-overlay="drawer"]').text()).toContain("group-1");
-    expect(wrapper.findComponent(DrawerStub).props("direction")).toBe("bottom");
-    expect(wrapper.findComponent(DrawerStub).props("shouldScaleBackground")).toBe(false);
-    expect(wrapper.findComponent(DrawerStub).props("setBackgroundColorOnScale")).toBe(false);
-    expect(wrapper.findComponent(DrawerStub).props("ui").container).toContain("admin-responsive-dialog__container");
-    expect(wrapper.findComponent(DrawerStub).props("ui").footer).toContain("safe-area-inset-bottom");
+      expect(wrapper.get('[role="dialog"]').text()).toContain("编辑群配置");
+      expect(wrapper.get('[role="dialog"]').text()).toContain("group-1");
+      expect(wrapper.get('[role="dialog"]').text()).toContain("表单内容");
+      expect(wrapper.get('[role="dialog"]').text()).toContain("保存");
+      await wrapper.get('button[aria-label="关闭"]').trigger("click");
+      expect(onUpdate).toHaveBeenCalledWith(false);
+      wrapper.unmount();
+    }
   });
 });

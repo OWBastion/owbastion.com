@@ -37,8 +37,8 @@ const global = {
     EffectGlossaryTooltip: { props: ["annotation"], template: "<span>{{ annotation.term.nameZh }}</span>" },
     StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
     UEmpty: { props: ["title", "description"], template: "<div>{{ title }}{{ description }}</div>" },
-    UModal: { template: "<div data-testid=\"event-modal\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
-    UDrawer: { template: "<div data-testid=\"event-drawer\"><slot name=\"description\" /><slot name=\"body\" /></div>" },
+    UModal: { template: '<div role="dialog" aria-label="事件详情"><slot name="description" /><slot name="body" /></div>' },
+    UDrawer: { template: '<div role="dialog" aria-label="事件详情"><slot name="description" /><slot name="body" /></div>' },
     UAccordion: { props: ["items"], template: "<div><template v-for=\"item in items\" :key=\"item.label\"><slot :name=\"item.slot || 'probability'\" :item=\"item\" /></template></div>" },
     PlayerReviewPanel: { template: "<div class=\"stub-review-panel\" />" },
     ReviewSummaryBadge: { props: ["summary"], template: "<span class=\"review-summary-badge\">{{ summary?.averageRating ?? '暂无评分' }}</span>" },
@@ -62,8 +62,8 @@ describe("EventDirectory", () => {
 
     expect(wrapper.text()).toContain("26.0718.1");
     expect(wrapper.text()).toContain("26.0717.1");
-    expect(wrapper.findAll(".event-card-main h3").map((heading) => heading.text())).not.toContain("已移除事件");
-    expect(wrapper.findAll(".event-card-main h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
+    expect(wrapper.findAll("h3").map((heading) => heading.text())).not.toContain("已移除事件");
+    expect(wrapper.findAll("h3").map((heading) => heading.text())).toEqual(["Alpha 事件", "Zeta 事件", "旧版本事件"]);
     expect(portalApi.mock.calls.filter(([path]) => path.startsWith("/v1/public/reviews/summaries?")).length).toBe(1);
     expect(portalApi.mock.calls.find(([path]) => path.startsWith("/v1/public/reviews/summaries?"))?.[0]).toContain("event.removed");
     expect(wrapper.text()).toContain("暂无评分");
@@ -82,10 +82,10 @@ describe("EventDirectory", () => {
       global,
     });
 
-    await wrapper.get(".event-card-main").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("Alpha 事件"))!.trigger("click");
     await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain("详情说明");
-    expect(wrapper.text()).toContain("普通");
+    expect(wrapper.get('[role="dialog"]').text()).toContain("详情说明");
+    expect(wrapper.get('[role="dialog"]').text()).toContain("普通");
   });
 
   it("sends map-family challenges to the map directory", async () => {
@@ -104,9 +104,9 @@ describe("EventDirectory", () => {
       global,
     });
 
-    await wrapper.get(".event-card-main").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("Alpha 事件"))!.trigger("click");
     await wrapper.vm.$nextTick();
-    const links = wrapper.findAll(".challenge-link");
+    const links = wrapper.findAll("a").filter((link) => link.text().includes("查看地图") || link.text().includes("查看成就"));
     expect(links[0]?.attributes("href") ?? links[0]?.attributes("to")).toContain("/maps?mapId=map.samoa");
     expect(links[0]?.text()).toContain("查看地图");
     expect(links[1]?.attributes("href") ?? links[1]?.attributes("to")).toContain("/achievements");

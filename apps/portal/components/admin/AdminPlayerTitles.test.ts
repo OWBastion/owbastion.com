@@ -33,8 +33,7 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
-    expect(wrapper.get("[data-testid='open-title-recovery']").text()).toContain("编辑佩戴选择");
-    await wrapper.get("[data-testid='open-title-grant']").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "直接发放")!.trigger("click");
     expect(wrapper.text()).not.toContain("（可选）");
     expect(wrapper.text()).toContain("地图称号");
     expect(wrapper.findAll("label").some((label) => label.text().includes("旧地图称号（不再发放）"))).toBe(true);
@@ -62,7 +61,7 @@ describe("AdminPlayerTitles", () => {
       },
     });
     await flushPromises();
-    await wrapper.get("[data-testid='revoke-title-grant-grant-1']").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "回收")!.trigger("click");
     expect(wrapper.text()).toContain("回收后，该称号将不再计入玩家当前称号；历史记录会保留。");
     await wrapper.get("form#revoke-player-title").trigger("submit");
     await flushPromises();
@@ -78,7 +77,7 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("该玩家需要选择佩戴称号");
-    await wrapper.get("[data-testid='open-title-recovery']").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "编辑佩戴选择")!.trigger("click");
     const checkboxes = wrapper.findAll("input[type='checkbox']");
     await checkboxes[0].setValue(true);
     await wrapper.get("form#recover-player-titles").trigger("submit");

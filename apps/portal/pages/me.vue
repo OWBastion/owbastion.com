@@ -173,7 +173,7 @@ onMounted(() => {
             <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" />
           </template>
         </UAlert>
-        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles" data-testid="titles">
+        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles">
           <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
             <strong>{{ title.label }}</strong>
             <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>

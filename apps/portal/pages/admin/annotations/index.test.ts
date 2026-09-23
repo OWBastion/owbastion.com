@@ -74,11 +74,10 @@ mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmi
 const AdminDataTableStub = defineComponent({
   props: ["data", "rowKey", "loading", "empty"],
   setup(props, { slots }) {
-    return () => h("div", { class: "table-stub" }, [
+    return () => h("div", { role: "table" }, [
       (props.data as Array<Record<string, unknown>>).map((row) => h("div", {
-        class: "table-stub-row",
+        role: "row",
         key: String(row[props.rowKey as string]),
-        "data-testid": "table-row",
       }, [
         JSON.stringify(row),
         slots["actions-cell"] ? slots["actions-cell"]({ row: { original: row } }) : null,
@@ -90,7 +89,7 @@ const AdminDataTableStub = defineComponent({
 const AdminResponsiveDialogStub = defineComponent({
   props: ["open", "title"],
   setup(props, { slots }) {
-    return () => (props.open ? h("div", { role: "dialog", class: "dialog-stub", "data-testid": "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
+    return () => (props.open ? h("div", { role: "dialog" }, [h("h2", props.title), slots.body?.(), slots.footer?.(), slots.default?.()]) : null);
   },
 });
 
@@ -124,10 +123,10 @@ describe("admin annotations page", () => {
     expect(wrapper.text()).toContain("pending");
     expect(wrapper.text()).toContain("详情");
 
-    await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
+    await wrapper.get('[role="row"]').find("button").trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/annotations/proposals/00000000-0000-4000-8000-000000000005");
-    expect(wrapper.get('[data-testid="dialog"]').exists()).toBe(true);
+    expect(wrapper.get('[role="dialog"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("玩家建议值");
     expect(wrapper.text()).toContain("一般");
   });
@@ -136,7 +135,7 @@ describe("admin annotations page", () => {
     adminApi.mockClear();
     const wrapper = await mountSuspended(AnnotationsPage, { global: { stubs } });
     await flushPromises();
-    await wrapper.get('[data-testid="table-row"]').find("button").trigger("click");
+    await wrapper.get('[role="row"]').find("button").trigger("click");
     await flushPromises();
     const accept = wrapper.findAll("button").find((button) => button.text().trim() === "接受");
     await accept?.trigger("click");

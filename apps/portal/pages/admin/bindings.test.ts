@@ -65,7 +65,7 @@ describe("admin bindings page", () => {
     // Click details button on claim-1. The table's default sorting may place
     // newer claims before it, so target the row by its player identity.
     const claimOneRow = () => wrapper.findAll("tr").find((row) => row.text().includes("PlayerOne"))!;
-    await claimOneRow().findAll(".claim-actions button").find((btn) => btn.text() === "详情")!.trigger("click");
+    await claimOneRow().findAll("button").find((btn) => btn.text() === "详情")!.trigger("click");
     await flushPromises();
 
     expect(document.body.textContent).toContain("绑定申请详情");
@@ -82,7 +82,7 @@ describe("admin bindings page", () => {
     }
 
     // Click approve button for the conflicting claim.
-    await claimOneRow().findAll(".claim-actions button").find((btn) => btn.text() === "批准")!.trigger("click");
+    await claimOneRow().findAll("button").find((btn) => btn.text() === "批准")!.trigger("click");
     await flushPromises();
 
     // Verify secondary confirmation modal is opened

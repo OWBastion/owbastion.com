@@ -52,7 +52,7 @@ describe("AdminMapRevisionList", () => {
     expect(wrapper.text()).toContain("准备中");
     expect(wrapper.text()).not.toContain("公平边界");
 
-    const buttons = wrapper.findAll("button.revision-card");
+    const buttons = wrapper.findAll("button");
     expect(buttons[0]!.attributes("aria-pressed")).toBe("true");
     expect(buttons[1]!.attributes("aria-pressed")).toBe("false");
 

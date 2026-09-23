@@ -47,18 +47,17 @@ describe("maps page", () => {
     expect(wrapper.text()).toContain("萨摩亚");
     expect(wrapper.text()).toContain("登录后查看");
     expect(wrapper.text()).toContain("登录后可查看精通与评价。");
-    expect(wrapper.find(".map-card-visual img").attributes("src")).toBe("https://cdn.example.com/samoa-cover.png");
+    expect(wrapper.get('button[aria-label="查看萨摩亚详情"] img').attributes("src")).toBe("https://cdn.example.com/samoa-cover.png");
     expect(portalApi).toHaveBeenCalledWith("/v1/maps");
     expect(portalApi).toHaveBeenCalledWith("/v1/challenges?family=map");
     expect(portalApi).not.toHaveBeenCalledWith("/v1/me/mastery?page=1&pageSize=1");
   });
 
-  it("keeps the page interactive before a map is selected", async () => {
+  it("does not show map details before a map is selected", async () => {
     currentPlayer.value = null;
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
-    expect(wrapper.find("main.maps-page").exists()).toBe(true);
-    expect(document.querySelector('[data-vaul-overlay][data-state="open"]')).toBeNull();
+    expect(wrapper.text()).not.toContain("地图概览");
   });
 
   it("does not fail when a legacy map response omits metadata", async () => {
@@ -79,11 +78,11 @@ describe("maps page", () => {
     wrapper.unmount();
   });
 
-  it("opens the mobile detail drawer for the selected map", async () => {
+  it("shows map details and mastery for the selected map", async () => {
     currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
-    await wrapper.get(".map-card").trigger("click");
+    await wrapper.get('button[aria-label="查看萨摩亚详情"]').trigger("click");
     await flushPromises();
     expect(document.body.textContent).toContain("精通记录");
     expect(document.body.textContent).toContain("225 XP");

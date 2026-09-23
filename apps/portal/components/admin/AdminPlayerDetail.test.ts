@@ -22,7 +22,7 @@ async function mountDetail() {
     props: { player },
     global: {
       stubs: {
-        AdminPlayerTitles: { template: "<div data-testid='titles' />" },
+        AdminPlayerTitles: { template: "<div>称号</div>" },
       },
     },
   });
@@ -31,32 +31,19 @@ async function mountDetail() {
 }
 
 describe("AdminPlayerDetail", () => {
-  it("identifies the player directly without decorative eyebrow/kicker layers", async () => {
+  it("shows the player identity, recent submissions, and title section", async () => {
     const wrapper = await mountDetail();
 
     expect(wrapper.text()).toContain("测试玩家#1001");
-    expect(wrapper.find(".card-kicker").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("Activity");
-    expect(wrapper.find(".eyebrow").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("平台玩家");
-    expect(wrapper.find(".detail-card--activity h3").text()).toBe("最近提交");
+    expect(wrapper.text()).toContain("最近提交");
+    expect(wrapper.text()).toContain("称号");
   });
 
-  it("consolidates duplicated summary/detail facts while keeping scan counts and actions", async () => {
+  it("shows account facts, bindings, and available actions", async () => {
     const wrapper = await mountDetail();
 
-    expect(wrapper.find(".identity-card__metrics").exists()).toBe(false);
-    expect(wrapper.text().match(/最近更新/g)?.length).toBe(1);
-
-    // The account ID is a detail fact, not repeated inline next to the battle tag.
-    expect(wrapper.text()).not.toContain("账号 ID ·");
-    expect(wrapper.text().match(/平台账号 ID/g)?.length).toBe(1);
-
-    // QQ binding: one scan count plus the actionable records — no extra heading badge.
-    expect(wrapper.find(".bindings-inline__heading").text()).toBe("QQ 绑定");
+    expect(wrapper.text()).toContain("平台账号 ID");
+    expect(wrapper.text()).toContain("QQ 绑定");
     expect(wrapper.findAll("button").some((button) => button.text().includes("解绑"))).toBe(true);
-
-    // The recent-submissions list is self-evident next to its rows; no repeated count badge.
-    expect(wrapper.find(".detail-card--activity").text()).not.toContain("条");
   });
 });

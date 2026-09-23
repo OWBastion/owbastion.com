@@ -176,10 +176,16 @@ player-facing title result.
 - Portal built-server SSR smoke (`pnpm test:portal-e2e:built` after
   `pnpm build:portal`): home HTML from the existing Nuxt production artifact
   via `@nuxt/test-utils/e2e` with `browser: false`.
-- Portal UI interaction and responsive behavior: prefer Vitest + happy-dom
-  component/page tests. Real browser checks (viewport overflow, Tab/Escape/focus,
-  Modal/Drawer, reduced preferences) are manual or agent computer-use against
-  local fixtures — not a code-level Playwright suite.
+- Portal component/page tests cover observable contracts: accessible control
+  names, visible values and messages, enabled/disabled state, interaction and
+  navigation outcomes, permission-dependent content, and API effects. Prefer
+  roles, accessible names, labels, and visible text as locators. Do not assert
+  utility classes, internal component props, framework-generated slots, or
+  wrapper structure unless that detail is itself an accepted public contract.
+- Vitest + happy-dom is the code-level Portal UI layer. It verifies component
+  and page behavior without a browser layout engine; it does not establish that
+  CSS layout, viewport fit, clipping, scrolling, focus placement, or overlays
+  work at real desktop or mobile sizes.
 
 Normal unit tests must not depend on live external services. Run `pnpm check`
 (which executes migration checks, the granular unit/UI suites, typecheck, the
@@ -199,9 +205,32 @@ built for that run.
 pnpm test:portal-e2e
 ```
 
-Do not reintroduce Playwright or a full browser regression runner in-repo
-unless product requirements change; use component tests and computer-use for
-viewport/focus/dialog checks.
+## Portal browser verification
+
+`pnpm check` runs Portal component/page tests in happy-dom and the built-server
+SSR smoke above. Neither launches a browser. A green `pnpm check` therefore
+does not prove responsive layout, overflow, scroll behavior, focus placement,
+keyboard dismissal, or dialog/drawer fit.
+
+For a substantive Portal UI change that affects layout or interaction, run the
+local environment with `pnpm dev:local`, sign in with the seeded local admin or
+player account, and inspect the affected flow in Brave at a desktop viewport
+(1280 × 900) and a mobile viewport (390 × 844). Use at least one representative
+admin flow and one player-facing flow: for example, open an admin list and its
+detail/editor, then open the player map directory and a map detail, or the
+player submission flow when that is the changed surface. Check the changed
+surface for horizontal overflow, clipped content, usable nested/document
+scrolling, overlay fit and dismissal, and keyboard/focus behavior such as Tab
+and Escape when those interactions exist. Also exercise affected loading,
+empty, error, pagination, and scroll-restoration states where applicable.
+
+This is a risk-based rendered-browser check, not a pixel comparison. Record the
+routes, viewport sizes, and behaviors inspected separately from the code-level
+test and build results. A substantive layout or interaction change is verified
+only after its applicable code-level and rendered-browser evidence is recorded.
+Do not add Playwright or another permanent browser runner unless product
+requirements change; use Brave computer-use against the local fixtures for
+these checks.
 
 ## Definition of done
 

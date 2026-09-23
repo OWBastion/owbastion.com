@@ -30,12 +30,12 @@ const stubs = {
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
   OcrFeedbackPanel: {
     props: ["submissionId", "feedback"],
-    template: `<div class="feedback-panel-stub" data-testid="ocr-feedback-panel">{{ submissionId }}:{{ feedback.mode }}</div>`,
+    template: `<section aria-label="识别反馈">{{ submissionId }}:{{ feedback.mode }}</section>`,
   },
   SubmissionCatalog: {
     props: ["selectedChallengeId", "selectedMapId", "selectedGameplayRevisionId"],
     emits: ["select"],
-    template: `<button type="button" data-testid="catalog-option" @click="$emit('select', { challengeId: 'challenge-1', mapId: 'map-1', gameplayRevisionId: 'revision:map-1:rework' })">选择挑战</button>`,
+    template: `<button type="button" @click="$emit('select', { challengeId: 'challenge-1', mapId: 'map-1', gameplayRevisionId: 'revision:map-1:rework' })">选择挑战</button>`,
   },
 };
 
@@ -59,25 +59,13 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("识别摘要");
     expect(wrapper.text()).toContain("提交编号");
     expect(wrapper.text()).toContain("最后更新");
-    // Breadcrumb and status alert carry context; no eyebrow/description stack or card secondary labels remain.
-    expect(wrapper.find(".page-heading .eyebrow").exists()).toBe(false);
-    expect(wrapper.find(".page-description").exists()).toBe(false);
-    expect(wrapper.find(".ocr-card .card-heading span").exists()).toBe(false);
     expect(wrapper.get('a[href="/submissions/new"]').text()).toContain("重新提交截图");
-    expect(wrapper.get(".resubmission-card").text()).toContain("重新提交建议");
-    expect(wrapper.get(".progress-card").text()).toContain("处理未通过");
+    expect(wrapper.text()).toContain("重新提交建议");
+    expect(wrapper.text()).toContain("处理未通过");
+    expect(wrapper.find('[aria-live="polite"]').exists()).toBe(false);
+    expect(wrapper.get('img[alt="帕拉伊苏的提交截图"]').attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
 
-    const columns = wrapper.findAll(".detail-grid > div").map((column) => column.classes().join(" "));
-    expect(columns[0]).toContain("evidence-col");
-    expect(columns[1]).toContain("info-col");
-    expect(wrapper.find(".detail-grid").attributes("aria-live")).toBeUndefined();
-    expect(wrapper.find(".status-alert").exists()).toBe(true);
-    expect(wrapper.find(".status-alert").attributes("aria-live")).toBeUndefined();
-    expect(wrapper.find(".status-live").exists()).toBe(false);
-    expect(wrapper.find(".evidence-frame").exists()).toBe(false);
-    expect(wrapper.get(".evidence-image").attributes("src")).toBe("/api/portal/submissions/submission-1/evidence");
-
-    await wrapper.get(".evidence-image").trigger("error");
+    await wrapper.get('img[alt="帕拉伊苏的提交截图"]').trigger("error");
     expect(wrapper.text()).toContain("无法读取截图");
     expect(wrapper.text()).not.toContain("暂无截图");
 
@@ -155,8 +143,7 @@ describe("submission detail page", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("无法申请人工核对");
     expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(true);
-    expect(wrapper.find(".status-live").attributes("aria-live")).toBe("polite");
-    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
+    expect(wrapper.get('[aria-live="polite"]').attributes("aria-atomic")).toBe("true");
     expect(wrapper.text().match(/已提交申请/g)?.length ?? 0).toBe(0);
   });
 
@@ -173,14 +160,11 @@ describe("submission detail page", () => {
     const wrapper = await mountSubmission("/submissions/submission-manual-ok");
     await wrapper.get('[aria-label="申请人工核对"]').trigger("click");
     await flushPromises();
-    const live = wrapper.find(".status-live");
+    const live = wrapper.get('[aria-live="polite"]');
     expect(live.attributes("aria-live")).toBe("polite");
     expect(live.text()).toContain("已提交申请，请等待核对结果。");
     expect(live.text().match(/已提交申请/g)?.length).toBe(1);
-    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
     expect(wrapper.find('[aria-label="申请人工核对"]').exists()).toBe(false);
-    // Steady status alert remains outside the live region and does not repeat the action success copy.
-    expect(wrapper.find(".status-alert").exists()).toBe(false);
     expect(wrapper.findAll("[aria-live='polite']")).toHaveLength(1);
   });
 
@@ -204,20 +188,14 @@ describe("submission detail page", () => {
     });
     const wrapper = await mountSubmission("/submissions/submission-awaiting");
 
-    const infoCards = wrapper.findAll(".info-col > *").map((card) => card.classes().join(" "));
-    expect(infoCards[0]).toContain("confirm-card");
-    expect(infoCards[1]).toContain("overview-card");
-    expect(wrapper.find(".confirm-copy").exists()).toBe(false);
-
-    await wrapper.get('[data-testid="catalog-option"]').trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "选择挑战")!.trigger("click");
     const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认挑战");
     expect(confirmButton).toBeDefined();
     await confirmButton!.trigger("click");
     await flushPromises();
     expect(api).toHaveBeenCalledWith("/v1/player/submissions/submission-awaiting/challenge", expect.objectContaining({ method: "POST", body: { contractVersion: "1", challengeId: "challenge-1", mapId: "map-1", gameplayRevisionId: "revision:map-1:rework" } }));
-    expect(wrapper.find(".status-live").text()).toContain("无法确认挑战");
-    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
-    expect(wrapper.find(".confirm-catalog").attributes("aria-busy")).toBeUndefined();
+    expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法确认挑战");
+    expect(wrapper.findAll("button").find((button) => button.text() === "确认挑战")?.attributes("disabled")).toBeUndefined();
   });
 
 
@@ -309,8 +287,7 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("ocr_pending");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
-    expect(wrapper.find(".status-live").text()).toContain("无法刷新状态");
-    expect(wrapper.findAll(".status-live > *")).toHaveLength(1);
+    expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法刷新状态");
     expect(wrapper.text()).toContain("ocr_pending");
   });
 
@@ -330,8 +307,7 @@ describe("submission detail page", () => {
       },
     }));
     const wrapper = await mountSubmission("/submissions/submission-feedback");
-    const panel = wrapper.find('[data-testid="ocr-feedback-panel"]');
-    expect(panel.exists()).toBe(true);
+    const panel = wrapper.get('[aria-label="识别反馈"]');
     expect(panel.text()).toContain("targeted");
     expect(panel.text()).toContain("submission-1");
   });
@@ -339,6 +315,6 @@ describe("submission detail page", () => {
   it("omits the OCR feedback panel when feedback is unavailable", async () => {
     api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "approved", reason: undefined, feedback: { mode: "none", promptOrigin: null, promptFieldKeys: [], fields: [], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: false } }));
     const wrapper = await mountSubmission("/submissions/submission-no-feedback");
-    expect(wrapper.find('[data-testid="ocr-feedback-panel"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
   });
 });

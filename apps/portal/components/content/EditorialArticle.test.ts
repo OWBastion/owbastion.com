@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import EditorialArticle from "./EditorialArticle.vue";
 
 const stubs = {
-  ContentRenderer: { template: "<div data-testid='content-renderer'>rendered content</div>" },
+  ContentRenderer: { template: "<div>rendered content</div>" },
 };
 
 const changelogEntry = {
@@ -22,20 +22,16 @@ const blogEntry = {
 };
 
 describe("EditorialArticle", () => {
-  it("puts the changelog version capsule above a smaller title and hides the list description", async () => {
+  it("shows the changelog version and release date and hides the list description", async () => {
     const wrapper = await mountSuspended(EditorialArticle, {
       props: { entry: changelogEntry, kind: "changelog" },
       global: { stubs },
     });
 
-    expect(wrapper.get(".changelog-version").text()).toContain("26.0801.1");
     expect(wrapper.get("time").text()).toContain("2026年8月1日");
     expect(wrapper.get("h1").text()).toBe("随机事件调整");
-    expect(wrapper.get("h1").classes()).toContain("type-headline");
     expect(wrapper.text().indexOf("26.0801.1")).toBeLessThan(wrapper.text().indexOf("随机事件调整"));
-    expect(wrapper.find(".editorial-article-description").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("已发布，更新主题为");
-    expect(wrapper.get("[data-testid='content-renderer']").exists()).toBe(true);
   });
 
   it("keeps the blog title scale, kind, and description", async () => {
@@ -45,8 +41,7 @@ describe("EditorialArticle", () => {
     });
 
     expect(wrapper.get("h1").text()).toBe("开发日志 #8：轮换挑战与地图精通");
-    expect(wrapper.get("h1").classes()).toContain("page-title");
     expect(wrapper.text()).toContain("开发日志");
-    expect(wrapper.get(".editorial-article-description").text()).toBe("为 Portal 建立内容基础。");
+    expect(wrapper.text()).toContain("为 Portal 建立内容基础。");
   });
 });

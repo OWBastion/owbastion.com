@@ -45,21 +45,21 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
     attachTo: options?.attachTo,
     global: {
       stubs: {
-        PlayerIdentityCard: { template: "<div data-testid='identity'>identity</div>" },
+        PlayerIdentityCard: { template: "<div>玩家身份卡</div>" },
         StatusBadge: true,
-        PlayerRecentSubmissions: { template: "<div data-testid='submissions'>submissions</div>" },
-        MapProgressOverview: { template: "<div data-testid='mastery'>mastery</div>" },
+        PlayerRecentSubmissions: { template: "<div>近期提交内容</div>" },
+        MapProgressOverview: { template: "<div>地图进度内容</div>" },
         PageSectionHeader: { props: ["title", "eyebrow"], template: "<header><p v-if=\"eyebrow\">{{ eyebrow }}</p><h2>{{ title }}</h2><slot name=\"actions\" /></header>" },
         UButton: {
           props: ["to", "label", "loading"],
           emits: ["click"],
-          template: "<button type=\"button\" :data-to=\"to\" :disabled=\"loading\" @click=\"$emit('click')\">{{ label }}</button>",
+          template: '<a v-if="to" :href="to">{{ label }}</a><button v-else type="button" :disabled="loading" @click="$emit(\'click\')">{{ label }}</button>',
         },
         UAlert: {
           props: ["title", "description"],
           template: "<div role=\"alert\"><strong>{{ title }}</strong><p>{{ description }}</p><slot name=\"actions\" /></div>",
         },
-        UEmpty: { props: ["title"], template: "<div data-testid='empty'>{{ title }}</div>" },
+        UEmpty: { props: ["title"], template: "<div>{{ title }}</div>" },
         USkeleton: { template: "<div class=\"skeleton\" />" },
       },
     },
@@ -82,12 +82,10 @@ describe("me page", () => {
     refreshTitles.mockResolvedValue(titles.value);
 
     const wrapper = await mountPage();
-    const recent = wrapper.findAll("[data-testid='titles'] .recent-title");
-    expect(recent).toHaveLength(3);
-    expect(recent.map((item) => item.find("strong").text())).toEqual(["最新称号", "中间称号甲", "中间称号乙"]);
-    expect(wrapper.find('button[data-to="/achievements"]').text()).toContain("查看全部成就");
+    const recentTitles = wrapper.get('section[aria-labelledby="titles-title"]');
+    expect(recentTitles.findAll("strong").map((item) => item.text())).toEqual(["最新称号", "中间称号甲", "中间称号乙"]);
+    expect(wrapper.get('a[href="/achievements"]').text()).toContain("查看全部成就");
     expect(wrapper.text()).not.toContain("更多功能");
-    expect(wrapper.find(".upcoming-card").exists()).toBe(false);
   });
 
   it("shows a successful empty title state without treating it as an error", async () => {
@@ -98,9 +96,9 @@ describe("me page", () => {
     refreshTitles.mockResolvedValue([]);
 
     const wrapper = await mountPage();
-    expect(wrapper.find("[data-testid='empty']").text()).toBe("暂无称号");
+    expect(wrapper.text()).toContain("暂无称号");
     expect(wrapper.find("[role=alert]").exists()).toBe(false);
-    expect(wrapper.find("[data-testid='identity']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("玩家身份卡");
   });
 
   it("keeps player content visible when title loading fails and supports retry", async () => {
@@ -111,11 +109,11 @@ describe("me page", () => {
     refreshTitles.mockRejectedValueOnce(new Error("titles unavailable"));
 
     const wrapper = await mountPage();
-    expect(wrapper.find("[data-testid='identity']").exists()).toBe(true);
-    expect(wrapper.find("[data-testid='submissions']").exists()).toBe(true);
+    expect(wrapper.text()).toContain("玩家身份卡");
+    expect(wrapper.text()).toContain("近期提交内容");
     expect(wrapper.text()).toContain("无法读取称号");
     expect(wrapper.text()).not.toContain("暂无称号");
-    expect(wrapper.find("[data-testid='titles']").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("旧称号");
 
     titles.value = [{ grantId: "grant-1", titleKey: "TITLE-1", label: "称号1", category: "测试", condition: "完成挑战", scope: "global", grantedAt: 1 }];
     refreshTitles.mockResolvedValueOnce(titles.value);
@@ -123,7 +121,7 @@ describe("me page", () => {
     expect(retry).toBeDefined();
     await retry!.trigger("click");
     await flushPromises();
-    expect(wrapper.findAll("[data-testid='titles'] .recent-title")).toHaveLength(1);
+    expect(wrapper.get('section[aria-labelledby="titles-title"]').text()).toContain("称号1");
     expect(wrapper.text()).not.toContain("无法读取称号");
   });
 
@@ -134,7 +132,7 @@ describe("me page", () => {
     refreshTitles.mockRejectedValueOnce(new Error("titles unavailable"));
 
     const wrapper = await mountPage();
-    expect(wrapper.find(".me-skeleton").exists()).toBe(false);
+    expect(wrapper.find('[role="status"][aria-label="读取中…"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("无法读取玩家信息");
     expect(wrapper.text()).toContain("重试");
 
@@ -145,8 +143,8 @@ describe("me page", () => {
     refreshTitles.mockResolvedValueOnce([]);
     await wrapper.get("button").trigger("click");
     await flushPromises();
-    expect(wrapper.find("[data-testid='identity']").exists()).toBe(true);
-    expect(wrapper.find("[data-testid='empty']").text()).toBe("暂无称号");
+    expect(wrapper.text()).toContain("玩家身份卡");
+    expect(wrapper.text()).toContain("暂无称号");
   });
 
   it("distinguishes a missing session from loading and read failure", async () => {
@@ -156,9 +154,9 @@ describe("me page", () => {
     refreshTitles.mockResolvedValueOnce([]);
 
     const wrapper = await mountPage();
-    expect(wrapper.find(".me-skeleton").exists()).toBe(false);
+    expect(wrapper.find('[role="status"][aria-label="读取中…"]').exists()).toBe(false);
     expect(wrapper.text()).toContain("需要登录");
     expect(wrapper.text()).not.toContain("无法读取玩家信息");
-    expect(wrapper.find('button[data-to="/login"]').exists()).toBe(true);
+    expect(wrapper.find('a[href="/login"]').exists()).toBe(true);
   });
 });

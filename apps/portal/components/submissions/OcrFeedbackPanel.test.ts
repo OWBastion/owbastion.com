@@ -1,6 +1,6 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import OcrFeedbackPanel from "./OcrFeedbackPanel.vue";
 
 const api = vi.fn();
@@ -41,8 +41,6 @@ describe("OcrFeedbackPanel", () => {
     api.mockResolvedValue(successResponse);
     const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
     await wrapper.vm.$nextTick();
-    const rows = wrapper.findAll(".feedback-row");
-    expect(rows.length).toBe(1);
     expect(wrapper.text()).toContain("难度");
     expect(wrapper.text()).not.toContain("地图识别");
     expect(wrapper.text()).toContain("确认无误");
@@ -79,7 +77,9 @@ describe("OcrFeedbackPanel", () => {
       global,
     });
     await wrapper.vm.$nextTick();
-    expect(wrapper.findAll(".feedback-row").length).toBe(3);
+    for (const label of ["难度", "玩家", "通关标记"]) {
+      expect(wrapper.text()).toContain(label);
+    }
     await wrapper.findAll("button").find((button) => button.text().includes("全部确认无误"))?.trigger("click");
     await flushPromises();
     expect(api).toHaveBeenCalledWith("/v1/me/submissions/submission-1/ocr-feedback", expect.objectContaining({
@@ -137,26 +137,4 @@ describe("OcrFeedbackPanel", () => {
     expect(wrapper.findAll("button").length).toBe(0);
   });
 
-  it("applies the compact responsive layout at mobile widths without hiding controls", async () => {
-    const matches = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-    vi.stubGlobal("matchMedia", matches);
-    const wrapper = await mountSuspended(OcrFeedbackPanel, {
-      props: { submissionId: "submission-1", feedback: feedback({ mode: "grouped", promptOrigin: "grouped", promptFieldKeys: ["difficulty", "viewer_player"] }) },
-      global,
-    });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find(".ocr-feedback--compact").exists()).toBe(true);
-    expect(wrapper.findAll("button").length).toBeGreaterThanOrEqual(3);
-    expect(wrapper.findAll("input").length).toBe(2);
-    vi.unstubAllGlobals();
-  });
-
-  it("keeps the two-column row layout at wider widths", async () => {
-    const matches = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-    vi.stubGlobal("matchMedia", matches);
-    const wrapper = await mountSuspended(OcrFeedbackPanel, { props: { submissionId: "submission-1", feedback: feedback() }, global });
-    await wrapper.vm.$nextTick();
-    expect(wrapper.find(".ocr-feedback--compact").exists()).toBe(false);
-    vi.unstubAllGlobals();
-  });
 });

@@ -55,7 +55,7 @@ describe("BindingInvitePanel", () => {
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("filter=pending"));
-    await wrapper.get(".historical-holder").trigger("click");
+    await wrapper.findAll('[role="option"]').find((option) => option.text().includes("历史玩家"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith(expect.stringContaining("/v1/title-grants/holder?holderName="));
     await wrapper.get('input[aria-label="目标 BattleTag"]').setValue("玩家#1234");
@@ -72,7 +72,7 @@ describe("BindingInvitePanel", () => {
     detailResponseOverride = new Promise((resolve) => { resolveDetail = resolve; });
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
-    await wrapper.get(".historical-holder").trigger("click");
+    await wrapper.findAll('[role="option"]').find((option) => option.text().includes("历史玩家"))!.trigger("click");
     await wrapper.get('input[aria-label="目标 BattleTag"]').setValue("玩家#1234");
     expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeDefined();
     resolveDetail({

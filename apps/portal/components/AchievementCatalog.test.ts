@@ -9,7 +9,6 @@ describe("AchievementCatalog", () => {
     });
     expect(wrapper.text()).toContain("即将结束");
     expect(wrapper.text()).toContain("26.0713.2");
-    expect(wrapper.find(".eyebrow").exists()).toBe(false);
   });
 
   it("sorts series and titles in zh-CN order", async () => {
@@ -24,7 +23,7 @@ describe("AchievementCatalog", () => {
     });
     const headings = wrapper.findAll("h2").map((heading) => heading.text());
     expect(headings).toEqual(["极限操作", "生存"]);
-    const names = wrapper.findAll(".achievement-card strong").map((node) => node.text());
+    const names = wrapper.findAll("strong").map((node) => node.text());
     expect(names).toEqual(["测试称号", "暗影", "斑马"]);
   });
 
@@ -35,7 +34,6 @@ describe("AchievementCatalog", () => {
       },
     });
     expect(wrapper.text()).toContain("测试称号");
-    expect(wrapper.find(".earned-status").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("历史成就");
   });
 });

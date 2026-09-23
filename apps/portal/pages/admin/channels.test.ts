@@ -27,7 +27,7 @@ describe("admin channels page", () => {
     const wrapper = await mountSuspended(ChannelsPage);
     await flushPromises();
 
-    expect(wrapper.find(".table-meta").text()).toBe("8815ED793DBFBB6651A3C9F53D408081");
+    expect(wrapper.text()).toContain("8815ED793DBFBB6651A3C9F53D408081");
     expect(wrapper.text()).toContain("测试群");
   });
 });
