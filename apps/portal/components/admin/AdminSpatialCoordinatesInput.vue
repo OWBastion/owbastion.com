@@ -45,6 +45,8 @@ const error = shallowRef("");
 const summary = shallowRef<SpatialConfigImportSummary | null>(null);
 const parsedConfig = shallowRef<SpatialConfigValue | null>(null);
 const showDetails = shallowRef(true);
+const lastSyncedSource = shallowRef<string>();
+const lastEmittedSource = shallowRef<string>();
 
 const isVector = (value: unknown): value is Vector =>
   Array.isArray(value) &&
@@ -211,6 +213,8 @@ const pointSections = computed<PointSection[]>(() => {
 
 const sync = () => {
   source.value = formatWorkshopSpatialConfig(props.modelValue);
+  lastSyncedSource.value = source.value;
+  lastEmittedSource.value = undefined;
   error.value = "";
   if (props.modelValue) {
     const result = parseSpatialConfigSource(source.value, props.modelValue);
@@ -223,6 +227,21 @@ const sync = () => {
   emit("valid", true);
 };
 watch(() => props.revisionKey, sync, { immediate: true });
+watch(() => props.modelValue, (value) => {
+  const nextSource = formatWorkshopSpatialConfig(value);
+  if (lastEmittedSource.value === nextSource) {
+    lastEmittedSource.value = undefined;
+    lastSyncedSource.value = nextSource;
+    return;
+  }
+  if (lastSyncedSource.value === nextSource) return;
+  sync();
+}, { deep: true });
+
+function emitSpatialConfig(value: SpatialConfigValue | null) {
+  lastEmittedSource.value = formatWorkshopSpatialConfig(value);
+  emit("update:modelValue", value);
+}
 
 const updateSource = (value: string) => {
   source.value = value;
@@ -230,7 +249,7 @@ const updateSource = (value: string) => {
     error.value = "";
     summary.value = null;
     parsedConfig.value = null;
-    emit("update:modelValue", null);
+    emitSpatialConfig(null);
     emit("valid", true);
     return;
   }
@@ -252,7 +271,7 @@ const updateSource = (value: string) => {
   error.value = "";
   summary.value = result.summary;
   parsedConfig.value = result.config;
-  emit("update:modelValue", result.config);
+  emitSpatialConfig(result.config);
   emit("valid", true);
 };
 

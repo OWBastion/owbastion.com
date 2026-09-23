@@ -175,6 +175,23 @@ describe("AdminSpatialConfigInput", () => {
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(true);
   });
 
+  it("refreshes the coordinate editor after a same-mode JSON import without resetting its own edits", async () => {
+    const wrapper = await mountSuspended(AdminSpatialConfigInput, {
+      props: { modelValue: spatial(1), revisionKey: "revision:map.test:single" },
+      global: { stubs: editorStubs },
+    });
+    const coordinateTextarea = () => wrapper.findAll("textarea").find((textarea) => !textarea.attributes("aria-label"))!;
+    expect((coordinateTextarea().element as HTMLTextAreaElement).value).toContain("Vector(1, 2, 3)");
+
+    await wrapper.get('textarea[aria-label="空间配置 JSON"]').setValue(JSON.stringify(spatial(20)));
+    expect((coordinateTextarea().element as HTMLTextAreaElement).value).toContain("Vector(20, 21, 22)");
+
+    const workshopReplacement = workshopText.replace("Vector(101, 102, 103)", "Vector(201,202,203)");
+    await coordinateTextarea().setValue(workshopReplacement);
+    expect((coordinateTextarea().element as HTMLTextAreaElement).value).toBe(workshopReplacement);
+    expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toMatchObject({ bastionPositions: [[201, 202, 203]] });
+  });
+
   it("applies Workshop paste to the active composite stage and preserves the rest of the contract", async () => {
     const wrapper = await mountSuspended(AdminSpatialConfigInput, {
       props: { modelValue: compositeConfig, revisionKey: "revision:map.test:composite" },

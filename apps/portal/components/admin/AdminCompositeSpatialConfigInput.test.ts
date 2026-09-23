@@ -28,7 +28,7 @@ const compositeConfig = () => ({
 });
 
 const stubs = {
-  UFormField: { props: ["label"], template: '<div class="field"><label>{{ label }}</label><slot /></div>' },
+  UFormField: { props: { label: String, required: Boolean }, template: '<div class="field"><label>{{ label }}<span v-if="required"> *</span></label><slot /></div>' },
   UInput: {
     props: ["modelValue", "type", "disabled", "ariaLabel", "min", "max", "step"],
     emits: ["update:modelValue"],
@@ -106,6 +106,10 @@ describe("AdminCompositeSpatialConfigInput", () => {
     const incomplete = compositeConfig();
     delete (incomplete.stages[2] as typeof incomplete.stages[number] & { setupDetection?: unknown }).setupDetection;
     const wrapper = await mountEditor(incomplete);
+    const requiredLabels = wrapper.findAll(".field label").map((label) => label.text());
+    expect(requiredLabels).toContain("阶段 ID · base *");
+    expect(requiredLabels).toContain("检测位置 *");
+    expect(requiredLabels).toContain("检测半径 *");
     expect(wrapper.text()).toContain("此阶段需要设置检测位置和正半径");
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
 

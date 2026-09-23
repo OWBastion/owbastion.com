@@ -290,7 +290,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
           <UBadge v-if="config.composition.firstStageSelection.mode === 'setup_detection' && config.composition.firstStageSelection.fallbackStageId === stage.stageId" color="info" variant="subtle" label="回退阶段" />
         </legend>
         <div class="stage-editor__fields">
-          <UFormField :label="'阶段 ID · ' + (stage.stageId || index + 1)">
+          <UFormField :label="'阶段 ID · ' + (stage.stageId || index + 1)" required>
             <UInput
               :model-value="stage.stageId"
               :disabled="disabled"
@@ -311,13 +311,13 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
         <div v-if="config.composition.firstStageSelection.mode === 'setup_detection' && config.composition.firstStageSelection.fallbackStageId !== stage.stageId" class="detection-editor">
           <h4>初始阶段检测</h4>
           <p v-if="fieldError('stages', index, 'setupDetection')" class="field-error" role="alert">{{ fieldError('stages', index, 'setupDetection') }}</p>
-          <UFormField label="检测位置">
+          <UFormField label="检测位置" required>
             <div class="detection-position" role="group" :aria-label="stage.stageId + ' 检测位置'">
               <UInput v-for="(axis, axisIndex) in ['X', 'Y', 'Z']" :key="axis" type="number" step="any" :model-value="detectionInputValue(stage.setupDetection?.position?.[axisIndex])" :disabled="disabled" :aria-label="stage.stageId + ' 检测位置 ' + axis" @update:model-value="updateDetectionPosition(index, axisIndex, $event)" />
             </div>
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'position')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'position') }}</p>
           </UFormField>
-          <UFormField label="检测半径">
+          <UFormField label="检测半径" required>
             <UInput type="number" min="0" step="any" :model-value="detectionInputValue(stage.setupDetection?.radius)" :disabled="disabled" :aria-label="stage.stageId + ' 检测半径'" @update:model-value="updateDetectionRadius(index, $event)" />
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'radius')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'radius') }}</p>
           </UFormField>
