@@ -146,7 +146,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       scope TEXT NOT NULL,
       display_kind TEXT NOT NULL,
       color_json TEXT NOT NULL DEFAULT 'null',
-      game_version TEXT NOT NULL
+      game_version TEXT
     );
     CREATE TABLE title_challenges (
       id TEXT PRIMARY KEY NOT NULL,
@@ -155,9 +155,9 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       condition TEXT NOT NULL,
       evidence_rule TEXT NOT NULL,
       submission_mode TEXT NOT NULL,
-      game_version TEXT NOT NULL,
+      game_version TEXT,
       status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
+      introduced_version TEXT,
       retired_version TEXT,
       starts_at INTEGER,
       ends_at INTEGER,
@@ -441,6 +441,23 @@ describe("catalog query budgets", () => {
     expect(mapTitle?.titleKey).toBe("PIONEER_0");
     expect(mapTitle?.scope).toBe("map");
     expect(large.getCount()).toBeLessThanOrEqual(6);
+  });
+
+  it("projects unreleased global titles to Agents without exposing them to players", async () => {
+    const { services, sqlite } = runWithSize(2, 2);
+    const timestamp = Date.now();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('FUTURE_TITLE', '未来称号', 'award', '未来系列', '完成挑战', 'active', 'global', 'fixed', 'null', NULL)").run();
+    sqlite.prepare("INSERT INTO title_challenges (id, title_key, category_override, condition, evidence_rule, submission_mode, game_version, status, introduced_version, retired_version, starts_at, ends_at, scope, created_at, updated_at) VALUES ('title.future', 'FUTURE_TITLE', NULL, '完成挑战', '截图', 'manual', NULL, 'scheduled', NULL, NULL, NULL, NULL, 'global', ?, ?)").run(timestamp, timestamp);
+
+    const buildProjection = await services.listAgentTitles({ page: 1, pageSize: 20 });
+    expect(buildProjection.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ titleKey: "FUTURE_TITLE", scope: "global", gameVersion: null }),
+    ]));
+
+    const playerTitles = await services.listTitles({});
+    expect(playerTitles.map((title) => title.titleKey)).not.toContain("FUTURE_TITLE");
+    const playerChallenges = await services.listChallenges({ family: "achievement" });
+    expect(playerChallenges.map((challenge) => challenge.challengeId)).not.toContain("title.future");
   });
 
   it("bounds representative catalog operation statement ceilings", async () => {

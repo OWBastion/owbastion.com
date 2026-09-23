@@ -488,6 +488,9 @@ export const titleSchema = z.object({
   color: titleColorSchema.nullable(),
   gameVersion: z.string().trim().min(1).max(64),
 });
+export const agentTitleSchema = titleSchema.extend({
+  gameVersion: z.string().trim().min(1).max(64).nullable(),
+});
 
 
 const agentPage = z.object({
@@ -500,7 +503,7 @@ const agentPageQuery = z.object({ page: z.number().int().positive().default(1), 
 export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(agentMapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
-export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(titleSchema) }).merge(agentPage);
+export const agentTitleListResponseSchema = z.object({ contractVersion, items: z.array(agentTitleSchema) }).merge(agentPage);
 export const agentPlayerTitleGrantSchema = z.object({ playerId, playerName: z.string().trim().min(1).max(64), titleKeys: z.array(externalId), allTitles: z.boolean() });
 export const agentPlayerTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(agentPlayerTitleGrantSchema) }).merge(agentPage);
 export const agentMapTitleHolderSchema = z.object({ mapId: externalId, gameplayRevisionId: externalId, titleKey: externalId, slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), slotSemantics: z.enum(["named", "none"]), playerId, playerName: z.string().trim().min(1).max(64) });
@@ -1487,6 +1490,7 @@ export type AdminMapRevision = z.infer<typeof adminMapRevisionSchema>;
 export type AdminMapEditorAudit = z.infer<typeof adminMapEditorAuditSchema>;
 export type AdminMapEditorResponse = z.infer<typeof adminMapEditorResponseSchema>;
 export type Title = z.infer<typeof titleSchema>;
+export type AgentTitle = z.infer<typeof agentTitleSchema>;
 export type AgentEventListResponse = z.infer<typeof agentEventListResponseSchema>;
 export type AgentMapListResponse = z.infer<typeof agentMapListResponseSchema>;
 export type AgentAchievementListResponse = z.infer<typeof agentAchievementListResponseSchema>;
