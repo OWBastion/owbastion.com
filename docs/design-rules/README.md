@@ -19,16 +19,14 @@
 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
 | [changelog-guidelines.md](changelog-guidelines.md) | 版本更新规范 | authoritative | `apps/portal/content/changelog` 结构、排版与文案规范 |
 | [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
-| [audit-portal-uiux-2026-08.md](audit-portal-uiux-2026-08.md) | Portal UI/UX 审计档案 | reference | 2026-08 三轮审计：已解决 / 待修 / 豁免状态 |
-| [audit-portal-uiux-2026-08-15.md](audit-portal-uiux-2026-08-15.md) | Portal UI/UX 综合审计报告 | reference | 2026-08-15 综合审计：Apple Design 与 Kill-AI-Slop 全量检视与重构路线 |
-| [audit-portal-uiux-2026-08-17.md](audit-portal-uiux-2026-08-17.md) | Portal UI/UX 独立审计 | reference | 2026-08-17：按模块功能对照设计支柱 / Apple Design / Kill-AI-Slop，不依据既有审计档 |
-| [audit-portal-admin-mobile-2026-09-13.md](audit-portal-admin-mobile-2026-09-13.md) | 管理侧移动端审计 | reference | 2026-09-13：编辑 / 新增 / 审核弹层裁切、叠层不可点、审核 sticky 与顶栏冲突 |
 
 ## 使用规则
 
 当文档存在冲突时，先按主题索引判断文档归属；主题文档对其负责范围具有最高
 优先级。Portal 细则负责页面和组件实现细节，必须复用相同的 token、状态词汇、
 无障碍基线和权限边界，不得覆盖主题文档的跨页面规则。
+
+一次性审计与整改记录保存在对应 Issue/PR 历史中，不作为当前设计规则索引。
 
 **规范优先于历史实现。** 代码中的固定 `px` 布局、页面级 fixed 操作条等若与
 主题文档冲突，后续重构以文档为准；见 [`DESIGN.md`](DESIGN.md) 的 Refactor

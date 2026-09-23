@@ -5,19 +5,17 @@
 | Store | Current responsibility |
 | --- | --- |
 | D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
-| R2 | Submission evidence served through the configured public CDN origin and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
+| R2 | Private submission evidence and isolated public achievement icons |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
-The OCR Queue carries only an opaque submission ID, private object key, schema
-version, and an optional request-correlation ID. The consumer resolves the platform evidence bucket from the
-Worker configuration and passes it explicitly to OCRKit; OCRKit's default
-bucket is not used for platform evidence. The consumer receives the delivery attempt count from Queue
-metadata and records it with OCR results. OCR raw output and review decisions
-remain in D1; result persistence and submission state transitions are
-platform-owned, idempotent by request-correlation ID, and committed together.
-No private screenshot is committed to the repository.
+OCR work remains platform-owned and idempotent by request-correlation ID.
+OCRKit must not receive D1 access or credentials that can read or enumerate the
+platform's evidence bucket. The platform authorizes which evidence belongs to
+an OCR job; OCR raw output and review decisions remain in D1, and result
+persistence is committed with the submission state transition. No private
+screenshot is committed to the repository.
 
-## Implemented service boundary
+## Platform trust boundaries
 
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
 channel:write plus channel:read. Binding, submission, and QQ login verification
@@ -26,8 +24,10 @@ requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
 and auditable. Achievement-catalog changes use the same authorization,
-idempotency, and audit boundary; they do not permit administrators to modify
-the platform-owned title, map, event, or challenge metadata.
+idempotency, and audit boundary. Authorized administrators may modify
+platform-owned title, map, event, and challenge metadata through the platform's
+audited workflows; those workflows do not authorize changes to Bastion-owned
+game implementation, builds, releases, or published game artifacts.
 
 Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
 bind the expected byte size and SHA-256, expire after ten minutes, and store
@@ -35,18 +35,14 @@ the result under a submission-scoped private R2 key. The upload URL cannot be
 reused after completion. It does not expose object keys, source URLs, or QQ
 OpenIDs from public status and player endpoints.
 
-Player submission detail and evidence reads require the Portal session and
-verify that the submission belongs to the current player account. Player
-evidence URLs are returned only after that check; the image itself is served
-from the configured CDN. Admin review details
-return the R2 object URL under the configured public custom domain; access to
-that URL is bearer-style and depends on the opaque submission UUID and content
-hash in the object key. Player detail responses use the same CDN URL only after
-the API verifies ownership. Both Portal surfaces send the weak
-`x-owbastion-review` source header; WAF validation of that header is not an
-authorization mechanism. The
-player-facing OCR summary contains only recognized map, difficulty, player, and
-completion values; raw OCR output and internal match details remain private.
+All submission evidence is private. A player read requires the Portal session
+and proof that the submission belongs to that player; a maintainer read requires
+the platform's maintainer authorization. Possession of an R2 URL or object key
+is not authorization, and evidence must not be exposed through a publicly
+readable CDN object path. The current implementation and verification state is
+recorded only in the [feature status matrix](../product-rules/feature-status.md).
+The player-facing OCR summary contains only recognized map, difficulty, player,
+and completion values; raw OCR output and internal match details remain private.
 
 Player OCR feedback is a separate annotation-proposal boundary. The player
 projection exposes only a derived feedback mode (none/targeted/grouped), the
@@ -62,11 +58,10 @@ OCRKit consumption contract is a private, versioned HTTP boundary requiring
 the `OCRKIT_SNAPSHOT_TOKEN` secret (a Worker secret, never a committed
 variable); it exposes only finalized snapshot metadata and member annotation
 facts, never QQ identity, player-account internals, review risk signals,
-Grant/mastery decisions, object keys, or unrelated Submission payloads.
-Evidence delivery is a platform-side proxy bounded to snapshot members;
-OCRKit never receives D1 access or broad R2 credentials. Missing or deleted
-source evidence is reported explicitly (410 `EVIDENCE_UNAVAILABLE`) and never
-silently substituted.
+Grant/mastery decisions, object keys, or unrelated Submission payloads. The
+platform resolves evidence only for finalized snapshot members and reports
+missing or deleted source evidence explicitly (410 `EVIDENCE_UNAVAILABLE`)
+instead of silently substituting another image.
 
 Player ratings are D1-owned records keyed by the authenticated player account
 and a stable event/map target. The account association, audit events, hidden

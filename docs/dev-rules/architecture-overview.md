@@ -2,27 +2,22 @@
 
 > Ecosystem contract version: 1.0
 
-## Status and scope
+## Scope and boundaries
 
-The capability status matrix in [product-rules/feature-status.md](../product-rules/feature-status.md)
-is the single source of truth for implementation and verification status.
+This document describes stable repository architecture. The
+[feature status matrix](../product-rules/feature-status.md) is the only source
+for implementation and verification status.
 
-The repository contains an implemented TypeScript workspace with:
+The repository is `OWBastion/owbastion.com`, a TypeScript workspace containing
+a Hono Cloudflare Worker API, a Nuxt Portal, shared contracts/domain/database/
+auth packages, and forward-only D1 migrations. Cloudflare R2 stores private
+submission evidence; Queue consumers handle asynchronous platform work.
 
-- apps/api: a Hono Cloudflare Worker API;
-- apps/portal: a Nuxt player-facing Portal and platform-session-protected `/admin` control surface;
-- packages/contracts, domain, database, and auth;
-- forward-only D1 migrations for bindings, submissions, evidence metadata, and
-  QQ login/session state, platform-owned events, maps, titles, and achievement
-  challenges;
-- an R2 evidence binding used when EVIDENCE_BUCKET is available.
-
-OCR orchestration, review, and Queue-backed submission processing are coded for
-the first map-challenge slice; their current status and verification evidence
-are tracked in the matrix. Platform-internal title Grants are created by the
-approval transaction. Bastion consumes the platform's current metadata through
-the Agents API when building and publishing the game; it does not export a
-formal content snapshot to the platform.
+The platform owns business state, authorization, and current event, map, title,
+and challenge metadata. Bastion owns game behavior, generated data, builds,
+and releases. Bastion reads validated platform metadata through the Agents API;
+the platform does not consume a formal Bastion content snapshot or orchestrate
+Bastion/GitHub changes.
 
 ## Mission and ownership
 
@@ -38,28 +33,21 @@ Bastion-owned.
 | Repository | Authoritative responsibility |
 | --- | --- |
 | OWBastion/Bastion | Game implementation, builds, releases, and published game artifacts |
-| OWBastion/owbastion.codes | Current event, map, title, and challenge metadata; business data, API, Portal, evidence delivery, review decisions, and platform title Grants |
+| OWBastion/owbastion.com | Current event, map, title, and challenge metadata; business data, API, Portal, evidence access policy, review decisions, and platform title Grants |
 | OWBastion/qqbot | QQ channel ingress, deterministic command UX, and notifications |
 | OWBastion/ocrkit | Stateless screenshot recognition and model lifecycle |
 
-## Current product surfaces
+## Product surfaces and service boundaries
 
-- **Portal:** public landing content, QQ browser login, current-player data,
-  map, random-event, achievement challenge, and title catalogs, player screenshot upload, recent
-  submission/status views, and review UI.
-- **API:** health, a public read-only achievement catalog, authenticated QQ binding/submission writes, player upload
-  sessions, Queue-backed OCR processing, public submission status, QQ login
-  verification, session lookup/logout, and a platform-session-protected
-  administrative API for players, groups, submissions, and achievement catalog
-  management. The public read-only `/v1/agents/*` projection exposes published
-  events, maps, achievements, titles, bounded cross-content search, and the
-  public title-holding facts required to build the in-game title database.
-  Ordinary requests omit numeric player IDs; requests carrying the Bastion
-  build token may receive current display names, stable game player IDs, active
-  title keys, and required map scope. It excludes QQ, submission, review-source,
-  time, and audit data.
-- **Evidence:** private QQ image retrieval and R2 storage during submission
-  creation when the Worker R2 binding is configured.
+- **Portal:** public and player-facing pages, with administrator workflows
+  protected by the platform session.
+- **API:** canonical business API and public read-only Agents projections.
+  Agents responses expose only the game facts required by Bastion and omit
+  account, submission, review-source, and audit data.
+- **Evidence:** submission screenshots are platform-owned private data. Their
+  authorization and handling rules are defined in
+  [data-and-security.md](data-and-security.md); current implementation and
+  verification status belong in the feature status matrix.
 
 The Portal is a rendering surface and does not own durable business state.
 The Portal proxies administrator requests server-side so the platform session

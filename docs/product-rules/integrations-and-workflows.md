@@ -6,6 +6,12 @@ and private operational data.
 
 Capability status is maintained only in the [feature status matrix](feature-status.md).
 
+Gameplay Revision (`gameplayRevisionId`) is the current map progression and
+build identity, scoped to a stable map. `CLASSIC`, `map_variant`, and
+`mapVariant` are retained only as legacy compatibility or OCR evidence facts;
+they do not replace the revision identity or determine current challenge
+ownership.
+
 ## Request tracing
 
 Every API request receives a validated `X-Request-ID` (or preserves the
@@ -18,9 +24,9 @@ when one exists, and emit structured logs with the operation and status. These
 IDs are diagnostic correlation values only and must not contain credentials,
 cookies, stable QQ identifiers, request bodies, or signed URLs.
 
-## Implemented platform slice
+## Platform workflow contract
 
-The current API implements versioned v1 QQ flows:
+The platform contract covers versioned v1 QQ flows:
 
 - authenticated QQBot confirms invitation-bound binding claims from a stable QQ
   member OpenID; it never creates or merges player accounts directly;
@@ -134,10 +140,10 @@ The current API implements versioned v1 QQ flows:
   keeps its stable `map.<map>.<kind>` compatibility ID and exposes its source
   rule ID, title key, display kind, and explicit slot semantics; it is not an
   independently editable challenge record. Legacy map-completion rows are
-  deduplicated against `map_title_rule_compat`: a row with a compat mapping is
-  excluded from the directories so the rule projection is the single source,
-  while rows without a mapping (including CLASSIC) remain direct read
-  projections;
+  deduplicated against `map_title_rule_compat` and assigned to an explicit
+  gameplay revision. Retained CLASSIC rows are compatibility projections for
+  their historical revision, not direct projections outside the revision
+  assignment model;
 - maintainers set a challenge to `sunsetting`, then manually confirm retirement;
   sunsetting challenges
   remain available for submission.
@@ -347,12 +353,12 @@ Sunsetting retains player visibility and new upload sessions while displaying
 the planned release version. Retiring a challenge prevents new upload sessions
 while preserving submissions that already exist. Those submissions continue
 through OCR and review under the ordinary submission lifecycle. Reopening
-clears the retirement version. Map-scoped title challenges may declare
-`map_variant = classic`; an empty `map_variant` means the formal map version. The
-platform persists the effective requirement in the upload snapshot, matches only
-the corresponding recognized version, and exposes both the required and recognized
-variants in admin review details. Administrator changes require maintainer
-authorization, an idempotency key, and an audit record.
+clears the retirement version. Historical challenge and submission records may
+retain `map_variant = classic` as compatibility evidence. Current challenge
+applicability comes from the explicit revision assignment and is snapshotted as
+`gameplayRevisionId`; the legacy variant value does not act as a second map
+identity. Administrator changes require maintainer authorization, an
+idempotency key, and an audit record.
 
 ### Map title rule model
 
@@ -476,8 +482,9 @@ map-title meaning from a nullable slot.
 map's `gameplayRevisions` build projection. It contains only `default` and
 `selectable` revisions with `enabled: true`, explicit `isDefault`/
 `isSelectable` flags, the machine `gameplayRevisionId`, optional explicit
-`mapVariant: "classic"`, revision `gameVersion`, and a validated
-`spatialConfig`. The spatial object has finite three-component vectors for
+`mapVariant: "classic"` compatibility marker, revision `gameVersion`, and a
+validated `spatialConfig`. The marker is separate from the revision identity.
+The spatial object has finite three-component vectors for
 `bastionPositions`, `resetPosition`, `endPosition`, `thirdPersonPosition`, and
 `creditsPosition`; optional control center/jump/respawn vectors with paired
 axis/threshold; and deterministic portal/springboard position arrays. Control
@@ -601,10 +608,11 @@ or above the gate — and map challenges are evaluated only for the map named in
 the screenshot. A statistics panel without a checked title (for example, one
 listing only aggregate counters) is not treated as checked achievement
 evidence; title evidence requires a matching `achievement_titles` entry or a
-title followed by a checked mark in the panel text. `classic` identifies the
-classic version of the recognized map: it satisfies map challenges that do not
-declare another variant, while classic-specific map challenges require the
-`classic` map variant. Neither kind of map challenge needs title evidence.
+title followed by a checked mark in the panel text. OCR `classic` is a
+recognized legacy map-variant fact that can support the corresponding retained
+revision evidence. Current challenge scope is determined by the assigned
+`gameplayRevisionId`, not by an independent `map_variant` branch. Neither kind
+of map challenge needs title evidence.
 
 Mastery acceptance is fail-closed by default: both
 `MASTERY_MIN_GAME_VERSION` and `MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS` are
