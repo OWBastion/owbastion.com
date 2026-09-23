@@ -1,22 +1,37 @@
 # ADR 0001: Platform Technology Stack
 
-- Status: Accepted
+- Status: Accepted with amendments
 - Date: 2026-07-14
 - Decision owners: OWBastion maintainers
-- Scope: `OWBastion/owbastion.codes`
+- Scope: `OWBastion/owbastion.com`
 
 > Current architecture amendment (2026-07-26): the platform is the sole source
 > of current event, map, title, and challenge metadata. Bastion owns game
 > implementation, builds, and release artifacts, and reads platform metadata
 > through `/v1/agents/*`. The platform does not consume formal Bastion content
 > snapshots or orchestrate Bastion/GitHub changes. The original snapshot and
-> change-orchestration assumptions below are superseded by this amendment. The
-> current implementation notes below supersede the original target structures
-> wherever they differ; capability status remains in the feature status matrix.
+> change-orchestration assumptions below are superseded by this amendment.
+
+> Repository and testing amendment (2026-09-23): this decision applies to
+> `OWBastion/owbastion.com`. The repository and test structures listed below
+> record the initial plan; current boundaries are defined by
+> [architecture-overview.md](../dev-rules/architecture-overview.md) and
+> [testing-and-change-policy.md](../dev-rules/testing-and-change-policy.md).
+> The original ADR recorded `OWBastion/owbastion.codes` as its scope; that
+> identifier is retained only as historical wording, not as the current
+> repository identity.
+> Agent routing follows the repository-root `AGENTS.md` and `docs/README.md`,
+> with engineering, product, and design rules indexed under their respective
+> `docs/*-rules/` directories.
+> The original Playwright selection is superseded: the current policy does not
+> add a permanent browser runner unless a concrete product requirement calls
+> for one. Capability implementation and verification status belongs only in
+> the [feature status matrix](../product-rules/feature-status.md).
 
 ## Context
 
-`owbastion.codes` is the Bastion web platform and operational control plane. It must support three product surfaces:
+The platform is the Bastion web platform and operational control plane. It must
+support three product surfaces:
 
 1. a public and player-facing portal;
 2. a reviewer and administrator surface within that Portal;
@@ -24,11 +39,9 @@
 
 The platform also owns durable business state and orchestrates integrations with QQBot, OCRKit, Cloudflare storage, and asynchronous work.
 
-The accepted stack now backs the pnpm workspace, Hono Worker API, Nuxt Portal,
+The decision selects a pnpm workspace, Hono Worker API, Nuxt Portal,
 contracts/domain/database/auth packages, D1 migrations, Queue consumers, and
-R2 evidence binding. OCR orchestration, review, grants, and the administrator
-surface are implemented slices of the modular workspace; their verification
-status is maintained in `docs/product-rules/feature-status.md`.
+Cloudflare storage boundaries.
 
 ## Decision
 
@@ -47,9 +60,10 @@ Use:
 - Nuxt UI or repository-owned UI primitives;
 - Pinia only for durable client-side application state that cannot be represented by route, server, or query state;
 - TanStack Query for remote-data fetching, caching, invalidation, and mutation state;
-- Playwright for browser-level integration and end-to-end tests.
+- Playwright for browser-level integration and end-to-end tests (superseded by
+  the 2026-09-23 testing amendment above).
 
-The current application structure is:
+The initial application placement was:
 
 ```text
 apps/
@@ -72,7 +86,7 @@ Use:
 - Drizzle ORM and Drizzle Kit for D1 schema access and migrations;
 - Vitest for unit, contract, repository, and worker tests.
 
-The current backend structure is:
+The initial backend placement was:
 
 ```text
 apps/
@@ -88,7 +102,7 @@ Use Cloudflare services according to the existing ownership contract:
 | Capability | Technology | Responsibility |
 | --- | --- | --- |
 | Business state | Cloudflare D1 | identities, submissions, OCR metadata, corrections, decisions, grants, drafts, and delivery state |
-| Evidence and large artifacts | Cloudflare R2 | player-private screenshots, CDN-served maintainer review screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
+| Evidence and large artifacts | Cloudflare R2 | private submission screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
 | Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, and notifications |
 | Public catalog response cache | Cloudflare Cache API | short-lived HTTP responses; D1 remains the catalog source of truth |
 | Access control for privileged web surfaces | Platform sessions with account roles | administrator and maintainer authentication boundary |
@@ -97,11 +111,11 @@ KV and process memory must never become the sole source of truth for identities,
 
 ### Public Portal deployment
 
-The public Portal is deployed to HKG with Docker Compose. Cloudflare Edge
-provides public TLS and a server-managed Cloudflare Tunnel forwards the root
-hostname to the Portal's loopback HTTP port. `cloudflared`, Tunnel credentials,
-DNS and deployment configuration are operational concerns outside this
-repository.
+The public Portal uses a Docker Compose deployment target on HKG. Cloudflare
+Edge provides public TLS and a server-managed Cloudflare Tunnel forwards the
+root hostname to the Portal's loopback HTTP port. `cloudflared`, Tunnel
+credentials, DNS, and deployment configuration are operational concerns
+outside this repository.
 
 The Portal remains a rendering surface. It must not become a second business
 API or a durable data store; the canonical Hono API is independently configured
@@ -111,7 +125,7 @@ for `api.owbastion.com`.
 
 Use a pnpm workspace. Turborepo may be adopted for task orchestration and caching when the initial workspace contains enough packages and applications to justify it; it is not required for the first foundation commit.
 
-Current structure:
+The initial repository layout proposal was:
 
 ```text
 apps/
@@ -154,7 +168,7 @@ The platform should generate OpenAPI and a TypeScript client for QQBot. QQBot mu
 OCRKit remains a separate Python service using FastAPI, RapidOCR, ONNX Runtime, and OpenCV. The platform does not reimplement OCR in TypeScript.
 
 ```text
-owbastion.codes worker
+platform Worker
 → private, versioned OCRKit API
 → raw OCR evidence stored by the platform
 → deterministic rule evaluation
@@ -223,8 +237,9 @@ Not selected for the initial platform because the architecture is already center
 
 ## Initial implementation sequence
 
-The following foundation and product slices are present; detailed verification
-is tracked in the feature status matrix:
+This sequence records the original implementation plan, not a current progress
+checklist. Current capability status and verification are maintained only in
+the feature status matrix:
 
 1. initialize a pnpm TypeScript workspace;
 2. create `packages/contracts`, `packages/domain`, and `packages/database`;

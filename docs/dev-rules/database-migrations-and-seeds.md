@@ -3,6 +3,11 @@
 本仓库把 D1 数据变更分成三类，避免 schema 演进、测试 fixture 和平台目录
 维护互相混用。
 
+当前地图进度身份由稳定地图和显式 `gameplayRevisionId` 组成，见
+[产品流程契约](../product-rules/integrations-and-workflows.md)。下文涉及
+`CLASSIC`、`map_variant` 和兼容映射的段落记录已应用迁移如何保留旧事实；它们
+不是当前挑战归属或地图修订身份的替代模型。
+
 ## Migration
 
 `migrations/*.sql` 是 forward-only 的数据库结构变更。新 migration 只应包含：

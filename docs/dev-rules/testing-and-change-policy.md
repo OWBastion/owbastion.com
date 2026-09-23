@@ -1,29 +1,7 @@
 # Testing and Change Policy
 
-## Current implementation status
-
-The [feature status matrix](../product-rules/feature-status.md) is the single source of truth
-for capability status and verification evidence.
-
-The repository contains a runnable pnpm TypeScript workspace. The Hono
-Cloudflare Worker API implements health, authenticated v1 QQ binding and
-submission creation, public submission status, QQ browser-login attempts and
-verification, portal session lookup/logout, and a maintainer-protected
-group-access route. D1 migrations back the current business state.
-
-When EVIDENCE_BUCKET is configured, submission creation persists validated QQ
-image sources to private R2 and advances successful submissions to ocr_pending.
-The Nuxt Portal implements the public landing page, QQ login, player center,
-submission-status view, and platform-session-protected `/admin` player/group
-and achievement-catalog management.
-
-The first Portal map-challenge slice includes database-backed map and achievement
-catalogs, a public read-only achievement directory, upload validation, Queue-backed
-OCR orchestration, maintainer review, and explicit or administrator-confirmed
-migration of historical titles to player accounts. The matrix records these capabilities
-as coded until complete integration evidence is available. Platform-internal
-new title issuance is coded; feature switches and Bastion/GitHub orchestration
-are not implemented.
+Current capability implementation and verification status is maintained in the
+[feature status matrix](../product-rules/feature-status.md).
 
 Apply local migrations with:
 
@@ -100,52 +78,6 @@ For a non-trivial change, identify:
 Keep domain logic independent from HTTP and storage adapters. Add migrations,
 tests, and runbooks with operational changes. Avoid broad framework rewrites
 without an architecture decision record.
-
-The public achievement directory reads active global and map-scoped achievement
-challenges and does not expose player data. Map-scoped challenges may declare a
-`classic` map variant, which is carried through the catalog and OCR matching.
-The public map directory reads active rows from the
-D1 `maps` and `achievement_challenges` catalogs without exposing player data.
-Player submission targets use the same catalogs, but the upload session accepts
-only an enabled manual-submission `challengeId`;
-map names and difficulty are resolved by the API. System-automatic title
-challenges remain visible in the catalog but cannot receive screenshot uploads.
-Catalog migrations are forward-only and
-must preserve the introduced and retired game-version fields.
-
-Administrator catalog management supports creating and editing title-backed
-achievement challenges. A challenge uses a unique title key and may be global
-or map-scoped. Map-scoped challenges use an optional map allowlist; an empty
-allowlist means all active maps. Future challenges may omit their game version
-and may use scheduled status with no start or end time; missing release metadata
-keeps them out of public projections and submission eligibility. Title challenges
-may change their conditions, evidence rules, submission mode, map scope, game
-version, and active, sunsetting, or retired challenges require one. Once a
-challenge is public, its game version cannot be cleared. Title challenges may
-also change their optional Portal display-category override. A `sunsetting` challenge requires a
-planned Bastion version in `YY.MMDD.N` format; an administrator may also move a
-challenge directly to `retired` without a planned version. Sunsetting challenges
-remain visible and accept new uploads; retired challenges
-block new uploads without altering in-flight or existing submissions. Map
-challenge facts remain immutable; maintainers may update the separate
-platform-owned map metadata layer containing the T0–T5 map rating and mechanism
-tags. It never creates or issues a title: title
-identity and game facts remain Bastion-owned, while historical entitlement
-remains the separate administrator migration flow.
-
-The platform owns the current title metadata and the public game facts needed
-to generate the in-game title database. Bastion reads them through the Agents
-API when building the game. `PIONEER`, `CONQUEROR`, and
-`DOMINATOR` are map-scoped reward slots; all other titles are global. Historical
-holder names remain historical source records and must not be converted into
-platform accounts automatically. A maintainer may
-create one auditable `player_title_grants` association for a historical holder
-through the administrator migration UI or by explicitly authorizing selected
-unclaimed records on a binding invitation. A clean approved binding executes
-that authorization without a second decision; conflicts and retryable failures
-remain visible to maintainers. A mistaken association is revoked with a
-recorded reason rather than deleted. Only active grant records authorize a
-player-facing title result.
 
 ## Testing layers
 
