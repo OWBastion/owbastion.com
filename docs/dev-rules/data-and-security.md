@@ -24,8 +24,10 @@ requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
 and auditable. Achievement-catalog changes use the same authorization,
-idempotency, and audit boundary; they do not permit administrators to modify
-the platform-owned title, map, event, or challenge metadata.
+idempotency, and audit boundary. Authorized administrators may modify
+platform-owned title, map, event, and challenge metadata through the platform's
+audited workflows; those workflows do not authorize changes to Bastion-owned
+game implementation, builds, releases, or published game artifacts.
 
 Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
 bind the expected byte size and SHA-256, expire after ten minutes, and store
