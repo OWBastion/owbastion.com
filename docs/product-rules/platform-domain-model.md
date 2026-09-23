@@ -51,11 +51,12 @@ These concepts have distinct responsibilities:
   player's screenshot evidence.
 - **Challenge** defines one path to obtain one Title.
 - **Challenge Completion** records that a Player satisfied a Challenge.
-- **Grant** represents current ownership of a Title.
+- **Grant** represents current ownership of a Title within a qualification scope
+  (such as an exact Gameplay Revision or a non-revision Challenge scope).
 - **Mastery, XP, personal bests, long-term rankings, and seasonal rankings** are
   projections over valid Verified Runs.
-- **Equipped title** is a player preference over currently owned Titles, not a
-  separate ownership fact.
+- **Equipped title** is a player preference over currently owned Titles (Titles
+  having at least one active Grant), not a separate ownership fact.
 
 A Submission may produce a Verified Run without satisfying any Challenge. A
 single Verified Run may satisfy multiple still-relevant Challenges. The same
@@ -109,16 +110,39 @@ chain.
 
 ### Ownership
 
-A Player has at most one current active ownership state for a Title.
+Title ownership and Grants are scoped to the relevant qualification scope (such
+as an exact Gameplay Revision for map-bound Challenges, or the relevant
+non-revision Challenge scope), rather than being a single global `Player × Title`
+state.
 
-Once a Player currently owns a Title, normal gameplay processing skips all
-Challenges that award that Title. Repeated play continues to create or update
-Verified Run-derived projections, but it does not create duplicate Completion
-or Grant records merely to prove the same Title again.
+Within a given qualification scope (such as a specific Gameplay Revision):
 
-Multiple active Challenges may award the same Title when product design needs
-multiple acquisition paths. They remain independent ways to obtain the same
-single ownership state.
+- A Player has at most one current active ownership state for a Title in that
+  scope.
+- Once a Player currently holds active ownership for a Title within a specific
+  Challenge / Revision scope, normal gameplay processing skips active Challenges
+  that award that Title in that same scope. Repeated play continues to create or
+  update Verified Run-derived projections, but it does not create duplicate
+  Completion or Grant records merely to prove the same Title again within that
+  scope.
+
+A stable Title may have independent Challenge, Completion, and Grant eligibility
+per Gameplay Revision (for example, R1 versus R3 or CLASSIC). An old-revision
+qualification must not satisfy or block a new revision's Challenge:
+
+- owning or qualifying for a Title in an earlier revision does not satisfy the
+  new revision's Challenge;
+- holding ownership from an earlier revision does not block the player from
+  completing the new revision's Challenge;
+- completing the new revision's Challenge records an independent Completion and
+  Grant for that Revision.
+
+Multiple active Challenges may award the same Title within the same qualification
+scope when product design needs multiple acquisition paths. They remain independent
+ways to obtain ownership within that scope.
+
+At the player profile level, a Player is eligible to equip a Title as long as
+they hold at least one active Grant for it across valid qualification scopes.
 
 ## Challenge contract
 
@@ -150,7 +174,7 @@ A Challenge is currently completable only when all of the following are true:
 challenge.status == active
 AND current time is inside its configured time window
 AND its Title is not retired
-AND the Player does not currently own that Title
+AND the Player does not currently hold active ownership for that Title in the Challenge's Revision/qualification scope
 AND no explicit administrative block prevents automatic re-grant
 ~~~
 
@@ -189,7 +213,7 @@ existing Challenge.
 A higher Challenge may explicitly satisfy a lower Challenge when that
 relationship is part of the product rule. The result is ordinary completion of
 the lower Challenge, followed by its own Title Grant if that Title is not
-already owned.
+already owned in that qualification scope.
 
 The relationship belongs to Challenge semantics, not Grant inheritance.
 
@@ -402,7 +426,7 @@ effect of editing map metadata. The operation:
 1. enables/promotes the new Gameplay Revision according to the map lifecycle;
 2. archives old Revision-bound Challenges;
 3. resets the current ownership state of Titles in the declared reset scope;
-4. clears an equipped Title when its ownership is reset;
+4. clears an equipped Title when the Player no longer holds an active Grant for that Title;
 5. activates the new Revision's applicable Challenges.
 
 Historical Completion and Grant records remain for administrative traceability,
@@ -511,16 +535,19 @@ Challenge was completed.
 Two loss-of-ownership semantics must remain distinct:
 
 1. **Completion/Run invalidation**: the qualification evidence was not valid.
-   If no valid qualification remains, the dependent current Grant is removed.
-   Future valid qualification may grant the Title again.
+   If no valid qualification remains within that qualification scope, the
+   dependent current Grant is removed. Future valid qualification may grant the
+   Title again.
 2. **Administrative Grant revoke**: the qualification may remain historically
    valid, but the product intentionally removes current ownership. Automatic
    re-grant remains blocked until administrator action restores eligibility.
 
 Revision reset is a third explicit lifecycle reason as described above.
 
-If an inactive/revoked/reset Title is currently equipped, the equipped
-preference is cleared rather than silently selecting another Title.
+If a Player no longer holds active ownership of a Title in any valid scope
+(for example, after revocation, revision reset of their qualifying scope, or
+completion invalidation), an equipped preference for that Title is cleared
+rather than silently selecting another Title.
 
 ## Public player profile and privacy
 
