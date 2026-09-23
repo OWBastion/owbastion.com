@@ -10,36 +10,49 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
   useMediaQuery: () => ({ __v_isRef: true, value: media.desktop }),
 }));
 
-const OverlayStub = {
+const ModalStub = {
+  name: "UModal",
   props: ["open", "title", "description", "dismissible", "ui"],
   emits: ["update:open"],
   template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button aria-label="关闭" @click="$emit(\'update:open\', false)">关闭</button></section>',
 };
 
-function mountDialog() {
+const DrawerStub = {
+  name: "UDrawer",
+  props: ["open", "title", "description", "dismissible", "ui"],
+  emits: ["update:open"],
+  template: '<section role="dialog" :aria-label="title"><h2>{{ title }}</h2><p>{{ description }}</p><slot name="body" /><slot name="footer" /><button aria-label="关闭" @click="$emit(\'update:open\', false)">关闭</button></section>',
+};
+
+function mountDialog(desktop: boolean) {
+  media.desktop = desktop;
   const onUpdate = vi.fn();
   const wrapper = mount(AdminResponsiveDialog, {
     props: { open: true, title: "编辑群配置", description: "group-1", size: "lg", "onUpdate:open": onUpdate },
     slots: { body: "<div>表单内容</div>", footer: "<button>保存</button>" },
-    global: { stubs: { UModal: OverlayStub, UDrawer: OverlayStub } },
+    global: { stubs: { UModal: ModalStub, UDrawer: DrawerStub } },
   });
   return { wrapper, onUpdate };
 }
 
 describe("AdminResponsiveDialog", () => {
-  it("keeps the dialog content and actions available across viewport modes", async () => {
-    for (const desktop of [true, false]) {
-      media.desktop = desktop;
-      const { wrapper, onUpdate } = mountDialog();
-      await nextTick();
+  it.each([
+    { desktop: true, selectedOverlay: ModalStub, otherOverlay: DrawerStub },
+    { desktop: false, selectedOverlay: DrawerStub, otherOverlay: ModalStub },
+  ])("renders the accessible overlay for the current viewport mode", async ({ desktop, selectedOverlay, otherOverlay }) => {
+    const { wrapper, onUpdate } = mountDialog(desktop);
+    await nextTick();
 
-      expect(wrapper.get('[role="dialog"]').text()).toContain("编辑群配置");
-      expect(wrapper.get('[role="dialog"]').text()).toContain("group-1");
-      expect(wrapper.get('[role="dialog"]').text()).toContain("表单内容");
-      expect(wrapper.get('[role="dialog"]').text()).toContain("保存");
-      await wrapper.get('button[aria-label="关闭"]').trigger("click");
-      expect(onUpdate).toHaveBeenCalledWith(false);
-      wrapper.unmount();
-    }
+    expect(wrapper.findComponent(selectedOverlay).exists()).toBe(true);
+    expect(wrapper.findComponent(otherOverlay).exists()).toBe(false);
+
+    const dialog = wrapper.get('[role="dialog"]');
+    expect(dialog.attributes("aria-label")).toBe("编辑群配置");
+    expect(dialog.text()).toContain("group-1");
+    expect(dialog.text()).toContain("表单内容");
+    expect(dialog.text()).toContain("保存");
+    await wrapper.get('button[aria-label="关闭"]').trigger("click");
+    expect(onUpdate).toHaveBeenCalledWith(false);
+    wrapper.unmount();
   });
 });

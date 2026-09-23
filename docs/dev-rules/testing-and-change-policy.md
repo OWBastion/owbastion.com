@@ -212,13 +212,15 @@ SSR smoke above. Neither launches a browser. A green `pnpm check` therefore
 does not prove responsive layout, overflow, scroll behavior, focus placement,
 keyboard dismissal, or dialog/drawer fit.
 
-For a substantive Portal UI change that affects layout or interaction, run the
-local environment with `pnpm dev:local`, sign in with the seeded local admin or
-player account, and inspect the affected flow in Brave at a desktop viewport
-(1280 × 900) and a mobile viewport (390 × 844). Use at least one representative
-admin flow and one player-facing flow: for example, open an admin list and its
-detail/editor, then open the player map directory and a map detail, or the
-player submission flow when that is the changed surface. Check the changed
+For a substantive Portal UI change that affects layout or interaction on a
+responsive surface, run the local environment with `pnpm dev:local`, sign in
+with the seeded local admin or player account, and inspect the affected flow in
+Brave at a desktop viewport (1280 × 900) and a mobile viewport (390 × 844).
+Choose a route that exercises the changed surface. For example, use an admin
+list and its detail/editor for an admin change, or the player map directory and
+a map detail or player submission flow for a player-facing change. Inspect both
+an admin and a player-facing flow when the change affects both surfaces; these
+examples do not require testing an unrelated surface. Check the changed
 surface for horizontal overflow, clipped content, usable nested/document
 scrolling, overlay fit and dismissal, and keyboard/focus behavior such as Tab
 and Escape when those interactions exist. Also exercise affected loading,
