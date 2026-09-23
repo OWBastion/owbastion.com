@@ -1324,13 +1324,38 @@ describe("API", () => {
       createdAt: 1,
       updatedAt: 1,
     };
+    const compositeSpatialConfig = {
+      composition: {
+        selectionCount: 2,
+        firstStageSelection: { mode: "random" },
+        remainingStageSelection: "random_unique",
+      },
+      stages: ["alpha", "beta"].map((stageId, index) => {
+        const offset = index * 20;
+        return {
+          stageId,
+          bastionPositions: [[offset, offset + 1, offset + 2]],
+          resetPosition: [offset + 3, offset + 4, offset + 5],
+          endPosition: [offset + 6, offset + 7, offset + 8],
+          thirdPersonPosition: [offset + 9, offset + 10, offset + 11],
+          creditsPosition: [offset + 12, offset + 13, offset + 14],
+          control: null,
+          portalPositions: [],
+          springboardPositions: [],
+        };
+      }),
+    };
     const editorApp = createApp({
       authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
       services: () => ({
         ...catalogServices,
         getAdminMapEditor: async () => ({ contractVersion: "1" as const, map: (await catalogServices.listMaps())[0]!, revisions: [editorRevision], challengeCatalog: [], audit: [] }),
         createAdminMapRevision: async (input) => { revisionRequests.push({ operation: "create", input }); return editorRevision; },
-        updateAdminMapRevision: async (input) => { revisionRequests.push({ operation: "update", input }); return { ...editorRevision, lifecycle: input.lifecycle }; },
+        updateAdminMapRevision: async (input) => {
+          revisionRequests.push({ operation: "update", input });
+          if (input.spatialConfig && "composition" in input.spatialConfig) throw new Error("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
+          return { ...editorRevision, lifecycle: input.lifecycle };
+        },
       }),
     });
     expect((await editorApp.request("http://localhost/v1/admin/maps/map.samoa/editor", {}, env)).status).toBe(200);
@@ -1348,6 +1373,13 @@ describe("API", () => {
     const savedRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.12", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env);
     expect(savedRevision.status).toBe(200);
     expect(revisionRequests[3]).toMatchObject({ operation: "update", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", lifecycle: "selectable", gameVersion: "2026.08.12" } });
+    const blockedCompositeRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "idempotency-key": "map-revision-composite-not-enabled" },
+      body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.13", mapVariant: null, spatialConfig: compositeSpatialConfig, challengeAssignments: [] }),
+    }, env);
+    expect(blockedCompositeRevision.status).toBe(422);
+    expect(await blockedCompositeRevision.json()).toMatchObject({ error: { code: "COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED" } });
 
     const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
     const maps = await playerCatalogApp.request("http://localhost/v1/maps", { headers: { cookie: "owb_session=session-token" } }, env);

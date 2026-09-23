@@ -1,6 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { formatWorkshopSpatialConfig, parseSpatialConfigSource } from "./spatial-config-import";
 
+const compositeStage = (stageId: string, offset: number, setupDetection?: { position: [number, number, number]; radius: number }) => ({
+  stageId,
+  ...(setupDetection ? { setupDetection } : {}),
+  bastionPositions: [[offset, offset + 1, offset + 2]],
+  resetPosition: [offset + 3, offset + 4, offset + 5],
+  endPosition: [offset + 6, offset + 7, offset + 8],
+  thirdPersonPosition: [offset + 9, offset + 10, offset + 11],
+  creditsPosition: [offset + 12, offset + 13, offset + 14],
+  control: null,
+  portalPositions: [],
+  springboardPositions: [],
+});
+
+const compositeConfig = {
+  composition: {
+    selectionCount: 2,
+    firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+    remainingStageSelection: "random_unique",
+  },
+  stages: [
+    compositeStage("base", 1),
+    compositeStage("icebreaker", 10, { position: [20, 21, 22], radius: 30 }),
+    compositeStage("laboratory", 30, { position: [40, 41, 42], radius: 30 }),
+  ],
+};
+
 const source = `
 Global.bastionPosition[0] = Vector(-121.979, 0.148, 110.507);
 Global.bastionPosition[1] = Vector(-93.733, -1.047, 110.100);
@@ -107,5 +133,41 @@ describe("spatial-config-import", () => {
     });
     expect(result).toContain("Global.bastionPosition[0] = Vector(1, 2, 3);");
     expect(result).toContain("Global.heroRingPosition = Vector(10, 11, 12);");
+  });
+
+  it("preserves composed stage JSON and summarizes every atomic stage", () => {
+    const result = parseSpatialConfigSource(JSON.stringify(compositeConfig));
+
+    expect(result).toMatchObject({ ok: true, config: compositeConfig, summary: { totalPositions: 17 } });
+    expect(formatWorkshopSpatialConfig(compositeConfig)).toBe(JSON.stringify(compositeConfig, null, 2));
+  });
+
+  it("rejects invalid composite JSON in the editor before submit", () => {
+    const invalidConfigs = [
+      { ...compositeConfig, stages: [{ ...compositeConfig.stages[0], stageId: "invalid stage" }, ...compositeConfig.stages.slice(1)] },
+      { ...compositeConfig, composition: { ...compositeConfig.composition, firstStageSelection: { mode: "setup_detection", fallbackStageId: "missing" } } },
+      { ...compositeConfig, composition: { ...compositeConfig.composition, selectionCount: 4 } },
+      { ...compositeConfig, stages: [compositeConfig.stages[0], { ...compositeConfig.stages[1], setupDetection: undefined }, compositeConfig.stages[2]] },
+    ];
+
+    for (const config of invalidConfigs) {
+      expect(parseSpatialConfigSource(JSON.stringify(config))).toMatchObject({ ok: false });
+    }
+  });
+
+  it("does not flatten a composed route when Raw Workshop code is pasted", () => {
+    const composite = {
+      composition: {
+        selectionCount: 2,
+        firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+        remainingStageSelection: "random_unique",
+      },
+      stages: [{ stageId: "base" }],
+    };
+
+    expect(parseSpatialConfigSource(source, composite)).toEqual({
+      ok: false,
+      error: "组合路线请使用平台空间 JSON 编辑原子阶段与选择约束。",
+    });
   });
 });

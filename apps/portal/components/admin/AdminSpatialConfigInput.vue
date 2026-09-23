@@ -364,7 +364,7 @@ async function copyCoordinate(pos: Vector) {
 
       <footer class="spatial-editor-footer">
         <p class="field-hint">
-          直接粘贴游戏内已定位的 Raw Workshop 代码；支持中英文全局、数组、矢量写法，以及索引赋值与 Append To Array。
+          单一路线可粘贴游戏内 Raw Workshop 点位代码；组合路线使用平台空间 JSON 编辑原子阶段与选择约束。
         </p>
       </footer>
     </div>

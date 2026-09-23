@@ -1,3 +1,5 @@
+import { agentSpatialConfigSchema } from "@owbastion/contracts";
+
 export type SpatialConfigValue = Record<string, unknown>;
 
 export type SpatialConfigImportSummary = {
@@ -26,6 +28,7 @@ const fieldLabels: Record<string, string> = {
   controlCenterPositions: "占领中心点",
   controlJumpPositions: "占领跳跃点",
   controlRespawnPositions: "占领重生点",
+  setupDetection: "初始阶段检测点",
 };
 
 function vectorFromMatch(match: RegExpExecArray, offset: number): Vector {
@@ -124,24 +127,40 @@ function collectThreshold(source: string): number | null | undefined {
 
 function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
   const fields: Array<{ label: string; count: number }> = [];
-  const add = (key: string, value: unknown) => {
+  let totalPositions = 0;
+  const add = (key: string, value: unknown, stageId?: string) => {
     const count = isVector(value) ? 1 : isVectorList(value) ? value.length : 0;
-    if (count > 0) fields.push({ label: fieldLabels[key] ?? key, count });
+    if (count > 0) fields.push({ label: `${stageId ? `${stageId} · ` : ""}${fieldLabels[key] ?? key}`, count });
     return count;
   };
-  let totalPositions = 0;
-  totalPositions += add("bastionPositions", config.bastionPositions);
-  totalPositions += add("resetPosition", config.resetPosition);
-  totalPositions += add("endPosition", config.endPosition);
-  totalPositions += add("thirdPersonPosition", config.thirdPersonPosition);
-  totalPositions += add("creditsPosition", config.creditsPosition);
-  totalPositions += add("portalPositions", config.portalPositions);
-  totalPositions += add("springboardPositions", config.springboardPositions);
-  if (config.control && typeof config.control === "object") {
-    const control = config.control as Record<string, unknown>;
-    totalPositions += add("controlCenterPositions", control.centerPositions);
-    totalPositions += add("controlJumpPositions", control.jumpPositions);
-    totalPositions += add("controlRespawnPositions", control.respawnPositions);
+  const addSpatialConfig = (spatial: Record<string, unknown>, stageId?: string) => {
+    let count = 0;
+    count += add("bastionPositions", spatial.bastionPositions, stageId);
+    count += add("resetPosition", spatial.resetPosition, stageId);
+    count += add("endPosition", spatial.endPosition, stageId);
+    count += add("thirdPersonPosition", spatial.thirdPersonPosition, stageId);
+    count += add("creditsPosition", spatial.creditsPosition, stageId);
+    count += add("portalPositions", spatial.portalPositions, stageId);
+    count += add("springboardPositions", spatial.springboardPositions, stageId);
+    if (spatial.control && typeof spatial.control === "object") {
+      const control = spatial.control as Record<string, unknown>;
+      count += add("controlCenterPositions", control.centerPositions, stageId);
+      count += add("controlJumpPositions", control.jumpPositions, stageId);
+      count += add("controlRespawnPositions", control.respawnPositions, stageId);
+    }
+    return count;
+  };
+  if (Array.isArray(config.stages)) {
+    for (const stage of config.stages) {
+      if (!stage || typeof stage !== "object") continue;
+      const value = stage as Record<string, unknown>;
+      const stageId = typeof value.stageId === "string" ? value.stageId : undefined;
+      totalPositions += addSpatialConfig(value, stageId);
+      const detection = value.setupDetection;
+      if (detection && typeof detection === "object") totalPositions += add("setupDetection", (detection as Record<string, unknown>).position, stageId);
+    }
+  } else {
+    totalPositions = addSpatialConfig(config);
   }
   return { totalPositions, fields };
 }
@@ -156,10 +175,20 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
       const parsed: unknown = JSON.parse(trimmed);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "空间配置必须是对象。" };
       const config = parsed as SpatialConfigValue;
+      if ("stages" in config || "composition" in config) {
+        const validated = agentSpatialConfigSchema.safeParse(config);
+        if (!validated.success || !("stages" in validated.data)) {
+          return { ok: false, error: "组合路线 JSON 无效，请检查阶段 ID、选择数量和检测配置。" };
+        }
+      }
       return { ok: true, config, summary: summaryFor(config) };
     } catch {
       return { ok: false, error: "无法解析内容，请粘贴游戏内 Vector 点位代码。" };
     }
+  }
+
+  if (Array.isArray(existingConfig?.stages)) {
+    return { ok: false, error: "组合路线请使用平台空间 JSON 编辑原子阶段与选择约束。" };
   }
 
   const bastionPositions = collectVectors(normalizedSource, "bastionPosition");
@@ -210,6 +239,7 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
 }
 
 export function formatWorkshopSpatialConfig(config: SpatialConfigValue | null): string {
+  if (config && Array.isArray(config.stages)) return JSON.stringify(config, null, 2);
   if (!config || !isVectorList(config.bastionPositions) || !isVector(config.resetPosition) || !isVector(config.endPosition) || !isVector(config.thirdPersonPosition) || !isVector(config.creditsPosition)) return "";
   const lines = config.bastionPositions.map((position, index) => `Global.bastionPosition[${index}] = Vector(${position.join(", ")});`);
   const addVector = (name: string, position: unknown) => { if (isVector(position)) lines.push(`Global.${name} = Vector(${position.join(", ")});`); };
