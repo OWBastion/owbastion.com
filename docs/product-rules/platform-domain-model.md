@@ -97,9 +97,9 @@ pre-release display without inventing a `preview` lifecycle state.
 "Obtainable" is derived, not stored. A Title is obtainable only when at least
 one of its Challenges is currently completable.
 
-Retiring a Title prevents new Challenge Completions for it. Existing current
-Grants remain owned unless an explicit revoke or reset rule removes them, and
-historical Completion and Grant records remain auditable.
+Retiring a Title prevents new Challenge Completions for it. Existing Grants
+remain valid records of qualification unless explicitly revoked by an
+administrator, and historical Completion and Grant records remain auditable.
 
 ### Category
 
@@ -179,8 +179,8 @@ AND no explicit administrative block prevents automatic re-grant
 ~~~
 
 Expired Challenges stop producing new Completions. Existing Completion and
-Grant records remain unless another explicit lifecycle action, such as a
-Gameplay Revision reset, says otherwise.
+Grant records remain immutable facts belonging to their revision and challenge
+scope.
 
 ### Conditions
 
@@ -420,34 +420,71 @@ the prior version.
 Map Challenges that depend on gameplay completion bind to an exact Gameplay
 Revision.
 
-A map rework/reset is an explicit release operation, not an accidental side
-effect of editing map metadata. The operation:
+### Revision lifecycle and applicability
 
-1. enables/promotes the new Gameplay Revision according to the map lifecycle;
-2. archives old Revision-bound Challenges;
-3. resets the current ownership state of Titles in the declared reset scope;
-4. clears an equipped Title when the Player no longer holds an active Grant for that Title;
-5. activates the new Revision's applicable Challenges.
+A Gameplay Revision under a stable Map has explicit lifecycle states:
 
-Historical Completion and Grant records remain for administrative traceability,
-but the player-facing product does not need a dedicated "previously owned"
-Title history.
+- `preparing`: preparation before Bastion should consume the revision;
+- `default`: the single Bastion-enabled default gameplay revision;
+- `selectable`: Bastion-enabled player-selectable alternative revision (such as
+  `CLASSIC`);
+- `historical`: archived, historical-only revision.
 
-A Revision reset is different from an administrative punitive Grant revocation:
+Exactly one enabled revision is the default for a map. A map may expose zero or
+more additional selectable revisions.
 
-- `revision_reset`: old-version ownership stops being current, but satisfying
-  the new Revision's Challenge may automatically grant the Title again;
-- administrative revoke: automatic re-grant remains blocked until an
-  administrator explicitly restores or clears the block.
+Applicability is derived from the revision lifecycle:
 
-When a Title is in the Revision reset scope, the reset applies to its current
-ownership state even if the old ownership had another acquisition source.
-After reset, a valid manual Challenge may still be used for an explicit
-administrator re-grant.
+- An enabled (`default` or `selectable`) revision recognizes its own challenges,
+  completions, and Grants within its scope.
+- A revision re-enabled as `selectable` recognizes its own prior player progress
+  again without making that progress valid in the default revision or leaking to
+  other revisions.
+- A `historical` revision stops producing new completions, but its historical
+  Completion and Grant records remain immutable and valid for that revision. The
+  platform does not mutate a valid historical Grant between `current` and
+  `non-current` merely because the revision lifecycle changes.
 
-Map player ratings and comments bind to the exact Gameplay Revision. The Map
-page defaults to the current Revision's aggregate, so a major rework does not
-inherit ratings for materially different gameplay.
+### Rework and reset semantics
+
+A map rework or reset is an explicit release operation, not an accidental side
+effect of editing map metadata. A reset establishes a new default qualification
+scope and updates revision applicability:
+
+1. enables and promotes the new Gameplay Revision to `default`;
+2. updates the previous revision's lifecycle: it may remain Bastion-enabled as
+   `selectable` (for example, retaining `CLASSIC` mode), or transition to
+   `historical`;
+3. activates the new default Revision's applicable Challenges, starting fresh
+   player progression in that new scope (the new revision never copies player
+   progress from an earlier revision);
+4. preserves existing Revision-bound Challenges and Grants: old Challenges are
+   not unconditionally archived, and existing Grants are not rewritten to
+   non-current. If an old revision remains selectable, its Challenges and Grants
+   remain valid in that revision; if it transitions to `historical`,
+   applicability is derived from the revision state.
+
+An equipped Title preference is cleared only if the Player no longer holds an
+active Grant in any currently enabled (`default` or `selectable`) or valid
+non-revision scope.
+
+### Distinction from administrative revocation
+
+Revision lifecycle transitions are fundamentally different from administrative
+Grant revocations:
+
+- Revision lifecycle changes adjust which qualification scopes are currently
+  applicable (`default`, `selectable`, or `historical`). They never mutate or
+  revoke historical Grants;
+- Administrative revoke: a specific Grant is explicitly revoked by an
+  administrator, and automatic re-grant remains blocked until an administrator
+  clears the block.
+
+### Player reviews and ratings
+
+Map player ratings and comments bind to `(Player, Gameplay Revision)`. The Map
+page defaults to the current default Revision's aggregate, so a major rework
+does not inherit ratings for materially different gameplay.
 
 ## Random Event boundary
 
@@ -542,12 +579,15 @@ Two loss-of-ownership semantics must remain distinct:
    valid, but the product intentionally removes current ownership. Automatic
    re-grant remains blocked until administrator action restores eligibility.
 
-Revision reset is a third explicit lifecycle reason as described above.
+Revision lifecycle transitions are distinct from Grant revocation or
+invalidation: Grants belong immutably to their Gameplay Revision. Revision
+transitions update active qualification scopes and revision applicability,
+rather than mutating historical Grants.
 
-If a Player no longer holds active ownership of a Title in any valid scope
-(for example, after revocation, revision reset of their qualifying scope, or
-completion invalidation), an equipped preference for that Title is cleared
-rather than silently selecting another Title.
+If a Player no longer holds an active Grant in any currently enabled scope (for
+example, after revocation, completion invalidation, or when all qualifying
+revisions become historical-only), an equipped preference for that Title is
+cleared rather than silently selecting another Title.
 
 ## Public player profile and privacy
 

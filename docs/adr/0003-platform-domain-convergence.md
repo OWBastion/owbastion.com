@@ -90,8 +90,9 @@ Public visibility and time windows are orthogonal fields where needed.
 additional business states.
 
 A material Challenge rule change creates a new Challenge. A map rework creates
-or promotes a new Gameplay Revision and explicitly resets the declared current
-Title ownership scope. Historical business records remain auditable.
+or promotes a new default Gameplay Revision, establishing a new qualification
+scope and revision applicability while preserving revision-bound historical
+Grants. Historical business records remain auditable.
 
 ## Alternatives considered
 
@@ -149,8 +150,9 @@ implementation history into the platform.
   migration or replacement;
 - existing APIs and Portal pages may expose transitional concepts that cannot be
   removed until consumers are migrated;
-- Gameplay Revision reset changes current Title ownership and therefore requires
-  explicit, auditable, reversible operational design;
+- Gameplay Revision reset introduces a new default qualification scope and
+  updates revision applicability, requiring explicit, auditable operational
+  design;
 - correcting a Verified Run can affect XP, mastery, Challenge Completion, Grant,
   and leaderboard projections and must therefore be transactionally coherent or
   safely reconcilable;
