@@ -222,10 +222,15 @@ queue; final approval, rejection, or resubmission decisions remain explicit
 maintainer actions. Player endpoints remain ownership-scoped and expose only
 the player's own submission status, evidence, and constrained OCR summary.
 
-Player screenshot reads are authenticated and ownership-scoped to the current
-player account. The Portal proxies the private object without issuing an object
-URL; it returns only the recognized map, difficulty, player, and completion
-values, never OCRKit's raw response or internal match evidence.
+Player screenshot reads require a current Portal session and are ownership-
+scoped to the current player account. Maintainer screenshot reads use the
+maintainer authorization boundary. The API reads from the private R2 binding;
+detail responses expose only the protected API route, and the Portal proxies
+the image with the session cookie using `private, no-store` responses. No
+browser-facing response contains a public object URL or R2 object key. Public
+achievement icons remain on their separate public API route. Player detail
+returns only the recognized map, difficulty, player, and completion values,
+never OCRKit's raw response or internal match evidence.
 
 ## Submission lifecycle
 

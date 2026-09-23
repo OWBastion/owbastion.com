@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   catch (error) { return proxyUnavailable(event, requestId, "portal:submission-evidence", error); }
   setRequestId(event, upstreamRequestId(response, requestId));
   setResponseStatus(event, response.status);
-  for (const name of ["content-type", "cache-control"]) {
+  for (const name of ["content-type", "cache-control", "x-content-type-options"]) {
     const value = response.headers.get(name);
     if (value) setResponseHeader(event, name, value);
   }

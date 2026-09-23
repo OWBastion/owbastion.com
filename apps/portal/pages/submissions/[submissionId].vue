@@ -53,9 +53,7 @@ const refreshError = shallowRef("");
 const actionMessage = shallowRef("");
 let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
 const evidenceUrl = `/api/portal/submissions/${encodeURIComponent(submissionId)}/evidence`;
-const evidenceImageUrl = shallowRef<string | null>(null);
 const evidenceState = shallowRef<"loading" | "ready" | "missing" | "failed">("loading");
-const evidenceCdnHeader = { "x-owbastion-review": "portal-player" };
 const resubmissionTips = [
   { icon: "i-lucide-panels-top-left", title: "保留完整通关数据", description: "确保通关时间、击杀数和其他关键数据清晰可见。" },
   { icon: "i-lucide-clipboard-check", title: "包含挑战信息", description: "保留地图、难度和挑战相关信息。" },
@@ -75,7 +73,7 @@ const statusAlert = computed(() => {
   if (data.value?.titleGrant) return { title: "已获得称号", description: `「${data.value.titleGrant.titleName}」${data.value.titleGrant.mapName ? ` · ${data.value.titleGrant.mapName}` : ""}`, color: "success" as const };
   return null;
 });
-const evidenceDisplaySrc = computed(() => evidenceImageUrl.value ?? (evidenceState.value === "ready" || evidenceState.value === "loading" ? evidenceUrl : null));
+const evidenceDisplaySrc = computed(() => evidenceState.value === "ready" || evidenceState.value === "loading" ? evidenceUrl : null);
 
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
 
@@ -141,33 +139,7 @@ const markEvidenceFailed = () => {
   evidenceState.value = hasEvidenceSource.value ? "failed" : "missing";
 };
 
-const loadEvidence = async () => {
-  evidenceState.value = "loading";
-  if (evidenceImageUrl.value) {
-    URL.revokeObjectURL(evidenceImageUrl.value);
-    evidenceImageUrl.value = null;
-  }
-  if (!data.value?.evidenceUrl) {
-    evidenceState.value = "missing";
-    return;
-  }
-  if (data.value.evidenceUrl.startsWith("https://evidence.owbastion.codes/")) {
-    try {
-      const response = await fetch(data.value.evidenceUrl, { headers: evidenceCdnHeader, credentials: "omit" });
-      if (!response.ok) {
-        evidenceState.value = "failed";
-        return;
-      }
-      evidenceImageUrl.value = URL.createObjectURL(await response.blob());
-      evidenceState.value = "ready";
-      return;
-    } catch {
-      evidenceState.value = "failed";
-      return;
-    }
-  }
-  evidenceState.value = "ready";
-};
+const loadEvidence = () => { evidenceState.value = hasEvidenceSource.value ? "ready" : "missing"; };
 
 onMounted(() => { if (data.value && !data.value.challengeId) void loadCatalog(); });
 onMounted(() => {
@@ -183,10 +155,7 @@ onMounted(() => {
   }, 2000);
 });
 onMounted(() => { void loadEvidence(); });
-onBeforeUnmount(() => {
-  if (ocrPollTimer) clearInterval(ocrPollTimer);
-  if (evidenceImageUrl.value) URL.revokeObjectURL(evidenceImageUrl.value);
-});
+onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 </script>
 
 <template>

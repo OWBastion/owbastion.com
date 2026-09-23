@@ -347,7 +347,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02): PlatformServices => {
   const db = drizzle(database);
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
@@ -356,8 +356,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     && source?.titleKey === "DOMINATOR"
     && source.mapId === historical.mapId
     && source.gameplayRevisionId === historical.gameplayRevisionId;
-  const publicEvidenceBase = evidencePublicOrigin?.replace(/\/$/, "");
-  const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
   const findEquipableGrantIds = async (playerAccountId: string, grantIds: string[]) => {
     if (!grantIds.length) return [];
     return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
@@ -2148,13 +2146,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     };
   };
 
-  const loadAdminSubmission = async (row: typeof submissions.$inferSelect) => {
-    const [details, attachment] = await Promise.all([
-      resolveAdminSubmissionDetails([row]),
-      db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
-    ]);
-    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
-  };
+  const loadAdminSubmission = async (row: typeof submissions.$inferSelect) => asAdminSubmission(row, await resolveAdminSubmissionDetails([row]));
 
   const countMasteryRunConflicts = async (runIds: string[]) => {
     if (!runIds.length) return new globalThis.Map<string, number>();
@@ -4552,7 +4544,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         reason: submission.status === "ocr_review_required" ? "已提交处理申请，请稍后查看结果。" : submission.reviewReason ?? undefined,
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
-        evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
+        evidenceUrl: attachment?.objectKey ? `${uploadOrigin}/v1/me/submissions/${submission.id}/evidence` : null,
         ocrFailCount: submission.ocrFailCount,
         manualReviewEligible: submission.status === "resubmission_required" && submission.ocrFailCount >= ocrManualReviewThreshold,
         ...(raw ? { ocr: { mapName: raw.data?.map_name ?? null, difficulty: raw.data?.difficulty ?? null, playerName: raw.data?.viewer_player ?? null, challengeCompleted: raw.data?.challenge_completed ?? null, achievementTitles: raw.data?.achievement_titles ?? [] } } : {}),
@@ -5206,16 +5198,31 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const context = { attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
       const startedAt = Date.now();
       logOcrEvent("job_started", context);
-      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) {
+      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken) {
         logOcrEvent("job_processing_failed", { ...context, stage: "configuration", durationMs: Date.now() - startedAt, errorName: "Error", errorMessage: "OCR_NOT_CONFIGURED" });
         throw new Error("OCR_NOT_CONFIGURED");
       }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (row.status !== "ocr_pending") return;
+      const attachment = await db.select().from(attachments).where(and(eq(attachments.submissionId, row.id), eq(attachments.objectKey, input.objectKey), eq(attachments.uploadStatus, "stored"))).get();
+      if (!attachment?.objectKey) throw new Error("OCR_EVIDENCE_UNAVAILABLE");
+      let evidenceBytes: ArrayBuffer;
+      let contentType: string;
+      try {
+        const evidenceObject = await evidenceBucket.get(attachment.objectKey);
+        if (!evidenceObject || evidenceObject.size > maxUploadBytes) throw new Error("evidence_unavailable");
+        evidenceBytes = await evidenceObject.arrayBuffer();
+        if (evidenceBytes.byteLength === 0 || evidenceBytes.byteLength > maxUploadBytes) throw new Error("evidence_unavailable");
+        contentType = evidenceObject.httpMetadata?.contentType ?? attachment.contentType;
+      } catch {
+        throw new Error("OCR_EVIDENCE_UNAVAILABLE");
+      }
       let response: Response;
       try {
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+        const formData = new FormData();
+        formData.append("file", new Blob([evidenceBytes], { type: contentType }), "evidence");
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData });
       } catch (error) {
         logOcrEvent("ocrkit_request_failed", { ...context, stage: "fetch", durationMs: Date.now() - startedAt, ...errorDetails(error) });
         throw new Error("OCR_NETWORK");

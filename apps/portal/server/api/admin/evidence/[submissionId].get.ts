@@ -17,5 +17,7 @@ export default defineEventHandler(async (event) => {
   setResponseStatus(event, response.status);
   const contentType = response.headers.get("content-type");
   if (contentType) setResponseHeader(event, "content-type", contentType);
+  setResponseHeader(event, "cache-control", "private, no-store");
+  setResponseHeader(event, "x-content-type-options", "nosniff");
   return response.body;
 });

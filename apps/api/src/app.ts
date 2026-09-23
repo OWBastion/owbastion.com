@@ -47,10 +47,8 @@ export type RuntimeEnv = {
   PORTAL_ORIGIN?: string;
   LOCAL_DEV_AUTH?: string;
   UPLOAD_ORIGIN?: string;
-  EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
-  OCRKIT_EVIDENCE_BUCKET?: string;
   OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
@@ -735,11 +733,13 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/me/submissions/:submissionId/evidence", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    c.header("X-Content-Type-Options", "nosniff");
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try {
       const evidence = await dependencies.services(c.env).getPlayerEvidence({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
-      return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } });
+      return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } });
     } catch (error) {
       if (error instanceof Error && ["SUBMISSION_NOT_FOUND", "EVIDENCE_NOT_FOUND"].includes(error.message)) return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
       throw error;
@@ -1770,9 +1770,11 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/admin/submissions/:submissionId/evidence", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    c.header("X-Content-Type-Options", "nosniff");
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    try { const evidence = await dependencies.services(c.env).getAdminEvidence({ submissionId: c.req.param("submissionId") }, access.auth!); return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } }); }
+    try { const evidence = await dependencies.services(c.env).getAdminEvidence({ submissionId: c.req.param("submissionId") }, access.auth!); return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" } }); }
     catch (error) { if (error instanceof Error && error.message === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, "EVIDENCE_NOT_FOUND", "The evidence does not exist"); throw error; }
   });
 

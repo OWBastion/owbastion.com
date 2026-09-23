@@ -55,6 +55,10 @@ const createD1 = () => {
   };
 };
 
+const fakeEvidenceBucket = {
+  get: async () => ({ size: 1, httpMetadata: { contentType: "image/png" }, arrayBuffer: async () => new Uint8Array([1]).buffer }),
+} as unknown as R2Bucket;
+
 const installSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
     CREATE TABLE maps (
@@ -1198,7 +1202,7 @@ describe("map title rule model – locked invariants", () => {
       try {
         const sent: unknown[] = [];
         const queue = { send: async (message: unknown) => { sent.push(message); } } as Queue;
-        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", queue, "ocr-bucket");
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
         await services.requestAdminOcr({ submissionId: "sub.legacy-classic" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "idem.1", "request.1");
         await services.processOcrJob({ ...(sent[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
       } finally {
@@ -1221,6 +1225,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.auto', 'auto-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.auto', 'identity.auto', 'player.auto', 'qq', 'group.auto', 'member.auto', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.auto', 'binding.auto', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'auto.1', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.auto', 'submission.auto', 'portal', 'external.auto', 'image/png', 1, 'hash', 'evidence/auto.png', 'stored', ?)").run(now);
 
       const ocrResponse = {
         schema_version: "1",
@@ -1235,7 +1240,7 @@ describe("map title rule model – locked invariants", () => {
       };
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
-        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", undefined, "ocr-bucket");
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
         await services.processOcrJob({ submissionId: "submission.auto", objectKey: "evidence/auto.png", attempt: 1, requestId: "request.auto" });
       } finally {
         vi.unstubAllGlobals();
@@ -1775,6 +1780,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.pioneer', 'pioneer-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.pioneer', 'identity.pioneer', 'player.pioneer', 'qq', 'group.pioneer', 'member.pioneer', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.pioneer.inside', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.inside', ?, ?), ('submission.pioneer.at-end', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.at-end', ?, ?)").run(endsAt - 1, endsAt - 1, endsAt, endsAt);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.pioneer.inside', 'submission.pioneer.inside', 'portal', 'external.inside', 'image/png', 1, 'hash', 'evidence/inside.png', 'stored', ?), ('attachment.pioneer.at-end', 'submission.pioneer.at-end', 'portal', 'external.at-end', 'image/png', 1, 'hash', 'evidence/at-end.png', 'stored', ?)").run(now, now);
 
       const ocrResponse = {
         schema_version: "1",
@@ -1789,7 +1795,7 @@ describe("map title rule model – locked invariants", () => {
       };
       vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
-        const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", undefined, "ocr-bucket");
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
         await services.processOcrJob({ submissionId: "submission.pioneer.inside", objectKey: "evidence/inside.png", attempt: 1, requestId: "request.inside" });
         await services.processOcrJob({ submissionId: "submission.pioneer.at-end", objectKey: "evidence/at-end.png", attempt: 1, requestId: "request.at-end" });
       } finally {
@@ -1989,7 +1995,7 @@ const seedMasteryPlayer = (sqlite: DatabaseSync, playerId: string, bindingId: st
   sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES (?, ?, ?, 'qq', ?, ?, 'active', ?)").run(bindingId, `identity.${playerId}`, playerId, `group.${playerId}`, `member.${playerId}`, now);
 };
 
-const seedMasterySubmission = (sqlite: DatabaseSync, submissionId: string, bindingId: string, playerName: string, withAttachment = false) => {
+const seedMasterySubmission = (sqlite: DatabaseSync, submissionId: string, bindingId: string, playerName: string, withAttachment = true) => {
   sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, difficulty, player_name, review_reason, grant_id, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, ?, 'ocr_pending', 'unknown', NULL, NULL, '成就挑战', NULL, ?, NULL, NULL, 'portal', 'portal', ?, ?, ?)").run(submissionId, bindingId, playerName, `message.${submissionId}`, now, now);
   if (withAttachment) sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES (?, ?, 'portal', ?, 'image/png', 1, 'hash', ?, 'stored', ?)").run(`attachment.${submissionId}`, submissionId, `external.${submissionId}`, `evidence/${submissionId}.png`, now);
 };
@@ -2055,10 +2061,14 @@ describe("submission mastery outcomes", () => {
 
     const storedObjects = new Map<string, ArrayBuffer>();
     const queued: Array<{ version: number; submissionId: string; objectKey: string; requestId?: string }> = [];
-    const ocrRequests: Array<{ url: string; body: { bucket: string; object_key: string } }> = [];
+    const ocrRequests: Array<{ url: string; contentType: string; size: number; formFields: string[] }> = [];
     const ocrResponses: Array<ReturnType<typeof masteryOcr>> = [];
     const evidenceBucket = {
       put: async (key: string, value: ArrayBuffer) => { storedObjects.set(key, value); },
+      get: async (key: string) => {
+        const body = storedObjects.get(key);
+        return body ? { size: body.byteLength, httpMetadata: { contentType: "image/png" }, arrayBuffer: async () => body } : null;
+      },
     } as unknown as R2Bucket;
     const queue = {
       send: async (message: unknown) => { queued.push(message as (typeof queued)[number]); },
@@ -2070,8 +2080,6 @@ describe("submission mastery outcomes", () => {
       "https://ocr.example.com",
       "token",
       queue,
-      "integration-evidence",
-      undefined,
       undefined,
       undefined,
       1,
@@ -2080,8 +2088,10 @@ describe("submission mastery outcomes", () => {
     );
 
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { bucket: string; object_key: string };
-      ocrRequests.push({ url: String(url), body });
+      const body = init?.body as FormData;
+      const file = body.get("file");
+      if (!(file instanceof Blob)) throw new Error("missing multipart image");
+      ocrRequests.push({ url: String(url), contentType: file.type, size: file.size, formFields: [...body.keys()] });
       const response = ocrResponses.shift();
       if (!response) throw new Error("missing OCR response fixture");
       return new Response(JSON.stringify(response), { status: 200, headers: { "content-type": "application/json" } });
@@ -2154,7 +2164,7 @@ describe("submission mastery outcomes", () => {
       expect(storedObjects.size).toBe(6);
       expect([...storedObjects.keys()].every((key) => key.startsWith("uploads/submissions/"))).toBe(true);
       expect(ocrRequests).toHaveLength(6);
-      expect(ocrRequests.every(({ url, body }) => url === "https://ocr.example.com/api/v1/ocr/challenge/by-object" && body.bucket === "integration-evidence" && storedObjects.has(body.object_key))).toBe(true);
+      expect(ocrRequests.every(({ url, contentType, formFields }) => url === "https://ocr.example.com/api/v1/ocr/challenge" && contentType === "image/png" && formFields.length === 1 && formFields[0] === "file")).toBe(true);
       expect(queued).toEqual([]);
     } finally {
       vi.unstubAllGlobals();
@@ -2229,16 +2239,35 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr({ runCode: "2345-6789-1234" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.classic-missing", objectKey: "evidence/classic-missing.png", attempt: 1 });
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
+      await services.processOcrJob({ submissionId: "submission.classic-missing", objectKey: "evidence/submission.classic-missing.png", attempt: 1 });
       ocr = masteryOcr({ runCode: "3456-7891-2345", mapVariant: "classic" });
-      await services.processOcrJob({ submissionId: "submission.classic-present", objectKey: "evidence/classic-present.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.classic-present", objectKey: "evidence/submission.classic-present.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
 
     expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.classic-missing' AND outcome_key = 'mastery_run'").get()).toEqual({ status: "ineligible" });
     expect(sqlite.prepare("SELECT map_variant FROM mastery_runs WHERE source_submission_id = 'submission.classic-present'").get()).toEqual({ map_variant: "classic" });
+  });
+
+  it("does not let an OCR queue key select evidence outside its submission attachment", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.bound", "binding.one", "Tester");
+    const get = vi.fn(async () => ({ size: 1, httpMetadata: { contentType: "image/png" }, arrayBuffer: async () => new Uint8Array([1]).buffer }));
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    try {
+      const services = createPlatformServices(database, { get } as unknown as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token");
+      await expect(services.processOcrJob({ submissionId: "submission.bound", objectKey: "evidence/other-submission.png", attempt: 1 })).rejects.toThrow("OCR_EVIDENCE_UNAVAILABLE");
+      expect(get).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("credits one player run once across exact and changed screenshots, keeps players independent, and surfaces conflicts", async () => {
@@ -2253,14 +2282,14 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.first", objectKey: "evidence/exact.png", attempt: 1 });
-      await services.processOcrJob({ submissionId: "submission.exact", objectKey: "evidence/exact.png", attempt: 1 });
-      await services.processOcrJob({ submissionId: "submission.reencoded", objectKey: "evidence/reencoded.png", attempt: 1 });
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
+      await services.processOcrJob({ submissionId: "submission.first", objectKey: "evidence/submission.first.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.exact", objectKey: "evidence/submission.exact.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.reencoded", objectKey: "evidence/submission.reencoded.png", attempt: 1 });
       ocr = masteryOcr({ viewerPlayer: "Other#5678" });
-      await services.processOcrJob({ submissionId: "submission.other", objectKey: "evidence/other.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.other", objectKey: "evidence/submission.other.png", attempt: 1 });
       ocr = masteryOcr({ difficulty: "传奇" });
-      await services.processOcrJob({ submissionId: "submission.conflict", objectKey: "evidence/conflict.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.conflict", objectKey: "evidence/submission.conflict.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2362,8 +2391,8 @@ describe("submission mastery outcomes", () => {
     let ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, "ocr-bucket", undefined, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.combined", objectKey: "evidence/combined.png", attempt: 1 });
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localMasteryEvidenceCompatibility);
+      await services.processOcrJob({ submissionId: "submission.combined", objectKey: "evidence/submission.combined.png", attempt: 1 });
       const combined = sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.combined'").get() as { status: string; grant_id: string | null };
       expect(combined.status).toBe("approved");
       expect(combined.grant_id).not.toBeNull();
@@ -2377,7 +2406,7 @@ describe("submission mastery outcomes", () => {
       expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.combined'").get()).toEqual({ status: "active" });
 
       ocr = masteryOcr({ runCode: null });
-      await services.processOcrJob({ submissionId: "submission.legacy", objectKey: "evidence/legacy.png", attempt: 1 });
+      await services.processOcrJob({ submissionId: "submission.legacy", objectKey: "evidence/submission.legacy.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2399,7 +2428,7 @@ describe("submission mastery outcomes", () => {
     const ocr = masteryOcr();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
-      const services = createPlatformServices(database, {} as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token", queue, "ocr-bucket", undefined, undefined, undefined, 1, 1, localMasteryEvidenceCompatibility);
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue, undefined, undefined, 1, 1, localMasteryEvidenceCompatibility);
       await services.processOcrJob({ submissionId: "submission.lifecycle", objectKey: "evidence/submission.lifecycle.png", attempt: 1 });
       const revoked = await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission.lifecycle", decision: "revoked", reason: "证据无效" }, auth, "spot-check-revoke");
       expect(revoked).toMatchObject({ grantId: null, masteryRunId: expect.any(String), status: "revoked" });

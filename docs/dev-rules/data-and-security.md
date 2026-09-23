@@ -5,7 +5,7 @@
 | Store | Current responsibility |
 | --- | --- |
 | D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
-| R2 | Submission evidence served through the configured public CDN origin and isolated public achievement icons when the EVIDENCE_BUCKET binding is configured |
+| R2 | Private submission evidence served through authenticated platform routes, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
 The OCR Queue carries only an opaque submission ID, private object key, schema
@@ -35,18 +35,18 @@ the result under a submission-scoped private R2 key. The upload URL cannot be
 reused after completion. It does not expose object keys, source URLs, or QQ
 OpenIDs from public status and player endpoints.
 
-Player submission detail and evidence reads require the Portal session and
-verify that the submission belongs to the current player account. Player
-evidence URLs are returned only after that check; the image itself is served
-from the configured CDN. Admin review details
-return the R2 object URL under the configured public custom domain; access to
-that URL is bearer-style and depends on the opaque submission UUID and content
-hash in the object key. Player detail responses use the same CDN URL only after
-the API verifies ownership. Both Portal surfaces send the weak
-`x-owbastion-review` source header; WAF validation of that header is not an
-authorization mechanism. The
-player-facing OCR summary contains only recognized map, difficulty, player, and
-completion values; raw OCR output and internal match details remain private.
+Player and maintainer screenshot reads go through authenticated platform API
+routes that read the private R2 bucket. Player reads require a current Portal
+session and verify that the submission belongs to that player; maintainer
+reads require the existing maintainer authorization boundary. Detail responses
+may include the protected API route, never an R2 object URL or object key. The
+Portal proxies the image with the same session cookie, and both API and Portal
+responses use `private, no-store`. The old static `x-owbastion-review` header
+and a public R2 custom domain are not part of screenshot authorization. Public
+achievement icons remain available only through their separate public API
+route. The player-facing OCR summary contains only recognized map, difficulty,
+player, and completion values; raw OCR output and internal match details remain
+private.
 
 Player OCR feedback is a separate annotation-proposal boundary. The player
 projection exposes only a derived feedback mode (none/targeted/grouped), the

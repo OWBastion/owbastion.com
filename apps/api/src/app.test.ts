@@ -1068,6 +1068,10 @@ describe("API", () => {
   it("returns a signed-in player's private submission detail and evidence", async () => {
     expect((await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", {}, env)).status).toBe(401);
 
+    const anonymousEvidence = await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003/evidence", {}, env);
+    expect(anonymousEvidence.status).toBe(401);
+    expect(anonymousEvidence.headers.get("cache-control")).toBe("private, no-store");
+
     const detail = await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(detail.status).toBe(200);
     expect(await detail.json()).toMatchObject({ status: "ready_for_review", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } });
@@ -1076,7 +1080,43 @@ describe("API", () => {
     expect(evidence.status).toBe(200);
     expect(evidence.headers.get("content-type")).toBe("image/png");
     expect(evidence.headers.get("cache-control")).toBe("private, no-store");
+    expect(evidence.headers.get("x-content-type-options")).toBe("nosniff");
     expect(new Uint8Array(await evidence.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it("rejects expired Portal sessions before reading private evidence", async () => {
+    const getPlayerEvidence = vi.fn(async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }));
+    const expiredApp = createApp({
+      authenticate: auth,
+      services: () => ({ ...services, getCurrentPlayer: async () => null, getPlayerEvidence }),
+    });
+    const response = await expiredApp.request("http://localhost/v1/me/submissions/submission-1/evidence", { headers: { cookie: "owb_session=expired-session" } }, env);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(getPlayerEvidence).not.toHaveBeenCalled();
+  });
+
+  it("limits maintainer evidence reads to maintainers and marks the image private", async () => {
+    const getAdminEvidence = vi.fn(async () => ({ body: new Uint8Array([4, 5, 6]).buffer, contentType: "image/jpeg" }));
+    const playerApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "player", roles: [], provider: "test" }),
+      services: () => ({ ...services, getAdminEvidence }),
+    });
+    const forbidden = await playerApp.request("http://localhost/v1/admin/submissions/submission-1/evidence", {}, env);
+    expect(forbidden.status).toBe(403);
+    expect(forbidden.headers.get("cache-control")).toBe("private, no-store");
+    expect(getAdminEvidence).not.toHaveBeenCalled();
+
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, getAdminEvidence }),
+    });
+    const evidence = await adminApp.request("http://localhost/v1/admin/submissions/submission-1/evidence", {}, env);
+    expect(evidence.status).toBe(200);
+    expect(evidence.headers.get("content-type")).toBe("image/jpeg");
+    expect(evidence.headers.get("cache-control")).toBe("private, no-store");
+    expect(evidence.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(new Uint8Array(await evidence.arrayBuffer())).toEqual(new Uint8Array([4, 5, 6]));
   });
 
   it("does not reveal another player's submission", async () => {
@@ -1087,6 +1127,9 @@ describe("API", () => {
     const response = await privateApp.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(404);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("SUBMISSION_NOT_FOUND");
+    const evidence = await privateApp.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003/evidence", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect(evidence.status).toBe(404);
+    expect(evidence.headers.get("cache-control")).toBe("private, no-store");
   });
 
   it("limits historical title migration to maintainers and requires idempotency", async () => {
