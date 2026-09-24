@@ -3,6 +3,7 @@ import {
   formatWorkshopSpatialConfig,
   parseSpatialConfigSource,
   type SpatialConfigImportSummary,
+  type SpatialConfigScope,
   type SpatialConfigValue,
 } from "~/utils/spatial-config-import";
 
@@ -10,10 +11,19 @@ const props = withDefaults(
   defineProps<{
     modelValue: SpatialConfigValue | null;
     revisionKey: string;
+    scope?: SpatialConfigScope;
     disabled?: boolean;
   }>(),
   { disabled: false }
 );
+
+const scope = computed(() => props.scope ?? "single");
+const sourceTitle = computed(() => scope.value === "composite-route" ? "全路线共享点位代码" : scope.value === "composite-stage" ? "阶段专属点位代码" : "Workshop 点位代码");
+const sourceHint = computed(() => scope.value === "composite-route"
+  ? "粘贴终点、重置点、英雄环和结算点；阶段出生点、传送点和重生室点位请粘贴到对应阶段。"
+  : scope.value === "composite-stage"
+    ? "粘贴当前阶段的 Bastion 出生点、占领点、阶段间传送点和重生室点位；阶段间传送点与占领重生点最多配置一对。"
+    : "粘贴当前路线或阶段的完整 Raw Workshop 点位代码。");
 
 const emit = defineEmits<{
   "update:modelValue": [value: SpatialConfigValue | null];
@@ -212,12 +222,12 @@ const pointSections = computed<PointSection[]>(() => {
 });
 
 const sync = () => {
-  source.value = formatWorkshopSpatialConfig(props.modelValue);
+  source.value = formatWorkshopSpatialConfig(props.modelValue, scope.value);
   lastSyncedSource.value = source.value;
   lastEmittedSource.value = undefined;
   error.value = "";
   if (props.modelValue) {
-    const result = parseSpatialConfigSource(source.value, props.modelValue);
+    const result = parseSpatialConfigSource(source.value, props.modelValue, scope.value);
     summary.value = result.ok ? result.summary : null;
     parsedConfig.value = result.ok ? result.config : props.modelValue;
   } else {
@@ -228,7 +238,7 @@ const sync = () => {
 };
 watch(() => props.revisionKey, sync, { immediate: true });
 watch(() => props.modelValue, (value) => {
-  const nextSource = formatWorkshopSpatialConfig(value);
+  const nextSource = formatWorkshopSpatialConfig(value, scope.value);
   if (lastEmittedSource.value === nextSource) {
     lastEmittedSource.value = undefined;
     lastSyncedSource.value = nextSource;
@@ -239,7 +249,7 @@ watch(() => props.modelValue, (value) => {
 }, { deep: true });
 
 function emitSpatialConfig(value: SpatialConfigValue | null) {
-  lastEmittedSource.value = formatWorkshopSpatialConfig(value);
+  lastEmittedSource.value = formatWorkshopSpatialConfig(value, scope.value);
   emit("update:modelValue", value);
 }
 
@@ -260,7 +270,7 @@ const updateSource = (value: string) => {
     emit("valid", false);
     return;
   }
-  const result = parseSpatialConfigSource(value, props.modelValue);
+  const result = parseSpatialConfigSource(value, props.modelValue, scope.value);
   if (!result.ok) {
     error.value = result.error;
     summary.value = null;
@@ -281,7 +291,7 @@ function formatCoord(val: number): string {
 
 function formatSource() {
   if (!parsedConfig.value) return;
-  const formatted = formatWorkshopSpatialConfig(parsedConfig.value);
+  const formatted = formatWorkshopSpatialConfig(parsedConfig.value, scope.value);
   if (formatted) {
     source.value = formatted;
     toast.add({ title: "已按标准格式整理点位代码", color: "success" });
@@ -318,7 +328,7 @@ async function copyCoordinate(pos: Vector) {
     <div class="spatial-editor-box">
       <header class="spatial-editor-header">
         <div class="spatial-editor-header__lead">
-          <span class="spatial-editor-title">Workshop 点位代码</span>
+          <span class="spatial-editor-title">{{ sourceTitle }}</span>
           <UBadge
             v-if="summary"
             color="success"
@@ -390,7 +400,7 @@ async function copyCoordinate(pos: Vector) {
 
       <footer class="spatial-editor-footer">
         <p class="field-hint">
-          粘贴当前路线或阶段的完整 Raw Workshop 点位代码。
+          {{ sourceHint }}
         </p>
       </footer>
     </div>

@@ -3,18 +3,23 @@ import { describe, expect, it } from "vitest";
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
 
+const routeSpatial = () => ({
+  resetPosition: [4, 5, 6],
+  endPosition: [7, 8, 9],
+  thirdPersonPosition: [10, 11, 12],
+  creditsPosition: [13, 14, 15],
+  control: { respawnAxis: "z" as const, respawnAxisThreshold: 40 },
+});
+
 const spatial = (offset: number) => ({
   bastionPositions: [[offset, offset + 1, offset + 2]],
-  resetPosition: [offset + 3, offset + 4, offset + 5],
-  endPosition: [offset + 6, offset + 7, offset + 8],
-  thirdPersonPosition: [offset + 9, offset + 10, offset + 11],
-  creditsPosition: [offset + 12, offset + 13, offset + 14],
-  control: null,
+  control: { centerPositions: [], jumpPositions: [[offset + 3, offset + 4, offset + 5]], respawnPositions: [[offset + 6, offset + 7, offset + 8]] },
   portalPositions: [],
   springboardPositions: [],
 });
 
 const compositeConfig = () => ({
+  ...routeSpatial(),
   composition: {
     selectionCount: 2,
     firstStageSelection: { mode: "setup_detection" as const, fallbackStageId: "base" },
@@ -137,6 +142,48 @@ describe("AdminCompositeSpatialConfigInput", () => {
     expect(serialized).toEqual({ ...expected, composition: { ...expected.composition, selectionCount: 3 } });
     expect(agentSpatialConfigSchema.safeParse(serialized).success).toBe(true);
     expect(serialized).not.toHaveProperty("alternateStages");
+    expect(serialized?.endPosition).toEqual([7, 8, 9]);
+    expect(serialized?.stages[0]).not.toHaveProperty("endPosition");
+  });
+
+  it("keeps the respawn axis at route scope and stage control positions local", async () => {
+    const config = {
+      ...compositeConfig(),
+      control: { respawnAxis: "x" as const, respawnAxisThreshold: 40 },
+      stages: compositeConfig().stages.map((stage, index) => index === 0
+        ? { ...stage, control: { centerPositions: [[1, 2, 3]], jumpPositions: [[4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
+        : stage),
+    };
+    const wrapper = await mountEditor(config);
+    expect((wrapper.get('select[aria-label="全路线占领重生轴"]').element as HTMLSelectElement).value).toBe("x");
+    expect(agentSpatialConfigSchema.safeParse(config).success).toBe(true);
+    expect(config.stages[0]).not.toHaveProperty("respawnAxis");
+  });
+
+  it("shows route-level control validation beside the shared control settings", async () => {
+    const config = {
+      ...compositeConfig(),
+      control: { respawnAxis: "x" as const, respawnAxisThreshold: -1 },
+      stages: compositeConfig().stages.map((stage, index) => index === 0
+        ? { ...stage, control: { centerPositions: [], jumpPositions: [[4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
+        : stage),
+    };
+    const wrapper = await mountEditor(config);
+    expect(wrapper.text()).toContain("复合路线必须设置一个重生轴及非负阈值。");
+    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
+  });
+
+  it("shows the supported control jump and respawn cardinality", async () => {
+    const config = {
+      ...compositeConfig(),
+      stages: compositeConfig().stages.map((stage, index) => index === 0
+        ? { ...stage, control: { centerPositions: [], jumpPositions: [[1, 2, 3], [4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
+        : stage),
+    };
+    const wrapper = await mountEditor(config);
+
+    expect(wrapper.text()).toContain("每个阶段须恰好配置一个占领跳跃点和一个重生点");
+    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
   });
 
   it("explains composite control cardinality failures", async () => {
@@ -156,7 +203,7 @@ describe("AdminCompositeSpatialConfigInput", () => {
     };
     const wrapper = await mountEditor(invalid);
 
-    expect(wrapper.text()).toContain("每阶段恰好配置一个占领跳跃点和一个重生点");
+    expect(wrapper.text()).toContain("每个阶段须恰好配置一个占领跳跃点和一个重生点");
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
   });
 });

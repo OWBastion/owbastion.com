@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
+import AdminLegacyCompositeSpatialConfigInput from "./AdminLegacyCompositeSpatialConfigInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
 import { parseSpatialConfigSource, type SpatialConfigValue } from "~/utils/spatial-config-import";
 
@@ -25,19 +26,22 @@ const modeItems = [
 const isComposite = (value: SpatialConfigValue | null): value is SpatialConfigValue =>
   Boolean(value && Array.isArray(value.stages) && value.composition && typeof value.composition === "object");
 
+const isLegacyComposite = (value: SpatialConfigValue | null) => isComposite(value) && !("endPosition" in value);
+
 const createEmptySpatialStage = (stageId: string) => ({
   stageId,
   bastionPositions: [],
-  resetPosition: null,
-  endPosition: null,
-  thirdPersonPosition: null,
-  creditsPosition: null,
   control: null,
   portalPositions: [],
   springboardPositions: [],
 });
 
 const createEmptyCompositeConfig = (): SpatialConfigValue => ({
+  resetPosition: null,
+  endPosition: null,
+  thirdPersonPosition: null,
+  creditsPosition: null,
+  control: null,
   composition: {
     selectionCount: 2,
     firstStageSelection: { mode: "random" },
@@ -162,6 +166,14 @@ function updateAdvancedJson(value: string) {
       :disabled="disabled"
       @update:model-value="updateSingle"
       @valid="updateSingleValidity"
+    />
+    <AdminLegacyCompositeSpatialConfigInput
+      v-else-if="compositeDraft && isLegacyComposite(compositeDraft)"
+      :model-value="compositeDraft"
+      :revision-key="revisionKey + ':composite-legacy'"
+      :disabled="disabled"
+      @update:model-value="updateComposite"
+      @valid="updateCompositeValidity"
     />
     <AdminCompositeSpatialConfigInput
       v-else-if="compositeDraft"

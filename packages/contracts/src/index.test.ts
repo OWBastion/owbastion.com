@@ -204,33 +204,6 @@ describe("v1 platform contracts", () => {
       ],
     } as const;
     expect(agentSpatialConfigSchema.safeParse(composite).success).toBe(true);
-    const compositeControl = (offset: number) => ({
-      centerPositions: [],
-      jumpPositions: [[offset, offset + 1, offset + 2]],
-      respawnPositions: [[offset + 3, offset + 4, offset + 5]],
-      respawnAxis: "x" as const,
-      respawnAxisThreshold: 5,
-    });
-    const controlledComposite = {
-      ...composite,
-      stages: composite.stages.map((stage, index) => ({ ...stage, control: compositeControl(index * 10) })),
-    };
-    const changeFirstControl = (patch: Record<string, unknown>) => ({
-      ...controlledComposite,
-      stages: controlledComposite.stages.map((stage, index) => index === 0
-        ? { ...stage, control: { ...stage.control, ...patch } }
-        : stage),
-    });
-    expect(agentSpatialConfigSchema.safeParse(controlledComposite).success).toBe(true);
-    const mixedControls = {
-      ...controlledComposite,
-      stages: controlledComposite.stages.map((stage, index) => index === 0 ? { ...stage, control: null } : stage),
-    };
-    expect(agentSpatialConfigSchema.safeParse(mixedControls).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ jumpPositions: [[1, 2, 3], [90, 91, 92]] })).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnPositions: [[4, 5, 6], [90, 91, 92]] })).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnAxis: "y" })).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnAxisThreshold: 6 })).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, spatialConfig: composite }] }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, selectionCount: 4 } }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, firstStageSelection: { mode: "setup_detection", fallbackStageId: "missing" } } }).success).toBe(false);
@@ -238,6 +211,28 @@ describe("v1 platform contracts", () => {
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: undefined }, composite.stages[2]] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [{ ...composite.stages[0], setupDetection: { position: [2, 3, 4], radius: 30 } }, composite.stages[1], composite.stages[2]] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: { position: [20, 21, 22], radius: 0 } }, composite.stages[2]] }).success).toBe(false);
+    const sharedComposite = {
+      resetPosition: [4, 5, 6],
+      endPosition: [7, 8, 9],
+      thirdPersonPosition: [10, 11, 12],
+      creditsPosition: [13, 14, 15],
+      control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+      composition: composite.composition,
+      stages: [
+        { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [[4, 5, 6]], jumpPositions: [[7, 8, 9]], respawnPositions: [[10, 11, 12]] }, portalPositions: [], springboardPositions: [] },
+        { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[13, 14, 15]], respawnPositions: [[16, 17, 18]] }, portalPositions: [[19, 20, 21]], springboardPositions: [] },
+        { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: { centerPositions: [], jumpPositions: [[44, 45, 46]], respawnPositions: [[47, 48, 49]] }, portalPositions: [], springboardPositions: [[43, 44, 45]] },
+      ],
+    } as const;
+    expect(agentSpatialConfigSchema.safeParse(sharedComposite).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12], [11, 12, 13]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: null } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: -1 } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: sharedComposite.stages.map((stage) => ({ ...stage, control: null })) }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { centerPositions: [], jumpPositions: [], respawnPositions: [] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, endPosition: [50, 51, 52] }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { centerPositions: [], jumpPositions: [], respawnPositions: [], respawnAxis: "x", respawnAxisThreshold: 40 } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 

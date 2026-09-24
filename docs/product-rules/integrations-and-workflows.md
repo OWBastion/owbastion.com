@@ -515,22 +515,25 @@ challenge definition remains authoritative in `/v1/agents/achievements` and
 is joined by map revision ID plus challenge family/ID.
 
 A revision that composes runtime stages uses `spatialConfig.composition` plus
-one `spatialConfig.stages` entry per atomic stage. Each entry owns that stage's
-complete spatial role set once; the platform does not store coordinate copies
-for stage pairs or route permutations. `composition.selectionCount` is the
-total number of ordered stages Bastion selects for one game. The first stage
-selection is either `setup_detection` with an explicit fallback stage ID, or
-`random`; the remaining selection is `random_unique`. Setup-detected selection
-requires a detector on every non-fallback stage and forbids a detector on the
-fallback. Random first-stage selection forbids unused setup detectors. Stage
-IDs are unique and stable, and the stage list is emitted in stage-ID order;
-the platform never stores the per-game selection. Composite control data is
-either omitted from every stage or defined on every stage; when defined, each
-stage has exactly one jump and one respawn position, and all stages share the
-same paired respawn axis and threshold. The existing static and
-`alternateStages` shape retains its independent control-role cardinalities.
-Keep a composed revision in `preparing` until the consuming Bastion build
-accepts this response shape.
+one `spatialConfig.stages` entry per atomic stage. The route root owns shared
+points that exist once for the whole combined map: reset, end, third-person,
+credits, and the required respawn-axis settings. Each stage owns its Bastion
+spawn points, control centers, exactly one paired control jump/respawn point,
+portals, springboards, and optional setup detector. The route uses one scalar
+axis/threshold pair shared by all stages. A shared point is not copied into
+each stage. The consuming Bastion build must assemble stage-local point arrays
+in its selected order; the platform does not store coordinate copies for stage
+pairs or route permutations.
+`composition.selectionCount` is the total number of ordered stages Bastion
+selects for one game. The first stage selection is either `setup_detection`
+with an explicit fallback stage ID, or `random`; the remaining selection is
+`random_unique`. Setup-detected selection requires a detector on every
+non-fallback stage and forbids a detector on the fallback. Random first-stage
+selection forbids unused setup detectors. Stage IDs are unique and stable, and
+the stage list is emitted in stage-ID order; the platform never stores the
+per-game selection. Keep a composed revision in `preparing` until the consuming
+Bastion build accepts this response shape. The existing static and
+`alternateStages` shape remains valid for other revisions.
 
 An active map with no projectable default remains listed with an empty
 `gameplayRevisions` array so a consumer cannot mistake an omitted map for a

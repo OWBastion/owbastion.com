@@ -19,16 +19,36 @@ const legacyConfig = {
   alternateStages: [{ stageId: "ruins", setupDetection: { position: [20, 21, 22], radius: 30 }, ...spatial(20) }],
 };
 
+const stageSpatial = (offset: number) => ({
+  bastionPositions: [[offset, offset + 1, offset + 2]],
+  control: { centerPositions: [], jumpPositions: [[offset + 3, offset + 4, offset + 5]], respawnPositions: [[offset + 6, offset + 7, offset + 8]] },
+  portalPositions: [],
+  springboardPositions: [],
+});
+
 const compositeConfig = {
+  resetPosition: [1, 2, 3],
+  endPosition: [4, 5, 6],
+  thirdPersonPosition: [7, 8, 9],
+  creditsPosition: [10, 11, 12],
+  control: { respawnAxis: "z", respawnAxisThreshold: 40 },
   composition: {
     selectionCount: 2,
     firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
     remainingStageSelection: "random_unique",
   },
   stages: [
+    { stageId: "base", ...stageSpatial(1) },
+    { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, ...stageSpatial(20) },
+    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, ...stageSpatial(40) },
+  ],
+};
+
+const legacyCompositeConfig = {
+  composition: compositeConfig.composition,
+  stages: [
     { stageId: "base", ...spatial(1) },
     { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, ...spatial(20) },
-    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, ...spatial(40) },
   ],
 };
 
@@ -46,6 +66,7 @@ const stubs = {
   },
   AdminSpatialCoordinatesInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="coordinates-input" />' },
   AdminCompositeSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="composite-input" />' },
+  AdminLegacyCompositeSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="legacy-composite-input" />' },
 };
 
 const editorStubs = {
@@ -64,11 +85,24 @@ const editorStubs = {
 };
 
 const workshopText = `
+Global.endPosition = Vector(104, 105, 106);
+Global.heroRingPosition = Vector(107, 108, 109);
+Global.resetPosition = Vector(110, 111, 112);
+Global.creditsPosition = Vector(113, 114, 115);
+`;
+
+const singleWorkshopText = `
 Global.bastionPosition[0] = Vector(101, 102, 103);
 Global.endPosition = Vector(104, 105, 106);
 Global.heroRingPosition = Vector(107, 108, 109);
 Global.resetPosition = Vector(110, 111, 112);
 Global.creditsPosition = Vector(113, 114, 115);
+`;
+
+const stageWorkshopText = `
+Global.bastionPosition[0] = Vector(101, 102, 103);
+Modify Global Variable(controlJumpPosition, Append To Array, Vector(111, 112, 113));
+Modify Global Variable(controlRespawnPosition, Append To Array, Vector(114, 115, 116));
 `;
 
 describe("AdminSpatialConfigInput", () => {
@@ -81,6 +115,10 @@ describe("AdminSpatialConfigInput", () => {
     await wrapper.get('select[aria-label="路线类型"]').setValue("composite");
     const composite = wrapper.emitted("update:modelValue")?.at(-1)?.[0] as Record<string, unknown>;
     expect(composite).toMatchObject({
+      resetPosition: null,
+      endPosition: null,
+      thirdPersonPosition: null,
+      creditsPosition: null,
       composition: { selectionCount: 2, firstStageSelection: { mode: "random" }, remainingStageSelection: "random_unique" },
       stages: [{ stageId: "stage-1" }, { stageId: "stage-2" }],
     });
@@ -135,6 +173,15 @@ describe("AdminSpatialConfigInput", () => {
     expect((wrapper.get('select[aria-label="路线类型"]').element as HTMLSelectElement).value).toBe("composite");
   });
 
+  it("routes previously saved per-stage composite configs to the lossless legacy editor", async () => {
+    const wrapper = await mountSuspended(AdminSpatialConfigInput, {
+      props: { modelValue: legacyCompositeConfig, revisionKey: "revision:map.test:composite-legacy" },
+      global: { stubs },
+    });
+    expect(wrapper.find('[data-testid="legacy-composite-input"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="composite-input"]').exists()).toBe(false);
+  });
+
   it("builds a three-stage setup-detected route from the structured form without JSON", async () => {
     const wrapper = await mountSuspended(AdminSpatialConfigInput, {
       props: { modelValue: null, revisionKey: "revision:map.antarctic_peninsula:new" },
@@ -158,15 +205,21 @@ describe("AdminSpatialConfigInput", () => {
       }
     }
 
-    const stageTextareas = wrapper.findAll("textarea").slice(0, 3);
-    expect(stageTextareas).toHaveLength(3);
-    for (const textarea of stageTextareas) await textarea.setValue(workshopText);
+    const coordinateTextareas = wrapper.findAll("textarea").filter((textarea) => !textarea.attributes("aria-label"));
+    expect(coordinateTextareas).toHaveLength(4);
+    await coordinateTextareas[0]!.setValue(`${workshopText}\nGlobal.controlRespawnAxis = 0;\nGlobal.controlRespawnAxisThreshold = 40;`);
+    for (const textarea of coordinateTextareas.slice(1)) await textarea.setValue(stageWorkshopText);
 
     const serialized = wrapper.emitted("update:modelValue")?.at(-1)?.[0] as typeof compositeConfig | undefined;
     expect(serialized).toMatchObject({
       composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "stage-1" }, remainingStageSelection: "random_unique" },
+      resetPosition: [110, 111, 112],
+      endPosition: [104, 105, 106],
+      thirdPersonPosition: [107, 108, 109],
+      creditsPosition: [113, 114, 115],
+      control: { respawnAxis: "x", respawnAxisThreshold: 40 },
       stages: [
-        { stageId: "stage-1", bastionPositions: [[101, 102, 103]] },
+        { stageId: "stage-1", bastionPositions: [[101, 102, 103]], control: { centerPositions: [], jumpPositions: [[111, 112, 113]], respawnPositions: [[114, 115, 116]] } },
         { stageId: "stage-2", setupDetection: { position: [10, 11, 12], radius: 30 }, bastionPositions: [[101, 102, 103]] },
         { stageId: "stage-3", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[101, 102, 103]] },
       ],
@@ -186,7 +239,7 @@ describe("AdminSpatialConfigInput", () => {
     await wrapper.get('textarea[aria-label="空间配置 JSON"]').setValue(JSON.stringify(spatial(20)));
     expect((coordinateTextarea().element as HTMLTextAreaElement).value).toContain("Vector(20, 21, 22)");
 
-    const workshopReplacement = workshopText.replace("Vector(101, 102, 103)", "Vector(201,202,203)");
+    const workshopReplacement = singleWorkshopText.replace("Vector(101, 102, 103)", "Vector(201,202,203)");
     await coordinateTextarea().setValue(workshopReplacement);
     expect((coordinateTextarea().element as HTMLTextAreaElement).value).toBe(workshopReplacement);
     expect(wrapper.emitted("update:modelValue")?.at(-1)?.[0]).toMatchObject({ bastionPositions: [[201, 202, 203]] });
@@ -198,21 +251,22 @@ describe("AdminSpatialConfigInput", () => {
       global: { stubs: editorStubs },
     });
 
-    const stageTextareas = wrapper.findAll("textarea").slice(0, compositeConfig.stages.length);
-    await stageTextareas[0]!.setValue(workshopText);
+    const stageTextareas = wrapper.findAll("textarea").filter((textarea) => !textarea.attributes("aria-label")).slice(1);
+    await stageTextareas[0]!.setValue(stageWorkshopText);
 
     const saved = wrapper.emitted("update:modelValue")?.at(-1)?.[0] as typeof compositeConfig;
     expect(saved.composition).toEqual(compositeConfig.composition);
     expect(saved.stages[0]).toMatchObject({
       stageId: "base",
       bastionPositions: [[101, 102, 103]],
-      resetPosition: [110, 111, 112],
-      endPosition: [104, 105, 106],
+      control: { jumpPositions: [[111, 112, 113]], respawnPositions: [[114, 115, 116]] },
     });
     expect(saved.stages[0]).not.toHaveProperty("setupDetection");
     expect(saved.stages[1]).toEqual(compositeConfig.stages[1]);
     expect(saved.stages[2]).toEqual(compositeConfig.stages[2]);
     expect(saved).not.toHaveProperty("bastionPositions");
+    expect(saved.resetPosition).toEqual(compositeConfig.resetPosition);
+    expect(saved.stages[0]).not.toHaveProperty("endPosition");
     expect(agentSpatialConfigSchema.safeParse(saved).success).toBe(true);
   });
 });

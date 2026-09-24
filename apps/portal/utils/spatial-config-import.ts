@@ -1,6 +1,7 @@
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 
 export type SpatialConfigValue = Record<string, unknown>;
+export type SpatialConfigScope = "single" | "composite-route" | "composite-stage";
 
 export type SpatialConfigImportSummary = {
   totalPositions: number;
@@ -133,13 +134,15 @@ function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
     if (count > 0) fields.push({ label: `${stageId ? `${stageId} · ` : ""}${fieldLabels[key] ?? key}`, count });
     return count;
   };
-  const addSpatialConfig = (spatial: Record<string, unknown>, stageId?: string) => {
+  const addSpatialConfig = (spatial: Record<string, unknown>, stageId?: string, includeRoutePoints = true) => {
     let count = 0;
     count += add("bastionPositions", spatial.bastionPositions, stageId);
-    count += add("resetPosition", spatial.resetPosition, stageId);
-    count += add("endPosition", spatial.endPosition, stageId);
-    count += add("thirdPersonPosition", spatial.thirdPersonPosition, stageId);
-    count += add("creditsPosition", spatial.creditsPosition, stageId);
+    if (includeRoutePoints) {
+      count += add("resetPosition", spatial.resetPosition, stageId);
+      count += add("endPosition", spatial.endPosition, stageId);
+      count += add("thirdPersonPosition", spatial.thirdPersonPosition, stageId);
+      count += add("creditsPosition", spatial.creditsPosition, stageId);
+    }
     count += add("portalPositions", spatial.portalPositions, stageId);
     count += add("springboardPositions", spatial.springboardPositions, stageId);
     if (spatial.control && typeof spatial.control === "object") {
@@ -151,11 +154,13 @@ function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
     return count;
   };
   if (Array.isArray(config.stages)) {
+    const hasRoutePoints = "endPosition" in config;
+    if (hasRoutePoints) totalPositions += addSpatialConfig(config);
     for (const stage of config.stages) {
       if (!stage || typeof stage !== "object") continue;
       const value = stage as Record<string, unknown>;
       const stageId = typeof value.stageId === "string" ? value.stageId : undefined;
-      totalPositions += addSpatialConfig(value, stageId);
+      totalPositions += addSpatialConfig(value, stageId, !hasRoutePoints);
       const detection = value.setupDetection;
       if (detection && typeof detection === "object") totalPositions += add("setupDetection", (detection as Record<string, unknown>).position, stageId);
     }
@@ -165,12 +170,17 @@ function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
   return { totalPositions, fields };
 }
 
-export function parseSpatialConfigSource(source: string, existingConfig: SpatialConfigValue | null = null): SpatialConfigImportResult {
+export function parseSpatialConfigSource(
+  source: string,
+  existingConfig: SpatialConfigValue | null = null,
+  scope: SpatialConfigScope = "single",
+): SpatialConfigImportResult {
   const normalizedSource = normalizeWorkshopAliases(source);
   const trimmed = normalizedSource.trim();
   if (!trimmed) return { ok: false, error: "请粘贴游戏内的点位代码。" };
 
   if (trimmed.startsWith("{")) {
+    if (scope !== "single") return { ok: false, error: "此处只接受当前路线或阶段的 Raw Workshop 点位代码。" };
     try {
       const parsed: unknown = JSON.parse(trimmed);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { ok: false, error: "空间配置必须是对象。" };
@@ -187,15 +197,62 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
     }
   }
 
-  if (Array.isArray(existingConfig?.stages)) {
+  if (scope === "single" && Array.isArray(existingConfig?.stages)) {
     return { ok: false, error: "组合路线请使用平台空间 JSON 编辑原子阶段与选择约束。" };
   }
 
   const bastionPositions = collectVectors(normalizedSource, "bastionPosition");
+  const controlCenterPositions = collectVectors(normalizedSource, "controlCenterPosition");
+  const controlJumpPositions = collectVectors(normalizedSource, "controlJumpPosition");
+  const controlRespawnPositions = collectVectors(normalizedSource, "controlRespawnPosition");
+  const portalPositions = collectVectors(normalizedSource, "portalPosition");
+  const springboardPositions = collectVectors(normalizedSource, "springBoardPosition");
   const resetPosition = collectScalarVector(normalizedSource, "resetPosition");
   const endPosition = collectScalarVector(normalizedSource, "endPosition");
   const thirdPersonPosition = scalarAliases.map((field) => collectScalarVector(normalizedSource, field)).find(isVector);
   const creditsPosition = collectScalarVector(normalizedSource, "creditsPosition");
+  const respawnAxis = collectAxis(normalizedSource);
+  const respawnAxisThreshold = collectThreshold(normalizedSource);
+
+  if (scope === "composite-route") {
+    if (bastionPositions.length || controlCenterPositions.length || controlJumpPositions.length || controlRespawnPositions.length || portalPositions.length || springboardPositions.length) {
+      return { ok: false, error: "此处只接受全路线点位；出生点、控制点、阶段跳点和重生室请粘贴到对应阶段。" };
+    }
+    if (!resetPosition || !endPosition || !thirdPersonPosition || !creditsPosition) {
+      return { ok: false, error: "全路线点位需要包含重置点、终点、第三人称点（或 heroRingPosition）和结算点。" };
+    }
+    if ((respawnAxis === undefined) !== (respawnAxisThreshold === undefined)) {
+      return { ok: false, error: "重生轴和阈值必须同时提供，或同时留空。" };
+    }
+    const config: SpatialConfigValue = {
+      resetPosition,
+      endPosition,
+      thirdPersonPosition,
+      creditsPosition,
+      control: respawnAxis === undefined ? null : { respawnAxis: respawnAxis ?? null, respawnAxisThreshold: respawnAxisThreshold ?? null },
+    };
+    return { ok: true, config, summary: summaryFor(config) };
+  }
+
+  if (scope === "composite-stage") {
+    if (resetPosition || endPosition || thirdPersonPosition || creditsPosition || respawnAxis !== undefined || respawnAxisThreshold !== undefined) {
+      return { ok: false, error: "重置点、终点、第三人称点、结算点和重生轴仅配置在全路线点位中。" };
+    }
+    if (bastionPositions.length === 0) return { ok: false, error: "此阶段至少需要一个 Bastion 出生点。" };
+    const hasControl = controlCenterPositions.length > 0 || controlJumpPositions.length > 0 || controlRespawnPositions.length > 0;
+    const config: SpatialConfigValue = {
+      bastionPositions,
+      control: hasControl ? {
+        centerPositions: controlCenterPositions,
+        jumpPositions: controlJumpPositions,
+        respawnPositions: controlRespawnPositions,
+      } : null,
+      portalPositions,
+      springboardPositions,
+    };
+    return { ok: true, config, summary: summaryFor(config) };
+  }
+
   const missing = [
     bastionPositions.length === 0 ? "Bastion 出生点" : null,
     !resetPosition ? "重置点" : null,
@@ -205,11 +262,6 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
   ].filter((value): value is string => value !== null);
   if (missing.length > 0) return { ok: false, error: `缺少必需点位：${missing.join("、")}。请粘贴同一张地图的完整定位代码。` };
 
-  const controlCenterPositions = collectVectors(normalizedSource, "controlCenterPosition");
-  const controlJumpPositions = collectVectors(normalizedSource, "controlJumpPosition");
-  const controlRespawnPositions = collectVectors(normalizedSource, "controlRespawnPosition");
-  const respawnAxis = collectAxis(normalizedSource);
-  const respawnAxisThreshold = collectThreshold(normalizedSource);
   const hasControl = controlCenterPositions.length > 0 || controlJumpPositions.length > 0 || controlRespawnPositions.length > 0 || respawnAxis !== undefined || respawnAxisThreshold !== undefined;
   if (hasControl && ((respawnAxis === undefined) !== (respawnAxisThreshold === undefined))) {
     return { ok: false, error: "占领重生轴和阈值必须同时提供，或同时留空。" };
@@ -231,16 +283,49 @@ export function parseSpatialConfigSource(source: string, existingConfig: Spatial
       respawnAxis: respawnAxis ?? null,
       respawnAxisThreshold: respawnAxisThreshold ?? null,
     } : null,
-    portalPositions: collectVectors(normalizedSource, "portalPosition"),
-    springboardPositions: collectVectors(normalizedSource, "springBoardPosition"),
+    portalPositions,
+    springboardPositions,
     alternateStages: Array.isArray(existingConfig?.alternateStages) ? existingConfig.alternateStages : [],
   };
   return { ok: true, config, summary: summaryFor(config) };
 }
 
-export function formatWorkshopSpatialConfig(config: SpatialConfigValue | null): string {
-  if (config && Array.isArray(config.stages)) return JSON.stringify(config, null, 2);
-  if (!config || !isVectorList(config.bastionPositions) || !isVector(config.resetPosition) || !isVector(config.endPosition) || !isVector(config.thirdPersonPosition) || !isVector(config.creditsPosition)) return "";
+export function formatWorkshopSpatialConfig(config: SpatialConfigValue | null, scope: SpatialConfigScope = "single"): string {
+  if (!config) return "";
+  if (scope === "single" && Array.isArray(config.stages)) return JSON.stringify(config, null, 2);
+  if (scope === "composite-route") {
+    if (!isVector(config.resetPosition) || !isVector(config.endPosition) || !isVector(config.thirdPersonPosition) || !isVector(config.creditsPosition)) return "";
+    const lines: string[] = [];
+    const addVector = (name: string, position: unknown) => { if (isVector(position)) lines.push(`Global.${name} = Vector(${position.join(", ")});`); };
+    addVector("endPosition", config.endPosition);
+    addVector("heroRingPosition", config.thirdPersonPosition);
+    addVector("resetPosition", config.resetPosition);
+    addVector("creditsPosition", config.creditsPosition);
+    const control = config.control;
+    if (control && typeof control === "object") {
+      const values = control as Record<string, unknown>;
+      if (values.respawnAxis === "x" || values.respawnAxis === "y" || values.respawnAxis === "z") lines.push(`Global.controlRespawnAxis = ${["x", "y", "z"].indexOf(values.respawnAxis)};`);
+      if (typeof values.respawnAxisThreshold === "number") lines.push(`Global.controlRespawnAxisThreshold = ${values.respawnAxisThreshold};`);
+    }
+    return lines.join("\n");
+  }
+  if (scope === "composite-stage") {
+    if (!isVectorList(config.bastionPositions)) return "";
+    const lines = config.bastionPositions.map((position, index) => `Global.bastionPosition[${index}] = Vector(${position.join(", ")});`);
+    const control = config.control;
+    if (control && typeof control === "object") {
+      const values = control as Record<string, unknown>;
+      const append = (field: string, positions: unknown) => { if (isVectorList(positions)) for (const position of positions) lines.push(`Modify Global Variable(${field}, Append To Array, Vector(${position.join(", ")}));`); };
+      append("controlCenterPosition", values.centerPositions);
+      append("controlJumpPosition", values.jumpPositions);
+      append("controlRespawnPosition", values.respawnPositions);
+    }
+    const appendArray = (field: string, positions: unknown) => { if (isVectorList(positions)) for (const position of positions) lines.push(`Modify Global Variable(${field}, Append To Array, Vector(${position.join(", ")}));`); };
+    appendArray("portalPosition", config.portalPositions);
+    appendArray("springBoardPosition", config.springboardPositions);
+    return lines.join("\n");
+  }
+  if (!isVectorList(config.bastionPositions) || !isVector(config.resetPosition) || !isVector(config.endPosition) || !isVector(config.thirdPersonPosition) || !isVector(config.creditsPosition)) return "";
   const lines = config.bastionPositions.map((position, index) => `Global.bastionPosition[${index}] = Vector(${position.join(", ")});`);
   const addVector = (name: string, position: unknown) => { if (isVector(position)) lines.push(`Global.${name} = Vector(${position.join(", ")});`); };
   addVector("endPosition", config.endPosition);

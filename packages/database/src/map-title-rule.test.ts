@@ -769,11 +769,15 @@ describe("Agents map projection readiness", () => {
       gameVersion: "2026.09.23",
       mapVariant: null,
       copyConfiguration: false,
-      spatialConfig: compositeSpatialConfig(),
+      spatialConfig: sharedCompositeSpatialConfig(),
       challengeAssignments: [],
     }, auth, "prepare-composite-route");
     expect(revision.lifecycle).toBe("preparing");
     expect(revision.spatialConfig && "stages" in revision.spatialConfig ? revision.spatialConfig.stages.map((stage) => stage.stageId) : []).toEqual(["base", "icebreaker", "laboratory"]);
+    expect(revision.spatialConfig).toMatchObject({ endPosition: [7, 8, 9] });
+    const savedStages = revision.spatialConfig && "stages" in revision.spatialConfig ? revision.spatialConfig.stages : [];
+    expect(savedStages.find((stage) => stage.stageId === "base")).toMatchObject({ control: { respawnPositions: [[19, 20, 21]] } });
+    expect(savedStages[0]).not.toHaveProperty("endPosition");
 
     const projected = (await services.getAgentMap({ mapId: "map.preparing-composite" }))!;
     expect(projected.gameplayRevisions).toHaveLength(1);
@@ -795,7 +799,7 @@ describe("Agents map projection readiness", () => {
       gameVersion: "2026.09.23",
       mapVariant: null,
       copyConfiguration: false,
-      spatialConfig: compositeSpatialConfig(),
+      spatialConfig: sharedCompositeSpatialConfig(),
       challengeAssignments: [],
     }, auth, key);
     const selectable = await createRevision("composite-rollout-selectable");
@@ -808,7 +812,7 @@ describe("Agents map projection readiness", () => {
       replacedDefaultLifecycle: lifecycle === "default" ? "selectable" : null,
       gameVersion: "2026.09.23",
       mapVariant: null,
-      spatialConfig: compositeSpatialConfig(),
+      spatialConfig: sharedCompositeSpatialConfig(),
       challengeAssignments: [],
     }, auth, key);
 
@@ -1156,6 +1160,24 @@ const compositeSpatialConfig = (): AgentSpatialConfig => {
     ],
   } as AgentSpatialConfig;
 };
+
+const sharedCompositeSpatialConfig = (): AgentSpatialConfig => ({
+  resetPosition: [4, 5, 6],
+  endPosition: [7, 8, 9],
+  thirdPersonPosition: [10, 11, 12],
+  creditsPosition: [13, 14, 15],
+  control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+  composition: {
+    selectionCount: 2,
+    firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },
+    remainingStageSelection: "random_unique",
+  },
+  stages: [
+    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: { centerPositions: [], jumpPositions: [[31, 32, 33]], respawnPositions: [[34, 35, 36]] }, portalPositions: [], springboardPositions: [] },
+    { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [], jumpPositions: [[16, 17, 18]], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
+    { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[19, 20, 21]], respawnPositions: [[22, 23, 24]] }, portalPositions: [[25, 26, 27]], springboardPositions: [] },
+  ],
+});
 
 const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
   gameplayRevisionId: string;

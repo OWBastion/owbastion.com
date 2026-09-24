@@ -295,23 +295,68 @@ const legacyAgentSpatialConfigSchema = z.object({
   }
 });
 
-const compositeStageSchema = z.object({
+const legacyCompositeStageSchema = z.object({
   stageId: spatialStageId,
   setupDetection: alternateStageSetupDetectionSchema.optional(),
   ...spatialConfigFields,
 }).strict();
 
+const compositeCompositionSchema = z.object({
+  selectionCount: z.number().int().min(2).max(16),
+  firstStageSelection: z.discriminatedUnion("mode", [
+    z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
+    z.object({ mode: z.literal("random") }).strict(),
+  ]),
+  remainingStageSelection: z.literal("random_unique"),
+}).strict();
+
+const legacyCompositeSpatialConfigSchema = z.object({
+  composition: compositeCompositionSchema,
+  stages: z.array(legacyCompositeStageSchema).min(2).max(16),
+}).strict().superRefine((value, context) => {
+  validateCompositeSelection(value, context);
+});
+
+const compositeStageControlSchema = z.object({
+  centerPositions: spatialPositions,
+  jumpPositions: spatialPositions.length(1),
+  respawnPositions: spatialPositions.length(1),
+}).strict();
+
+const compositeRouteControlSchema = z.object({
+  respawnAxis: z.enum(["x", "y", "z"]),
+  respawnAxisThreshold: finiteCoordinate.refine((value) => value >= 0, "Threshold must be non-negative"),
+}).strict();
+
+const compositeStageSpatialFields = {
+  bastionPositions: requiredSpatialPositions,
+  control: compositeStageControlSchema,
+  portalPositions: spatialPositions,
+  springboardPositions: spatialPositions,
+};
+
+const compositeStageSchema = z.object({
+  stageId: spatialStageId,
+  setupDetection: alternateStageSetupDetectionSchema.optional(),
+  ...compositeStageSpatialFields,
+}).strict();
+
 const compositeSpatialConfigSchema = z.object({
-  composition: z.object({
-    selectionCount: z.number().int().min(2).max(16),
-    firstStageSelection: z.discriminatedUnion("mode", [
-      z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
-      z.object({ mode: z.literal("random") }).strict(),
-    ]),
-    remainingStageSelection: z.literal("random_unique"),
-  }).strict(),
+  resetPosition: vector3,
+  endPosition: vector3,
+  thirdPersonPosition: vector3,
+  creditsPosition: vector3,
+  control: compositeRouteControlSchema,
+  composition: compositeCompositionSchema,
   stages: z.array(compositeStageSchema).min(2).max(16),
 }).strict().superRefine((value, context) => {
+  validateCompositeSelection(value, context);
+});
+
+function validateCompositeSelection(
+  value: { composition: z.infer<typeof compositeCompositionSchema>; stages: Array<{ stageId: string; setupDetection?: z.infer<typeof alternateStageSetupDetectionSchema> }> },
+  context: z.RefinementCtx,
+) {
   const stagesById = new Map<string, (typeof value.stages)[number]>();
   for (const [index, stage] of value.stages.entries()) {
     if (stagesById.has(stage.stageId)) {
@@ -321,26 +366,6 @@ const compositeSpatialConfigSchema = z.object({
   }
   if (value.composition.selectionCount > value.stages.length) {
     context.addIssue({ code: "custom", path: ["composition", "selectionCount"], message: "Selection count exceeds the number of available stages" });
-  }
-  const stagesWithControl = value.stages.filter((stage) => stage.control !== null);
-  if (stagesWithControl.length > 0 && stagesWithControl.length !== value.stages.length) {
-    const stageIndex = value.stages.findIndex((stage) => stage.control === null);
-    context.addIssue({ code: "custom", path: ["stages", stageIndex, "control"], message: "Composite stages must either all define control data or all omit it" });
-  }
-  const firstControl = stagesWithControl[0]?.control;
-  if (firstControl) {
-    for (const [index, stage] of value.stages.entries()) {
-      if (!stage.control) continue;
-      if (stage.control.jumpPositions.length !== 1) {
-        context.addIssue({ code: "custom", path: ["stages", index, "control", "jumpPositions"], message: "Composite stages require exactly one jump position" });
-      }
-      if (stage.control.respawnPositions.length !== 1) {
-        context.addIssue({ code: "custom", path: ["stages", index, "control", "respawnPositions"], message: "Composite stages require exactly one respawn position" });
-      }
-      if (stage.control.respawnAxis !== firstControl.respawnAxis || stage.control.respawnAxisThreshold !== firstControl.respawnAxisThreshold) {
-        context.addIssue({ code: "custom", path: ["stages", index, "control", "respawnAxis"], message: "Composite stages must share one respawn axis and threshold" });
-      }
-    }
   }
   const firstStageSelection = value.composition.firstStageSelection;
   if (firstStageSelection.mode === "setup_detection") {
@@ -362,9 +387,9 @@ const compositeSpatialConfigSchema = z.object({
       }
     }
   }
-});
+}
 
-export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, compositeSpatialConfigSchema]);
+export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, legacyCompositeSpatialConfigSchema, compositeSpatialConfigSchema]);
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({
