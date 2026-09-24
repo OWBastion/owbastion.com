@@ -181,6 +181,9 @@ query at `24rem` — but drop the parts they have no data for:
   `type-label-sm` / `--muted`, then status (`未开放`, `即将结束` + version).
   Selectable submission cards add the category/variant kicker between title and
   condition; the icon is omitted there and nothing else moves.
+- **Exception:** selectable submission cards are themselves the `<button>`, so
+  they cannot switch their own padding in a container query. They keep one
+  padding (`--space-4`) at every width and define no `cq-compact` variant.
 
 ### Forms
 
