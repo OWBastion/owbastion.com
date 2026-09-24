@@ -25,40 +25,37 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 
 <template>
   <button class="map-card interactive-card pressable-soft" type="button" :aria-label="`查看${map.mapName}详情`" aria-haspopup="dialog" @click="emit('select')">
-    <div class="map-card-visual" :style="map.backgroundUrl ? { backgroundImage: `linear-gradient(color-mix(in oklch, var(--surface) 42%, transparent), color-mix(in oklch, var(--surface) 68%, transparent)), url(${map.backgroundUrl})` } : undefined" aria-hidden="true"><img v-if="map.coverUrl" :src="map.coverUrl" alt="" /><span v-else>{{ mapIndex }}</span></div>
+    <div class="map-card-media" aria-hidden="true"><img v-if="map.coverUrl" :src="map.coverUrl" alt="" /><span v-else>{{ mapIndex }}</span></div>
     <div class="map-card-body">
-      <div class="map-card-heading"><h2>{{ map.mapName }}</h2><span>{{ map.gameVersion }}</span></div>
+      <div class="map-card-heading"><h2 class="type-card-title">{{ map.mapName }}</h2><span class="type-caption">{{ map.gameVersion }}</span></div>
       <ReviewSummaryBadge :summary="reviewSummary" :loading="reviewLoading" :error="reviewError" />
-      <dl class="map-card-facts">
-        <div><dt>地图评级</dt><dd>{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
-        <div><dt>精通</dt><dd v-if="!authenticated" class="muted">登录后查看</dd><dd v-else-if="masteryLoading" class="muted">读取中…</dd><dd v-else-if="masteryProfile" class="mastery-value">{{ masteryProfile.totalXp }} XP · {{ masteryProfile.verifiedRunCount }} 次</dd><dd v-else-if="masteryError" class="muted">暂不可用</dd><dd v-else class="muted">暂无记录</dd></div>
-        <div><dt>挑战</dt><dd class="progress-value">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>
+      <dl class="map-card-stats">
+        <div><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
+        <div><dt class="type-label-sm">精通</dt><dd v-if="!authenticated" class="type-label quiet">登录后查看</dd><dd v-else-if="masteryLoading" class="type-label quiet">读取中…</dd><dd v-else-if="masteryProfile" class="type-label">{{ masteryProfile.totalXp }} XP · {{ masteryProfile.verifiedRunCount }} 次</dd><dd v-else-if="masteryError" class="type-label quiet">暂不可用</dd><dd v-else class="type-label quiet">暂无记录</dd></div>
+        <div><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>
       </dl>
-      <div class="map-card-footer"><UBadge v-for="mechanic in mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>
+      <div v-if="mechanics.length" class="map-card-tags"><UBadge v-for="mechanic in mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>
     </div>
   </button>
 </template>
 
 <style scoped>
-.map-card { display: grid; min-width: 0; padding: 0; overflow: hidden; border-radius: 17px; font: inherit; text-align: left; }
+.map-card { container-type: inline-size; display: grid; grid-template-rows: auto 1fr; min-width: 0; padding: 0; overflow: hidden; border-radius: var(--radius-card); font: inherit; text-align: left; }
 .map-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.map-card-visual { position: relative; display: grid; min-height: 138px; place-items: center; overflow: hidden; color: color-mix(in oklch, var(--accent) 70%, var(--text)); background: color-mix(in oklch, var(--accent-surface) 55%, var(--surface-raised)); }
-.map-card-visual img { position: relative; z-index: 1; max-width: 72%; max-height: 108px; object-fit: contain; filter: drop-shadow(0 8px 14px color-mix(in oklch, var(--shadow) 42%, transparent)); }.map-card-visual span { position: relative; z-index: 1; padding: 9px 13px; border: 1px solid color-mix(in oklch, var(--accent) 35%, var(--line)); border-radius: 10px; color: var(--accent); background: color-mix(in oklch, var(--surface) 68%, transparent); font-size: .8rem; font-weight: 750; letter-spacing: .14em; }
-.map-card-body { display: grid; gap: 17px; padding: 18px 18px 16px; }.map-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }.map-card-heading h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text); font-size: 1.32rem; font-weight: 650; letter-spacing: var(--type-headline-tracking); }.map-card-heading span { flex: 0 0 auto; color: var(--quiet); font-size: var(--type-kicker-size); font-weight: 650; }
-.map-card-facts { display: grid; gap: 9px; margin: 0; }.map-card-facts > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 9px; border-top: 1px solid var(--line); }.map-card-facts dt { color: var(--muted); font-size: .75rem; }.map-card-facts dd { margin: 0; color: var(--text); font-size: .78rem; font-weight: 650; }.map-card-facts dd.muted { color: var(--quiet); font-weight: 500; }.map-card-facts .mastery-value, .progress-value { color: var(--text); }.difficulty-pips { display: flex; gap: 4px; }.difficulty-pips .icon { width: 15px; height: 15px; color: var(--line-strong); }.difficulty-pips .icon.active { color: var(--accent); }
-.map-card-footer { display: flex; flex-wrap: wrap; gap: 6px; }
-@media (max-width: 620px) {
-  .map-card-visual { min-height: 108px; }
-  .map-card-body { gap: 14px; padding: 14px; }
-  .map-card-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
-  .map-card-heading h2 { font-size: 1.2rem; }
-  .map-card-heading span { font-size: .7rem; }
-  .map-card-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .map-card-facts > div { min-width: 0; align-items: flex-start; flex-direction: column; gap: 6px; padding-top: 8px; }
-  .map-card-facts > div:last-child { grid-column: 1 / -1; align-items: center; flex-direction: row; }
-  .map-card-facts dt, .map-card-facts dd { max-width: 100%; overflow-wrap: anywhere; }
-  .map-card-facts dd { font-size: .76rem; }
-  .map-card-footer { gap: 5px; }
+.map-card-media { display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; color: var(--accent); background: var(--accent-surface); }
+.map-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.map-card-media span { font-size: var(--type-label-size); font-weight: 600; letter-spacing: 0.14em; }
+.map-card-body { display: grid; align-content: start; gap: var(--space-3); padding: var(--space-4); }
+.map-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.map-card-heading h2 { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.map-card-heading span { flex: none; font-variant-numeric: tabular-nums; }
+.map-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.map-card-stats > div { display: grid; align-content: start; gap: var(--space-1); min-width: 0; }
+.map-card-stats dt, .map-card-stats dd { margin: 0; overflow-wrap: anywhere; }
+.map-card-stats dd.quiet { color: var(--quiet); font-weight: 500; }
+.map-card-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+@container (max-width: 23.99rem) {
+  .map-card-media { aspect-ratio: 2 / 1; }
+  .map-card-body { padding: var(--space-3); }
 }
-@media (max-width: 360px) { .map-card-visual { min-height: 96px; }.map-card-body { padding-inline: 12px; }.map-card-footer { display: grid; grid-template-columns: 1fr; } }
 </style>

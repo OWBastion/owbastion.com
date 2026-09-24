@@ -95,7 +95,7 @@ const requestHistoryPage = (page: number) => {
 </template>
 
 <style scoped>
-.map-directory { display: grid; gap: 26px; }.map-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
-@media (max-width: 820px) { .map-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .map-grid { grid-template-columns: 1fr; } }
+.map-directory { display: grid; gap: var(--space-6); }
+/* 17rem minimum track, capped at three columns. */
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(17rem, calc((100% - 2 * var(--space-4)) / 3))), 1fr)); gap: var(--space-4); }
 </style>
