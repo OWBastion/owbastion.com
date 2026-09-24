@@ -835,7 +835,7 @@ describe("Agents map projection readiness", () => {
     expect(projected.gameplayRevisions[0]?.spatialConfig).not.toHaveProperty("composition");
   });
 
-  it("blocks composite revisions from becoming projectable until consumer support is enabled", async () => {
+  it("projects composite revisions when they are selectable or default", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.composite-rollout");
@@ -866,10 +866,35 @@ describe("Agents map projection readiness", () => {
       challengeAssignments: [],
     }, auth, key);
 
-    await expect(updateRevision(selectable.revisionId, "selectable", "activate-composite-selectable")).rejects.toThrow("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
-    await expect(updateRevision(defaultRevision.revisionId, "default", "activate-composite-default")).rejects.toThrow("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
-    expect((await services.getAdminMapEditor({ mapId: "map.composite-rollout" }, auth)).revisions.filter((revision) => revision.lifecycle === "preparing")).toHaveLength(2);
-    expect((await services.getAgentMap({ mapId: "map.composite-rollout" }))?.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.composite-rollout:initial"]);
+    const preparingProjection = (await services.getAgentMap({ mapId: "map.composite-rollout" }))!;
+    expect(preparingProjection.gameplayRevisions.map((revision) => revision.gameplayRevisionId)).toEqual(["revision:map.composite-rollout:initial"]);
+
+    await updateRevision(selectable.revisionId, "selectable", "activate-composite-selectable");
+    const selectableProjection = (await services.getAgentMap({ mapId: "map.composite-rollout" }))!;
+    expect(selectableProjection.gameplayRevisions).toHaveLength(2);
+    expect(selectableProjection.gameplayRevisions.find((revision) => revision.gameplayRevisionId === selectable.revisionId)).toMatchObject({
+      lifecycle: "selectable",
+      isDefault: false,
+      isSelectable: true,
+      spatialConfig: { composition: { selectionCount: 2 }, stages: expect.any(Array) },
+    });
+
+    await updateRevision(defaultRevision.revisionId, "default", "activate-composite-default");
+    const defaultProjection = (await services.getAgentMap({ mapId: "map.composite-rollout" }))!;
+    expect(defaultProjection.gameplayRevisions).toHaveLength(3);
+    expect(defaultProjection.gameplayRevisions[0]).toMatchObject({
+      gameplayRevisionId: defaultRevision.revisionId,
+      lifecycle: "default",
+      isDefault: true,
+      isSelectable: false,
+      spatialConfig: {
+        composition: { selectionCount: 2, remainingStageSelection: "random_unique" },
+        endPosition: [7, 8, 9],
+        stages: [{ stageId: "base" }, { stageId: "icebreaker" }, { stageId: "laboratory" }],
+      },
+    });
+    expect(defaultProjection.gameplayRevisions.filter((revision) => revision.isDefault)).toHaveLength(1);
+    expect(defaultProjection.gameplayRevisions.filter((revision) => revision.isSelectable)).toHaveLength(2);
   });
 
   it("fails the whole map closed for an incomplete enabled revision and never projects historical or preparing rows", async () => {

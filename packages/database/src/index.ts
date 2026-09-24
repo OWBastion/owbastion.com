@@ -13,7 +13,6 @@ import { assessOcrQuality, type OcrResponse } from "./ocr-response";
 
 const now = () => Date.now();
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
-const COMPOSITE_SPATIAL_CONFIG_AGENT_PROJECTION_ENABLED = false;
 
 type AdminAnnotationProposalRow = {
   id: string;
@@ -1349,9 +1348,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const parsed = spatialConfig ? parseSpatialConfig(spatialConfig) : null;
     if ((lifecycle === "default" || lifecycle === "selectable") && parsed && !agentProjectedSpatialConfigSchema.safeParse(parsed).success) {
       throw new Error("INVALID_SPATIAL_CONFIG");
-    }
-    if (!COMPOSITE_SPATIAL_CONFIG_AGENT_PROJECTION_ENABLED && (lifecycle === "default" || lifecycle === "selectable") && parsed && "composition" in parsed) {
-      throw new Error("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
     }
     return parsed;
   };
