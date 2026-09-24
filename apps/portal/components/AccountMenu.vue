@@ -42,7 +42,7 @@ const items = computed<DropdownMenuItem[][]>(() => {
       label: 'min-h-11 items-center gap-2.5 px-2.5 py-0',
     }"
   >
-    <button class="account-trigger hit-44 pressable" type="button" aria-label="打开账户菜单">
+    <button class="account-trigger hit-target-lg pressable" type="button" aria-label="打开账户菜单">
       <span class="account-avatar" aria-hidden="true">{{ props.player.playerName.slice(0, 1) }}</span>
     </button>
   </UDropdownMenu>

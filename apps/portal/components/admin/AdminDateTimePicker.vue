@@ -106,7 +106,7 @@ function handleDateChange(value: string) {
       color="neutral"
       variant="ghost"
       size="xs"
-      class="hit-44"
+      class="hit-target-lg"
       icon="i-lucide-x"
       aria-label="清除时间"
       :disabled="disabled"

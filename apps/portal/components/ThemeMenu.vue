@@ -49,7 +49,7 @@ onMounted(() => {
     }"
   >
     <button
-      class="theme-trigger hit-44 pressable"
+      class="theme-trigger hit-target-lg pressable"
       type="button"
       :aria-label="`当前主题：${currentLabel}，打开主题菜单`"
     >
