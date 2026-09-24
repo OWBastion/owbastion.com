@@ -27,9 +27,9 @@ const selectedMapChallenges = computed(() => [...props.challenges.filter((challe
     <div class="catalog-heading"><h2 id="map-catalog-title">选择地图挑战</h2></div>
     <UFormField label="选择地图"><USelect v-model="selectedMapId" aria-label="选择地图" placeholder="选择地图" :items="mapItems" /></UFormField>
     <div v-if="selectedMap" class="map-selection">
-      <div class="selection-heading"><strong>{{ selectedMap.mapName }}</strong></div>
-      <div v-if="selectedMapChallenges.length" class="map-objectives">
-        <UButton v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}:${challenge.gameplayRevisionId}`" :color="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId ? 'primary' : 'neutral'" :variant="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId ? 'soft' : 'outline'" class="objective-option" type="button" :aria-pressed="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId, gameplayRevisionId: challenge.gameplayRevisionId })"><strong>{{ challenge.name }}</strong><span>{{ challenge.difficulty ?? '地图通关' }}</span><span class="map-variant">{{ mapVariantLabel(challenge.mapVariant) }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></UButton>
+      <div class="selection-heading"><strong class="type-label">{{ selectedMap.mapName }}</strong></div>
+      <div v-if="selectedMapChallenges.length" class="directory-grid">
+        <UButton v-for="challenge in selectedMapChallenges" :key="`${selectedMapId}:${challenge.challengeId}:${challenge.gameplayRevisionId}`" :color="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId ? 'primary' : 'neutral'" :variant="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId ? 'soft' : 'outline'" class="objective-option" type="button" :aria-pressed="props.selectedChallengeId === challenge.challengeId && props.selectedMapId === selectedMapId && props.selectedGameplayRevisionId === challenge.gameplayRevisionId" @click="emit('select', { challengeId: challenge.challengeId, mapId: selectedMapId, gameplayRevisionId: challenge.gameplayRevisionId })"><strong class="type-card-title">{{ challenge.name }}</strong><span class="type-label-sm">{{ challenge.difficulty ?? '地图通关' }}</span><span class="type-label-sm map-variant">{{ mapVariantLabel(challenge.mapVariant) }}</span><span v-if="challenge.status === 'sunsetting'" class="sunsetting type-caption"><b>即将结束</b><i>{{ challenge.retiredVersion }}</i></span></UButton>
       </div>
       <p v-else class="empty-state">该地图暂无提交目标。</p>
     </div>
@@ -37,7 +37,17 @@ const selectedMapChallenges = computed(() => [...props.challenges.filter((challe
 </template>
 
 <style scoped>
-.catalog-section { display: grid; gap: 16px; }.catalog-heading { display: grid; gap: 6px; }.catalog-heading .eyebrow { margin: 0; }.catalog-heading h2 { margin: 0; color: var(--text); font-size: 1.35rem; letter-spacing: -.04em; }
-.map-selection { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }.selection-heading { display: grid; gap: 3px; }.selection-heading span { color: var(--quiet); font-size: .74rem; }.selection-heading strong { color: var(--text); font-size: .95rem; }.map-objectives { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }.objective-option { display: grid; justify-items: start; gap: 4px; min-height: 64px; padding: 10px; text-align: left; font-weight: 400; }.objective-option strong { color: var(--text); font-size: .84rem; }.objective-option span { font-size: .74rem; }.sunsetting { display: inline-flex; width: fit-content; align-items: center; gap: 5px; margin-top: 3px; border: 1px solid color-mix(in oklch, var(--warning) 38%, var(--line)); border-radius: 999px; overflow: hidden; color: color-mix(in oklch, var(--warning) 82%, var(--text)); background: color-mix(in oklch, var(--warning) 14%, var(--surface)); font-size: .68rem !important; font-weight: 700; }.sunsetting b { padding-left: 7px; }.sunsetting i { padding: 3px 7px 3px 5px; border-left: 1px solid color-mix(in oklch, var(--warning) 34%, var(--line)); color: var(--text); font-style: normal; font-weight: 650; }
-.empty-state { margin: 0; padding: 14px; border: 1px dashed var(--line-strong); border-radius: 12px; color: var(--muted); line-height: 1.6; }
+.catalog-section { display: grid; gap: var(--space-4); }
+.catalog-heading { display: grid; gap: var(--space-2); }
+.catalog-heading h2 { margin: 0; color: var(--text); font-size: 1.35rem; font-weight: 700; letter-spacing: -.04em; }
+.map-selection { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.selection-heading { display: grid; }
+.selection-heading strong { color: var(--text); }
+.objective-option { display: grid; justify-items: start; align-content: start; gap: var(--space-2); min-width: 0; padding: var(--space-4); border-radius: var(--radius-card); text-align: left; font-weight: 500; white-space: normal; }
+.objective-option strong { overflow-wrap: anywhere; color: var(--text); }
+.map-variant { color: var(--quiet); }
+.sunsetting { display: inline-flex; width: fit-content; align-items: center; gap: var(--space-1); overflow: hidden; border: 1px solid color-mix(in oklch, var(--warning) 38%, var(--line)); border-radius: var(--radius-pill); color: color-mix(in oklch, var(--warning) 82%, var(--text)); background: color-mix(in oklch, var(--warning) 14%, var(--surface)); font-weight: 600; }
+.sunsetting b { padding-left: var(--space-2); font-weight: 600; }
+.sunsetting i { padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1); border-left: 1px solid color-mix(in oklch, var(--warning) 34%, var(--line)); color: var(--text); font-style: normal; font-weight: 600; }
+.empty-state { margin: 0; padding: var(--space-4); border: 1px dashed var(--line-strong); border-radius: var(--radius-control); color: var(--muted); line-height: 1.6; }
 </style>

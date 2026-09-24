@@ -166,6 +166,22 @@ at every width. `MapCard` is the reference:
 - Grids follow the fluid grid recipe in the layout doc (`17rem` minimum track).
 - A fourth stat belongs in the detail view, not on the card.
 
+#### Cards without media or stats
+
+Event and achievement cards keep the same rules — one anatomy at every width,
+`type-card-title` / `type-label` / `type-label-sm`, `.directory-grid`, container
+query at `24rem` — but drop the parts they have no data for:
+
+- **Event card** — title row (name in `type-card-title`, release status badge on
+  the right) → meta line (category · rarity, `type-label-sm` / `--muted`) →
+  description (3-line clamp) → review summary → effect tags. No media, no stats.
+  The title, meta and description are the `<button aria-haspopup="dialog">`.
+- **Achievement card** — icon (fixed square, 3.5rem; 2.5rem below `cq-compact`)
+  left of one text column: title in `type-card-title`, condition in
+  `type-label-sm` / `--muted`, then status (`未开放`, `即将结束` + version).
+  Selectable submission cards add the category/variant kicker between title and
+  condition; the icon is omitted there and nothing else moves.
+
 ### Forms
 
 - `UForm` + `UFormField` for labeled fields and validation display.

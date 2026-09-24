@@ -72,26 +72,28 @@ onMounted(() => { hydrated.value = true; });
       <section v-for="group in groupedEvents" :key="group.version" class="event-group" :aria-labelledby="`event-version-${group.version}`">
         <div class="group-heading">
           <h2 :id="`event-version-${group.version}`">{{ group.version }}</h2>
-          <span>{{ group.events.length }} 项事件</span>
+          <span class="type-label-sm">{{ group.events.length }} 项事件</span>
         </div>
-        <div class="event-grid">
+        <div class="directory-grid">
           <article v-for="event in group.events" :key="event.eventId" class="event-card interactive-card">
             <button class="event-card-main pressable-soft" type="button" aria-haspopup="dialog" @click="openEvent(event)">
-              <h3>{{ event.name }}</h3>
-              <div class="card-meta">
+              <div class="event-card-title-row">
+                <h3 class="type-card-title">{{ event.name }}</h3>
                 <StatusBadge :label="statusText(event.releaseStatus)" :tone="event.releaseStatus === 'implemented' ? 'success' : 'warning'" />
+              </div>
+              <div class="card-meta type-label-sm">
                 <span class="event-category">{{ event.category }}</span>
                 <span class="event-rarity">{{ event.rarity }}</span>
               </div>
-              <p>{{ event.description }}</p>
+              <p class="type-label-sm">{{ event.description }}</p>
             </button>
             <div class="event-card-footer">
+              <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
               <div class="event-tags">
                 <EffectGlossaryTooltip v-for="annotation in visibleEffectChips(event).annotations" :key="annotation.term.key" :annotation="annotation" />
                 <UBadge v-for="tag in visibleEffectChips(event).rawTags" :key="`raw-${tag}`" :label="tag" color="neutral" variant="subtle" />
-                <span v-if="visibleEffectChips(event).overflow" class="effect-overflow">+{{ visibleEffectChips(event).overflow }}</span>
+                <span v-if="visibleEffectChips(event).overflow" class="effect-overflow type-caption">+{{ visibleEffectChips(event).overflow }}</span>
               </div>
-              <ReviewSummaryBadge :summary="reviewSummaries.summaryFor(event.eventId)" :loading="reviewLoading" :error="reviewError" />
             </div>
           </article>
         </div>
@@ -110,19 +112,19 @@ onMounted(() => { hydrated.value = true; });
     <DefineDetailContent>
       <div v-if="selected" class="detail">
         <p class="description">{{ selected.description }}</p>
-        <dl>
-          <div><dt>持续时间</dt><dd>{{ selected.durationSeconds === null ? "暂无记录" : `${selected.durationSeconds} 秒` }}</dd></div>
-          <div><dt>内置冷却</dt><dd>{{ selected.cooldownSeconds === null ? "暂无记录" : `${selected.cooldownSeconds} 秒` }}</dd></div>
-          <div><dt>权重</dt><dd>{{ selected.weight ?? "暂无记录" }}</dd></div>
+        <dl class="detail-grid">
+          <div class="detail-grid__row"><dt>持续时间</dt><dd :class="{ 'detail-grid__empty': selected.durationSeconds === null }">{{ selected.durationSeconds === null ? "暂无记录" : `${selected.durationSeconds} 秒` }}</dd></div>
+          <div class="detail-grid__row"><dt>内置冷却</dt><dd :class="{ 'detail-grid__empty': selected.cooldownSeconds === null }">{{ selected.cooldownSeconds === null ? "暂无记录" : `${selected.cooldownSeconds} 秒` }}</dd></div>
+          <div class="detail-grid__row"><dt>权重</dt><dd :class="{ 'detail-grid__empty': selected.weight === null || selected.weight === undefined }">{{ selected.weight ?? "暂无记录" }}</dd></div>
         </dl>
         <UAccordion :items="[{ label: '概率统计', slot: 'probability' }]">
           <template #probability>
-            <dl class="probability-dl">
-              <div><dt>类别概率</dt><dd>{{ formatProbability(probability(selected).categoryProbability) }}</dd></div>
-              <div><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
-              <div><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
-              <div><dt>最终出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
-              <div><dt>全局出现概率</dt><dd>{{ formatProbability(probability(selected).globalAppearanceProbability) }}</dd></div>
+            <dl class="detail-grid">
+              <div class="detail-grid__row"><dt>类别概率</dt><dd>{{ formatProbability(probability(selected).categoryProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>单次失败率</dt><dd>{{ formatProbability(probability(selected).failureProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>保底触发率</dt><dd>{{ formatProbability(probability(selected).guaranteeProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>最终出现概率</dt><dd>{{ formatProbability(probability(selected).appearanceProbability) }}</dd></div>
+              <div class="detail-grid__row"><dt>全局出现概率</dt><dd>{{ formatProbability(probability(selected).globalAppearanceProbability) }}</dd></div>
             </dl>
           </template>
         </UAccordion>
@@ -131,7 +133,7 @@ onMounted(() => { hydrated.value = true; });
           <UBadge v-for="tag in unannotatedEffectTags(selected)" :key="`detail-${tag}`" :label="tag" color="neutral" variant="subtle" />
         </div>
         <section class="challenges">
-          <h3>开放挑战</h3>
+          <h3 class="type-card-title">开放挑战</h3>
           <p v-if="!selected.challenges.length" class="muted">暂无开放挑战。</p>
           <NuxtLink
             v-for="challenge in selected.challenges"
@@ -140,7 +142,7 @@ onMounted(() => { hydrated.value = true; });
             class="challenge-link interactive-card pressable-soft"
           >
             {{ challenge.family === "map" ? challenge.name : challenge.titleName }}
-            <span>{{ challengeAction(challenge) }}</span>
+            <span class="type-label-sm">{{ challengeAction(challenge) }}</span>
           </NuxtLink>
         </section>
         <PlayerReviewPanel target-type="event" :target-id="selected.eventId" :authenticated="props.authenticated" @review-changed="refreshReviewSummaries" />
@@ -187,33 +189,32 @@ onMounted(() => { hydrated.value = true; });
 </template>
 
 <style scoped>
-.event-card { grid-template-rows: minmax(0, 1fr) auto; }
-.event-directory { display: grid; gap: 22px; }
-.filters { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(140px, 160px)); gap: 10px; align-items: stretch; }
+.event-directory { display: grid; gap: var(--space-5); }
+.filters { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.filters > * { flex: 1 1 10rem; min-width: 0; }
+.filters > :first-child { flex-grow: 2; flex-basis: 16rem; }
 .filters :deep([data-slot="base"]),
 .filters :deep(button),
-.filters :deep(input) { min-height: 44px; }
-.event-groups { display: grid; gap: 30px; }
-.event-group { display: grid; gap: 12px; }
-.group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.group-heading h2 { margin: 0; font-size: var(--type-caption-size); font-weight: 680; letter-spacing: 0.01em; }
-.group-heading span { color: var(--quiet); font-size: var(--type-caption-size); }
-.event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.filters :deep(input) { min-height: var(--control-lg); }
+.event-groups { display: grid; gap: var(--space-8); }
+.event-group { display: grid; gap: var(--space-3); }
+.group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
+.group-heading h2 { margin: 0; font-size: var(--type-caption-size); font-weight: 600; letter-spacing: 0.01em; }
+.group-heading span { color: var(--quiet); }
 .event-card {
+  container-type: inline-size;
   display: grid;
-  min-height: 210px;
-  align-content: start;
-  gap: 13px;
-  padding: 18px;
-  border-radius: 14px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  border-radius: var(--radius-card);
   background: color-mix(in oklch, var(--surface-raised) 88%, transparent);
 }
 .event-card-main {
   display: grid;
   min-width: 0;
   align-content: start;
-  gap: 13px;
-  padding: 0;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
   border: 0;
   background: transparent;
   text-align: left;
@@ -221,64 +222,43 @@ onMounted(() => { hydrated.value = true; });
   color: inherit;
   cursor: pointer;
 }
-.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.event-category { color: var(--quiet); font-size: .72rem; font-weight: 650; letter-spacing: .04em; }
-.event-rarity { color: var(--quiet); font-size: .72rem; font-weight: 650; letter-spacing: .06em; }
-.event-card h3 { margin: 0; font-size: 1.08rem; font-weight: 650; letter-spacing: var(--type-headline-tracking); }
+.event-card-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.event-card-title-row h3 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--muted); }
+.event-rarity::before { content: "·"; margin-right: var(--space-2); }
 .event-card p {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: var(--quiet);
-  font-size: .84rem;
-  line-height: 1.55;
+  color: var(--muted);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.event-card-footer { display: grid; gap: 9px; align-items: end; }.event-tags { display: flex; flex-wrap: wrap; gap: 6px; }.effect-overflow { color: var(--quiet); font-size: .72rem; font-weight: 650; }
-.detail { display: grid; gap: 18px; }
-.detail-header-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.event-card-footer { display: grid; gap: var(--space-3); align-content: end; padding: var(--space-3) var(--space-4) var(--space-4); }
+.event-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.effect-overflow { color: var(--quiet); }
+.detail { display: grid; gap: var(--space-4); }
+.detail-header-tags { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
 .description { margin: 0; color: var(--text); line-height: 1.65; }
-.detail dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: 0; border-top: 1px solid var(--line); }
-.detail dl div { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
-.detail dl div:nth-child(odd) { padding-right: 16px; }
-.detail dt { color: var(--muted); font-size: .8rem; }
-.detail dd { margin: 0; font-size: .82rem; font-weight: 650; }
-.challenges { display: grid; gap: 8px; }
-.challenges h3 { margin: 0; font-size: 1rem; }
+.challenges { display: grid; gap: var(--space-2); }
+.challenges h3 { margin: 0; }
 .challenge-link {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--text);
   background: var(--surface);
   text-decoration: none;
 }
 .challenge-link:hover, .challenge-link:focus-visible { border-color: var(--line-strong); }
-.challenge-link span, .muted { color: var(--quiet); font-size: .8rem; }
-
-@media (max-width: 760px) {
-  .filters { grid-template-columns: 1fr 1fr; }
-  .filters > :first-child { grid-column: 1 / -1; }
-  .event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.challenge-link span, .muted { color: var(--quiet); font-size: var(--type-label-sm-size); }
+@container (max-width: 23.99rem) {
+  .event-card-main { padding: var(--space-3) var(--space-3) 0; }
+  .event-card-footer { padding: var(--space-3); }
 }
-.probability-dl { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; margin: 0; padding-top: 4px; }
-.probability-dl div { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.probability-dl div:nth-child(odd) { padding-right: 16px; }
-.probability-dl dt { color: var(--muted); font-size: .8rem; }
-.probability-dl dd { margin: 0; font-size: .82rem; font-weight: 650; }
-
-@media (max-width: 620px) {
-  .filters { grid-template-columns: 1fr; }
-  .filters > :first-child { grid-column: auto; }
-  .event-grid { grid-template-columns: 1fr; }
-  .detail dl, .probability-dl { grid-template-columns: 1fr; }
-  .detail dl div:nth-child(odd), .probability-dl div:nth-child(odd) { padding-right: 0; }
-}
-@media (max-width: 360px) { .event-card-footer :deep(.review-summary-badge) { width: fit-content; max-width: 100%; } }
 @media (prefers-reduced-transparency: reduce) {
   .event-card { background: var(--surface-raised); }
 }
