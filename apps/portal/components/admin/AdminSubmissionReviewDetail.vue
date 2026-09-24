@@ -120,7 +120,7 @@ const challengeSummary = computed(() => {
       Decisions stay in document flow (sticky), never fixed — fixed docks
       overflow when spot-check / OCR retry expand the control surface.
     -->
-    <div class="detail-grid">
+    <div class="review-layout">
       <div class="evidence-col flow-evidence">
         <UCard class="evidence-card surface-panel elevation-3">
           <template #header>
@@ -269,10 +269,10 @@ const challengeSummary = computed(() => {
       <!-- Traceability (low priority) -->
       <details class="meta-disclosure surface-panel flow-meta">
         <summary>提交信息</summary>
-        <dl class="detail-list meta-list">
-          <div><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
-          <div><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
-          <div><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
+        <dl class="detail-grid meta-list">
+          <div class="detail-grid__row"><dt>提交编号</dt><dd>{{ submission.submissionId }}</dd></div>
+          <div class="detail-grid__row"><dt>提交时间</dt><dd>{{ formatTime(submission.createdAt) }}</dd></div>
+          <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
         </dl>
       </details>
     </div>
@@ -355,7 +355,7 @@ const challengeSummary = computed(() => {
 }
 
 /* Desktop: evidence | rail */
-.detail-grid {
+.review-layout {
   display: grid;
   width: 100%;
   min-width: 0;
@@ -590,7 +590,7 @@ const challengeSummary = computed(() => {
 
 /* Narrow: one column; claim then decide, then evidence for verification */
 @media (max-width: 51.25rem) {
-  .detail-grid {
+  .review-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "claim"

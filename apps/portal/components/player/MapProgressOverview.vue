@@ -63,7 +63,7 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
             </li>
           </ul>
 
-          <dl v-if="showMasteryFacts && row.profile" class="detail-list mastery-facts">
+          <dl v-if="showMasteryFacts && row.profile" class="detail-grid mastery-facts">
             <div><dt>精通 XP</dt><dd>{{ row.profile.totalXp }} XP</dd></div>
             <div><dt>已验证通关</dt><dd>{{ row.profile.verifiedRunCount }} 次</dd></div>
             <div><dt>最高难度</dt><dd>{{ row.profile.highestCompletedDifficulty ?? "暂无记录" }}</dd></div>

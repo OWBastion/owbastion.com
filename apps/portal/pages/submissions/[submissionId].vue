@@ -195,7 +195,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
         <UAlert v-else-if="actionMessage" color="success" variant="subtle" :title="actionMessage" />
       </div>
 
-      <section class="detail-grid">
+      <section class="submission-layout">
         <div class="evidence-col">
           <UCard class="evidence-card elevation-3">
             <template #header>
@@ -247,12 +247,12 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
                 <SubmissionStatusBadge :status="data.status" />
               </div>
             </template>
-            <dl class="detail-list">
-              <div><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
-              <div><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
-              <div v-if="data.difficulty"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
-              <div v-if="data.reason && data.status !== 'resubmission_required'"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
-              <div><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
+            <dl class="detail-grid">
+              <div class="detail-grid__row"><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
+              <div class="detail-grid__row"><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
+              <div class="detail-grid__row" v-if="data.difficulty"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
+              <div class="detail-grid__row" v-if="data.reason && data.status !== 'resubmission_required'"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
+              <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
             </dl>
             <UAlert v-if="masteryOutcome" class="mastery-outcome" :color="data.masteryOutcome?.status === 'created' || data.masteryOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="masteryOutcome.title" :description="masteryOutcome.description || undefined" />
             <div class="overview-actions">
@@ -297,12 +297,12 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
             <template #header>
               <div class="card-heading"><h2>识别摘要</h2></div>
             </template>
-            <dl class="detail-list">
-              <div><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
-              <div><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
-              <div><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
-              <div><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
-              <div v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
+            <dl class="detail-grid">
+              <div class="detail-grid__row"><dt>地图</dt><dd>{{ ocrValue(data.ocr.mapName) }}</dd></div>
+              <div class="detail-grid__row"><dt>难度</dt><dd>{{ ocrValue(data.ocr.difficulty) }}</dd></div>
+              <div class="detail-grid__row"><dt>玩家</dt><dd>{{ ocrValue(data.ocr.playerName) }}</dd></div>
+              <div class="detail-grid__row"><dt>通关标记</dt><dd>{{ ocrValue(data.ocr.challengeCompleted) }}</dd></div>
+              <div class="detail-grid__row" v-if="data.ocr.achievementTitles?.length"><dt>识别到的成就</dt><dd>{{ data.ocr.achievementTitles.join('、') }}</dd></div>
             </dl>
           </UCard>
 
@@ -332,7 +332,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
       </UCard>
     </template>
 
-    <section v-else class="detail-grid submission-skeleton" role="status" aria-label="读取中…">
+    <section v-else class="submission-layout submission-skeleton" role="status" aria-label="读取中…">
       <div class="info-col" aria-hidden="true">
         <UCard class="overview-card elevation-2 submission-skeleton-card">
           <template #header>
@@ -403,7 +403,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   white-space: nowrap;
   border: 0;
 }
-.detail-grid {
+.submission-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
@@ -446,11 +446,11 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .submission-skeleton-evidence { width: 100%; aspect-ratio: 4 / 3; }
 .submission-skeleton-list { display: grid; gap: 0; }
 .submission-skeleton-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 13px 0;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--line);
 }
 .submission-skeleton-row:last-child { padding-bottom: 0; border-bottom: 0; }
@@ -481,7 +481,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .submission-skeleton-progress-title { width: 68%; height: 14px; }
 .submission-skeleton-progress-detail { width: 92%; height: 12px; }
 @media (min-width: 821px) {
-  .detail-grid {
+  .submission-layout {
     grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr);
   }
   .evidence-col {
@@ -504,9 +504,8 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   .breadcrumb { margin-bottom: 30px; }
   .overview-actions :deep(button) { min-height: 44px; }
   .submission-skeleton-row {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 6px;
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
   }
   .submission-skeleton-label, .submission-skeleton-value { width: 62%; }
 }

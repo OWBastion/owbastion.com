@@ -308,36 +308,23 @@ onMounted(load);
 
     <AdminResponsiveDialog :open="detailTarget !== null" title="绑定申请详情" :description="detailTarget ? `${detailTarget.playerName}#${detailTarget.playerId}` : undefined" size="md" @update:open="(open) => { if (!open) detailTarget = null; }">
       <template #body>
-        <div v-if="detailTarget" class="claim-detail-list">
-          <div class="detail-row">
-            <span class="detail-label">操作类型</span>
-            <StatusBadge :label="operationTypeLabel(detailTarget.operationType)" :tone="operationTypeTone(detailTarget.operationType)" />
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">目标战网账号当前绑定</span>
-            <span class="detail-value">{{ detailTarget.targetAccountBinding ? detailTarget.targetAccountBinding.memberOpenId : "无" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">该 QQ 当前绑定的战网账号</span>
-            <span class="detail-value">
-              <template v-if="detailTarget.qqBoundAccounts && detailTarget.qqBoundAccounts.length > 0">
-                <span v-for="acc in detailTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
-              </template>
-              <template v-else>无</template>
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">将解除的绑定</span>
-            <span class="detail-value">{{ detailTarget.revokingBindingCount ?? 0 }} 个</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">将退出的登录</span>
-            <span class="detail-value">{{ detailTarget.invalidatingSessionCount ?? 0 }} 个</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">申请状态</span>
-            <StatusBadge :label="statusLabel(detailTarget.status)" :tone="detailTarget.status === 'pending_review' ? 'warning' : detailTarget.status === 'approved' ? 'success' : 'default'" />
-          </div>
+        <div v-if="detailTarget" class="claim-detail">
+          <dl class="detail-grid">
+            <div class="detail-grid__row"><dt>操作类型</dt><dd><StatusBadge :label="operationTypeLabel(detailTarget.operationType)" :tone="operationTypeTone(detailTarget.operationType)" /></dd></div>
+            <div class="detail-grid__row"><dt>目标战网账号当前绑定</dt><dd>{{ detailTarget.targetAccountBinding ? detailTarget.targetAccountBinding.memberOpenId : "无" }}</dd></div>
+            <div class="detail-grid__row">
+              <dt>该 QQ 当前绑定的战网账号</dt>
+              <dd>
+                <template v-if="detailTarget.qqBoundAccounts && detailTarget.qqBoundAccounts.length > 0">
+                  <span v-for="acc in detailTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
+                </template>
+                <template v-else>无</template>
+              </dd>
+            </div>
+            <div class="detail-grid__row"><dt>将解除的绑定</dt><dd>{{ detailTarget.revokingBindingCount ?? 0 }} 个</dd></div>
+            <div class="detail-grid__row"><dt>将退出的登录</dt><dd>{{ detailTarget.invalidatingSessionCount ?? 0 }} 个</dd></div>
+            <div class="detail-grid__row"><dt>申请状态</dt><dd><StatusBadge :label="statusLabel(detailTarget.status)" :tone="detailTarget.status === 'pending_review' ? 'warning' : detailTarget.status === 'approved' ? 'success' : 'default'" /></dd></div>
+          </dl>
         </div>
       </template>
       <template #footer>
@@ -351,33 +338,23 @@ onMounted(load);
 
     <AdminResponsiveDialog :open="conflictTarget !== null" title="确认批准冲突申请" :description="conflictTarget ? `${conflictTarget.playerName}#${conflictTarget.playerId}` : undefined" size="md" :dismissible="!deciding" @update:open="(open) => { if (!open && !deciding) conflictTarget = null; }">
       <template #body>
-        <div v-if="conflictTarget" class="claim-detail-list">
+        <div v-if="conflictTarget" class="claim-detail">
           <UAlert color="warning" variant="subtle" title="身份冲突提示" description="批准此操作将解除现有关联绑定，并退出相关登录。" />
-          <div class="detail-row">
-            <span class="detail-label">操作类型</span>
-            <StatusBadge :label="operationTypeLabel(conflictTarget.operationType)" :tone="operationTypeTone(conflictTarget.operationType)" />
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">目标战网账号当前绑定</span>
-            <span class="detail-value">{{ conflictTarget.targetAccountBinding ? conflictTarget.targetAccountBinding.memberOpenId : "无" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">该 QQ 当前绑定的战网账号</span>
-            <span class="detail-value">
-              <template v-if="conflictTarget.qqBoundAccounts && conflictTarget.qqBoundAccounts.length > 0">
-                <span v-for="acc in conflictTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
-              </template>
-              <template v-else>无</template>
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">将解除的绑定</span>
-            <span class="detail-value">{{ conflictTarget.revokingBindingCount ?? 0 }} 个</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">将退出的登录</span>
-            <span class="detail-value">{{ conflictTarget.invalidatingSessionCount ?? 0 }} 个</span>
-          </div>
+          <dl class="detail-grid">
+            <div class="detail-grid__row"><dt>操作类型</dt><dd><StatusBadge :label="operationTypeLabel(conflictTarget.operationType)" :tone="operationTypeTone(conflictTarget.operationType)" /></dd></div>
+            <div class="detail-grid__row"><dt>目标战网账号当前绑定</dt><dd>{{ conflictTarget.targetAccountBinding ? conflictTarget.targetAccountBinding.memberOpenId : "无" }}</dd></div>
+            <div class="detail-grid__row">
+              <dt>该 QQ 当前绑定的战网账号</dt>
+              <dd>
+                <template v-if="conflictTarget.qqBoundAccounts && conflictTarget.qqBoundAccounts.length > 0">
+                  <span v-for="acc in conflictTarget.qqBoundAccounts" :key="acc.playerAccountId" class="qq-bound-item">{{ acc.playerName }}#{{ acc.playerId }}</span>
+                </template>
+                <template v-else>无</template>
+              </dd>
+            </div>
+            <div class="detail-grid__row"><dt>将解除的绑定</dt><dd>{{ conflictTarget.revokingBindingCount ?? 0 }} 个</dd></div>
+            <div class="detail-grid__row"><dt>将退出的登录</dt><dd>{{ conflictTarget.invalidatingSessionCount ?? 0 }} 个</dd></div>
+          </dl>
         </div>
       </template>
       <template #footer>
@@ -408,9 +385,6 @@ onMounted(load);
 .revoke-form { display:grid; gap:16px; }
 .invite-code { display:grid; min-height:56px; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--surface-raised); }
 .invite-code code { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:1.1rem; font-weight:700; letter-spacing:.12em; }
-.claim-detail-list { display: grid; gap: 12px; }
-.detail-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.88rem; }
-.detail-label { color: var(--muted); }
-.detail-value { font-weight: 500; word-break: break-all; }
+.claim-detail { display: grid; gap: 12px; }
 .qq-bound-item { display: inline-block; }
 </style>
