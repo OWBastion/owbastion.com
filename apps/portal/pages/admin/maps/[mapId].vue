@@ -241,8 +241,8 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
         </form>
       </template>
       <template #footer>
-        <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
         <UButton type="submit" form="map-reset-form" class="pressable" label="创建修订" :loading="resetSaving" :disabled="resetSaving" />
+        <UButton label="取消" color="neutral" variant="outline" :disabled="resetSaving" @click="resetOpen = false" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

@@ -93,7 +93,6 @@ onBeforeUnmount(() => {
                 <div class="identity-card__title-row">
                   <h2 id="player-identity-title">{{ battleTag }}</h2>
                   <UButton
-                    class="identity-edit-btn"
                     icon="i-lucide-pencil"
                     color="neutral"
                     variant="ghost"
@@ -111,6 +110,7 @@ onBeforeUnmount(() => {
               <UButton
                 :label="props.player.status === 'active' ? '封禁玩家' : '解除封禁'"
                 :color="props.player.status === 'active' ? 'error' : 'primary'"
+                :variant="props.player.status === 'active' ? 'soft' : 'solid'"
                 :loading="props.loading"
                 @click="emit('setStatus', props.player.status === 'active' ? 'banned' : 'active')"
               />
@@ -322,16 +322,6 @@ onBeforeUnmount(() => {
   font-size: clamp(1.35rem, 2.8vw, 1.85rem);
   letter-spacing: var(--type-headline-tracking);
   line-height: 1.08;
-}
-
-.identity-edit-btn {
-  flex: 0 0 auto;
-  opacity: 0.72;
-}
-
-.identity-edit-btn:hover,
-.identity-edit-btn:focus-visible {
-  opacity: 1;
 }
 
 .identity-card__actions {

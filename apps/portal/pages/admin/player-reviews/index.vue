@@ -141,8 +141,8 @@ onMounted(() => { void load(); });
       </template>
     </template>
     <template v-if='pendingAction' #footer>
+      <UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :variant='pendingAction === "invalidate" ? "soft" : "solid"' :loading='saving' @click='saveModeration' />
       <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='cancelModeration' />
-      <UButton :label='actionLabel(pendingAction)' :color='pendingAction === "invalidate" ? "error" : "primary"' :loading='saving' @click='saveModeration' />
     </template>
   </AdminResponsiveDialog>
 </template>

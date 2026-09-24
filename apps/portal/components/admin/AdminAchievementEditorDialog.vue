@@ -199,8 +199,8 @@ function onIconFile(value: File | null | undefined) {
       </form>
     </template>
     <template #footer>
-      <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
       <UButton :label="submitLabel" form="achievement-editor" :loading="saving" type="submit" />
+      <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />
     </template>
   </AdminResponsiveDialog>
 </template>

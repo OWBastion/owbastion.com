@@ -250,7 +250,7 @@ describe("achievement admin page", () => {
     await wrapper.get('button[aria-label="结束挑战"]').trigger("click");
     await flushPromises();
     const requestsBeforeCancel = adminApi.mock.calls.length;
-    await wrapper.find('[role="dialog"] button').trigger("click");
+    await wrapper.findAll('[role="dialog"] button').find((button) => button.text() === "取消")!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledTimes(requestsBeforeCancel);
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();

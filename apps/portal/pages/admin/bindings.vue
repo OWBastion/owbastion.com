@@ -341,11 +341,11 @@ onMounted(load);
         </div>
       </template>
       <template #footer>
-        <UButton label="关闭" color="neutral" variant="outline" @click="detailTarget = null" />
         <template v-if="detailTarget && detailTarget.status === 'pending_review'">
           <UButton label="批准" :disabled="deciding" @click="handleApprove(detailTarget)" />
           <UButton label="拒绝" color="error" variant="soft" :disabled="deciding" @click="handleReject(detailTarget)" />
         </template>
+        <UButton label="关闭" color="neutral" variant="outline" @click="detailTarget = null" />
       </template>
     </AdminResponsiveDialog>
 
@@ -381,22 +381,22 @@ onMounted(load);
         </div>
       </template>
       <template #footer>
+        <UButton label="确认批准" color="error" variant="soft" :loading="deciding" @click="decide(conflictTarget!, 'approved')" />
         <UButton label="取消" color="neutral" variant="outline" :disabled="deciding" @click="conflictTarget = null" />
-        <UButton label="确认批准" color="error" :loading="deciding" @click="decide(conflictTarget!, 'approved')" />
       </template>
     </AdminResponsiveDialog>
 
     <AdminResponsiveDialog :open="rejectTarget !== null" title="确认拒绝申请" :description="rejectTarget ? `${rejectTarget.playerName}#${rejectTarget.playerId}` : undefined" size="sm" :dismissible="!deciding" @update:open="(open) => { if (!open && !deciding) rejectTarget = null; }">
       <template #body><p class="revoke-note">拒绝后该申请关闭，玩家需要重新发起绑定。</p></template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="deciding" @click="rejectTarget = null" /><UButton label="确认拒绝" color="error" :loading="deciding" @click="decide(rejectTarget!, 'rejected')" /></template>
+      <template #footer><UButton label="确认拒绝" color="error" variant="soft" :loading="deciding" @click="decide(rejectTarget!, 'rejected')" /><UButton label="取消" color="neutral" variant="outline" :disabled="deciding" @click="rejectTarget = null" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="revokeTarget !== null" title="撤销邀请码" :description="revokeTarget ? `${revokeTarget.playerName}#${revokeTarget.playerId}` : undefined" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body><form v-if="revokeTarget" id="invite-revoke" class="revoke-form" @submit.prevent="revokeInvitation"><p class="revoke-note">撤销后无法恢复。</p><UFormField label="撤销原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：发送对象有误" :disabled="revoking" /></UFormField></form></template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke" /><UButton label="确认撤销" color="error" type="submit" form="invite-revoke" :loading="revoking" /></template>
+      <template #footer><UButton label="确认撤销" color="error" variant="soft" type="submit" form="invite-revoke" :loading="revoking" /><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="codeTarget !== null" title="邀请码" :description="codeTarget ? `${codeTarget.playerName}#${codeTarget.playerId}` : undefined" size="sm" :dismissible="!revealingCode" @update:open="(open) => { if (!open) closeCode(); }">
       <template #body><div class="invite-code"><span v-if="revealingCode" class="table-meta">读取中…</span><code v-else>{{ invitationCode }}</code></div></template>
-      <template #footer><UButton label="关闭" color="neutral" variant="outline" :disabled="revealingCode" @click="closeCode" /><UButton label="复制口令" :disabled="!invitationCode" @click="copyInvitationCode" /></template>
+      <template #footer><UButton label="复制口令" :disabled="!invitationCode" @click="copyInvitationCode" /><UButton label="关闭" color="neutral" variant="outline" :disabled="revealingCode" @click="closeCode" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>

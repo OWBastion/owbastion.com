@@ -222,13 +222,13 @@ onMounted(() => { void load(); });
       </template>
       <template v-if='!detailLoading && selectedDetail && (editing || selectedDetail.proposal.reviewState === "pending")' #footer>
         <template v-if='editing'>
-          <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='editing = false' />
           <UButton label='保存审定' color='primary' :loading='saving' :disabled='saving || !editValue.trim()' @click='saveEditAccept' />
+          <UButton label='取消' color='neutral' variant='outline' :disabled='saving' @click='editing = false' />
         </template>
         <template v-else-if='selectedDetail.proposal.reviewState === "pending"'>
-          <UButton label='拒绝' color='error' variant='outline' :disabled='saving' @click='decide("reject")' />
-          <UButton label='编辑并接受' color='neutral' variant='outline' :disabled='saving' @click='decide("edit_accept")' />
           <UButton label='接受' color='primary' :loading='saving' :disabled='saving' @click='decide("accept")' />
+          <UButton label='编辑并接受' color='neutral' variant='outline' :disabled='saving' @click='decide("edit_accept")' />
+          <UButton label='拒绝' color='error' variant='soft' :disabled='saving' @click='decide("reject")' />
         </template>
       </template>
     </AdminResponsiveDialog>

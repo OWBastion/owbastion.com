@@ -543,6 +543,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .action-row > :where(button, a, [role="button"]) {
     flex: 1 1 auto;
     width: 100%;
+    min-height: var(--control-lg);
+    justify-content: center;
   }
 }
 
@@ -700,9 +702,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* G-01 — unified press feedback                                              */
 /* -------------------------------------------------------------------------- */
 .pressable,
-.pressable-soft,
-.primary-button,
-.secondary-button {
+.pressable-soft {
   transition:
     transform var(--press-duration) ease-out,
     background 180ms ease,
@@ -712,9 +712,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
     opacity 160ms ease;
 }
 
-.pressable:active:not(:disabled):not([aria-disabled="true"]),
-.primary-button:active:not(:disabled),
-.secondary-button:active:not(:disabled) {
+.pressable:active:not(:disabled):not([aria-disabled="true"]) {
   transform: scale(var(--press-scale));
 }
 
@@ -725,9 +723,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .pressable:disabled,
 .pressable[aria-disabled="true"],
 .pressable-soft:disabled,
-.pressable-soft[aria-disabled="true"],
-.primary-button:disabled,
-.secondary-button:disabled {
+.pressable-soft[aria-disabled="true"] {
   cursor: default;
   opacity: .58;
   transform: none;
@@ -743,28 +739,6 @@ a[data-slot="base"] {
 button[data-slot="base"]:active:not(:disabled):not([aria-disabled="true"]),
 a[data-slot="base"]:active:not([aria-disabled="true"]) {
   transform: scale(var(--press-scale));
-}
-
-.primary-button {
-  border: 1px solid color-mix(in oklch, var(--accent) 75%, var(--on-accent));
-  color: var(--on-accent);
-  background: var(--accent);
-  min-height: 44px;
-  padding: 0 15px;
-  border-radius: 11px;
-  font-size: .88rem;
-  font-weight: 680;
-}
-
-.secondary-button {
-  border: 1px solid var(--line-strong);
-  color: var(--text);
-  background: var(--surface-raised);
-  min-height: 44px;
-  padding: 0 15px;
-  border-radius: 11px;
-  font-size: .88rem;
-  font-weight: 680;
 }
 
 @media (max-width: 620px) {
@@ -860,8 +834,8 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     transition-timing-function: ease !important;
   }
 
-  :is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], .pressable, .pressable-soft, .primary-button, .secondary-button):is(:hover, :active, :focus-visible),
-  :is(a, button, [role="button"], .pressable, .pressable-soft, .primary-button, .secondary-button)[aria-expanded="true"] {
+  :is(a, button, [role="button"], [role="menuitem"], [role="menuitemradio"], [role="tab"], .pressable, .pressable-soft):is(:hover, :active, :focus-visible),
+  :is(a, button, [role="button"], .pressable, .pressable-soft)[aria-expanded="true"] {
     transform: none !important;
   }
 

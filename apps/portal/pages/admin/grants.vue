@@ -208,7 +208,7 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
           <div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span></div>
         </div>
       </template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /><UButton label="确认发放" :loading="saving" @click="grant" /></template>
+      <template #footer><UButton label="确认发放" :loading="saving" @click="grant" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>

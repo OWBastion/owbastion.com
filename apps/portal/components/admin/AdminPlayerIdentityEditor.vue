@@ -39,8 +39,8 @@ function save() {
       </form>
     </template>
     <template #footer>
-      <UButton label="取消" color="neutral" variant="outline" :disabled="loading" @click="open = false" />
       <UButton label="保存战网 ID" type="submit" form="player-identity-editor" :loading="loading" :disabled="!canSave" />
+      <UButton label="取消" color="neutral" variant="outline" :disabled="loading" @click="open = false" />
     </template>
   </AdminResponsiveDialog>
 </template>

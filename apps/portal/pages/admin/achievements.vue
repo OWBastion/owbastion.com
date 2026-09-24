@@ -544,8 +544,8 @@ onMounted(() => void load());
       </template>
       <template #footer>
         <template v-if="endTarget">
+          <UButton :label="endingCatalog ? '确认下线' : '结束挑战'" color="error" variant="soft" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
           <UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" />
-          <UButton :label="endingCatalog ? '确认下线' : '结束挑战'" color="error" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
         </template>
       </template>
     </AdminResponsiveDialog>

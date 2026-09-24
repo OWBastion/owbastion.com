@@ -61,7 +61,7 @@ watch(open, async (value) => {
       :ui="{ content: `admin-responsive-dialog__content admin-responsive-dialog__modal glass-heavy elevation-3 w-[calc(100vw-2rem)] ${sizeClasses[size]} max-h-[calc(100dvh-2rem)]`, header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body flex-1 min-h-0 overflow-y-auto', footer: 'admin-responsive-dialog__footer glass-segment' }"
     >
       <template #body><slot name="body" /></template>
-      <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+      <template v-if="$slots.footer" #footer><div class="action-row w-full"><slot name="footer" /></div></template>
     </UModal>
 
     <UDrawer
@@ -77,7 +77,7 @@ watch(open, async (value) => {
       :ui="{ content: 'admin-responsive-dialog__content admin-responsive-dialog__drawer glass-heavy elevation-3 max-h-[calc(100dvh-1rem)]', container: 'admin-responsive-dialog__container', header: 'admin-responsive-dialog__header glass-segment', body: 'admin-responsive-dialog__body flex-1 min-h-0 overflow-y-auto', footer: 'admin-responsive-dialog__footer admin-responsive-dialog__footer--drawer glass-segment pb-[max(0.75rem,env(safe-area-inset-bottom))]' }"
     >
       <template #body><slot name="body" /></template>
-      <template v-if="$slots.footer" #footer><slot name="footer" /></template>
+      <template v-if="$slots.footer" #footer><div class="action-row w-full"><slot name="footer" /></div></template>
     </UDrawer>
   </template>
 </template>
@@ -109,16 +109,10 @@ watch(open, async (value) => {
   overflow: hidden;
 }
 /* Header/footer are solid segments on glass — no second backdrop blur (A-01). */
+/* Footer content is an .action-row: primary first in DOM, laid out by its own width. */
 .admin-responsive-dialog__footer {
-  display: flex;
   flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem;
   border-top: 1px solid color-mix(in oklch, var(--line) 78%, transparent);
-}
-.admin-responsive-dialog__footer :where(button, a) {
-  min-height: 2.75rem;
 }
 .admin-responsive-dialog__footer--drawer {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -129,20 +123,6 @@ watch(open, async (value) => {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-}
-@media (max-width: 767px) {
-  .admin-responsive-dialog__footer {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: stretch;
-  }
-  .admin-responsive-dialog__footer > :empty {
-    display: none;
-  }
-  .admin-responsive-dialog__footer :where(button, a) {
-    width: 100%;
-    justify-content: center;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
   .admin-responsive-dialog__content { transition-duration: 1ms !important; }
