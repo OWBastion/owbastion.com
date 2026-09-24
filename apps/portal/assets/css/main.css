@@ -439,34 +439,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 680;
   letter-spacing: .04em;
 }
-.detail-list {
-  display: grid;
-  gap: 0;
-  margin: 0;
-}
-.detail-list > div {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--line);
-}
-.detail-list > div:first-child { padding-top: 0; }
-.detail-list > div:last-child { padding-bottom: 0; border-bottom: 0; }
-.detail-list dt { color: var(--quiet); font-size: .8rem; }
-.detail-list dd {
-  min-width: 0;
-  margin: 0;
-  font-size: .88rem;
-  font-weight: 650;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-.detail-list small { display: block; color: var(--quiet); font-size: .72rem; }
-
 /* -------------------------------------------------------------------------- */
-/* Design v2 — key-value detail grid (replaces .detail-list, see              */
+/* Design v2 — key-value detail grid (see                                                 */
 /* components-and-patterns.md). Container-query based at cq-compact (24rem):  */
 /* label/value columns collapse to a stacked, left-aligned row.               */
 /* -------------------------------------------------------------------------- */
@@ -503,6 +477,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
+.detail-grid dd.detail-grid__empty { color: var(--quiet); font-weight: 500; }
 .detail-grid dd small {
   display: block;
   margin-top: var(--space-1);
@@ -747,8 +722,6 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   .page-shell--narrow,
   .page-shell--wide { width: min(100% - 1.5rem, 90rem); }
   .page-shell--narrow { max-width: 47.5rem; }
-  .detail-list > div { align-items: flex-start; flex-direction: column; gap: 6px; }
-  .detail-list dd { text-align: left; }
 }
 
 @media (prefers-reduced-transparency: reduce) {

@@ -63,11 +63,11 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
             </li>
           </ul>
 
-          <dl v-if="showMasteryFacts && row.profile" class="detail-list mastery-facts">
-            <div><dt>精通 XP</dt><dd>{{ row.profile.totalXp }} XP</dd></div>
-            <div><dt>已验证通关</dt><dd>{{ row.profile.verifiedRunCount }} 次</dd></div>
-            <div><dt>最高难度</dt><dd>{{ row.profile.highestCompletedDifficulty ?? "暂无记录" }}</dd></div>
-            <div v-if="row.profile.recentRuns[0]"><dt>最近记录</dt><dd>{{ formatDate(row.profile.recentRuns[0].acceptedAt) }}</dd></div>
+          <dl v-if="showMasteryFacts && row.profile" class="detail-grid mastery-facts">
+            <div class="detail-grid__row"><dt>精通 XP</dt><dd>{{ row.profile.totalXp }} XP</dd></div>
+            <div class="detail-grid__row"><dt>已验证通关</dt><dd>{{ row.profile.verifiedRunCount }} 次</dd></div>
+            <div class="detail-grid__row"><dt>最高难度</dt><dd :class="{ 'detail-grid__empty': row.profile.highestCompletedDifficulty == null }">{{ row.profile.highestCompletedDifficulty ?? "暂无记录" }}</dd></div>
+            <div v-if="row.profile.recentRuns[0]" class="detail-grid__row"><dt>最近记录</dt><dd>{{ formatDate(row.profile.recentRuns[0].acceptedAt) }}</dd></div>
           </dl>
           <span v-else-if="showMasteryFacts && row.challenges.length" class="mastery-empty">暂无精通记录</span>
         </article>
