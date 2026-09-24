@@ -771,6 +771,29 @@ describe("Agents map projection readiness", () => {
       ...legacyComposite,
       stages: [...legacyComposite.stages].sort((left, right) => left.stageId.localeCompare(right.stageId)),
     });
+
+    const preparing = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.legacy-composite",
+      sourceRevisionId: "revision:map.legacy-composite:initial",
+      gameVersion: "2026.09.24",
+      mapVariant: null,
+      copyConfiguration: false,
+      spatialConfig: legacyComposite,
+      challengeAssignments: [],
+    }, auth, "prepare-legacy-composite");
+    expect(preparing.lifecycle).toBe("preparing");
+    await expect(services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.legacy-composite",
+      revisionId: preparing.revisionId,
+      lifecycle: "default",
+      replacedDefaultLifecycle: "selectable",
+      gameVersion: "2026.09.24",
+      mapVariant: null,
+      spatialConfig: legacyComposite,
+      challengeAssignments: [],
+    }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
   it("keeps preparing composite revisions out of the Agents projection", async () => {
