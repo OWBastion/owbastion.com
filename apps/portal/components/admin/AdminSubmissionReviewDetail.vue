@@ -279,6 +279,7 @@ const challengeSummary = computed(() => {
   --review-sticky-top: var(--sticky-chrome-top, max(0.75rem, env(safe-area-inset-top, 0px)));
   --review-touch: 2.75rem;
 
+  container-type: inline-size;
   display: grid;
   gap: var(--review-gap);
   width: 100%;
@@ -306,7 +307,7 @@ const challengeSummary = computed(() => {
 }
 .detail-meta__player {
   color: var(--text);
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -322,7 +323,7 @@ const challengeSummary = computed(() => {
 }
 .player-link {
   color: var(--accent);
-  font-weight: 650;
+  font-weight: 600;
   text-decoration: none;
 }
 .player-link:hover,
@@ -379,7 +380,7 @@ const challengeSummary = computed(() => {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: calc(var(--review-radius) - 0.125rem);
+  border-radius: var(--radius-control);
 }
 .evidence-message {
   margin: 0;
@@ -450,7 +451,7 @@ const challengeSummary = computed(() => {
 .claim-card__header h3 {
   margin: 0;
   font-size: 1.05rem;
-  font-weight: 720;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -459,7 +460,7 @@ const challengeSummary = computed(() => {
   flex: 0 0 auto;
   color: var(--quiet);
   font-size: 0.72rem;
-  font-weight: 650;
+  font-weight: 500;
   white-space: nowrap;
 }
 .claim-meta {
@@ -510,7 +511,7 @@ const challengeSummary = computed(() => {
   padding: 0.75rem var(--review-inset);
   color: var(--quiet);
   font-size: 0.78rem;
-  font-weight: 650;
+  font-weight: 500;
   user-select: none;
 }
 .meta-disclosure > summary::-webkit-details-marker {
@@ -536,7 +537,7 @@ const challengeSummary = computed(() => {
 }
 
 /* Narrow: one column; claim then decide, then evidence for verification */
-@media (max-width: 51.25rem) {
+@container (max-width: 23.99rem) {
   .review-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:

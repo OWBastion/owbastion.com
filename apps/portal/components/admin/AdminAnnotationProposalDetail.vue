@@ -46,19 +46,19 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 </template>
 
 <style scoped>
-.annotation-detail { display: grid; gap: 22px; }
-.annotation-detail__section { display: grid; gap: 12px; }
-.annotation-detail__section h2 { margin: 0; font-size: 1rem; font-weight: 720; }
-.annotation-detail__section h3 { margin: 0; font-size: .86rem; font-weight: 640; }
-.annotation-detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
-.annotation-detail__facts > div { display: grid; gap: 4px; min-width: 0; }
+.annotation-detail { container-type: inline-size; display: grid; gap: var(--space-6); }
+.annotation-detail__section { display: grid; gap: var(--space-3); }
+.annotation-detail__section h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+.annotation-detail__section h3 { margin: 0; font-size: .86rem; font-weight: 600; }
+.annotation-detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
+.annotation-detail__facts > div { display: grid; gap: var(--space-1); min-width: 0; }
 .annotation-detail__facts dt { color: var(--quiet); font-size: .74rem; }
 .annotation-detail__facts dd { margin: 0; color: var(--text); font-size: .86rem; overflow-wrap: anywhere; }
-.annotation-detail__link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.annotation-detail__link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .annotation-detail__link:hover,
 .annotation-detail__link:focus-visible { text-decoration: underline; }
-.annotation-detail__ocr { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
-@media (max-width: 48rem) {
+.annotation-detail__ocr { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); }
+@container (max-width: 23.99rem) {
   .annotation-detail__facts { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

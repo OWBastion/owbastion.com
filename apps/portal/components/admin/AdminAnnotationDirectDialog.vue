@@ -220,19 +220,19 @@ async function createAnnotation() {
 </template>
 
 <style scoped>
-.annotation-direct { display: grid; gap: 12px; }
-.annotation-direct-error { margin-bottom: 4px; }
-.annotation-direct-option { display: grid; gap: 2px; min-width: 0; }
-.annotation-direct-fact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--text); font-size: .86rem; }
-.annotation-direct-link { color: var(--accent); font-weight: 650; text-decoration: none; }
+.annotation-direct { container-type: inline-size; display: grid; gap: var(--space-3); }
+.annotation-direct-error { margin-bottom: var(--space-1); }
+.annotation-direct-option { display: grid; gap: var(--space-1); min-width: 0; }
+.annotation-direct-fact { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: .86rem; }
+.annotation-direct-link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .annotation-direct-link:hover, .annotation-direct-link:focus-visible { text-decoration: underline; }
-.annotation-direct-ocr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
-.annotation-direct-ocr > div { display: grid; gap: 2px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.annotation-direct-ocr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); margin: 0; }
+.annotation-direct-ocr > div { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
 .annotation-direct-ocr dt { color: var(--quiet); font-size: .72rem; }
 .annotation-direct-ocr dd { margin: 0; overflow-wrap: anywhere; font-size: .82rem; }
-.annotation-direct-form { display: grid; gap: 8px; }
+.annotation-direct-form { display: grid; gap: var(--space-2); }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
-@media (max-width: 48rem) {
+@container (max-width: 23.99rem) {
   .annotation-direct-ocr { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

@@ -148,13 +148,13 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.review-filters { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); width: 100%; }
 .review-filters > :first-child { flex: 1 1 13rem; min-width: 10rem; }
 .review-filters > :not(:first-child) { flex: 0 1 10rem; min-width: 9rem; }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; }
-.pagination { display: flex; justify-content: center; margin-top: 12px; }
-.detail-loading { display: grid; gap: 10px; }
-.moderation-confirmation { display: grid; gap: 10px; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
+.detail-loading { display: grid; gap: var(--space-3); }
+.moderation-confirmation { display: grid; gap: var(--space-3); margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .moderation-confirmation p { margin: 0; font-size: .86rem; }
 .moderation-consequence { color: var(--muted); line-height: 1.55; }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; }.review-filters > :first-child, .review-filters > :not(:first-child) { min-width: 0; } }

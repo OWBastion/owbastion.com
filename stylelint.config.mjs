@@ -4,6 +4,21 @@
 // everywhere else they are warnings. Paths are relative to the repository root.
 const errorDirectories = [];
 
+// Individual files that have completed their v2 sweep ahead of the rest of
+// their directory (e.g. one sub-area of a large admin sweep). Paths are
+// relative to the repository root.
+const errorFiles = [
+  'apps/portal/components/admin/AdminReviewDetail.vue',
+  'apps/portal/components/admin/AdminReviewQueue.vue',
+  'apps/portal/components/admin/AdminSubmissionReviewDetail.vue',
+  'apps/portal/components/admin/AdminSubmissionReviewSignals.vue',
+  'apps/portal/components/admin/AdminAnnotationDirectDialog.vue',
+  'apps/portal/components/admin/AdminAnnotationProposalDetail.vue',
+  'apps/portal/pages/admin/reviews/index.vue',
+  'apps/portal/pages/admin/annotations/index.vue',
+  'apps/portal/pages/admin/player-reviews/index.vue',
+];
+
 const rawPx = /(?<![\w.])(?!(?:1|0)px\b)\d*\.?\d+px/;
 const radiusLiteral = /(?<![\w.])(?!0(?:px|rem|em)?(?![\w.])|50%)\d*\.?\d+(?:px|r?em|vw|vh|%)/;
 const pageBreakpoints = [/^(?:48|64)rem$/, /^(?:47|63)\.99rem$/];
@@ -44,5 +59,9 @@ export default {
       files: [`${dir}/**`],
       defaultSeverity: 'error',
     })),
+    {
+      files: errorFiles,
+      defaultSeverity: 'error',
+    },
   ],
 };
