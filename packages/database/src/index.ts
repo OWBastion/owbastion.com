@@ -210,6 +210,43 @@ const hashRequest = async (value: unknown) => {
 
 const bindingClaimSessionToken = (claimToken: string) => hashRequest({ purpose: "binding-claim-session", claimToken });
 
+export const resolvePortalSession = async (
+  databaseOrDb: D1Database | ReturnType<typeof drizzle>,
+  sessionToken: string,
+) => {
+  const db = "prepare" in databaseOrDb ? drizzle(databaseOrDb) : databaseOrDb;
+  const row = await db
+    .select({
+      binding: bindings,
+      player: playerAccounts,
+    })
+    .from(qqSessions)
+    .innerJoin(
+      bindings,
+      and(
+        eq(bindings.provider, "qq"),
+        eq(bindings.memberOpenId, qqSessions.memberOpenId),
+        eq(bindings.status, "active"),
+      ),
+    )
+    .innerJoin(
+      playerAccounts,
+      eq(playerAccounts.id, bindings.playerAccountId),
+    )
+    .where(
+      and(
+        eq(qqSessions.tokenHash, await hashRequest(sessionToken)),
+        gt(qqSessions.expiresAt, now()),
+        ne(playerAccounts.status, "banned"),
+      ),
+    )
+    .get();
+  if (!row) return null;
+  return { binding: row.binding, player: row.player };
+};
+
+export { resolvePortalSession as getCurrentPortalPlayer };
+
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 const hexToBytes = (value: string) => {
   if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
@@ -1574,15 +1611,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     };
   };
 
-  const getCurrentPortalPlayer = async (sessionToken: string) => {
-    const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
-    if (!session) return null;
-    const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
-    if (!binding) return null;
-    const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-    if (!player || player.status === "banned") return null;
-    return { binding, player };
-  };
+  const getCurrentPortalPlayer = (sessionToken: string) => resolvePortalSession(db, sessionToken);
 
   const normalizeMasteryEventCounters = (value: MasteryEventCounters | undefined): MasteryEventCounters => {
     const entries = Object.entries(value ?? {}).map(([key, count]) => {
