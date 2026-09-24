@@ -21,7 +21,7 @@ const legacyConfig = {
 
 const stageSpatial = (offset: number) => ({
   bastionPositions: [[offset, offset + 1, offset + 2]],
-  control: null,
+  control: { centerPositions: [], jumpPositions: [[offset + 3, offset + 4, offset + 5]], respawnPositions: [[offset + 6, offset + 7, offset + 8]] },
   portalPositions: [],
   springboardPositions: [],
 });
@@ -31,7 +31,7 @@ const compositeConfig = {
   endPosition: [4, 5, 6],
   thirdPersonPosition: [7, 8, 9],
   creditsPosition: [10, 11, 12],
-  control: null,
+  control: { respawnAxis: "z", respawnAxisThreshold: 40 },
   composition: {
     selectionCount: 2,
     firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" },

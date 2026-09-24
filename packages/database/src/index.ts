@@ -3,7 +3,7 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryProfiles, calculateMasteryXpV1, annotationProposalPriority, deriveOcrFeedbackDecision, isMasteryGameVersionSupported, isMasteryOcrLayoutSupported, masteryDifficulties, masteryEvidenceCompatibilityV1, normalizeMasteryRunCode } from "@owbastion/domain";
 import type { AdminMasteryRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, MasteryDifficulty, MasteryEventCounters, MasteryEvidenceCompatibilityV1, MasteryMapProfile, MasteryRunActor, MasteryRunConflictField, MasteryRunForProjection, MasteryXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedMasteryRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedMasteryRun, VerifiedMasteryRunInput } from "@owbastion/domain";
-import { agentGameplayRevisionSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
+import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionChallengeListResponse, AdminSubmissionChallengeOption, AdminSubmissionChallengeRequest, AdminSubmissionChallengeResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminMasteryRun, AdminMasteryRunConflict, AdminMasteryRunDetailResponse, AdminMasteryRunProjection, AdminMasteryRunStateResponse, AdminMasteryRunConflictResolutionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, masteryRunConflictResolutions, masteryRunLifecycleEvents, masteryRuns, ocrFeedbackProposals, ocrResults, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, qqSessions, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionChallengeSelections, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
@@ -1166,9 +1166,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const revisionLifecycles = new Set(["preparing", "default", "selectable", "historical"]);
   const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
   const nullableEditorText = (value: string | null) => value?.trim() || null;
-  const normalizeSpatialConfig = (config: AgentSpatialConfig): AgentSpatialConfig => "stages" in config
-    ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) } as AgentSpatialConfig
-    : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) };
+  const normalizeSpatialConfig = <T extends AgentSpatialConfig>(config: T): T => "stages" in config
+    ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T
+    : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) } as T;
   const parseSpatialConfig = (value: unknown): AgentSpatialConfig => {
     const parsed = agentSpatialConfigSchema.safeParse(value);
     if (!parsed.success) throw new Error("INVALID_SPATIAL_CONFIG");
@@ -1177,7 +1177,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const parseAgentSpatialConfig = (value: string | null) => {
     if (!value) return null;
     try {
-      return parseSpatialConfig(JSON.parse(value));
+      const parsed = agentProjectedSpatialConfigSchema.safeParse(JSON.parse(value));
+      return parsed.success ? normalizeSpatialConfig(parsed.data) : null;
     } catch {
       return null;
     }
@@ -1346,6 +1347,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
     if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
     const parsed = spatialConfig ? parseSpatialConfig(spatialConfig) : null;
+    if ((lifecycle === "default" || lifecycle === "selectable") && parsed && !agentProjectedSpatialConfigSchema.safeParse(parsed).success) {
+      throw new Error("INVALID_SPATIAL_CONFIG");
+    }
     if (!COMPOSITE_SPATIAL_CONFIG_AGENT_PROJECTION_ENABLED && (lifecycle === "default" || lifecycle === "selectable") && parsed && "composition" in parsed) {
       throw new Error("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
     }

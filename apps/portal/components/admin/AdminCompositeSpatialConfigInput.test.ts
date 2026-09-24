@@ -8,12 +8,12 @@ const routeSpatial = () => ({
   endPosition: [7, 8, 9],
   thirdPersonPosition: [10, 11, 12],
   creditsPosition: [13, 14, 15],
-  control: null,
+  control: { respawnAxis: "z" as const, respawnAxisThreshold: 40 },
 });
 
 const spatial = (offset: number) => ({
   bastionPositions: [[offset, offset + 1, offset + 2]],
-  control: null,
+  control: { centerPositions: [], jumpPositions: [[offset + 3, offset + 4, offset + 5]], respawnPositions: [[offset + 6, offset + 7, offset + 8]] },
   portalPositions: [],
   springboardPositions: [],
 });
@@ -169,7 +169,7 @@ describe("AdminCompositeSpatialConfigInput", () => {
         : stage),
     };
     const wrapper = await mountEditor(config);
-    expect(wrapper.text()).toContain("重生轴与阈值必须成对设置，且阶段中需要有占领重生点");
+    expect(wrapper.text()).toContain("复合路线必须设置一个重生轴及非负阈值。");
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
   });
 
@@ -182,7 +182,28 @@ describe("AdminCompositeSpatialConfigInput", () => {
     };
     const wrapper = await mountEditor(config);
 
-    expect(wrapper.text()).toContain("每阶段的阶段间传送点与占领重生点须成对配置，且最多一对。");
+    expect(wrapper.text()).toContain("每个阶段须恰好配置一个占领跳跃点和一个重生点");
+    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
+  });
+
+  it("explains composite control cardinality failures", async () => {
+    const base = compositeConfig();
+    const invalid = {
+      ...base,
+      stages: base.stages.map((stage, index) => ({
+        ...stage,
+        control: {
+          centerPositions: [],
+          jumpPositions: index === 0 ? [[1, 2, 3], [4, 5, 6]] : [[1, 2, 3]],
+          respawnPositions: [[7, 8, 9]],
+          respawnAxis: "x",
+          respawnAxisThreshold: 5,
+        },
+      })),
+    };
+    const wrapper = await mountEditor(invalid);
+
+    expect(wrapper.text()).toContain("每个阶段须恰好配置一个占领跳跃点和一个重生点");
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
   });
 });

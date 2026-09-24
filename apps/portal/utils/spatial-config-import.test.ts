@@ -36,7 +36,7 @@ const sharedCompositeConfig = {
   composition: compositeConfig.composition,
   stages: [
     { stageId: "base", bastionPositions: [[13, 14, 15]], control: { centerPositions: [[16, 17, 18]], jumpPositions: [[17, 18, 19]], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
-    { stageId: "icebreaker", setupDetection: { position: [22, 23, 24], radius: 30 }, bastionPositions: [[25, 26, 27]], control: null, portalPositions: [[28, 29, 30]], springboardPositions: [] },
+    { stageId: "icebreaker", setupDetection: { position: [22, 23, 24], radius: 30 }, bastionPositions: [[25, 26, 27]], control: { centerPositions: [], jumpPositions: [[31, 32, 33]], respawnPositions: [[34, 35, 36]] }, portalPositions: [[28, 29, 30]], springboardPositions: [] },
   ],
 };
 

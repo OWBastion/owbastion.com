@@ -733,12 +733,12 @@ describe("Agents map gameplay projection", () => {
 });
 
 describe("Agents map projection readiness", () => {
-  it("projects atomic composite stages in stable ID order without changing the legacy revision shape", async () => {
+  it("projects route-root composite stages in stable ID order", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.composite");
     seedAgentSpatialConfig(sqlite, "revision:map.composite:initial");
-    const composite = compositeSpatialConfig();
+    const composite = sharedCompositeSpatialConfig();
     sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(composite), "revision:map.composite:initial");
     const services = createPlatformServices(database);
 
@@ -750,12 +750,54 @@ describe("Agents map projection readiness", () => {
     expect(map.gameplayRevisions[0]?.spatialConfig).toMatchObject({
       composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" }, remainingStageSelection: "random_unique" },
       stages: [
-        { stageId: "base", bastionPositions: [[1, 2, 3]] },
+        { stageId: "base", bastionPositions: [[1, 2, 3]], control: { respawnPositions: [[19, 20, 21]] } },
         { stageId: "icebreaker", bastionPositions: [[10, 11, 12]], setupDetection: { position: [20, 21, 22], radius: 30 } },
         { stageId: "laboratory", bastionPositions: [[30, 31, 32]], setupDetection: { position: [40, 41, 42], radius: 30 } },
       ],
     });
     expect(map.gameplayRevisions[0]?.spatialConfig).not.toHaveProperty("alternateStages");
+  });
+
+  it("keeps legacy full-stage composite revisions editable but out of the Agents projection", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.legacy-composite");
+    seedAgentSpatialConfig(sqlite, "revision:map.legacy-composite:initial");
+    const legacyComposite = compositeSpatialConfig();
+    sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(legacyComposite), "revision:map.legacy-composite:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    const projected = (await services.getAgentMap({ mapId: "map.legacy-composite" }))!;
+    const editor = await services.getAdminMapEditor({ mapId: "map.legacy-composite" }, auth);
+    expect(projected.gameplayRevisions).toEqual([]);
+    expect(editor.revisions[0]?.spatialConfig).toEqual({
+      ...legacyComposite,
+      stages: [...legacyComposite.stages].sort((left, right) => left.stageId.localeCompare(right.stageId)),
+    });
+
+    const preparing = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.legacy-composite",
+      sourceRevisionId: "revision:map.legacy-composite:initial",
+      gameVersion: "2026.09.24",
+      mapVariant: null,
+      copyConfiguration: false,
+      spatialConfig: legacyComposite,
+      challengeAssignments: [],
+    }, auth, "prepare-legacy-composite");
+    expect(preparing.lifecycle).toBe("preparing");
+    await expect(services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.legacy-composite",
+      revisionId: preparing.revisionId,
+      lifecycle: "default",
+      replacedDefaultLifecycle: "selectable",
+      gameVersion: "2026.09.24",
+      mapVariant: null,
+      spatialConfig: legacyComposite,
+      challengeAssignments: [],
+    }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
   it("keeps preparing composite revisions out of the Agents projection", async () => {
@@ -1177,7 +1219,7 @@ const sharedCompositeSpatialConfig = (): AgentSpatialConfig => ({
     remainingStageSelection: "random_unique",
   },
   stages: [
-    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: null, portalPositions: [], springboardPositions: [] },
+    { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: { centerPositions: [], jumpPositions: [[31, 32, 33]], respawnPositions: [[34, 35, 36]] }, portalPositions: [], springboardPositions: [] },
     { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [], jumpPositions: [[16, 17, 18]], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
     { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[19, 20, 21]], respawnPositions: [[22, 23, 24]] }, portalPositions: [[25, 26, 27]], springboardPositions: [] },
   ],

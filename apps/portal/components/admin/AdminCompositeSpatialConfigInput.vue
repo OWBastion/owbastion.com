@@ -83,6 +83,7 @@ const allCoordinatesValid = computed(() =>
 function issueMessage(issue: ValidationIssue): string {
   const path = issue.path.map(String).join(".");
   if (path === "composition.selectionCount") return "选择数量必须是 2 到 16 的整数，且不得超过阶段数量。";
+  if (path.startsWith("stages.") && path.includes(".control")) return "每个阶段须恰好配置一个占领跳跃点和一个重生点；路线共用同一重生轴与阈值。";
   if (path === "composition.firstStageSelection.fallbackStageId") return "请选择一个已存在的回退阶段。";
   if (path.endsWith(".stageId")) return issue.message === "Duplicate composite spatial stage" ? "阶段 ID 重复。" : "阶段 ID 格式无效。";
   if (path.endsWith(".setupDetection.position")) return "请输入三个有效的检测坐标。";
@@ -97,7 +98,7 @@ function issueMessage(issue: ValidationIssue): string {
   }
   if (path.endsWith(".control.jumpPositions") || path.endsWith(".control.respawnPositions")) return "每阶段的阶段间传送点与占领重生点须成对配置，且最多一对。";
   if (["resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition"].includes(String(issue.path[0]))) return "请在全路线点位中提供此坐标。";
-  if (issue.path[0] === "control") return "重生轴与阈值必须成对设置，且阶段中需要有占领重生点。";
+  if (issue.path[0] === "control") return "复合路线必须设置一个重生轴及非负阈值。";
   return "空间配置无效。";
 }
 
@@ -120,7 +121,7 @@ function stageSpatialError(index: number) {
   const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions"]);
   const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && stageFields.has(String(item.path[2])));
   if (!issue) return "";
-  if (issue.path[2] === "control" && (issue.path[3] === "jumpPositions" || issue.path[3] === "respawnPositions")) return issueMessage(issue);
+  if (issue.path[2] === "control") return issueMessage(issue);
   return "请为此阶段提供 Bastion 出生点并检查阶段专属点位。";
 }
 
@@ -291,7 +292,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
       />
       <p v-if="routeSpatialError()" class="field-error" role="alert">{{ routeSpatialError() }}</p>
       <div class="route-control-fields">
-        <UFormField label="占领重生轴">
+        <UFormField label="占领重生轴" required>
           <USelect
             :model-value="config.control?.respawnAxis ?? ''"
             :items="[{ value: '', label: '不设置' }, { value: 'x', label: 'X 轴' }, { value: 'y', label: 'Y 轴' }, { value: 'z', label: 'Z 轴' }]"
@@ -300,7 +301,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
             @update:model-value="updateRouteControl($event, config.control?.respawnAxisThreshold)"
           />
         </UFormField>
-        <UFormField label="占领重生轴阈值">
+        <UFormField label="占领重生轴阈值" required>
           <UInput
             :model-value="detectionInputValue(config.control?.respawnAxisThreshold)"
             type="number"
