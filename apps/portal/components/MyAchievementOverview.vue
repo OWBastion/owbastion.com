@@ -84,17 +84,17 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
         <p v-if="challenges.length" class="achievement-count">已获得 {{ earnedCatalogCount }} / {{ challenges.length }}</p>
         <section v-for="group in groups" :key="group.category" class="achievement-section" :aria-labelledby="`my-category-${group.category}`">
           <header class="section-heading"><h3 :id="`my-category-${group.category}`">{{ group.category }}</h3><span>{{ group.cards.filter(isAchievementCardEarned).length }} / {{ group.cards.length }}</span></header>
-          <div class="achievement-grid">
+          <div class="directory-grid">
             <article v-for="card in group.cards" :key="card.kind === 'catalog' ? card.challenge.challengeId : card.title.grantId" class="achievement-card" :class="{ earned: isAchievementCardEarned(card) }">
               <div class="achievement-icon" :class="{ 'has-image': card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl }" aria-hidden="true"><img v-if="card.kind === 'catalog' ? card.challenge.iconUrl : card.title.iconUrl" :src="card.kind === 'catalog' ? card.challenge.iconUrl! : card.title.iconUrl!" alt="" /><UIcon v-else :name="`i-lucide-${card.kind === 'catalog' ? card.challenge.icon : card.title.icon}`" /></div>
               <div class="achievement-copy">
                 <div class="achievement-title-row">
-                  <strong>{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
+                  <strong class="type-card-title">{{ card.kind === 'catalog' ? card.challenge.titleName : card.title.label }}</strong>
                   <StatusBadge v-if="card.kind === 'retired'" class="retired-status" label="不再发放" />
                 </div>
-                <span>{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
-                <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="status">未开放</span>
-                <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="status">即将结束</span>
+                <span class="type-label-sm">{{ card.kind === 'catalog' ? card.challenge.condition : card.title.condition }}</span>
+                <span v-if="card.kind === 'catalog' && card.challenge.status === 'scheduled'" class="type-caption status">未开放</span>
+                <span v-else-if="card.kind === 'catalog' && card.challenge.status === 'sunsetting'" class="type-caption status">即将结束</span>
               </div>
               <span v-if="isAchievementCardEarned(card)" class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
               <UButton v-if="ownedGlobalTitleForCard(card)" class="equip-action" size="xs" :disabled="savingEquip || !canEquip(ownedGlobalTitleForCard(card)!)" :aria-label="ownedGlobalTitleForCard(card)!.equipped ? `取消佩戴 ${ownedGlobalTitleForCard(card)!.label}` : `佩戴 ${ownedGlobalTitleForCard(card)!.label}`" @click="emit('toggleEquipped', ownedGlobalTitleForCard(card)!.grantId)">{{ ownedGlobalTitleForCard(card)!.equipped ? "取消佩戴" : "佩戴" }}</UButton>
@@ -112,10 +112,10 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
         <header class="section-heading"><h2 id="map-titles-title">其他地图称号</h2><span>{{ mapTitleCount }} 项</span></header>
         <section v-for="(group, index) in mapTitleGroups" :key="group.name" class="map-title-group" :aria-labelledby="`map-title-${index}`">
             <header class="map-title-heading"><h3 :id="`map-title-${index}`">{{ group.name }}</h3><span>{{ group.titles.length }} 项</span></header>
-            <div class="achievement-grid">
+            <div class="directory-grid">
               <article v-for="title in group.titles" :key="title.grantId" class="achievement-card earned">
                 <div class="achievement-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div>
-                <div class="achievement-copy"><div class="achievement-title-row"><strong>{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span>{{ title.condition }}</span></div>
+                <div class="achievement-copy"><div class="achievement-title-row"><strong class="type-card-title">{{ title.label }}</strong><StatusBadge v-if="title.mapId && title.gameplayRevisionId && !props.maps.some((map) => map.mapId === title.mapId && map.defaultGameplayRevisionId === title.gameplayRevisionId)" class="retired-status" label="历史版本" /></div><span class="type-label-sm">{{ title.condition }}</span></div>
                 <span class="earned-status-icon" role="img" aria-label="已获得"><UIcon name="i-lucide-circle-check" /></span>
               </article>
             </div>
@@ -126,56 +126,54 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
     </div>
 
     <aside class="achievement-sidebar" aria-label="最近获得">
-      <section class="sidebar-card surface-card" aria-labelledby="recent-title"><header class="sidebar-heading"><h2 id="recent-title">最近获得</h2></header><div v-if="recentTitles.length" class="recent-list"><article v-for="title in recentTitles" :key="title.grantId" class="recent-item"><div class="recent-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div><div><strong>{{ title.label }}</strong><span>{{ formatDate(title.grantedAt) }}</span></div></article></div><UEmpty v-else title="暂无称号" variant="naked" /></section>
+      <section class="sidebar-card surface-card" aria-labelledby="recent-title"><header class="sidebar-heading"><h2 id="recent-title">最近获得</h2></header><div v-if="recentTitles.length" class="recent-list"><article v-for="title in recentTitles" :key="title.grantId" class="recent-item"><div class="recent-icon" :class="{ 'has-image': title.iconUrl }" aria-hidden="true"><img v-if="title.iconUrl" :src="title.iconUrl" alt="" /><UIcon v-else :name="`i-lucide-${title.icon}`" /></div><div><strong class="type-label">{{ title.label }}</strong><span class="type-label-sm">{{ formatDate(title.grantedAt) }}</span></div></article></div><UEmpty v-else title="暂无称号" variant="naked" /></section>
     </aside>
   </div>
 </template>
 
 <style scoped>
-.achievement-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(15.625rem, 18.75rem); align-items: start; gap: 1.25rem; }
-.achievement-main { display: grid; gap: 1.25rem; }
-.general-achievement-section { display: grid; gap: 1.25rem; }
-.map-achievement-section { display: grid; gap: 1rem; }
-.achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.achievement-layout { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-5); }
+.achievement-main { display: grid; flex: 999 1 32rem; gap: var(--space-5); min-width: 0; }
+.general-achievement-section { display: grid; gap: var(--space-5); }
+.map-achievement-section { display: grid; gap: var(--space-4); }
+.achievement-type-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .achievement-type-heading h2 { margin: 0; color: var(--text); font-size: 1.15rem; }
-.equipped-count { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted); font-size: var(--type-caption-size); }.equipped-count strong { font-weight: 650; }
+.equipped-count { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: var(--type-caption-size); }
+.equipped-count strong { font-weight: 500; }
 .achievement-count { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
-.achievement-section { padding: clamp(1.125rem, 3vw, 1.625rem); border: 1px solid var(--line); border-radius: 1.125rem; background: var(--surface); }
-.section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.section-heading { margin-bottom: 1rem; }
+.achievement-section { padding: clamp(var(--space-4), 3vw, var(--space-6)); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.section-heading, .sidebar-heading, .map-title-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.section-heading { margin-bottom: var(--space-4); }
 .section-heading h2, .section-heading h3, .sidebar-heading h2, .map-title-heading h3 { margin: 0; color: var(--text); }
 .section-heading h2, .section-heading h3, .sidebar-heading h2 { font-size: 1.05rem; }
 .map-title-heading h3 { font-size: 0.94rem; }
-.section-heading span, .map-title-heading span { color: var(--quiet); font-size: 0.78rem; }
-.map-title-collection { display: grid; gap: 1rem; }
-.map-title-group { display: grid; gap: 0.75rem; }
-.map-title-group + .map-title-group { padding-top: 1.125rem; border-top: 1px solid var(--line); }
-.achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.625rem; }
-.achievement-card { display: grid; grid-template-columns: 4rem minmax(0, 1fr) auto; align-items: start; gap: 0.8125rem; min-width: 0; padding: 1rem; border: 1px solid var(--line); border-radius: 0.875rem; background: color-mix(in oklch, var(--surface-raised) 64%, var(--surface)); transition: border-color 160ms ease, background 160ms ease; }
+.section-heading span, .map-title-heading span { color: var(--quiet); font-size: var(--type-caption-size); }
+.map-title-collection { display: grid; gap: var(--space-4); }
+.map-title-group { display: grid; gap: var(--space-3); }
+.map-title-group + .map-title-group { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.achievement-card { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface-raised) 64%, var(--surface)); transition: border-color 160ms ease, background 160ms ease; }
 .achievement-card.earned { border-color: color-mix(in oklch, var(--success) 44%, var(--line)); background: color-mix(in oklch, var(--success-surface) 16%, var(--surface)); }
 .achievement-icon, .recent-icon { display: grid; place-items: center; border: 1px dashed var(--line-strong); border-radius: 50%; color: var(--quiet); background: var(--surface); }
 .achievement-icon.has-image, .recent-icon.has-image { border-color: transparent; background: transparent; }
 .achievement-card.earned .achievement-icon:not(.has-image) { border-style: solid; border-color: color-mix(in oklch, var(--success) 48%, var(--line)); color: var(--success); background: color-mix(in oklch, var(--success-surface) 20%, var(--surface)); }
-.achievement-icon { width: 3.375rem; height: 3.375rem; overflow: hidden; }
-.achievement-icon.has-image { width: 4rem; height: 4rem; }
-.achievement-icon img, .recent-icon img { width: 1.75rem; height: 1.75rem; object-fit: contain; }
+.achievement-icon { width: 3.5rem; height: 3.5rem; overflow: hidden; }
 .achievement-icon.has-image img { width: 100%; height: 100%; }
-.achievement-copy { display: grid; align-content: start; gap: 0.375rem; min-width: 0; }
-.achievement-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; min-width: 0; }
+.achievement-icon img, .recent-icon img { width: 1.75rem; height: 1.75rem; object-fit: contain; }
+.achievement-copy { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
+.achievement-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
 .achievement-copy strong, .recent-item strong { overflow-wrap: anywhere; color: var(--text); }
-.achievement-copy > span:not(.earned-status-icon):not(.status), .recent-item span { color: var(--muted); font-size: 0.76rem; line-height: 1.5; }
+.achievement-copy > span:not(.earned-status-icon):not(.status), .recent-item span { color: var(--muted); }
 .earned-status-icon { display: inline-grid; width: fit-content; place-items: center; color: var(--success); font-size: 1rem; }
-.equip-action { grid-column: 2 / -1; justify-self: start; margin-top: .25rem; }
-.status { width: fit-content; color: var(--quiet); font-size: 0.7rem; font-weight: 720; }
-.achievement-sidebar { display: grid; gap: 1.25rem; }
-.sidebar-card { padding: 1.25rem; }
-.recent-list { display: grid; gap: 0.75rem; margin-top: 1rem; }
-.recent-item { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; gap: 0.75rem; }
-.recent-item > div:last-child { display: grid; gap: 0.25rem; }
+.equip-action { grid-column: 2 / -1; justify-self: start; margin-top: var(--space-1); }
+.status { width: fit-content; color: var(--quiet); font-weight: 600; }
+.achievement-sidebar { display: grid; flex: 1 1 15.625rem; max-width: 100%; gap: var(--space-5); }
+.sidebar-card { padding: var(--space-5); }
+.recent-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+.recent-item { display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.recent-item > div:last-child { display: grid; gap: var(--space-1); }
 .recent-icon { width: 2.5rem; height: 2.5rem; }
+@container (max-width: 23.99rem) { .achievement-icon { width: 2.5rem; height: 2.5rem; } }
 @media (prefers-reduced-motion: reduce) { .achievement-card { transition: none; } }
 @media (prefers-reduced-transparency: reduce) { .achievement-card { background: var(--surface-raised); }.achievement-card.earned { background: color-mix(in oklch, var(--success-surface) 24%, var(--surface)); } }
 @media (prefers-contrast: more) { .achievement-card { border-color: var(--text); } }
-@media (max-width: 820px) { .achievement-layout { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .achievement-grid { grid-template-columns: 1fr; }.achievement-section, .sidebar-card { padding: 1rem; } }
 </style>

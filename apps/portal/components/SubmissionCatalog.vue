@@ -21,5 +21,5 @@ const familyItems = [
 </template>
 
 <style scoped>
-.catalog { display: grid; gap: 24px; min-width: 0; }
+.catalog { display: grid; gap: var(--space-6); min-width: 0; }
 </style>

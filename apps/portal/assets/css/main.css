@@ -831,3 +831,13 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
     transform: none !important;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Design v2 — fluid directory grid (see layout-and-spacing.md). Column count */
+/* falls out of the 17rem minimum track; no media queries.                    */
+/* -------------------------------------------------------------------------- */
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--space-4);
+}
