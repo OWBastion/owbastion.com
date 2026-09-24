@@ -8,7 +8,7 @@ type SpotCheckDecision = "confirmed" | "revoked";
 
 const props = defineProps<{
   submission: AdminSubmission;
-  evidenceSrc: string;
+  evidenceSrc: string | null;
   evidenceError?: boolean;
   reviewError?: string;
   actionLoading?: boolean;
@@ -126,11 +126,10 @@ const challengeSummary = computed(() => {
           <template #header>
             <div class="card-heading">
               <h3>提交截图</h3>
-              <span>私有证据</span>
             </div>
           </template>
           <img
-            v-if="!evidenceError"
+            v-if="evidenceSrc && !evidenceError"
             class="evidence-image"
             :src="evidenceSrc"
             alt="玩家提交的挑战截图"

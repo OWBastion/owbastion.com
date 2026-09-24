@@ -14,27 +14,31 @@ deployment job:
 - isolated D1 database named `owbastion-codes-staging` for remote migration validation;
 - R2 bucket named `owbastion-codes-evidence`;
 - R2 custom domain `evidence.owbastion.codes` connected to that bucket, with
-  Cloudflare Cache enabled for the object paths;
-- R2 CORS allowing `GET` from `https://owbastion.com` and the
-  `x-owbastion-review` request header;
-- a WAF custom rule on `evidence.owbastion.codes` that allows `OPTIONS`, and
-  for `GET`/`HEAD` under `/uploads/submissions/` blocks requests whose
-  `x-owbastion-review` header is not exactly `portal-admin` or `portal-player`.
-  This is only a weak source check, not authorization; anyone who learns the
-  header value and object URL can still read the object.
+  Cloudflare Cache enabled for object paths; keep bucket listing and its
+  `r2.dev` URL disabled. Screenshot URLs are unlisted and cacheable, not
+  per-request authorized;
+- Worker variable `EVIDENCE_PUBLIC_ORIGIN` set to
+  `https://evidence.owbastion.codes`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;
 - the real D1 `database_id` written to `wrangler.toml`.
+
+For an existing deployment, remove the legacy WAF rule that requires a static
+review header and keep the R2 custom domain/CDN path enabled. Scope OCRKit's
+read-only R2 key and `OCRKIT_R2_ALLOWED_BUCKETS` to the model bucket, then
+restart OCRKit. The platform reads only the queued Submission's stored
+attachment and sends those bytes to OCRKit; OCRKit does not need access to the
+platform evidence bucket.
 
 Record the staging database ID in `wrangler.staging-d1.toml`. It is used only
 for migration and schema validation, and must not contain production player,
 binding, evidence, or private submission data.
 
-Do not reuse the QQBot channel-state D1 or OCRKit's model/evidence bucket.
-For the coded OCRKit orchestration, set the Worker variable
-`OCRKIT_EVIDENCE_BUCKET` to `owbastion-codes-evidence`. The Worker passes this
-bucket explicitly with every object-mode OCR request; it does not use OCRKit's
-default bucket.
+Do not reuse the QQBot channel-state D1 or OCRKit's model bucket. For OCR, the
+Worker verifies the queued object key against the Submission's stored
+attachment, reads that one image through its R2 binding, and sends the image
+bytes to OCRKit's authenticated multipart endpoint. OCRKit receives neither
+the platform object key nor access to the platform evidence bucket.
 
 `OCR_AUTO_REVIEW_SAMPLE_RATE` is an optional decimal from `0` to `1`. It
 deterministically samples automatic approvals for maintainer spot checks; the

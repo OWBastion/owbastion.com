@@ -55,7 +55,7 @@ The platform contract covers versioned v1 QQ flows:
 - the Portal can create and poll a one-time QQ login attempt, then display the
   bound player and up to five recent submissions after session verification.
 - the Portal can create a single-image upload session without a target, upload
-  private evidence, and complete the upload; after OCR accepts the screenshot,
+  the screenshot, and complete the upload; after OCR accepts it,
   the player confirms a platform-owned map or achievement challenge before it
   enters maintainer review;
 - an authenticated player can read only their own submission detail and
@@ -69,7 +69,7 @@ The platform contract covers versioned v1 QQ flows:
   OCR/evidence, event facts, XP snapshots, lifecycle/audit fields, invalidation
   reasons, and risk signals remain private; this read does not create a run or
   decide submission eligibility;
-- the existing submission → private evidence → Queue/OCR path can additionally
+- the existing submission → stored screenshot → Queue/OCR path can additionally
   derive a mastery outcome. The platform, not OCRKit, verifies the bound player,
   completion state, canonical active map and difficulty, supported game version
   and OCR layout, reliable field evidence, and normalized run code before it
@@ -119,7 +119,7 @@ The platform contract covers versioned v1 QQ flows:
   high-confidence rewardable candidate; ambiguous or low-confidence matches
   become `ocr_review_required`, while an explicit mismatch becomes
   `resubmission_required`;
-- the maintainer Portal can inspect private evidence and OCR output and record
+- the maintainer Portal can inspect the unlisted CDN screenshot and OCR output and record
   an idempotent review decision. For ambiguous evidence, the maintainer may
   select every checked achievement supported by the screenshot; approval
   atomically creates or reuses each platform title Grant and links each
@@ -127,7 +127,7 @@ The platform contract covers versioned v1 QQ flows:
   records its accepted mastery outcome without a title Grant.
 - maintainer-only mastery-run reads list and filter verified runs by player,
   map, difficulty, lifecycle state, accepted date, acceptance origin, and run
-  code. Detail includes the source Submission/evidence route, recognized
+  code. Detail includes the source Submission and unlisted screenshot URL, recognized
   settlement facts, XP snapshot inputs, resulting map projection, lifecycle,
   and same-player run-code conflicts; it is always private and uncached.
 - automatic approval writes the OCR result, approved review, title Grant reuse
@@ -221,22 +221,30 @@ map trace after the dependent deployment is live.
 Portal uploads use a one-time platform upload URL backed by the private R2
 binding. The URL is intentionally scoped to one upload session and is not a
 public object URL. User screenshot objects use the shared `uploads/` namespace,
-with platform-generated keys under `uploads/submissions/<submissionId>/`; the
-same object key and the explicit platform evidence bucket are sent to OCRKit.
-The platform must not rely on OCRKit's default bucket, which is reserved for
-OCRKit's own configured storage and model artifacts.
+with high-entropy platform-generated keys under
+`uploads/submissions/<submissionId>/`. The OCR Queue carries the opaque
+submission ID and object key; the Worker verifies that the key belongs to the
+Submission's stored attachment, reads that one object from R2, and sends only
+its bytes to OCRKit's authenticated multipart endpoint. OCRKit receives
+neither the object key nor access to the platform evidence bucket.
 
 Administrative submission views are intentionally broader than player views.
-Maintainers can inspect historical and in-progress submission states, evidence,
-and recognition output, including records that predate the current lifecycle.
+Maintainers can inspect historical and in-progress submission states, the
+unlisted CDN screenshot, and recognition output, including records that
+predate the current lifecycle.
 The platform does not silently discard those records from the administrative
 queue; final approval, rejection, or resubmission decisions remain explicit
 maintainer actions. Player endpoints remain ownership-scoped and expose only
 the player's own submission status, evidence, and constrained OCR summary.
 
-Player screenshot reads are authenticated and ownership-scoped to the current
-player account. The Portal proxies the private object without issuing an object
-URL; it returns only the recognized map, difficulty, player, and completion
+Player submission details remain session- and ownership-scoped, and maintainer
+submission details remain behind the maintainer boundary. Those detail
+responses expose the exact unlisted CDN URL needed to display the screenshot;
+the browser loads image bytes directly from the cacheable R2 custom domain.
+Possession of that URL is sufficient to read the image, so disclosure is not
+authorization. Public status responses contain no evidence URL or object key.
+Public achievement icons remain on their separate public API route. Player
+detail returns only the recognized map, difficulty, player, and completion
 values, never OCRKit's raw response or internal match evidence.
 
 ## Submission lifecycle

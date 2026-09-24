@@ -361,7 +361,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, ocrkitEvidenceBucket?: string, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, evidencePublicOrigin?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
@@ -2148,7 +2148,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
       match,
       reason: row.reviewReason,
-      evidenceUrl: `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence`,
+      evidenceUrl: null,
       spotCheck: details.spotChecks.get(row.id) ? { status: details.spotChecks.get(row.id)!.status as "pending" | "confirmed" | "revoked", sampledAt: details.spotChecks.get(row.id)!.sampledAt, resolvedAt: details.spotChecks.get(row.id)!.resolvedAt, reviewer: details.spotChecks.get(row.id)!.reviewer, reason: details.spotChecks.get(row.id)!.reason } : null,
       ...(details.masteryOutcomes.get(row.id) ? { masteryOutcome: details.masteryOutcomes.get(row.id)! } : {}),
     };
@@ -2159,7 +2159,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       resolveAdminSubmissionDetails([row]),
       db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
     ]);
-    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) ?? `${uploadOrigin}/v1/admin/submissions/${row.id}/evidence` };
+    return { ...asAdminSubmission(row, details), evidenceUrl: publicEvidenceUrl(attachment?.objectKey) };
   };
 
   const countMasteryRunConflicts = async (runIds: string[]) => {
@@ -2738,9 +2738,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!loaded) throw new Error("MASTERY_RUN_NOT_FOUND");
       const sourceRow = await db.select().from(submissions).where(eq(submissions.id, loaded.row.run.sourceSubmissionId)).get();
       if (!sourceRow) throw new Error("MASTERY_SUBMISSION_NOT_FOUND");
-      const [projection, sourceSubmission, lifecycle, conflicts] = await Promise.all([
+      const [projection, sourceDetails, lifecycle, conflicts] = await Promise.all([
         adminMasteryProjection({ playerAccountId: loaded.row.run.playerAccountId, mapId: loaded.row.run.mapId, gameplayRevisionId: loaded.row.run.gameplayRevisionId }),
-        loadAdminSubmission(sourceRow),
+        resolveAdminSubmissionDetails([sourceRow]),
         db.select().from(masteryRunLifecycleEvents).where(eq(masteryRunLifecycleEvents.masteryRunId, loaded.row.run.id)).orderBy(desc(masteryRunLifecycleEvents.createdAt)).limit(50),
         listAdminMasteryRunConflicts(loaded.row.run.id),
       ]);
@@ -2748,7 +2748,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         contractVersion: "1",
         run: loaded.view,
         projection,
-        sourceSubmission,
+        sourceSubmission: asAdminSubmission(sourceRow, sourceDetails),
         lifecycle: lifecycle.map((event) => ({
           transition: event.transition as "accepted" | "invalidated" | "restored",
           actorType: event.actorType as "service" | "user",
@@ -4473,15 +4473,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return response;
     },
 
-    async getAdminEvidence(input) {
-      if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
-      const attachment = await db.select().from(attachments).where(eq(attachments.submissionId, input.submissionId)).orderBy(desc(attachments.createdAt)).limit(1).get();
-      if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
-      const object = await evidenceBucket.get(attachment.objectKey);
-      if (!object) throw new Error("EVIDENCE_NOT_FOUND");
-      return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
-    },
-
     async requestAdminOcr(input, auth, idempotencyKey, requestId): Promise<AdminSubmissionOcrRetryResponse> {
       const replay = await replayOrConflict<AdminSubmissionOcrRetryResponse>(db, auth.subject, "submission.ocr.retry", idempotencyKey, input);
       if (replay) return replay;
@@ -5008,16 +4999,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: "user", actorId: submission.id, operation: "submission.manual_review_requested", entityType: "submission", entityId: submission.id, payloadJson: JSON.stringify({ ocrFailCount: submission.ocrFailCount }), createdAt: timestamp });
     },
 
-    async getPlayerEvidence(input, sessionToken) {
-      if (!evidenceBucket) throw new Error("EVIDENCE_NOT_FOUND");
-      await getPlayerOwnedSubmission(input.submissionId, sessionToken);
-      const attachment = await db.select().from(attachments).where(eq(attachments.submissionId, input.submissionId)).orderBy(desc(attachments.createdAt)).limit(1).get();
-      if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
-      const object = await evidenceBucket.get(attachment.objectKey);
-      if (!object) throw new Error("EVIDENCE_NOT_FOUND");
-      return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? attachment.contentType };
-    },
-
     async reviewSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReviewResponse> {
       const replay = await replayOrConflict<AdminSubmissionReviewResponse>(db, auth.subject, "submission.review", idempotencyKey, input);
       if (replay) return replay;
@@ -5228,16 +5209,31 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const context = { attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
       const startedAt = Date.now();
       logOcrEvent("job_started", context);
-      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken || !ocrkitEvidenceBucket) {
+      if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken) {
         logOcrEvent("job_processing_failed", { ...context, stage: "configuration", durationMs: Date.now() - startedAt, errorName: "Error", errorMessage: "OCR_NOT_CONFIGURED" });
         throw new Error("OCR_NOT_CONFIGURED");
       }
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       if (row.status !== "ocr_pending") return;
+      const attachment = await db.select().from(attachments).where(and(eq(attachments.submissionId, row.id), eq(attachments.objectKey, input.objectKey), eq(attachments.uploadStatus, "stored"))).get();
+      if (!attachment?.objectKey) throw new Error("OCR_EVIDENCE_UNAVAILABLE");
+      let evidenceBytes: ArrayBuffer;
+      let contentType: string;
+      try {
+        const evidenceObject = await evidenceBucket.get(attachment.objectKey);
+        if (!evidenceObject || evidenceObject.size > maxUploadBytes) throw new Error("evidence_unavailable");
+        evidenceBytes = await evidenceObject.arrayBuffer();
+        if (evidenceBytes.byteLength === 0 || evidenceBytes.byteLength > maxUploadBytes) throw new Error("evidence_unavailable");
+        contentType = evidenceObject.httpMetadata?.contentType ?? attachment.contentType;
+      } catch {
+        throw new Error("OCR_EVIDENCE_UNAVAILABLE");
+      }
       let response: Response;
       try {
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge/by-object`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: JSON.stringify({ object_key: input.objectKey, bucket: ocrkitEvidenceBucket }) });
+        const formData = new FormData();
+        formData.append("file", new Blob([evidenceBytes], { type: contentType }), "evidence");
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData });
       } catch (error) {
         logOcrEvent("ocrkit_request_failed", { ...context, stage: "fetch", durationMs: Date.now() - startedAt, ...errorDetails(error) });
         throw new Error("OCR_NETWORK");

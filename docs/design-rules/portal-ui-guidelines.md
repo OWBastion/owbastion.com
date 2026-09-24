@@ -71,7 +71,7 @@ Use this pattern for screenshot uploads, submission status, and result pages:
 - The submit button is the form's only primary action. During submission, use `loading` and disable inputs/actions that could cause duplicate submissions.
 - Reuse `SubmissionCatalog`, `MapSubmissionCatalog`, or `AchievementSubmissionCatalog` for challenge selection. Do not copy directory grouping rules into a page.
 - Reuse `SubmissionStatusBadge` for status display. Status wording comes from `docs/design-rules/portal-copy-guidelines.md`.
-- Submission details may be organized as overview → screenshot evidence → recognition result. Private evidence and internal recognition fields may only appear on authorized pages.
+- Submission details may be organized as overview → screenshot evidence → recognition result. Show unlisted screenshots only in the matching player-owned or maintainer submission detail; anyone with the CDN URL can read the image.
 - Screenshot evidence in submission details must use the source image's natural aspect ratio (`width: 100%; height: auto`); do not impose a fixed-height frame or crop the evidence with `object-fit`.
 
 ### Admin panels
@@ -202,7 +202,7 @@ Every data-requesting region must consider these states:
 
 When the shape of a directory or detail view is known, prefer a structure-matched `USkeleton` while retaining `role="status"` and an accessible loading label. Text-only loading remains valid for small or indeterminate regions.
 
-Permission boundary: public pages must not render QQ OpenIDs, private screenshots, review notes, internal risk signals, or unapproved drafts. Player pages render only the current player's data. Admin pages access admin APIs through the existing server-side proxy and session. Do not hide data that should not be returned by using CSS alone.
+Permission boundary: public pages must not render QQ OpenIDs, unlisted submission screenshots, review notes, internal risk signals, or unapproved drafts. Player pages render only the current player's data; admin pages access admin APIs through the existing server-side proxy and session. Screenshot URLs are unlisted CDN assets, not authorization credentials. Do not hide data that should not be returned by using CSS alone.
 
 ## Responsive behavior and accessibility
 
@@ -249,5 +249,5 @@ an unscoped restyle of unrelated pages.
 - [ ] Admin UI follows scan → locate → judge → act and adds no decorative overview/summary layer that does not improve a decision.
 - [ ] Mobile, keyboard, focus, ARIA, and non-color state expression were checked.
 - [ ] Motion/press uses shared patterns; reduced-motion path remains valid.
-- [ ] Private evidence, QQ identifiers, and internal fields are not exposed to unauthorized users.
+- [ ] Evidence URLs appear only in the relevant submission details; QQ identifiers and internal fields remain behind their authorization boundaries.
 - [ ] Affected tests and Portal typecheck were run, and any unavailable validation is recorded.
