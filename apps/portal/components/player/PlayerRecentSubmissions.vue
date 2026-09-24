@@ -24,10 +24,12 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 </template>
 
 <style scoped>
-.submission-list { display: grid; gap: 10px; }
-.submission-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; min-width: 0; padding: 18px 20px; border-radius: 18px; }
+.submission-list { container-type: inline-size; display: grid; gap: var(--space-2); }
+.submission-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); min-width: 0; padding: var(--space-4) var(--space-5); border-radius: var(--radius-card); }
 .submission-row > div { min-width: 0; }
-.submission-row strong { display: block; overflow-wrap: anywhere; letter-spacing: var(--type-headline-tracking); font-weight: 650; }
-.submission-row span { display: block; margin-top: 5px; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
-@media (max-width: 620px) { .submission-row { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px; } }
+.submission-row strong { display: block; overflow-wrap: anywhere; letter-spacing: var(--type-headline-tracking); font-weight: 600; }
+.submission-row span { display: block; margin-top: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
+@container (max-width: 23.99rem) {
+  .submission-row { align-items: flex-start; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+}
 </style>

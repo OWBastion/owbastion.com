@@ -54,12 +54,16 @@ async function copyCommand() {
 </template>
 
 <style scoped>
-.binding-page { padding-block: clamp(72px, 11vh, 130px) 56px; }
-.binding-card { margin-top: 32px; }
-.binding-state, .binding-confirmation { display: grid; gap: 12px; }
-.binding-heading { margin: 0 0 8px; font-size: clamp(1.7rem, 5vw, 2.4rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
-.binding-code { margin: 8px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 700; letter-spacing: .03em; background: var(--surface-raised); }
+.binding-page { padding-block: clamp(4.5rem, 11vh, 8.125rem) 3.5rem; }
+.binding-card { margin-top: var(--space-8); }
+.binding-state, .binding-confirmation { display: grid; gap: var(--space-3); }
+.binding-heading { margin: 0 0 var(--space-2); font-size: clamp(1.7rem, 5vw, 2.4rem); letter-spacing: -.035em; overflow-wrap: anywhere; }
+.binding-code { margin: var(--space-2) 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 700; letter-spacing: .03em; background: var(--surface-raised); }
 .binding-note { margin: 0; color: var(--muted); font-size: .88rem; line-height: 1.6; }
-.warning-note { color: var(--warning); }.error-note { color: var(--danger); }
-@media (max-width: 620px) { .binding-page { padding-top: 56px; }.binding-card { margin-top: 24px; }}
+.warning-note { color: var(--warning); }
+.error-note { color: var(--danger); }
+@media (max-width: 47.99rem) {
+  .binding-page { padding-top: 3.5rem; }
+  .binding-card { margin-top: var(--space-6); }
+}
 </style>

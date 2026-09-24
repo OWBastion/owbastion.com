@@ -67,7 +67,7 @@ const items = computed<DropdownMenuItem[][]>(() => {
 }
 .account-avatar {
   font-size: .85rem;
-  font-weight: 720;
+  font-weight: 700;
   letter-spacing: -.04em;
 }
 </style>

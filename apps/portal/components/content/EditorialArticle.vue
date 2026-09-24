@@ -51,12 +51,12 @@ const isChangelog = computed(() => props.kind === "changelog");
 </template>
 
 <style scoped>
-.editorial-article { padding: clamp(24px, 5vw, 56px); }
-.editorial-article-header { display: grid; gap: 1.125rem; padding-bottom: clamp(28px, 5vw, 48px); border-bottom: 1px solid var(--line); }
-.editorial-article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem 1rem; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
+.editorial-article { padding: clamp(var(--space-6), 5vw, var(--space-12)); }
+.editorial-article-header { display: grid; gap: var(--space-4); padding-bottom: clamp(var(--space-6), 5vw, var(--space-12)); border-bottom: 1px solid var(--line); }
+.editorial-article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .editorial-kind { color: var(--accent); }
 .editorial-article-description { max-width: 62ch; margin: 0; color: var(--muted); font-size: 1.06rem; line-height: 1.7; }
-.editorial-article-body { max-width: 68ch; padding-top: clamp(28px, 5vw, 48px); color: var(--text); font-size: 1rem; line-height: 1.8; overflow-wrap: anywhere; }
+.editorial-article-body { max-width: 68ch; padding-top: clamp(var(--space-6), 5vw, var(--space-12)); color: var(--text); font-size: 1rem; line-height: 1.8; overflow-wrap: anywhere; }
 .editorial-article-body :deep(:where(h2, h3, h4)) { margin: 2.2em 0 .7em; color: var(--text); line-height: 1.2; scroll-margin-top: calc(var(--sticky-chrome-top) + 0.75rem); }
 .editorial-article-body :deep(:where(h2:first-child, h3:first-child, h4:first-child)) { margin-top: 0; }
 .editorial-article-body :deep(p) { margin: 0 0 1.2em; }
@@ -71,13 +71,13 @@ const isChangelog = computed(() => props.kind === "changelog");
 .editorial-article-body :deep(blockquote p:last-child) { margin-bottom: 0; }
 .editorial-article-body :deep(table) { width: 100%; margin: 0 0 1.2em; border-collapse: collapse; font-size: .92em; }
 .editorial-article-body :deep(th), .editorial-article-body :deep(td) { padding: .5rem .75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-.editorial-article-body :deep(th) { background: var(--surface-raised); font-weight: 650; }
+.editorial-article-body :deep(th) { background: var(--surface-raised); font-weight: 600; }
 .editorial-article-body :deep(hr) { margin: 2.4em 0; border: 0; border-top: 1px solid var(--line); }
-.editorial-article-body :deep(img) { max-width: 100%; height: auto; border-radius: 10px; }
+.editorial-article-body :deep(img) { max-width: 100%; height: auto; border-radius: var(--radius-control); }
 .editorial-article-body :deep(strong) { font-weight: 700; }
 .editorial-article-body :deep(em) { font-style: italic; }
-.editorial-article-body :deep(code) { padding: .12em .35em; border-radius: 5px; background: var(--surface-raised); font-size: .9em; }
-.editorial-article-body :deep(pre) { max-width: 100%; overflow-x: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); }
+.editorial-article-body :deep(code) { padding: .12em .35em; border-radius: var(--radius-control); background: var(--surface-raised); font-size: .9em; }
+.editorial-article-body :deep(pre) { max-width: 100%; overflow-x: auto; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .editorial-article-body :deep(pre code) { padding: 0; background: transparent; }
 .editorial-article-body :deep(.katex-display) { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-block: .2rem; }
 
@@ -88,7 +88,7 @@ const isChangelog = computed(() => props.kind === "changelog");
   min-height: 2rem;
   padding: 0.25rem 0.8rem;
   border: 1px solid color-mix(in oklch, var(--accent) 42%, var(--line));
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-surface);
   color: var(--accent);
   font-size: var(--type-caption-size);
@@ -100,7 +100,7 @@ const isChangelog = computed(() => props.kind === "changelog");
 .changelog-date { margin: 0; }
 .changelog-title { overflow-wrap: anywhere; }
 
-.editorial-article--changelog { padding: clamp(1.25rem, 4vw, 2.75rem); }
+.editorial-article--changelog { padding: clamp(var(--space-5), 4vw, var(--space-12)); }
 .editorial-article--changelog .editorial-article-header { gap: 0.85rem; padding-bottom: 1.25rem; }
 .editorial-article--changelog .editorial-article-body {
   max-width: 62ch;
@@ -114,7 +114,7 @@ const isChangelog = computed(() => props.kind === "changelog");
   padding-top: 1.35rem;
   border-top: 1px solid var(--line);
   font-size: var(--type-headline-size);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: var(--type-headline-tracking);
   line-height: var(--type-headline-leading);
 }
@@ -126,13 +126,13 @@ const isChangelog = computed(() => props.kind === "changelog");
 .editorial-article--changelog .editorial-article-body :deep(h3) {
   margin: 1.35rem 0 0.45rem;
   font-size: var(--type-body-size);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.35;
 }
 .editorial-article--changelog .editorial-article-body :deep(h4) {
   margin: 1.1rem 0 0.35rem;
   font-size: var(--type-body-size);
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.4;
 }
@@ -158,11 +158,6 @@ const isChangelog = computed(() => props.kind === "changelog");
 }
 .editorial-article--changelog .editorial-article-body :deep(hr) { margin: 1.75rem 0; }
 
-@media (max-width: 620px) {
-  .editorial-article { padding: 1.25rem 1rem; }
-  .editorial-article-description { font-size: 1rem; }
-  .editorial-article--changelog { padding: 1.15rem 1rem 1.35rem; }
-}
 @media (prefers-contrast: more) {
   .editorial-article { border-color: var(--text); }
   .changelog-version { border-color: var(--accent); }

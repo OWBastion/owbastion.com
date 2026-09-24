@@ -103,6 +103,31 @@ async function handleLocalLogin() {
 </template>
 
 <style scoped>
-.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(72px, 11vh, 130px) 56px; }.login-card { width: 100%; padding: clamp(26px, 6vw, 58px); }.intro { max-width: 43ch; margin: 22px 0 38px; }.action-panel { min-height: 118px; }.notice { margin: 0 0 18px; color: var(--muted); line-height: 1.55; }.warning { color: var(--warning); }.error { color: var(--danger); }.challenge-panel { padding: 22px; border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: 15px; background: var(--accent-surface); }.challenge-heading { display: flex; justify-content: space-between; gap: 18px; color: var(--text); }.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }.challenge-label { margin: 0 0 6px; color: var(--muted); font-size: .72rem; font-weight: 500; letter-spacing: .02em; }.challenge-copy { margin: 0; font-size: .88rem; }.login-code { margin: 20px 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 720; letter-spacing: .04em; }.challenge-actions { display: flex; align-items: center; gap: 16px; }.hint { margin: 20px 0 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }.local-dev-panel { margin-top: 34px; padding: 22px; border: 1px dashed var(--line-strong); border-radius: 15px; background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }.local-dev-copy { margin: 0 0 16px; color: var(--muted); font-size: .86rem; line-height: 1.55; }.local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-@media (max-width: 430px) { .login-page { padding-top: 58px; }.login-card { padding: 24px 18px; }.login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }.challenge-panel, .local-dev-panel { padding: 18px; }.challenge-heading { align-items: flex-start; flex-direction: column; gap: 8px; }.challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }.challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; } }
+.login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(4.5rem, 11vh, 8.125rem) 3.5rem; }
+.login-card { width: 100%; padding: clamp(1.625rem, 6vw, 3.625rem); }
+.intro { max-width: 43ch; margin: var(--space-5) 0 var(--space-8); }
+.action-panel { min-height: 118px; }
+.notice { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.55; }
+.warning { color: var(--warning); }
+.error { color: var(--danger); }
+.challenge-panel { padding: var(--space-5); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); }
+.challenge-heading { display: flex; justify-content: space-between; gap: var(--space-4); color: var(--text); }
+.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }
+.challenge-label { margin: 0 0 var(--space-1); color: var(--muted); font-size: .72rem; font-weight: 500; letter-spacing: .02em; }
+.challenge-copy { margin: 0; font-size: .88rem; }
+.login-code { margin: var(--space-5) 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 600; letter-spacing: .04em; }
+.challenge-actions { display: flex; align-items: center; gap: var(--space-4); }
+.hint { margin: var(--space-5) 0 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }
+.local-dev-panel { margin-top: var(--space-8); padding: var(--space-5); border: 1px dashed var(--line-strong); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }
+.local-dev-copy { margin: 0 0 var(--space-4); color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+@media (max-width: 47.99rem) {
+  .login-page { padding-top: 3.625rem; }
+  .login-card { padding: var(--space-6) var(--space-4); }
+  .login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }
+  .challenge-panel, .local-dev-panel { padding: var(--space-4); }
+  .challenge-heading { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
+  .challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }
+  .challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; }
+}
 </style>

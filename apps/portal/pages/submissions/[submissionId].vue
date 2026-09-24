@@ -383,14 +383,14 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 </template>
 
 <style scoped>
-.submission-page { padding-block: clamp(64px, 9vh, 104px) 72px; }
-.breadcrumb { display: flex; align-items: center; gap: 8px; margin-bottom: clamp(28px, 4vw, 44px); color: var(--quiet); font-size: var(--type-caption-size); }
+.submission-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); margin-bottom: clamp(1.75rem, 4vw, 2.75rem); color: var(--quiet); font-size: var(--type-caption-size); }
 .breadcrumb-link { margin: 0; padding-inline: 0; }
-.page-heading { margin-bottom: 24px; }
+.page-heading { margin-bottom: var(--space-6); }
 .page-heading .page-title { max-width: 14ch; }
-.status-alert { margin-bottom: 12px; }
-.status-live { display: grid; gap: 10px; margin-bottom: 16px; }
-.status-alert + .status-live { margin-top: -4px; }
+.status-alert { margin-bottom: var(--space-3); }
+.status-live { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.status-alert + .status-live { margin-top: -0.25rem; }
 .status-alert { margin: 0; }
 .sr-only {
   position: absolute;
@@ -407,42 +407,43 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: clamp(18px, 2.4vw, 28px);
+  gap: clamp(1.125rem, 2.4vw, 1.75rem);
   width: 100%;
 }
 .evidence-col, .info-col { min-width: 0; }
-.info-col { display: grid; gap: 16px; }
+.info-col { display: grid; gap: var(--space-4); }
 .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
-.ocr-wait { display: grid; gap: 6px; margin-top: 14px; }
+.ocr-wait { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
 .ocr-wait > span { color: var(--muted); font-size: var(--type-caption-size); }
-.mastery-outcome { margin-top: 18px; }.overview-actions { display: grid; gap: 8px; margin-top: 22px; }
-.evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
-.evidence-message, .message { margin: 0; padding: 72px 0; color: var(--muted); font-size: .88rem; text-align: center; }
-.catalog-loading { padding: 28px 0; }
-.confirm-card :deep(.catalog) { margin-bottom: 20px; }
+.mastery-outcome { margin-top: var(--space-4); }
+.overview-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
+.evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
+.evidence-message, .message { margin: 0; padding: 4.5rem 0; color: var(--muted); font-size: .88rem; text-align: center; }
+.catalog-loading { padding: var(--space-6) 0; }
+.confirm-card :deep(.catalog) { margin-bottom: var(--space-5); }
 .confirm-catalog--busy { opacity: .72; }
-.resubmission-card { display: grid; margin-top: clamp(18px, 2.4vw, 28px); }
-.resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
-.resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 10px; }
+.resubmission-card { display: grid; margin-top: clamp(1.125rem, 2.4vw, 1.75rem); }
+.resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
 .tip-icon {
   display: grid;
   width: 36px;
   height: 36px;
   place-items: center;
   border: 1px solid color-mix(in oklch, var(--accent) 30%, var(--line));
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--accent);
   background: var(--accent-surface);
 }
 .tip-icon > svg { width: 17px; height: 17px; }
 .resubmission-tip strong { display: block; color: var(--text); font-size: .82rem; }
-.resubmission-tip p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
+.resubmission-tip p { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; }
 .submission-skeleton { align-items: start; }
 .submission-skeleton-card { border-color: var(--line); }
 .submission-skeleton-heading { width: 104px; height: 18px; }
 .submission-skeleton-heading--overview { width: 96px; }
 .submission-skeleton-heading--progress { width: 82px; }
-.submission-skeleton-status { width: 72px; height: 24px; border-radius: 999px; }
+.submission-skeleton-status { width: 72px; height: 24px; border-radius: var(--radius-pill); }
 .submission-skeleton-evidence { width: 100%; aspect-ratio: 4 / 3; }
 .submission-skeleton-list { display: grid; gap: 0; }
 .submission-skeleton-row {
@@ -456,15 +457,15 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .submission-skeleton-row:last-child { padding-bottom: 0; border-bottom: 0; }
 .submission-skeleton-label { width: 30%; height: 12px; }
 .submission-skeleton-value { width: 42%; height: 14px; }
-.submission-skeleton-actions { display: grid; gap: 8px; margin-top: 22px; }
-.submission-skeleton-action { width: 100%; height: 40px; border-radius: 999px; }
+.submission-skeleton-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
+.submission-skeleton-action { width: 100%; height: 40px; border-radius: var(--radius-pill); }
 .submission-skeleton-updated { width: 92px; height: 12px; }
 .submission-skeleton-progress { display: grid; gap: 0; }
 .submission-skeleton-progress-item {
   position: relative;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 68px;
 }
 .submission-skeleton-progress-item:not(:last-child)::after {
@@ -477,10 +478,10 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   content: "";
 }
 .submission-skeleton-marker { position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; }
-.submission-skeleton-progress-copy { display: grid; align-content: start; gap: 8px; padding: 4px 0 16px; }
+.submission-skeleton-progress-copy { display: grid; align-content: start; gap: var(--space-2); padding: var(--space-1) 0 var(--space-4); }
 .submission-skeleton-progress-title { width: 68%; height: 14px; }
 .submission-skeleton-progress-detail { width: 92%; height: 12px; }
-@media (min-width: 821px) {
+@media (min-width: 64rem) {
   .submission-layout {
     grid-template-columns: minmax(0, 1.7fr) minmax(300px, .9fr);
   }
@@ -495,22 +496,19 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
     grid-row: 1;
   }
 }
-@media (max-width: 820px) {
+@media (max-width: 63.99rem) {
   .resubmission-grid { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 620px) {
-  .submission-page { padding-top: 56px; }
+@media (max-width: 47.99rem) {
+  .submission-page { padding-block: var(--space-12) var(--space-12); }
   .page-heading .page-title { max-width: none; }
-  .breadcrumb { margin-bottom: 30px; }
+  .breadcrumb { margin-bottom: var(--space-8); }
   .overview-actions :deep(button) { min-height: 44px; }
   .submission-skeleton-row {
     grid-template-columns: 1fr;
     gap: var(--space-1);
   }
   .submission-skeleton-label, .submission-skeleton-value { width: 62%; }
-}
-@media (max-width: 360px) {
-  .submission-page { padding-block: 48px 48px; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; }

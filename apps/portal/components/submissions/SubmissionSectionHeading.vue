@@ -16,7 +16,7 @@ defineProps<{
 </template>
 
 <style scoped>
-.section-heading { margin-bottom: 18px; }
+.section-heading { margin-bottom: var(--space-4); }
 .section-heading h2 { margin: 0; color: var(--text); font-size: 1.1rem; letter-spacing: -.03em; }
-.section-heading p:last-child { margin: 5px 0 0; color: var(--muted); font-size: .84rem; }
+.section-heading p:last-child { margin: var(--space-1) 0 0; color: var(--muted); font-size: .84rem; }
 </style>

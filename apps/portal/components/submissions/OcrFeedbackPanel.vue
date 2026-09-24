@@ -185,49 +185,49 @@ const cancelPassive = () => {
 </template>
 
 <style scoped>
-.ocr-feedback { display: grid; gap: 12px; }
+.ocr-feedback { container-type: inline-size; display: grid; gap: var(--space-3); }
 .feedback-live { display: grid; }
 .feedback-error { margin: 0; }
 .feedback-card { border-color: var(--line); }
-.feedback-hint { margin: 0 0 14px; color: var(--muted); font-size: .8rem; line-height: 1.6; }
-.feedback-fields { display: grid; gap: 10px; }
+.feedback-hint { margin: 0 0 var(--space-3); color: var(--muted); font-size: .8rem; line-height: 1.6; }
+.feedback-fields { display: grid; gap: var(--space-2); }
 .feedback-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  padding: 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
 }
 /* Mobile widths stack the correction input below its action and the row
    collapses to one column; the class is driven by matchMedia so the compact
    interaction is testable. */
 .ocr-feedback--compact .feedback-row { grid-template-columns: minmax(0, 1fr); }
 .ocr-feedback--compact .feedback-correct { grid-template-columns: minmax(0, 1fr); }
-.feedback-fact { display: grid; gap: 4px; min-width: 0; }
+.feedback-fact { display: grid; gap: var(--space-1); min-width: 0; }
 .feedback-label { color: var(--quiet); font-size: .74rem; }
 .feedback-value { color: var(--text); font-size: .9rem; overflow-wrap: anywhere; }
-.feedback-actions { display: grid; gap: 8px; }
-.feedback-correct { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
-.feedback-recorded { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; }
+.feedback-actions { display: grid; gap: var(--space-2); }
+.feedback-correct { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
+.feedback-recorded { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: var(--space-2); align-items: start; }
 .feedback-recorded-icon {
   display: grid;
   width: 34px;
   height: 34px;
   place-items: center;
   border: 1px solid color-mix(in oklch, var(--success, #16a34a) 30%, var(--line));
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--success, #16a34a);
   background: color-mix(in oklch, var(--success, #16a34a) 8%, var(--surface));
 }
 .feedback-recorded strong { display: block; font-size: .86rem; }
-.feedback-recorded p { margin: 4px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.feedback-recorded p { margin: var(--space-1) 0 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
 .feedback-passive { display: flex; justify-content: flex-end; }
 .feedback-passive-card { width: 100%; border-color: var(--line); }
-.feedback-passive-card .card-heading h3 { font-size: .86rem; margin: 0 0 12px; }
-.feedback-passive-form { display: grid; gap: 8px; }
-.feedback-passive-actions { display: flex; gap: 8px; margin-top: 12px; }
-@media (min-width: 640px) {
+.feedback-passive-card .card-heading h3 { font-size: .86rem; margin: 0 0 var(--space-3); }
+.feedback-passive-form { display: grid; gap: var(--space-2); }
+.feedback-passive-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+@container (min-width: 24rem) {
   .feedback-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; }
 }
 </style>

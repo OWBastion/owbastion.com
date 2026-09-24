@@ -41,7 +41,7 @@ onMounted(async () => {
       <p v-if="!loading && !player" class="body-copy">登录后可查看精通与评价。</p>
     </section>
     <section class="map-directory-panel surface-card" aria-label="地图列表">
-      <div v-if="loading" class="map-skeleton-grid" role="status" aria-label="读取中…">
+      <div v-if="loading" class="map-skeleton-grid directory-grid" role="status" aria-label="读取中…">
         <div v-for="index in 6" :key="index" class="map-skeleton-card interactive-card interactive-card--static" aria-hidden="true">
           <USkeleton class="map-skeleton-visual" />
           <div class="map-skeleton-body">
@@ -58,11 +58,34 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page-intro { margin-bottom: 2rem; }.page-intro .body-copy { margin: 0.625rem 0 0; }.map-directory-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
-.map-skeleton-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }.map-skeleton-card { display: grid; min-width: 0; overflow: hidden; border-radius: 17px; }.map-skeleton-visual { min-height: 138px; border-radius: 0; }.map-skeleton-body { display: grid; gap: 17px; padding: 18px 18px 16px; }.map-skeleton-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }.map-skeleton-title { width: 58%; height: 24px; }.map-skeleton-version { width: 24%; height: 14px; }.map-skeleton-facts { display: grid; gap: 9px; margin: 0; }.map-skeleton-fact { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 9px; border-top: 1px solid var(--line); }.map-skeleton-label { width: 28%; height: 12px; }.map-skeleton-value { width: 32%; height: 13px; }.map-skeleton-footer { display: flex; flex-wrap: wrap; gap: 6px; }.map-skeleton-tag { width: 52px; height: 20px; border-radius: 999px; }.map-skeleton-tag-short { width: 42px; }
-@media (max-width: 620px) { .page-intro { margin-bottom: 20px; }.map-directory-panel { padding: 14px; } }
-@media (max-width: 360px) { .map-directory-panel { padding: 10px; } }
-@media (max-width: 820px) { .map-skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .map-skeleton-grid { grid-template-columns: 1fr; }.map-skeleton-visual { min-height: 108px; }.map-skeleton-body { gap: 14px; padding: 14px; }.map-skeleton-heading { align-items: flex-start; flex-direction: column; gap: 5px; }.map-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.map-skeleton-fact { min-width: 0; align-items: flex-start; flex-direction: column; gap: 6px; padding-top: 8px; }.map-skeleton-fact-last { grid-column: 1 / -1; align-items: center; flex-direction: row; }.map-skeleton-label, .map-skeleton-value { max-width: 100%; } }
-@media (max-width: 360px) { .map-skeleton-visual { min-height: 96px; }.map-skeleton-body { padding-inline: 12px; }.map-skeleton-footer { display: grid; grid-template-columns: 1fr; } }
+.page-intro { margin-bottom: 2rem; }
+.page-intro .body-copy { margin: var(--space-2) 0 0; }
+.map-directory-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
+.map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }
+.map-skeleton-visual { min-height: 138px; border-radius: 0; }
+.map-skeleton-body { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4); }
+.map-skeleton-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.map-skeleton-title { width: 58%; height: 24px; }
+.map-skeleton-version { width: 24%; height: 14px; }
+.map-skeleton-facts { display: grid; gap: var(--space-2); margin: 0; }
+.map-skeleton-fact { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.map-skeleton-label { width: 28%; height: 12px; }
+.map-skeleton-value { width: 32%; height: 13px; }
+.map-skeleton-footer { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.map-skeleton-tag { width: 52px; height: 20px; border-radius: var(--radius-pill); }
+.map-skeleton-tag-short { width: 42px; }
+@media (max-width: 47.99rem) {
+  .page-intro { margin-bottom: var(--space-5); }
+  .map-directory-panel { padding: var(--space-3); }
+}
+@container (max-width: 23.99rem) {
+  .map-skeleton-visual { min-height: 108px; }
+  .map-skeleton-body { gap: var(--space-3); padding: var(--space-3); }
+  .map-skeleton-heading { align-items: flex-start; flex-direction: column; gap: var(--space-1); }
+  .map-skeleton-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .map-skeleton-fact { min-width: 0; align-items: flex-start; flex-direction: column; gap: var(--space-1); padding-top: var(--space-2); }
+  .map-skeleton-fact-last { grid-column: 1 / -1; align-items: center; flex-direction: row; }
+  .map-skeleton-label, .map-skeleton-value { max-width: 100%; }
+  .map-skeleton-footer { display: grid; grid-template-columns: 1fr; }
+}
 </style>

@@ -43,8 +43,19 @@ const hasHistory = computed(() => Boolean(props.history?.total) || props.history
 </template>
 
 <style scoped>
-.mastery-profile { gap: 16px; }.mastery-profile-loading { display: grid; gap: 9px; }.mastery-profile-loading > * { height: 44px; border-radius: 10px; }
-.mastery-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin: 0; }.mastery-summary > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px 0; border-top: 1px solid var(--line); }.mastery-summary dt { color: var(--muted); font-size: .76rem; }.mastery-summary dd { margin: 0; color: var(--text); font-size: .8rem; font-weight: 700; text-align: right; }
-.difficulty-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }.difficulty-summary > div { display: grid; gap: 3px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); }.difficulty-summary strong { color: var(--text); font-size: .8rem; }.difficulty-summary span { color: var(--quiet); font-size: .72rem; overflow-wrap: anywhere; }
-@media (max-width: 620px) { .mastery-summary, .difficulty-summary { grid-template-columns: 1fr; }.mastery-summary > div { padding-block: 9px; } }
+.mastery-profile { container-type: inline-size; gap: var(--space-4); }
+.mastery-profile-loading { display: grid; gap: var(--space-2); }
+.mastery-profile-loading > * { height: 44px; border-radius: var(--radius-control); }
+.mastery-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); margin: 0; }
+.mastery-summary > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.mastery-summary dt { color: var(--muted); font-size: .76rem; }
+.mastery-summary dd { margin: 0; color: var(--text); font-size: .8rem; font-weight: 700; text-align: right; }
+.difficulty-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.difficulty-summary > div { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
+.difficulty-summary strong { color: var(--text); font-size: .8rem; }
+.difficulty-summary span { color: var(--quiet); font-size: .72rem; overflow-wrap: anywhere; }
+@container (max-width: 23.99rem) {
+  .mastery-summary, .difficulty-summary { grid-template-columns: 1fr; }
+  .mastery-summary > div { padding-block: var(--space-2); }
+}
 </style>

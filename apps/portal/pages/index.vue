@@ -20,7 +20,7 @@ useSeoMeta({
 
     <section class="content-section" aria-labelledby="content-title">
       <h2 id="content-title" class="type-title">目录</h2>
-      <div class="content-grid">
+      <div class="content-grid directory-grid">
         <NuxtLink id="events" to="/events" class="content-card content-card--link interactive-card pressable-soft">
           <h3 class="type-headline">随机事件</h3>
         </NuxtLink>
@@ -55,8 +55,7 @@ useSeoMeta({
 .rotation-status p { margin: 0; }
 .content-section { margin-bottom: 2.5rem; }
 .content-section > .type-title { margin-bottom: 1.25rem; }
-.content-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
-.content-card { display: grid; min-height: 0; align-content: start; padding: 1.5rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: inherit; text-decoration: none; }
+.content-card { display: grid; min-height: 0; align-content: start; padding: 1.5rem; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); color: inherit; text-decoration: none; }
 .content-card .type-headline { max-width: 18ch; margin: 0; }
 .content-card--link.interactive-card:hover,
 .content-card--link.interactive-card:focus-visible {
@@ -64,6 +63,8 @@ useSeoMeta({
   background: color-mix(in oklch, var(--surface) 88%, var(--accent-surface));
 }
 .footer { display: flex; justify-content: space-between; gap: 1.125rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--quiet); font-size: var(--type-caption-size); }
-@media (max-width: 820px) { .content-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 620px) { .content-grid { grid-template-columns: 1fr; }.content-card { padding: 1.25rem; }.footer { flex-direction: column; align-items: flex-start; gap: 0.5625rem; } }
+@media (max-width: 47.99rem) {
+  .content-card { padding: 1.25rem; }
+  .footer { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+}
 </style>

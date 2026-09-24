@@ -249,24 +249,24 @@ async function signOut() {
 </template>
 
 <style scoped>
-.app-header-wrap { position: sticky; z-index: 10; top: 0.875rem; width: min(100% - 3rem, 90rem); margin: 0 auto; }
-.app-header { position: relative; z-index: 2; display: flex; align-items: center; gap: 1.75rem; min-height: 3.375rem; padding: 0 1rem 0 0.75rem; border: 1px solid var(--line); border-radius: 0.75rem; }
-.brand { display: inline-flex; min-width: 0; align-items: center; gap: 0.5625rem; color: var(--text); font-size: .9rem; font-weight: 650; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
+.app-header-wrap { container-type: inline-size; position: sticky; z-index: 10; top: 0.875rem; width: min(100% - var(--space-12), 90rem); margin: 0 auto; }
+.app-header { position: relative; z-index: 2; display: flex; align-items: center; gap: var(--space-6); min-height: 3.375rem; padding: 0 var(--space-4) 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
+.brand { display: inline-flex; min-width: 0; align-items: center; gap: var(--space-2); color: var(--text); font-size: .9rem; font-weight: 600; letter-spacing: -.025em; text-decoration: none; white-space: nowrap; }
 .brand > span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.brand-mark { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 760; }
-.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: 0.1875rem; color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 650; }
+.brand-mark { display: grid; width: 1.75rem; height: 1.75rem; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .92rem; font-weight: 700; }
+.main-nav { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: flex-start; gap: var(--space-1); color: var(--text-on-glass-secondary); font-size: .78rem; font-weight: 500; }
 .main-nav :deep([data-slot="root"]) { width: max-content; max-width: 100%; }
 .main-nav :deep([data-slot="root"] > div:first-child) { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
 .main-nav :deep([data-slot="root"] > div:first-child)::-webkit-scrollbar { display: none; }
-.main-nav :deep(ul) { flex-wrap: nowrap; gap: 0.125rem; }
+.main-nav :deep(ul) { flex-wrap: nowrap; gap: var(--space-1); }
 .main-nav :deep([data-slot="list"]) { width: max-content; min-width: 100%; }
-.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: 0.5625rem; font-size: .78rem; font-weight: 650; color: var(--text-on-glass-secondary); }
+.main-nav :deep([data-slot="link"]), .main-nav :deep([data-slot="trigger"]) { min-height: 2.75rem; border-radius: var(--radius-control); font-size: .78rem; font-weight: 500; color: var(--text-on-glass-secondary); }
 .main-nav a {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  padding: 0 0.6875rem;
-  border-radius: 0.5625rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
   color: var(--text-on-glass-secondary);
   text-decoration: none;
   white-space: nowrap;
@@ -279,12 +279,12 @@ async function signOut() {
   color: var(--text-on-glass);
   background: color-mix(in oklch, var(--surface-raised) 72%, transparent);
 }
-.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.625rem; font-size: .78rem; font-weight: 650; }
-.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 0.875rem; border: 1px solid var(--line); border-radius: 0.5625rem; color: var(--text); background: var(--surface-raised); text-decoration: none; }
+.account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-3); font-size: .78rem; font-weight: 500; }
+.login-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; padding: 0 var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--text); background: var(--surface-raised); text-decoration: none; }
 .mobile-menu-toggle, .mobile-nav, .mobile-nav-scrim { display: none; }
-@media (max-width: 900px) {
-  .app-header-wrap { top: max(0.5rem, env(safe-area-inset-top)); }
-  .app-header { gap: 0.625rem; min-height: 3.25rem; padding: 0.375rem 0.5rem 0.375rem 0.625rem; }
+@media (max-width: 47.99rem) {
+  .app-header-wrap { top: max(0.5rem, env(safe-area-inset-top)); width: min(100% - var(--space-6), 90rem); }
+  .app-header { gap: var(--space-3); min-height: 3.25rem; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }
   .main-nav { display: none; }
   .account-actions { margin-left: auto; }
   .mobile-nav-scrim {
@@ -296,13 +296,13 @@ async function signOut() {
   }
   .mobile-menu-toggle {
     display: inline-grid;
-    flex: 0 0 2.75rem;
-    width: 2.75rem;
-    height: 2.75rem;
+    flex: 0 0 var(--control-lg);
+    width: var(--control-lg);
+    height: var(--control-lg);
     place-items: center;
     padding: 0;
     border: 1px solid var(--line-strong);
-    border-radius: 0.5625rem;
+    border-radius: var(--radius-control);
     color: var(--text);
     background: var(--surface-raised);
   }
@@ -319,25 +319,25 @@ async function signOut() {
   .mobile-nav {
     position: absolute;
     z-index: 2;
-    inset: calc(100% + 0.5rem) 0 auto;
+    inset: calc(100% + var(--space-2)) 0 auto;
     display: grid;
-    gap: 0.1875rem;
+    gap: var(--space-1);
     max-height: min(70dvh, calc(100dvh - var(--sticky-chrome-top) - 1rem));
-    padding: 0.5rem;
+    padding: var(--space-2);
     overflow-y: auto;
     overscroll-behavior: contain;
     border: 1px solid var(--line);
-    border-radius: 0.875rem;
+    border-radius: var(--radius-card);
     transform-origin: top right;
   }
   .mobile-nav a {
     display: flex;
     min-height: 2.75rem;
     align-items: center;
-    padding: 0 0.75rem;
-    border-radius: 0.5rem;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-control);
     color: var(--text-on-glass-secondary);
-    font-weight: 650;
+    font-weight: 500;
     text-decoration: none;
     transition: color 160ms ease, background 160ms ease;
   }
@@ -347,24 +347,21 @@ async function signOut() {
     color: var(--text-on-glass);
     background: var(--surface);
   }
-  .mobile-nav :deep(ul) { display: grid; gap: 0.1875rem; }
+  .mobile-nav :deep(ul) { display: grid; gap: var(--space-1); }
   .mobile-nav :deep([data-slot="link"]),
   .mobile-nav :deep([data-slot="trigger"]) {
     min-height: 2.75rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-control);
     color: var(--text-on-glass-secondary);
-    font-weight: 650;
+    font-weight: 500;
   }
   .mobile-nav :deep([data-slot="content"]) {
-    padding-inline-start: 0.5rem;
+    padding-inline-start: var(--space-2);
   }
   .mobile-nav :deep([data-slot="link"]:hover),
   .mobile-nav :deep([data-active="true"]) {
     color: var(--text-on-glass);
   }
-}
-@media (max-width: 620px) {
-  .app-header-wrap { width: min(100% - 1.5rem, 90rem); }
 }
 /* Symmetric enter/leave; no spatial transform under reduced motion. */
 @media (prefers-reduced-motion: no-preference) {
@@ -406,10 +403,10 @@ async function signOut() {
     transform: none;
   }
 }
-@media (max-width: 380px) {
-  .app-header { gap: 0.375rem; }
-  .account-actions { gap: 0.5rem; }
-  .brand { gap: 0.4375rem; font-size: .82rem; }
+@container (max-width: 23.99rem) {
+  .app-header { gap: var(--space-2); }
+  .account-actions { gap: var(--space-2); }
+  .brand { gap: var(--space-2); font-size: .82rem; }
   .brand-mark { width: 1.625rem; height: 1.625rem; }
 }
 @media (prefers-reduced-transparency: reduce) {

@@ -75,7 +75,7 @@ const progressItems = computed(() => steps.map((step, index) => {
 <style scoped>
 .progress-card { border-color: var(--line); }
 .progress-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.progress-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; min-height: 68px; }
+.progress-item { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: var(--space-3); min-height: 68px; }
 .progress-item:not(:last-child)::after { position: absolute; top: 32px; bottom: 0; left: 15px; width: 1px; background: var(--line); content: ""; }
 .progress-marker {
   position: relative;
@@ -91,11 +91,11 @@ const progressItems = computed(() => steps.map((step, index) => {
   transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .progress-marker > svg { width: 16px; height: 16px; }
-.progress-copy { min-width: 0; padding: 4px 0 16px; }
-.progress-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.progress-title strong { color: var(--text); font-size: .86rem; font-weight: 720; transition: color 160ms ease; }
+.progress-copy { min-width: 0; padding: var(--space-1) 0 var(--space-4); }
+.progress-title { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.progress-title strong { color: var(--text); font-size: .86rem; font-weight: 600; transition: color 160ms ease; }
 .progress-title span { color: var(--quiet); font-size: .7rem; white-space: nowrap; transition: color 160ms ease; }
-.progress-copy p { margin: 4px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.progress-copy p { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; line-height: 1.45; }
 .progress-item--complete .progress-marker { border-color: color-mix(in oklch, var(--accent) 38%, var(--line)); color: var(--accent); background: var(--accent-surface); }
 .progress-item--complete .progress-title span { color: var(--accent); }
 .progress-item--current .progress-marker { border-color: var(--accent); color: var(--on-accent); background: var(--accent); box-shadow: 0 4px 14px -8px var(--accent); }
