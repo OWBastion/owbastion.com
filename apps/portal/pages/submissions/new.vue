@@ -104,7 +104,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 
 <style scoped>
 .submit-page { padding-block: clamp(3.5rem, 8vw, 5.5rem) 4.5rem; }
-.submit-intro { max-width: 650px; margin-bottom: 1.75rem; }
+.submit-intro { max-width: 650px; margin-bottom: var(--space-6); }
 .submission-card { border-color: var(--line); padding: clamp(1.25rem, 3vw, 1.875rem); }
 .submission-columns {
   display: grid;

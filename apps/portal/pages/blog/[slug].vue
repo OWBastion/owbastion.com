@@ -40,7 +40,7 @@ useHead(() => ({ link: [{ rel: "canonical", href: canonical.value }] }));
 
 <style scoped>
 .editorial-detail-page { padding-block: clamp(3rem, 8vh, 5.5rem) 4.5rem; }
-.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: 0.5rem; margin-bottom: 1.125rem; color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
+.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
 .editorial-detail-state { min-height: 260px; display: grid; place-items: center; color: var(--muted); }
 @media (max-width: 47.99rem) { .editorial-detail-page { padding-block: 2.375rem 3rem; } }
 </style>

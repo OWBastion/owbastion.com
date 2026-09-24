@@ -58,7 +58,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.page-intro { margin-bottom: 2rem; }
+.page-intro { margin-bottom: var(--space-8); }
 .page-intro .body-copy { margin: var(--space-2) 0 0; }
 .map-directory-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
 .map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }

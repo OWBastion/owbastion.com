@@ -102,8 +102,10 @@ onMounted(() => { hydrated.value = true; });
 </template>
 
 <style scoped>
-.detail-card { container-type: inline-size; min-width: 0; padding: 0 clamp(var(--space-4), 4vw, var(--space-6)) max(var(--space-5), env(safe-area-inset-bottom)); }
-.detail-content { display: grid; gap: 0; }
+/* container-type lives on the card so .detail-content (below) can query the
+   card's own width; a size container cannot query itself. */
+.detail-card { container-type: inline-size; min-width: 0; padding-block: 0 max(var(--space-5), env(safe-area-inset-bottom)); }
+.detail-content { display: grid; gap: 0; padding-inline: clamp(var(--space-4), 4vw, var(--space-6)); }
 .detail-section { display: grid; gap: var(--space-4); padding: var(--space-5) 0; border-top: 1px solid var(--line); }
 .detail-section:first-child { padding-top: var(--space-5); border-top: 0; }
 .section-title { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -132,7 +134,7 @@ onMounted(() => { hydrated.value = true; });
 .empty-stat-grid strong { color: var(--text); font-size: 1.45rem; letter-spacing: -.04em; }
 .muted-copy { margin: 0; color: var(--quiet); font-size: .84rem; }
 @container (max-width: 23.99rem) {
-  .detail-card { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
+  .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
   .detail-section:first-child { padding-top: var(--space-4); }
   .detail-facts { gap: var(--space-2); }

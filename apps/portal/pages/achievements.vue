@@ -80,7 +80,7 @@ const updateEquipped = async (grantId: string) => {
 </template>
 
 <style scoped>
-.page-intro { margin-bottom: 2rem; }
+.page-intro { margin-bottom: var(--space-8); }
 .achievement-directory { padding: clamp(1.375rem, 4vw, 2.25rem); }
 .equip-error { margin-top: var(--space-4); }
 .achievement-skeleton-groups, .achievement-skeleton-section { display: grid; gap: var(--space-4); }
@@ -88,7 +88,8 @@ const updateEquipped = async (grantId: string) => {
 .achievement-skeleton-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
 .achievement-skeleton-heading-title { width: 28%; height: 30px; }
 .achievement-skeleton-heading-count { width: 48px; height: 13px; }
-.achievement-skeleton-card { container-type: inline-size; display: grid; grid-template-columns: 58px minmax(0, 1fr); align-content: start; gap: var(--space-4); min-height: 124px; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.achievement-skeleton-grid { container-type: inline-size; }
+.achievement-skeleton-card { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-content: start; gap: var(--space-4); min-height: 124px; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .achievement-skeleton-icon { width: 58px; height: 58px; border-radius: var(--radius-card); }
 .achievement-skeleton-copy { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .achievement-skeleton-title { width: 72%; height: 20px; }

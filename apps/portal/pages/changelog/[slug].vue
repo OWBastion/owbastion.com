@@ -106,12 +106,12 @@ async function sharePage() {
 
 <style scoped>
 .editorial-detail-page { padding-block: clamp(2.5rem, 6vh, 4.5rem) 4.5rem; }
-.editorial-detail-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-bottom: 0.85rem; }
-.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: 0.5rem; color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
-.editorial-share-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; }
+.editorial-detail-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
+.editorial-back-link { display: inline-flex; min-height: 44px; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--type-caption-size); font-weight: 500; text-decoration: none; }
+.editorial-share-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .editorial-detail-state { min-height: 260px; display: grid; place-items: center; color: var(--muted); }
 @media (max-width: 47.99rem) {
   .editorial-detail-page { padding-block: 1.75rem 3rem; }
-  .editorial-detail-nav { margin-bottom: 0.65rem; }
+  .editorial-detail-nav { margin-bottom: var(--space-3); }
 }
 </style>

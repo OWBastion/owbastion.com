@@ -390,7 +390,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .page-heading .page-title { max-width: 14ch; }
 .status-alert { margin-bottom: var(--space-3); }
 .status-live { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
-.status-alert + .status-live { margin-top: -0.25rem; }
+.status-alert + .status-live { margin-top: calc(var(--space-1) * -1); }
 .status-alert { margin: 0; }
 .sr-only {
   position: absolute;
@@ -418,7 +418,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .mastery-outcome { margin-top: var(--space-4); }
 .overview-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
-.evidence-message, .message { margin: 0; padding: 4.5rem 0; color: var(--muted); font-size: .88rem; text-align: center; }
+.evidence-message, .message { margin: 0; padding: var(--space-16) 0; color: var(--muted); font-size: .88rem; text-align: center; }
 .catalog-loading { padding: var(--space-6) 0; }
 .confirm-card :deep(.catalog) { margin-bottom: var(--space-5); }
 .confirm-catalog--busy { opacity: .72; }

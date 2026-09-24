@@ -81,12 +81,12 @@ const isChangelog = computed(() => props.kind === "changelog");
 .editorial-article-body :deep(pre code) { padding: 0; background: transparent; }
 .editorial-article-body :deep(.katex-display) { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-block: .2rem; }
 
-.changelog-masthead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem 0.85rem; }
+.changelog-masthead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
 .changelog-version {
   display: inline-flex;
   align-items: center;
   min-height: 2rem;
-  padding: 0.25rem 0.8rem;
+  padding: var(--space-1) var(--space-3);
   border: 1px solid color-mix(in oklch, var(--accent) 42%, var(--line));
   border-radius: var(--radius-pill);
   background: var(--accent-surface);
@@ -101,10 +101,10 @@ const isChangelog = computed(() => props.kind === "changelog");
 .changelog-title { overflow-wrap: anywhere; }
 
 .editorial-article--changelog { padding: clamp(var(--space-5), 4vw, var(--space-12)); }
-.editorial-article--changelog .editorial-article-header { gap: 0.85rem; padding-bottom: 1.25rem; }
+.editorial-article--changelog .editorial-article-header { gap: var(--space-3); padding-bottom: var(--space-5); }
 .editorial-article--changelog .editorial-article-body {
   max-width: 62ch;
-  padding-top: 1.35rem;
+  padding-top: var(--space-5);
   font-size: var(--type-body-size);
   line-height: 1.75;
   overflow-wrap: break-word;
