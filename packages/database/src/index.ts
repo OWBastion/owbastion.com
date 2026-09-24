@@ -10,6 +10,7 @@ import { userEvidenceObjectKey } from "./object-key";
 import { difficultyCovers, matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
+import { resolvePortalSession } from "./portal-session";
 
 const now = () => Date.now();
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
@@ -209,43 +210,6 @@ const hashRequest = async (value: unknown) => {
 };
 
 const bindingClaimSessionToken = (claimToken: string) => hashRequest({ purpose: "binding-claim-session", claimToken });
-
-export const resolvePortalSession = async (
-  databaseOrDb: D1Database | ReturnType<typeof drizzle>,
-  sessionToken: string,
-) => {
-  const db = "prepare" in databaseOrDb ? drizzle(databaseOrDb) : databaseOrDb;
-  const row = await db
-    .select({
-      binding: bindings,
-      player: playerAccounts,
-    })
-    .from(qqSessions)
-    .innerJoin(
-      bindings,
-      and(
-        eq(bindings.provider, "qq"),
-        eq(bindings.memberOpenId, qqSessions.memberOpenId),
-        eq(bindings.status, "active"),
-      ),
-    )
-    .innerJoin(
-      playerAccounts,
-      eq(playerAccounts.id, bindings.playerAccountId),
-    )
-    .where(
-      and(
-        eq(qqSessions.tokenHash, await hashRequest(sessionToken)),
-        gt(qqSessions.expiresAt, now()),
-        ne(playerAccounts.status, "banned"),
-      ),
-    )
-    .get();
-  if (!row) return null;
-  return { binding: row.binding, player: row.player };
-};
-
-export { resolvePortalSession as getCurrentPortalPlayer };
 
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 const hexToBytes = (value: string) => {
