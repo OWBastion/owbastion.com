@@ -18,6 +18,7 @@
 | [portal-ui-guidelines.md](portal-ui-guidelines.md) | Portal UI 规则 | authoritative | `apps/portal` 页面结构、组件、状态和响应式行为 |
 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | Portal 文案规则 | authoritative | `apps/portal` 文案、状态词汇、空状态与错误 |
 | [changelog-guidelines.md](changelog-guidelines.md) | 版本更新规范 | authoritative | `apps/portal/content/changelog` 结构、排版与文案规范 |
+| [design-system-v2-migration.md](design-system-v2-migration.md) | v2 迁移计划 | active | v1 → v2 token 对照、迁移顺序、stylelint 防回退、验收截图 |
 | [terminology.md](terminology.md) | Portal 术语表 | authoritative | Portal 称号、槽位、展示方式、状态词、事件与绑定术语的中文唯一来源 |
 
 ## 使用规则
