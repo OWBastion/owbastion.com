@@ -47,13 +47,13 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
 .queue-row--item { color: var(--muted); text-decoration: none; }
 .queue-row--item:hover, .queue-row--item:focus-visible { color: var(--text); background: var(--surface-raised); }
 .queue-challenge { display: grid; min-width: 0; }
-.queue-cell { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-cell { display: block; min-width: 0; overflow-wrap: anywhere; }
 .queue-challenge strong.queue-cell { color: var(--text); font-size: var(--type-label-sm-size); }
 .queue-challenge small.queue-cell { margin-top: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); }
 .queue-empty { margin: 0; padding: var(--space-8) var(--space-1) var(--space-2); color: var(--quiet); font-size: var(--type-label-sm-size); text-align: center; }
-/* Every column track is fluid (minmax(0, fr)) and every cell truncates with
-   an ellipsis, so the four-column row keeps working at any container width
-   down to the cq-compact floor without a custom breakpoint of its own. */
+/* Every column track is fluid (minmax(0, fr)) and every cell wraps instead of
+   truncating, so the full challenge/player identity stays visible at any
+   container width down to the cq-compact floor without a custom breakpoint. */
 @container (max-width: 23.99rem) {
   .queue-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-4); padding-block: var(--space-3); }
   .queue-row--header { display: none; }

@@ -139,6 +139,7 @@ const challengeSummary = computed(() => {
         </UCard>
       </div>
 
+      <div class="review-rail">
       <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
@@ -263,6 +264,7 @@ const challengeSummary = computed(() => {
           <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
         </dl>
       </details>
+      </div>
     </div>
   </section>
 </template>
@@ -342,25 +344,23 @@ const challengeSummary = computed(() => {
   box-sizing: border-box;
 }
 
-/* Desktop: evidence | rail */
+/* Evidence | rail. auto-fit collapses to a single column on its own once a
+   track can no longer hold its min(20rem, 100%) floor — no explicit
+   breakpoint decides the switch, so it never leaves a column too narrow for
+   its content (the old 51.25rem viewport collapse is gone for good). */
 .review-layout {
   display: grid;
   width: 100%;
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.95fr);
-  grid-template-areas:
-    "evidence claim"
-    "evidence actions"
-    "evidence signals"
-    "evidence meta";
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
 }
-.flow-evidence { grid-area: evidence; }
-.flow-claim { grid-area: claim; }
-.flow-actions { grid-area: actions; }
-.flow-signals { grid-area: signals; }
-.flow-meta { grid-area: meta; }
+.review-rail {
+  display: grid;
+  gap: var(--review-gap);
+  min-width: 0;
+}
 
 .evidence-col {
   position: sticky;
@@ -535,23 +535,10 @@ const challengeSummary = computed(() => {
   z-index: 5;
 }
 
-/* Narrow: one column; claim then decide, then evidence for verification.
-   Both tracks above are unfloored (minmax(0, fr)), so the two-column
-   layout stays proportional at any width down to this single cq-compact
-   threshold instead of squeezing one column toward a fixed floor. */
+/* review-layout's auto-fit collapse (above) handles the column switch on its
+   own; this cq-compact threshold only covers cosmetic overflow-wrap tweaks
+   that matter once the panel itself is narrow. */
 @container (max-width: 23.99rem) {
-  .review-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "claim"
-      "actions"
-      "evidence"
-      "signals"
-      "meta";
-  }
-  .evidence-col {
-    position: static;
-  }
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
