@@ -390,6 +390,7 @@ function validateCompositeSelection(
 }
 
 export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, legacyCompositeSpatialConfigSchema, compositeSpatialConfigSchema]);
+export const agentProjectedSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, compositeSpatialConfigSchema]);
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({
@@ -401,7 +402,7 @@ export const agentGameplayRevisionSchema = z.object({
   isDefault: z.boolean(),
   isSelectable: z.boolean(),
   gameVersion: z.string().trim().min(1).max(64),
-  spatialConfig: agentSpatialConfigSchema,
+  spatialConfig: agentProjectedSpatialConfigSchema,
   challengeRefs: z.array(agentMapChallengeRefSchema).max(256),
 }).strict().superRefine((value, context) => {
   if (value.lifecycle === "default" && (!value.isDefault || value.isSelectable)) {
