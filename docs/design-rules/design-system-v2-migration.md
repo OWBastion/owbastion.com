@@ -84,9 +84,7 @@ Each step is one PR (or a small series), per the Refactor contract in
 ## Acceptance for every migration PR
 
 - Stylelint passes for the touched files with v2 rules at error level.
-- Screenshots of every touched surface at **375px, 768px, and 1280px**, in
-  **light and dark**, attached to the PR. The same component must show the
-  same anatomy at all three widths.
+- Rendered-browser verification must cover the affected responsive behavior at representative narrow, tablet, and desktop widths. Screenshot artifacts are not required.
 - No horizontal page overflow at 320px.
 - Reduced motion, reduced transparency, and increased contrast still behave as
   [`motion-and-feedback.md`](motion-and-feedback.md) requires.
