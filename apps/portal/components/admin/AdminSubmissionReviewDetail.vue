@@ -536,9 +536,21 @@ const challengeSummary = computed(() => {
 }
 
 /* review-layout's auto-fit collapse (above) handles the column switch on its
-   own; this cq-compact threshold only covers cosmetic overflow-wrap tweaks
-   that matter once the panel itself is narrow. */
+   own, content-driven rather than at a fixed width — but CSS order/position
+   have no "auto-fit resolved to one column" query of their own to key off,
+   so the narrow-order swap and the sticky evidence column below reuse this
+   same single cq-compact threshold rather than adding a second one. Between
+   this threshold and auto-fit's actual (wider, content-dependent) collapse
+   point, evidence keeps its wide-mode order and stickiness even though the
+   panel is already visually stacked; that gap is the trade-off for having
+   no second breakpoint at all. */
 @container (max-width: 23.99rem) {
+  .review-rail {
+    order: -1;
+  }
+  .evidence-col {
+    position: static;
+  }
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
