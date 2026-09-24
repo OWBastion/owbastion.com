@@ -139,7 +139,7 @@ onMounted(() => { void loadCandidates(); });
 .invite-panel { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
 .invite-panel__header, .invite-panel__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .invite-panel__hint, .invite-panel__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
-.invite-panel__header h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.035em; }
+.invite-panel__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
 .invite-panel__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .invite-panel__form { display: grid; gap: var(--space-4); }
 .invite-panel__validation { margin: calc(-1 * var(--space-2)) 0 0; color: var(--danger); font-size: var(--type-label-sm-size); line-height: 1.5; }

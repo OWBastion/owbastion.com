@@ -265,7 +265,7 @@ onMounted(() => { void loadOptions(); });
 <style scoped>
 .player-titles { container-type: inline-size; display: grid; gap: var(--space-5); margin: 0; }
 .section-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
-.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }
+.section-heading h3 { margin: 0; font-size: var(--type-card-title-size); letter-spacing: -.025em; }
 .section-heading__actions { display: flex; align-items: center; gap: var(--space-2); }
 .card-kicker { margin: 0 0 var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
 .grants-tabs { display: flex; gap: var(--space-1); width: fit-content; max-width: 100%; padding: var(--space-1); overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }

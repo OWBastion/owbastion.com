@@ -333,7 +333,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   color: var(--accent);
   background: var(--accent-surface);
-  font-size: 1.2rem;
+  font-size: var(--type-card-title-size);
   font-weight: 700;
 }
 
@@ -352,7 +352,7 @@ onBeforeUnmount(() => {
 .identity-card h2 {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  font-size: var(--type-headline-size);
   letter-spacing: var(--type-headline-tracking);
   line-height: 1.08;
 }
@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
 
 .detail-card__heading h3 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: var(--type-card-title-size);
   letter-spacing: -0.025em;
 }
 

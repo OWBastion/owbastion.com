@@ -149,7 +149,7 @@ function onPlayerSearch(term: string) {
 .detail-identity, .detail-action { display: flex; align-items: center; gap: var(--space-3); }
 .detail-header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); }
 .detail-avatar { display: grid; flex: 0 0 auto; width: 42px; height: 42px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-weight: 700; }
-.detail-identity h2 { margin: 0; font-size: 1.25rem; letter-spacing: -.035em; }
+.detail-identity h2 { margin: 0; font-size: var(--type-card-title-size); letter-spacing: -.035em; }
 .detail-identity .eyebrow { margin-bottom: var(--space-1); }
 .detail-identity small { color: var(--quiet); font-size: var(--type-caption-size); }
 .detail-action { align-items: end; flex-wrap: wrap; }

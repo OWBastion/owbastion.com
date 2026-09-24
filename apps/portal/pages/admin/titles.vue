@@ -368,7 +368,7 @@ onMounted(() => {
 <style scoped>
 .migration-workspace { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 2fr); gap: var(--space-4); align-items: stretch; }
 .migration-empty { grid-column: 1 / -1; padding-block: var(--space-8); }
-.migration-dialog h2 { margin: 0; font-size: 1.75rem; letter-spacing: -.045em; }
+.migration-dialog h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.045em; }
 .migration-facts { display: grid; gap: var(--space-2); margin: var(--space-6) 0 var(--space-4); }
 .migration-facts div { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
 .migration-facts dt { color: var(--quiet); font-size: var(--type-caption-size); }

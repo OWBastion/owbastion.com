@@ -384,7 +384,7 @@ onMounted(load);
 .table-meta, .revoke-note { color: var(--quiet); font-size: var(--type-caption-size); }
 .revoke-form { display: grid; gap: var(--space-4); }
 .invite-code { display: grid; min-height: 56px; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
-.invite-code code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: .12em; }
+.invite-code code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-card-title-size); font-weight: 700; letter-spacing: .12em; }
 .claim-detail { display: grid; gap: var(--space-3); }
 .qq-bound-item { display: inline-block; }
 </style>

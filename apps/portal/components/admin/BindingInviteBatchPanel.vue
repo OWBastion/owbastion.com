@@ -121,7 +121,7 @@ async function copyInvitation(invitation: Invitation) {
 .batch-invites { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
 .batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
-.batch-invites__header h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.035em; }
+.batch-invites__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
 .batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .batch-invites__form { display: grid; gap: var(--space-3); }
 .batch-invites__actions { min-height: 44px; }

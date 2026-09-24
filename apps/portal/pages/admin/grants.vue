@@ -214,6 +214,26 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
 </template>
 
 <style scoped>
-.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.5rem); }.grant-panel, .grant-summary { display: grid; gap: 0.875rem; padding: clamp(1rem, 2.5vw, 1.375rem); }.grant-summary { gap: 1rem; }.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }.panel-heading h2 { margin: 0; font-size: 1rem; letter-spacing: -0.02em; }.panel-heading > span { color: var(--quiet); font-size: 0.78rem; }.selector-list { display: grid; gap: 0.25rem; max-height: 22rem; overflow-y: auto; }.selector-option { display: flex; align-items: start; gap: 0.6875rem; min-width: 0; min-height: 2.75rem; padding: 0.625rem 0.5rem; border-radius: var(--radius-control); cursor: pointer; }.selector-option:hover { background: var(--accent-surface); }.selector-copy { display: grid; min-width: 0; gap: 0.1875rem; }.selector-option strong { overflow-wrap: anywhere; }.selector-option small { color: var(--quiet); overflow-wrap: anywhere; }.selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: 0.82rem; }.selection-chips { display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 5.5rem; overflow-y: auto; }.selector-pagination { display: flex; justify-content: center; }.grant-count { margin: 0; color: var(--muted); }.grant-count strong { color: var(--text); }.confirm-body { display: grid; gap: 1rem; }.confirm-body p { margin: 0; line-height: 1.55; }.confirm-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.5rem 0.75rem; font-size: 0.82rem; }.confirm-list span { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(var(--space-4), 2.4vw, var(--space-6)); }
+.grant-panel, .grant-summary { display: grid; gap: var(--space-4); padding: clamp(var(--space-4), 2.5vw, var(--space-6)); }
+.grant-summary { gap: var(--space-4); }
+.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.panel-heading h2 { margin: 0; font-size: var(--type-body-size); letter-spacing: -0.02em; }
+.panel-heading > span { color: var(--quiet); font-size: var(--type-caption-size); }
+.selector-list { display: grid; gap: var(--space-1); max-height: 22rem; overflow-y: auto; }
+.selector-option { display: flex; align-items: start; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-3) var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
+.selector-option:hover { background: var(--accent-surface); }
+.selector-copy { display: grid; min-width: 0; gap: var(--space-1); }
+.selector-option strong { overflow-wrap: anywhere; }
+.selector-option small { color: var(--quiet); overflow-wrap: anywhere; }
+.selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: var(--type-label-sm-size); }
+.selection-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); max-height: 5.5rem; overflow-y: auto; }
+.selector-pagination { display: flex; justify-content: center; }
+.grant-count { margin: 0; color: var(--muted); }
+.grant-count strong { color: var(--text); }
+.confirm-body { display: grid; gap: var(--space-4); }
+.confirm-body p { margin: 0; line-height: 1.55; }
+.confirm-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-3); font-size: var(--type-label-sm-size); }
+.confirm-list span { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 48rem) { .grant-workspace { grid-template-columns: 1fr; } }
 </style>
