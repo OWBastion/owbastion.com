@@ -524,9 +524,13 @@ selection is either `setup_detection` with an explicit fallback stage ID, or
 requires a detector on every non-fallback stage and forbids a detector on the
 fallback. Random first-stage selection forbids unused setup detectors. Stage
 IDs are unique and stable, and the stage list is emitted in stage-ID order;
-the platform never stores the per-game selection. Keep a composed revision in
-`preparing` until the consuming Bastion build accepts this response shape. The
-existing static and `alternateStages` shape remains valid for other revisions.
+the platform never stores the per-game selection. Composite control data is
+either omitted from every stage or defined on every stage; when defined, each
+stage has exactly one jump and one respawn position, and all stages share the
+same paired respawn axis and threshold. The existing static and
+`alternateStages` shape retains its independent control-role cardinalities.
+Keep a composed revision in `preparing` until the consuming Bastion build
+accepts this response shape.
 
 An active map with no projectable default remains listed with an empty
 `gameplayRevisions` array so a consumer cannot mistake an omitted map for a

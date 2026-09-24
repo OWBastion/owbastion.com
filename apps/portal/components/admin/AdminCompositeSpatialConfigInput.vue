@@ -72,6 +72,7 @@ const allCoordinatesValid = computed(() => stages.value.every((stage, index) => 
 function issueMessage(issue: ValidationIssue): string {
   const path = issue.path.map(String).join(".");
   if (path === "composition.selectionCount") return "选择数量必须是 2 到 16 的整数，且不得超过阶段数量。";
+  if (path.startsWith("stages.") && path.includes(".control")) return "组合路线中的控制数据必须在所有阶段一致；每阶段恰好配置一个占领跳跃点和一个重生点，并共享相同的重生轴与阈值。";
   if (path === "composition.firstStageSelection.fallbackStageId") return "请选择一个已存在的回退阶段。";
   if (path.endsWith(".stageId")) return issue.message === "Duplicate composite spatial stage" ? "阶段 ID 重复。" : "阶段 ID 格式无效。";
   if (path.endsWith(".setupDetection.position")) return "请输入三个有效的检测坐标。";
@@ -93,10 +94,11 @@ function fieldError(...path: Array<string | number>) {
 }
 
 function stageSpatialError(index: number) {
-  const hasInvalidSpatialField = issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && [
+  const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && [
     "bastionPositions", "resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition", "control", "portalPositions", "springboardPositions",
-  ].includes(String(issue.path[2])));
-  return hasInvalidSpatialField ? "请粘贴此阶段完整的 Raw Workshop 点位代码。" : "";
+  ].includes(String(item.path[2])));
+  if (!issue) return "";
+  return issue.path[2] === "control" ? issueMessage(issue) : "请粘贴此阶段完整的 Raw Workshop 点位代码。";
 }
 
 function nestedFieldError(...path: Array<string | number>) {

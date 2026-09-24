@@ -138,4 +138,25 @@ describe("AdminCompositeSpatialConfigInput", () => {
     expect(agentSpatialConfigSchema.safeParse(serialized).success).toBe(true);
     expect(serialized).not.toHaveProperty("alternateStages");
   });
+
+  it("explains composite control cardinality failures", async () => {
+    const base = compositeConfig();
+    const invalid = {
+      ...base,
+      stages: base.stages.map((stage, index) => ({
+        ...stage,
+        control: {
+          centerPositions: [],
+          jumpPositions: index === 0 ? [[1, 2, 3], [4, 5, 6]] : [[1, 2, 3]],
+          respawnPositions: [[7, 8, 9]],
+          respawnAxis: "x",
+          respawnAxisThreshold: 5,
+        },
+      })),
+    };
+    const wrapper = await mountEditor(invalid);
+
+    expect(wrapper.text()).toContain("每阶段恰好配置一个占领跳跃点和一个重生点");
+    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
+  });
 });

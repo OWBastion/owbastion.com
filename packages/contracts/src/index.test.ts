@@ -204,6 +204,33 @@ describe("v1 platform contracts", () => {
       ],
     } as const;
     expect(agentSpatialConfigSchema.safeParse(composite).success).toBe(true);
+    const compositeControl = (offset: number) => ({
+      centerPositions: [],
+      jumpPositions: [[offset, offset + 1, offset + 2]],
+      respawnPositions: [[offset + 3, offset + 4, offset + 5]],
+      respawnAxis: "x" as const,
+      respawnAxisThreshold: 5,
+    });
+    const controlledComposite = {
+      ...composite,
+      stages: composite.stages.map((stage, index) => ({ ...stage, control: compositeControl(index * 10) })),
+    };
+    const changeFirstControl = (patch: Record<string, unknown>) => ({
+      ...controlledComposite,
+      stages: controlledComposite.stages.map((stage, index) => index === 0
+        ? { ...stage, control: { ...stage.control, ...patch } }
+        : stage),
+    });
+    expect(agentSpatialConfigSchema.safeParse(controlledComposite).success).toBe(true);
+    const mixedControls = {
+      ...controlledComposite,
+      stages: controlledComposite.stages.map((stage, index) => index === 0 ? { ...stage, control: null } : stage),
+    };
+    expect(agentSpatialConfigSchema.safeParse(mixedControls).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ jumpPositions: [[1, 2, 3], [90, 91, 92]] })).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnPositions: [[4, 5, 6], [90, 91, 92]] })).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnAxis: "y" })).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse(changeFirstControl({ respawnAxisThreshold: 6 })).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, spatialConfig: composite }] }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, selectionCount: 4 } }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, firstStageSelection: { mode: "setup_detection", fallbackStageId: "missing" } } }).success).toBe(false);

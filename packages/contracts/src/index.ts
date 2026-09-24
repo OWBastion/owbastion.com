@@ -322,6 +322,26 @@ const compositeSpatialConfigSchema = z.object({
   if (value.composition.selectionCount > value.stages.length) {
     context.addIssue({ code: "custom", path: ["composition", "selectionCount"], message: "Selection count exceeds the number of available stages" });
   }
+  const stagesWithControl = value.stages.filter((stage) => stage.control !== null);
+  if (stagesWithControl.length > 0 && stagesWithControl.length !== value.stages.length) {
+    const stageIndex = value.stages.findIndex((stage) => stage.control === null);
+    context.addIssue({ code: "custom", path: ["stages", stageIndex, "control"], message: "Composite stages must either all define control data or all omit it" });
+  }
+  const firstControl = stagesWithControl[0]?.control;
+  if (firstControl) {
+    for (const [index, stage] of value.stages.entries()) {
+      if (!stage.control) continue;
+      if (stage.control.jumpPositions.length !== 1) {
+        context.addIssue({ code: "custom", path: ["stages", index, "control", "jumpPositions"], message: "Composite stages require exactly one jump position" });
+      }
+      if (stage.control.respawnPositions.length !== 1) {
+        context.addIssue({ code: "custom", path: ["stages", index, "control", "respawnPositions"], message: "Composite stages require exactly one respawn position" });
+      }
+      if (stage.control.respawnAxis !== firstControl.respawnAxis || stage.control.respawnAxisThreshold !== firstControl.respawnAxisThreshold) {
+        context.addIssue({ code: "custom", path: ["stages", index, "control", "respawnAxis"], message: "Composite stages must share one respawn axis and threshold" });
+      }
+    }
+  }
   const firstStageSelection = value.composition.firstStageSelection;
   if (firstStageSelection.mode === "setup_detection") {
     const fallback = stagesById.get(firstStageSelection.fallbackStageId);
