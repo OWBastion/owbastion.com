@@ -358,8 +358,8 @@ onMounted(() => {
         </section>
       </template>
       <template #footer>
-        <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" />
         <UButton label="确认关联" :loading="saving || bulkLoading" :disabled="!bulkAffectedCount" @click="grantAll" />
+        <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeBulk" />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

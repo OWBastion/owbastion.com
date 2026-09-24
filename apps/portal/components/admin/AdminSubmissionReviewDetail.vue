@@ -162,11 +162,9 @@ const challengeSummary = computed(() => {
         aria-label="审核操作"
         :aria-busy="actionLoading || undefined"
       >
-        <div class="actions" role="group" aria-label="审核决定">
+        <div class="actions action-row" role="group" aria-label="审核决定">
           <UButton
-            class="action-btn action-btn--primary pressable"
             type="button"
-            block
             icon="i-lucide-check"
             label="通过"
             :loading="decisionLoading('approved')"
@@ -174,9 +172,7 @@ const challengeSummary = computed(() => {
             @click="emitReview('approved')"
           />
           <UButton
-            class="action-btn pressable"
             type="button"
-            block
             label="要求重新提交"
             color="neutral"
             variant="outline"
@@ -185,9 +181,7 @@ const challengeSummary = computed(() => {
             @click="emitReview('resubmission_required')"
           />
           <UButton
-            class="action-btn pressable"
             type="button"
-            block
             label="驳回"
             color="error"
             variant="soft"
@@ -202,11 +196,9 @@ const challengeSummary = computed(() => {
             <h4 id="spot-check-title">自动判定抽检</h4>
             <p>请核对截图与称号结果。抽检不影响自动结果，发现错误时可撤销称号。</p>
           </div>
-          <div class="spot-check-actions">
+          <div class="spot-check-actions action-row">
             <UButton
-              class="action-btn pressable"
               type="button"
-              block
               label="确认抽检"
               color="neutral"
               variant="outline"
@@ -215,9 +207,7 @@ const challengeSummary = computed(() => {
               @click="emitSpotCheck('confirmed')"
             />
             <UButton
-              class="action-btn pressable"
               type="button"
-              block
               label="撤销称号"
               color="error"
               variant="soft"
@@ -231,7 +221,6 @@ const challengeSummary = computed(() => {
         <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || undefined">
           <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
           <UButton
-            class="action-btn action-btn--utility pressable"
             type="button"
             icon="i-lucide-refresh-cw"
             label="重新发送 OCRKit 请求"
@@ -242,7 +231,6 @@ const challengeSummary = computed(() => {
             @click="emit('retry-ocr')"
           />
           <UButton
-            class="action-btn action-btn--utility pressable"
             type="button"
             icon="i-lucide-pen-line"
             label="直接标注"
@@ -410,42 +398,12 @@ const challengeSummary = computed(() => {
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
 }
-/*
- * auto-fit: 3-up when each button still has ≥ ~5.5rem; otherwise collapse to
- * one column so labels never clip or push the card past the viewport.
- */
-.actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr));
-  gap: 0.5rem;
-  width: 100%;
-}
-.actions :deep(.action-btn) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--review-touch);
-  padding-inline: 0.5rem;
-  font-size: 0.84rem;
-  font-weight: 680;
-  letter-spacing: -0.01em;
-  justify-content: center;
-}
-.actions :deep(.action-btn--primary) {
-  font-weight: 700;
-}
 .ocr-retry-actions {
   display: grid;
+  justify-items: start;
   gap: 0.25rem;
   padding-top: 0.5rem;
   border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
-}
-.ocr-retry-actions :deep(.action-btn) {
-  justify-self: start;
-  max-width: 100%;
-  min-height: 2.75rem;
-  padding-inline: 0.5rem;
-  font-size: 0.82rem;
-  font-weight: 650;
 }
 .ocr-retry-error {
   margin: 0;
@@ -469,17 +427,6 @@ const challengeSummary = computed(() => {
   color: var(--text-on-glass-quiet);
   font-size: 0.75rem;
   line-height: 1.5;
-}
-.spot-check-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
-  gap: 0.5rem;
-  width: 100%;
-}
-.spot-check-actions :deep(.action-btn) {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--review-touch);
 }
 
 .claim-card {
@@ -608,11 +555,6 @@ const challengeSummary = computed(() => {
   }
   .claim-kind {
     margin-top: 0.15rem;
-  }
-  .ocr-retry-actions :deep(.action-btn) {
-    width: 100%;
-    justify-self: stretch;
-    justify-content: center;
   }
 }
 

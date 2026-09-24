@@ -43,16 +43,14 @@ const withdraw = async () => { if (await review.withdraw()) emit("review-changed
     <template v-else>
       <UAlert v-if="error && !loading && !props.authenticated" color="error" variant="subtle" :description="error" role="alert" />
       <UAlert v-if="success" color="success" variant="subtle" :description="success" aria-live="polite" />
-      <div v-if="!props.authenticated" class="review-guest"><NuxtLink class="secondary-button review-login" :to="loginPath">登录后评分</NuxtLink></div>
+      <div v-if="!props.authenticated" class="review-guest action-row"><UButton :to="loginPath" label="登录后评分" /></div>
       <ReviewEditor v-else-if="!loading" :current-review="currentReview" :rating="draftRating" :comment="draftComment" :anonymous="draftAnonymous" :saving="saving" :error="error" @update:rating="draftRating = $event" @update:comment="draftComment = $event" @update:anonymous="draftAnonymous = $event" @save="save" @withdraw="withdraw" />
-      <button v-if="error && !unavailable" class="secondary-button review-retry" type="button" :disabled="loading" @click="retry">重新读取评价</button>
+      <div v-if="error && !unavailable" class="action-row"><UButton type="button" color="neutral" variant="outline" label="重新读取评价" :disabled="loading" @click="retry" /></div>
     </template>
   </section>
 </template>
 
 <style scoped>
-.review-panel { gap: 15px; }.review-guest { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-top: 17px; border-top: 1px solid var(--line); }.review-guest p { margin: 0; color: var(--muted); font-size: .82rem; }.review-login, .review-retry { min-height: 44px; flex: 0 0 auto; }.review-retry { width: fit-content; }.review-panel :deep(.secondary-button) { display: inline-flex; align-items: center; justify-content: center; padding: 8px 13px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); background: var(--surface); font: inherit; text-decoration: none; }.review-panel :deep(.secondary-button:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 430px) { .review-guest { align-items: stretch; flex-direction: column; gap: 10px; }.review-login { width: 100%; } }
+.review-panel { gap: 15px; }.review-guest { padding-top: 17px; border-top: 1px solid var(--line); }.review-guest p { margin: 0; color: var(--muted); font-size: .82rem; }
 @media (prefers-reduced-motion: reduce) { .review-panel :deep(*) { scroll-behavior: auto; } }
-@media (prefers-contrast: more) { .review-panel :deep(.secondary-button) { border-color: var(--line-strong); } }
 </style>

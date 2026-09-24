@@ -72,15 +72,16 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
               />
             </UFormField>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
-            <UButton
-              class="submit-button"
-              :label="loading ? '上传中…' : '上传并识别截图'"
-              icon="i-lucide-upload"
-              :loading="loading"
-              :disabled="loading || !state.screenshot"
-              type="submit"
-              block
-            />
+            <div class="action-row">
+              <UButton
+                size="lg"
+                :label="loading ? '上传中…' : '上传并识别截图'"
+                icon="i-lucide-upload"
+                :loading="loading"
+                :disabled="loading || !state.screenshot"
+                type="submit"
+              />
+            </div>
           </UForm>
           <div class="privacy-note">
             <div class="privacy-header">
@@ -113,7 +114,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .upload-section { min-width: 0; }
 .upload-section :deep(form) { display: grid; gap: 14px; }
 .upload-control { width: 100%; }
-.submit-button { min-height: 44px; }
 .privacy-note {
   display: grid;
   gap: 6px;

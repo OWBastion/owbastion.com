@@ -230,7 +230,7 @@ onMounted(() => { void loadOptions(); });
           <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
         </form>
       </template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /></template>
+      <template #footer><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="recoveryOpen" title="修复佩戴称号" size="md" :dismissible="!recovering">
       <template #body>
@@ -247,7 +247,7 @@ onMounted(() => { void loadOptions(); });
           <p v-if="recoverySelectionError" class="title-error" role="alert">{{ recoverySelectionError }}</p>
         </form>
       </template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="recovering" @click="recoveryOpen = false" /><UButton label="保存佩戴选择" type="submit" form="recover-player-titles" :loading="recovering" :disabled="recovering || Boolean(recoverySelectionError)" /></template>
+      <template #footer><UButton label="保存佩戴选择" type="submit" form="recover-player-titles" :loading="recovering" :disabled="recovering || Boolean(recoverySelectionError)" /><UButton label="取消" color="neutral" variant="outline" :disabled="recovering" @click="recoveryOpen = false" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog :open="revokeTarget !== null" title="回收玩家称号" :description="revokeDescription" size="sm" :dismissible="!revoking" @update:open="(open) => { if (!open) closeRevoke(); }">
       <template #body>
@@ -257,7 +257,7 @@ onMounted(() => { void loadOptions(); });
           <UFormField label="回收原因"><UTextarea v-model="revokeReason" maxlength="256" placeholder="例如：误授或资格变更" :disabled="revoking" /></UFormField>
         </form>
       </template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke()" /><UButton label="确认回收" color="error" type="submit" form="revoke-player-title" :loading="revoking" /></template>
+      <template #footer><UButton label="确认回收" color="error" variant="soft" type="submit" form="revoke-player-title" :loading="revoking" /><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke()" /></template>
     </AdminResponsiveDialog>
   </section>
 </template>

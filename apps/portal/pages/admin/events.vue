@@ -194,15 +194,15 @@ onMounted(() => void loadAll());
 
         </form>
       </template>
-      <template #footer><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" :disabled="saving" @click="requestArchive" /><span v-else /><UButton type="submit" form="event-editor" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /></template>
+      <template #footer><UButton type="submit" form="event-editor" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" :disabled="saving" @click="requestArchive" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="archiveOpen" title="归档事件" :description="selectedEvent?.name" size="sm" :dismissible="!saving">
       <template #body><p class="text-sm text-muted">归档后，事件不会出现在默认目录中。</p></template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="archiveOpen = false" /><UButton label="确认归档" color="error" :loading="saving" @click="archive" /></template>
+      <template #footer><UButton label="确认归档" color="error" variant="soft" :loading="saving" @click="archive" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="archiveOpen = false" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="versionAvailabilityOpen" :title="versionTarget?.availability === 'suspended' ? '挂起事件版本' : '恢复事件版本'" :description="versionTarget?.version.gameVersion" size="sm" :dismissible="!versionSaving">
       <template #body><p class="text-sm text-muted">{{ versionTarget?.availability === 'suspended' ? '该版本的事件将从 Bastion 下一次构建输入中全部移除，平台管理目录和事件元数据保持不变。' : '该版本的事件将在 Bastion 下一次构建输入中恢复，原有事件元数据保持不变。' }}</p></template>
-      <template #footer><UButton label="取消" color="neutral" variant="outline" :disabled="versionSaving" @click="versionAvailabilityOpen = false" /><UButton :label="versionTarget?.availability === 'suspended' ? '确认挂起' : '确认恢复'" :color="versionTarget?.availability === 'suspended' ? 'error' : 'primary'" :loading="versionSaving" @click="updateVersionAvailability" /></template>
+      <template #footer><UButton :label="versionTarget?.availability === 'suspended' ? '确认挂起' : '确认恢复'" :color="versionTarget?.availability === 'suspended' ? 'error' : 'primary'" :variant="versionTarget?.availability === 'suspended' ? 'soft' : 'solid'" :loading="versionSaving" @click="updateVersionAvailability" /><UButton label="取消" color="neutral" variant="outline" :disabled="versionSaving" @click="versionAvailabilityOpen = false" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>

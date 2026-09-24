@@ -36,9 +36,7 @@ useSeoMeta({ title: "内容编辑 · 躲避堡垒 3", robots: "noindex, nofollow
     >
       <div class="studio-loading__content">
         <p>内容编辑器无法载入，请稍后重试。</p>
-        <NuxtLink class="secondary-button hit-44 pressable" to="/admin">
-          返回管理概览
-        </NuxtLink>
+        <UButton to="/admin" label="返回管理概览" color="neutral" variant="outline" />
       </div>
     </section>
   </main>

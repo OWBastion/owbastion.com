@@ -237,8 +237,8 @@ onMounted(() => { void load(); });
       </div>
     </template>
     <template v-if="pendingAction" #footer>
+      <UButton :label="actionLabel" :color="actionColor" :variant="actionColor === 'error' ? 'soft' : 'solid'" :loading="saving" @click="saveAction" />
       <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="cancelAction" />
-      <UButton :label="actionLabel" :color="actionColor" :loading="saving" @click="saveAction" />
     </template>
   </AdminResponsiveDialog>
 </template>
