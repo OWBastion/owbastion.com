@@ -96,6 +96,37 @@ const challengeSummary = computed(() => {
     evidenceRule: null as string | null,
   };
 });
+
+/**
+ * review-layout's column count comes from `grid-template-columns:
+ * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
+ * width — there is no CSS query for "auto-fit resolved to one column," so
+ * the narrow-mode order/stickiness overrides read the browser's own
+ * resolved column count instead of guessing a matching breakpoint.
+ */
+const reviewLayoutRef = ref<HTMLElement | null>(null);
+const reviewLayoutStacked = ref(false);
+let reviewLayoutObserver: ResizeObserver | null = null;
+
+function updateReviewLayoutStacked() {
+  const el = reviewLayoutRef.value;
+  if (!el) return;
+  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
+  reviewLayoutStacked.value = columns.length <= 1;
+}
+
+onMounted(() => {
+  const el = reviewLayoutRef.value;
+  if (!el) return;
+  updateReviewLayoutStacked();
+  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
+  reviewLayoutObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  reviewLayoutObserver?.disconnect();
+  reviewLayoutObserver = null;
+});
 </script>
 
 <template>
@@ -120,7 +151,7 @@ const challengeSummary = computed(() => {
       Decisions stay in document flow (sticky), never fixed — fixed docks
       overflow when spot-check / OCR retry expand the control surface.
     -->
-    <div class="review-layout">
+    <div ref="reviewLayoutRef" class="review-layout" :class="{ 'review-layout--stacked': reviewLayoutStacked }">
       <div class="evidence-col flow-evidence">
         <UCard class="evidence-card surface-panel elevation-3">
           <template #header>
@@ -535,22 +566,20 @@ const challengeSummary = computed(() => {
   z-index: 5;
 }
 
-/* review-layout's auto-fit collapse (above) handles the column switch on its
-   own, content-driven rather than at a fixed width — but CSS order/position
-   have no "auto-fit resolved to one column" query of their own to key off,
-   so the narrow-order swap and the sticky evidence column below reuse this
-   same single cq-compact threshold rather than adding a second one. Between
-   this threshold and auto-fit's actual (wider, content-dependent) collapse
-   point, evidence keeps its wide-mode order and stickiness even though the
-   panel is already visually stacked; that gap is the trade-off for having
-   no second breakpoint at all. */
+/* review-layout's auto-fit collapse (above) is content-driven, not tied to a
+   fixed width — there is no CSS query for "auto-fit resolved to one
+   column," so the narrow-order swap and the sticky evidence column read the
+   browser's own resolved grid-template-columns column count instead
+   (ResizeObserver in the script block) rather than approximating it with a
+   width value of our own. */
+.review-layout--stacked .review-rail {
+  order: -1;
+}
+.review-layout--stacked .evidence-col {
+  position: static;
+}
+
 @container (max-width: 23.99rem) {
-  .review-rail {
-    order: -1;
-  }
-  .evidence-col {
-    position: static;
-  }
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
