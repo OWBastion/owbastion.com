@@ -41,6 +41,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: Portal styles
+            command: pnpm run lint:styles
           - name: Portal UI tests
             command: pnpm run test:portal-ui --run
           - name: Portal typecheck
