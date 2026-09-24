@@ -5,6 +5,7 @@ type PublicCacheOptions = {
   cacheKey: Request;
   enabled: boolean;
   eligible: boolean;
+  identityIndependent?: boolean;
   operation: string;
   response: () => Promise<Response> | Response;
   decorateHit?: (response: Response) => Response;
@@ -28,8 +29,9 @@ const defaultCache = (): Cache | undefined => {
   return storage?.default;
 };
 
-export const withPublicCache = async ({ request, cacheKey, enabled, eligible, operation, response, decorateHit, waitUntil }: PublicCacheOptions): Promise<Response> => {
-  if (!enabled || !eligible || request.method !== "GET" || request.headers.has("authorization") || request.headers.has("cookie")) {
+export const withPublicCache = async ({ request, cacheKey, enabled, eligible, identityIndependent = false, operation, response, decorateHit, waitUntil }: PublicCacheOptions): Promise<Response> => {
+  const bypassCookie = !identityIndependent && request.headers.has("cookie");
+  if (!enabled || !eligible || request.method !== "GET" || request.headers.has("authorization") || bypassCookie) {
     logCacheStatus(operation, "BYPASS");
     const generated = await response();
     generated.headers.set("Cache-Control", "private, no-store");
