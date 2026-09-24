@@ -30,11 +30,14 @@
     "test:portal-e2e:built": "pnpm --filter @owbastion/portal run test:e2e",
     "test:api": "pnpm exec vitest run apps/api",
     "typecheck": "pnpm --recursive --if-present run typecheck",
-    "check": "pnpm run check:migrations && pnpm run test:unit && pnpm run test:portal-ui --run && pnpm run typecheck && pnpm run build && pnpm run test:portal-e2e:built"
+    "check": "pnpm run check:migrations && pnpm run lint:styles && pnpm run test:unit && pnpm run test:portal-ui --run && pnpm run typecheck && pnpm run build && pnpm run test:portal-e2e:built",
+    "lint:styles": "stylelint \"apps/portal/**/*.{css,vue}\""
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260723.1",
     "drizzle-kit": "^0.31.4",
+    "postcss-html": "^2.0.0",
+    "stylelint": "^17.15.0",
     "typescript": "^5.8.3",
     "vitest": "^4.1.10",
     "wrangler": "^4.115.0"
