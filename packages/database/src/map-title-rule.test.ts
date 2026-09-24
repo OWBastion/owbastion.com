@@ -738,7 +738,11 @@ describe("Agents map projection readiness", () => {
     installSchema(sqlite);
     seedMap(sqlite, "map.composite");
     seedAgentSpatialConfig(sqlite, "revision:map.composite:initial");
-    const composite = sharedCompositeSpatialConfig();
+    const baseComposite = sharedCompositeSpatialConfig();
+    const composite = {
+      ...baseComposite,
+      composition: { ...baseComposite.composition, remainingStageSelection: "stage_id_cycle" },
+    };
     sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(composite), "revision:map.composite:initial");
     const services = createPlatformServices(database);
 
@@ -748,7 +752,7 @@ describe("Agents map projection readiness", () => {
       stages: [...composite.stages].sort((left, right) => left.stageId.localeCompare(right.stageId)),
     });
     expect(map.gameplayRevisions[0]?.spatialConfig).toMatchObject({
-      composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" }, remainingStageSelection: "random_unique" },
+      composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "base" }, remainingStageSelection: "stage_id_cycle" },
       stages: [
         { stageId: "base", bastionPositions: [[1, 2, 3]], control: { respawnPositions: [[19, 20, 21]] } },
         { stageId: "icebreaker", bastionPositions: [[10, 11, 12]], setupDetection: { position: [20, 21, 22], radius: 30 } },

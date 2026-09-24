@@ -307,11 +307,11 @@ const compositeCompositionSchema = z.object({
     z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
     z.object({ mode: z.literal("random") }).strict(),
   ]),
-  remainingStageSelection: z.literal("random_unique"),
+  remainingStageSelection: z.enum(["random_unique", "stage_id_cycle"]),
 }).strict();
 
 const legacyCompositeSpatialConfigSchema = z.object({
-  composition: compositeCompositionSchema,
+  composition: compositeCompositionSchema.extend({ remainingStageSelection: z.literal("random_unique") }),
   stages: z.array(legacyCompositeStageSchema).min(2).max(16),
 }).strict().superRefine((value, context) => {
   validateCompositeSelection(value, context);

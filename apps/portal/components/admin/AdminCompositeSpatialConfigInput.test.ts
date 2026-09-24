@@ -146,6 +146,16 @@ describe("AdminCompositeSpatialConfigInput", () => {
     expect(serialized?.stages[0]).not.toHaveProperty("endPosition");
   });
 
+  it("lets administrators choose a stable stage ID cycle", async () => {
+    const wrapper = await mountEditor();
+    await wrapper.get('select[aria-label="后续阶段选择"]').setValue("stage_id_cycle");
+    await acceptLatestConfig(wrapper);
+
+    expect(latestConfig(wrapper)?.composition.remainingStageSelection).toBe("stage_id_cycle");
+    expect(wrapper.text()).toContain("阶段按 ID 升序衔接，最后一个阶段会回到第一个。");
+    expect(agentSpatialConfigSchema.safeParse(latestConfig(wrapper)).success).toBe(true);
+  });
+
   it("keeps the respawn axis at route scope and stage control positions local", async () => {
     const config = {
       ...compositeConfig(),

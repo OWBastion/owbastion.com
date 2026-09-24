@@ -225,9 +225,16 @@ describe("v1 platform contracts", () => {
         { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: { centerPositions: [], jumpPositions: [[44, 45, 46]], respawnPositions: [[47, 48, 49]] }, portalPositions: [], springboardPositions: [[43, 44, 45]] },
       ],
     } as const;
+    const stageIdCycleComposite = {
+      ...sharedComposite,
+      composition: { ...sharedComposite.composition, remainingStageSelection: "stage_id_cycle" },
+    } as const;
     expect(agentSpatialConfigSchema.safeParse(sharedComposite).success).toBe(true);
     expect(agentProjectedSpatialConfigSchema.safeParse(sharedComposite).success).toBe(true);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, spatialConfig: sharedComposite }] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse(stageIdCycleComposite).success).toBe(true);
+    expect(agentProjectedSpatialConfigSchema.safeParse(stageIdCycleComposite).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...composite, composition: { ...composite.composition, remainingStageSelection: "stage_id_cycle" } }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12], [11, 12, 13]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: null } }).success).toBe(false);
