@@ -242,20 +242,20 @@ const saveSelectedCandidate = () => {
 .signal-kicker {
   margin: 0 0 var(--space-1);
   color: var(--quiet);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
   font-weight: 500;
   letter-spacing: .06em;
 }
 .signal-panel__header h3 {
   margin: 0;
-  font-size: .96rem;
+  font-size: var(--type-label-size);
   font-weight: 700;
   letter-spacing: -.02em;
 }
 .signal-reason {
   margin: 0 0 var(--space-3);
   color: var(--muted);
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 .match-candidates {
@@ -302,12 +302,12 @@ const saveSelectedCandidate = () => {
 }
 .match-candidate__title strong {
   overflow-wrap: anywhere;
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
 }
 .candidate-scope {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
 }
 .match-candidate__meta {
   display: flex;
@@ -318,7 +318,7 @@ const saveSelectedCandidate = () => {
 .candidate-reward,
 .candidate-current {
   color: var(--success);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
   font-weight: 600;
 }
 .candidate-current {
@@ -350,24 +350,24 @@ const saveSelectedCandidate = () => {
   margin: 0;
 }
 .achievement-review h4 {
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
 }
 .achievement-review p {
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
 }
 .signal-empty {
   margin: 0;
   color: var(--muted);
-  font-size: .8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 .signal-note,
 .signal-error {
   margin: var(--space-3) 0 0;
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -395,14 +395,14 @@ const saveSelectedCandidate = () => {
 .signal-meta dt,
 .ocr-fields dt {
   color: var(--muted);
-  font-size: .75rem;
+  font-size: var(--type-caption-size);
 }
 .signal-meta dd,
 .ocr-fields dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: .78rem;
+  font-size: var(--type-caption-size);
   text-align: right;
 }
 .ocr-fields dd {
@@ -432,7 +432,7 @@ const saveSelectedCandidate = () => {
   border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface);
-  font-size: .7rem;
+  font-size: var(--type-caption-size);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -454,7 +454,7 @@ const saveSelectedCandidate = () => {
   padding: var(--space-3);
   color: var(--muted);
   background: var(--surface);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

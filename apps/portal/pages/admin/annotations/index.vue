@@ -241,12 +241,12 @@ onMounted(() => { void load(); });
 .annotation-tabs { margin-bottom: var(--space-4); }
 .annotation-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .annotation-filters > * { min-width: 8.5rem; }
-.annotation-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
+.annotation-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-label-sm-size); overflow-wrap: anywhere; }
 .annotation-dialog-error { margin-bottom: var(--space-3); }
 .annotation-dialog-message { margin: 0; padding: var(--space-12) 0; color: var(--muted); text-align: center; }
 .annotation-edit { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
 .pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
-.table-meta { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
+.table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
 @media (max-width: 48rem) {
   .annotation-filters { display: grid; grid-template-columns: 1fr; width: 100%; gap: var(--space-3); }
   .annotation-filters > * { min-width: 0; }

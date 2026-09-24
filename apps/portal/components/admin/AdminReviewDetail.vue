@@ -56,15 +56,15 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 <style scoped>
 .review-detail { container-type: inline-size; display: grid; gap: var(--space-6); }
 .review-detail__section { display: grid; gap: var(--space-3); }
-.review-detail__section h2 { margin: 0; font-size: 1rem; font-weight: 700; }
+.review-detail__section h2 { margin: 0; font-size: var(--type-body-size); font-weight: 700; }
 .review-detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
 .review-detail__facts > div { min-width: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
-.review-detail__facts dt { color: var(--quiet); font-size: .74rem; font-weight: 700; }
+.review-detail__facts dt { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; }
 .review-detail__facts dd { display: grid; gap: var(--space-1); margin: var(--space-2) 0 0; min-width: 0; overflow-wrap: anywhere; }
-.table-meta { display: block; color: var(--quiet); font-size: .78rem; }
+.table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 .review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-detail__muted { margin: 0; color: var(--quiet); }
-.review-detail__id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .76rem; }
+.review-detail__id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); }
 .review-detail__audit { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .review-detail__audit li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: var(--space-1); }

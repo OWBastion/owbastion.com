@@ -275,7 +275,6 @@ const challengeSummary = computed(() => {
 .review-detail {
   --review-gap: clamp(0.75rem, 2.2vw, 1.25rem);
   --review-inset: clamp(0.75rem, 2vw, 1rem);
-  --review-radius: clamp(0.75rem, 1.5vw, 0.875rem);
   --review-sticky-top: var(--sticky-chrome-top, max(0.75rem, env(safe-area-inset-top, 0px)));
   --review-touch: 2.75rem;
 
@@ -302,7 +301,7 @@ const challengeSummary = computed(() => {
   margin: 0;
   min-width: 0;
   color: var(--quiet);
-  font-size: 0.84rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.35;
 }
 .detail-meta__player {
@@ -350,7 +349,7 @@ const challengeSummary = computed(() => {
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: minmax(0, 1.55fr) minmax(min(100%, 17.5rem), 0.95fr);
+  grid-template-columns: minmax(min(100%, 20rem), 1.55fr) minmax(min(100%, 17.5rem), 0.95fr);
   grid-template-areas:
     "evidence claim"
     "evidence actions"
@@ -394,7 +393,7 @@ const challengeSummary = computed(() => {
   gap: 0.5rem;
   padding: var(--review-inset);
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   box-shadow:
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
@@ -409,7 +408,7 @@ const challengeSummary = computed(() => {
 .ocr-retry-error {
   margin: 0;
   color: var(--danger);
-  font-size: 0.78rem;
+  font-size: var(--type-caption-size);
   overflow-wrap: anywhere;
 }
 .spot-check-panel {
@@ -421,19 +420,19 @@ const challengeSummary = computed(() => {
 }
 .spot-check-panel h4 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--type-label-sm-size);
 }
 .spot-check-panel p {
   margin: 0.25rem 0 0;
   color: var(--text-on-glass-quiet);
-  font-size: 0.75rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
 }
 
 .claim-card {
   padding: var(--review-inset);
   border: 1px solid var(--line);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   background: var(--surface-raised);
   box-shadow: var(--elevation-1);
 }
@@ -450,7 +449,7 @@ const challengeSummary = computed(() => {
 }
 .claim-card__header h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--type-body-size);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -459,14 +458,14 @@ const challengeSummary = computed(() => {
 .claim-kind {
   flex: 0 0 auto;
   color: var(--quiet);
-  font-size: 0.72rem;
+  font-size: var(--type-caption-size);
   font-weight: 500;
   white-space: nowrap;
 }
 .claim-meta {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -484,25 +483,25 @@ const challengeSummary = computed(() => {
 }
 .claim-facts dt {
   color: var(--quiet);
-  font-size: 0.72rem;
+  font-size: var(--type-caption-size);
 }
 .claim-facts dd {
   margin: 0;
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .claim-empty {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 
 .meta-disclosure {
   border: 1px solid var(--line);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .meta-disclosure > summary {
@@ -510,7 +509,7 @@ const challengeSummary = computed(() => {
   list-style: none;
   padding: 0.75rem var(--review-inset);
   color: var(--quiet);
-  font-size: 0.78rem;
+  font-size: var(--type-caption-size);
   font-weight: 500;
   user-select: none;
 }
@@ -536,8 +535,11 @@ const challengeSummary = computed(() => {
   z-index: 5;
 }
 
-/* Narrow: one column; claim then decide, then evidence for verification */
-@container (max-width: 23.99rem) {
+/* Narrow: one column; claim then decide, then evidence for verification.
+   Threshold covers the desktop grid's real floor: 20rem evidence column +
+   17.5rem rail column + up to 1.25rem gap = 38.75rem, so the two-column
+   layout never squeezes either column below its usable minimum. */
+@container (max-width: 38.99rem) {
   .review-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:

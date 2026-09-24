@@ -48,12 +48,12 @@ const ocrValue = (value: string | boolean | null) => value === null ? "未识别
 <style scoped>
 .annotation-detail { container-type: inline-size; display: grid; gap: var(--space-6); }
 .annotation-detail__section { display: grid; gap: var(--space-3); }
-.annotation-detail__section h2 { margin: 0; font-size: 1rem; font-weight: 700; }
-.annotation-detail__section h3 { margin: 0; font-size: .86rem; font-weight: 600; }
+.annotation-detail__section h2 { margin: 0; font-size: var(--type-body-size); font-weight: 700; }
+.annotation-detail__section h3 { margin: 0; font-size: var(--type-body-sm-size); font-weight: 600; }
 .annotation-detail__facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0; }
 .annotation-detail__facts > div { display: grid; gap: var(--space-1); min-width: 0; }
-.annotation-detail__facts dt { color: var(--quiet); font-size: .74rem; }
-.annotation-detail__facts dd { margin: 0; color: var(--text); font-size: .86rem; overflow-wrap: anywhere; }
+.annotation-detail__facts dt { color: var(--quiet); font-size: var(--type-caption-size); }
+.annotation-detail__facts dd { margin: 0; color: var(--text); font-size: var(--type-body-sm-size); overflow-wrap: anywhere; }
 .annotation-detail__link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .annotation-detail__link:hover,
 .annotation-detail__link:focus-visible { text-decoration: underline; }

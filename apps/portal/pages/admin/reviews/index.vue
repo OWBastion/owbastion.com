@@ -121,7 +121,7 @@ onMounted(() => { void load(); });
 
 <style scoped>
 .review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.table-meta { display: block; color: var(--quiet); font-size: .78rem; }
+.table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
 .player-link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .player-link:hover, .player-link:focus-visible { text-decoration: underline; }
 .pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
