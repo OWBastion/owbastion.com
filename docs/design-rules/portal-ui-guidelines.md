@@ -159,7 +159,7 @@ the generated route shape and a direct browser load of the detail URL.
 - Do not add native `<input type="file">`, custom dropzones, or another file-picker component for new or changed Portal flows.
 - Keep file validation and submission behavior in the existing feature composable/API boundary; `UFileUpload` owns the selection interaction and exposes the selected `File` through `v-model`.
 
-Button rules: use the default/primary button for the primary action; use `color="neutral"` with `outline` or `soft` for secondary actions; use `color="error"` for dangerous actions; prefer `variant="link"` or a compact button with an explicit `aria-label` for table-row view/edit actions. Use `NuxtLink` or `UButton to` for navigation; do not simulate navigation with click handlers.
+Button rules: `UButton` only — primary (solid) for the one main action, `color="neutral"` `outline` / `soft` / `ghost` for secondary and tertiary actions, `color="error"` `soft` for dangerous actions; group actions in an action row with the primary first in DOM order; table-row actions use `sm` with an explicit `aria-label` when icon-only. Use `NuxtLink` or `UButton to` for navigation; do not simulate navigation with click handlers. Full variant/size/action-row rules: [`components-and-patterns.md`](components-and-patterns.md).
 
 ## Visual tokens and layout (summary)
 
@@ -167,12 +167,14 @@ Full rules: [`visual-foundation.md`](visual-foundation.md),
 [`layout-and-spacing.md`](layout-and-spacing.md).
 
 - Use semantic tokens in `apps/portal/assets/css/main.css`; no raw palette colors for meaning.
-- Type: `type-display` / `type-title` / `type-headline` / `type-body` / `type-caption` / `type-kicker` (`eyebrow`).
+- Type: the role scale in `visual-foundation.md` (`type-display` … `type-caption`); weights 400/500/600/700 only.
+- Spacing and radius: `--space-*` ladder; `--radius-control|card|sheet|pill`.
 - Materials: `glass*` + `elevation-1/2/3`. Interactive cards: `interactive-card` + `pressable-soft`.
 - Containers: `page-shell` / `page-shell--readable` / `page-shell--narrow` / `page-shell--wide` + `surface-card`. Do not redefine max-width or gutters per page.
 - Structural spacing and columns: prefer `rem` / `fr` / `minmax` / `clamp` over hard-coded `px` stacks.
 - Decision/action surfaces: in-flow or sticky — not growing `position: fixed` docks.
-- Touch: `.hit-44` / `2.75rem` floor for primary mobile controls; admin table actions use `.table-actions` / `UButton` `sm` outline — not bare text links.
+- Touch: `--control-lg` (`2.75rem`) under `pointer: coarse`; admin table actions use `.table-actions` / `UButton` `sm` — not bare text links.
+- Key–value details: `detail-grid`. Directory cards: one anatomy (see `components-and-patterns.md`).
 
 ## Interaction and motion baseline (summary)
 
@@ -204,7 +206,7 @@ Permission boundary: public pages must not render QQ OpenIDs, private screenshot
 
 ## Responsive behavior and accessibility
 
-- Support `320px` width first. Existing mobile breakpoints are mainly `620px`, `760px`, and `820px`; prefer those breakpoints.
+- Support `320px` width first. Pages use only the `48rem` and `64rem` breakpoints; components use container queries (`24rem`) and keep the same anatomy on desktop and mobile.
 - Collapse grids to one column on narrow screens. Admin tables may scroll horizontally inside their table container, but the overall page must not overflow horizontally.
 - Use native buttons, links, or Nuxt UI components for interactive elements. Icon-only buttons must have readable `aria-label` values.
 - Use `h1`, `h2`, and `h3` according to page hierarchy. Every major section needs a heading or `aria-label`.

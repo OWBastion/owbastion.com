@@ -27,10 +27,12 @@
 
 ## Layout summary (see layout-and-spacing for full rules)
 
-- Design for `320px` / ~`20rem` width first; prefer system breakpoints
-  (`620` / `760` / `820` CSS px baselines, rem-equivalent allowed).
-- Structural spacing and columns: prefer `rem`, `fr`, `minmax`, `clamp` —
-  not hard-coded `px` stacks. Touch floor: `2.75rem` / `.hit-44`.
+- Design for `320px` / ~`20rem` width first. Pages use the two page
+  breakpoints (`48rem`, `64rem`); components respond to their own width with
+  container queries and keep one anatomy across widths.
+- Structural spacing: the `--space-*` ladder, `fr`, `minmax` — not hard-coded
+  `px` stacks. Touch floor: `--control-lg` (`2.75rem`) under
+  `pointer: coarse`.
 - Feature decision surfaces stay **in document flow** or **sticky**; do not
   use growing `position: fixed` action docks (review bars, expandable forms).
 - Collapse grids to one full-width column on narrow screens; stacked cards

@@ -17,7 +17,7 @@
    `UCheckbox`, `UTabs`, `UPagination`, `USkeleton`, `UFileUpload`, menus and
    focus-managed overlays.
 3. **Shared CSS patterns** from `main.css`: `page-shell`, `surface-card`,
-   `card-heading`, `detail-list`, `glass*`, `elevation-*`, `pressable*`,
+   `card-heading`, `detail-grid`, `glass*`, `elevation-*`, `pressable*`,
    `hit-44`, `scroll-edge*`, type scale classes.
 4. **Page- or feature-scoped composition** only when 1–3 cannot express the
    layout. Scoped CSS may own grid areas, sticky columns, and structure-matched
@@ -63,25 +63,108 @@ solely for style preference during an unrelated fix.
 
 ### Buttons and actions
 
-- One primary action per decision surface (`primary` / default brand).
-- Secondary: `color="neutral"` + `outline` or `soft`.
-- Destructive: `color="error"`; state the consequence in nearby copy when the
-  result is irreversible.
-- Use `block` (or full-width grid tracks) for primary mobile actions so hit
-  targets fill the column.
-- Navigation uses `NuxtLink` or `UButton to`, not click handlers that only
-  push routes.
-- Loading states disable duplicate submits; show loading on the control that
-  was activated when multiple peers exist.
+**`UButton` is the only button.** Do not add CSS button classes
+(`primary-button`, `secondary-button`, `.submit-button`, …) or style native
+`<button>` elements as buttons. The variant/size theme lives once in
+`app.config.ts`.
+
+| Role | `UButton` props | Use |
+| --- | --- | --- |
+| Primary | `color="primary"` (solid) | The one main action of a decision surface (`提交截图`, `保存`) |
+| Secondary | `color="neutral" variant="outline"` | The action beside a primary (`取消`, `编辑`) |
+| Low emphasis | `color="neutral" variant="soft"` | Toolbar and row actions |
+| Tertiary / icon | `color="neutral" variant="ghost"` | Tertiary actions and icon-only buttons |
+| Destructive | `color="error" variant="soft"` | `下线`, `结束`, `撤销`; state the consequence nearby, confirm irreversible actions in `AdminResponsiveDialog` |
+
+| Size | Height | Inline padding | Label | Use |
+| --- | --- | --- | --- | --- |
+| `sm` | `--control-sm` | `--space-3` | `0.8125rem` / 600 | Admin table rows and dense toolbars |
+| `md` (default) | `--control-md` | `--space-4` | `0.875rem` / 600 | Everything else |
+| `lg` | `--control-lg` | `--space-5` | `0.9375rem` / 600 | Primary action of a player-facing flow |
+
+- All sizes use `--radius-control`, a 16px Lucide icon, and `--space-2`
+  between icon and label. Icon-only buttons are square and require
+  `aria-label`.
+- Under `pointer: coarse` every size renders at `--control-lg`; do not write
+  separate mobile button styles.
+- Hover changes fill only (no lift, no scale). Press uses the shared press
+  scale. Disabled: `disabled` + 0.5 opacity. Busy: the `loading` prop, a
+  loading label (`保存中…`), and duplicate submits blocked.
+- Navigation uses `NuxtLink` or `UButton to`, never a click handler that only
+  pushes a route.
+
+#### Action row
+
+A surface's actions are grouped in one action row, **primary first in DOM
+order**. The row is a container (`container-type: inline-size`):
+
+- at or above `cq-compact`: inline, right-aligned, primary rightmost
+  (`flex-direction: row-reverse`), `md` size;
+- below `cq-compact`: stacked, full-width `lg` buttons, primary on top.
+
+The row reads its own width, so a narrow desktop dialog and a phone screen
+behave the same. Action rows stay in document flow or `sticky`; never a
+`position: fixed` dock.
 
 ### Cards and panels
 
 - Prefer `UCard` or `surface-card` / established panel classes for grouped
-  content.
-- Headers use `card-heading` (title + optional quiet meta). Do not invent a
-  second header row pattern per page.
+  content (`--surface`, 1px `--line`, `--radius-card`, `elevation-2`).
+- Card padding is `--space-4` below `cq-compact` and `--space-5` above.
+- Headers use `card-heading` (`type-card-title` + optional `--quiet` meta). Do
+  not invent a second header row pattern per page.
 - Stacked cards on narrow viewports must share full column width (see layout
   doc). Uneven widths are defects.
+
+### Detail lists (key–value)
+
+Key–value details use the `detail-grid` pattern, replacing the v1
+`detail-list` (right-aligned values, `space-between`):
+
+```html
+<dl class="detail-grid">
+  <div class="detail-grid__row"><dt>BattleTag</dt><dd>Teakowa#51234</dd></div>
+  <div class="detail-grid__row"><dt>当前称号</dt><dd>先驱者<small>全局展示</small></dd></div>
+</dl>
+```
+
+- Two columns: label column `7.5rem`, value left-aligned beside it,
+  `--space-4` column gap; rows padded `--space-3`, divided by 1px `--line`.
+- Label `type-label-sm` in `--muted`; value `type-label` in `--text`,
+  tabular numbers, `overflow-wrap: anywhere`; optional `<small>` secondary
+  line in `type-caption` / `--quiet`.
+- Below `cq-compact` each row stacks (label above value), both still
+  left-aligned. Order and alignment never change.
+- Values may be text, numbers, a status badge, or a link — not buttons;
+  actions belong in the card's action row.
+- Missing values render `暂无记录` in `--quiet`, never an empty cell or `-`.
+- Keep labels short; shorten a label rather than widening the column.
+
+### Directory cards
+
+Directory cards (maps first, then events and achievements) share one anatomy
+at every width. `MapCard` is the reference:
+
+1. **Media** — cover image, `object-fit: cover`, 16:9 (2:1 below
+   `cq-compact`); fallback is the two-letter index on `--accent-surface`.
+   Decorative (`aria-hidden`).
+2. **Title row** — name in `type-card-title`, version on the right in
+   `type-caption` / `--quiet`, tabular.
+3. **Summary line** — e.g. the review summary: `--accent` star, score in
+   `--text` 600, count or `样本不足` in `--muted`.
+4. **Stats** — at most three equal columns above a 1px `--line`: label
+   `type-label-sm` / `--muted`, value `type-label` / `--text`. Empty or gated
+   values (`暂无记录`, `登录后查看`, `读取中…`) use `--quiet` at 500.
+5. **Tags** — neutral pills (`--surface-raised`, badge type).
+
+- The whole card is one `<button>` (or link) with an `aria-label` naming the
+  target (`查看<地图>详情`) and `aria-haspopup="dialog"` when it opens one.
+- Hover/focus: `--line-strong` border + `elevation-1`; press via
+  `pressable-soft`; no hover lift.
+- Nothing restacks or reorders across widths; only media ratio and padding
+  change (container query).
+- Grids follow the fluid grid recipe in the layout doc (`17rem` minimum track).
+- A fourth stat belongs in the detail view, not on the card.
 
 ### Forms
 
@@ -117,6 +200,9 @@ solely for style preference during an unrelated fix.
 
 - Parallel design systems (new radius scale, new shadow language, new success
   green outside tokens).
+- CSS button classes or styled native buttons instead of `UButton`.
+- Components that restack, reorder, or hide information at a viewport
+  breakpoint.
 - Fixed bottom action bars for feature flows that expand with optional panels.
 - `display: contents` used only to reorder, when it breaks width consistency.
 - Deep-styling Nuxt UI internals instead of `ui` / props / wrapping layout.
