@@ -307,7 +307,7 @@ const compositeCompositionSchema = z.object({
     z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
     z.object({ mode: z.literal("random") }).strict(),
   ]),
-  remainingStageSelection: z.enum(["random_unique", "next_in_order"]),
+  remainingStageSelection: z.literal("random_unique"),
 }).strict();
 
 const legacyCompositeSpatialConfigSchema = z.object({

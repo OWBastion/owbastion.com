@@ -225,10 +225,6 @@ describe("v1 platform contracts", () => {
       ],
     } as const;
     expect(agentSpatialConfigSchema.safeParse(sharedComposite).success).toBe(true);
-    expect(agentSpatialConfigSchema.safeParse({
-      ...sharedComposite,
-      composition: { ...sharedComposite.composition, remainingStageSelection: "next_in_order" },
-    }).success).toBe(true);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12], [11, 12, 13]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: null } }).success).toBe(false);
