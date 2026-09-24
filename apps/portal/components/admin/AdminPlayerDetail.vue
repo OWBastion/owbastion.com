@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div class="identity-card__actions action-row">
+            <div class="identity-card__actions">
               <UButton
                 :label="props.player.status === 'active' ? '封禁玩家' : '解除封禁'"
                 :color="props.player.status === 'active' ? 'error' : 'primary'"
@@ -322,6 +322,14 @@ onBeforeUnmount(() => {
   font-size: clamp(1.35rem, 2.8vw, 1.85rem);
   letter-spacing: var(--type-headline-tracking);
   line-height: 1.08;
+}
+
+.identity-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .identity-card__meta {
