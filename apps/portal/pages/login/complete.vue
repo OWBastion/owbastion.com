@@ -29,6 +29,6 @@ onMounted(async () => {
 
 <style scoped>
 .complete-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: 6.25rem 3.5rem; }
-.complete-card { width: 100%; padding: clamp(1.75rem, 6vw, 3.625rem); }
+.complete-card { width: 100%; padding: clamp(var(--space-6), 6vw, var(--space-16)); }
 .body-copy { margin: var(--space-5) 0 var(--space-8); }
 </style>

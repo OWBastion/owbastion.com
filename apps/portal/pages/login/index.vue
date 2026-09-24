@@ -104,7 +104,7 @@ async function handleLocalLogin() {
 
 <style scoped>
 .login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(4.5rem, 11vh, 8.125rem) 3.5rem; }
-.login-card { width: 100%; padding: clamp(1.625rem, 6vw, 3.625rem); }
+.login-card { width: 100%; padding: clamp(var(--space-6), 6vw, var(--space-16)); }
 .intro { max-width: 43ch; margin: var(--space-5) 0 var(--space-8); }
 .action-panel { min-height: 118px; }
 .notice { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.55; }

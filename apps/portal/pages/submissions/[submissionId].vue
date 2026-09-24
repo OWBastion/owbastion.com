@@ -384,7 +384,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 
 <style scoped>
 .submission-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.breadcrumb { display: flex; align-items: center; gap: var(--space-2); margin-bottom: clamp(1.75rem, 4vw, 2.75rem); color: var(--quiet); font-size: var(--type-caption-size); }
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); margin-bottom: clamp(var(--space-6), 4vw, var(--space-12)); color: var(--quiet); font-size: var(--type-caption-size); }
 .breadcrumb-link { margin: 0; padding-inline: 0; }
 .page-heading { margin-bottom: var(--space-6); }
 .page-heading .page-title { max-width: 14ch; }
@@ -407,7 +407,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: clamp(1.125rem, 2.4vw, 1.75rem);
+  gap: clamp(var(--space-4), 2.4vw, var(--space-6));
   width: 100%;
 }
 .evidence-col, .info-col { min-width: 0; }
@@ -422,7 +422,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .catalog-loading { padding: var(--space-6) 0; }
 .confirm-card :deep(.catalog) { margin-bottom: var(--space-5); }
 .confirm-catalog--busy { opacity: .72; }
-.resubmission-card { display: grid; margin-top: clamp(1.125rem, 2.4vw, 1.75rem); }
+.resubmission-card { display: grid; margin-top: clamp(var(--space-4), 2.4vw, var(--space-6)); }
 .resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
 .tip-icon {

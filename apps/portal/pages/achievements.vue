@@ -64,8 +64,10 @@ const updateEquipped = async (grantId: string) => {
           <div class="achievement-skeleton-heading"><USkeleton class="achievement-skeleton-heading-title" /><USkeleton class="achievement-skeleton-heading-count" /></div>
           <div class="achievement-skeleton-grid directory-grid">
             <article v-for="card in 4" :key="card" class="achievement-skeleton-card">
-              <USkeleton class="achievement-skeleton-icon" />
-              <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
+              <div class="achievement-skeleton-card-inner">
+                <USkeleton class="achievement-skeleton-icon" />
+                <div class="achievement-skeleton-copy"><USkeleton class="achievement-skeleton-title" /><USkeleton class="achievement-skeleton-condition" /><USkeleton class="achievement-skeleton-condition achievement-skeleton-condition-short" /></div>
+              </div>
             </article>
           </div>
         </section>
@@ -81,15 +83,17 @@ const updateEquipped = async (grantId: string) => {
 
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
-.achievement-directory { padding: clamp(1.375rem, 4vw, 2.25rem); }
+.achievement-directory { padding: clamp(var(--space-5), 4vw, var(--space-8)); }
 .equip-error { margin-top: var(--space-4); }
 .achievement-skeleton-groups, .achievement-skeleton-section { display: grid; gap: var(--space-4); }
 .achievement-skeleton-section + .achievement-skeleton-section { margin-top: var(--space-8); }
 .achievement-skeleton-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-4); }
 .achievement-skeleton-heading-title { width: 28%; height: 30px; }
 .achievement-skeleton-heading-count { width: 48px; height: 13px; }
-.achievement-skeleton-grid { container-type: inline-size; }
-.achievement-skeleton-card { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-content: start; gap: var(--space-4); min-height: 124px; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+/* container-type lives on each card (a grid cell) rather than the grid
+   itself, since a fluid multi-column grid is much wider than any one card. */
+.achievement-skeleton-card { container-type: inline-size; }
+.achievement-skeleton-card-inner { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-content: start; gap: var(--space-4); min-height: 124px; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .achievement-skeleton-icon { width: 58px; height: 58px; border-radius: var(--radius-card); }
 .achievement-skeleton-copy { display: grid; align-content: start; gap: var(--space-2); min-width: 0; }
 .achievement-skeleton-title { width: 72%; height: 20px; }
@@ -102,6 +106,6 @@ const updateEquipped = async (grantId: string) => {
   .achievement-skeleton-heading-title { width: 46%; }
 }
 @container (max-width: 23.99rem) {
-  .achievement-skeleton-card { min-height: 0; padding: var(--space-4); }
+  .achievement-skeleton-card-inner { min-height: 0; padding: var(--space-4); }
 }
 </style>

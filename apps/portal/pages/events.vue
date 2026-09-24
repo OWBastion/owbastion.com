@@ -31,7 +31,7 @@ onMounted(async () => {
 </template>
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
-.events-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
+.events-panel { padding: clamp(var(--space-4), 4vw, var(--space-8)); }
 .event-skeleton-card { display: grid; min-height: 210px; align-content: start; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-card); }
 .event-skeleton-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .event-skeleton-badge { width: 52px; height: 22px; border-radius: var(--radius-pill); }

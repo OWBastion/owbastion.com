@@ -41,7 +41,7 @@ const blogPosts = computed(() => posts.value.map((post) => ({
 <style scoped>
 .editorial-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
 .page-intro { margin-bottom: var(--space-8); }
-.editorial-directory { min-width: 0; padding: clamp(1.25rem, 4vw, 2.25rem); }
+.editorial-directory { min-width: 0; padding: clamp(var(--space-5), 4vw, var(--space-8)); }
 .editorial-loading { min-height: 170px; display: grid; place-items: center; color: var(--muted); }
 .editorial-blog-list :deep(article) { min-width: 0; }
 @media (max-width: 47.99rem) {

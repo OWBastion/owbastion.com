@@ -60,7 +60,7 @@ onMounted(async () => {
 <style scoped>
 .page-intro { margin-bottom: var(--space-8); }
 .page-intro .body-copy { margin: var(--space-2) 0 0; }
-.map-directory-panel { padding: clamp(1.125rem, 4vw, 2.25rem); }
+.map-directory-panel { padding: clamp(var(--space-4), 4vw, var(--space-8)); }
 .map-skeleton-card { container-type: inline-size; display: grid; min-width: 0; overflow: hidden; border-radius: var(--radius-card); }
 .map-skeleton-visual { min-height: 138px; border-radius: 0; }
 .map-skeleton-body { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-4) var(--space-4); }

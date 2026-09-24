@@ -267,8 +267,8 @@ onMounted(() => {
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-3); }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: var(--space-5); }
-.section-block { margin-top: clamp(2rem, 5vw, 3rem); }
-.titles-section { margin-top: clamp(2rem, 5vw, 3rem); }
+.section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
+.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .recent-titles { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-title { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .recent-title strong { overflow-wrap: anywhere; font-weight: 600; letter-spacing: var(--type-headline-tracking); }
@@ -289,8 +289,8 @@ onMounted(() => {
 .me-skeleton-identity-copy { display: grid; flex: 1; gap: var(--space-2); min-width: 0; }
 .me-skeleton-identity-label { width: 54px; height: 12px; }
 .me-skeleton-identity-name { width: min(44%, 220px); height: 25px; }
-.me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(2rem, 5vw, 3rem); }
-.me-skeleton-section.titles-section { margin-top: clamp(2rem, 5vw, 3rem); }
+.me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
+.me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .me-skeleton-section-heading-plain { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
 .me-skeleton-section-title { width: 150px; height: 22px; }
