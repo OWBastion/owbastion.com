@@ -77,7 +77,7 @@ async function sharePage() {
       <NuxtLink to="/changelog" class="editorial-back-link pressable"><UIcon name="i-lucide-arrow-left" aria-hidden="true" />返回版本更新</NuxtLink>
       <div v-if="entry" class="editorial-share-actions">
         <UButton
-          class="hit-44"
+          class="hit-target-lg"
           :label="copied ? '已复制' : '复制链接'"
           :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
           color="neutral"
@@ -86,7 +86,7 @@ async function sharePage() {
         />
         <UButton
           v-if="canNativeShare"
-          class="hit-44"
+          class="hit-target-lg"
           label="分享"
           icon="i-lucide-share"
           color="neutral"

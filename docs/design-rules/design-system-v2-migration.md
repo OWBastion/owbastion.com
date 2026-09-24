@@ -35,7 +35,7 @@ per component, and a 4.5:1 contrast floor for every text token.
 | Radius 16, 17, 18, 20px, `.75rem` (header) | `--radius-card` `1rem` | visual-foundation |
 | `999px` / `9999px` | `--radius-pill` | visual-foundation |
 | `px` paddings/gaps (13, 14, 15, 17, 18px …) | Nearest `--space-*` step | layout-and-spacing |
-| `.hit-44` / `min-height: 44px` on buttons | `--control-*`; `--control-lg` under `pointer: coarse` | layout-and-spacing |
+| `.hit-44` / `min-height: 44px` on buttons | `.hit-target-lg` on `--control-lg`; `--control-lg` under `pointer: coarse` | layout-and-spacing |
 | Breakpoints 360, 380, 430, 460, 480, 560, 620, 640, 760, 767, 820, 821, 900, 960px, `38.75rem`, `48rem`, `51.25rem` | Pages: `48rem`, `64rem`. Components: `@container` `24rem` | layout-and-spacing |
 | `primary-button`, `secondary-button`, `.submit-button`, `.review-page-button`, … | `UButton` + action row | components-and-patterns |
 | `.detail-list` | `.detail-grid` | components-and-patterns |
@@ -68,8 +68,12 @@ Each step is one PR (or a small series), per the Refactor contract in
    container queries, off-ladder spacing with `--space-*`, radius literals and
    off-scale weights with tokens; flip that directory's stylelint rules to
    errors.
-7. **Cleanup.** Remove v1-only tokens and classes (`type-kicker` if unused,
-   `hit-44` where `--control-*` covers it) and mark this document historical.
+7. **Cleanup.** Remove v1-only tokens and classes from `main.css`
+   (`type-kicker` — unused, removed; `hit-44` renamed `hit-target-lg` and
+   retokenized onto `--control-lg`) — done in #192. Setting every stylelint
+   rule to error and marking this document historical still depend on #190
+   (admin sweep) and #191 (public/player sweep), which are open. Until those
+   land, `errorDirectories` stays empty and this document stays active.
 
 ## Acceptance for every migration PR
 

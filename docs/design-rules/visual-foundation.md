@@ -97,8 +97,8 @@ Control labels: `UButton` `sm` / `md` / `lg` use `0.8125rem` / `0.875rem` /
 - No text below `0.75rem`.
 - Numbers in stats, tables, and detail values use
   `font-variant-numeric: tabular-nums`.
-- `type-kicker` / `eyebrow` stay available only for the rare case the copy
-  rules allow an eyebrow; do not add them by default.
+- `eyebrow` stays available only for the rare case the copy rules allow an
+  eyebrow; do not add it by default.
 - Do not introduce one-off `font-size`, `font-weight`, `letter-spacing`,
   page-local font families, or a second scale in scoped CSS.
 - Prefer system / configured UI font stack from the global stylesheet; do not

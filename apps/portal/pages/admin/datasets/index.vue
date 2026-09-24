@@ -111,7 +111,7 @@ onMounted(() => { void load(); });
     <template #toolbar><AdminOcrQualityStages active='datasets' /></template>
     <template #actions>
       <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='creating' @click='createDraft' />
-      <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
+      <UButton class='admin-workspace__icon-action hit-target-lg' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />

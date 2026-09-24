@@ -167,7 +167,7 @@ onMounted(() => { void load(); });
     <template #toolbar><AdminOcrQualityStages active='annotations' /></template>
     <template #actions>
       <UButton label='直接标注' icon='i-lucide-pen-line' color='neutral' variant='outline' @click='openDirect()' />
-      <UButton class='admin-workspace__icon-action hit-44' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
+      <UButton class='admin-workspace__icon-action hit-target-lg' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
     </template>
     <template #messages>
       <UAlert v-if='errorMessage' color='error' variant='subtle' :description='errorMessage' />

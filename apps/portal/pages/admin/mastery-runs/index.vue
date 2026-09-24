@@ -181,7 +181,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace title="通关记录" :count="loading ? '读取中…' : `${total} 条`">
-    <template #actions><UButton class="admin-workspace__icon-action hit-44" icon="i-lucide-refresh-cw" square color="neutral" variant="outline" aria-label="刷新" :loading="loading" @click="load" /></template>
+    <template #actions><UButton class="admin-workspace__icon-action hit-target-lg" icon="i-lucide-refresh-cw" square color="neutral" variant="outline" aria-label="刷新" :loading="loading" @click="load" /></template>
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     </template>

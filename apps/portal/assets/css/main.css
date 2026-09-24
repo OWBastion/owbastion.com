@@ -276,16 +276,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   letter-spacing: 0;
   line-height: var(--type-caption-leading);
 }
-.type-kicker {
-  font-size: var(--type-kicker-size);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
 .eyebrow {
   margin: 0 0 .45rem;
   color: var(--quiet);
   font-size: var(--type-kicker-size);
-  font-weight: 650;
+  font-weight: 500;
   letter-spacing: 0.04em;
 }
 
@@ -385,7 +380,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .surface-card {
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   box-shadow: var(--elevation-2);
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
@@ -399,10 +394,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   overflow: hidden;
   border: 1px solid color-mix(in oklch, var(--line-strong) 78%, transparent);
 }
-.overlay-sheet--modal { border-radius: 1.25rem; }
+.overlay-sheet--modal { border-radius: var(--radius-sheet); }
 .overlay-sheet--drawer {
   border-bottom: 0;
-  border-radius: 1.25rem 1.25rem 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
 }
 .overlay-sheet__container {
   display: flex;
@@ -425,18 +420,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-4);
 }
 .card-heading :where(h2, h3) {
   margin: 0;
   font-size: 1rem;
-  font-weight: 720;
+  font-weight: 600;
   letter-spacing: -.02em;
 }
 .card-heading > span {
   color: var(--quiet);
   font-size: .72rem;
-  font-weight: 680;
+  font-weight: 500;
   letter-spacing: .04em;
 }
 /* -------------------------------------------------------------------------- */
@@ -563,10 +558,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* -------------------------------------------------------------------------- */
 /* N-01 / A-03 — touch targets                                                */
 /* -------------------------------------------------------------------------- */
-.hit-44 {
+.hit-target-lg {
   position: relative;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--control-lg);
+  min-height: var(--control-lg);
 }
 
 .table-actions {
@@ -586,7 +581,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: transparent;
   cursor: pointer;

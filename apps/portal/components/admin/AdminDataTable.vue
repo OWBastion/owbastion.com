@@ -390,7 +390,7 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="tableSlots['actions-cell'] && !props.mobileRowLink && !props.mobileRowAction" class="admin-data-table__mobile-actions">
               <UDropdownMenu :items="[]" :content="{ align: 'end', side: 'bottom', sideOffset: 8, collisionPadding: 12 }" :ui="{ content: 'admin-data-table__mobile-action-menu elevation-2' }">
-                <UButton icon="i-lucide-ellipsis" square color="neutral" variant="outline" class="hit-44" aria-label="打开更多操作" />
+                <UButton icon="i-lucide-ellipsis" square color="neutral" variant="outline" class="hit-target-lg" aria-label="打开更多操作" />
                 <template #content-bottom>
                   <div class="admin-data-table__mobile-action-menu-content" role="group" aria-label="记录操作">
                     <slot name="actions-cell" :row="mobileRow(item)" />

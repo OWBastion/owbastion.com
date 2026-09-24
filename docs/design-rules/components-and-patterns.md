@@ -18,7 +18,7 @@
    focus-managed overlays.
 3. **Shared CSS patterns** from `main.css`: `page-shell`, `surface-card`,
    `card-heading`, `detail-grid`, `glass*`, `elevation-*`, `pressable*`,
-   `hit-44`, `scroll-edge*`, type scale classes.
+   `hit-target-lg`, `scroll-edge*`, type scale classes.
 4. **Page- or feature-scoped composition** only when 1–3 cannot express the
    layout. Scoped CSS may own grid areas, sticky columns, and structure-matched
    skeletons — not a new color, type, or radius system.
