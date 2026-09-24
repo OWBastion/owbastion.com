@@ -129,6 +129,9 @@
   --ui-radius: calc(var(--radius-control) / 1.5);
 }
 
+/* Still a v1 breakpoint: tied to AppHeader.vue's own (unmigrated) 900px
+   collapse. Moving this value alone would desync the offset from the
+   header's actual height; migrate both together under #191. */
 @media (max-width: 900px) {
   :root {
     --sticky-chrome-top: calc(max(0.5rem, env(safe-area-inset-top)) + 3.25rem + 0.25rem);
@@ -202,7 +205,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* Directory page archetype: shared page padding recipe (F-023). */
 .directory-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-@media (max-width: 620px) {
+@media (max-width: 48rem) {
   .directory-page { padding-block: 3rem; }
 }
 
@@ -424,13 +427,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .card-heading :where(h2, h3) {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--type-card-title-size);
   font-weight: 600;
-  letter-spacing: -.02em;
+  letter-spacing: var(--type-card-title-tracking);
+  line-height: var(--type-card-title-leading);
 }
 .card-heading > span {
   color: var(--quiet);
-  font-size: .72rem;
+  font-size: var(--type-caption-size);
   font-weight: 500;
   letter-spacing: .04em;
 }
@@ -711,7 +715,7 @@ a[data-slot="base"]:active:not([aria-disabled="true"]) {
   transform: scale(var(--press-scale));
 }
 
-@media (max-width: 620px) {
+@media (max-width: 48rem) {
   .page-shell,
   .page-shell--readable,
   .page-shell--narrow,

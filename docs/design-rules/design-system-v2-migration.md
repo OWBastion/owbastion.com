@@ -68,12 +68,18 @@ Each step is one PR (or a small series), per the Refactor contract in
    container queries, off-ladder spacing with `--space-*`, radius literals and
    off-scale weights with tokens; flip that directory's stylelint rules to
    errors.
-7. **Cleanup.** Remove v1-only tokens and classes from `main.css`
-   (`type-kicker` — unused, removed; `hit-44` renamed `hit-target-lg` and
-   retokenized onto `--control-lg`) — done in #192. Setting every stylelint
-   rule to error and marking this document historical still depend on #190
-   (admin sweep) and #191 (public/player sweep), which are open. Until those
-   land, `errorDirectories` stays empty and this document stays active.
+7. **Cleanup.** Remove v1-only tokens and classes from `main.css`, and remove
+   its remaining v1 radius/breakpoint/weight literals. Not complete: #192
+   removed `type-kicker` (unused), retokenized `hit-44` as `hit-target-lg` on
+   `--control-lg`, moved `card-heading`/`eyebrow` onto the v2 type scale and
+   radius tokens, and migrated `main.css`'s two self-contained `620px`
+   breakpoints (`.page-shell`, `.directory-page`) to `48rem`. Still
+   outstanding in `main.css`: the `900px` sticky-chrome breakpoint, which is
+   coupled to `AppHeader.vue`'s own unmigrated collapse point and can't move
+   without it (#191). Setting every stylelint rule to error and marking this
+   document historical also depend on #190 (admin sweep) and #191
+   (public/player sweep), both open. `errorDirectories` stays empty and this
+   document stays active until those land.
 
 ## Acceptance for every migration PR
 
