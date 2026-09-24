@@ -1167,7 +1167,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const compareText = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
   const nullableEditorText = (value: string | null) => value?.trim() || null;
   const normalizeSpatialConfig = (config: AgentSpatialConfig): AgentSpatialConfig => "stages" in config
-    ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) }
+    ? { ...config, stages: [...config.stages].sort((left, right) => compareText(left.stageId, right.stageId)) } as AgentSpatialConfig
     : { ...config, alternateStages: [...config.alternateStages].sort((left, right) => compareText(left.stageId, right.stageId)) };
   const parseSpatialConfig = (value: unknown): AgentSpatialConfig => {
     const parsed = agentSpatialConfigSchema.safeParse(value);

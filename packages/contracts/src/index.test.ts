@@ -211,6 +211,27 @@ describe("v1 platform contracts", () => {
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: undefined }, composite.stages[2]] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [{ ...composite.stages[0], setupDetection: { position: [2, 3, 4], radius: 30 } }, composite.stages[1], composite.stages[2]] }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...composite, stages: [composite.stages[0], { ...composite.stages[1], setupDetection: { position: [20, 21, 22], radius: 0 } }, composite.stages[2]] }).success).toBe(false);
+    const sharedComposite = {
+      resetPosition: [4, 5, 6],
+      endPosition: [7, 8, 9],
+      thirdPersonPosition: [10, 11, 12],
+      creditsPosition: [13, 14, 15],
+      control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+      composition: composite.composition,
+      stages: [
+        { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [[4, 5, 6]], jumpPositions: [[7, 8, 9]], respawnPositions: [[10, 11, 12]] }, portalPositions: [], springboardPositions: [] },
+        { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[13, 14, 15]], respawnPositions: [[16, 17, 18]] }, portalPositions: [[19, 20, 21]], springboardPositions: [] },
+        { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: null, portalPositions: [], springboardPositions: [[43, 44, 45]] },
+      ],
+    } as const;
+    expect(agentSpatialConfigSchema.safeParse(sharedComposite).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { ...sharedComposite.stages[0]!.control!, jumpPositions: [[7, 8, 9], [8, 9, 10]], respawnPositions: [[10, 11, 12], [11, 12, 13]] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: null } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: -1 } }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: sharedComposite.stages.map((stage) => ({ ...stage, control: null })) }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, endPosition: [50, 51, 52] }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { centerPositions: [], jumpPositions: [], respawnPositions: [], respawnAxis: "x", respawnAxisThreshold: 40 } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });
 

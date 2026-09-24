@@ -45,6 +45,21 @@ Global.controlRespawnAxis = Axis.Z;
 Global.controlRespawnAxisThreshold = 30;
 `;
 
+const sharedRouteConfig = {
+  resetPosition: [1, 2, 3],
+  endPosition: [4, 5, 6],
+  thirdPersonPosition: [7, 8, 9],
+  creditsPosition: [10, 11, 12],
+  control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+};
+
+const stageSource = `
+Global.bastionPosition[0] = Vector(13, 14, 15);
+Modify Global Variable(controlCenterPosition, Append To Array, Vector(16, 17, 18));
+Modify Global Variable(controlRespawnPosition, Append To Array, Vector(19, 20, 21));
+Modify Global Variable(portalPosition, Append To Array, Vector(22, 23, 24));
+`;
+
 describe("AdminSpatialCoordinatesInput", () => {
   it("formats an existing spatial configuration and displays recognition summary", async () => {
     const wrapper = await mountSuspended(AdminSpatialCoordinatesInput, {
@@ -144,6 +159,31 @@ describe("AdminSpatialCoordinatesInput", () => {
     expect(wrapper.text()).toContain("占领中心点");
     expect(wrapper.text()).toContain("占领重生点");
     expect(wrapper.text()).toContain("重生轴：Z 轴");
+  });
+
+  it("keeps shared route points out of stage coordinate imports", async () => {
+    const routeWrapper = await mountSuspended(AdminSpatialCoordinatesInput, {
+      props: { modelValue: sharedRouteConfig, revisionKey: "revision:map.composite:route", scope: "composite-route" },
+    });
+    expect(routeWrapper.text()).toContain("全路线共享点位代码");
+    expect(routeWrapper.text()).toContain("全路线共享点位");
+    expect(routeWrapper.text()).toContain("已识别 4 个点位");
+    expect(routeWrapper.text()).toContain("重生轴：X 轴");
+    expect((routeWrapper.get("textarea").element as HTMLTextAreaElement).value).toContain("Global.controlRespawnAxis = 0;");
+
+    const stageWrapper = await mountSuspended(AdminSpatialCoordinatesInput, {
+      props: { modelValue: null, revisionKey: "revision:map.composite:stage", scope: "composite-stage" },
+    });
+    await stageWrapper.get("textarea").setValue(stageSource);
+    const imported = stageWrapper.emitted("update:modelValue")?.at(-1)?.[0] as Record<string, unknown>;
+    expect(stageWrapper.text()).toContain("阶段专属点位代码");
+    expect(stageWrapper.text()).toContain("已识别 4 个点位");
+    expect(imported).toMatchObject({
+      bastionPositions: [[13, 14, 15]],
+      control: { centerPositions: [[16, 17, 18]], respawnPositions: [[19, 20, 21]] },
+      portalPositions: [[22, 23, 24]],
+    });
+    expect(imported).not.toHaveProperty("endPosition");
   });
 
   it("toggles coordinate details when collapse/expand button is clicked", async () => {

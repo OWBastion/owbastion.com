@@ -295,23 +295,79 @@ const legacyAgentSpatialConfigSchema = z.object({
   }
 });
 
-const compositeStageSchema = z.object({
+const legacyCompositeStageSchema = z.object({
   stageId: spatialStageId,
   setupDetection: alternateStageSetupDetectionSchema.optional(),
   ...spatialConfigFields,
 }).strict();
 
+const compositeCompositionSchema = z.object({
+  selectionCount: z.number().int().min(2).max(16),
+  firstStageSelection: z.discriminatedUnion("mode", [
+    z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
+    z.object({ mode: z.literal("random") }).strict(),
+  ]),
+  remainingStageSelection: z.literal("random_unique"),
+}).strict();
+
+const legacyCompositeSpatialConfigSchema = z.object({
+  composition: compositeCompositionSchema,
+  stages: z.array(legacyCompositeStageSchema).min(2).max(16),
+}).strict().superRefine((value, context) => {
+  validateCompositeSelection(value, context);
+});
+
+const compositeStageControlSchema = z.object({
+  centerPositions: spatialPositions,
+  jumpPositions: spatialPositions.max(1),
+  respawnPositions: spatialPositions.max(1),
+}).strict().superRefine((value, context) => {
+  if (value.jumpPositions.length !== value.respawnPositions.length) {
+    context.addIssue({ code: "custom", path: ["respawnPositions"], message: "Control jump and respawn positions must be paired" });
+  }
+});
+
+const compositeRouteControlSchema = z.object({
+  respawnAxis: z.enum(["x", "y", "z"]).nullable(),
+  respawnAxisThreshold: finiteCoordinate.refine((value) => value >= 0, "Threshold must be non-negative").nullable(),
+}).strict().superRefine((value, context) => {
+  if ((value.respawnAxis === null) !== (value.respawnAxisThreshold === null)) {
+    context.addIssue({ code: "custom", path: ["respawnAxis"], message: "Control axis and threshold must be provided together" });
+  }
+});
+
+const compositeStageSpatialFields = {
+  bastionPositions: requiredSpatialPositions,
+  control: compositeStageControlSchema.nullable(),
+  portalPositions: spatialPositions,
+  springboardPositions: spatialPositions,
+};
+
+const compositeStageSchema = z.object({
+  stageId: spatialStageId,
+  setupDetection: alternateStageSetupDetectionSchema.optional(),
+  ...compositeStageSpatialFields,
+}).strict();
+
 const compositeSpatialConfigSchema = z.object({
-  composition: z.object({
-    selectionCount: z.number().int().min(2).max(16),
-    firstStageSelection: z.discriminatedUnion("mode", [
-      z.object({ mode: z.literal("setup_detection"), fallbackStageId: spatialStageId }).strict(),
-      z.object({ mode: z.literal("random") }).strict(),
-    ]),
-    remainingStageSelection: z.literal("random_unique"),
-  }).strict(),
+  resetPosition: vector3,
+  endPosition: vector3,
+  thirdPersonPosition: vector3,
+  creditsPosition: vector3,
+  control: compositeRouteControlSchema.nullable(),
+  composition: compositeCompositionSchema,
   stages: z.array(compositeStageSchema).min(2).max(16),
 }).strict().superRefine((value, context) => {
+  validateCompositeSelection(value, context);
+  if (value.control?.respawnAxis !== null && value.control?.respawnAxis !== undefined && !value.stages.some((stage) => stage.control && stage.control.respawnPositions.length > 0)) {
+    context.addIssue({ code: "custom", path: ["control", "respawnAxis"], message: "Control axis requires a stage respawn position" });
+  }
+});
+
+function validateCompositeSelection(
+  value: { composition: z.infer<typeof compositeCompositionSchema>; stages: Array<{ stageId: string; setupDetection?: z.infer<typeof alternateStageSetupDetectionSchema> }> },
+  context: z.RefinementCtx,
+) {
   const stagesById = new Map<string, (typeof value.stages)[number]>();
   for (const [index, stage] of value.stages.entries()) {
     if (stagesById.has(stage.stageId)) {
@@ -342,9 +398,9 @@ const compositeSpatialConfigSchema = z.object({
       }
     }
   }
-});
+}
 
-export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, compositeSpatialConfigSchema]);
+export const agentSpatialConfigSchema = z.union([legacyAgentSpatialConfigSchema, legacyCompositeSpatialConfigSchema, compositeSpatialConfigSchema]);
 
 export const agentMapChallengeRefSchema = z.object({ family: z.literal("map"), challengeId: externalId }).strict();
 export const agentGameplayRevisionSchema = z.object({
