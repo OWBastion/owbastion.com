@@ -42,7 +42,24 @@ const ratings: ReviewRating[] = [1, 2, 3, 4, 5];
 </template>
 
 <style scoped>
-.review-editor { display: grid; gap: 14px; padding-top: 17px; border-top: 1px solid var(--line); }.review-editor-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }.review-editor-heading h4 { margin: 0; color: var(--text); font-size: .9rem; }.review-editor-heading p, .review-editor-heading > span, .review-anonymous-note { margin: 4px 0 0; color: var(--muted); font-size: .76rem; }.review-rating-fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }.review-rating-fieldset legend, .review-comment-field > span { margin-bottom: 8px; color: var(--text); font-size: .8rem; font-weight: 650; }.review-rating-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }.review-rating-option { min-width: 0; flex-direction: column; gap: 1px; padding-inline: 4px; font-size: .7rem; }.review-rating-option span:first-child { font-size: 1rem; line-height: 1; }.review-comment-field textarea:focus-visible, .review-anonymous-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }.review-comment-field { display: grid; }.review-comment-field textarea { width: 100%; min-height: 96px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; resize: vertical; color: var(--text); background: var(--surface); font: inherit; font-size: .82rem; line-height: 1.5; }.review-comment-field textarea:disabled { cursor: not-allowed; opacity: .6; }.review-anonymous-field { display: flex; min-height: 44px; align-items: center; gap: 9px; color: var(--text); font-size: .8rem; }.review-anonymous-field input { width: 18px; height: 18px; accent-color: var(--accent); }.review-anonymous-note { margin: -5px 0 0 27px; }
-@media (max-width: 360px) { .review-rating-options { gap: 3px; }.review-rating-option { padding-inline: 1px; font-size: .65rem; } }
+.review-editor { container-type: inline-size; display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.review-editor-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.review-editor-heading h4 { margin: 0; color: var(--text); font-size: .9rem; }
+.review-editor-heading p, .review-editor-heading > span, .review-anonymous-note { margin: var(--space-1) 0 0; color: var(--muted); font-size: .76rem; }
+.review-rating-fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.review-rating-fieldset legend, .review-comment-field > span { margin-bottom: var(--space-2); color: var(--text); font-size: .8rem; font-weight: 500; }
+.review-rating-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
+.review-rating-option { min-width: 0; flex-direction: column; gap: 1px; padding-inline: var(--space-1); font-size: .7rem; }
+.review-rating-option span:first-child { font-size: 1rem; line-height: 1; }
+.review-comment-field textarea:focus-visible, .review-anonymous-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.review-comment-field { display: grid; }
+.review-comment-field textarea { width: 100%; min-height: 96px; padding: var(--space-2) var(--space-3); border: 1px solid var(--line-strong); border-radius: var(--radius-control); resize: vertical; color: var(--text); background: var(--surface); font: inherit; font-size: .82rem; line-height: 1.5; }
+.review-comment-field textarea:disabled { cursor: not-allowed; opacity: .6; }
+.review-anonymous-field { display: flex; min-height: 44px; align-items: center; gap: var(--space-2); color: var(--text); font-size: .8rem; }
+.review-anonymous-field input { width: 18px; height: 18px; accent-color: var(--accent); }
+.review-anonymous-note { margin: -0.25rem 0 0 var(--space-6); }
+@container (max-width: 23.99rem) {
+  .review-rating-option { padding-inline: 1px; font-size: .65rem; }
+}
 @media (prefers-contrast: more) { .review-comment-field textarea { border-color: var(--line-strong); } }
 </style>

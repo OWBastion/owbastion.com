@@ -43,7 +43,10 @@ Pages **may** own: grid-template areas, order of regions, sticky `top` offsets
 using `rem` / safe-area, structure-matched skeleton geometry, and page-layout
 collapse at the two page breakpoints (`48rem`, `64rem`). Components own their
 responsive behavior through container queries (`cq-compact`, `24rem`), never
-viewport media queries.
+viewport media queries. Exception: `AppHeader` is global page chrome pinned to
+the viewport (not a sized container), so its nav-to-drawer collapse uses the
+`48rem` page breakpoint like a layout; its internal spacing at very narrow
+widths still uses `cq-compact`.
 
 ## Units in CSS (implementation of layout-and-spacing)
 
@@ -108,6 +111,10 @@ workflow. Rules live in `stylelint.config.mjs`. Page files (`pages/`,
 To flip a directory to errors, add its repository-relative path to
 `errorDirectories` at the top of `stylelint.config.mjs`. Every rule in that
 directory then fails `pnpm lint:styles`; all other directories stay warnings.
+An entry may also name a single file (e.g. a shared component swept ahead of
+the rest of its directory, or a page swept ahead of a directory like
+`pages/admin` that has not); anything ending in a file extension is matched
+as-is instead of treated as a directory prefix.
 
 ## Refactor extraction rule
 

@@ -23,13 +23,13 @@ const steps = [
 </template>
 
 <style scoped>
-.process-card { padding: 20px 22px; }
-.process-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.process-card { padding: var(--space-5); }
+.process-heading { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
 .process-heading > svg { width: 19px; height: 19px; color: var(--muted); }
 .process-heading h2 { margin: 0; font-size: .98rem; letter-spacing: -.02em; }
-.process-steps { display: grid; gap: 10px; margin: 0; padding-left: 1.45em; color: var(--muted); }
-.process-steps li { padding-left: 4px; }
+.process-steps { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.45em; color: var(--muted); }
+.process-steps li { padding-left: var(--space-1); }
 .process-steps li::marker { color: var(--quiet); font-size: .74rem; font-weight: 700; }
-.process-steps strong { display: block; color: var(--text); font-size: .86rem; font-weight: 720; }
-.process-steps span { display: block; margin-top: 2px; color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.process-steps strong { display: block; color: var(--text); font-size: .86rem; font-weight: 600; }
+.process-steps span { display: block; margin-top: var(--space-1); color: var(--muted); font-size: .76rem; line-height: 1.45; }
 </style>

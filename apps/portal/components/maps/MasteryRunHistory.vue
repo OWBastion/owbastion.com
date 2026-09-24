@@ -45,15 +45,26 @@ const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ??
 </template>
 
 <style scoped>
-.mastery-history { display: grid; gap: 12px; }
-.mastery-history-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.mastery-history { container-type: inline-size; display: grid; gap: var(--space-3); }
+.mastery-history-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .mastery-history-heading h3 { margin: 0; color: var(--text); font-size: .9rem; letter-spacing: -.02em; }
 .mastery-history-heading > span { color: var(--quiet); font-size: .75rem; }
-.mastery-history-loading { display: grid; gap: 9px; }.mastery-history-loading > * { height: 64px; border-radius: 12px; }
+.mastery-history-loading { display: grid; gap: var(--space-2); }
+.mastery-history-loading > * { height: 64px; border-radius: var(--radius-control); }
 .mastery-history-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-.mastery-history-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; padding: 13px 0; border-bottom: 1px solid var(--line); }
-.mastery-history-copy { display: grid; min-width: 0; gap: 4px; }.mastery-history-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .82rem; }.mastery-history-copy span { color: var(--quiet); font-size: .73rem; }
-.mastery-history-outcome { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }.mastery-history-outcome > strong { color: var(--accent); font-size: .8rem; }
-.mastery-history-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; }.mastery-history-pagination > span { color: var(--quiet); font-size: .75rem; }
-@media (max-width: 360px) { .mastery-history-list li { align-items: flex-start; flex-direction: column; gap: 8px; }.mastery-history-outcome { flex-wrap: wrap; }.mastery-history-pagination { display: grid; grid-template-columns: 1fr 1fr; }.mastery-history-pagination > span { grid-column: 1 / -1; grid-row: 1; text-align: center; }.mastery-history-pagination :deep(button) { width: 100%; justify-content: center; } }
+.mastery-history-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.mastery-history-copy { display: grid; min-width: 0; gap: var(--space-1); }
+.mastery-history-copy strong { overflow-wrap: anywhere; color: var(--text); font-size: .82rem; }
+.mastery-history-copy span { color: var(--quiet); font-size: .73rem; }
+.mastery-history-outcome { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
+.mastery-history-outcome > strong { color: var(--accent); font-size: .8rem; }
+.mastery-history-pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.mastery-history-pagination > span { color: var(--quiet); font-size: .75rem; }
+@container (max-width: 23.99rem) {
+  .mastery-history-list li { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
+  .mastery-history-outcome { flex-wrap: wrap; }
+  .mastery-history-pagination { display: grid; grid-template-columns: 1fr 1fr; }
+  .mastery-history-pagination > span { grid-column: 1 / -1; grid-row: 1; text-align: center; }
+  .mastery-history-pagination :deep(button) { width: 100%; justify-content: center; }
+}
 </style>

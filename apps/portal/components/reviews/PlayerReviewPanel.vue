@@ -51,6 +51,8 @@ const withdraw = async () => { if (await review.withdraw()) emit("review-changed
 </template>
 
 <style scoped>
-.review-panel { gap: 15px; }.review-guest { padding-top: 17px; border-top: 1px solid var(--line); }.review-guest p { margin: 0; color: var(--muted); font-size: .82rem; }
+.review-panel { gap: var(--space-4); }
+.review-guest { padding-top: var(--space-4); border-top: 1px solid var(--line); }
+.review-guest p { margin: 0; color: var(--muted); font-size: .82rem; }
 @media (prefers-reduced-motion: reduce) { .review-panel :deep(*) { scroll-behavior: auto; } }
 </style>

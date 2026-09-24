@@ -1,8 +1,33 @@
 // Design System v2 guardrails. See docs/design-rules/css-ownership.md#guardrails.
 
-// Directories that have completed their v2 sweep. Rules report as errors here;
-// everywhere else they are warnings. Paths are relative to the repository root.
-const errorDirectories = [];
+// Directories (or individual files) that have completed their v2 sweep. Rules
+// report as errors here; everywhere else they are warnings. Paths are
+// relative to the repository root. An entry ending in a file extension is
+// matched as-is; everything else is treated as a directory prefix.
+const errorDirectories = [
+  'apps/portal/components/AppHeader.vue',
+  'apps/portal/components/PageSectionHeader.vue',
+  'apps/portal/components/AccountMenu.vue',
+  'apps/portal/components/PlayerBattleTag.vue',
+  'apps/portal/components/StatusBadge.vue',
+  'apps/portal/components/content',
+  'apps/portal/components/events',
+  'apps/portal/components/maps',
+  'apps/portal/components/player',
+  'apps/portal/components/reviews',
+  'apps/portal/components/submissions',
+  'apps/portal/layouts',
+  'apps/portal/pages/index.vue',
+  'apps/portal/pages/events.vue',
+  'apps/portal/pages/maps.vue',
+  'apps/portal/pages/achievements.vue',
+  'apps/portal/pages/me.vue',
+  'apps/portal/pages/bind.vue',
+  'apps/portal/pages/login',
+  'apps/portal/pages/submissions',
+  'apps/portal/pages/blog',
+  'apps/portal/pages/changelog',
+];
 
 // Individual files that have completed their v2 sweep ahead of the rest of
 // their directory (e.g. one sub-area of a large admin sweep). Paths are
@@ -45,8 +70,9 @@ export default {
       customSyntax: 'postcss',
     },
     {
-      // Page files may use only the two system breakpoints.
-      files: ['apps/portal/pages/**', 'apps/portal/layouts/**'],
+      // Page files, plus AppHeader (global page chrome, not container-sized),
+      // may use only the two system breakpoints.
+      files: ['apps/portal/pages/**', 'apps/portal/layouts/**', 'apps/portal/components/AppHeader.vue'],
       rules: {
         'media-feature-name-disallowed-list': null,
         'media-feature-name-value-allowed-list': {
@@ -55,8 +81,8 @@ export default {
         },
       },
     },
-    ...errorDirectories.map((dir) => ({
-      files: [`${dir}/**`],
+    ...errorDirectories.map((entry) => ({
+      files: [/\.[a-z]+$/.test(entry) ? entry : `${entry}/**`],
       defaultSeverity: 'error',
     })),
     {

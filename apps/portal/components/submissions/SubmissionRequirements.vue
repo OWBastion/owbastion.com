@@ -24,13 +24,13 @@ const requirements = [
 </template>
 
 <style scoped>
-.requirements { min-width: 0; }
+.requirements { container-type: inline-size; min-width: 0; }
 .requirement-list {
   display: grid;
   gap: 0;
   margin: 0;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
   overflow: hidden;
 }
@@ -38,8 +38,8 @@ const requirements = [
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--line);
 }
 .requirement-item:first-child { border-top: 0; }
@@ -57,16 +57,16 @@ const requirements = [
   text-align: right;
 }
 .tip-note {
-  margin: 12px 0 0;
+  margin: var(--space-3) 0 0;
   color: var(--quiet);
   font-size: var(--type-caption-size);
   line-height: 1.5;
 }
-@media (max-width: 480px) {
+@container (max-width: 23.99rem) {
   .requirement-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: var(--space-1);
   }
   .requirement-item dd {
     text-align: left;

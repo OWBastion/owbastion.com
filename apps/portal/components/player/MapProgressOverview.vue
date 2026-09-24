@@ -44,7 +44,7 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
 <template>
   <div v-if="rows.length" class="map-progress-overview">
     <p v-if="showTargets && targetMapCount" class="map-progress-summary" aria-live="polite">已获得 {{ earnedChallengeCount }} / {{ totalChallengeCount }} 个地图成就</p>
-    <ul class="map-progress-list">
+    <ul class="map-progress-list directory-grid">
       <li v-for="row in rows" :key="row.map.mapId" class="map-progress-item">
         <article class="map-progress-card">
           <NuxtLink :to="`/maps?mapId=${encodeURIComponent(row.map.mapId)}`" class="map-progress-link interactive-card pressable-soft" :aria-label="`查看${row.map.mapName}详情`">
@@ -78,24 +78,25 @@ const isEarned = (row: (typeof rows.value)[number], challenge: MapProgressChalle
 </template>
 
 <style scoped>
-.map-progress-overview { display: grid; gap: 1rem; }
+.map-progress-overview { display: grid; gap: var(--space-4); }
 .map-progress-summary { margin: 0; color: var(--muted); font-size: var(--type-caption-size); }
-.map-progress-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 0; padding: 0; list-style: none; }
+.map-progress-list { margin: 0; padding: 0; list-style: none; }
 .map-progress-item { min-width: 0; }
-.map-progress-card { display: grid; gap: .85rem; min-width: 0; padding: 1.125rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); }
-.map-progress-link { display: block; min-width: 0; padding: 0 0 .85rem; border-width: 0 0 1px; border-radius: 0; background: transparent; }
-.map-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; min-width: 0; }
+.map-progress-card { container-type: inline-size; display: grid; gap: var(--space-3); min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.map-progress-link { display: block; min-width: 0; padding: 0 0 var(--space-3); border-width: 0 0 1px; border-radius: 0; background: transparent; }
+.map-progress-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); min-width: 0; }
 .map-progress-heading h3 { min-width: 0; margin: 0; color: var(--text); overflow-wrap: anywhere; }
-.map-progress-status, .mastery-empty { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 650; }
+.map-progress-status, .mastery-empty { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .map-progress-status { flex: 0 0 auto; }
 .map-progress-status.complete { color: var(--success); }
-.state-marker { flex: 0 0 auto; font-size: 1rem; font-weight: 800; line-height: 1; }
-.map-target-list { display: grid; gap: .4rem; margin: 0; padding: .75rem 0 0; border-top: 1px solid var(--line); list-style: none; color: var(--muted); font-size: var(--type-caption-size); }
-.map-target-list li { display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: start; gap: .5rem; min-width: 0; }
+.state-marker { flex: 0 0 auto; font-size: 1rem; font-weight: 700; line-height: 1; }
+.map-target-list { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3) 0 0; border-top: 1px solid var(--line); list-style: none; color: var(--muted); font-size: var(--type-caption-size); }
+.map-target-list li { display: grid; grid-template-columns: 1rem minmax(0, 1fr); align-items: start; gap: var(--space-2); min-width: 0; }
 .map-target-list li.earned { color: var(--text); }
 .map-target-list small { display: block; color: var(--quiet); font-size: .72rem; }
-.mastery-facts { padding-top: .75rem; border-top: 1px solid var(--line); }
+.mastery-facts { padding-top: var(--space-3); border-top: 1px solid var(--line); }
 @media (prefers-contrast: more) { .map-progress-card { border-color: var(--text); } }
-@media (max-width: 760px) { .map-progress-list { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .map-progress-heading { align-items: flex-start; flex-direction: column; gap: .4rem; } }
+@container (max-width: 23.99rem) {
+  .map-progress-heading { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
+}
 </style>

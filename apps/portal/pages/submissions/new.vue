@@ -104,41 +104,39 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 
 <style scoped>
 .submit-page { padding-block: clamp(3.5rem, 8vw, 5.5rem) 4.5rem; }
-.submit-intro { max-width: 650px; margin-bottom: 1.75rem; }
-.submission-card { border-color: var(--line); padding: clamp(1.25rem, 3vw, 1.875rem); }
+.submit-intro { max-width: 650px; margin-bottom: var(--space-6); }
+.submission-card { border-color: var(--line); padding: clamp(var(--space-5), 3vw, var(--space-8)); }
 .submission-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(1.75rem, 5vw, 4rem);
+  gap: clamp(var(--space-6), 5vw, var(--space-16));
 }
 .upload-section { min-width: 0; }
-.upload-section :deep(form) { display: grid; gap: 14px; }
+.upload-section :deep(form) { display: grid; gap: var(--space-3); }
 .upload-control { width: 100%; }
 .privacy-note {
   display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
-  padding: 10px 12px;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
   font-size: var(--type-caption-size);
   line-height: 1.5;
 }
-.privacy-header { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
+.privacy-header { display: flex; align-items: center; gap: var(--space-1); color: var(--text); font-weight: 600; }
 .privacy-header > svg { flex: 0 0 auto; width: 14px; height: 14px; color: var(--muted); }
-.privacy-details { margin: 0; padding-left: 18px; display: grid; gap: 3px; color: var(--muted); }
+.privacy-details { margin: 0; padding-left: var(--space-4); display: grid; gap: var(--space-1); color: var(--muted); }
 .privacy-details li::marker { color: var(--quiet); }
-@media (max-width: 820px) {
-  .submit-page { padding-bottom: 56px; }
-  .submission-columns { grid-template-columns: minmax(0, 1fr); gap: 34px; }
+@media (max-width: 63.99rem) {
+  .submit-page { padding-bottom: 3.5rem; }
+  .submission-columns { grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
 }
-@media (max-width: 430px) {
-  .submit-intro { margin-bottom: 32px; }
-  .submission-card { padding: 18px; }
-}
-@media (max-width: 360px) {
-  .submit-page { padding-block: 48px 48px; }
+@media (max-width: 47.99rem) {
+  .submit-page { padding-block: var(--space-12) var(--space-12); }
+  .submit-intro { margin-bottom: var(--space-8); }
+  .submission-card { padding: var(--space-4); }
 }
 @media (prefers-reduced-transparency: reduce) {
   .submission-card { background: var(--surface); }
