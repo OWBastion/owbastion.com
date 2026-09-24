@@ -4,22 +4,8 @@ import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 
 type Detection = { position: unknown[]; radius: unknown };
-type StageControl = { centerPositions: unknown[]; jumpPositions: unknown[]; respawnPositions: unknown[] } | null;
-type CompositeStage = {
-  stageId: string;
-  setupDetection?: Detection;
-  bastionPositions: unknown[];
-  control: StageControl;
-  portalPositions: unknown[];
-  springboardPositions: unknown[];
-};
-type RouteControl = { respawnAxis: "x" | "y" | "z" | null; respawnAxisThreshold: number | null } | null;
-type CompositeConfig = SpatialConfigValue & {
-  resetPosition: unknown;
-  endPosition: unknown;
-  thirdPersonPosition: unknown;
-  creditsPosition: unknown;
-  control: RouteControl;
+type CompositeStage = SpatialConfigValue & { stageId: string; setupDetection?: Detection };
+type CompositeConfig = {
   composition: {
     selectionCount: number;
     firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
@@ -41,19 +27,24 @@ const emit = defineEmits<{
 }>();
 
 const isComposite = (value: SpatialConfigValue): value is CompositeConfig =>
-  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && "endPosition" in value;
+  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object");
 
 function emptyStage(stageId: string): CompositeStage {
-  return { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
-}
-
-function defaultConfig(): CompositeConfig {
   return {
+    stageId,
+    bastionPositions: [],
     resetPosition: null,
     endPosition: null,
     thirdPersonPosition: null,
     creditsPosition: null,
     control: null,
+    portalPositions: [],
+    springboardPositions: [],
+  };
+}
+
+function defaultConfig(): CompositeConfig {
+  return {
     composition: {
       selectionCount: 2,
       firstStageSelection: { mode: "random" },
@@ -76,9 +67,7 @@ function stageKey(index: number, stage: CompositeStage) {
   return index + ":" + stage.stageId;
 }
 
-const allCoordinatesValid = computed(() =>
-  coordinateValidity.value.route !== false && stages.value.every((stage, index) => coordinateValidity.value[stageKey(index, stage)] !== false),
-);
+const allCoordinatesValid = computed(() => stages.value.every((stage, index) => coordinateValidity.value[stageKey(index, stage)] !== false));
 
 function issueMessage(issue: ValidationIssue): string {
   const path = issue.path.map(String).join(".");
@@ -95,8 +84,6 @@ function issueMessage(issue: ValidationIssue): string {
     if (selection.mode === "random") return "随机选择首阶段时不能设置初始阶段检测。";
     return "此阶段需要设置检测位置和正半径。";
   }
-  if (["resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition"].includes(String(issue.path[0]))) return "请在全路线点位中提供此坐标。";
-  if (issue.path[0] === "control") return "重生轴与阈值必须成对设置，且阶段中需要有占领重生点。";
   return "空间配置无效。";
 }
 
@@ -105,21 +92,11 @@ function fieldError(...path: Array<string | number>) {
   return issue ? issueMessage(issue) : "";
 }
 
-function routeSpatialError() {
-  const routeFields = new Set(["resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition"]);
-  return issues.value.some((issue) => routeFields.has(String(issue.path[0]))) ? "请检查全路线共享点位。" : "";
-}
-
-function routeControlError() {
-  const issue = issues.value.find((item) => item.path[0] === "control");
-  return issue ? issueMessage(issue) : "";
-}
-
 function stageSpatialError(index: number) {
-  const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions"]);
-  return issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && stageFields.has(String(issue.path[2])))
-    ? "请为此阶段提供 Bastion 出生点并检查阶段专属点位。"
-    : "";
+  const hasInvalidSpatialField = issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && [
+    "bastionPositions", "resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition", "control", "portalPositions", "springboardPositions",
+  ].includes(String(issue.path[2])));
+  return hasInvalidSpatialField ? "请粘贴此阶段完整的 Raw Workshop 点位代码。" : "";
 }
 
 function nestedFieldError(...path: Array<string | number>) {
@@ -156,7 +133,9 @@ function setFirstStageMode(value: "random" | "setup_detection") {
   let nextStages = stages.value;
   if (value === "setup_detection") {
     firstStageSelection = { mode: value, fallbackStageId: stages.value[0]?.stageId ?? "" };
-    nextStages = stages.value.map((stage, index) => index === 0 ? withoutDetection(stage) : stage);
+    nextStages = stages.value.map((stage, index) => {
+      return index === 0 ? withoutDetection(stage) : stage;
+    });
   } else {
     firstStageSelection = { mode: value };
     nextStages = stages.value.map(withoutDetection);
@@ -234,85 +213,39 @@ function updateDetectionRadius(index: number, value: unknown) {
   updateStage(index, { ...stage, setupDetection: { ...detection, radius: coordinateInputValue(value) } });
 }
 
-function updateRouteControl(axis: unknown, threshold: unknown) {
-  const respawnAxis = axis === "x" || axis === "y" || axis === "z" ? axis : null;
-  const respawnAxisThreshold = coordinateInputValue(threshold);
-  const control: RouteControl = respawnAxis === null ? null : { respawnAxis, respawnAxisThreshold };
-  commit({ ...config.value, control });
-}
-
 function updateStage(index: number, stage: CompositeStage) {
   const nextStages = [...stages.value];
   nextStages[index] = stage;
   commit({ ...config.value, stages: nextStages });
 }
 
-function updateRouteSpatialConfig(value: SpatialConfigValue | null) {
-  const spatial = value ?? { resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null };
-  commit({ ...config.value, ...spatial });
-}
-
 function updateStageSpatialConfig(index: number, value: SpatialConfigValue | null) {
   const currentStage = stages.value[index];
   if (!currentStage) return;
-  const spatial = value ?? { bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
+  const spatial: Record<string, unknown> = value ? { ...value } : {
+    bastionPositions: [],
+    resetPosition: null,
+    endPosition: null,
+    thirdPersonPosition: null,
+    creditsPosition: null,
+    control: null,
+    portalPositions: [],
+    springboardPositions: [],
+  };
   delete spatial.alternateStages;
   delete spatial.setupDetection;
-  updateStage(index, { ...currentStage, ...spatial } as CompositeStage);
-}
-
-function updateRouteCoordinateValidity(valid: boolean) {
-  coordinateValidity.value = { ...coordinateValidity.value, route: valid };
-  emit("valid", agentSpatialConfigSchema.safeParse(config.value).success && allCoordinatesValid.value);
+  updateStage(index, { ...currentStage, ...spatial });
 }
 
 function updateStageCoordinateValidity(index: number, stage: CompositeStage, valid: boolean) {
-  coordinateValidity.value = { ...coordinateValidity.value, [stageKey(index, stage)]: valid };
+  const key = stageKey(index, stage);
+  coordinateValidity.value = { ...coordinateValidity.value, [key]: valid };
   emit("valid", agentSpatialConfigSchema.safeParse(config.value).success && allCoordinatesValid.value);
 }
 </script>
 
 <template>
   <div class="composite-spatial-editor">
-    <section class="shared-route-fields" aria-labelledby="shared-route-heading">
-      <div class="section-heading">
-        <h3 id="shared-route-heading">全路线共享点位</h3>
-        <p>终点、重置点、英雄环和结算点只配置一次，由整条组合路线共用。</p>
-      </div>
-      <AdminSpatialCoordinatesInput
-        :model-value="config"
-        :revision-key="revisionKey + ':route'"
-        scope="composite-route"
-        :disabled="disabled"
-        @update:model-value="updateRouteSpatialConfig"
-        @valid="updateRouteCoordinateValidity"
-      />
-      <p v-if="routeSpatialError()" class="field-error" role="alert">{{ routeSpatialError() }}</p>
-      <div class="route-control-fields">
-        <UFormField label="占领重生轴">
-          <USelect
-            :model-value="config.control?.respawnAxis ?? ''"
-            :items="[{ value: '', label: '不设置' }, { value: 'x', label: 'X 轴' }, { value: 'y', label: 'Y 轴' }, { value: 'z', label: 'Z 轴' }]"
-            :disabled="disabled"
-            aria-label="全路线占领重生轴"
-            @update:model-value="updateRouteControl($event, config.control?.respawnAxisThreshold)"
-          />
-        </UFormField>
-        <UFormField label="占领重生轴阈值">
-          <UInput
-            :model-value="detectionInputValue(config.control?.respawnAxisThreshold)"
-            type="number"
-            min="0"
-            step="any"
-            :disabled="disabled || !config.control?.respawnAxis"
-            aria-label="全路线占领重生轴阈值"
-            @update:model-value="updateRouteControl(config.control?.respawnAxis ?? '', $event)"
-          />
-        </UFormField>
-      </div>
-      <p v-if="routeControlError()" class="field-error" role="alert">{{ routeControlError() }}</p>
-    </section>
-
     <div class="composition-fields">
       <UFormField label="选择数量" required>
         <UInput
@@ -366,7 +299,13 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
             />
             <p v-if="fieldError('stages', index, 'stageId')" class="field-error" role="alert">{{ fieldError('stages', index, 'stageId') }}</p>
           </UFormField>
-          <UButton color="neutral" variant="outline" label="移除阶段" :disabled="disabled || stages.length <= 2" @click="removeStage(index)" />
+          <UButton
+            color="neutral"
+            variant="outline"
+            label="移除阶段"
+            :disabled="disabled || stages.length <= 2"
+            @click="removeStage(index)"
+          />
         </div>
 
         <div v-if="config.composition.firstStageSelection.mode === 'setup_detection' && config.composition.firstStageSelection.fallbackStageId !== stage.stageId" class="detection-editor">
@@ -387,7 +326,6 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
         <AdminSpatialCoordinatesInput
           :model-value="stage"
           :revision-key="revisionKey + ':' + stageKey(index, stage)"
-          scope="composite-stage"
           :disabled="disabled"
           @update:model-value="updateStageSpatialConfig(index, $event)"
           @valid="updateStageCoordinateValidity(index, stage, $event)"
@@ -402,7 +340,6 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
 
 <style scoped>
 .composite-spatial-editor,
-.shared-route-fields,
 .composition-fields,
 .stage-list,
 .stage-editor {
@@ -410,21 +347,9 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   gap: 0.875rem;
   min-width: 0;
 }
-.shared-route-fields {
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.8125rem;
-}
-.section-heading h3,
-.section-heading p { margin: 0; }
-.section-heading h3 { font-size: 0.9375rem; }
-.section-heading p { color: var(--muted); font-size: var(--type-caption-size); }
-.route-control-fields,
 .composition-fields {
-  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   align-items: start;
-  gap: 0.75rem;
 }
 .stage-list { gap: 1rem; }
 .stage-editor {

@@ -27,6 +27,19 @@ const compositeConfig = {
   ],
 };
 
+const sharedCompositeConfig = {
+  resetPosition: [1, 2, 3],
+  endPosition: [4, 5, 6],
+  thirdPersonPosition: [7, 8, 9],
+  creditsPosition: [10, 11, 12],
+  control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+  composition: compositeConfig.composition,
+  stages: [
+    { stageId: "base", bastionPositions: [[13, 14, 15]], control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
+    { stageId: "icebreaker", setupDetection: { position: [22, 23, 24], radius: 30 }, bastionPositions: [[25, 26, 27]], control: null, portalPositions: [[28, 29, 30]], springboardPositions: [] },
+  ],
+};
+
 const source = `
 Global.bastionPosition[0] = Vector(-121.979, 0.148, 110.507);
 Global.bastionPosition[1] = Vector(-93.733, -1.047, 110.100);
@@ -169,5 +182,71 @@ describe("spatial-config-import", () => {
       ok: false,
       error: "组合路线请使用平台空间 JSON 编辑原子阶段与选择约束。",
     });
+  });
+
+  it("imports shared route points separately from atomic-stage points", () => {
+    const route = parseSpatialConfigSource(`
+      Global.endPosition = Vector(4, 5, 6);
+      Global.heroRingPosition = Vector(7, 8, 9);
+      Global.resetPosition = Vector(1, 2, 3);
+      Global.creditsPosition = Vector(10, 11, 12);
+      Global.controlRespawnAxis = 0;
+      Global.controlRespawnAxisThreshold = 40;
+    `, sharedCompositeConfig, "composite-route");
+    expect(route).toMatchObject({
+      ok: true,
+      config: {
+        resetPosition: [1, 2, 3],
+        endPosition: [4, 5, 6],
+        thirdPersonPosition: [7, 8, 9],
+        creditsPosition: [10, 11, 12],
+        control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+      },
+    });
+
+    const stage = parseSpatialConfigSource(`
+      Global.bastionPosition[0] = Vector(13, 14, 15);
+      Modify Global Variable(controlCenterPosition, Append To Array, Vector(16, 17, 18));
+      Modify Global Variable(controlRespawnPosition, Append To Array, Vector(19, 20, 21));
+      Modify Global Variable(portalPosition, Append To Array, Vector(28, 29, 30));
+    `, null, "composite-stage");
+    expect(stage).toMatchObject({
+      ok: true,
+      config: {
+        bastionPositions: [[13, 14, 15]],
+        control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] },
+        portalPositions: [[28, 29, 30]],
+      },
+    });
+    if (route.ok) expect(route.config).not.toHaveProperty("stages");
+    if (stage.ok) expect(stage.config).not.toHaveProperty("endPosition");
+  });
+
+  it("formats route and stage imports without mixing their spatial ownership", () => {
+    const route = formatWorkshopSpatialConfig({
+      resetPosition: [1, 2, 3],
+      endPosition: [4, 5, 6],
+      thirdPersonPosition: [7, 8, 9],
+      creditsPosition: [10, 11, 12],
+      control: { respawnAxis: "x", respawnAxisThreshold: 40 },
+    }, "composite-route");
+    expect(route).toContain("Global.endPosition = Vector(4, 5, 6);");
+    expect(route).toContain("Global.controlRespawnAxis = 0;");
+    expect(route).not.toContain("bastionPosition");
+
+    const stage = formatWorkshopSpatialConfig({
+      bastionPositions: [[13, 14, 15]],
+      control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] },
+      portalPositions: [[28, 29, 30]],
+      springboardPositions: [],
+    }, "composite-stage");
+    expect(stage).toContain("Global.bastionPosition[0] = Vector(13, 14, 15);");
+    expect(stage).toContain("Append To Array, Vector(16, 17, 18)");
+    expect(stage).not.toContain("endPosition");
+  });
+
+  it("rejects full JSON in scoped Workshop point importers", () => {
+    expect(parseSpatialConfigSource(JSON.stringify(sharedCompositeConfig), null, "composite-route")).toMatchObject({ ok: false });
+    expect(parseSpatialConfigSource(JSON.stringify(sharedCompositeConfig), null, "composite-stage")).toMatchObject({ ok: false });
   });
 });
