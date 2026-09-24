@@ -349,7 +349,7 @@ const challengeSummary = computed(() => {
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: minmax(min(100%, 20rem), 1.55fr) minmax(min(100%, 17.5rem), 0.95fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.95fr);
   grid-template-areas:
     "evidence claim"
     "evidence actions"
@@ -536,10 +536,10 @@ const challengeSummary = computed(() => {
 }
 
 /* Narrow: one column; claim then decide, then evidence for verification.
-   Threshold covers the desktop grid's real floor: 20rem evidence column +
-   17.5rem rail column + up to 1.25rem gap = 38.75rem, so the two-column
-   layout never squeezes either column below its usable minimum. */
-@container (max-width: 38.99rem) {
+   Both tracks above are unfloored (minmax(0, fr)), so the two-column
+   layout stays proportional at any width down to this single cq-compact
+   threshold instead of squeezing one column toward a fixed floor. */
+@container (max-width: 23.99rem) {
   .review-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
