@@ -194,7 +194,7 @@ onMounted(() => void loadAll());
 
         </form>
       </template>
-      <template #footer><UButton type="submit" form="event-editor" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /><UButton v-if="selectedEvent" label="归档" color="error" variant="ghost" type="button" :disabled="saving" @click="requestArchive" /></template>
+      <template #footer><UButton type="submit" form="event-editor" :label="selectedEvent ? '保存事件' : '创建事件'" :loading="saving" /><UButton v-if="selectedEvent" label="归档" color="error" variant="soft" type="button" :disabled="saving" @click="requestArchive" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="archiveOpen" title="归档事件" :description="selectedEvent?.name" size="sm" :dismissible="!saving">
       <template #body><p class="text-sm text-muted">归档后，事件不会出现在默认目录中。</p></template>
