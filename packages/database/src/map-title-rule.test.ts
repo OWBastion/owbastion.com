@@ -776,7 +776,7 @@ describe("Agents map projection readiness", () => {
     expect(revision.spatialConfig && "stages" in revision.spatialConfig ? revision.spatialConfig.stages.map((stage) => stage.stageId) : []).toEqual(["base", "icebreaker", "laboratory"]);
     expect(revision.spatialConfig).toMatchObject({ endPosition: [7, 8, 9] });
     const savedStages = revision.spatialConfig && "stages" in revision.spatialConfig ? revision.spatialConfig.stages : [];
-    expect(savedStages.find((stage) => stage.stageId === "base")).toMatchObject({ control: { respawnPositions: [[16, 17, 18]] } });
+    expect(savedStages.find((stage) => stage.stageId === "base")).toMatchObject({ control: { respawnPositions: [[19, 20, 21]] } });
     expect(savedStages[0]).not.toHaveProperty("endPosition");
 
     const projected = (await services.getAgentMap({ mapId: "map.preparing-composite" }))!;
@@ -1174,8 +1174,8 @@ const sharedCompositeSpatialConfig = (): AgentSpatialConfig => ({
   },
   stages: [
     { stageId: "laboratory", setupDetection: { position: [40, 41, 42], radius: 30 }, bastionPositions: [[30, 31, 32]], control: null, portalPositions: [], springboardPositions: [] },
-    { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [], jumpPositions: [], respawnPositions: [[16, 17, 18]] }, portalPositions: [], springboardPositions: [] },
-    { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[19, 20, 21]], respawnPositions: [] }, portalPositions: [[22, 23, 24]], springboardPositions: [] },
+    { stageId: "base", bastionPositions: [[1, 2, 3]], control: { centerPositions: [], jumpPositions: [[16, 17, 18]], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
+    { stageId: "icebreaker", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[10, 11, 12]], control: { centerPositions: [], jumpPositions: [[19, 20, 21]], respawnPositions: [[22, 23, 24]] }, portalPositions: [[25, 26, 27]], springboardPositions: [] },
   ],
 });
 

@@ -95,6 +95,7 @@ function issueMessage(issue: ValidationIssue): string {
     if (selection.mode === "random") return "随机选择首阶段时不能设置初始阶段检测。";
     return "此阶段需要设置检测位置和正半径。";
   }
+  if (path.endsWith(".control.jumpPositions") || path.endsWith(".control.respawnPositions")) return "每阶段的阶段间传送点与占领重生点须成对配置，且最多一对。";
   if (["resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition"].includes(String(issue.path[0]))) return "请在全路线点位中提供此坐标。";
   if (issue.path[0] === "control") return "重生轴与阈值必须成对设置，且阶段中需要有占领重生点。";
   return "空间配置无效。";
@@ -117,9 +118,10 @@ function routeControlError() {
 
 function stageSpatialError(index: number) {
   const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions"]);
-  return issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && stageFields.has(String(issue.path[2])))
-    ? "请为此阶段提供 Bastion 出生点并检查阶段专属点位。"
-    : "";
+  const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && stageFields.has(String(item.path[2])));
+  if (!issue) return "";
+  if (issue.path[2] === "control" && (issue.path[3] === "jumpPositions" || issue.path[3] === "respawnPositions")) return issueMessage(issue);
+  return "请为此阶段提供 Bastion 出生点并检查阶段专属点位。";
 }
 
 function nestedFieldError(...path: Array<string | number>) {

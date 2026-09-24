@@ -35,7 +35,7 @@ const sharedCompositeConfig = {
   control: { respawnAxis: "x", respawnAxisThreshold: 40 },
   composition: compositeConfig.composition,
   stages: [
-    { stageId: "base", bastionPositions: [[13, 14, 15]], control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
+    { stageId: "base", bastionPositions: [[13, 14, 15]], control: { centerPositions: [[16, 17, 18]], jumpPositions: [[17, 18, 19]], respawnPositions: [[19, 20, 21]] }, portalPositions: [], springboardPositions: [] },
     { stageId: "icebreaker", setupDetection: { position: [22, 23, 24], radius: 30 }, bastionPositions: [[25, 26, 27]], control: null, portalPositions: [[28, 29, 30]], springboardPositions: [] },
   ],
 };
@@ -207,6 +207,7 @@ describe("spatial-config-import", () => {
     const stage = parseSpatialConfigSource(`
       Global.bastionPosition[0] = Vector(13, 14, 15);
       Modify Global Variable(controlCenterPosition, Append To Array, Vector(16, 17, 18));
+      Modify Global Variable(controlJumpPosition, Append To Array, Vector(17, 18, 19));
       Modify Global Variable(controlRespawnPosition, Append To Array, Vector(19, 20, 21));
       Modify Global Variable(portalPosition, Append To Array, Vector(28, 29, 30));
     `, null, "composite-stage");
@@ -214,7 +215,7 @@ describe("spatial-config-import", () => {
       ok: true,
       config: {
         bastionPositions: [[13, 14, 15]],
-        control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] },
+        control: { centerPositions: [[16, 17, 18]], jumpPositions: [[17, 18, 19]], respawnPositions: [[19, 20, 21]] },
         portalPositions: [[28, 29, 30]],
       },
     });
@@ -236,7 +237,7 @@ describe("spatial-config-import", () => {
 
     const stage = formatWorkshopSpatialConfig({
       bastionPositions: [[13, 14, 15]],
-      control: { centerPositions: [[16, 17, 18]], jumpPositions: [], respawnPositions: [[19, 20, 21]] },
+      control: { centerPositions: [[16, 17, 18]], jumpPositions: [[17, 18, 19]], respawnPositions: [[19, 20, 21]] },
       portalPositions: [[28, 29, 30]],
       springboardPositions: [],
     }, "composite-stage");

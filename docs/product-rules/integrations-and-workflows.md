@@ -518,10 +518,11 @@ A revision that composes runtime stages uses `spatialConfig.composition` plus
 one `spatialConfig.stages` entry per atomic stage. The route root owns shared
 points that exist once for the whole combined map: reset, end, third-person,
 credits, and the respawn-axis settings. Each stage owns its Bastion spawn
-points, control centers/jumps/respawns, portals, springboards, and optional
-setup detector. A shared point is not copied into each stage. The consuming
-Bastion build must assemble stage-local point arrays in its selected order; the
-platform does not store coordinate copies for stage pairs or route permutations.
+points, control centers, at most one paired control jump/respawn point, portals,
+springboards, and optional setup detector. A shared point is not copied into
+each stage. The consuming Bastion build must assemble stage-local point arrays
+in its selected order; the platform does not store coordinate copies for stage
+pairs or route permutations.
 `composition.selectionCount` is the total number of ordered stages Bastion
 selects for one game. The first stage selection is either `setup_detection`
 with an explicit fallback stage ID, or `random`; the remaining selection is

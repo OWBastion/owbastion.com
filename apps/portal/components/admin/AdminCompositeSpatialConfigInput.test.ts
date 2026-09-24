@@ -151,7 +151,7 @@ describe("AdminCompositeSpatialConfigInput", () => {
       ...compositeConfig(),
       control: { respawnAxis: "x" as const, respawnAxisThreshold: 40 },
       stages: compositeConfig().stages.map((stage, index) => index === 0
-        ? { ...stage, control: { centerPositions: [[1, 2, 3]], jumpPositions: [], respawnPositions: [[4, 5, 6]] } }
+        ? { ...stage, control: { centerPositions: [[1, 2, 3]], jumpPositions: [[4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
         : stage),
     };
     const wrapper = await mountEditor(config);
@@ -165,11 +165,24 @@ describe("AdminCompositeSpatialConfigInput", () => {
       ...compositeConfig(),
       control: { respawnAxis: "x" as const, respawnAxisThreshold: -1 },
       stages: compositeConfig().stages.map((stage, index) => index === 0
-        ? { ...stage, control: { centerPositions: [], jumpPositions: [], respawnPositions: [[4, 5, 6]] } }
+        ? { ...stage, control: { centerPositions: [], jumpPositions: [[4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
         : stage),
     };
     const wrapper = await mountEditor(config);
     expect(wrapper.text()).toContain("重生轴与阈值必须成对设置，且阶段中需要有占领重生点");
+    expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
+  });
+
+  it("shows the supported control jump and respawn cardinality", async () => {
+    const config = {
+      ...compositeConfig(),
+      stages: compositeConfig().stages.map((stage, index) => index === 0
+        ? { ...stage, control: { centerPositions: [], jumpPositions: [[1, 2, 3], [4, 5, 6]], respawnPositions: [[7, 8, 9]] } }
+        : stage),
+    };
+    const wrapper = await mountEditor(config);
+
+    expect(wrapper.text()).toContain("每阶段的阶段间传送点与占领重生点须成对配置，且最多一对。");
     expect(wrapper.emitted("valid")?.at(-1)?.[0]).toBe(false);
   });
 });

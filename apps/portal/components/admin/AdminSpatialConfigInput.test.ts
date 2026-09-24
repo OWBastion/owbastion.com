@@ -101,6 +101,7 @@ Global.creditsPosition = Vector(113, 114, 115);
 
 const stageWorkshopText = `
 Global.bastionPosition[0] = Vector(101, 102, 103);
+Modify Global Variable(controlJumpPosition, Append To Array, Vector(111, 112, 113));
 Modify Global Variable(controlRespawnPosition, Append To Array, Vector(114, 115, 116));
 `;
 
@@ -218,7 +219,7 @@ describe("AdminSpatialConfigInput", () => {
       creditsPosition: [113, 114, 115],
       control: { respawnAxis: "x", respawnAxisThreshold: 40 },
       stages: [
-        { stageId: "stage-1", bastionPositions: [[101, 102, 103]], control: { centerPositions: [], jumpPositions: [], respawnPositions: [[114, 115, 116]] } },
+        { stageId: "stage-1", bastionPositions: [[101, 102, 103]], control: { centerPositions: [], jumpPositions: [[111, 112, 113]], respawnPositions: [[114, 115, 116]] } },
         { stageId: "stage-2", setupDetection: { position: [10, 11, 12], radius: 30 }, bastionPositions: [[101, 102, 103]] },
         { stageId: "stage-3", setupDetection: { position: [20, 21, 22], radius: 30 }, bastionPositions: [[101, 102, 103]] },
       ],
@@ -258,7 +259,7 @@ describe("AdminSpatialConfigInput", () => {
     expect(saved.stages[0]).toMatchObject({
       stageId: "base",
       bastionPositions: [[101, 102, 103]],
-      control: { respawnPositions: [[114, 115, 116]] },
+      control: { jumpPositions: [[111, 112, 113]], respawnPositions: [[114, 115, 116]] },
     });
     expect(saved.stages[0]).not.toHaveProperty("setupDetection");
     expect(saved.stages[1]).toEqual(compositeConfig.stages[1]);

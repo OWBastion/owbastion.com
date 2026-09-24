@@ -319,9 +319,13 @@ const legacyCompositeSpatialConfigSchema = z.object({
 
 const compositeStageControlSchema = z.object({
   centerPositions: spatialPositions,
-  jumpPositions: spatialPositions,
-  respawnPositions: spatialPositions,
-}).strict();
+  jumpPositions: spatialPositions.max(1),
+  respawnPositions: spatialPositions.max(1),
+}).strict().superRefine((value, context) => {
+  if (value.jumpPositions.length !== value.respawnPositions.length) {
+    context.addIssue({ code: "custom", path: ["respawnPositions"], message: "Control jump and respawn positions must be paired" });
+  }
+});
 
 const compositeRouteControlSchema = z.object({
   respawnAxis: z.enum(["x", "y", "z"]).nullable(),
