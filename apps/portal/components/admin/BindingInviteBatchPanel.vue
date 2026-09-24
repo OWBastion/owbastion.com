@@ -118,12 +118,26 @@ async function copyInvitation(invitation: Invitation) {
 </template>
 
 <style scoped>
-.batch-invites { display: grid; gap: 18px; padding: clamp(18px, 3vw, 28px); }.batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: .75rem; font-weight: 650; letter-spacing: .04em; }
-.batch-invites__header h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.4rem); letter-spacing: -.035em; }
-.batch-invites__count { padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; }
-.batch-invites__form { display: grid; gap: 10px; }.batch-invites__actions { min-height: 44px; }.batch-invites__validation { margin: 0; color: var(--danger); font-size: .82rem; line-height: 1.5; }.invite-results { display: grid; gap: 8px; }.invite-result { padding: 12px 13px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }.invite-result__identity { display: grid; min-width: 0; gap: 5px; }.invite-result__identity strong { overflow-wrap: anywhere; font-size: .88rem; letter-spacing: -.015em; }.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; font-weight: 700; letter-spacing: .08em; }.invite-list-enter-active, .invite-list-leave-active { transition: opacity 180ms ease; }.invite-list-enter-from, .invite-list-leave-to { opacity: 0; }
-@media (max-width: 620px) { .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }.batch-invites__count { align-self: flex-start; }.batch-invites__actions :deep(button), .invite-result :deep(button) { width: 100%; justify-content: center; } }
+.batch-invites { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
+.batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
+.batch-invites__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
+.batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.batch-invites__form { display: grid; gap: var(--space-3); }
+.batch-invites__actions { min-height: 44px; }
+.batch-invites__validation { margin: 0; color: var(--danger); font-size: var(--type-label-sm-size); line-height: 1.5; }
+.invite-results { display: grid; gap: var(--space-2); }
+.invite-result { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }
+.invite-result__identity { display: grid; min-width: 0; gap: var(--space-1); }
+.invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); letter-spacing: -.015em; }
+.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
+.invite-list-enter-active, .invite-list-leave-active { transition: opacity 180ms ease; }
+.invite-list-enter-from, .invite-list-leave-to { opacity: 0; }
+@container (max-width: 23.99rem) {
+  .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }
+  .batch-invites__count { align-self: flex-start; }
+  .batch-invites__actions :deep(button), .invite-result :deep(button) { width: 100%; justify-content: center; }
+}
 @media (prefers-reduced-motion: reduce) { .invite-list-enter-active, .invite-list-leave-active { transition: opacity 120ms ease; } }
 @media (prefers-reduced-transparency: reduce) { .invite-result { background: var(--surface-raised); } }
 @media (prefers-contrast: more) { .batch-invites__count, .invite-result { border-color: var(--line-strong); } }

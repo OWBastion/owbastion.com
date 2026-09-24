@@ -42,6 +42,18 @@ const errorFiles = [
   'apps/portal/pages/admin/reviews/index.vue',
   'apps/portal/pages/admin/annotations/index.vue',
   'apps/portal/pages/admin/player-reviews/index.vue',
+  'apps/portal/components/admin/AdminPlayerDetail.vue',
+  'apps/portal/components/admin/AdminPlayerIdentityEditor.vue',
+  'apps/portal/components/admin/AdminPlayerTitles.vue',
+  'apps/portal/components/admin/AdminTitleMigrationDetail.vue',
+  'apps/portal/components/admin/AdminTitleMigrationHolders.vue',
+  'apps/portal/components/admin/BindingInviteBatchPanel.vue',
+  'apps/portal/components/admin/BindingInvitePanel.vue',
+  'apps/portal/pages/admin/bindings.vue',
+  'apps/portal/pages/admin/grants.vue',
+  'apps/portal/pages/admin/titles.vue',
+  'apps/portal/pages/admin/players/[playerAccountId].vue',
+  'apps/portal/pages/admin/players/index.vue',
 ];
 
 const rawPx = /(?<![\w.])(?!(?:1|0)px\b)\d*\.?\d+px/;

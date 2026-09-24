@@ -48,7 +48,7 @@ function save() {
 <style scoped>
 .identity-editor { display: grid; gap: 1rem; }
 .identity-editor__readonly :deep(input) { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.identity-editor__preview { display: grid; gap: 5px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-surface); }
-.identity-editor__preview span { color: var(--quiet); font-size: .72rem; }
-.identity-editor__preview strong { overflow-wrap: anywhere; color: var(--text); font-size: .9rem; }
+.identity-editor__preview { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--accent-surface); }
+.identity-editor__preview span { color: var(--quiet); font-size: var(--type-caption-size); }
+.identity-editor__preview strong { overflow-wrap: anywhere; color: var(--text); font-size: var(--type-body-sm-size); }
 </style>

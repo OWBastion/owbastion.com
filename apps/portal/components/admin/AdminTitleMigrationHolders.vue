@@ -68,30 +68,34 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
 </template>
 
 <style scoped>
-.holder-panel { min-width: 0; height: 100%; display: flex; flex-direction: column; }
+.holder-panel { container-type: inline-size; min-width: 0; height: 100%; display: flex; flex-direction: column; }
 .holder-panel :deep([data-slot="body"]) { display: flex; flex: 1; min-height: 0; flex-direction: column; }
-.holder-panel :deep([data-slot="header"]), .holder-panel :deep([data-slot="footer"]) { padding: 18px 20px; }
-.panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.holder-panel :deep([data-slot="header"]), .holder-panel :deep([data-slot="footer"]) { padding: var(--space-5); }
+.panel-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
 .panel-heading h2 { margin: 0; }
-.holder-search { margin-top: 15px; }
+.holder-search { margin-top: var(--space-4); }
 .holder-search :deep(.portal-control) { width: 100%; }
-.holder-filters { display: flex; gap: 4px; padding: 14px 18px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.holder-filters { display: flex; gap: var(--space-1); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--line); overflow-x: auto; }
 .holder-filters :deep(button) { white-space: nowrap; }
 .holder-list { display: grid; flex: 1; min-height: 0; max-height: 560px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.holder-item { display: flex; align-items: center; gap: 11px; min-width: 0; min-height: 2.75rem; padding: 14px 18px; border: 0; color: var(--text); background: transparent; text-align: left; transition: background 160ms ease; }
+.holder-item { display: flex; align-items: center; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-4) var(--space-5); border: 0; color: var(--text); background: transparent; text-align: left; transition: background 160ms ease; }
 .holder-item + .holder-item { border-top: 1px solid var(--line); }
 .holder-item:hover { background: color-mix(in oklch, var(--surface-raised) 64%, transparent); }
 .holder-item:focus-visible { z-index: 1; outline: 3px solid var(--accent); outline-offset: -3px; }
 .holder-item--selected { background: var(--accent-surface); }
-.holder-avatar { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: .82rem; font-weight: 750; }
-.holder-copy { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.holder-avatar { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: var(--type-label-sm-size); font-weight: 700; }
+.holder-copy { display: grid; flex: 1; min-width: 0; gap: var(--space-1); }
 .holder-copy strong, .holder-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.holder-copy strong { font-size: .86rem; }
-.holder-copy small { color: var(--quiet); font-size: .72rem; }
-.holder-state { padding: 28px 18px; color: var(--quiet); text-align: center; }
+.holder-copy strong { font-size: var(--type-body-sm-size); }
+.holder-copy small { color: var(--quiet); font-size: var(--type-caption-size); }
+.holder-state { padding: var(--space-8) var(--space-5); color: var(--quiet); text-align: center; }
 .holder-pagination { display: flex; justify-content: center; }
-@media (max-width: 460px) { .holder-item { padding-inline: 14px; } }
-@media (max-width: 760px) { .holder-panel { height: auto; }.holder-panel :deep([data-slot="body"]) { display: block; }.holder-list { flex: none; max-height: 420px; } }
+@container (max-width: 23.99rem) {
+  .holder-item { padding-inline: var(--space-4); }
+  .holder-panel { height: auto; }
+  .holder-panel :deep([data-slot="body"]) { display: block; }
+  .holder-list { flex: none; max-height: 420px; }
+}
 @media (prefers-reduced-motion: reduce) { .holder-item { transition: background 120ms ease; } }
 @media (prefers-reduced-transparency: reduce) { .holder-item:hover { background: var(--surface-raised); } }
 @media (prefers-contrast: more) { .holder-item + .holder-item, .holder-panel :deep([data-slot="header"]), .holder-panel :deep([data-slot="footer"]) { border-color: var(--line-strong); } .holder-item:focus-visible { outline-color: var(--text); } }

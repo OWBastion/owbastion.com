@@ -379,12 +379,12 @@ onMounted(load);
 </template>
 
 <style scoped>
-.binding-section,.binding-tabs { display:grid; gap:12px; }
-.claim-actions,.invite-actions { display:flex; gap:8px; }
-.table-meta,.revoke-note { color:var(--quiet); font-size:.78rem; }
-.revoke-form { display:grid; gap:16px; }
-.invite-code { display:grid; min-height:56px; place-items:center; border:1px solid var(--line); border-radius:12px; background:var(--surface-raised); }
-.invite-code code { color:var(--accent); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:1.1rem; font-weight:700; letter-spacing:.12em; }
-.claim-detail { display: grid; gap: 12px; }
+.binding-section, .binding-tabs { display: grid; gap: var(--space-3); }
+.claim-actions, .invite-actions { display: flex; gap: var(--space-2); }
+.table-meta, .revoke-note { color: var(--quiet); font-size: var(--type-caption-size); }
+.revoke-form { display: grid; gap: var(--space-4); }
+.invite-code { display: grid; min-height: 56px; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
+.invite-code code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-card-title-size); font-weight: 700; letter-spacing: .12em; }
+.claim-detail { display: grid; gap: var(--space-3); }
 .qq-bound-item { display: inline-block; }
 </style>

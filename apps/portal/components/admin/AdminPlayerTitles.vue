@@ -263,10 +263,35 @@ onMounted(() => { void loadOptions(); });
 </template>
 
 <style scoped>
-.player-titles { display: grid; gap: 18px; margin: 0; }.section-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }.section-heading h3 { margin: 0; font-size: 1.08rem; letter-spacing: -.025em; }.section-heading__actions { display: flex; align-items: center; gap: 9px; }.card-kicker { margin: 0 0 5px; color: var(--quiet); font-size: .68rem; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
-.grants-tabs { display: flex; gap: 5px; width: fit-content; max-width: 100%; padding: 4px; overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: 11px; background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }.grants-tab { display: flex; align-items: center; gap: 6px; min-height: 2.75rem; padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: .78rem; font-weight: 650; cursor: pointer; transition: color 140ms ease, background 140ms ease; }.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }.grants-tab--active { color: var(--on-accent); background: var(--accent); }.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px 5px; border-radius: 5px; background: color-mix(in oklch, currentColor 18%, transparent); font-size: .68rem; font-weight: 750; line-height: 1.4; }
-.grant-form { display: grid; gap: 18px; }.grant-section { display: grid; gap: 9px; }.grant-section__heading { display: flex; align-items: baseline; gap: 12px; }.grant-section__heading strong { font-size: .84rem; }.selected-titles { display: grid; gap: 9px; padding-top: 2px; border-top: 1px solid var(--line); }.selected-titles__list { display: flex; flex-wrap: wrap; gap: 7px; }.title-error { margin: 0; padding: 10px 12px; border-radius: 9px; color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
-.player-titles :deep(td strong) { display: block; }.player-titles :deep(td small) { display: block; margin-top: 4px; color: var(--quiet); }.equipped-mark { color: var(--success); font-size: .75rem; }.table-meta { color: var(--quiet); }.recovery-form { display: grid; gap: 16px; }.recovery-note { margin: 0; color: var(--muted); line-height: 1.55; }.recovery-list { display: grid; gap: 8px; max-height: 360px; margin: 0; padding: 0; border: 0; overflow: auto; }.recovery-list legend { margin-bottom: 4px; color: var(--text); font-size: .84rem; font-weight: 700; }.recovery-item { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }.recovery-item input { margin-top: 3px; }.recovery-item span { display: grid; gap: 3px; }.recovery-item small { color: var(--quiet); }
-@media (max-width: 620px) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
+.player-titles { container-type: inline-size; display: grid; gap: var(--space-5); margin: 0; }
+.section-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
+.section-heading h3 { margin: 0; font-size: var(--type-card-title-size); letter-spacing: -.025em; }
+.section-heading__actions { display: flex; align-items: center; gap: var(--space-2); }
+.card-kicker { margin: 0 0 var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
+.grants-tabs { display: flex; gap: var(--space-1); width: fit-content; max-width: 100%; padding: var(--space-1); overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }
+.grants-tab { display: flex; align-items: center; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; cursor: pointer; transition: color 140ms ease, background 140ms ease; }
+.grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }
+.grants-tab--active { color: var(--on-accent); background: var(--accent); }
+.grants-tab__count { display: inline-grid; place-items: center; min-width: 18px; padding: 1px var(--space-1); border-radius: var(--radius-pill); background: color-mix(in oklch, currentColor 18%, transparent); font-size: var(--type-caption-size); font-weight: 700; line-height: 1.4; }
+.grant-form { display: grid; gap: var(--space-5); }
+.grant-section { display: grid; gap: var(--space-2); }
+.grant-section__heading { display: flex; align-items: baseline; gap: var(--space-3); }
+.grant-section__heading strong { font-size: var(--type-label-sm-size); }
+.selected-titles { display: grid; gap: var(--space-2); padding-top: var(--space-1); border-top: 1px solid var(--line); }
+.selected-titles__list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.title-error { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); color: var(--danger); background: color-mix(in oklch, var(--danger) 12%, var(--surface)); }
+.player-titles :deep(td strong) { display: block; }
+.player-titles :deep(td small) { display: block; margin-top: var(--space-1); color: var(--quiet); }
+.equipped-mark { color: var(--success); font-size: var(--type-caption-size); }
+.table-meta { color: var(--quiet); }
+.recovery-form { display: grid; gap: var(--space-4); }
+.recovery-note { margin: 0; color: var(--muted); line-height: 1.55; }
+.recovery-list { display: grid; gap: var(--space-2); max-height: 360px; margin: 0; padding: 0; border: 0; overflow: auto; }
+.recovery-list legend { margin-bottom: var(--space-1); color: var(--text); font-size: var(--type-label-sm-size); font-weight: 700; }
+.recovery-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); cursor: pointer; }
+.recovery-item input { margin-top: var(--space-1); }
+.recovery-item span { display: grid; gap: var(--space-1); }
+.recovery-item small { color: var(--quiet); }
+@container (max-width: 23.99rem) { .section-heading__actions { align-items: flex-end; flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .grants-tab { transition: color 140ms ease, background 140ms ease; } }
 </style>
