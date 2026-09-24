@@ -34,22 +34,28 @@ Do not re-declare in page/component scoped CSS:
 - Type scale, heading tracking systems, or alternate font stacks
 - Glass / elevation / radius design language
 - Press feedback scale curves (use `pressable` / `pressable-soft`)
-- Touch target floors (use `.hit-44` / `2.75rem` policy)
+- Touch target floors and control heights (use `--control-*`)
 - `page-shell` max-width and page gutters
+- Spacing values outside the `--space-*` ladder, font weights outside
+  400/500/600/700, radius literals, or button styling outside `UButton`
 
 Pages **may** own: grid-template areas, order of regions, sticky `top` offsets
-using `rem` / safe-area, structure-matched skeleton geometry, and media-query
-collapse that follows system breakpoints.
+using `rem` / safe-area, structure-matched skeleton geometry, and page-layout
+collapse at the two page breakpoints (`48rem`, `64rem`). Components own their
+responsive behavior through container queries (`cq-compact`, `24rem`), never
+viewport media queries.
 
 ## Units in CSS (implementation of layout-and-spacing)
 
 | Property class | Ownership guidance |
 | --- | --- |
-| `gap`, `padding`, `margin` for structure | `rem` / `clamp` / component CSS variables |
-| `min-height` of primary controls | ≥ `2.75rem` on mobile primary actions |
+| `gap`, `padding`, `margin` for structure | `var(--space-*)`; `clamp()` only between two ladder steps |
+| `min-height` of controls | `var(--control-*)`; `--control-lg` under `pointer: coarse` |
+| `border-radius` | `var(--radius-control|card|sheet|pill)`; `50%` only for circular marks |
+| `font-weight` | 400 / 500 / 600 / 700 |
 | Grid tracks | `minmax(0, 1fr)`, `minmax(min(100%, Nrem), 1fr)`, `auto-fit` |
 | `border-width: 1px`, shadow blur/offset | `px` OK |
-| Breakpoints | Prefer shared 620 / 760 / 820 family (px or rem equivalent) |
+| Breakpoints | Pages: `48rem` / `64rem` only. Components: `@container` at `24rem` |
 
 Normative unit policy lives in
 [`layout-and-spacing.md`](layout-and-spacing.md). CSS ownership enforces
@@ -70,10 +76,29 @@ When reviewing a `<style scoped>` block:
 
 - [ ] No new semantic colors or type scale
 - [ ] No page-local container max-width competing with `page-shell`
-- [ ] Structural spacing not a pile of unexplained `px` if `rem`/`clamp` works
+- [ ] Spacing, radius, and weight values come from the tokens (no raw `px` except 1px hairlines / shadow geometry)
+- [ ] No viewport `@media` inside a component; container query instead
+- [ ] No CSS button classes; `UButton` only
 - [ ] No `position: fixed` feature docks without layout-doc exception
 - [ ] `min-width: 0` / full-width stack for multi-card columns
 - [ ] Reduced-motion / transparency / contrast not bypassed
+
+## Where the tokens live
+
+`main.css` `:root` owns `--space-1` … `--space-16`, `--control-sm|md|lg`,
+`--radius-control|card|sheet|pill`, and the type role classes, next to the
+color tokens. `app.config.ts` owns the `UButton` variant/size theme and the
+Nuxt UI radius tuning. Shared pattern classes (`detail-grid`, action row) live
+in `main.css` or a domain component, not in page CSS.
+
+## Guardrails
+
+Stylelint enforces the rules above in CI: no raw `px` for
+`padding|margin|gap|inset` (1px allowed), `font-weight` limited to
+400/500/600/700, no `border-radius` literals, and no `@media` width queries in
+component `<style>` blocks other than the two page breakpoints in page
+components. Rules start as warnings and become errors directory by directory as
+[`design-system-v2-migration.md`](design-system-v2-migration.md) completes.
 
 ## Refactor extraction rule
 

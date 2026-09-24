@@ -24,6 +24,7 @@
 | 文案 | [portal-copy-guidelines.md](portal-copy-guidelines.md) | 中文文案、状态词、空状态和错误 |
 | 版本更新 | [changelog-guidelines.md](changelog-guidelines.md) | `apps/portal/content/changelog` 结构、排版与文案规范 |
 | 术语 | [terminology.md](terminology.md) | 称号、挑战、提交、事件和 QQ 绑定术语 |
+| 迁移 | [design-system-v2-migration.md](design-system-v2-migration.md) | v1 → v2 token 对照、迁移顺序、防回退与验收 |
 
 ## Cross-cutting principles
 
@@ -32,9 +33,10 @@
 2. **One system.** Tokens, type, materials, elevation, press, and containers
    live in `main.css` / Nuxt UI config / shared domain components — not in
    page-local forks.
-3. **Adaptive layout.** Structural spacing and columns use `rem` / `fr` /
-   `minmax` / `clamp`; see layout doc. Do not fix decision UIs to the viewport
-   with growing `position: fixed` docks.
+3. **Adaptive layout.** Spacing uses the `--space-*` ladder; columns use
+   `fr` / `minmax`. Components respond to their own width (container queries)
+   and keep one anatomy on desktop and mobile. Do not fix decision UIs to the
+   viewport with growing `position: fixed` docks.
 4. **Familiar controls.** Prefer domain components, then Nuxt UI, then local
    composition. Do not introduce a second component library or dashboard shell
    without an explicit migration.
@@ -56,6 +58,7 @@
 | 文案与术语 | portal-copy-guidelines、terminology |
 | 版本更新 / Changelog | changelog-guidelines、terminology |
 | 抽样式 / 改 main.css | css-ownership |
+| 迁移旧页面到 v2 | design-system-v2-migration + 对应支柱文档 |
 
 修改 Portal UI 时：先读本索引 → 对应支柱文档 → 需要时再读 Portal 细则与邻接
 实现。主题文档在各自范围内具有约束力，不得通过页面级 CSS 或局部文案引入

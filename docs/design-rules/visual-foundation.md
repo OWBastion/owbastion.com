@@ -47,16 +47,60 @@ The orange **accent** is reserved for primary brand action and active emphasis;
 it is not a generic success color. Do not use accent green/red forks outside
 the token table.
 
+### Token values and contrast floor
+
+Every text token passes **4.5:1** on `--page`, `--surface`, and
+`--surface-raised` in both themes, and every status ink passes 4.5:1 on its own
+badge/alert surface. Hierarchy comes from size and weight, never from fading
+text below legibility. The following values change from the v1 implementation
+to meet that floor (hue and chroma unchanged); all other color tokens keep their
+current values:
+
+| Token | Light | Dark | Result |
+| --- | --- | --- | --- |
+| `--accent` | `oklch(55% 0.16 48)` | `oklch(74% 0.14 55)` | `--on-accent` label 5.0:1; accent text on `--page` 4.6:1 |
+| `--quiet` | `oklch(52% 0.018 55)` | `oklch(62% 0.014 48)` | ≥4.5:1 on page/surface (light 4.9, dark 5.3) |
+| `--info` | `oklch(48% 0.14 235)` | unchanged | 4.9:1 on `--info-surface` |
+| `--success` | `oklch(48% 0.14 145)` | unchanged | 4.8:1 on `--success-surface` |
+| `--warning` | `oklch(55% 0.15 75)` | unchanged | 4.8:1 on its tinted badge |
+
+Text roles: `--text` for headings, values, and primary text; `--muted` for body
+copy and field/stat labels; `--quiet` for captions, counts, versions, and
+timestamps only.
+
 ## Typography
 
-- Use the shared type scale classes only: `type-display`, `type-title`
-  (alias `page-title`), `type-headline`, `type-body` (alias `body-copy`),
-  `type-caption`, and `type-kicker` (and `eyebrow` for section labels).
-- Do not introduce one-off heading `letter-spacing`, page-local font families,
-  or a second modular scale in scoped CSS.
-- Tracking and leading are owned by the type classes in `main.css`. Large
-  titles already tighten tracking; body stays near neutral — do not copy
-  Apple-style tracking hacks into random headings.
+Use the shared type scale only. Sizes, weights, tracking, and leading travel
+together as one role:
+
+| Role | Size | Weight | Leading | Tracking | Use |
+| --- | --- | --- | --- | --- | --- |
+| `type-display` | `clamp(3.2rem, 8vw, 6.5rem)` | 700 | 0.94 | -0.04em | Hero only |
+| `type-title` (`page-title`) | `clamp(2rem, 4vw, 3.2rem)` | 700 | 1 | -0.03em | Page title |
+| `type-headline` | `clamp(1.375rem, 3vw, 2.1rem)` | 600 | 1.15 | -0.02em | Section heading (`PageSectionHeader`) |
+| `type-card-title` | `1.125rem` | 600 | 1.35 | -0.01em | Card and panel titles, `card-heading` |
+| `type-body` (`body-copy`) | `1rem` | 400 | 1.6 | 0 | Prose and descriptions |
+| `type-body-sm` | `0.875rem` | 400 | 1.55 | 0 | Dense secondary text |
+| `type-label` | `0.9375rem` | 600 | 1.4 | 0 | Values: detail values, stat values, primary table cells |
+| `type-label-sm` | `0.8125rem` | 500 | 1.4 | 0 | Field and stat labels (`--muted`) |
+| `type-caption` | `0.75rem` | 500 | 1.4 | 0 | Counts, versions, timestamps (`--quiet`) |
+
+Control labels: `UButton` `sm` / `md` / `lg` use `0.8125rem` / `0.875rem` /
+`0.9375rem` at 600; badges `0.75rem` at 600; header navigation `0.875rem` at 500
+(active 600).
+
+- **Four weights only: 400, 500, 600, 700.** The v1 in-between weights (640,
+  650, 680, 690, 720, 750, 760) are retired; at UI sizes they read as one
+  undifferentiated bold.
+- Negative tracking is limited to the heading roles above. Everything at body
+  size and below uses 0 — tight tracking crowds CJK glyphs.
+- No text below `0.75rem`.
+- Numbers in stats, tables, and detail values use
+  `font-variant-numeric: tabular-nums`.
+- `type-kicker` / `eyebrow` stay available only for the rare case the copy
+  rules allow an eyebrow; do not add them by default.
+- Do not introduce one-off `font-size`, `font-weight`, `letter-spacing`,
+  page-local font families, or a second scale in scoped CSS.
 - Prefer system / configured UI font stack from the global stylesheet; do not
   load decorative display fonts for operational admin UI.
 - Respect user font scaling: structural type stays on rem-based tokens, not
@@ -71,8 +115,20 @@ the token table.
   `elevation-3` (modals/drawers/floating decision emphasis) — maps to
   `--elevation-1/2/3`.
 - Do not invent parallel shadow, blur, or border-radius systems in a page.
-  Radius for cards should follow shared patterns; layout doc allows
-  `clamp()`-based local radius only when it still reads as the same family.
+
+### Radius by role
+
+Radius is chosen by role, never per component. Four values:
+
+| Token | Value | Use |
+| --- | --- | --- |
+| `--radius-control` | `0.625rem` | Buttons, inputs, selects, icon buttons, nav links, small tags inside cards |
+| `--radius-card` | `1rem` | Cards, panels, directory cards, the floating app header |
+| `--radius-sheet` | `1.25rem` | Modals; drawers round the top corners only |
+| `--radius-pill` | `999px` | Badges and pills |
+
+`50%` is allowed only for circular marks (brand mark, avatars). Nuxt UI's
+`--ui-radius` is tuned so `UButton` / `UInput` render at `--radius-control`.
 - `prefers-reduced-transparency: reduce` solidifies glass globally — extend
   that policy, do not bypass it with component-local frosted panels.
 - Sticky chrome may use `scroll-edge` / `scroll-edge-sticky` for soft separation
@@ -107,6 +163,9 @@ the token table.
 ## Anti-patterns
 
 - Hard-coded success/error colors that bypass semantic tokens.
+- Font weights other than 400 / 500 / 600 / 700, or text below `0.75rem`.
+- Radius literals instead of the four role tokens.
+- Fading text (`--quiet`, opacity) below the 4.5:1 floor to create hierarchy.
 - Per-page glass/shadow/radius inventions.
 - Using brand accent as a status color for “done.”
 - Encoding state only with color or only with an icon.
