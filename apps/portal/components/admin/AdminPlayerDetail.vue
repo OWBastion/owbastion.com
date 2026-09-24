@@ -30,19 +30,43 @@ function setActiveSection(id: (typeof sections)[number]["id"]) {
   activeSection.value = id;
 }
 
-const desktopLayoutQuery = "(min-width: 961px)";
+/**
+ * player-detail__layout's column count comes from `grid-template-columns:
+ * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
+ * viewport width. A ResizeObserver reads the browser's own resolved column
+ * count instead of a matching `matchMedia` breakpoint, so the "desktop
+ * sidebar vs. stacked tab" layout and the submissions-tab active-state
+ * tracking below can never disagree about which state they're in.
+ */
+const layoutRef = ref<HTMLElement | null>(null);
+const stacked = ref(false);
+let layoutObserver: ResizeObserver | null = null;
+
+function updateStacked() {
+  const el = layoutRef.value;
+  if (!el) return;
+  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
+  stacked.value = columns.length <= 1;
+}
 
 onMounted(() => {
-  if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") return;
+  if (typeof window === "undefined") return;
+
+  if (layoutRef.value) {
+    updateStacked();
+    layoutObserver = new ResizeObserver(updateStacked);
+    layoutObserver.observe(layoutRef.value);
+  }
+
+  if (typeof IntersectionObserver === "undefined") return;
   const ids = sections.map((section) => section.id);
   sectionObserver = new IntersectionObserver(
     (entries) => {
-      const hideSubmissionsTab = window.matchMedia(desktopLayoutQuery).matches;
       const visible = entries
         .filter((entry) => {
           if (!entry.isIntersecting) return false;
           // Desktop: submissions live in the sticky aside; don't steal tab active state.
-          if (hideSubmissionsTab && entry.target.id === "submissions") return false;
+          if (!stacked.value && entry.target.id === "submissions") return false;
           return true;
         })
         .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
@@ -62,11 +86,13 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sectionObserver?.disconnect();
   sectionObserver = null;
+  layoutObserver?.disconnect();
+  layoutObserver = null;
 });
 </script>
 
 <template>
-  <section class="player-detail" aria-label="玩家详情">
+  <section class="player-detail" :class="{ 'player-detail--stacked': stacked }" aria-label="玩家详情">
     <nav class="detail-tabs glass elevation-1 scroll-edge-sticky" aria-label="玩家详情分区">
       <a
         v-for="section in sections"
@@ -83,7 +109,7 @@ onBeforeUnmount(() => {
       </a>
     </nav>
 
-    <div class="player-detail__layout">
+    <div ref="layoutRef" class="player-detail__layout">
       <div class="player-detail__primary">
         <section id="overview" class="identity-card" aria-labelledby="player-identity-title">
           <div class="identity-card__top">
@@ -190,22 +216,28 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .player-detail {
+  container-type: inline-size;
   display: grid;
-  gap: 16px;
+  gap: var(--space-4);
   scroll-behavior: smooth;
 }
 
+/* Both tracks share the same min(20rem, 100%) floor and auto-fit collapses
+   to one column on its own once they no longer fit side by side — the
+   collapse is read back via ResizeObserver (script block) rather than
+   guessed at with a matching viewport breakpoint, since the tab-visibility
+   logic above needs to agree with the layout exactly. */
 .player-detail__layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
   align-items: start;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .player-detail__primary {
   display: grid;
   min-width: 0;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 /* Single-row segment control — matches grants-tabs craft */
@@ -217,22 +249,22 @@ onBeforeUnmount(() => {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   width: fit-content;
   max-width: 100%;
-  padding: 5px;
+  padding: var(--space-1);
   overflow-x: auto;
   border: 1px solid color-mix(in oklch, var(--line) 55%, transparent);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
 }
 
 .detail-tab {
   flex: 0 0 auto;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-control);
   color: var(--text-on-glass-secondary);
   font-size: var(--type-caption-size);
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.2;
   text-decoration: none;
   white-space: nowrap;
@@ -262,16 +294,17 @@ onBeforeUnmount(() => {
 .identity-card,
 .detail-card {
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   box-shadow: var(--elevation-2);
 }
 
 .identity-card {
+  container-type: inline-size;
   display: grid;
   gap: 0;
   min-width: 0;
-  padding: clamp(20px, 3vw, 28px);
+  padding: clamp(var(--space-5), 3vw, var(--space-6));
   scroll-margin-top: 92px;
 }
 
@@ -280,14 +313,14 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px 20px;
+  gap: var(--space-4) var(--space-5);
 }
 
 .identity-card__main {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .identity-avatar {
@@ -301,7 +334,7 @@ onBeforeUnmount(() => {
   color: var(--accent);
   background: var(--accent-surface);
   font-size: 1.2rem;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .identity-card__copy {
@@ -312,7 +345,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -329,21 +362,21 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .identity-card__meta {
   display: grid;
-  gap: 18px;
-  margin-top: 18px;
-  padding-top: 18px;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
   border-top: 1px solid var(--line);
 }
 
 .info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 20px;
+  gap: var(--space-4) var(--space-5);
   margin: 0;
 }
 
@@ -357,49 +390,49 @@ onBeforeUnmount(() => {
 
 .info-grid dt {
   color: var(--quiet);
-  font-size: 0.72rem;
+  font-size: var(--type-caption-size);
 }
 
 .info-grid dd {
-  margin: 5px 0 0;
+  margin: var(--space-1) 0 0;
   overflow-wrap: anywhere;
-  font-size: 0.86rem;
-  font-weight: 650;
+  font-size: var(--type-body-sm-size);
+  font-weight: 600;
 }
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.76rem !important;
+  font-size: var(--type-caption-size) !important;
 }
 
 /* Secondary connection block — not a competing card */
 .bindings-inline {
   display: grid;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid color-mix(in oklch, var(--line) 70%, transparent);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: color-mix(in oklch, var(--surface-raised) 42%, transparent);
 }
 
 .bindings-inline__heading {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .bindings-inline__heading h3 {
   margin: 0;
   color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-size: var(--type-caption-size);
+  font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .bindings-inline__empty {
   margin: 0;
   color: var(--quiet);
-  font-size: 0.78rem;
+  font-size: var(--type-caption-size);
 }
 
 .player-binding-list {
@@ -411,9 +444,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 8px 0;
+  padding: var(--space-2) 0;
   border-bottom: 1px solid color-mix(in oklch, var(--line) 70%, transparent);
 }
 
@@ -433,25 +466,26 @@ onBeforeUnmount(() => {
 }
 
 .player-binding-list strong {
-  font-size: 0.8rem;
+  font-size: var(--type-label-sm-size);
 }
 
 .player-binding-list small {
-  margin-top: 3px;
+  margin-top: var(--space-1);
   color: var(--quiet);
-  font-size: 0.7rem;
+  font-size: var(--type-caption-size);
 }
 
 .detail-card {
+  container-type: inline-size;
   min-width: 0;
-  padding: clamp(18px, 2.4vw, 24px);
+  padding: clamp(var(--space-4), 2.4vw, var(--space-6));
   scroll-margin-top: 92px;
 }
 
 .detail-card--activity {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: var(--space-4);
   position: sticky;
   top: var(--sticky-chrome-top);
 }
@@ -460,8 +494,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 14px;
-  padding-bottom: 14px;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--line);
 }
 
@@ -473,7 +507,7 @@ onBeforeUnmount(() => {
 
 .submission-list {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
   margin: 0;
 }
 
@@ -481,11 +515,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
-  margin-inline: -10px;
-  padding: 11px 10px;
-  border-radius: 12px;
+  margin-inline: calc(-1 * var(--space-3));
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
   color: inherit;
   text-decoration: none;
   transition: background 160ms ease;
@@ -508,14 +542,14 @@ onBeforeUnmount(() => {
 }
 
 .submission-row strong {
-  font-size: 0.84rem;
+  font-size: var(--type-label-sm-size);
 }
 
 .submission-row small,
 .submission-row time {
-  margin-top: 4px;
+  margin-top: var(--space-1);
   color: var(--quiet);
-  font-size: 0.72rem;
+  font-size: var(--type-caption-size);
 }
 
 .submission-row time {
@@ -527,26 +561,27 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
 }
 
-@media (max-width: 960px) {
-  .player-detail__layout {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-card--activity {
-    position: static;
-    order: 2;
-  }
-
-  .player-detail__primary {
-    order: 1;
-  }
-
-  .detail-tab--mobile-only {
-    display: inline-flex;
-  }
+/* Driven by the ResizeObserver-backed .player-detail--stacked class (script
+   block) rather than a viewport breakpoint, since the submissions-tab
+   active-state tracking needs to agree with this exactly. */
+.player-detail--stacked .detail-card--activity {
+  position: static;
+  order: 2;
 }
 
-@media (max-width: 640px) {
+.player-detail--stacked .player-detail__primary {
+  order: 1;
+}
+
+.player-detail--stacked .detail-tab--mobile-only {
+  display: inline-flex;
+}
+
+/* Each of these collapses against its own nearest container (identity-card,
+   player-detail, detail-card respectively) at the shared cq-compact
+   threshold — not the outer two-column layout, which auto-fit already
+   handles above. */
+@container (max-width: 23.99rem) {
   .info-grid {
     grid-template-columns: 1fr;
   }
@@ -567,7 +602,7 @@ onBeforeUnmount(() => {
 
   .submission-row time {
     width: 100%;
-    margin-top: -2px;
+    margin-top: calc(-1 * var(--space-1));
   }
 }
 

@@ -72,5 +72,6 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.table-meta { color:var(--quiet); font-size:.78rem; }.pagination { display:flex; justify-content:center; margin-top:16px; }
+.table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
+.pagination { display: flex; justify-content: center; margin-top: var(--space-4); }
 </style>

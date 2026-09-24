@@ -366,19 +366,19 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.migration-workspace { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 2fr); gap: 16px; align-items: stretch; }
-.migration-empty { grid-column: 1 / -1; padding-block: 30px; }
+.migration-workspace { display: grid; grid-template-columns: minmax(230px, .7fr) minmax(0, 2fr); gap: var(--space-4); align-items: stretch; }
+.migration-empty { grid-column: 1 / -1; padding-block: var(--space-8); }
 .migration-dialog h2 { margin: 0; font-size: 1.75rem; letter-spacing: -.045em; }
-.migration-facts { display: grid; gap: 9px; margin: 22px 0 16px; }
-.migration-facts div { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
-.migration-facts dt { color: var(--quiet); font-size: .74rem; }
-.migration-facts dd { margin: 0; font-weight: 680; overflow-wrap: anywhere; }
-.migration-consequence { margin: 0 0 16px; color: var(--muted); font-size: .84rem; line-height: 1.55; }
-.pending-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 11px; }
-.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--surface); font-size: .84rem; }
+.migration-facts { display: grid; gap: var(--space-2); margin: var(--space-6) 0 var(--space-4); }
+.migration-facts div { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); }
+.migration-facts dt { color: var(--quiet); font-size: var(--type-caption-size); }
+.migration-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.migration-consequence { margin: 0 0 var(--space-4); color: var(--muted); font-size: var(--type-label-sm-size); line-height: 1.55; }
+.pending-list { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-control); }
+.pending-list li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--surface); font-size: var(--type-label-sm-size); }
 .pending-list li + li { border-top: 1px solid var(--line); }
-.pending-list small, .pending-overflow { color: var(--quiet); font-size: .75rem; }
-@media (max-width: 760px) { .migration-workspace { grid-template-columns: 1fr; } }
+.pending-list small, .pending-overflow { color: var(--quiet); font-size: var(--type-caption-size); }
+@media (max-width: 48rem) { .migration-workspace { grid-template-columns: 1fr; } }
 @media (prefers-reduced-transparency: reduce) { .pending-list li { background: var(--surface-raised); } }
 @media (prefers-contrast: more) { .migration-workspace :deep(.holder-panel), .migration-workspace :deep(.detail-panel), .migration-facts div, .pending-list { border-color: var(--line-strong); } }
 </style>

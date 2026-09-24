@@ -92,5 +92,7 @@ onMounted(() => { void load(); });
 </template>
 
 <style scoped>
-.detail-loading { width:100%; height:120px; }.player-action { display:grid; gap:16px; }.player-action p { margin:0; color:var(--muted); line-height:1.55; }
+.detail-loading { width: 100%; height: 120px; }
+.player-action { display: grid; gap: var(--space-4); }
+.player-action p { margin: 0; color: var(--muted); line-height: 1.55; }
 </style>
