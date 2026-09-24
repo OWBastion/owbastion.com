@@ -30,9 +30,8 @@ export default {
       customSyntax: 'postcss',
     },
     {
-      // Page files, and main.css's own page-shell/page-chrome rules, may use
-      // only the two system breakpoints.
-      files: ['apps/portal/pages/**', 'apps/portal/layouts/**', 'apps/portal/assets/css/main.css'],
+      // Page files may use only the two system breakpoints.
+      files: ['apps/portal/pages/**', 'apps/portal/layouts/**'],
       rules: {
         'media-feature-name-disallowed-list': null,
         'media-feature-name-value-allowed-list': {
