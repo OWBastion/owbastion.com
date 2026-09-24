@@ -68,12 +68,10 @@ const services: PlatformServices = {
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
   listAdminSubmissionChallenges: async () => ({ contractVersion: "1", items: [] }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
-  getAdminEvidence: async () => ({ body: new ArrayBuffer(0), contentType: "image/png" }),
   selectAdminSubmissionChallenge: async ({ submissionId, challengeId, selections }) => { const selected = selections ?? [{ challengeId: challengeId! }]; return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected[0].challengeId, selections: selected }; },
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, masteryRunId: null }),
-  getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
-  getPlayerEvidence: async () => ({ body: new Uint8Array([1, 2, 3]).buffer, contentType: "image/png" }),
+  getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false }),
   listAdminAnnotationProposals: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
   getAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
@@ -1066,24 +1064,18 @@ describe("API", () => {
     ]);
   });
 
-  it("returns a signed-in player's private submission detail and evidence", async () => {
+  it("returns a signed-in player's private submission detail with its CDN evidence URL", async () => {
     expect((await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", {}, env)).status).toBe(401);
 
     const detail = await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ status: "ready_for_review", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } });
-
-    const evidence = await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003/evidence", { headers: { cookie: "owb_session=session-token" } }, env);
-    expect(evidence.status).toBe(200);
-    expect(evidence.headers.get("content-type")).toBe("image/png");
-    expect(evidence.headers.get("cache-control")).toBe("private, no-store");
-    expect(new Uint8Array(await evidence.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await detail.json()).toMatchObject({ status: "ready_for_review", evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } });
   });
 
   it("does not reveal another player's submission", async () => {
     const privateApp = createApp({
       authenticate: auth,
-      services: () => ({ ...services, getPlayerSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); }, getPlayerEvidence: async () => { throw new Error("SUBMISSION_NOT_FOUND"); } }),
+      services: () => ({ ...services, getPlayerSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); } }),
     });
     const response = await privateApp.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(404);

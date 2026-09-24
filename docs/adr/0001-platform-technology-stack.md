@@ -102,7 +102,7 @@ Use Cloudflare services according to the existing ownership contract:
 | Capability | Technology | Responsibility |
 | --- | --- | --- |
 | Business state | Cloudflare D1 | identities, submissions, OCR metadata, corrections, decisions, grants, drafts, and delivery state |
-| Evidence and large artifacts | Cloudflare R2 | private submission screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
+| Evidence and large artifacts | Cloudflare R2 | unlisted CDN-served player and maintainer screenshots, OCR artifacts, approved training candidates, reports, and selected generated artifacts |
 | Asynchronous work | Cloudflare Queues | evidence persistence, OCR, grants, and notifications |
 | Public catalog response cache | Cloudflare Cache API | short-lived HTTP responses; D1 remains the catalog source of truth |
 | Access control for privileged web surfaces | Platform sessions with account roles | administrator and maintainer authentication boundary |

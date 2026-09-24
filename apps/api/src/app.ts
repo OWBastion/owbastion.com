@@ -50,7 +50,6 @@ export type RuntimeEnv = {
   EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
-  OCRKIT_EVIDENCE_BUCKET?: string;
   OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
@@ -333,7 +332,6 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/me/mastery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/me/submissions/:submissionId/evidence", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId/ocr-feedback", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:targetType/:targetId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/reviews/:reviewId/withdraw", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -733,18 +731,6 @@ export const createApp = (dependencies: AppDependencies) => {
       return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId") }, access.sessionToken!));
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
-      throw error;
-    }
-  });
-
-  app.get("/v1/me/submissions/:submissionId/evidence", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try {
-      const evidence = await dependencies.services(c.env).getPlayerEvidence({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
-      return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } });
-    } catch (error) {
-      if (error instanceof Error && ["SUBMISSION_NOT_FOUND", "EVIDENCE_NOT_FOUND"].includes(error.message)) return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
       throw error;
     }
   });
@@ -1770,13 +1756,6 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     try { return c.json(await dependencies.services(c.env).listAdminSubmissionChallenges({ submissionId: c.req.param("submissionId") }, access.auth!)); }
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
-  });
-
-  app.get("/v1/admin/submissions/:submissionId/evidence", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    try { const evidence = await dependencies.services(c.env).getAdminEvidence({ submissionId: c.req.param("submissionId") }, access.auth!); return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } }); }
-    catch (error) { if (error instanceof Error && error.message === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, "EVIDENCE_NOT_FOUND", "The evidence does not exist"); throw error; }
   });
 
   app.post("/v1/admin/submissions/:submissionId/review", async (c) => {

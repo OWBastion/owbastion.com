@@ -31,14 +31,14 @@ describe("OCR Queue consumer", () => {
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed: vi.fn() });
     const message = queueMessage(attempt);
 
-    await worker.queue({ messages: [message] } as never, { OCRKIT_BASE_URL: "https://ocr.example", OCRKIT_API_TOKEN: "ocr-token", OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
+    await worker.queue({ messages: [message] } as never, { OCRKIT_BASE_URL: "https://ocr.example", OCRKIT_API_TOKEN: "ocr-token", EVIDENCE_PUBLIC_ORIGIN: "https://evidence.example" } as never);
 
-    expect(createPlatformServices).toHaveBeenCalledWith(undefined, undefined, undefined, "https://ocr.example", "ocr-token", undefined, "owbastion-codes-evidence", undefined, undefined, undefined, 1, 0, {
+    expect(createPlatformServices).toHaveBeenCalledWith(undefined, undefined, undefined, "https://ocr.example", "ocr-token", undefined, undefined, undefined, 1, 0, {
       version: "v1",
       minimumGameVersion: null,
       supportedOcrLayoutVersions: [],
       requiredConfidence: 0.9,
-    }, 0.02);
+    }, 0.02, "https://evidence.example");
     expect(processOcrJob).toHaveBeenCalledWith({
       version: 1,
       submissionId: "submission-1",
@@ -56,12 +56,11 @@ describe("OCR Queue consumer", () => {
     const message = queueMessage(1);
 
     await worker.queue({ messages: [message] } as never, {
-      OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence",
       MASTERY_MIN_GAME_VERSION: "99.0101.1",
       MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS: "test-layout-v1, test-layout-v2",
     } as never);
 
-    expect(createPlatformServices.mock.calls[0]?.at(-2)).toEqual({
+    expect(createPlatformServices.mock.calls[0]?.at(-3)).toEqual({
       version: "v1",
       minimumGameVersion: "99.0101.1",
       supportedOcrLayoutVersions: ["test-layout-v1", "test-layout-v2"],
@@ -76,7 +75,7 @@ describe("OCR Queue consumer", () => {
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
     const message = queueMessage(3);
 
-    await worker.queue({ messages: [message] } as never, { OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
+    await worker.queue({ messages: [message] } as never, {} as never);
 
     expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: 3, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
     expect(message.ack).toHaveBeenCalledOnce();
@@ -90,7 +89,7 @@ describe("OCR Queue consumer", () => {
     const message = queueMessage(3);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await worker.queue({ messages: [message] } as never, { OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
+    await worker.queue({ messages: [message] } as never, {} as never);
     const errorLogs = errorSpy.mock.calls.map(([line]) => String(line));
     errorSpy.mockRestore();
 
@@ -105,7 +104,7 @@ describe("OCR Queue consumer", () => {
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
     const message = queueMessage(3);
 
-    await worker.queue({ messages: [message] } as never, { OCRKIT_EVIDENCE_BUCKET: "owbastion-codes-evidence" } as never);
+    await worker.queue({ messages: [message] } as never, {} as never);
 
     expect(message.ack).not.toHaveBeenCalled();
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 60 });

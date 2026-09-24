@@ -5,15 +5,19 @@
 | Store | Current responsibility |
 | --- | --- |
 | D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
-| R2 | Private submission evidence and isolated public achievement icons |
+| R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
-OCR work remains platform-owned and idempotent by request-correlation ID.
-OCRKit must not receive D1 access or credentials that can read or enumerate the
-platform's evidence bucket. The platform authorizes which evidence belongs to
-an OCR job; OCR raw output and review decisions remain in D1, and result
-persistence is committed with the submission state transition. No private
-screenshot is committed to the repository.
+The OCR Queue carries only an opaque submission ID, object key, schema version,
+and an optional request-correlation ID. The Worker verifies that the key is the
+stored attachment for that Submission, reads that object through its R2 binding,
+and sends only its bytes to OCRKit's authenticated multipart endpoint. OCRKit
+receives neither the object key nor access to the platform evidence bucket. The
+consumer receives the delivery attempt count from Queue metadata and records it
+with OCR results. OCR raw output and review decisions remain in D1; result
+persistence and submission state transitions are platform-owned, idempotent by
+request-correlation ID, and committed together.
+No private screenshot is committed to the repository.
 
 ## Platform trust boundaries
 
@@ -31,18 +35,19 @@ game implementation, builds, releases, or published game artifacts.
 
 Portal upload sessions accept only JPEG, PNG, or WebP, limit the body to 10 MiB,
 bind the expected byte size and SHA-256, expire after ten minutes, and store
-the result under a submission-scoped private R2 key. The upload URL cannot be
-reused after completion. It does not expose object keys, source URLs, or QQ
-OpenIDs from public status and player endpoints.
+the result under a submission-scoped high-entropy R2 key. The upload URL cannot
+be reused after completion. Public status responses do not expose evidence
+URLs, object keys, source URLs, or QQ OpenIDs.
 
-All submission evidence is private. A player read requires the Portal session
-and proof that the submission belongs to that player; a maintainer read requires
-the platform's maintainer authorization. Possession of an R2 URL or object key
-is not authorization, and evidence must not be exposed through a publicly
-readable CDN object path. The current implementation and verification state is
-recorded only in the [feature status matrix](../product-rules/feature-status.md).
-The player-facing OCR summary contains only recognized map, difficulty, player,
-and completion values; raw OCR output and internal match details remain private.
+Player-owned and maintainer submission detail responses expose the exact
+evidence URL needed by their screenshot view. The browser loads image bytes
+directly from the configured R2 custom domain/CDN, where the unlisted asset is
+cacheable. The URL is not authorization: anyone who obtains it can read the
+image. Keep object keys high-entropy and do not expose bucket listing or URLs
+from public submission status. Public achievement icons remain available only
+through their separate public API route. The player-facing OCR summary contains
+only recognized map, difficulty, player, and completion values; raw OCR output
+and internal match details remain private.
 
 Player OCR feedback is a separate annotation-proposal boundary. The player
 projection exposes only a derived feedback mode (none/targeted/grouped), the
