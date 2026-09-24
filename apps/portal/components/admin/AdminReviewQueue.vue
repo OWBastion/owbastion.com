@@ -22,13 +22,13 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
 
     <div class="queue-table" aria-live="polite">
       <div class="queue-row queue-row--header">
-        <span>挑战</span><span>玩家</span><span>状态</span><span>更新时间</span>
+        <span class="queue-cell">挑战</span><span class="queue-cell">玩家</span><span class="queue-cell">状态</span><span class="queue-cell">更新时间</span>
       </div>
       <NuxtLink v-for="review in reviews" :key="review.submissionId" class="queue-row queue-row--item pressable-soft" :to="`/admin/reviews/${encodeURIComponent(review.submissionId)}`">
-        <span class="queue-challenge"><strong>{{ review.mapName }}</strong><small>{{ review.difficulty }}</small></span>
-        <span>{{ review.playerName }}</span>
-        <span>{{ review.status }}</span>
-        <time>{{ review.updatedAt }}</time>
+        <span class="queue-challenge"><strong class="queue-cell">{{ review.mapName }}</strong><small class="queue-cell">{{ review.difficulty }}</small></span>
+        <span class="queue-cell">{{ review.playerName }}</span>
+        <span class="queue-cell">{{ review.status }}</span>
+        <time class="queue-cell">{{ review.updatedAt }}</time>
       </NuxtLink>
       <p v-if="loading" class="queue-empty" role="status">读取中…</p>
       <p v-else-if="!reviews.length" class="queue-empty">暂无待核对。</p>
@@ -37,6 +37,28 @@ defineProps<{ loading: boolean; reviews: DashboardReview[] }>();
 </template>
 
 <style scoped>
-.review-queue { padding:clamp(20px,3vw,28px); }.queue-heading { display:flex; align-items:end; justify-content:space-between; gap:20px; padding-bottom:20px; }.queue-heading h2 { margin:0; font-size:clamp(1.4rem,3vw,2rem); letter-spacing:var(--type-headline-tracking); }.queue-link { display:inline-flex; min-height:2.75rem; align-items:center; color:var(--text); font-size:.8rem; font-weight:650; text-decoration:none; white-space:nowrap; }.queue-table { border-top:1px solid var(--line); }.queue-row { display:grid; grid-template-columns:minmax(180px,1.7fr) minmax(92px,1fr) minmax(88px,.8fr) minmax(112px,1fr); gap:14px; align-items:center; min-height:60px; border-bottom:1px solid var(--line); color:var(--muted); font-size:.8rem; }.queue-row--header { min-height:38px; color:var(--quiet); font-size:.68rem; font-weight:650; letter-spacing:.02em; }.queue-row--item { color:var(--muted); text-decoration:none;  }.queue-row--item:hover,.queue-row--item:focus-visible { color:var(--text); background:var(--surface-raised); }.queue-challenge strong,.queue-challenge small { display:block; }.queue-challenge strong { color:var(--text); font-size:.84rem; }.queue-challenge small { margin-top:3px; color:var(--quiet); font-size:.72rem; }.queue-empty { margin:0; padding:32px 4px 8px; color:var(--quiet); font-size:.82rem; text-align:center; }
-@media (max-width:620px) { .queue-row { grid-template-columns:minmax(0,1fr) auto; gap:5px 14px; padding-block:13px; }.queue-row--header { display:none; }.queue-row--item > :nth-child(2) { grid-column:1; }.queue-row--item > :nth-child(3) { grid-column:2; grid-row:1; color:var(--quiet); font-size:.72rem; }.queue-row--item time { grid-column:1; color:var(--quiet); font-size:.72rem; } }
+.review-queue { container-type: inline-size; padding: clamp(var(--space-5), 3vw, var(--space-6)); }
+.queue-heading { display: flex; align-items: end; justify-content: space-between; gap: var(--space-5); padding-bottom: var(--space-5); }
+.queue-heading h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: var(--type-headline-tracking); }
+.queue-link { display: inline-flex; min-height: var(--control-lg); align-items: center; color: var(--text); font-size: var(--type-label-sm-size); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.queue-table { border-top: 1px solid var(--line); }
+.queue-row { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, .8fr) minmax(0, 1fr); gap: var(--space-4); align-items: center; min-height: 60px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--type-label-sm-size); }
+.queue-row--header { min-height: 38px; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .02em; }
+.queue-row--item { color: var(--muted); text-decoration: none; }
+.queue-row--item:hover, .queue-row--item:focus-visible { color: var(--text); background: var(--surface-raised); }
+.queue-challenge { display: grid; min-width: 0; }
+.queue-cell { display: block; min-width: 0; overflow-wrap: anywhere; }
+.queue-challenge strong.queue-cell { color: var(--text); font-size: var(--type-label-sm-size); }
+.queue-challenge small.queue-cell { margin-top: var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); }
+.queue-empty { margin: 0; padding: var(--space-8) var(--space-1) var(--space-2); color: var(--quiet); font-size: var(--type-label-sm-size); text-align: center; }
+/* Every column track is fluid (minmax(0, fr)) and every cell wraps instead of
+   truncating, so the full challenge/player identity stays visible at any
+   container width down to the cq-compact floor without a custom breakpoint. */
+@container (max-width: 23.99rem) {
+  .queue-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-4); padding-block: var(--space-3); }
+  .queue-row--header { display: none; }
+  .queue-row--item > :nth-child(2) { grid-column: 1; }
+  .queue-row--item > :nth-child(3) { grid-column: 2; grid-row: 1; color: var(--quiet); font-size: var(--type-caption-size); }
+  .queue-row--item time { grid-column: 1; color: var(--quiet); font-size: var(--type-caption-size); }
+}
 </style>

@@ -96,6 +96,37 @@ const challengeSummary = computed(() => {
     evidenceRule: null as string | null,
   };
 });
+
+/**
+ * review-layout's column count comes from `grid-template-columns:
+ * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
+ * width — there is no CSS query for "auto-fit resolved to one column," so
+ * the narrow-mode order/stickiness overrides read the browser's own
+ * resolved column count instead of guessing a matching breakpoint.
+ */
+const reviewLayoutRef = ref<HTMLElement | null>(null);
+const reviewLayoutStacked = ref(false);
+let reviewLayoutObserver: ResizeObserver | null = null;
+
+function updateReviewLayoutStacked() {
+  const el = reviewLayoutRef.value;
+  if (!el) return;
+  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
+  reviewLayoutStacked.value = columns.length <= 1;
+}
+
+onMounted(() => {
+  const el = reviewLayoutRef.value;
+  if (!el) return;
+  updateReviewLayoutStacked();
+  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
+  reviewLayoutObserver.observe(el);
+});
+
+onBeforeUnmount(() => {
+  reviewLayoutObserver?.disconnect();
+  reviewLayoutObserver = null;
+});
 </script>
 
 <template>
@@ -120,7 +151,7 @@ const challengeSummary = computed(() => {
       Decisions stay in document flow (sticky), never fixed — fixed docks
       overflow when spot-check / OCR retry expand the control surface.
     -->
-    <div class="review-layout">
+    <div ref="reviewLayoutRef" class="review-layout" :class="{ 'review-layout--stacked': reviewLayoutStacked }">
       <div class="evidence-col flow-evidence">
         <UCard class="evidence-card surface-panel elevation-3">
           <template #header>
@@ -139,6 +170,7 @@ const challengeSummary = computed(() => {
         </UCard>
       </div>
 
+      <div class="review-rail">
       <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
@@ -263,6 +295,7 @@ const challengeSummary = computed(() => {
           <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(submission.updatedAt) }}</dd></div>
         </dl>
       </details>
+      </div>
     </div>
   </section>
 </template>
@@ -275,10 +308,10 @@ const challengeSummary = computed(() => {
 .review-detail {
   --review-gap: clamp(0.75rem, 2.2vw, 1.25rem);
   --review-inset: clamp(0.75rem, 2vw, 1rem);
-  --review-radius: clamp(0.75rem, 1.5vw, 0.875rem);
   --review-sticky-top: var(--sticky-chrome-top, max(0.75rem, env(safe-area-inset-top, 0px)));
   --review-touch: 2.75rem;
 
+  container-type: inline-size;
   display: grid;
   gap: var(--review-gap);
   width: 100%;
@@ -301,12 +334,12 @@ const challengeSummary = computed(() => {
   margin: 0;
   min-width: 0;
   color: var(--quiet);
-  font-size: 0.84rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.35;
 }
 .detail-meta__player {
   color: var(--text);
-  font-weight: 650;
+  font-weight: 600;
   overflow-wrap: anywhere;
   text-decoration: none;
 }
@@ -322,7 +355,7 @@ const challengeSummary = computed(() => {
 }
 .player-link {
   color: var(--accent);
-  font-weight: 650;
+  font-weight: 600;
   text-decoration: none;
 }
 .player-link:hover,
@@ -342,25 +375,23 @@ const challengeSummary = computed(() => {
   box-sizing: border-box;
 }
 
-/* Desktop: evidence | rail */
+/* Evidence | rail. auto-fit collapses to a single column on its own once a
+   track can no longer hold its min(20rem, 100%) floor — no explicit
+   breakpoint decides the switch, so it never leaves a column too narrow for
+   its content (the old 51.25rem viewport collapse is gone for good). */
 .review-layout {
   display: grid;
   width: 100%;
   min-width: 0;
   align-items: start;
   gap: var(--review-gap);
-  grid-template-columns: minmax(0, 1.55fr) minmax(min(100%, 17.5rem), 0.95fr);
-  grid-template-areas:
-    "evidence claim"
-    "evidence actions"
-    "evidence signals"
-    "evidence meta";
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
 }
-.flow-evidence { grid-area: evidence; }
-.flow-claim { grid-area: claim; }
-.flow-actions { grid-area: actions; }
-.flow-signals { grid-area: signals; }
-.flow-meta { grid-area: meta; }
+.review-rail {
+  display: grid;
+  gap: var(--review-gap);
+  min-width: 0;
+}
 
 .evidence-col {
   position: sticky;
@@ -379,7 +410,7 @@ const challengeSummary = computed(() => {
   max-width: 100%;
   height: auto;
   border: 1px solid var(--line);
-  border-radius: calc(var(--review-radius) - 0.125rem);
+  border-radius: var(--radius-control);
 }
 .evidence-message {
   margin: 0;
@@ -393,7 +424,7 @@ const challengeSummary = computed(() => {
   gap: 0.5rem;
   padding: var(--review-inset);
   border: 1px solid color-mix(in oklch, var(--line) 88%, transparent);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   box-shadow:
     var(--elevation-2),
     inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
@@ -408,7 +439,7 @@ const challengeSummary = computed(() => {
 .ocr-retry-error {
   margin: 0;
   color: var(--danger);
-  font-size: 0.78rem;
+  font-size: var(--type-caption-size);
   overflow-wrap: anywhere;
 }
 .spot-check-panel {
@@ -420,19 +451,19 @@ const challengeSummary = computed(() => {
 }
 .spot-check-panel h4 {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: var(--type-label-sm-size);
 }
 .spot-check-panel p {
   margin: 0.25rem 0 0;
   color: var(--text-on-glass-quiet);
-  font-size: 0.75rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
 }
 
 .claim-card {
   padding: var(--review-inset);
   border: 1px solid var(--line);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   background: var(--surface-raised);
   box-shadow: var(--elevation-1);
 }
@@ -449,8 +480,8 @@ const challengeSummary = computed(() => {
 }
 .claim-card__header h3 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 720;
+  font-size: var(--type-body-size);
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -458,14 +489,14 @@ const challengeSummary = computed(() => {
 .claim-kind {
   flex: 0 0 auto;
   color: var(--quiet);
-  font-size: 0.72rem;
-  font-weight: 650;
+  font-size: var(--type-caption-size);
+  font-weight: 500;
   white-space: nowrap;
 }
 .claim-meta {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -483,25 +514,25 @@ const challengeSummary = computed(() => {
 }
 .claim-facts dt {
   color: var(--quiet);
-  font-size: 0.72rem;
+  font-size: var(--type-caption-size);
 }
 .claim-facts dd {
   margin: 0;
   color: var(--text);
-  font-size: 0.82rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .claim-empty {
   margin: 0.5rem 0 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 
 .meta-disclosure {
   border: 1px solid var(--line);
-  border-radius: var(--review-radius);
+  border-radius: var(--radius-card);
   background: var(--surface);
 }
 .meta-disclosure > summary {
@@ -509,8 +540,8 @@ const challengeSummary = computed(() => {
   list-style: none;
   padding: 0.75rem var(--review-inset);
   color: var(--quiet);
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-size: var(--type-caption-size);
+  font-weight: 500;
   user-select: none;
 }
 .meta-disclosure > summary::-webkit-details-marker {
@@ -535,20 +566,20 @@ const challengeSummary = computed(() => {
   z-index: 5;
 }
 
-/* Narrow: one column; claim then decide, then evidence for verification */
-@media (max-width: 51.25rem) {
-  .review-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "claim"
-      "actions"
-      "evidence"
-      "signals"
-      "meta";
-  }
-  .evidence-col {
-    position: static;
-  }
+/* review-layout's auto-fit collapse (above) is content-driven, not tied to a
+   fixed width — there is no CSS query for "auto-fit resolved to one
+   column," so the narrow-order swap and the sticky evidence column read the
+   browser's own resolved grid-template-columns column count instead
+   (ResizeObserver in the script block) rather than approximating it with a
+   width value of our own. */
+.review-layout--stacked .review-rail {
+  order: -1;
+}
+.review-layout--stacked .evidence-col {
+  position: static;
+}
+
+@container (max-width: 23.99rem) {
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;

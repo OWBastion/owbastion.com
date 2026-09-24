@@ -209,12 +209,13 @@ const saveSelectedCandidate = () => {
 
 <style scoped>
 .signals-grid {
+  container-type: inline-size;
   display: grid;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
-  gap: 14px;
+  gap: var(--space-4);
   box-sizing: border-box;
 }
 .signals-grid--stacked {
@@ -224,9 +225,9 @@ const saveSelectedCandidate = () => {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  padding: 16px;
+  padding: var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   background: var(--surface-raised);
   box-shadow: var(--elevation-1);
   box-sizing: border-box;
@@ -235,33 +236,33 @@ const saveSelectedCandidate = () => {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 .signal-kicker {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-1);
   color: var(--quiet);
-  font-size: .68rem;
-  font-weight: 720;
+  font-size: var(--type-caption-size);
+  font-weight: 500;
   letter-spacing: .06em;
 }
 .signal-panel__header h3 {
   margin: 0;
-  font-size: .96rem;
-  font-weight: 720;
+  font-size: var(--type-label-size);
+  font-weight: 700;
   letter-spacing: -.02em;
 }
 .signal-reason {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-3);
   color: var(--muted);
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 .match-candidates {
   display: grid;
   width: 100%;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
 }
 .signals-grid--stacked .match-candidates {
   grid-template-columns: minmax(0, 1fr);
@@ -271,10 +272,10 @@ const saveSelectedCandidate = () => {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: var(--text);
   background: var(--surface);
   text-align: left;
@@ -296,29 +297,29 @@ const saveSelectedCandidate = () => {
 .match-candidate__title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .match-candidate__title strong {
   overflow-wrap: anywhere;
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
 }
 .candidate-scope {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
 }
 .match-candidate__meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .candidate-reward,
 .candidate-current {
   color: var(--success);
-  font-size: .68rem;
-  font-weight: 650;
+  font-size: var(--type-caption-size);
+  font-weight: 600;
 }
 .candidate-current {
   color: var(--accent);
@@ -327,7 +328,7 @@ const saveSelectedCandidate = () => {
   display: flex;
   justify-content: flex-end;
   width: 100%;
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 .candidate-selection :deep(button) {
   min-height: 42px;
@@ -336,9 +337,9 @@ const saveSelectedCandidate = () => {
 .manual-add,
 .achievement-review {
   display: grid;
-  gap: 8px;
-  margin-top: 14px;
-  padding-top: 12px;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--line);
 }
 .manual-add :deep(button) {
@@ -349,24 +350,24 @@ const saveSelectedCandidate = () => {
   margin: 0;
 }
 .achievement-review h4 {
-  font-size: .82rem;
+  font-size: var(--type-label-sm-size);
 }
 .achievement-review p {
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
 }
 .signal-empty {
   margin: 0;
   color: var(--muted);
-  font-size: .8rem;
+  font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
 .signal-note,
 .signal-error {
-  margin: 12px 0 0;
+  margin: var(--space-3) 0 0;
   color: var(--muted);
-  font-size: .72rem;
+  font-size: var(--type-caption-size);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -383,8 +384,8 @@ const saveSelectedCandidate = () => {
 .ocr-fields > div {
   display: grid;
   grid-template-columns: minmax(74px, .35fr) minmax(0, 1fr);
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
   border-bottom: 1px solid var(--line);
 }
 .signal-meta > div:last-child,
@@ -394,31 +395,31 @@ const saveSelectedCandidate = () => {
 .signal-meta dt,
 .ocr-fields dt {
   color: var(--muted);
-  font-size: .75rem;
+  font-size: var(--type-caption-size);
 }
 .signal-meta dd,
 .ocr-fields dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: .78rem;
+  font-size: var(--type-caption-size);
   text-align: right;
 }
 .ocr-fields dd {
   display: grid;
   justify-items: end;
-  gap: 5px;
+  gap: var(--space-1);
 }
 .ocr-field-value {
   display: block;
   color: var(--text);
-  font-weight: 680;
+  font-weight: 600;
 }
 .ocr-field-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 .ocr-confidence,
@@ -426,13 +427,13 @@ const saveSelectedCandidate = () => {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 2px 8px;
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   background: var(--surface);
-  font-size: .7rem;
-  font-weight: 680;
+  font-size: var(--type-caption-size);
+  font-weight: 600;
   white-space: nowrap;
 }
 .ocr-confidence {
@@ -441,38 +442,36 @@ const saveSelectedCandidate = () => {
 .ocr-achievement-evidence dd {
   display: grid;
   justify-items: end;
-  gap: 5px;
+  gap: var(--space-1);
 }
 .ocr-panel details {
-  margin-top: 12px;
+  margin-top: var(--space-3);
 }
 .ocr-panel pre {
   max-height: 220px;
   overflow: auto;
-  margin: 8px 0 0;
-  padding: 10px;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
   color: var(--muted);
   background: var(--surface);
-  font-size: .68rem;
+  font-size: var(--type-caption-size);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-@media (max-width: 900px) {
+@container (max-width: 23.99rem) {
   .signals-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-@media (max-width: 620px) {
   .match-candidates {
     grid-template-columns: minmax(0, 1fr);
   }
   .signal-panel {
-    padding: 14px;
+    padding: var(--space-4);
   }
   .signal-meta > div,
   .ocr-fields > div {
     grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
+    gap: var(--space-1);
   }
   .signal-meta dd,
   .ocr-fields dd {
@@ -487,7 +486,7 @@ const saveSelectedCandidate = () => {
   }
   .candidate-selection :deep(button) {
     width: 100%;
-    min-height: 44px;
+    min-height: var(--control-lg);
   }
 }
 </style>
