@@ -1347,6 +1347,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (lifecycle === "default" && mapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
     if ((lifecycle === "default" || lifecycle === "selectable") && !spatialConfig) throw new Error("INVALID_SPATIAL_CONFIG");
     const parsed = spatialConfig ? parseSpatialConfig(spatialConfig) : null;
+    if ((lifecycle === "default" || lifecycle === "selectable") && parsed && !agentProjectedSpatialConfigSchema.safeParse(parsed).success) {
+      throw new Error("INVALID_SPATIAL_CONFIG");
+    }
     if (!COMPOSITE_SPATIAL_CONFIG_AGENT_PROJECTION_ENABLED && (lifecycle === "default" || lifecycle === "selectable") && parsed && "composition" in parsed) {
       throw new Error("COMPOSITE_SPATIAL_CONFIG_NOT_ENABLED");
     }
