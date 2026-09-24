@@ -23,7 +23,7 @@ type CompositeConfig = SpatialConfigValue & {
   composition: {
     selectionCount: number;
     firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
-    remainingStageSelection: "random_unique";
+    remainingStageSelection: "random_unique" | "next_in_order";
   };
   stages: CompositeStage[];
 };
@@ -152,6 +152,12 @@ function withoutDetection(stage: CompositeStage): CompositeStage {
 
 function updateSelectionCount(value: string | number) {
   updateComposition({ selectionCount: value === "" ? 0 : Number(value) });
+}
+
+function setRemainingStageSelection(value: string) {
+  if (value === "random_unique" || value === "next_in_order") {
+    updateComposition({ remainingStageSelection: value });
+  }
 }
 
 function setFirstStageMode(value: "random" | "setup_detection") {
@@ -349,7 +355,13 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
         <p v-if="fieldError('composition', 'firstStageSelection', 'fallbackStageId')" class="field-error" role="alert">{{ fieldError('composition', 'firstStageSelection', 'fallbackStageId') }}</p>
       </UFormField>
       <UFormField label="后续阶段选择">
-        <p class="fixed-selection">随机选择且不重复</p>
+        <USelect
+          :model-value="config.composition.remainingStageSelection"
+          :items="[{ value: 'random_unique', label: '随机选择且不重复' }, { value: 'next_in_order', label: '按阶段顺序循环' }]"
+          :disabled="disabled"
+          aria-label="后续阶段选择"
+          @update:model-value="setRemainingStageSelection(String($event))"
+        />
       </UFormField>
     </div>
 

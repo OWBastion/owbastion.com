@@ -87,6 +87,15 @@ describe("AdminCompositeSpatialConfigInput", () => {
     expect(latestConfig(wrapper)?.stages.map((stage) => stage.stageId)).toEqual(["base", "icebreaker", "laboratory"]);
   });
 
+  it("lets a revision choose the next stage in stable stage-ID order", async () => {
+    const wrapper = await mountEditor();
+    await wrapper.get('select[aria-label="后续阶段选择"]').setValue("next_in_order");
+    await acceptLatestConfig(wrapper);
+
+    expect(latestConfig(wrapper)?.composition.remainingStageSelection).toBe("next_in_order");
+    expect(agentSpatialConfigSchema.safeParse(latestConfig(wrapper)).success).toBe(true);
+  });
+
   it("surfaces duplicate IDs, missing fallback references, and impossible selection counts inline", async () => {
     const duplicateWrapper = await mountEditor();
     await duplicateWrapper.get('input[aria-label="阶段 ID base"]').setValue("icebreaker");

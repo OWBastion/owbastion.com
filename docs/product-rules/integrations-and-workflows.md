@@ -527,7 +527,9 @@ pairs or route permutations.
 `composition.selectionCount` is the total number of ordered stages Bastion
 selects for one game. The first stage selection is either `setup_detection`
 with an explicit fallback stage ID, or `random`; the remaining selection is
-`random_unique`. Setup-detected selection requires a detector on every
+either `random_unique` or `next_in_order`. The latter takes following stages in
+stage-ID order and wraps to the first stage when it reaches the end.
+Setup-detected selection requires a detector on every
 non-fallback stage and forbids a detector on the fallback. Random first-stage
 selection forbids unused setup detectors. Stage IDs are unique and stable, and
 the stage list is emitted in stage-ID order; the platform never stores the
