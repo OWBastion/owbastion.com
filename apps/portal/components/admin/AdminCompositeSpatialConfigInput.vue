@@ -23,7 +23,7 @@ type CompositeConfig = SpatialConfigValue & {
   composition: {
     selectionCount: number;
     firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
-    remainingStageSelection: "random_unique";
+    remainingStageSelection: "random_unique" | "stage_id_cycle";
   };
   stages: CompositeStage[];
 };
@@ -152,6 +152,10 @@ function withoutDetection(stage: CompositeStage): CompositeStage {
 
 function updateSelectionCount(value: string | number) {
   updateComposition({ selectionCount: value === "" ? 0 : Number(value) });
+}
+
+function setRemainingStageSelection(value: "random_unique" | "stage_id_cycle") {
+  updateComposition({ remainingStageSelection: value });
 }
 
 function setFirstStageMode(value: "random" | "setup_detection") {
@@ -348,8 +352,15 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
         />
         <p v-if="fieldError('composition', 'firstStageSelection', 'fallbackStageId')" class="field-error" role="alert">{{ fieldError('composition', 'firstStageSelection', 'fallbackStageId') }}</p>
       </UFormField>
-      <UFormField label="后续阶段选择">
-        <p class="fixed-selection">随机选择且不重复</p>
+      <UFormField label="后续阶段选择" required>
+        <USelect
+          :model-value="config.composition.remainingStageSelection"
+          :items="[{ value: 'random_unique', label: '随机选择且不重复' }, { value: 'stage_id_cycle', label: '按阶段 ID 升序循环' }]"
+          :disabled="disabled"
+          aria-label="后续阶段选择"
+          @update:model-value="setRemainingStageSelection($event as 'random_unique' | 'stage_id_cycle')"
+        />
+        <p v-if="config.composition.remainingStageSelection === 'stage_id_cycle'" class="field-hint">阶段按 ID 升序衔接，最后一个阶段会回到第一个。</p>
       </UFormField>
     </div>
 
@@ -462,11 +473,11 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
 }
-.fixed-selection {
+.field-hint {
   margin: 0;
-  min-height: 2.5rem;
-  display: flex;
-  align-items: center;
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+  color: var(--quiet);
 }
 .field-error {
   margin: 0.375rem 0 0;
