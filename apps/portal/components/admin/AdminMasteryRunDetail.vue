@@ -161,14 +161,14 @@ function sourcePath(submissionId: string) {
 </template>
 
 <style scoped>
-.mastery-run-detail { display: grid; gap: 1rem; min-width: 0; }
+.mastery-run-detail { container-type: inline-size; display: grid; gap: 1rem; min-width: 0; }
 .mastery-run-detail__summary,
 .mastery-run-detail__section { display: grid; gap: 1rem; min-width: 0; }
 .mastery-run-detail__facts,
 .mastery-run-detail__invalidation,
 .mastery-run-detail__event-counters,
 .mastery-run-detail__resolution { margin: 0; }
-.mastery-run-detail__facts a { color: var(--accent); font-weight: 650; text-decoration: none; }
+.mastery-run-detail__facts a { color: var(--accent); font-weight: 600; text-decoration: none; }
 .mastery-run-detail__facts a:hover,
 .mastery-run-detail__facts a:focus-visible { text-decoration: underline; }
 .mastery-run-detail__quiet { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
@@ -177,12 +177,12 @@ function sourcePath(submissionId: string) {
 .mastery-run-detail__conflict-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .mastery-run-detail__split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .mastery-run-detail__conflicts { display: grid; gap: .75rem; }
-.mastery-run-detail__conflict { display: grid; gap: .75rem; padding: .875rem; border: 1px solid var(--line); border-radius: .875rem; }
+.mastery-run-detail__conflict { display: grid; gap: .75rem; padding: .875rem; border: 1px solid var(--line); border-radius: var(--radius-control); }
 .mastery-run-detail__conflict-header { display: flex; align-items: start; justify-content: space-between; gap: .75rem; }
 .mastery-run-detail__lifecycle { display: grid; gap: .5rem; margin: 0; padding-left: 1.25rem; }
 .mastery-run-detail__lifecycle li { display: grid; gap: .2rem; }
 .mastery-run-detail__lifecycle span { color: var(--quiet); font-size: .82rem; overflow-wrap: anywhere; }
-@media (max-width: 620px) {
+@container (max-width: 23.99rem) {
   .mastery-run-detail__split { grid-template-columns: 1fr; }
   .mastery-run-detail__actions > *,
   .mastery-run-detail__conflict-actions > * { flex: 1 1 100%; min-height: 2.75rem; justify-content: center; }

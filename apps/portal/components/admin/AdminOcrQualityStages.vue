@@ -17,7 +17,7 @@ withDefaults(defineProps<{ active: "annotations" | "datasets" }>(), { active: "a
 .ocr-quality-stages { display: grid; gap: 0.375rem; }
 .ocr-quality-stages__nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
 .ocr-quality-stages__nav a { color: var(--muted); font-size: var(--type-caption-size); text-decoration: none; }
-.ocr-quality-stages__nav a[aria-current="page"] { color: var(--text); font-weight: 680; }
+.ocr-quality-stages__nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
 .ocr-quality-stages__nav :deep(svg) { color: var(--quiet); }
 .ocr-quality-stages p { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 </style>

@@ -508,6 +508,7 @@ async function copyCoordinate(pos: Vector) {
 
 <style scoped>
 .spatial-config-input {
+  container-type: inline-size;
   display: grid;
   gap: 0.875rem;
   width: 100%;
@@ -519,7 +520,7 @@ async function copyCoordinate(pos: Vector) {
   gap: 0.5rem;
   padding: 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
   background: var(--surface);
   transition: border-color var(--theme-transition), background-color var(--theme-transition);
 }
@@ -541,7 +542,7 @@ async function copyCoordinate(pos: Vector) {
 
 .spatial-editor-title {
   font-size: 0.8125rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -590,7 +591,7 @@ async function copyCoordinate(pos: Vector) {
   gap: 0.875rem;
   padding: 0.875rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
   background: var(--surface);
   box-shadow: var(--elevation-1);
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
@@ -633,7 +634,7 @@ async function copyCoordinate(pos: Vector) {
 .summary-title {
   margin: 0;
   font-size: 0.9375rem;
-  font-weight: 680;
+  font-weight: 600;
   color: var(--text);
   line-height: 1.35;
 }
@@ -657,7 +658,7 @@ async function copyCoordinate(pos: Vector) {
   align-items: center;
   gap: 0.35rem;
   padding: 0.1875rem 0.5rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-raised);
   border: 1px solid var(--line);
   font-size: var(--type-caption-size);
@@ -666,7 +667,7 @@ async function copyCoordinate(pos: Vector) {
 }
 
 .summary-chip .chip-label {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .summary-chip .chip-count {
@@ -675,10 +676,10 @@ async function copyCoordinate(pos: Vector) {
   min-width: 1.125rem;
   padding: 0 0.25rem;
   height: 1.125rem;
-  border-radius: 9999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--text);
-  font-weight: 650;
+  font-weight: 600;
   font-size: 0.6875rem;
 }
 
@@ -706,7 +707,7 @@ async function copyCoordinate(pos: Vector) {
   align-items: center;
   gap: 0.375rem;
   font-size: 0.8125rem;
-  font-weight: 680;
+  font-weight: 600;
   color: var(--text);
 }
 
@@ -739,7 +740,7 @@ async function copyCoordinate(pos: Vector) {
   padding: 0.5rem 0.625rem;
   background: var(--surface-raised);
   border: 1px solid var(--line);
-  border-radius: 0.625rem;
+  border-radius: var(--radius-control);
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 
@@ -780,11 +781,11 @@ async function copyCoordinate(pos: Vector) {
 .point-card__index {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.6875rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--quiet);
   background: var(--surface);
   padding: 0.0625rem 0.3125rem;
-  border-radius: 0.25rem;
+  border-radius: var(--radius-control);
   border: 1px solid var(--line);
 }
 
@@ -796,7 +797,7 @@ async function copyCoordinate(pos: Vector) {
   padding: 0.25rem 0.45rem;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 0.45rem;
+  border-radius: var(--radius-control);
   font-size: 0.75rem;
   color: var(--text);
   text-align: left;
@@ -824,7 +825,7 @@ async function copyCoordinate(pos: Vector) {
 
 .coord-val {
   color: var(--text);
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .coord-divider {
@@ -843,7 +844,7 @@ async function copyCoordinate(pos: Vector) {
   flex: 0 0 auto;
 }
 
-@media (max-width: 38.75rem) {
+@container (max-width: 23.99rem) {
   .summary-header {
     flex-direction: column;
     gap: 0.625rem;

@@ -415,6 +415,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
 </template>
 
 <style scoped>
+.composite-spatial-editor { container-type: inline-size; }
 .composite-spatial-editor,
 .shared-route-fields,
 .composition-fields,
@@ -427,7 +428,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
 .shared-route-fields {
   padding: 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.8125rem;
+  border-radius: var(--radius-control);
 }
 .section-heading h3,
 .section-heading p { margin: 0; }
@@ -444,7 +445,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
 .stage-editor {
   padding: 0.875rem;
   border: 1px solid var(--line);
-  border-radius: 0.8125rem;
+  border-radius: var(--radius-control);
 }
 .stage-editor__legend {
   display: flex;
@@ -452,7 +453,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   gap: 0.5rem;
   padding-inline: 0.25rem;
   font-size: 0.9375rem;
-  font-weight: 680;
+  font-weight: 600;
 }
 .stage-editor__fields {
   display: grid;
@@ -485,7 +486,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   font-size: var(--type-caption-size);
   line-height: 1.4;
 }
-@media (max-width: 38.75rem) {
+@container (max-width: 23.99rem) {
   .stage-editor__fields { grid-template-columns: minmax(0, 1fr); }
   .stage-editor__fields :deep(button) { justify-self: start; min-height: 2.75rem; }
 }

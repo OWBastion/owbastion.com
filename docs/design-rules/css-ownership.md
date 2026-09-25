@@ -100,21 +100,13 @@ Stylelint enforces the rules above in CI: no raw `px` for
 `padding|margin|gap|inset` (1px allowed), `font-weight` limited to
 400/500/600/700, no `border-radius` literals, and no `@media` width queries in
 component `<style>` blocks other than the two page breakpoints in page
-components. Rules start as warnings and become errors directory by directory as
-[`design-system-v2-migration.md`](design-system-v2-migration.md) completes.
+components. Every rule is an error everywhere.
 
 Run `pnpm lint:styles`; it also runs in `pnpm check` and the Portal publish
 workflow. Rules live in `stylelint.config.mjs`. Page files (`pages/`,
-`layouts/`) may use only the `48rem` / `64rem` width queries and their
-`47.99rem` / `63.99rem` complements; every other file may use none.
-
-To flip a directory to errors, add its repository-relative path to
-`errorDirectories` at the top of `stylelint.config.mjs`. Every rule in that
-directory then fails `pnpm lint:styles`; all other directories stay warnings.
-An entry may also name a single file (e.g. a shared component swept ahead of
-the rest of its directory, or a page swept ahead of a directory like
-`pages/admin` that has not); anything ending in a file extension is matched
-as-is instead of treated as a directory prefix.
+`layouts/`), `assets/css/main.css`, and the global chrome (`AppHeader.vue`,
+`AdminWorkspace.vue`) may use only the `48rem` / `64rem` width queries and
+their `47.99rem` / `63.99rem` complements; every other file may use none.
 
 ## Refactor extraction rule
 

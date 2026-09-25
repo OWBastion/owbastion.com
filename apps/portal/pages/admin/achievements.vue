@@ -556,9 +556,9 @@ onMounted(() => void load());
 
 <style scoped>
 .catalog { max-width: none; }
-.catalog-tabs { display: grid; gap: 24px; }
-.catalog-section { display: grid; gap: 12px; }
-.catalog-note { margin: -4px 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
+.catalog-tabs { display: grid; gap: var(--space-6); }
+.catalog-section { display: grid; gap: var(--space-3); }
+.catalog-note { margin: calc(-1 * var(--space-1)) 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 
 /* Keep fixed layout from AdminDataTable but pin column tracks so header/body stay aligned. */
@@ -573,7 +573,7 @@ onMounted(() => void load());
 }
 .achievement-table :deep(strong),
 .achievement-table :deep(small) { display: block; }
-.achievement-table :deep(small) { margin-top: 4px; }
+.achievement-table :deep(small) { margin-top: var(--space-1); }
 
 /* Rowspan continuations must not consume a column track. */
 .achievement-table :deep(td.achievement-group-cell--continued) {
@@ -608,7 +608,7 @@ onMounted(() => void load());
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
-.plan-popover { display: grid; gap: 12px; }
+.plan-popover { display: grid; gap: var(--space-3); }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
 </style>
