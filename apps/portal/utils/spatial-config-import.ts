@@ -160,7 +160,7 @@ function summaryFor(config: SpatialConfigValue): SpatialConfigImportSummary {
       if (!stage || typeof stage !== "object") continue;
       const value = stage as Record<string, unknown>;
       const stageId = typeof value.stageId === "string" ? value.stageId : undefined;
-      totalPositions += addSpatialConfig(value, stageId, !hasRoutePoints);
+      totalPositions += addSpatialConfig(value, stageId, true);
       const detection = value.setupDetection;
       if (detection && typeof detection === "object") totalPositions += add("setupDetection", (detection as Record<string, unknown>).position, stageId);
     }
@@ -235,13 +235,17 @@ export function parseSpatialConfigSource(
   }
 
   if (scope === "composite-stage") {
-    if (resetPosition || endPosition || thirdPersonPosition || creditsPosition || respawnAxis !== undefined || respawnAxisThreshold !== undefined) {
-      return { ok: false, error: "重置点、终点、第三人称点、结算点和重生轴仅配置在全路线点位中。" };
+    if (respawnAxis !== undefined || respawnAxisThreshold !== undefined) {
+      return { ok: false, error: "重生轴仅配置在全路线点位中。" };
     }
     if (bastionPositions.length === 0) return { ok: false, error: "此阶段至少需要一个 Bastion 出生点。" };
     const hasControl = controlCenterPositions.length > 0 || controlJumpPositions.length > 0 || controlRespawnPositions.length > 0;
     const config: SpatialConfigValue = {
       bastionPositions,
+      ...(resetPosition ? { resetPosition } : {}),
+      ...(thirdPersonPosition ? { thirdPersonPosition } : {}),
+      ...(creditsPosition ? { creditsPosition } : {}),
+      ...(endPosition ? { endPosition } : {}),
       control: hasControl ? {
         centerPositions: controlCenterPositions,
         jumpPositions: controlJumpPositions,
@@ -312,6 +316,11 @@ export function formatWorkshopSpatialConfig(config: SpatialConfigValue | null, s
   if (scope === "composite-stage") {
     if (!isVectorList(config.bastionPositions)) return "";
     const lines = config.bastionPositions.map((position, index) => `Global.bastionPosition[${index}] = Vector(${position.join(", ")});`);
+    const addStageVector = (name: string, position: unknown) => { if (isVector(position)) lines.push(`Global.${name} = Vector(${position.join(", ")});`); };
+    addStageVector("endPosition", config.endPosition);
+    addStageVector("heroRingPosition", config.thirdPersonPosition);
+    addStageVector("resetPosition", config.resetPosition);
+    addStageVector("creditsPosition", config.creditsPosition);
     const control = config.control;
     if (control && typeof control === "object") {
       const values = control as Record<string, unknown>;

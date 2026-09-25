@@ -339,8 +339,14 @@ const compositeStageSchema = z.object({
   stageId: spatialStageId,
   setupDetection: alternateStageSetupDetectionSchema.optional(),
   ...compositeStageSpatialFields,
+  resetPosition: vector3.optional(),
+  thirdPersonPosition: vector3.optional(),
+  creditsPosition: vector3.optional(),
+  endPosition: vector3.optional(),
 }).strict();
 
+// Route-root anchors are defaults; a stage may override reset/third-person/credits
+// (applied when it is the route's first stage) and end (when it is the last stage).
 const compositeSpatialConfigSchema = z.object({
   resetPosition: vector3,
   endPosition: vector3,

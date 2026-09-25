@@ -12,6 +12,10 @@ type CompositeStage = {
   control: StageControl;
   portalPositions: unknown[];
   springboardPositions: unknown[];
+  resetPosition?: unknown;
+  thirdPersonPosition?: unknown;
+  creditsPosition?: unknown;
+  endPosition?: unknown;
 };
 type RouteControl = { respawnAxis: "x" | "y" | "z" | null; respawnAxisThreshold: number | null } | null;
 type CompositeConfig = SpatialConfigValue & {
@@ -118,11 +122,11 @@ function routeControlError() {
 }
 
 function stageSpatialError(index: number) {
-  const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions"]);
+  const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions", "resetPosition", "thirdPersonPosition", "creditsPosition", "endPosition"]);
   const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && stageFields.has(String(item.path[2])));
   if (!issue) return "";
   if (issue.path[2] === "control") return issueMessage(issue);
-  return "请为此阶段提供 Bastion 出生点并检查阶段专属点位。";
+  return "请为此阶段提供 Bastion 出生点并检查阶段专属点位与路线锚点。";
 }
 
 function nestedFieldError(...path: Array<string | number>) {
@@ -262,10 +266,11 @@ function updateRouteSpatialConfig(value: SpatialConfigValue | null) {
 function updateStageSpatialConfig(index: number, value: SpatialConfigValue | null) {
   const currentStage = stages.value[index];
   if (!currentStage) return;
+  const { resetPosition: _reset, thirdPersonPosition: _thirdPerson, creditsPosition: _credits, endPosition: _end, ...stageWithoutAnchors } = currentStage;
   const spatial = value ?? { bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
   delete spatial.alternateStages;
   delete spatial.setupDetection;
-  updateStage(index, { ...currentStage, ...spatial } as CompositeStage);
+  updateStage(index, { ...stageWithoutAnchors, ...spatial } as CompositeStage);
 }
 
 function updateRouteCoordinateValidity(valid: boolean) {
@@ -284,7 +289,7 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
     <section class="shared-route-fields" aria-labelledby="shared-route-heading">
       <div class="section-heading">
         <h3 id="shared-route-heading">全路线共享点位</h3>
-        <p>终点、重置点、英雄环和结算点只配置一次，由整条组合路线共用。</p>
+        <p>终点、重置点、英雄环和结算点作为整条组合路线的默认值；阶段可在下方覆盖。</p>
       </div>
       <AdminSpatialCoordinatesInput
         :model-value="config"

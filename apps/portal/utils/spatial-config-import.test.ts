@@ -246,6 +246,22 @@ describe("spatial-config-import", () => {
     expect(stage).not.toContain("endPosition");
   });
 
+  it("round-trips optional route anchors on a composite stage", () => {
+    const stageConfig = {
+      bastionPositions: [[13, 14, 15]],
+      resetPosition: [-30.05, 17, -118.12],
+      thirdPersonPosition: [-30.05, 17, -133.42],
+      creditsPosition: [-43.73, 19, -125.54],
+      endPosition: [104.77, 17.74, -137.21],
+      control: null,
+      portalPositions: [],
+      springboardPositions: [],
+    };
+    const source = formatWorkshopSpatialConfig(stageConfig, "composite-stage");
+    expect(parseSpatialConfigSource(source, null, "composite-stage")).toMatchObject({ ok: true, config: stageConfig });
+    expect(parseSpatialConfigSource("Global.bastionPosition[0] = Vector(1, 2, 3);\nGlobal.controlRespawnAxis = 0;", null, "composite-stage")).toMatchObject({ ok: false });
+  });
+
   it("rejects full JSON in scoped Workshop point importers", () => {
     expect(parseSpatialConfigSource(JSON.stringify(sharedCompositeConfig), null, "composite-route")).toMatchObject({ ok: false });
     expect(parseSpatialConfigSource(JSON.stringify(sharedCompositeConfig), null, "composite-stage")).toMatchObject({ ok: false });
