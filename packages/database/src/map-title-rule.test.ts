@@ -2310,6 +2310,34 @@ describe("submission mastery outcomes", () => {
     expect(assessMasteryOcrEvidence(weakRunCode, localMasteryEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
   });
 
+  it("lets a player replay upload completion after the first attempt already changed server state", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    const sessionToken = "replay-player-one";
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+      .run("session.player.one", "attempt.player.one", "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
+    const stored = new Map<string, ArrayBuffer>();
+    const queued: unknown[] = [];
+    let failNextSend = true;
+    const services = createPlatformServices(
+      database,
+      { put: async (key: string, value: ArrayBuffer) => { stored.set(key, value); } } as unknown as R2Bucket,
+      "https://api.example.com", undefined, undefined,
+      { send: async (message: unknown) => { if (failNextSend) { failNextSend = false; throw new Error("queue unavailable"); } queued.push(message); } } as Queue,
+    );
+    const body = new TextEncoder().encode("replayed-image").buffer as ArrayBuffer;
+    const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
+    await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
+
+    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.first")).rejects.toThrow("queue unavailable");
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
+
+    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "ocr_pending" });
+    expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId, requestId: "request.retry" })]);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 1 });
+  });
+
   it("covers the authenticated upload, unlisted CDN screenshot, OCR, mastery-only, and combined-title paths with local fakes", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

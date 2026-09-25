@@ -4298,14 +4298,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async completePlayerUpload(input, sessionToken, requestId) {
       const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
-      if (!session || session.expiresAt <= now() || session.status !== "uploaded") throw new Error("UPLOAD_SESSION_INVALID");
+      if (!session || !["uploaded", "completed"].includes(session.status) || (session.status === "uploaded" && session.expiresAt <= now())) throw new Error("UPLOAD_SESSION_INVALID");
       const authSession = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
       if (!authSession) throw new Error("UNAUTHENTICATED");
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, authSession.memberOpenId), eq(bindings.status, "active"))).get();
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
-      await db.update(uploadSessions).set({ status: "completed" }).where(eq(uploadSessions.id, session.id));
-      await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(eq(submissions.id, session.submissionId));
-      if (ocrQueue) {
+      if (session.status === "uploaded") {
+        await db.update(uploadSessions).set({ status: "completed" }).where(and(eq(uploadSessions.id, session.id), eq(uploadSessions.status, "uploaded")));
+        await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(and(eq(submissions.id, session.submissionId), eq(submissions.status, "upload_pending")));
+      }
+      // A replay after a lost response or a failed queue send resumes here: the job is only (re)sent while recognition has not started.
+      const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
+      if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
+      if (submission.status === "ocr_pending" && ocrQueue) {
         try {
           await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
           logOcrEvent("job_enqueued", { attempt: 0, manual: false, requestId: requestId ?? null });
@@ -4314,7 +4319,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           throw error;
         }
       }
-      return { submissionId: session.submissionId, status: "ocr_pending" };
+      return { submissionId: session.submissionId, status: submission.status };
     },
 
     async listAdminSubmissions(input) {
