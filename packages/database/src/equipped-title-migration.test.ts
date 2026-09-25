@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const migrationsDirectory = resolve(import.meta.dirname, "../../../migrations");
 const migration = (name: string) => readFileSync(resolve(migrationsDirectory, name), "utf8");
 
-describe("0080 equipped title scope repair", () => {
+describe("0080/0081 equipped title scope repair", () => {
   it("removes map equipment and initializes only deterministic global selections", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec(`
@@ -31,9 +31,11 @@ describe("0080 equipped title scope repair", () => {
       INSERT INTO title_catalog VALUES
         ('GLOBAL_1', 'global', 'active', '26.1'),
         ('GLOBAL_2', 'global', 'active', '26.1'),
+        ('GLOBAL_RETIRED', 'global', 'retired', '26.1'),
         ('MAP_1', 'map', 'active', '26.1');
       INSERT INTO player_title_grants (id, player_account_id, title_key, status, granted_at) VALUES
         ('preserved-global', 'preserved', 'GLOBAL_1', 'active', 1),
+        ('retired-global', 'preserved', 'GLOBAL_RETIRED', 'active', 2),
         ('skipped-global-1', 'skipped', 'GLOBAL_1', 'active', 1),
         ('skipped-global-2', 'skipped', 'GLOBAL_2', 'active', 2);
       INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, granted_at)
@@ -75,6 +77,20 @@ describe("0080 equipped title scope repair", () => {
     ]);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_equipped_titles WHERE player_account_id IN ('over-limit', 'map-only')").get()).toEqual({ count: 0 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE title_key = 'MAP_1'").get()).toEqual({ count: 11 });
+    expect(() => sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('retired-global', 'preserved', 1)").run()).toThrow("EQUIPPED_TITLE_GRANT_INVALID");
+
+    sqlite.exec(migration("0081_allow_retired_equipped_titles.sql"));
+
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('retired-global', 'preserved', 1)").run();
+    expect(sqlite.prepare("SELECT grant_id FROM player_equipped_titles WHERE player_account_id = 'preserved' ORDER BY grant_id").all()).toEqual([
+      { grant_id: "preserved-global" },
+      { grant_id: "retired-global" },
+    ]);
     expect(() => sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('preserved-map', 'preserved', 1)").run()).toThrow("EQUIPPED_TITLE_GRANT_INVALID");
+
+    for (let index = 1; index <= 10; index += 1) {
+      sqlite.prepare("INSERT INTO player_equipped_titles VALUES (?, 'over-limit', 1)").run(`over-limit-global-${index}`);
+    }
+    expect(() => sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('over-limit-global-11', 'over-limit', 1)").run()).toThrow("EQUIPPED_TITLE_LIMIT_EXCEEDED");
   });
 });
