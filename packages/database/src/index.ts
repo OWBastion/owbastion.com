@@ -4303,10 +4303,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!authSession) throw new Error("UNAUTHENTICATED");
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, authSession.memberOpenId), eq(bindings.status, "active"))).get();
       if (!binding || binding.playerAccountId !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
-      if (session.status === "uploaded") {
-        await db.update(uploadSessions).set({ status: "completed" }).where(and(eq(uploadSessions.id, session.id), eq(uploadSessions.status, "uploaded")));
-        await db.update(submissions).set({ status: "ocr_pending", updatedAt: now() }).where(and(eq(submissions.id, session.submissionId), eq(submissions.status, "upload_pending")));
-      }
+      // One batch so the two rows cannot diverge; on a replay both statements are no-ops or repair a submission still stuck in upload_pending.
+      await database.batch([
+        database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
+        database.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = ? WHERE id = ? AND status = 'upload_pending'").bind(now(), session.submissionId),
+      ]);
       // A replay after a lost response or a failed queue send resumes here: the job is only (re)sent while recognition has not started.
       const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
       if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
