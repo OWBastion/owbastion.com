@@ -10,6 +10,7 @@ import { userEvidenceObjectKey } from "./object-key";
 import { difficultyCovers, matchOcrResult } from "./ocr-match";
 import { challengeTargetDifficulty, matchOcrAgainstChallenges } from "./ocr-auto-match";
 import { assessOcrQuality, type OcrResponse } from "./ocr-response";
+import { resolvePortalSession } from "./portal-session";
 
 const now = () => Date.now();
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
@@ -1574,15 +1575,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     };
   };
 
-  const getCurrentPortalPlayer = async (sessionToken: string) => {
-    const session = await db.select().from(qqSessions).where(and(eq(qqSessions.tokenHash, await hashRequest(sessionToken)), gt(qqSessions.expiresAt, now()))).get();
-    if (!session) return null;
-    const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, session.memberOpenId), eq(bindings.status, "active"))).get();
-    if (!binding) return null;
-    const player = await db.select().from(playerAccounts).where(eq(playerAccounts.id, binding.playerAccountId)).get();
-    if (!player || player.status === "banned") return null;
-    return { binding, player };
-  };
+  const getCurrentPortalPlayer = (sessionToken: string) => resolvePortalSession(db, sessionToken);
 
   const normalizeMasteryEventCounters = (value: MasteryEventCounters | undefined): MasteryEventCounters => {
     const entries = Object.entries(value ?? {}).map(([key, count]) => {
