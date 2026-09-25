@@ -168,6 +168,7 @@ const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const uploadTtlMs = 10 * 60 * 1000;
+const evidenceExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
 const maxUploadBytes = 10 * 1024 * 1024;
 const maxTitleIconBytes = 512 * 1024;
 export const maxReviewCommentLength = 500;
@@ -4219,7 +4220,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const submissionId = crypto.randomUUID();
       const uploadId = crypto.randomUUID();
       const timestamp = now();
-      const objectKey = userEvidenceObjectKey(submissionId, input.sha256, "upload");
+      const objectKey = userEvidenceObjectKey(submissionId, input.sha256, evidenceExtensions[input.contentType]);
       await db.insert(submissions).values({ id: submissionId, bindingId: binding.id, status: "upload_pending", challengeType, challengeId: input.challengeId ?? null, targetMapId: targetMap?.id ?? null, gameplayRevisionId: snapshot?.gameplayRevisionId ?? directRevision?.revision.id ?? null, mapName, difficulty, playerName: account.playerName, ruleSnapshotJson: snapshot ? JSON.stringify(snapshot) : null, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
       await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
       return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
