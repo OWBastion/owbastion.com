@@ -81,7 +81,7 @@
   --text-on-glass-quiet: color-mix(in oklch, var(--text) 58%, var(--quiet));
 
   /* S-01 sticky page chrome clears the floating app header (AppHeader.vue):
-     top 0.875rem + min-height 3.375rem, plus a 0.5rem gap; below 900px:
+     top 0.875rem + min-height 3.375rem, plus a 0.5rem gap; below 48rem:
      max(0.5rem, safe-area-inset-top) + 3.25rem, plus a 0.25rem gap.
      Keep in sync with AppHeader.vue. */
   --sticky-chrome-top: calc(0.875rem + 3.375rem + 0.5rem);
