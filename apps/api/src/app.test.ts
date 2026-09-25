@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
 import { createApp, type RuntimeEnv } from "./app";
+import { withPublicCache } from "./public-cache";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
@@ -171,7 +172,10 @@ class FakeCache {
   }
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("API", () => {
   it("exposes platform player and map title grant Agents endpoints", async () => {
@@ -223,7 +227,7 @@ describe("API", () => {
     const response = await eventApp.request("http://localhost/v1/events", {}, env);
     expect(response.status).toBe(200);
     expect((await response.json() as { items: Array<{ name: string }> }).items[0]?.name).toBe("稳住");
-    expect(response.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
   });
 
   it("serves the second public catalog request from Cache API without calling the service", async () => {
@@ -262,20 +266,257 @@ describe("API", () => {
     expect(cache.putCalls).toBe(1);
   });
 
-  it("bypasses Cache API for filtered, credentialed, cookie, and admin requests", async () => {
+  it("bypasses Cache API for filtered, credentialed, and admin requests", async () => {
     const cache = new FakeCache();
     vi.stubGlobal("caches", { default: cache });
     const cacheApp = createApp({ authenticate: async () => null, services: () => services });
 
     expect((await cacheApp.request("http://localhost/v1/events?category=%E5%A2%9E%E7%9B%8A", {}, env)).status).toBe(200);
     expect((await cacheApp.request("http://localhost/v1/agents/maps", { headers: { authorization: "Bearer build-token" } }, { ...env, BASTION_BUILD_TOKEN: "build-token" })).status).toBe(200);
-    const cookieResponse = await cacheApp.request("http://localhost/v1/maps", { headers: { cookie: "session=private" } }, env);
-    expect(cookieResponse.status).toBe(200);
-    expect(cookieResponse.headers.get("cache-control")).toBe("private, no-store");
     expect((await cacheApp.request("http://localhost/v1/admin/events", {}, env)).status).toBe(401);
 
     expect(cache.matchCalls).toBe(0);
     expect(cache.putCalls).toBe(0);
+  });
+
+  it("serves public catalog cache to signed-in players and anonymous requests", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    let mapCalls = 0;
+    const cacheApp = createApp({
+      authenticate: async () => null,
+      services: () => ({
+        ...services,
+        listMaps: async () => {
+          mapCalls += 1;
+          return [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15", difficultyRating: "T3", mechanics: [], coverUrl: null, backgroundUrl: null }];
+        },
+      }),
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    // 1. Signed-in player request (carries owb_session cookie)
+    const first = await cacheApp.request(
+      "http://localhost/v1/maps",
+      { headers: { cookie: "owb_session=player-session-token", origin: "http://localhost:3000" } },
+      { ...env, LOCAL_DEV_AUTH: "true" },
+    );
+    expect(first.status).toBe(200);
+    expect(first.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(first.headers.get("set-cookie")).toBeNull();
+    expect(mapCalls).toBe(1);
+
+    // 2. Repeated signed-in player request (carries owb_session cookie) -> HIT without service operation
+    const second = await cacheApp.request(
+      "http://localhost/v1/maps",
+      { headers: { cookie: "owb_session=player-session-token", origin: "http://localhost:3000" } },
+      { ...env, LOCAL_DEV_AUTH: "true" },
+    );
+    expect(second.status).toBe(200);
+    expect(second.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(second.headers.get("set-cookie")).toBeNull();
+    expect(mapCalls).toBe(1);
+
+    // 3. Anonymous request (no cookie) -> served unchanged from shared cache
+    const third = await cacheApp.request(
+      "http://localhost/v1/maps",
+      { headers: { origin: "http://127.0.0.1:3000" } },
+      { ...env, LOCAL_DEV_AUTH: "true" },
+    );
+    expect(third.status).toBe(200);
+    expect(third.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(third.headers.get("set-cookie")).toBeNull();
+    expect(await third.json()).toEqual(await first.json());
+    expect(third.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
+    expect(mapCalls).toBe(1);
+
+    const cacheStatuses = log.mock.calls
+      .map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>)
+      .filter((entry) => entry.event === "public_cache")
+      .map((entry) => entry.status);
+    const serviceOps = log.mock.calls
+      .map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>)
+      .filter((entry) => entry.event === "service_operation_complete")
+      .map((entry) => entry.operation);
+    log.mockRestore();
+
+    expect(cacheStatuses).toEqual(["MISS", "HIT", "HIT"]);
+    expect(serviceOps).toEqual(["catalog_list_maps"]);
+  });
+
+  it("serves other allowlisted catalog routes from cache when carrying a player cookie", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    let mapChallengeCalls = 0;
+    let achievementCalls = 0;
+    let eventCalls = 0;
+    let singleEventCalls = 0;
+    const cacheApp = createApp({
+      authenticate: async () => null,
+      services: () => ({
+        ...services,
+        listChallenges: async (input) => {
+          if (input?.family === "map") mapChallengeCalls += 1;
+          if (input?.family === "achievement") achievementCalls += 1;
+          return [];
+        },
+        listRandomEvents: async () => { eventCalls += 1; return [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }]; },
+        getRandomEvent: async () => { singleEventCalls += 1; return { eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }; },
+      }),
+    });
+
+    const cookieHeader = { headers: { cookie: "owb_session=player-session" } };
+
+    // /v1/challenges?family=map
+    const mapChal1 = await cacheApp.request("http://localhost/v1/challenges?family=map", cookieHeader, env);
+    const mapChal2 = await cacheApp.request("http://localhost/v1/challenges?family=map", cookieHeader, env);
+    expect(mapChal1.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(mapChal2.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(mapChallengeCalls).toBe(1);
+
+    // /v1/public/achievements
+    const ach1 = await cacheApp.request("http://localhost/v1/public/achievements", cookieHeader, env);
+    const ach2 = await cacheApp.request("http://localhost/v1/public/achievements", cookieHeader, env);
+    expect(ach1.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(ach2.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(achievementCalls).toBe(1);
+
+    // /v1/events
+    const ev1 = await cacheApp.request("http://localhost/v1/events", cookieHeader, env);
+    const ev2 = await cacheApp.request("http://localhost/v1/events", cookieHeader, env);
+    expect(ev1.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(ev2.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(eventCalls).toBe(1);
+
+    // /v1/events/event.test
+    const sev1 = await cacheApp.request("http://localhost/v1/events/event.test", cookieHeader, env);
+    const sev2 = await cacheApp.request("http://localhost/v1/events/event.test", cookieHeader, env);
+    expect(sev1.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(sev2.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(singleEventCalls).toBe(1);
+  });
+
+  it("returns private, no-store for filtered variants, build-token requests, and identity-reading routes", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    const cacheApp = createApp({
+      authenticate: async () => null,
+      services: () => ({
+        ...services,
+        getCurrentPlayer: async ({ sessionToken }) => sessionToken === "player-session" ? {
+          contractVersion: "1" as const,
+          player: { playerId: "p1", playerName: "Player", bindingStatus: "bound" as const, isAdmin: false },
+          recentSubmissions: [],
+        } : null,
+        listChallenges: async () => [],
+        listTitles: async () => [],
+      }),
+    });
+
+    const cookieHeader = { headers: { cookie: "owb_session=player-session" } };
+
+    // Filtered / search variants
+    const filteredEvent = await cacheApp.request("http://localhost/v1/events?category=%E5%A2%9E%E7%9B%8A", cookieHeader, env);
+    expect(filteredEvent.headers.get("cache-control")).toBe("private, no-store");
+
+    const filteredAgentsEvent = await cacheApp.request("http://localhost/v1/agents/events?page=1&pageSize=20&q=test", {}, env);
+    expect(filteredAgentsEvent.headers.get("cache-control")).toBe("private, no-store");
+
+    // Agents carrying build token
+    const buildAgentsEvent = await cacheApp.request(
+      "http://localhost/v1/agents/events?page=1&pageSize=20",
+      { headers: { authorization: "Bearer build-token" } },
+      { ...env, BASTION_BUILD_TOKEN: "build-token" },
+    );
+    expect(buildAgentsEvent.headers.get("cache-control")).toBe("private, no-store");
+    expect(buildAgentsEvent.headers.get("vary")).toBe("Authorization");
+
+    // Routes that read caller identity
+    const challengesWithoutMap = await cacheApp.request("http://localhost/v1/challenges", cookieHeader, env);
+    expect(challengesWithoutMap.headers.get("cache-control")).toBe("private, no-store");
+
+    const achievementChallenges = await cacheApp.request("http://localhost/v1/challenges?family=achievement", cookieHeader, env);
+    expect(achievementChallenges.headers.get("cache-control")).toBe("private, no-store");
+
+    const titles = await cacheApp.request("http://localhost/v1/titles", cookieHeader, env);
+    expect(titles.headers.get("cache-control")).toBe("private, no-store");
+
+    const me = await cacheApp.request("http://localhost/v1/me", cookieHeader, env);
+    expect(me.headers.get("cache-control")).toBe("private, no-store");
+
+    const meTitles = await cacheApp.request("http://localhost/v1/me/titles", cookieHeader, env);
+    expect(meTitles.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("enforces identity-independent bypass rules in withPublicCache", async () => {
+    const cache = new FakeCache();
+    vi.stubGlobal("caches", { default: cache });
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const makeRequest = (headers: Record<string, string> = {}) =>
+      new Request("http://localhost/v1/test", { method: "GET", headers });
+    const cacheKey = new Request("http://localhost/v1/test", { method: "GET" });
+
+    // 1. identityIndependent = false (default) + cookie -> BYPASS with private, no-store
+    const nonIndependentResponse = await withPublicCache({
+      request: makeRequest({ cookie: "owb_session=token" }),
+      cacheKey,
+      enabled: true,
+      eligible: true,
+      identityIndependent: false,
+      operation: "test_identity_dependent",
+      response: () => new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=300, s-maxage=300" } }),
+    });
+    expect(nonIndependentResponse.headers.get("cache-control")).toBe("private, no-store");
+
+    // 2. identityIndependent = true + authorization -> BYPASS with private, no-store
+    const authResponse = await withPublicCache({
+      request: makeRequest({ authorization: "Bearer token" }),
+      cacheKey,
+      enabled: true,
+      eligible: true,
+      identityIndependent: true,
+      operation: "test_auth_bypass",
+      response: () => new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=300, s-maxage=300" } }),
+    });
+    expect(authResponse.headers.get("cache-control")).toBe("private, no-store");
+
+    // 3. identityIndependent = true + cookie -> MISS then HIT, stripped set-cookie
+    const firstHit = await withPublicCache({
+      request: makeRequest({ cookie: "owb_session=token" }),
+      cacheKey,
+      enabled: true,
+      eligible: true,
+      identityIndependent: true,
+      operation: "test_cookie_hit",
+      response: () => new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=300, s-maxage=300", "set-cookie": "leak=bad" } }),
+    });
+    expect(firstHit.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+
+    const secondHit = await withPublicCache({
+      request: makeRequest({ cookie: "owb_session=token" }),
+      cacheKey,
+      enabled: true,
+      eligible: true,
+      identityIndependent: true,
+      operation: "test_cookie_hit",
+      response: () => { throw new Error("should not be called on cache hit"); },
+    });
+    expect(secondHit.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
+    expect(secondHit.headers.get("set-cookie")).toBeNull();
+
+    const cacheStatuses = log.mock.calls
+      .map(([entry]) => JSON.parse(String(entry)) as Record<string, unknown>)
+      .filter((entry) => entry.event === "public_cache")
+      .map((entry) => `${entry.operation}:${entry.status}`);
+    log.mockRestore();
+
+    expect(cacheStatuses).toEqual([
+      "test_identity_dependent:BYPASS",
+      "test_auth_bypass:BYPASS",
+      "test_cookie_hit:MISS",
+      "test_cookie_hit:HIT",
+    ]);
   });
 
   it("falls back to the service when Cache API read or write fails", async () => {
@@ -332,7 +573,7 @@ describe("API", () => {
   it("separates public Agents responses from authenticated build reads", async () => {
     const publicResponse = await app.request("http://localhost/v1/agents/events?page=1&pageSize=20", {}, { ...env, BASTION_BUILD_TOKEN: "build-token" });
     const buildResponse = await app.request("http://localhost/v1/agents/events?page=1&pageSize=20", { headers: { authorization: "Bearer build-token" } }, { ...env, BASTION_BUILD_TOKEN: "build-token" });
-    expect(publicResponse.headers.get("cache-control")).toBe("public, max-age=60, s-maxage=60");
+    expect(publicResponse.headers.get("cache-control")).toBe("public, max-age=300, s-maxage=300");
     expect(publicResponse.headers.get("vary")).toBe("Authorization");
     expect(buildResponse.headers.get("cache-control")).toBe("private, no-store");
   });
@@ -647,6 +888,7 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/me/titles", {}, env)).status).toBe(401);
     const response = await app.request("http://localhost/v1/me/titles", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
   });
 

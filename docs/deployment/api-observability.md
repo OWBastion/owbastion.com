@@ -42,8 +42,12 @@ the D1-backed catalog service.
 The initial allowlist is deliberately narrow: `/v1/maps`,
 `/v1/public/achievements`, `/v1/challenges?family=map`, unfiltered
 `/v1/events`, event details, and unfiltered public Agents event lists/details.
-They return `public, max-age=60, s-maxage=60`. Search and every filtered event
-variant return `private, no-store`. Public Agents responses set
+They return `public, max-age=300, s-maxage=300`. Each allowlisted catalog route
+declares that it is identity-independent: requests carrying caller cookies (such
+as signed-in portal sessions) participate in the shared cache, while cached
+entries never store cookies or per-request CORS headers. Search and every
+filtered event variant return `private, no-store`. Routes that read caller
+identity also return `private, no-store`. Public Agents responses set
 `Vary: Authorization`; a request carrying the Bastion build token always
 bypasses shared caching with `private, no-store`.
 
@@ -67,7 +71,7 @@ curl --silent --show-error --output /dev/null --dump-header - \
 ```
 
 Record `Cache-Control`, `Age`, `ETag`, `Vary`, and `CF-Cache-Status` if each
-header is present. Public Agents responses normally use a 60-second public
+header is present. Public Agents responses normally use a 300-second public
 policy. Cloudflare may report no edge cache header for a Worker response; that
 is a result to record, not a reason to infer a hit. Use the application
 `public_cache` records together with `service_operation_complete`: the first

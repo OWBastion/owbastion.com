@@ -287,11 +287,26 @@ export const createApp = (dependencies: AppDependencies) => {
       return undefined;
     }
   };
-  const cachePublicResponse = (c: any, operation: string, cacheKey: Request, eligible: boolean, response: () => Promise<Response> | Response, decorateHit?: (response: Response) => Response) => withPublicCache({
+  const cachePublicResponse = (c: any, {
+    operation,
+    cacheKey,
+    eligible,
+    identityIndependent = false,
+    response,
+    decorateHit,
+  }: {
+    operation: string;
+    cacheKey: Request;
+    eligible: boolean;
+    identityIndependent?: boolean;
+    response: () => Promise<Response> | Response;
+    decorateHit?: (response: Response) => Response;
+  }) => withPublicCache({
     request: c.req.raw,
     cacheKey,
     enabled: publicCacheEnabled(c),
     eligible,
+    identityIndependent,
     operation,
     response,
     decorateHit,
@@ -304,7 +319,7 @@ export const createApp = (dependencies: AppDependencies) => {
   };
   const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
   const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
-    c.header("Cache-Control", enabled ? "public, max-age=60, s-maxage=60" : "private, no-store");
+    c.header("Cache-Control", enabled ? "public, max-age=300, s-maxage=300" : "private, no-store");
   };
   const setAgentsCache = (c: any, includePlayerIds: boolean, cacheable: boolean) => {
     setPublicCatalogCache(c, !includePlayerIds && cacheable && publicCacheEnabled(c));
@@ -375,6 +390,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   const requirePortalPlayer = async (c: any) => {
     allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
     if (!sessionToken) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
@@ -594,12 +610,9 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/me", async (c) => {
-    allowPortal(c);
-    const sessionToken = portalSessionToken(c.req.raw);
-    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
-    if (!player) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    return c.json(player);
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    return c.json(access.player);
   });
 
   app.get("/v1/me/mastery", async (c) => {
@@ -615,6 +628,7 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/me/titles", async (c) => {
     allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
     if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     const titles = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken });
@@ -770,7 +784,14 @@ export const createApp = (dependencies: AppDependencies) => {
     allowPortal(c);
     const cacheable = hasNoQuery(c.req.raw);
     setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, "catalog_public_achievements", publicCacheKey(c.req.raw), cacheable, async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }), decoratePortalCacheHit(c));
+    return cachePublicResponse(c, {
+      operation: "catalog_public_achievements",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }),
+      decorateHit: decoratePortalCacheHit(c),
+    });
   });
 
   const parsePublicReviewPage = (c: any) => {
@@ -841,16 +862,25 @@ export const createApp = (dependencies: AppDependencies) => {
       allowPortal(c);
       const cacheable = new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1;
       setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-      return cachePublicResponse(c, "catalog_map_challenges", publicCacheKey(c.req.raw, { family: "map" }), cacheable, async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) }), decoratePortalCacheHit(c));
+      return cachePublicResponse(c, {
+        operation: "catalog_map_challenges",
+        cacheKey: publicCacheKey(c.req.raw, { family: "map" }),
+        eligible: cacheable,
+        identityIndependent: true,
+        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) }),
+        decorateHit: decoratePortalCacheHit(c),
+      });
     }
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined })) });
   });
 
   app.get("/v1/titles", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
     return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined })) });
   });
 
@@ -858,7 +888,14 @@ export const createApp = (dependencies: AppDependencies) => {
     allowPortal(c);
     const cacheable = hasNoQuery(c.req.raw);
     setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, "catalog_maps", publicCacheKey(c.req.raw), cacheable, async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) }), decoratePortalCacheHit(c));
+    return cachePublicResponse(c, {
+      operation: "catalog_maps",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) }),
+      decorateHit: decoratePortalCacheHit(c),
+    });
   });
 
   app.get("/v1/events", async (c) => {
@@ -866,46 +903,84 @@ export const createApp = (dependencies: AppDependencies) => {
     if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
     const cacheable = hasNoQuery(c.req.raw);
     setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, "catalog_events", publicCacheKey(c.req.raw), cacheable, async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }), decoratePortalCacheHit(c));
+    return cachePublicResponse(c, {
+      operation: "catalog_events",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
+      decorateHit: decoratePortalCacheHit(c),
+    });
   });
   app.get("/v1/events/:eventId", async (c) => {
     allowPortal(c);
     const cacheable = hasNoQuery(c.req.raw);
     setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, "catalog_event", publicCacheKey(c.req.raw), cacheable, async () => {
-      const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
-      return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
-    }, decoratePortalCacheHit(c));
+    return cachePublicResponse(c, {
+      operation: "catalog_event",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => {
+        const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
+        return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
+      },
+      decorateHit: decoratePortalCacheHit(c),
+    });
   });
 
   app.get("/v1/agents/events", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
     const cacheable = !includePlayerIds && hasOnlyPaginationQuery(c.req.raw) && !c.req.query("q") && !c.req.query("category") && !c.req.query("rarity");
     setAgentsCache(c, includePlayerIds, cacheable);
-    return cachePublicResponse(c, "agents_events", publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }), cacheable, async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined })) }));
+    return cachePublicResponse(c, {
+      operation: "agents_events",
+      cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined })) }),
+    });
   });
   app.get("/v1/agents/events/:eventId", async (c) => {
     const includePlayerIds = allowAgents(c);
     const cacheable = !includePlayerIds && hasNoQuery(c.req.raw);
     setAgentsCache(c, includePlayerIds, cacheable);
-    return cachePublicResponse(c, "agents_event", publicCacheKey(c.req.raw), cacheable, async () => {
-      const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }));
-      return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
+    return cachePublicResponse(c, {
+      operation: "agents_event",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => {
+        const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }));
+        return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
+      },
     });
   });
   app.get("/v1/agents/maps", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
     const cacheable = !includePlayerIds && hasOnlyPaginationQuery(c.req.raw) && !c.req.query("q") && !c.req.query("mechanic");
     setAgentsCache(c, includePlayerIds, cacheable);
-    return cachePublicResponse(c, "agents_maps", publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }), cacheable, async () => c.json(await logServiceOperation(c, "agents_list_maps", () => dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))));
+    return cachePublicResponse(c, {
+      operation: "agents_maps",
+      cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => c.json(await logServiceOperation(c, "agents_list_maps", () => dependencies.services(c.env).listAgentMaps({ ...page, query: c.req.query("q")?.trim() || undefined, mechanic: c.req.query("mechanic")?.trim() || undefined }))),
+    });
   });
   app.get("/v1/agents/maps/:mapId", async (c) => {
     const includePlayerIds = allowAgents(c);
     const cacheable = !includePlayerIds && hasNoQuery(c.req.raw);
     setAgentsCache(c, includePlayerIds, cacheable);
-    return cachePublicResponse(c, "agents_map", publicCacheKey(c.req.raw), cacheable, async () => {
-      const map = await logServiceOperation(c, "agents_get_map", () => dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }));
-      return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+    return cachePublicResponse(c, {
+      operation: "agents_map",
+      cacheKey: publicCacheKey(c.req.raw),
+      eligible: cacheable,
+      identityIndependent: true,
+      response: async () => {
+        const map = await logServiceOperation(c, "agents_get_map", () => dependencies.services(c.env).getAgentMap({ mapId: c.req.param("mapId") }));
+        return map ? c.json({ contractVersion: "1", item: map }) : errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
+      },
     });
   });
   app.get("/v1/agents/achievements", async (c) => {
