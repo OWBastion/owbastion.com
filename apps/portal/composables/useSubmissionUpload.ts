@@ -35,30 +35,61 @@ export function useSubmissionUpload() {
     if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "挑战目录无法读取，请稍后重试。").description;
     catalogLoading.value = false;
   };
+  // Keeps a started upload session so a retry resumes at the failed step instead of creating a second submission.
+  let pending: { key: string; uploadId: string; expiresAt: number; uploaded: boolean } | null = null;
+  const errorCode = (cause: unknown) => (cause as PortalApiError).data?.error?.code;
+  const isTransient = (cause: unknown) => {
+    const status = (cause as PortalApiError).statusCode;
+    return status === undefined || status === 408 || status >= 500;
+  };
+  const sendEvidence = async (uploadId: string, file: File) => {
+    const requestId = createRequestId();
+    try {
+      await $fetch(`/api/portal/uploads/${encodeURIComponent(uploadId)}`, { method: "PUT", body: file, headers: { "content-type": file.type, [REQUEST_ID_HEADER]: requestId }, credentials: "include", retry: 0, timeout: 30_000 });
+    } catch (cause) {
+      Object.assign(cause as object, { requestId });
+      throw cause;
+    }
+  };
+  const uploadEvidence = async (uploadId: string, file: File) => {
+    try { await sendEvidence(uploadId, file); }
+    catch (cause) {
+      if (!isTransient(cause)) throw cause;
+      // The first attempt may have landed with its response lost; the server then reports the session as no longer pending.
+      try { await sendEvidence(uploadId, file); }
+      catch (retryCause) { if (errorCode(retryCause) !== "UPLOAD_SESSION_INVALID") throw retryCause; }
+    }
+  };
   const submit = async (file: File, challengeId?: string, mapId?: string, gameplayRevisionId?: string) => {
     loading.value = true;
     error.value = "";
     let phase: keyof typeof phaseLabels = "hash";
     try {
-      const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-      phase = "session";
-      const session = await api<{ uploadId: string; uploadUrl: string; submissionId: string }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), ...(mapId ? { mapId } : {}), ...(gameplayRevisionId ? { gameplayRevisionId } : {}), contentType: file.type, byteSize: file.size, sha256: hex(digest) } });
-      phase = "upload";
-      const uploadRequestId = createRequestId();
-      try {
-        await $fetch(`/api/portal/uploads/${encodeURIComponent(session.uploadId)}`, { method: "PUT", body: file, headers: { "content-type": file.type, [REQUEST_ID_HEADER]: uploadRequestId }, credentials: "include", retry: 0, timeout: 30_000 });
-      } catch (cause) {
-        Object.assign(cause as object, { requestId: uploadRequestId });
-        throw cause;
+      const sha256 = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+      const key = [sha256, file.type, challengeId, mapId, gameplayRevisionId].join("|");
+      if (pending && (pending.key !== key || pending.expiresAt - Date.now() < 30_000)) pending = null;
+      if (!pending) {
+        phase = "session";
+        const session = await api<{ uploadId: string; expiresAt: number }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), ...(mapId ? { mapId } : {}), ...(gameplayRevisionId ? { gameplayRevisionId } : {}), contentType: file.type, byteSize: file.size, sha256 } });
+        pending = { key, uploadId: session.uploadId, expiresAt: session.expiresAt, uploaded: false };
+      }
+      if (!pending.uploaded) {
+        phase = "upload";
+        await uploadEvidence(pending.uploadId, file);
+        pending.uploaded = true;
       }
       phase = "complete";
-      return await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${session.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: session.uploadId } });
+      const result = await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${pending.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: pending.uploadId } });
+      pending = null;
+      return result;
     } catch (cause) {
       const apiError = cause as PortalApiError;
-      const apiDetails = apiError.data?.error;
-      const code = apiDetails?.code ?? (apiError.statusCode ? `HTTP_${apiError.statusCode}` : "NETWORK_ERROR");
+      const code = errorCode(cause) ?? (apiError.statusCode ? `HTTP_${apiError.statusCode}` : "NETWORK_ERROR");
       const details = portalErrorDetails(cause, `${phaseLabels[phase]}失败，请稍后重试。`);
-      error.value = `${details.description}${details.code ? ` 错误码：${details.code}` : code !== "NETWORK_ERROR" ? ` 错误码：${code}` : ""}`;
+      // A retry resumes only while the session is still usable; a client error means the session was rejected.
+      if (apiError.statusCode !== undefined && apiError.statusCode < 500 && apiError.statusCode !== 408) pending = null;
+      const hint = pending ? (pending.uploaded ? "截图已上传，再次点击将直接完成提交，不会重复上传。" : "请直接再次点击上传，无需重新选择截图。") : "";
+      error.value = [`${details.description}${details.code ? ` 错误码：${details.code}` : code !== "NETWORK_ERROR" ? ` 错误码：${code}` : ""}`, hint].filter(Boolean).join(" ");
       if (phase === "upload") recordPortalError(cause, { operation: "submission-upload", phase, requestId: details.requestId });
       throw cause;
     } finally { loading.value = false; }
