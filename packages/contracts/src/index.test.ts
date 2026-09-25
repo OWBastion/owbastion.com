@@ -241,7 +241,35 @@ describe("v1 platform contracts", () => {
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, control: { respawnAxis: "x", respawnAxisThreshold: -1 } }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: sharedComposite.stages.map((stage) => ({ ...stage, control: null })) }).success).toBe(false);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { centerPositions: [], jumpPositions: [], respawnPositions: [] } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
-    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, endPosition: [50, 51, 52] }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, endPosition: [50, 51, 52] }, ...sharedComposite.stages.slice(1)] }).success).toBe(true);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, endPosition: [50, 51] }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, resetPosition: [50, 51, Number.NaN] }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
+    // Busan cyclic routes (Bastion b4b40ea): each route's reset/third-person/credits come from its first stage and its end from its last stage.
+    const busanStage = (stageId: string, anchors: { reset: number[]; thirdPerson: number[]; credits: number[]; end: number[] }, offset: number, setupDetection: { position: [number, number, number]; radius: number }) => ({
+      stageId,
+      setupDetection,
+      resetPosition: anchors.reset,
+      thirdPersonPosition: anchors.thirdPerson,
+      creditsPosition: anchors.credits,
+      endPosition: anchors.end,
+      bastionPositions: [[offset, 1, 1]],
+      control: { centerPositions: [], jumpPositions: [[offset, 2, 2]], respawnPositions: [[offset, 3, 3]] },
+      portalPositions: [],
+      springboardPositions: [],
+    });
+    const busan = {
+      ...sharedComposite,
+      composition: { selectionCount: 2, firstStageSelection: { mode: "setup_detection", fallbackStageId: "stage_0" }, remainingStageSelection: "stage_id_cycle" },
+      stages: [
+        { ...busanStage("stage_0", { reset: [-409.71, 10.11, 165.61], thirdPerson: [-410.4, 10.11, 162.37], credits: [-426.04, 13.11, 165.81], end: [-251.99, 11.34, 174.77] }, 1, { position: [0, 0, 0], radius: 30 }), setupDetection: undefined },
+        busanStage("stage_1", { reset: [-30.05, 17, -118.12], thirdPerson: [-30.05, 17, -133.42], credits: [-43.73, 19, -125.54], end: [104.77, 17.74, -137.21] }, 2, { position: [1, 1, 1], radius: 30 }),
+        busanStage("stage_2", { reset: [282.34, 12.1, 201.72], thirdPerson: [289.73, 12.1, 199.05], credits: [297.09, 14.1, 208.95], end: [158.67, 10.81, 260.91] }, 3, { position: [2, 2, 2], radius: 30 }),
+      ],
+    };
+    const parsedBusan = agentProjectedSpatialConfigSchema.parse(busan);
+    if (!("stages" in parsedBusan) || !("composition" in parsedBusan)) throw new Error("expected composite");
+    expect(parsedBusan.stages.map((stage) => stage.resetPosition)).toEqual([[-409.71, 10.11, 165.61], [-30.05, 17, -118.12], [282.34, 12.1, 201.72]]);
+    expect(parsedBusan.stages.map((stage) => stage.endPosition)).toEqual([[-251.99, 11.34, 174.77], [104.77, 17.74, -137.21], [158.67, 10.81, 260.91]]);
     expect(agentSpatialConfigSchema.safeParse({ ...sharedComposite, stages: [{ ...sharedComposite.stages[0]!, control: { centerPositions: [], jumpPositions: [], respawnPositions: [], respawnAxis: "x", respawnAxisThreshold: 40 } }, ...sharedComposite.stages.slice(1)] }).success).toBe(false);
     expect(agentMapSchema.safeParse({ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0810.1", difficultyRating: null, mechanics: [], coverUrl: null, backgroundUrl: null, gameplayRevisions: [{ ...revision, lifecycle: "selectable", isDefault: true, isSelectable: true }] }).success).toBe(false);
   });

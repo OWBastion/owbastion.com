@@ -22,7 +22,7 @@ const sourceTitle = computed(() => scope.value === "composite-route" ? "全路�
 const sourceHint = computed(() => scope.value === "composite-route"
   ? "粘贴终点、重置点、英雄环和结算点；阶段出生点、传送点和重生室点位请粘贴到对应阶段。"
   : scope.value === "composite-stage"
-    ? "粘贴当前阶段的 Bastion 出生点、占领点、阶段间传送点和重生室点位；阶段间传送点与占领重生点最多配置一对。"
+    ? "粘贴当前阶段的 Bastion 出生点、占领点、阶段间传送点和重生室点位；阶段间传送点与占领重生点最多配置一对。可选：重置点、第三人称点、结算点（该阶段作为首阶段时覆盖全路线默认值）和终点（作为末阶段时覆盖）。"
     : "粘贴当前路线或阶段的完整 Raw Workshop 点位代码。");
 
 const emit = defineEmits<{

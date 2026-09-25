@@ -531,7 +531,13 @@ portals, springboards, and optional setup detector. The route uses one scalar
 axis/threshold pair shared by all stages. A shared point is not copied into
 each stage. The consuming Bastion build must assemble stage-local point arrays
 in its selected order; the platform does not store coordinate copies for stage
-pairs or route permutations.
+pairs or route permutations. Route boundaries that depend on which stages are
+selected (for example cyclic Busan routes) are stage-scoped: a stage may
+optionally carry `resetPosition`, `thirdPersonPosition`, and `creditsPosition`,
+which override the route-root value when that stage is the route's first stage,
+and `endPosition`, which overrides it when that stage is the route's last stage.
+Absent stage values inherit the route root; the platform never stores the
+resolved per-route result.
 `composition.selectionCount` is the total number of ordered stages Bastion
 selects for one game. The first stage selection is either `setup_detection`
 with an explicit fallback stage ID, or `random`; the remaining selection is
