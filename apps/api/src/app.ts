@@ -627,9 +627,11 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/me/titles", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    const titles = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken: access.sessionToken! });
+    allowPortal(c);
+    c.header("Cache-Control", "private, no-store");
+    const sessionToken = portalSessionToken(c.req.raw);
+    if (!sessionToken) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    const titles = await dependencies.services(c.env).listCurrentPlayerTitles({ sessionToken });
     if (!titles) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json({ contractVersion: "1", ...titles });
   });

@@ -443,6 +443,9 @@ describe("API", () => {
 
     const me = await cacheApp.request("http://localhost/v1/me", cookieHeader, env);
     expect(me.headers.get("cache-control")).toBe("private, no-store");
+
+    const meTitles = await cacheApp.request("http://localhost/v1/me/titles", cookieHeader, env);
+    expect(meTitles.headers.get("cache-control")).toBe("private, no-store");
   });
 
   it("enforces identity-independent bypass rules in withPublicCache", async () => {
@@ -885,6 +888,7 @@ describe("API", () => {
     expect((await app.request("http://localhost/v1/me/titles", {}, env)).status).toBe(401);
     const response = await app.request("http://localhost/v1/me/titles", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ titleKey: "PIONEER", mapName: "萨摩亚", condition: "完成萨摩亚地狱难度。" }] });
   });
 
