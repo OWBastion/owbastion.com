@@ -9,6 +9,7 @@ definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交挑战 · 躲避堡垒 3" });
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
 
 const toast = useToast();
@@ -22,6 +23,8 @@ const validate = (s: typeof state): FormError[] => {
     errs.push({ name: "screenshot", message: "请选择一张截图。" });
   } else if (!(ACCEPTED_TYPES as readonly string[]).includes(s.screenshot.type)) {
     errs.push({ name: "screenshot", message: "仅支持 JPEG、PNG 或 WebP 格式。" });
+  } else if (s.screenshot.size > MAX_BYTES) {
+    errs.push({ name: "screenshot", message: "截图不能超过 10MB，请使用游戏内截图，或降低截图分辨率后重试。" });
   }
   return errs;
 };
