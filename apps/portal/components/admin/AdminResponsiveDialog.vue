@@ -90,7 +90,7 @@ watch(open, async (value) => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-radius: 20px;
+  border-radius: var(--radius-sheet);
   overflow: hidden;
 }
 .admin-responsive-dialog__drawer {
@@ -98,7 +98,7 @@ watch(open, async (value) => {
   flex-direction: column;
   min-height: 0;
   border-bottom: 0;
-  border-radius: 20px 20px 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   overflow: hidden;
 }
 .admin-responsive-dialog__container {
@@ -118,6 +118,7 @@ watch(open, async (value) => {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 .admin-responsive-dialog__body {
+  container-type: inline-size;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;

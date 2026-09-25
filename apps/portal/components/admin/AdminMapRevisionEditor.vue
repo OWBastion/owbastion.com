@@ -150,6 +150,7 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
 </template>
 
 <style scoped>
+.revision-editor { container-type: inline-size; }
 .revision-editor,
 .revision-form {
   display: grid;
@@ -176,11 +177,11 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   min-width: 0;
   padding: 0.75rem 0.875rem;
   border: 1px solid var(--line);
-  border-radius: 0.8125rem;
+  border-radius: var(--radius-control);
 }
 .spatial-advanced summary {
   cursor: pointer;
-  font-weight: 650;
+  font-weight: 600;
 }
 .empty-note,
 .editor-note {
@@ -195,13 +196,13 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   min-width: 0;
   padding: 0.875rem;
   border: 1px solid var(--line);
-  border-radius: 0.8125rem;
+  border-radius: var(--radius-control);
 }
 .assignment-note { margin: 0 0 0.75rem; color: var(--muted); font-size: 0.875rem; line-height: 1.5; }
 .assignment-fieldset legend {
   padding-inline: 0.25rem;
   font-size: 0.875rem;
-  font-weight: 680;
+  font-weight: 600;
 }
 .assignment-list {
   display: grid;
@@ -215,9 +216,9 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   gap: 0.875rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
 }
-@media (max-width: 38.75rem) {
+@container (max-width: 23.99rem) {
   .revision-editor__actions {
     align-items: stretch;
     flex-direction: column;

@@ -213,11 +213,11 @@ function updateAdvancedJson(value: string) {
   min-width: 0;
   padding: 0.75rem 0.875rem;
   border: 1px solid var(--line);
-  border-radius: 0.8125rem;
+  border-radius: var(--radius-control);
 }
 .spatial-json-advanced summary {
   cursor: pointer;
-  font-weight: 650;
+  font-weight: 600;
 }
 .spatial-json-advanced__error {
   margin: 0.5rem 0 0;

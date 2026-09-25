@@ -129,10 +129,8 @@
   --ui-radius: calc(var(--radius-control) / 1.5);
 }
 
-/* Still a v1 breakpoint: tied to AppHeader.vue's own (unmigrated) 900px
-   collapse. Moving this value alone would desync the offset from the
-   header's actual height; migrate both together under #191. */
-@media (max-width: 900px) {
+/* Tied to AppHeader.vue's collapse; keep both on the same page breakpoint. */
+@media (max-width: 47.99rem) {
   :root {
     --sticky-chrome-top: calc(max(0.5rem, env(safe-area-inset-top)) + 3.25rem + 0.25rem);
   }

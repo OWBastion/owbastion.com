@@ -209,16 +209,16 @@ function onIconFile(value: File | null | undefined) {
 .editor {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-  padding: 8px 0 4px;
+  gap: var(--space-5);
+  padding: var(--space-2) 0 var(--space-1);
 }
 .editor-field, .editor-control { width: 100%; min-width: 0; }
 .editor :deep(textarea) { min-height: 104px; }
 .editor-field--wide { grid-column: 1 / -1; }
-.icon-upload { display: grid; gap: 10px; }
+.icon-upload { display: grid; gap: var(--space-3); }
 .icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); font-size: var(--type-caption-size); }
-.icon-upload-option summary { padding-top: 10px; cursor: pointer; }
-.icon-upload-content { display: grid; gap: 10px; padding-top: 10px; }
+.icon-upload-option summary { padding-top: var(--space-3); cursor: pointer; }
+.icon-upload-content { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
 .icon-upload-content p { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .icon-preview {
   display: grid;
@@ -226,11 +226,11 @@ function onIconFile(value: File | null | undefined) {
   height: 64px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 .icon-preview img { width: 42px; height: 42px; object-fit: contain; }
-@media (max-width: 48rem) {
+@container (max-width: 23.99rem) {
   .editor { grid-template-columns: minmax(0, 1fr); }
   .editor-field--wide { grid-column: auto; }
 }

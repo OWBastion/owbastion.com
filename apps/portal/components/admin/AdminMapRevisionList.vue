@@ -56,7 +56,7 @@ const dateLabel = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { date
 .section-heading h2 { margin: 0; }
 .section-count, .revision-card__meta, .revision-card__date { color: var(--quiet); font-size: var(--type-caption-size); }
 .revision-list__items { display: grid; gap: 0.5rem; padding: 0; margin: 0; list-style: none; }
-.revision-card { display: grid; gap: 0.5rem; width: 100%; padding: 0.8125rem 0.875rem; border: 1px solid var(--line); border-radius: 0.8125rem; color: var(--text); background: var(--surface); text-align: left; }
+.revision-card { display: grid; gap: 0.5rem; width: 100%; padding: 0.8125rem 0.875rem; border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--text); background: var(--surface); text-align: left; }
 .revision-card:hover { border-color: var(--line-strong); background: var(--surface-raised); }
 .revision-card--selected { border-color: var(--accent); background: var(--accent-surface); box-shadow: inset 3px 0 0 var(--accent); }
 .revision-card__topline, .revision-card__meta { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }

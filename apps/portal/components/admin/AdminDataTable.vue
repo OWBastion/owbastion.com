@@ -408,12 +408,12 @@ onBeforeUnmount(() => {
 <style scoped>
 /* overflow:visible so sticky controls/thead can anchor to the document (clip
    would create a containing block that kills page-level sticky). */
-.admin-data-table { overflow: visible; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
+.admin-data-table { container-type: inline-size; overflow: visible; border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); scroll-margin-top: var(--sticky-chrome-top, 0px); }
 .admin-data-table--row-link :deep(tbody tr) { cursor: pointer; transition: background-color 120ms ease-out; }
 .admin-data-table--row-link :deep(tbody tr:hover),
 .admin-data-table--row-link :deep(tbody tr:focus-within) { background: color-mix(in oklch, var(--surface-raised) 72%, transparent); }
 .admin-data-table--row-link :deep(tbody tr:active) { background: color-mix(in oklch, var(--surface-raised) 88%, transparent); }
-.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border-radius: 16px 16px 0 0; background: var(--surface); }
+.admin-data-table__controls { position: sticky; z-index: 3; top: var(--sticky-chrome-top, 0px); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-card) var(--radius-card) 0 0; background: var(--surface); }
 .admin-data-table__loading-bar {
   position: absolute;
   right: 0;
@@ -445,12 +445,12 @@ onBeforeUnmount(() => {
     opacity: 0.55;
   }
 }
-.admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; }
+.admin-data-table__filters { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; }
 .admin-data-table__mobile-primary-controls, .admin-data-table__mobile-controls-trigger { display: none; }
 .admin-data-table__secondary-controls { flex: 0 1 auto; min-width: 0; }
-.admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: 10px; }
+.admin-data-table__secondary-controls-content { display: flex; align-items: center; gap: var(--space-3); }
 .admin-data-table__sort-control { flex: 0 1 16rem; min-width: 16rem; }
-.admin-data-table__scroll { overflow: visible; border-radius: 16px; }
+.admin-data-table__scroll { overflow: visible; border-radius: var(--radius-card); }
 /* Bounded mode owns both axes on the single virtualization scroll element; the
    table viewport must NOT become a scroll container here, or the sticky thead
    would anchor to it instead of the bounded scroller. */
@@ -484,48 +484,47 @@ onBeforeUnmount(() => {
   font-weight: 700;
   letter-spacing: .025em;
 }
-.admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: 13px 14px; }
+.admin-data-table :deep([data-slot="th"]), .admin-data-table :deep([data-slot="td"]) { padding: var(--space-3) var(--space-3); }
 .admin-data-table :deep([data-slot="td"]) { vertical-align: middle; white-space: normal !important; }
 .admin-data-table__mobile-list { display: none; }
 .admin-data-table__mobile-records { margin: 0; padding: 0; list-style: none; }
-.admin-data-table__mobile-record { padding: 14px; border-bottom: 1px solid var(--line); }
+.admin-data-table__mobile-record { padding: var(--space-3); border-bottom: 1px solid var(--line); }
 .admin-data-table__mobile-record:last-child { border-bottom: 0; }
-.admin-data-table__mobile-primary-link { display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; color: inherit; background: transparent; font: inherit; text-align: left; text-decoration: none; }
+.admin-data-table__mobile-primary-link { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--radius-control); color: inherit; background: transparent; font: inherit; text-align: left; text-decoration: none; }
 .admin-data-table__mobile-primary-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-.admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: 12px; }
+.admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: var(--space-3); }
 .admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
-.admin-data-table__mobile-field { display: grid; gap: 4px; min-width: 0; }
+.admin-data-table__mobile-field { display: grid; gap: var(--space-1); min-width: 0; }
 .admin-data-table__mobile-label { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
-.admin-data-table__mobile-disclosure { margin-top: 12px; }
-.admin-data-table__mobile-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--line); color: var(--quiet); background: transparent; font: inherit; font-size: .82rem; font-weight: 650; text-align: left; cursor: pointer; }
+.admin-data-table__mobile-disclosure { margin-top: var(--space-3); }
+.admin-data-table__mobile-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--line); color: var(--quiet); background: transparent; font: inherit; font-size: .82rem; font-weight: 600; text-align: left; cursor: pointer; }
 .admin-data-table__mobile-disclosure-trigger > span:last-child { font-size: 1.1rem; transform: translateY(-2px); }
 .admin-data-table__mobile-disclosure-trigger[aria-expanded="true"] > span:last-child { transform: rotate(180deg) translateY(-2px); }
-.admin-data-table__mobile-details { padding: 12px 0 2px; }
-.admin-data-table__mobile-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 44px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.admin-data-table__mobile-details { padding: var(--space-3) 0 var(--space-1); }
+.admin-data-table__mobile-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); min-height: 44px; margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 /* The mobile action menu content is teleported to <body> (no scoped data-v), so
    it is styled with :global. Nuxt UI renders an empty flex-1 item viewport when
    items=[]; hiding it keeps the actions as the only child so the clipped flex
    content cannot mis-measure or push the action buttons out of view. */
 :global(.admin-data-table__mobile-action-menu) { min-width: 10rem; }
 :global(.admin-data-table__mobile-action-menu [data-slot="viewport"]) { display: none; }
-.admin-data-table__mobile-action-menu-content { display: grid; gap: 6px; min-width: 10rem; padding: 8px; color: var(--text); }
-.admin-data-table__mobile-action-menu-content :deep(.table-actions) { display: grid; gap: 6px; }
+.admin-data-table__mobile-action-menu-content { display: grid; gap: var(--space-2); min-width: 10rem; padding: var(--space-2); color: var(--text); }
+.admin-data-table__mobile-action-menu-content :deep(.table-actions) { display: grid; gap: var(--space-2); }
 .admin-data-table__mobile-action-menu-content :deep(button), .admin-data-table__mobile-action-menu-content :deep(a) { width: 100%; min-height: 44px; }
-.admin-data-table__mobile-empty { margin: 0; padding: 32px 16px; color: var(--quiet); text-align: center; }
-.admin-data-table__mobile-loading { display: grid; gap: 1px; padding: 14px; }
+.admin-data-table__mobile-empty { margin: 0; padding: var(--space-8) var(--space-4); color: var(--quiet); text-align: center; }
+.admin-data-table__mobile-loading { display: grid; gap: 1px; padding: var(--space-3); }
 .admin-data-table__mobile-skeleton { height: 72px; }
-@media (max-width: 620px) {
-  .admin-data-table { margin-inline: -2px; overflow: visible; }
+@container (max-width: 23.99rem) {
   .admin-data-table__scroll--bounded { height: auto !important; max-height: none; overflow: visible; overscroll-behavior: auto; }
   .admin-data-table__controls { align-items: center; flex-wrap: wrap; justify-content: flex-start; }
   .admin-data-table__filters--desktop, .admin-data-table__secondary-controls--desktop { display: none; }
-  .admin-data-table__mobile-primary-controls { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 8px; }
+  .admin-data-table__mobile-primary-controls { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: var(--space-2); }
   .admin-data-table__mobile-primary-controls > :first-child { flex: 1 1 auto; min-width: 0; }
   .admin-data-table__mobile-controls-trigger { display: inline-flex; flex: 0 0 auto; min-height: 44px; }
-  .admin-data-table__mobile-drawer { width: 100%; max-height: calc(100dvh - 1rem); border-radius: 20px 20px 0 0; }
-  .admin-data-table__mobile-drawer-body { padding: 16px 16px max(16px, env(safe-area-inset-bottom)); }
-  .admin-data-table__mobile-controls-content, .admin-data-table__mobile-secondary-filters { display: grid; gap: 12px; }
-  .admin-data-table__mobile-secondary-filters { padding-bottom: 4px; }
+  .admin-data-table__mobile-drawer { width: 100%; max-height: calc(100dvh - 1rem); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
+  .admin-data-table__mobile-drawer-body { padding: var(--space-4) var(--space-4) max(var(--space-4), env(safe-area-inset-bottom)); }
+  .admin-data-table__mobile-controls-content, .admin-data-table__mobile-secondary-filters { display: grid; gap: var(--space-3); }
+  .admin-data-table__mobile-secondary-filters { padding-bottom: var(--space-1); }
   .admin-data-table__controls { position: relative; top: auto; }
   .admin-data-table :deep(table[data-slot="base"]) { display: none; }
   .admin-data-table__mobile-list { display: block; }

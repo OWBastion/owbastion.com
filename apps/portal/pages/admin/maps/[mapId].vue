@@ -303,7 +303,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 0.875rem;
+  border-radius: var(--radius-control);
 }
 .audit-pane__header {
   display: flex;
@@ -339,10 +339,10 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
   flex: 0 0 auto;
   margin: 0;
 }
-@media (max-width: 51.25rem) {
+@media (max-width: 63.99rem) {
   .map-editor { grid-template-columns: 1fr; }
 }
-@media (max-width: 38.75rem) {
+@media (max-width: 47.99rem) {
   .pane-toolbar { justify-content: stretch; }
   .pane-toolbar :deep(button) { width: 100%; min-height: 2.75rem; }
   .audit-list li { flex-direction: column; gap: 0.35rem; }

@@ -121,8 +121,8 @@ function submit() {
 .editor {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-  padding: 24px;
+  gap: var(--space-5);
+  padding: var(--space-6);
 }
 
 .editor-field,
@@ -136,7 +136,7 @@ function submit() {
 
 .icon-upload {
   display: grid;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .icon-upload-option {
@@ -146,14 +146,14 @@ function submit() {
 }
 
 .icon-upload-option summary {
-  padding-top: 10px;
+  padding-top: var(--space-3);
   cursor: pointer;
 }
 
 .icon-upload-content {
   display: grid;
-  gap: 10px;
-  padding-top: 10px;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
 }
 
 .icon-upload-content p {
@@ -168,7 +168,7 @@ function submit() {
   height: 64px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface-raised);
 }
 
@@ -182,11 +182,11 @@ function submit() {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 48rem) {
+@container (max-width: 23.99rem) {
   .editor {
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    padding: 20px 16px;
+    gap: var(--space-4);
+    padding: var(--space-5) var(--space-4);
   }
 
   .editor-field--wide {

@@ -48,23 +48,23 @@ const hasErrors = computed(() => props.groups.some((group) => group.error));
 </template>
 
 <style scoped>
-.pending-work { display: grid; gap: 1.25rem; min-width: 0; }
+.pending-work { container-type: inline-size; display: grid; gap: 1.25rem; min-width: 0; }
 .pending-work__group { display: grid; gap: 0.625rem; min-width: 0; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
 .pending-work__heading { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
-.pending-work__heading h2 { margin: 0; font-weight: 680; }
+.pending-work__heading h2 { margin: 0; font-weight: 600; }
 .pending-work__count, .pending-work__empty { color: var(--muted); font-size: var(--type-caption-size); }
 .pending-work__all { margin-left: auto; color: var(--accent); font-size: var(--type-caption-size); text-decoration: none; white-space: nowrap; }
 .pending-work__list { display: grid; gap: 0.25rem; padding: 0; margin: 0; list-style: none; }
-.pending-work__item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; padding: 0.75rem 0.875rem; border-radius: 0.5rem; color: var(--text); text-decoration: none; }
+.pending-work__item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; padding: 0.75rem 0.875rem; border-radius: var(--radius-control); color: var(--text); text-decoration: none; }
 .pending-work__item:hover, .pending-work__item:focus-visible { background: var(--surface-raised); }
 .pending-work__copy { display: grid; min-width: 0; gap: 0.25rem; }
-.pending-work__copy strong { overflow-wrap: anywhere; font-size: 0.875rem; font-weight: 650; }
+.pending-work__copy strong { overflow-wrap: anywhere; font-size: 0.875rem; font-weight: 600; }
 .pending-work__copy > span { color: var(--muted); font-size: var(--type-caption-size); overflow-wrap: anywhere; }
 .pending-work__item :deep(svg) { flex: 0 0 auto; color: var(--quiet); }
 .pending-work__empty { margin: 0; padding: 0.5rem 0; }
 .pending-work__loading { display: grid; gap: 1rem; }
 .pending-work__skeleton { width: 100%; height: 5rem; }
-@media (max-width: 38.75rem) {
+@container (max-width: 23.99rem) {
   .pending-work__heading { flex-wrap: wrap; }
   .pending-work__all { margin-left: 0; }
 }

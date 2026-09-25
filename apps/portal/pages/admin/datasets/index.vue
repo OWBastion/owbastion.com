@@ -173,24 +173,24 @@ onMounted(() => { void load(); });
 
 <style scoped>
 .dataset-filters { display: grid; grid-template-columns: minmax(140px, 220px); }
-.dataset-dialog-error { margin-bottom: 12px; }
-.dataset-dialog-message { margin: 0; padding: 40px 0; color: var(--muted); text-align: center; }
-.dataset-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
-.dataset-facts > div { display: grid; gap: 4px; min-width: 0; }
+.dataset-dialog-error { margin-bottom: var(--space-3); }
+.dataset-dialog-message { margin: 0; padding: var(--space-8) 0; color: var(--muted); text-align: center; }
+.dataset-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0 0 var(--space-5); }
+.dataset-facts > div { display: grid; gap: var(--space-1); min-width: 0; }
 .dataset-facts dt { color: var(--quiet); font-size: .74rem; }
 .dataset-facts dd { margin: 0; color: var(--text); font-size: .86rem; }
-.dataset-members h3, .dataset-exclusions h3 { margin: 0 0 10px; font-size: .9rem; font-weight: 680; }
-.dataset-members ul, .dataset-exclusions ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.dataset-members h3, .dataset-exclusions h3 { margin: 0 0 var(--space-3); font-size: .9rem; font-weight: 600; }
+.dataset-members ul, .dataset-exclusions ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .dataset-members li, .dataset-exclusions li {
   display: grid;
-  gap: 4px;
-  padding: 10px 12px;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-3);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 .dataset-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; overflow-wrap: anywhere; }
-.pagination { display: flex; justify-content: center; margin-top: 10px; }
-@media (max-width: 560px) {
+.pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
+@media (max-width: 47.99rem) {
   .dataset-facts { grid-template-columns: minmax(0, 1fr); }
 }
 </style>
