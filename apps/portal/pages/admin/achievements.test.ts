@@ -1,6 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { reactive } from "vue";
 import AchievementAdminPage from "./achievements.vue";
 import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue";
 
@@ -30,10 +31,18 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+const route = reactive({ path: "/admin/achievements", query: {} as Record<string, string> });
+const routeReplace = vi.fn(async ({ path, query }: { path: string; query: Record<string, string> }) => {
+  route.path = path;
+  route.query = query;
+});
+mockNuxtImport("useRoute", () => () => route);
 const mountedWrappers: VueWrapper[] = [];
 
-async function mountPage(): Promise<VueWrapper> {
+async function mountPage(section?: string): Promise<VueWrapper> {
   adminApi.mockClear();
+  route.path = "/admin/achievements";
+  route.query = section ? { section } : {};
   const wrapper = await mountSuspended(AchievementAdminPage, {
     attachTo: document.body,
     global: {
@@ -59,6 +68,7 @@ async function mountPage(): Promise<VueWrapper> {
 
 afterEach(() => {
   for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount();
+  vi.restoreAllMocks();
 });
 
 describe("achievement admin page", () => {
@@ -84,8 +94,8 @@ describe("achievement admin page", () => {
 
   it("renders grouped achievements in one active tab at a time", async () => {
     const wrapper = await mountPage();
-    expect(wrapper.text()).toContain("通用成就");
-    expect(wrapper.find('select[aria-label="筛选成就状态"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("通用挑战");
+    expect(wrapper.find('select[aria-label="筛选挑战状态"]').exists()).toBe(true);
     expect(wrapper.text()).toContain("战绩");
     expect(wrapper.text()).not.toContain("内部称号");
     expect(wrapper.text()).toContain("未开放");
@@ -98,7 +108,7 @@ describe("achievement admin page", () => {
 
     expect(wrapper.text()).toContain("战绩");
 
-    await wrapper.get('button[aria-label="地图成就"]').trigger("click");
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
     await flushPromises();
     await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
     await flushPromises();
@@ -113,11 +123,28 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).toContain("有关联挑战");
   });
 
+  it("opens the linked title or challenge section and keeps tab navigation addressable", async () => {
+    const wrapper = await mountPage("catalog");
+    expect(wrapper.text()).toContain("内部称号");
+    expect(wrapper.text()).not.toContain("国王大道");
+
+    route.query = { section: "generic" };
+    await flushPromises();
+    expect(wrapper.text()).toContain("通用挑战");
+    expect(wrapper.text()).not.toContain("内部称号");
+
+    vi.spyOn((wrapper.vm as any).$router, "replace").mockImplementation(routeReplace as any);
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
+    await flushPromises();
+    expect(route.query.section).toBe("map");
+    wrapper.unmount();
+  });
+
   it("applies the status filter to the mobile record list", async () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("游戏先锋");
-    await wrapper.get('select[aria-label="筛选成就状态"]').setValue("scheduled");
+    await wrapper.get('select[aria-label="筛选挑战状态"]').setValue("scheduled");
     await flushPromises();
 
     expect(wrapper.text()).toContain("游戏先锋");
@@ -189,7 +216,7 @@ describe("achievement admin page", () => {
 
   it("routes a genuine map challenge to the unified editor", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图成就"]').trigger("click");
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
     await flushPromises();
     await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
     await flushPromises();
@@ -201,7 +228,7 @@ describe("achievement admin page", () => {
 
   it("saves map rules and exceptions from the unified workspace", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图成就"]').trigger("click");
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text() === "编辑规则")!.trigger("click");
     await wrapper.get("form#map-title-rule-editor").trigger("submit");
@@ -218,7 +245,7 @@ describe("achievement admin page", () => {
 
   it("keeps duplicate map challenge IDs isolated by map identity", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图成就"]').trigger("click");
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
     await flushPromises();
     await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
     await flushPromises();
@@ -231,7 +258,7 @@ describe("achievement admin page", () => {
 
   it("saves expanded map challenge rules", async () => {
     const wrapper = await mountPage();
-    await wrapper.get('button[aria-label="地图成就"]').trigger("click");
+    await wrapper.get('button[aria-label="地图挑战"]').trigger("click");
     await flushPromises();
     await wrapper.get('button[aria-label="按地图查看"]').trigger("click");
     await flushPromises();

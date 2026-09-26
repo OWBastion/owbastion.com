@@ -26,7 +26,7 @@ import {
 import { mapVariantLabel } from "~/utils/map-variant";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
-useSeoMeta({ title: "成就与称号 · 躲避堡垒 3" });
+useSeoMeta({ title: "挑战与称号 · 躲避堡垒 3" });
 
 type TableCell<Item> = {
   row: { id: string; original: Item };
@@ -49,7 +49,20 @@ const iconUploading = shallowRef(false);
 const toast = useToast();
 const errorMessage = ref("");
 const route = useRoute();
-const activeTab = ref(route.query.section === "map" ? "map" : route.query.section === "catalog" ? "catalog" : "generic");
+const router = useRouter();
+const sectionFromRoute = (value: unknown) => {
+  const section = Array.isArray(value) ? value[0] : value;
+  return section === "map" || section === "catalog" ? section : "generic";
+};
+const activeTab = ref(sectionFromRoute(route.query.section));
+watch(() => route.query.section, (section) => {
+  const next = sectionFromRoute(section);
+  if (next !== activeTab.value) activeTab.value = next;
+});
+watch(activeTab, (section) => {
+  if (route.query.section === section) return;
+  void router.replace({ path: route.path, query: { ...route.query, section } }).catch(() => {});
+});
 const createOpen = shallowRef(false);
 const creating = shallowRef(false);
 const maps = ref<AdminMap[]>([]);
@@ -82,8 +95,8 @@ function flashRow(id: string) {
   window.setTimeout(() => updatedCatalogIds.delete(id), 420);
 }
 const achievementTabs = [
-  { label: "通用成就", value: "generic", slot: "generic" as const },
-  { label: "地图成就", value: "map", slot: "map" as const },
+  { label: "通用挑战", value: "generic", slot: "generic" as const },
+  { label: "地图挑战", value: "map", slot: "map" as const },
   { label: "称号目录", value: "catalog", slot: "catalog" as const },
 ] satisfies TabsItem[];
 
@@ -439,20 +452,20 @@ onMounted(() => void load());
 </script>
 
 <template>
-  <AdminWorkspace title="成就与称号">
+  <AdminWorkspace title="挑战与称号">
     <template #actions><UButton label="新建挑战" icon="i-lucide-plus" @click="openCreate" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section class="catalog" aria-labelledby="catalog-title">
-      <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="成就类型" class="catalog-tabs">
+      <UTabs v-model="activeTab" :items="achievementTabs" variant="link" aria-label="挑战与称号" class="catalog-tabs">
         <template #generic>
           <section class="catalog-section" aria-labelledby="title-achievements-title">
             <h2 id="title-achievements-title" class="sr-only">称号挑战</h2>
             <AdminDataTable v-model:column-filters="titleStatusFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
               <template #filters>
-                <USelect v-model="titleStatus" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #mobile-secondary>
-                <USelect v-model="titleStatus" size="md" aria-label="筛选成就状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #category-cell="{ row }"><span class="table-meta">{{ itemCategory(row.original) }}</span></template>
               <template #titleName-cell="{ row }">
@@ -496,10 +509,10 @@ onMounted(() => void load());
             <h2 id="title-catalog-title" class="sr-only">称号目录</h2>
             <AdminDataTable v-model:column-filters="catalogStatusFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
-                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #mobile-secondary>
-                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号目录状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
               </template>
               <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong></template>
               <template #icon-cell="{ row }"><span class="table-meta">{{ row.original.icon }}</span></template>

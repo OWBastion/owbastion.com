@@ -31,11 +31,11 @@ docs/        架构、开发、部署和 API 文档
 
 Portal 通过服务端 API 访问平台数据。业务规则位于 domain 和 database 包，Worker 与 Portal 负责协议适配。D1 保存业务状态，R2 保存私有提交证据，Queue 驱动 OCR 处理，公共目录在 HTTP 边界使用短期缓存。QQBot 负责 QQ 绑定、验证、群策略和通知，不创建 Portal 截图提交。OCRKit 只负责识别，Bastion 在构建时通过 Agents API 读取平台元数据。
 
-Portal 提供公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的管理面。博客和版本更新使用 Nuxt Content；管理员从 `/admin` 进入 `/studio` 内容编辑器，编辑权限由平台 Admin session 控制，Git 凭据留在 Portal 服务端。称号授予、审核、地图称号规则和随机事件目录由平台维护。实现和验证状态见[功能状态矩阵](docs/product-rules/feature-status.md)。
+Portal 提供公开目录、QQ 浏览器登录、玩家中心、截图提交与状态查询，以及受平台会话保护的管理面。博客和版本更新是仓库中的 Git Markdown，由 Nuxt Content 渲染；编辑通过正常的仓库工作流完成。称号、挑战、地图、随机事件和提交审核数据由平台维护。实现和验证状态见[功能状态矩阵](docs/product-rules/feature-status.md)。
 
 ## 文档
 
-从[文档索引](docs/README.md)开始。Portal Studio 的认证、Git 代理和发布边界见[部署说明](docs/deployment/portal-studio.md)。
+从[文档索引](docs/README.md)开始。
 
 ## 开始开发
 
@@ -56,8 +56,6 @@ pnpm dev:local
 本地生成可重新复制的绑定邀请时，将仅用于本地的
 `BINDING_INVITE_CODE_ENCRYPTION_KEY` 写入被 `.gitignore` 忽略的 `.dev.vars`。
 活动邀请仍需要重新复制期间，不要更换此密钥。
-
-本地开发需要 Studio 时，先将仅用于本地的 `STUDIO_GITHUB_TOKEN` 写入被 `.gitignore` 忽略的 `.dev.vars`。`pnpm dev:local` 只将它传给 Portal 服务端；token 不会进入 `NUXT_PUBLIC_*` 配置或浏览器代码。缺少该变量时，Studio 保持不可用。
 
 也可以分别启动服务：
 
