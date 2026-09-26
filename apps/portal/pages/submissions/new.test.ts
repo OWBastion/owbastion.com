@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it, vi } from "vitest";
 import NewSubmissionPage from "./new.vue";
@@ -9,7 +10,7 @@ const portalApi = vi.fn(async (path: string) => {
   return {};
 });
 
-mockNuxtImport("usePortalApi", () => () => portalApi);
+installApiTestFetch({ portal: portalApi });
 
 describe("new submission page privacy statement", () => {
   it("renders verified screenshot privacy facts", async () => {

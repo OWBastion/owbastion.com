@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { defineComponent, h, ref } from "vue";
@@ -64,7 +65,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (options?.method === "POST") return Promise.resolve({});
   throw new Error(`Unexpected request: ${path}`);
 });
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
 

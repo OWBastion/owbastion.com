@@ -7,18 +7,35 @@ import { afterAll, describe, expect, it } from "vitest";
 const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 const outputDir = resolve(rootDir, ".output");
 const testPort = process.env.NUXT_TEST_PORT ? Number(process.env.NUXT_TEST_PORT) : undefined;
-const upstreamRequests: Array<{ path: string; cookie?: string }> = [];
+const upstreamRequests: Array<{ path: string; search: string; method: string; cookie?: string; idempotencyKey?: string; body: string }> = [];
 let failingCatalog: string | null = null;
 
 /**
- * Built-server SSR smoke only. Real browser regression is out of the code-level
- * suite; use agent computer-use when a live viewport/focus check is needed.
+ * Built-server integration checks for SSR and Portal-to-API proxy contracts.
+ * Real browser regression is out of the code-level suite; use agent
+ * computer-use when a live viewport/focus check is needed.
  */
-describe("Portal SSR", async () => {
-  const upstream = createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://portal-upstream.test").pathname;
-    upstreamRequests.push({ path, cookie: request.headers.cookie });
+describe("Portal built server", async () => {
+  const upstream = createServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", "http://portal-upstream.test");
+    const path = url.pathname;
+    const bodyChunks: Buffer[] = [];
+    for await (const chunk of request) bodyChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const body = Buffer.concat(bodyChunks).toString("utf8");
+    upstreamRequests.push({
+      path,
+      search: url.search,
+      method: request.method ?? "GET",
+      cookie: request.headers.cookie,
+      idempotencyKey: typeof request.headers["idempotency-key"] === "string" ? request.headers["idempotency-key"] : undefined,
+      body,
+    });
     response.setHeader("content-type", "application/json");
+    if (path.endsWith("/titles/equipped") && request.method === "PUT") {
+      const payload = body ? JSON.parse(body) : {};
+      response.end(JSON.stringify({ contractVersion: "1", grantIds: payload.grantIds ?? [] }));
+      return;
+    }
     if (path === failingCatalog) {
       response.statusCode = 503;
       response.setHeader("x-request-id", "catalog-request-503");
@@ -61,6 +78,62 @@ describe("Portal SSR", async () => {
 
   afterAll(async () => {
     await new Promise<void>((resolveClose, reject) => upstream.close((error) => error ? reject(error) : resolveClose()));
+  });
+
+  it("proxies admin writes to one upstream admin prefix with request metadata intact", async () => {
+    upstreamRequests.length = 0;
+    const grantId = "00000000-0000-4000-8000-000000000006";
+    const response = await $fetch("/api/admin/v1/player-accounts/player-1/titles/equipped", {
+      method: "PUT",
+      headers: { cookie: "owb_session=admin", "idempotency-key": "admin-equip-1" },
+      body: { contractVersion: "1", grantIds: [grantId] },
+    });
+
+    expect(response).toEqual({ contractVersion: "1", grantIds: [grantId] });
+    const request = upstreamRequests.at(-1);
+    expect(request).toMatchObject({
+      path: "/v1/admin/player-accounts/player-1/titles/equipped",
+      search: "",
+      method: "PUT",
+      cookie: "owb_session=admin",
+      idempotencyKey: "admin-equip-1",
+    });
+    expect(JSON.parse(request?.body ?? "{}")).toEqual({ contractVersion: "1", grantIds: [grantId] });
+  });
+
+  it("proxies player writes without adding an admin prefix", async () => {
+    upstreamRequests.length = 0;
+    const grantId = "00000000-0000-4000-8000-000000000007";
+    const response = await $fetch("/api/portal/v1/me/titles/equipped", {
+      method: "PUT",
+      headers: { cookie: "owb_session=player", "idempotency-key": "player-equip-1" },
+      body: { grantIds: [grantId] },
+    });
+
+    expect(response).toEqual({ contractVersion: "1", grantIds: [grantId] });
+    const request = upstreamRequests.at(-1);
+    expect(request).toMatchObject({
+      path: "/v1/me/titles/equipped",
+      search: "",
+      method: "PUT",
+      cookie: "owb_session=player",
+      idempotencyKey: "player-equip-1",
+    });
+    expect(JSON.parse(request?.body ?? "{}")).toEqual({ grantIds: [grantId] });
+  });
+
+  it("preserves player API query strings through the built proxy", async () => {
+    upstreamRequests.length = 0;
+    await $fetch("/api/portal/v1/me/mastery?mapId=map.samoa&page=2&pageSize=10", {
+      headers: { cookie: "owb_session=player" },
+    });
+
+    expect(upstreamRequests.at(-1)).toMatchObject({
+      path: "/v1/me/mastery",
+      search: "?mapId=map.samoa&page=2&pageSize=10",
+      method: "GET",
+      cookie: "owb_session=player",
+    });
   });
 
   it("renders the home page from the built Nuxt server", async () => {

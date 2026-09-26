@@ -1,10 +1,11 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import PlayerReviewPanel from "./PlayerReviewPanel.vue";
 
 const api = vi.fn();
-mockNuxtImport("usePortalApi", () => () => api);
+installApiTestFetch({ portal: api });
 
 const summary = {
   contractVersion: "1" as const,

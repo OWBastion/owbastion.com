@@ -1,10 +1,11 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSubmissionUpload } from "~/composables/useSubmissionUpload";
 
 const api = vi.fn();
 const putEvidence = vi.fn();
-mockNuxtImport("usePortalApi", () => () => api);
+installApiTestFetch({ portal: api, other: (url, options) => putEvidence(url, options) });
 
 const file = () => new File([new Uint8Array([1, 2, 3])], "shot.png", { type: "image/png" });
 const session = (uploadId = "upload-1") => ({ uploadId, submissionId: "submission-1", expiresAt: Date.now() + 10 * 60_000 });
@@ -14,7 +15,6 @@ const calls = (suffix: string) => api.mock.calls.filter(([path]) => String(path)
 beforeEach(() => {
   api.mockReset();
   putEvidence.mockReset();
-  vi.stubGlobal("$fetch", putEvidence);
 });
 
 describe("screenshot upload retry", () => {

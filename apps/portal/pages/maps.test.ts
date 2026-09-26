@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { ref } from "vue";
@@ -36,7 +37,7 @@ const publicCatalogFetch = vi.fn(async (name: string) => {
 });
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, refresh: refreshPlayer }));
-mockNuxtImport("usePortalApi", () => () => portalApi);
+installApiTestFetch({ portal: portalApi });
 mockNuxtImport("usePublicCatalog", () => (name: string) => publicCatalogFetch(name));
 
 describe("maps page", () => {

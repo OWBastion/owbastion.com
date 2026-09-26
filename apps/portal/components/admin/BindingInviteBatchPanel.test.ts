@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { flushPromises } from "@vue/test-utils";
 import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ const adminApi = vi.fn((path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 describe("BindingInviteBatchPanel", () => {
   it("generates one invitation per valid BattleTag and exposes its copy action", async () => {

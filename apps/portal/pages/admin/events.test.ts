@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { flushPromises } from "@vue/test-utils";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { describe, expect, it, vi } from "vitest";
@@ -27,7 +28,7 @@ const adminApi = vi.fn(async (path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 describe("admin events page", () => {
   it("renders the event list with sorting and grouping controls", async () => {

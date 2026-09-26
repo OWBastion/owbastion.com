@@ -1,10 +1,11 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import OcrFeedbackPanel from "./OcrFeedbackPanel.vue";
 
 const api = vi.fn();
-mockNuxtImport("usePortalApi", () => () => api);
+installApiTestFetch({ portal: api });
 
 const feedback = (overrides: Record<string, unknown> = {}) => ({
   mode: "targeted",

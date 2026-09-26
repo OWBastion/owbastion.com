@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ const adminApi = vi.fn((path: string) => {
   if (path === "/v1/qq/groups/8815ED793DBFBB6651A3C9F53D408081") return Promise.resolve();
   throw new Error(`Unexpected request: ${path}`);
 });
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 describe("admin channels page", () => {
   it("promotes a discovered group from its dedicated page", async () => {

@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +44,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
 });
 
 mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 describe("BindingInvitePanel", () => {
   beforeEach(() => {
