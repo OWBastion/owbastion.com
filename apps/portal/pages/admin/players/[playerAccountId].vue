@@ -119,7 +119,7 @@ onMounted(() => { void load(); });
 
 <template>
   <AdminWorkspace :title="player ? `${player.playerName}#${player.playerId}` : '玩家详情'">
-    <template #actions><UButton :to="`/admin/mastery-runs?playerAccountId=${encodeURIComponent(playerAccountId)}`" label="通关记录" color="neutral" variant="outline" /><UButton to="/admin/players" label="返回玩家列表" color="neutral" variant="outline" /></template>
+    <template #actions><UButton :to="`/admin/verified-runs?playerAccountId=${encodeURIComponent(playerAccountId)}`" label="通关记录" color="neutral" variant="outline" /><UButton to="/admin/players" label="返回玩家列表" color="neutral" variant="outline" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
     <section v-if="player" class="player-detail-page">
       <AdminPlayerDetail :player="player" :loading="actionLoading || identityLoading || recoveryLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="load" @edit-identity="identityEditorOpen = true" />

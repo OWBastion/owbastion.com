@@ -1,10 +1,10 @@
-export const masteryDifficulties = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
+export const verifiedRunDifficulties = ["简单", "一般", "困难", "专家", "传奇", "地狱"] as const;
 
-export type MasteryDifficulty = (typeof masteryDifficulties)[number];
-export type MasteryRunStatus = "active" | "invalidated";
-export type MasteryMapVariant = "classic" | null;
-export type MasteryAcceptanceSource = "submission_automatic" | "submission_review";
-export type MasteryEventCounters = Record<string, number>;
+export type VerifiedRunDifficulty = (typeof verifiedRunDifficulties)[number];
+export type VerifiedRunStatus = "active" | "invalidated";
+export type VerifiedRunMapVariant = "classic" | null;
+export type VerifiedRunAcceptanceSource = "submission_automatic" | "submission_review";
+export type VerifiedRunEventCounters = Record<string, number>;
 
 const versionParts = (value: string) => {
   const parts = value.trim().split(".");
@@ -12,17 +12,17 @@ const versionParts = (value: string) => {
   return parts.map(Number);
 };
 
-export type MasteryEvidenceCompatibilityV1 = {
+export type VerifiedRunEvidenceCompatibilityV1 = {
   version: "v1";
   minimumGameVersion: string | null;
   supportedOcrLayoutVersions: readonly string[];
   requiredConfidence: number;
 };
 
-export const createMasteryEvidenceCompatibilityV1 = (input: {
+export const createVerifiedRunEvidenceCompatibilityV1 = (input: {
   minimumGameVersion?: string | null;
   supportedOcrLayoutVersions?: readonly string[];
-} = {}): MasteryEvidenceCompatibilityV1 => {
+} = {}): VerifiedRunEvidenceCompatibilityV1 => {
   const minimumGameVersion = input.minimumGameVersion?.trim() ?? "";
   return {
     version: "v1",
@@ -36,12 +36,12 @@ export const createMasteryEvidenceCompatibilityV1 = (input: {
  * The default is deliberately disabled until operators record releases that
  * carry the run-code HUD and its matching OCR layout.
  */
-export const masteryEvidenceCompatibilityV1 = createMasteryEvidenceCompatibilityV1();
+export const verifiedRunEvidenceCompatibilityV1 = createVerifiedRunEvidenceCompatibilityV1();
 
-export const isMasteryEvidenceCompatibilityEnabled = (compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) =>
+export const isVerifiedRunEvidenceCompatibilityEnabled = (compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
   compatibility.minimumGameVersion !== null && compatibility.supportedOcrLayoutVersions.length > 0;
 
-export const isMasteryGameVersionSupported = (value: string, compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) => {
+export const isVerifiedRunGameVersionSupported = (value: string, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) => {
   const candidate = versionParts(value);
   const minimum = compatibility.minimumGameVersion ? versionParts(compatibility.minimumGameVersion) : null;
   if (!candidate || !minimum) return false;
@@ -51,10 +51,10 @@ export const isMasteryGameVersionSupported = (value: string, compatibility: Mast
   return true;
 };
 
-export const isMasteryOcrLayoutSupported = (value: string | null | undefined, compatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1) =>
+export const isVerifiedRunOcrLayoutSupported = (value: string | null | undefined, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1) =>
   typeof value === "string" && compatibility.supportedOcrLayoutVersions.includes(value.trim());
 
-export const masteryXpRuleV1 = {
+export const verifiedRunXpRuleV1 = {
   version: "v1",
   baseDifficultyXp: {
     简单: 100,
@@ -63,7 +63,7 @@ export const masteryXpRuleV1 = {
     专家: 325,
     传奇: 450,
     地狱: 600,
-  } satisfies Record<MasteryDifficulty, number>,
+  } satisfies Record<VerifiedRunDifficulty, number>,
   defaultMapFactor: 1,
   performanceBonus: {
     noDeaths: 0.05,
@@ -73,123 +73,167 @@ export const masteryXpRuleV1 = {
   challengeBonus: 0,
 } as const;
 
-export type MasteryXpInput = {
-  difficulty: MasteryDifficulty;
+export type VerifiedRunXpInput = {
+  difficulty: VerifiedRunDifficulty;
   mapFactor?: number | null;
   deaths?: number | null;
   skips?: number | null;
 };
 
-export type MasteryXpSnapshot = {
-  ruleVersion: typeof masteryXpRuleV1.version;
+export type VerifiedRunXpSnapshotV1 = {
+  ruleVersion: typeof verifiedRunXpRuleV1.version;
   baseDifficultyXp: number;
   mapFactor: number;
   performanceBonus: number;
   performanceBonusReasons: Array<"no_deaths" | "no_skips">;
-  challengeBonus: typeof masteryXpRuleV1.challengeBonus;
+  challengeBonus: typeof verifiedRunXpRuleV1.challengeBonus;
 };
 
-export type MasteryXpAward = {
+export type VerifiedRunXpSnapshotV2 = {
+  ruleVersion: "v2";
+  baseDifficultyXp: number;
+  mapFactor: number;
+  performanceBonus: number;
+  performanceBonusReasons: Array<"no_deaths" | "no_skips">;
+};
+
+export type VerifiedRunXpSnapshot = VerifiedRunXpSnapshotV1 | VerifiedRunXpSnapshotV2;
+
+export type VerifiedRunXpAward = {
   awardedXp: number;
-  snapshot: MasteryXpSnapshot;
+  snapshot: VerifiedRunXpSnapshot;
 };
 
 const validSettlementCount = (value: number | null | undefined) => value === undefined || value === null || Number.isInteger(value) && value >= 0;
 
-export const normalizeMasteryRunCode = (value: string) => {
+export const normalizeMatchCode = (value: string) => {
   const normalized = value.trim().replace(/[‐‑‒–—−﹘﹣－]/gu, "-").replace(/\s+/gu, "");
-  if (!/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(normalized)) throw new Error("MASTERY_RUN_CODE_INVALID");
+  if (!/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(normalized)) throw new Error("MATCH_CODE_INVALID");
   return normalized;
 };
 
-export const calculateMasteryXpV1 = (input: MasteryXpInput): MasteryXpAward => {
-  if (!Object.hasOwn(masteryXpRuleV1.baseDifficultyXp, input.difficulty)) throw new Error("MASTERY_DIFFICULTY_INVALID");
-  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("MASTERY_SETTLEMENT_VALUE_INVALID");
-  const mapFactor = input.mapFactor ?? masteryXpRuleV1.defaultMapFactor;
-  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("MASTERY_MAP_FACTOR_INVALID");
+export const calculateVerifiedRunXpV1 = (input: VerifiedRunXpInput): { awardedXp: number; snapshot: VerifiedRunXpSnapshotV1 } => {
+  if (!Object.hasOwn(verifiedRunXpRuleV1.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
+  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
+  const mapFactor = input.mapFactor ?? verifiedRunXpRuleV1.defaultMapFactor;
+  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
 
-  const performanceBonusReasons: MasteryXpSnapshot["performanceBonusReasons"] = [];
+  const performanceBonusReasons: VerifiedRunXpSnapshotV1["performanceBonusReasons"] = [];
   if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
   if (input.skips === 0) performanceBonusReasons.push("no_skips");
   const performanceBonus = Math.min(
-    masteryXpRuleV1.performanceBonus.cap,
-    performanceBonusReasons.reduce((bonus, reason) => bonus + (reason === "no_deaths" ? masteryXpRuleV1.performanceBonus.noDeaths : masteryXpRuleV1.performanceBonus.noSkips), 0),
+    verifiedRunXpRuleV1.performanceBonus.cap,
+    performanceBonusReasons.reduce((bonus, reason) => bonus + (reason === "no_deaths" ? verifiedRunXpRuleV1.performanceBonus.noDeaths : verifiedRunXpRuleV1.performanceBonus.noSkips), 0),
   );
-  const baseDifficultyXp = masteryXpRuleV1.baseDifficultyXp[input.difficulty];
-  const awardedXp = Math.round(baseDifficultyXp * mapFactor * (1 + performanceBonus)) + masteryXpRuleV1.challengeBonus;
+  const baseDifficultyXp = verifiedRunXpRuleV1.baseDifficultyXp[input.difficulty];
+  const awardedXp = Math.round(baseDifficultyXp * mapFactor * (1 + performanceBonus)) + verifiedRunXpRuleV1.challengeBonus;
 
   return {
     awardedXp,
     snapshot: {
-      ruleVersion: masteryXpRuleV1.version,
+      ruleVersion: verifiedRunXpRuleV1.version,
       baseDifficultyXp,
       mapFactor,
       performanceBonus,
       performanceBonusReasons,
-      challengeBonus: masteryXpRuleV1.challengeBonus,
+      challengeBonus: verifiedRunXpRuleV1.challengeBonus,
     },
   };
 };
 
-export type MasteryRunForProjection = {
+export const verifiedRunXpRuleV2 = {
+  version: "v2",
+  baseDifficultyXp: verifiedRunXpRuleV1.baseDifficultyXp,
+  defaultMapFactor: verifiedRunXpRuleV1.defaultMapFactor,
+  performanceBonus: verifiedRunXpRuleV1.performanceBonus,
+} as const;
+
+export const calculateVerifiedRunXpV2 = (input: VerifiedRunXpInput): VerifiedRunXpAward => {
+  if (!Object.hasOwn(verifiedRunXpRuleV2.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
+  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
+  const mapFactor = input.mapFactor ?? verifiedRunXpRuleV2.defaultMapFactor;
+  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
+
+  const performanceBonusReasons: VerifiedRunXpSnapshotV2["performanceBonusReasons"] = [];
+  if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
+  if (input.skips === 0) performanceBonusReasons.push("no_skips");
+  const performanceBonus = Math.min(
+    verifiedRunXpRuleV2.performanceBonus.cap,
+    performanceBonusReasons.reduce((bonus, reason) => bonus + (reason === "no_deaths" ? verifiedRunXpRuleV2.performanceBonus.noDeaths : verifiedRunXpRuleV2.performanceBonus.noSkips), 0),
+  );
+  const baseDifficultyXp = verifiedRunXpRuleV2.baseDifficultyXp[input.difficulty];
+
+  return {
+    awardedXp: Math.round(baseDifficultyXp * mapFactor * (1 + performanceBonus)),
+    snapshot: {
+      ruleVersion: verifiedRunXpRuleV2.version,
+      baseDifficultyXp,
+      mapFactor,
+      performanceBonus,
+      performanceBonusReasons,
+    },
+  };
+};
+
+export type VerifiedRunForProjection = {
   runId: string;
   mapId: string;
   gameplayRevisionId: string;
-  mapVariant: MasteryMapVariant;
-  difficulty: MasteryDifficulty;
+  mapVariant: VerifiedRunMapVariant;
+  difficulty: VerifiedRunDifficulty;
   completionDurationSeconds: number;
   deaths: number | null;
   skips: number | null;
   awardedXp: number;
   acceptedAt: number;
-  status: MasteryRunStatus;
+  status: VerifiedRunStatus;
 };
 
-export type VerifiedMasteryRunInput = {
+export type VerifiedRunInput = {
   playerAccountId: string;
   sourceSubmissionId: string;
   mapId: string;
   gameplayRevisionId: string;
-  mapVariant: MasteryMapVariant;
-  difficulty: MasteryDifficulty;
+  mapVariant: VerifiedRunMapVariant;
+  difficulty: VerifiedRunDifficulty;
   gameVersion: string;
-  runCode: string;
+  matchCode: string;
   completionDurationSeconds: number;
   deaths?: number | null;
   skips?: number | null;
-  eventCounters?: MasteryEventCounters;
-  acceptanceSource: MasteryAcceptanceSource;
+  eventCounters?: VerifiedRunEventCounters;
+  acceptanceSource: VerifiedRunAcceptanceSource;
   acceptedAt?: number;
   mapFactor?: number | null;
 };
 
-export type VerifiedMasteryRun = MasteryRunForProjection & {
+export type VerifiedRun = VerifiedRunForProjection & {
   playerAccountId: string;
   sourceSubmissionId: string;
   gameVersion: string;
-  runCode: string;
-  eventCounters: MasteryEventCounters;
-  acceptanceSource: MasteryAcceptanceSource;
-  xpRuleVersion: string;
-  xpInputSnapshot: MasteryXpSnapshot;
+  matchCode: string;
+  eventCounters: VerifiedRunEventCounters;
+  acceptanceSource: VerifiedRunAcceptanceSource;
+  xpRuleVersion: VerifiedRunXpSnapshot["ruleVersion"];
+  xpInputSnapshot: VerifiedRunXpSnapshot;
   invalidatedAt: number | null;
   invalidatedBy: string | null;
   invalidationReason: string | null;
 };
 
-export type MasteryRunConflictField = "run_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters";
+export type VerifiedRunConflictField = "match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters";
 
-export type RecordVerifiedMasteryRunResult =
-  | { outcome: "created" | "reused"; run: VerifiedMasteryRun }
-  | { outcome: "conflict"; run: VerifiedMasteryRun; conflictFields: MasteryRunConflictField[] };
+export type RecordVerifiedRunResult =
+  | { outcome: "created" | "reused"; run: VerifiedRun }
+  | { outcome: "conflict"; run: VerifiedRun; conflictFields: VerifiedRunConflictField[] };
 
-export type MasteryRunActor = {
+export type VerifiedRunActor = {
   actorType: "service" | "user";
   actorId: string;
 };
 
-export type MasteryDifficultyProfile = {
-  difficulty: MasteryDifficulty;
+export type VerifiedRunDifficultyProfile = {
+  difficulty: VerifiedRunDifficulty;
   verifiedRunCount: number;
   fastestCompletionSeconds: number;
 };
@@ -199,17 +243,17 @@ export type MasteryMapProfile = {
   gameplayRevisionId: string;
   totalXp: number;
   verifiedRunCount: number;
-  difficultyStats: MasteryDifficultyProfile[];
+  difficultyStats: VerifiedRunDifficultyProfile[];
   lowestDeaths: number | null;
   fewestSkips: number | null;
   highestSingleRunXp: number | null;
-  highestCompletedDifficulty: MasteryDifficulty | null;
-  recentRuns: MasteryRunForProjection[];
+  highestCompletedDifficulty: VerifiedRunDifficulty | null;
+  recentRuns: VerifiedRunForProjection[];
 };
 
-const byMostRecent = (left: MasteryRunForProjection, right: MasteryRunForProjection) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId);
+const byMostRecent = (left: VerifiedRunForProjection, right: VerifiedRunForProjection) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId);
 
-const masteryRunProjection = (run: MasteryRunForProjection): MasteryRunForProjection => ({
+const verifiedRunProjection = (run: VerifiedRunForProjection): VerifiedRunForProjection => ({
   runId: run.runId,
   mapId: run.mapId,
   gameplayRevisionId: run.gameplayRevisionId,
@@ -228,9 +272,9 @@ const minimum = (values: Array<number | null>) => {
   return present.length ? Math.min(...present) : null;
 };
 
-export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string, runs: MasteryRunForProjection[], recentLimit = 10): MasteryMapProfile => {
+export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string, runs: VerifiedRunForProjection[], recentLimit = 10): MasteryMapProfile => {
   const activeRuns = runs.filter((run) => run.mapId === mapId && run.gameplayRevisionId === gameplayRevisionId && run.status === "active");
-  const difficultyStats = masteryDifficulties.flatMap((difficulty) => {
+  const difficultyStats = verifiedRunDifficulties.flatMap((difficulty) => {
     const matching = activeRuns.filter((run) => run.difficulty === difficulty);
     return matching.length ? [{
       difficulty,
@@ -238,7 +282,7 @@ export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string
       fastestCompletionSeconds: Math.min(...matching.map((run) => run.completionDurationSeconds)),
     }] : [];
   });
-  const highestCompletedDifficulty = [...masteryDifficulties].reverse().find((difficulty) => activeRuns.some((run) => run.difficulty === difficulty)) ?? null;
+  const highestCompletedDifficulty = [...verifiedRunDifficulties].reverse().find((difficulty) => activeRuns.some((run) => run.difficulty === difficulty)) ?? null;
 
   return {
     mapId,
@@ -250,11 +294,11 @@ export const buildMasteryMapProfile = (mapId: string, gameplayRevisionId: string
     fewestSkips: minimum(activeRuns.map((run) => run.skips)),
     highestSingleRunXp: activeRuns.length ? Math.max(...activeRuns.map((run) => run.awardedXp)) : null,
     highestCompletedDifficulty,
-    recentRuns: [...activeRuns].sort(byMostRecent).slice(0, recentLimit).map(masteryRunProjection),
+    recentRuns: [...activeRuns].sort(byMostRecent).slice(0, recentLimit).map(verifiedRunProjection),
   };
 };
 
-export const buildMasteryProfiles = (runs: MasteryRunForProjection[], recentLimit = 10) => {
+export const buildMasteryProfiles = (runs: VerifiedRunForProjection[], recentLimit = 10) => {
   const revisionKeys = [...new Set(runs.filter((run) => run.status === "active").map((run) => `${run.mapId}\u0000${run.gameplayRevisionId}`))];
   return revisionKeys
     .map((key) => {

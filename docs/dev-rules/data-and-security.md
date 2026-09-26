@@ -4,7 +4,7 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
+| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 

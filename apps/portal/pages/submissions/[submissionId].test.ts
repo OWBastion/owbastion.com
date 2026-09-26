@@ -223,7 +223,7 @@ describe("submission detail page", () => {
       updatedAt: 2,
       evidenceUrl: "https://example.test/evidence.png",
       titleGrant: { grantId: "grant-1", titleKey: "CONQUEROR", titleName: "征服者", mapName: "花村" },
-      masteryOutcome: { status: "created", awardedXp: 225 },
+      verifiedRunOutcome: { status: "created", awardedXp: 225 },
     }));
     const created = await mountSubmission("/submissions/submission-mastery-created");
     expect(created.text()).toContain("已获得称号");
@@ -237,7 +237,7 @@ describe("submission detail page", () => {
       createdAt: 0,
       updatedAt: 2,
       evidenceUrl: "https://example.test/evidence.png",
-      masteryOutcome: { status: "reused", awardedXp: 0 },
+      verifiedRunOutcome: { status: "reused", awardedXp: 0 },
     }));
     const reused = await mountSubmission("/submissions/submission-mastery-reused");
     expect(reused.text()).toContain("这次通关已记录");
@@ -249,7 +249,7 @@ describe("submission detail page", () => {
       createdAt: 0,
       updatedAt: 2,
       evidenceUrl: "https://example.test/evidence.png",
-      masteryOutcome: { status: "ineligible", awardedXp: 0 },
+      verifiedRunOutcome: { status: "ineligible", awardedXp: 0 },
     }));
     const ineligible = await mountSubmission("/submissions/submission-mastery-ineligible");
     expect(ineligible.text()).toContain("本次未计入精通进度");

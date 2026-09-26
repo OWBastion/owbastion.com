@@ -53,9 +53,10 @@ export type AdminBindingInvitation = {
   historicalMigration: { status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled"; requestedCount: number; completedCount: number; conflictCount: number; retryCount: number };
 };
 export type AdminSubmissionChallengeOption = { challengeId: string; mapId?: string; gameplayRevisionId?: string; challenge: NonNullable<AdminSubmission["challenge"]> };
-export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; challengeSelections?: Array<{ challengeId: string; mapId?: string; gameplayRevisionId?: string; challenge: AdminSubmission["challenge"] }>; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; masteryOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; masteryRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"run_code" | "map" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
-export type AdminMasteryDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
-export type AdminMasteryRun = {
+export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; challengeSelections?: Array<{ challengeId: string; mapId?: string; gameplayRevisionId?: string; challenge: AdminSubmission["challenge"] }>; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; verifiedRunOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; verifiedRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
+export type AdminVerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
+export type AdminVerifiedRunCorrectionChanges = Partial<Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters">>;
+export type AdminVerifiedRun = {
   runId: string;
   playerAccountId: string;
   playerId: string;
@@ -63,10 +64,11 @@ export type AdminMasteryRun = {
   sourceSubmissionId: string;
   mapId: string;
   mapName: string;
+  gameplayRevisionId: string;
   mapVariant: "classic" | null;
-  difficulty: AdminMasteryDifficulty;
+  difficulty: AdminVerifiedRunDifficulty;
   gameVersion: string;
-  runCode: string;
+  matchCode: string;
   completionDurationSeconds: number;
   deaths: number | null;
   skips: number | null;
@@ -77,38 +79,49 @@ export type AdminMasteryRun = {
   invalidatedAt: number | null;
   invalidatedBy: string | null;
   invalidationReason: string | null;
-  xpRuleVersion: "v1";
-  xpInputSnapshot: { ruleVersion: "v1"; baseDifficultyXp: number; mapFactor: number; performanceBonus: number; performanceBonusReasons: Array<"no_deaths" | "no_skips">; challengeBonus: number };
+  xpRuleVersion: "v1" | "v2";
+  xpInputSnapshot: { ruleVersion: "v1"; baseDifficultyXp: number; mapFactor: number; performanceBonus: number; performanceBonusReasons: Array<"no_deaths" | "no_skips">; challengeBonus: number } | { ruleVersion: "v2"; baseDifficultyXp: number; mapFactor: number; performanceBonus: number; performanceBonusReasons: Array<"no_deaths" | "no_skips"> };
   awardedXp: number;
   conflictCount: number;
 };
-export type AdminMasteryRunProjection = {
+export type AdminVerifiedRunProjection = {
   mapId: string;
+  gameplayRevisionId: string;
   totalXp: number;
   verifiedRunCount: number;
-  difficultyStats: Array<{ difficulty: AdminMasteryDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
+  difficultyStats: Array<{ difficulty: AdminVerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
   lowestDeaths: number | null;
   fewestSkips: number | null;
   highestSingleRunXp: number | null;
-  highestCompletedDifficulty: AdminMasteryDifficulty | null;
+  highestCompletedDifficulty: AdminVerifiedRunDifficulty | null;
 };
-export type AdminMasteryRunConflict = {
+export type AdminVerifiedRunConflict = {
   submissionId: string;
   submissionStatus: string;
   playerAccountId: string;
   playerName: string;
-  conflictFields: Array<"run_code" | "map" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters">;
-  facts: { mapName: string | null; mapVariant: "classic" | null; difficulty: AdminMasteryDifficulty | null; gameVersion: string | null; runCode: string | null; completionDurationSeconds: number | null; deaths: number | null; skips: number | null };
+  conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters">;
+  facts: { mapName: string | null; mapVariant: "classic" | null; difficulty: AdminVerifiedRunDifficulty | null; gameVersion: string | null; matchCode: string | null; completionDurationSeconds: number | null; deaths: number | null; skips: number | null };
   resolution: { action: "keep_existing" | "invalidate_existing"; actorType: "service" | "user"; actorId: string; reason: string | null; resolvedAt: number } | null;
 };
-export type AdminMasteryRunDetail = {
+export type AdminVerifiedRunDetail = {
   contractVersion: "1";
-  run: AdminMasteryRun;
-  projection: AdminMasteryRunProjection;
+  run: AdminVerifiedRun;
+  projection: AdminVerifiedRunProjection;
   sourceSubmission: AdminSubmission;
   lifecycle: Array<{ transition: "accepted" | "invalidated" | "restored"; actorType: "service" | "user"; actorId: string; reason: string | null; createdAt: number }>;
-  conflicts: AdminMasteryRunConflict[];
+  corrections: Array<{
+    correctionId: string;
+    actorType: "service" | "user";
+    actorId: string;
+    reason: string | null;
+    createdAt: number;
+    before: Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "mapVariant" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters" | "xpRuleVersion" | "xpInputSnapshot" | "awardedXp">;
+    after: Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "mapVariant" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters" | "xpRuleVersion" | "xpInputSnapshot" | "awardedXp">;
+  }>;
+  conflicts: AdminVerifiedRunConflict[];
 };
+export type AdminVerifiedRunCorrectionResponse = { contractVersion: "1"; detail: AdminVerifiedRunDetail; affectedProjections: AdminVerifiedRunProjection[] };
 export type AdminReview = {
   reviewId: string;
   targetType: "event" | "map";

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
-import type { MasterySubmissionOutcome } from "~/composables/usePortalApi";
-import { masteryOutcomePresentation } from "~/utils/mastery";
+import type { VerifiedRunSubmissionOutcome } from "~/composables/usePortalApi";
+import { verifiedRunOutcomePresentation } from "~/utils/mastery";
 
 type SubmissionDetail = {
   submissionId: string;
@@ -16,7 +16,7 @@ type SubmissionDetail = {
   ocrFailCount?: number;
   manualReviewEligible?: boolean;
   titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
-  masteryOutcome?: MasterySubmissionOutcome;
+  verifiedRunOutcome?: VerifiedRunSubmissionOutcome;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
   feedback?: {
     mode: "none" | "targeted" | "grouped";
@@ -62,7 +62,7 @@ const resubmissionTips = [
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
-const masteryOutcome = computed(() => masteryOutcomePresentation(data.value?.masteryOutcome));
+const verifiedRunOutcome = computed(() => verifiedRunOutcomePresentation(data.value?.verifiedRunOutcome));
 const needsChallengeConfirmation = computed(() => Boolean(data.value && !data.value.challengeId && data.value.status === "awaiting_player_confirmation"));
 const mutationBusy = computed(() => confirming.value || requestingManualReview.value || refreshingStatus.value);
 // Status is carried by the badge and progress; the alert stays only for a distinct,
@@ -254,7 +254,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
               <div class="detail-grid__row" v-if="data.reason && data.status !== 'resubmission_required'"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
               <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
             </dl>
-            <UAlert v-if="masteryOutcome" class="mastery-outcome" :color="data.masteryOutcome?.status === 'created' || data.masteryOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="masteryOutcome.title" :description="masteryOutcome.description || undefined" />
+            <UAlert v-if="verifiedRunOutcome" class="mastery-outcome" :color="data.verifiedRunOutcome?.status === 'created' || data.verifiedRunOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="verifiedRunOutcome.title" :description="verifiedRunOutcome.description || undefined" />
             <div class="overview-actions">
               <UButton
                 v-if="data.status === 'resubmission_required'"

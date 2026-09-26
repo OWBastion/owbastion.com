@@ -162,24 +162,24 @@ const attachmentSchema = z.object({
 });
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
-export const masteryDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
-const masteryRunStatusSchema = z.enum(["active", "invalidated"]);
+export const verifiedRunDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
+const verifiedRunStatusSchema = z.enum(["active", "invalidated"]);
 const masteryAcceptanceSourceSchema = z.enum(["submission_automatic", "submission_review"]);
-const masteryRunConflictFieldSchema = z.enum(["run_code", "map", "gameplay_revision", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
+const verifiedRunConflictFieldSchema = z.enum(["match_code", "map", "gameplay_revision", "map_variant", "difficulty", "game_version", "completion_duration", "deaths", "skips", "event_counters"]);
 const gameplayRevisionLifecycleSchema = z.enum(["preparing", "default", "selectable", "historical"]);
-const masterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
-const playerMasterySubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "invalidated"]);
-const playerMasterySubmissionOutcomeSchema = z.object({
-  status: playerMasterySubmissionOutcomeStatus,
+const verifiedRunSubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "conflict", "invalidated"]);
+const playerVerifiedRunSubmissionOutcomeStatus = z.enum(["created", "reused", "ineligible", "invalidated"]);
+const playerVerifiedRunSubmissionOutcomeSchema = z.object({
+  status: playerVerifiedRunSubmissionOutcomeStatus,
   awardedXp: z.number().int().nonnegative(),
 }).strict();
-const adminMasterySubmissionOutcomeSchema = z.object({
-  status: masterySubmissionOutcomeStatus,
+const adminVerifiedRunSubmissionOutcomeSchema = z.object({
+  status: verifiedRunSubmissionOutcomeStatus,
   awardedXp: z.number().int().nonnegative(),
 }).extend({
-  masteryRunId: z.string().uuid().nullable(),
+  verifiedRunId: z.string().uuid().nullable(),
   reason: z.string().nullable(),
-  conflictFields: z.array(masteryRunConflictFieldSchema),
+  conflictFields: z.array(verifiedRunConflictFieldSchema),
 }).strict();
 
 export const mapChallengeSchema = z.object({
@@ -949,7 +949,7 @@ export const adminSubmissionSchema = z.object({
   reason: z.string().nullable().optional(),
   evidenceUrl: z.string().url().nullable(),
   spotCheck: z.object({ status: z.enum(["pending", "confirmed", "revoked"]), sampledAt: z.number().int(), resolvedAt: z.number().int().nullable(), reviewer: z.string().nullable(), reason: z.string().nullable() }).nullable().optional(),
-  masteryOutcome: adminMasterySubmissionOutcomeSchema.optional(),
+  verifiedRunOutcome: adminVerifiedRunSubmissionOutcomeSchema.optional(),
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
@@ -972,9 +972,9 @@ export const adminSubmissionReviewRequestSchema = z.object({
   }).optional(),
 });
 export const adminSubmissionReviewResponseSchema = z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 }).or(z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional() }));
 export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1).max(32).optional(), challengeId: externalId.optional(), mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).superRefine((value, ctx) => {
   if (!value.selections?.length && !value.challengeId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["selections"], message: "At least one challenge selection is required" });
@@ -983,10 +983,10 @@ export const adminSubmissionChallengeResponseSchema = z.object({ contractVersion
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
-export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable(), masteryRunId: z.string().uuid().nullable() });
+export const adminSubmissionSpotCheckResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.enum(["confirmed", "revoked"]), grantId: z.string().uuid().nullable(), verifiedRunId: z.string().uuid().nullable() });
 
-const masteryEventCountersSchema = z.record(z.string().trim().min(1).max(128), z.number().int().nonnegative()).refine((value) => Object.keys(value).length <= 64, "Too many mastery event counters");
-const masteryXpInputSnapshotSchema = z.object({
+const verifiedRunEventCountersSchema = z.record(z.string().trim().min(1).max(128), z.number().int().nonnegative()).refine((value) => Object.keys(value).length <= 64, "Too many Verified Run event counters");
+const verifiedRunXpInputSnapshotV1Schema = z.object({
   ruleVersion: z.literal("v1"),
   baseDifficultyXp: z.number().int().nonnegative(),
   mapFactor: z.number().positive(),
@@ -994,8 +994,16 @@ const masteryXpInputSnapshotSchema = z.object({
   performanceBonusReasons: z.array(z.enum(["no_deaths", "no_skips"])).max(2),
   challengeBonus: z.number().int().nonnegative(),
 }).strict();
+const verifiedRunXpInputSnapshotV2Schema = z.object({
+  ruleVersion: z.literal("v2"),
+  baseDifficultyXp: z.number().int().nonnegative(),
+  mapFactor: z.number().positive(),
+  performanceBonus: z.number().nonnegative(),
+  performanceBonusReasons: z.array(z.enum(["no_deaths", "no_skips"])).max(2),
+}).strict();
+const verifiedRunXpInputSnapshotSchema = z.discriminatedUnion("ruleVersion", [verifiedRunXpInputSnapshotV1Schema, verifiedRunXpInputSnapshotV2Schema]);
 
-export const adminMasteryRunSchema = z.object({
+export const adminVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   playerAccountId: z.string().uuid(),
   playerId,
@@ -1006,44 +1014,46 @@ export const adminMasteryRunSchema = z.object({
   gameplayRevisionId: externalId,
   gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   mapVariant: z.literal("classic").nullable(),
-  difficulty: masteryDifficultySchema,
+  difficulty: verifiedRunDifficultySchema,
   gameVersion: z.string().trim().min(1).max(64),
-  runCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
+  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
   completionDurationSeconds: z.number().int().positive(),
   deaths: z.number().int().nonnegative().nullable(),
   skips: z.number().int().nonnegative().nullable(),
-  eventCounters: masteryEventCountersSchema,
+  eventCounters: verifiedRunEventCountersSchema,
   acceptanceSource: masteryAcceptanceSourceSchema,
   acceptedAt: z.number().int().positive(),
-  status: masteryRunStatusSchema,
+  status: verifiedRunStatusSchema,
   invalidatedAt: z.number().int().positive().nullable(),
   invalidatedBy: z.string().trim().min(1).max(256).nullable(),
   invalidationReason: z.string().trim().max(512).nullable(),
-  xpRuleVersion: z.literal("v1"),
-  xpInputSnapshot: masteryXpInputSnapshotSchema,
+  xpRuleVersion: z.enum(["v1", "v2"]),
+  xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
   awardedXp: z.number().int().nonnegative(),
   conflictCount: z.number().int().nonnegative(),
-}).strict();
+}).strict().superRefine((run, ctx) => {
+  if (run.xpRuleVersion !== run.xpInputSnapshot.ruleVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["xpInputSnapshot", "ruleVersion"], message: "XP rule version must match its snapshot" });
+});
 
-const adminMasteryDifficultyStatSchema = z.object({
-  difficulty: masteryDifficultySchema,
+const adminVerifiedRunDifficultyStatSchema = z.object({
+  difficulty: verifiedRunDifficultySchema,
   verifiedRunCount: z.number().int().positive(),
   fastestCompletionSeconds: z.number().int().positive(),
 }).strict();
 
-export const adminMasteryRunProjectionSchema = z.object({
+export const adminVerifiedRunProjectionSchema = z.object({
   mapId: externalId,
   gameplayRevisionId: externalId,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().nonnegative(),
-  difficultyStats: z.array(adminMasteryDifficultyStatSchema).max(6),
+  difficultyStats: z.array(adminVerifiedRunDifficultyStatSchema).max(6),
   lowestDeaths: z.number().int().nonnegative().nullable(),
   fewestSkips: z.number().int().nonnegative().nullable(),
   highestSingleRunXp: z.number().int().nonnegative().nullable(),
-  highestCompletedDifficulty: masteryDifficultySchema.nullable(),
+  highestCompletedDifficulty: verifiedRunDifficultySchema.nullable(),
 }).strict();
 
-export const adminMasteryRunLifecycleEventSchema = z.object({
+export const adminVerifiedRunLifecycleEventSchema = z.object({
   transition: z.enum(["accepted", "invalidated", "restored"]),
   actorType: z.enum(["service", "user"]),
   actorId: z.string().trim().min(1).max(256),
@@ -1051,18 +1061,18 @@ export const adminMasteryRunLifecycleEventSchema = z.object({
   createdAt: z.number().int().positive(),
 }).strict();
 
-export const adminMasteryRunConflictSchema = z.object({
+export const adminVerifiedRunConflictSchema = z.object({
   submissionId: z.string().uuid(),
   submissionStatus: submissionStatus,
   playerAccountId: z.string().uuid(),
   playerName: z.string().trim().min(1).max(64),
-  conflictFields: z.array(masteryRunConflictFieldSchema).min(1),
+  conflictFields: z.array(verifiedRunConflictFieldSchema).min(1),
   facts: z.object({
     mapName: z.string().trim().min(1).max(256).nullable(),
     mapVariant: z.literal("classic").nullable(),
-    difficulty: masteryDifficultySchema.nullable(),
+    difficulty: verifiedRunDifficultySchema.nullable(),
     gameVersion: z.string().trim().min(1).max(64).nullable(),
-    runCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/).nullable(),
+    matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/).nullable(),
     completionDurationSeconds: z.number().int().positive().nullable(),
     deaths: z.number().int().nonnegative().nullable(),
     skips: z.number().int().nonnegative().nullable(),
@@ -1076,42 +1086,89 @@ export const adminMasteryRunConflictSchema = z.object({
   }).strict().nullable(),
 }).strict();
 
-export const adminMasteryRunListResponseSchema = z.object({
+export const adminVerifiedRunListResponseSchema = z.object({
   contractVersion,
-  items: z.array(adminMasteryRunSchema).max(50),
+  items: z.array(adminVerifiedRunSchema).max(50),
   page: z.number().int().positive(),
   pageSize: z.number().int().positive().max(50),
   total: z.number().int().nonnegative(),
   hasMore: z.boolean(),
 }).strict();
-export const adminMasteryRunDetailResponseSchema = z.object({
-  contractVersion,
-  run: adminMasteryRunSchema,
-  projection: adminMasteryRunProjectionSchema,
-  sourceSubmission: adminSubmissionSchema,
-  lifecycle: z.array(adminMasteryRunLifecycleEventSchema).max(50),
-  conflicts: z.array(adminMasteryRunConflictSchema).max(50),
+const verifiedRunCorrectionSnapshotSchema = z.object({
+  mapId: externalId,
+  gameplayRevisionId: externalId,
+  mapVariant: z.literal("classic").nullable(),
+  difficulty: verifiedRunDifficultySchema,
+  gameVersion: z.string().trim().min(1).max(64),
+  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
+  completionDurationSeconds: z.number().int().positive(),
+  deaths: z.number().int().nonnegative().nullable(),
+  skips: z.number().int().nonnegative().nullable(),
+  eventCounters: verifiedRunEventCountersSchema,
+  xpRuleVersion: z.enum(["v1", "v2"]),
+  xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
+  awardedXp: z.number().int().nonnegative(),
 }).strict();
-export const adminMasteryRunStateRequestSchema = z.object({
+export const adminVerifiedRunDetailResponseSchema = z.object({
+  contractVersion,
+  run: adminVerifiedRunSchema,
+  projection: adminVerifiedRunProjectionSchema,
+  sourceSubmission: adminSubmissionSchema,
+  lifecycle: z.array(adminVerifiedRunLifecycleEventSchema).max(50),
+  corrections: z.array(z.object({
+    correctionId: z.string().uuid(),
+    actorType: z.enum(["service", "user"]),
+    actorId: z.string().trim().min(1).max(256),
+    reason: z.string().trim().max(512).nullable(),
+    createdAt: z.number().int().positive(),
+    before: verifiedRunCorrectionSnapshotSchema,
+    after: verifiedRunCorrectionSnapshotSchema,
+  }).strict()).max(50),
+  conflicts: z.array(adminVerifiedRunConflictSchema).max(50),
+}).strict();
+export const adminVerifiedRunStateRequestSchema = z.object({
   contractVersion,
   action: z.enum(["invalidate", "restore"]),
   reason: z.string().trim().max(512).optional(),
 }).strict();
-export const adminMasteryRunStateResponseSchema = z.object({
+export const adminVerifiedRunStateResponseSchema = z.object({
   contractVersion,
-  run: adminMasteryRunSchema,
-  projection: adminMasteryRunProjectionSchema,
+  run: adminVerifiedRunSchema,
+  projection: adminVerifiedRunProjectionSchema,
 }).strict();
-export const adminMasteryRunConflictResolutionRequestSchema = z.object({
+export const adminVerifiedRunConflictResolutionRequestSchema = z.object({
   contractVersion,
   action: z.enum(["keep_existing", "invalidate_existing"]),
   reason: z.string().trim().max(512).optional(),
 }).strict();
-export const adminMasteryRunConflictResolutionResponseSchema = z.object({
+export const adminVerifiedRunConflictResolutionResponseSchema = z.object({
   contractVersion,
   action: z.enum(["keep_existing", "invalidate_existing"]),
-  run: adminMasteryRunSchema,
-  projection: adminMasteryRunProjectionSchema,
+  run: adminVerifiedRunSchema,
+  projection: adminVerifiedRunProjectionSchema,
+}).strict();
+export const adminVerifiedRunCorrectionRequestSchema = z.object({
+  contractVersion,
+  changes: z.object({
+    mapId: externalId.optional(),
+    gameplayRevisionId: externalId.optional(),
+    difficulty: verifiedRunDifficultySchema.optional(),
+    gameVersion: z.string().trim().min(1).max(64).optional(),
+    matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/).optional(),
+    completionDurationSeconds: z.number().int().positive().optional(),
+    deaths: z.number().int().nonnegative().nullable().optional(),
+    skips: z.number().int().nonnegative().nullable().optional(),
+    eventCounters: verifiedRunEventCountersSchema.optional(),
+  }).strict().superRefine((changes, ctx) => {
+    if (!Object.keys(changes).length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "At least one corrected fact is required" });
+    if (Boolean(changes.mapId) !== Boolean(changes.gameplayRevisionId)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameplayRevisionId"], message: "Map and gameplay revision must be corrected together" });
+  }),
+  reason: z.string().trim().min(1).max(512),
+}).strict();
+export const adminVerifiedRunCorrectionResponseSchema = z.object({
+  contractVersion,
+  detail: adminVerifiedRunDetailResponseSchema,
+  affectedProjections: z.array(adminVerifiedRunProjectionSchema).min(1).max(2),
 }).strict();
 
 export const submissionRequestSchema = z.object({
@@ -1151,7 +1208,7 @@ export const submissionStatusResponseSchema = z.object({
   reason: z.string().optional(),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
-  masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(),
+  verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(),
 });
 
 export const playerSubmissionOcrSummarySchema = z.object({
@@ -1476,13 +1533,13 @@ export const currentPlayerResponseSchema = z.object({
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
 });
 
-export const playerMasteryRunSchema = z.object({
+export const playerVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   mapId: externalId,
   gameplayRevisionId: externalId,
   gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   mapVariant: z.literal("classic").nullable(),
-  difficulty: masteryDifficultySchema,
+  difficulty: verifiedRunDifficultySchema,
   completionDurationSeconds: z.number().int().positive(),
   deaths: z.number().int().nonnegative().nullable(),
   skips: z.number().int().nonnegative().nullable(),
@@ -1491,8 +1548,8 @@ export const playerMasteryRunSchema = z.object({
   status: z.enum(["active", "invalidated"]),
 }).strict();
 
-export const playerMasteryDifficultyStatSchema = z.object({
-  difficulty: masteryDifficultySchema,
+export const playerVerifiedRunDifficultyStatSchema = z.object({
+  difficulty: verifiedRunDifficultySchema,
   verifiedRunCount: z.number().int().positive(),
   fastestCompletionSeconds: z.number().int().positive(),
 }).strict();
@@ -1503,18 +1560,18 @@ export const playerMasteryMapProfileSchema = z.object({
   gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().positive(),
-  difficultyStats: z.array(playerMasteryDifficultyStatSchema).max(6),
+  difficultyStats: z.array(playerVerifiedRunDifficultyStatSchema).max(6),
   lowestDeaths: z.number().int().nonnegative().nullable(),
   fewestSkips: z.number().int().nonnegative().nullable(),
   highestSingleRunXp: z.number().int().nonnegative().nullable(),
-  highestCompletedDifficulty: masteryDifficultySchema.nullable(),
-  recentRuns: z.array(playerMasteryRunSchema).max(10),
+  highestCompletedDifficulty: verifiedRunDifficultySchema.nullable(),
+  recentRuns: z.array(playerVerifiedRunSchema).max(10),
 }).strict();
 
 export const currentPlayerMasteryResponseSchema = z.object({
   contractVersion,
   profiles: z.array(playerMasteryMapProfileSchema).max(100),
-  runs: z.array(playerMasteryRunSchema).max(50),
+  runs: z.array(playerVerifiedRunSchema).max(50),
   page: z.number().int().positive(),
   pageSize: z.number().int().positive().max(50),
   total: z.number().int().nonnegative(),
@@ -1595,8 +1652,8 @@ export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
 export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
-export type MasteryDifficulty = z.infer<typeof masteryDifficultySchema>;
-export type PlayerMasteryRun = z.infer<typeof playerMasteryRunSchema>;
+export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
+export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
 export type CurrentPlayerMasteryResponse = z.infer<typeof currentPlayerMasteryResponseSchema>;
 export type ErrorResponse = z.infer<typeof errorResponseSchema>;
@@ -1675,12 +1732,14 @@ export type AdminSubmissionChallengeResponse = z.infer<typeof adminSubmissionCha
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
 export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;
-export type AdminMasteryRun = z.infer<typeof adminMasteryRunSchema>;
-export type AdminMasteryRunProjection = z.infer<typeof adminMasteryRunProjectionSchema>;
-export type AdminMasteryRunConflict = z.infer<typeof adminMasteryRunConflictSchema>;
-export type AdminMasteryRunListResponse = z.infer<typeof adminMasteryRunListResponseSchema>;
-export type AdminMasteryRunDetailResponse = z.infer<typeof adminMasteryRunDetailResponseSchema>;
-export type AdminMasteryRunStateRequest = z.infer<typeof adminMasteryRunStateRequestSchema>;
-export type AdminMasteryRunStateResponse = z.infer<typeof adminMasteryRunStateResponseSchema>;
-export type AdminMasteryRunConflictResolutionRequest = z.infer<typeof adminMasteryRunConflictResolutionRequestSchema>;
-export type AdminMasteryRunConflictResolutionResponse = z.infer<typeof adminMasteryRunConflictResolutionResponseSchema>;
+export type AdminVerifiedRun = z.infer<typeof adminVerifiedRunSchema>;
+export type AdminVerifiedRunProjection = z.infer<typeof adminVerifiedRunProjectionSchema>;
+export type AdminVerifiedRunConflict = z.infer<typeof adminVerifiedRunConflictSchema>;
+export type AdminVerifiedRunListResponse = z.infer<typeof adminVerifiedRunListResponseSchema>;
+export type AdminVerifiedRunDetailResponse = z.infer<typeof adminVerifiedRunDetailResponseSchema>;
+export type AdminVerifiedRunStateRequest = z.infer<typeof adminVerifiedRunStateRequestSchema>;
+export type AdminVerifiedRunStateResponse = z.infer<typeof adminVerifiedRunStateResponseSchema>;
+export type AdminVerifiedRunConflictResolutionRequest = z.infer<typeof adminVerifiedRunConflictResolutionRequestSchema>;
+export type AdminVerifiedRunConflictResolutionResponse = z.infer<typeof adminVerifiedRunConflictResolutionResponseSchema>;
+export type AdminVerifiedRunCorrectionRequest = z.infer<typeof adminVerifiedRunCorrectionRequestSchema>;
+export type AdminVerifiedRunCorrectionResponse = z.infer<typeof adminVerifiedRunCorrectionResponseSchema>;

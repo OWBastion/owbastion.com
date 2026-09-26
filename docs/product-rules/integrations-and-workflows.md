@@ -52,10 +52,10 @@ channel flows:
   content metadata;
 - public submission status is an unauthenticated, opaque-ID lookup that exposes
   the submission ID, map, timestamps, workflow status, and when present a safe
-  mastery outcome (`created`, `reused`, `ineligible`, or `invalidated`) with
+  Verified Run outcome (`created`, `reused`, `ineligible`, or `invalidated`) with
   awarded XP. A conflict remains maintainer-only. It returns `Cache-Control: private, no-store`,
   reads D1 for every request, and excludes evidence, OCR output, player or QQ
-  identity, run code, mastery-run ID, review metadata, grants, and internal
+  identity, match code, Verified Run ID, review metadata, grants, and internal
   conflict or risk signals;
 - the Portal authenticates a discoverable Passkey with user verification, then
   displays the same Player Account's profile and up to five recent submissions;
@@ -84,11 +84,11 @@ channel flows:
   reasons, and risk signals remain private; this read does not create a run or
   decide submission eligibility;
 - the existing submission → stored screenshot → Queue/OCR path can additionally
-  derive a mastery outcome. The platform, not OCRKit, verifies the bound player,
+  derive a Verified Run outcome. The platform, not OCRKit, verifies the bound player,
   completion state, canonical active map and difficulty, supported game version
-  and OCR layout, reliable field evidence, and normalized run code before it
+  and OCR layout, reliable field evidence, and normalized match code before it
   records XP. `submission_outcomes` keeps zero or more independent
-  `mastery_run`, `title_grant`, and `challenge` outcomes, so a mastery-only
+  `verified_run`, `title_grant`, and `challenge` outcomes, so a Run-only
   approval can have `grant_id = NULL` without creating a fake title Grant;
 - the platform stores the current title and map metadata, and
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
@@ -138,12 +138,16 @@ channel flows:
   select every checked achievement supported by the screenshot; approval
   atomically creates or reuses each platform title Grant and links each
   selected challenge outcome to the Submission. A mastery-only approval
-  records its accepted mastery outcome without a title Grant.
-- maintainer-only mastery-run reads list and filter verified runs by player,
+  records its accepted Verified Run outcome without a title Grant.
+- maintainer-only Verified Run reads list and filter runs by player,
   map, difficulty, lifecycle state, accepted date, acceptance origin, and run
-  code. Detail includes the source Submission and unlisted screenshot URL, recognized
+  match code. Detail includes source Submission metadata without the evidence URL, recognized
   settlement facts, XP snapshot inputs, resulting map projection, lifecycle,
-  and same-player run-code conflicts; it is always private and uncached.
+  and same-player match-code conflicts; it is always private and uncached.
+  Maintainers can submit an evidence-backed correction through
+  `/v1/admin/verified-runs/{verifiedRunId}/corrections`; the same Run is updated,
+  before/after facts and XP snapshots are audited, and its source outcome plus
+  current XP/Mastery projections are recalculated.
 - automatic approval writes the OCR result, approved review, title Grant reuse
   or creation when applicable, independent submission outcomes, submission rule
   snapshot, and audit records in one D1 batch. A deterministic sample can
@@ -337,22 +341,24 @@ that the Submission has an active title Grant. Title issuance remains one D1
 batch: title challenges use their direct `titleKey`, map challenges use their
 explicit `reward_title_key`, and both retain map context. If the player already
 owns the same active title in that scope, the Submission links to the existing
-Grant and records reuse in the audit event. A mastery-only approval keeps
-`grant_id = NULL`; the normalized run is `created` once, while an exact
-same-player run-code reuse receives 0 XP. Public and player responses expose
-only mastery outcome status and awarded XP; maintainer detail may additionally
-show the mastery-run ID and internal reason or conflict fields. Pull requests
+Grant and records reuse in the audit event. A Run-only approval keeps
+`grant_id = NULL`; the normalized Verified Run is `created` once, while an exact
+same-player match-code reuse receives 0 XP. New XP awards use v2 without a
+Challenge bonus; untouched historical v1 snapshots and awards remain unchanged.
+Public and player responses expose only the safe outcome status and awarded XP;
+maintainer detail may additionally show the Verified Run ID and internal reason
+or conflict fields. Pull requests
 and game builds remain outside this slice; Bastion reads current metadata
 independently through the Agents API.
 
-Evidence spot-check revocation invalidates the active mastery run only when the
+Evidence spot-check revocation invalidates the active verified run only when the
 revoked submission created that run; a reused submission cannot invalidate a
 different source run. A later valid OCR retry restores that source run once.
 Direct title-Grant revocation remains title-specific and never invalidates a
-mastery run. Screenshots without a reliable run code remain eligible for the
-legacy title path, but do not produce a mastery-run outcome with XP.
+Verified Run. Screenshots without a reliable match code remain eligible for the
+legacy title path, but do not produce a Verified Run outcome with XP.
 
-For a same-player run-code conflict, the platform retains the original accepted
+For a same-player match-code conflict, the platform retains the original accepted
 run and the conflicting Submission/evidence separately. A maintainer may record
 that the original remains authoritative, or invalidate it with an idempotent,
 audited actor/time/reason transition that updates the source outcome and map
@@ -729,7 +735,7 @@ revision-aware challenge-assignment model. Every projected map challenge
 exposes its exact `gameplayRevisionId`; assignments to a `default` or
 `selectable` revision determine catalog visibility instead of a legacy variant
 branch. At submission or grant time that resolved revision is an immutable
-snapshot on the submission, grant, and mastery-run facts. A rework therefore
+snapshot on the submission, grant, and Verified Run facts. A rework therefore
 creates independent new progression without rewriting old facts. The default
 `/v1/me/mastery` profile uses only a map's default revision; an explicit
 revision query can read the selected or historical revision's own profile and
@@ -777,7 +783,7 @@ recognition context (source Submission/evidence, field, original recognized
 value, OCR model/layout version, feedback type, prompt origin, proposed value,
 actor, time). Retries are idempotent through a unique per-field proposal
 boundary. Feedback is an annotation proposal only: it never changes the
-Submission status, challenge selection, Grants, mastery outcomes, or OCR
+Submission status, challenge selection, Grants, Verified Run outcomes, or OCR
 evidence, and never becomes reviewed truth by itself.
 
 ### Maintainer annotation review

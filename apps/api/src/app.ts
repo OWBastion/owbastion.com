@@ -33,7 +33,7 @@ import {
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
-  adminMasteryRunStateRequestSchema, adminMasteryRunConflictResolutionRequestSchema,
+  adminVerifiedRunStateRequestSchema, adminVerifiedRunConflictResolutionRequestSchema, adminVerifiedRunCorrectionRequestSchema,
   playerUploadSessionRequestSchema,
   playerSubmissionChallengeRequestSchema,
   playerOcrFeedbackRequestSchema,
@@ -182,9 +182,9 @@ const playerMasteryQuery = (request: Request) => {
   return { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, page, pageSize };
 };
 
-const adminMasteryRunQuery = (request: Request) => {
+const adminVerifiedRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
-  const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "unresolvedConflictsOnly", "acceptanceSource", "runCode", "from", "to", "page", "pageSize"];
+  const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "unresolvedConflictsOnly", "acceptanceSource", "matchCode", "from", "to", "page", "pageSize"];
   const names = new Set<string>();
   params.forEach((_value, name) => names.add(name));
   if ([...names].some((name) => !allowed.includes(name)) || allowed.some((name) => params.getAll(name).length > 1)) return null;
@@ -197,7 +197,7 @@ const adminMasteryRunQuery = (request: Request) => {
   const status = params.get("status")?.trim() || undefined;
   const unresolvedConflictsOnly = params.get("unresolvedConflictsOnly");
   const acceptanceSource = params.get("acceptanceSource")?.trim() || undefined;
-  const runCode = params.get("runCode")?.trim() || undefined;
+  const matchCode = params.get("matchCode")?.trim() || undefined;
   const fromValue = params.get("from");
   const toValue = params.get("to");
   const from = fromValue === null ? undefined : Number(fromValue);
@@ -211,7 +211,7 @@ const adminMasteryRunQuery = (request: Request) => {
   if (status && !["active", "invalidated"].includes(status)) return null;
   if (unresolvedConflictsOnly !== null && unresolvedConflictsOnly !== "true") return null;
   if (acceptanceSource && !["submission_automatic", "submission_review"].includes(acceptanceSource)) return null;
-  if (runCode && !/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(runCode)) return null;
+  if (matchCode && !/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(matchCode)) return null;
   if (from !== undefined && (!Number.isInteger(from) || from < 0)) return null;
   if (to !== undefined && (!Number.isInteger(to) || to < 0)) return null;
   if (from !== undefined && to !== undefined && from > to) return null;
@@ -225,7 +225,7 @@ const adminMasteryRunQuery = (request: Request) => {
     ...(status ? { status: status as "active" | "invalidated" } : {}),
     ...(unresolvedConflictsOnly === "true" ? { unresolvedConflictsOnly: true } : {}),
     ...(acceptanceSource ? { acceptanceSource: acceptanceSource as "submission_automatic" | "submission_review" } : {}),
-    ...(runCode ? { runCode } : {}),
+    ...(matchCode ? { matchCode } : {}),
     ...(from !== undefined ? { from } : {}),
     ...(to !== undefined ? { to } : {}),
   };
@@ -397,10 +397,11 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/reviews/:reviewId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/reviews/:reviewId/comment", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/reviews/:reviewId/state", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/mastery-runs", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/mastery-runs/:masteryRunId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/mastery-runs/:masteryRunId/state", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/mastery-runs/:masteryRunId/conflicts/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/verified-runs", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/verified-runs/:verifiedRunId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/verified-runs/:verifiedRunId/state", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/verified-runs/:verifiedRunId/corrections", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/verified-runs/:verifiedRunId/conflicts/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/proposals", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/proposals/:proposalId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/proposals/:proposalId/decision", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -1914,65 +1915,86 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.get("/v1/admin/mastery-runs", async (c) => {
+  app.get("/v1/admin/verified-runs", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const query = adminMasteryRunQuery(c.req.raw);
-    if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery run query is invalid");    return c.json(await dependencies.services(c.env).listAdminMasteryRuns(query, access.auth!));
+    const query = adminVerifiedRunQuery(c.req.raw);
+    if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The verified run query is invalid");
+    return c.json(await dependencies.services(c.env).listAdminVerifiedRuns(query, access.auth!));
   });
 
-  app.get("/v1/admin/mastery-runs/:masteryRunId", async (c) => {
+  app.get("/v1/admin/verified-runs/:verifiedRunId", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const masteryRunId = c.req.param("masteryRunId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(masteryRunId)) return errorResponse(c, 422, "INVALID_MASTERY_RUN_ID", "The mastery run ID is invalid");
+    const verifiedRunId = c.req.param("verifiedRunId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     try {
-      return c.json(await dependencies.services(c.env).getAdminMasteryRun({ masteryRunId }, access.auth!));
+      return c.json(await dependencies.services(c.env).getAdminVerifiedRun({ verifiedRunId }, access.auth!));
     } catch (error) {
-      const code = error instanceof Error ? error.message : "MASTERY_RUN_LOOKUP_FAILED";
-      if (["MASTERY_RUN_NOT_FOUND", "MASTERY_SUBMISSION_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The mastery run does not exist");
+      const code = error instanceof Error ? error.message : "VERIFIED_RUN_LOOKUP_FAILED";
+      if (["VERIFIED_RUN_NOT_FOUND", "VERIFIED_RUN_SUBMISSION_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The verified run does not exist");
       throw error;
     }
   });
 
-  app.post("/v1/admin/mastery-runs/:masteryRunId/state", async (c) => {
+  app.post("/v1/admin/verified-runs/:verifiedRunId/state", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const masteryRunId = c.req.param("masteryRunId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(masteryRunId)) return errorResponse(c, 422, "INVALID_MASTERY_RUN_ID", "The mastery run ID is invalid");
+    const verifiedRunId = c.req.param("verifiedRunId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminMasteryRunStateRequestSchema.safeParse(await parseBody(c.req.raw));
+    const parsed = adminVerifiedRunStateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).transitionAdminMasteryRun({ ...parsed.data, masteryRunId }, access.auth!, idempotencyKey));
+      return c.json(await dependencies.services(c.env).transitionAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
     } catch (error) {
-      const code = error instanceof Error ? error.message : "MASTERY_RUN_STATE_UPDATE_FAILED";
-      if (code === "MASTERY_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The mastery run does not exist");
-      if (["MASTERY_RUN_CODE_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, code === "IDEMPOTENCY_CONFLICT" ? "The idempotency key was used with a different request" : "Another active run already uses this run code");
+      const code = error instanceof Error ? error.message : "VERIFIED_RUN_STATE_UPDATE_FAILED";
+      if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
+      if (["VERIFIED_RUN_MATCH_CODE_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, code === "IDEMPOTENCY_CONFLICT" ? "The idempotency key was used with a different request" : "Another active run already uses this match code");
       throw error;
     }
   });
 
-  app.post("/v1/admin/mastery-runs/:masteryRunId/conflicts/:submissionId", async (c) => {
+  app.post("/v1/admin/verified-runs/:verifiedRunId/conflicts/:submissionId", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
-    const masteryRunId = c.req.param("masteryRunId");
+    const verifiedRunId = c.req.param("verifiedRunId");
     const submissionId = c.req.param("submissionId");
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuid.test(masteryRunId)) return errorResponse(c, 422, "INVALID_MASTERY_RUN_ID", "The mastery run ID is invalid");
+    if (!uuid.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     if (!uuid.test(submissionId)) return errorResponse(c, 422, "INVALID_SUBMISSION_ID", "The submission ID is invalid");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminMasteryRunConflictResolutionRequestSchema.safeParse(await parseBody(c.req.raw));
+    const parsed = adminVerifiedRunConflictResolutionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).resolveAdminMasteryRunConflict({ ...parsed.data, masteryRunId, submissionId }, access.auth!, idempotencyKey));
+      return c.json(await dependencies.services(c.env).resolveAdminVerifiedRunConflict({ ...parsed.data, verifiedRunId, submissionId }, access.auth!, idempotencyKey));
     } catch (error) {
-      const code = error instanceof Error ? error.message : "MASTERY_RUN_CONFLICT_RESOLUTION_FAILED";
-      if (code === "MASTERY_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The mastery run does not exist");
-      if (code === "MASTERY_RUN_CONFLICT_NOT_FOUND") return errorResponse(c, 404, code, "The mastery conflict does not exist");
+      const code = error instanceof Error ? error.message : "VERIFIED_RUN_CONFLICT_RESOLUTION_FAILED";
+      if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
+      if (code === "VERIFIED_RUN_CONFLICT_NOT_FOUND") return errorResponse(c, 404, code, "The Verified Run conflict does not exist");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/verified-runs/:verifiedRunId/corrections", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const verifiedRunId = c.req.param("verifiedRunId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminVerifiedRunCorrectionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).correctAdminVerifiedRun({ ...parsed.data, verifiedRunId }, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "VERIFIED_RUN_CORRECTION_FAILED";
+      if (code === "VERIFIED_RUN_NOT_FOUND") return errorResponse(c, 404, code, "The verified run does not exist");
+      if (["VERIFIED_RUN_MATCH_CODE_CONFLICT", "VERIFIED_RUN_CORRECTION_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, code === "IDEMPOTENCY_CONFLICT" ? "The idempotency key was used with a different request" : "The verified run changed or conflicts with another active match code");
+      if (["VERIFIED_RUN_REVISION_MAP_MISMATCH", "VERIFIED_RUN_MAP_VARIANT_INVALID", "VERIFIED_RUN_COMPLETION_DURATION_INVALID", "VERIFIED_RUN_DIFFICULTY_INVALID", "VERIFIED_RUN_SETTLEMENT_VALUE_INVALID", "VERIFIED_RUN_MAP_FACTOR_INVALID", "VERIFIED_RUN_EVENT_COUNTER_INVALID", "MATCH_CODE_INVALID"].includes(code)) return errorResponse(c, 422, code, "The corrected gameplay facts are invalid");
       throw error;
     }
   });
