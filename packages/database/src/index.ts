@@ -1843,7 +1843,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     auth: AuthContext,
     timestamp: number,
   ): Promise<{ annotationIds: string[]; statements: D1PreparedStatement[] } | null> => {
-    const corrections = input.decision === "approved" ? input.fieldCorrections ?? [] : [];
+    const corrections = input.fieldCorrections ?? [];
     if (!corrections.length) return null;
     const ocrRows = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt));
     const ocrResult = ocrRows.find((candidate) => Boolean(candidate.responseJson));
@@ -2662,6 +2662,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (persisted.id === runId) return { outcome: "created", run };
     const conflictFields = masteryConflictFields(run, candidate);
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+  };
+
+  const loadDatasetEligibility = async () => {
+    const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
+    const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
+    const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
+    const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
+    const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
+    const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
+    for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
+      if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
+    }
+    const candidates: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string; contentType: string }> = [];
+    const exclusions: Array<{ annotationId: string; reason: string }> = [];
+    for (const annotation of accepted) {
+      if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
+      if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
+      if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
+      const evidence = latestAttachment.get(annotation.submissionId);
+      if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
+      candidates.push({ annotation, ...evidence });
+    }
+    return { accepted, candidates, exclusions };
   };
 
   return {
@@ -4826,34 +4849,32 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     // ---- Immutable reviewed dataset snapshots (#105) ----
 
+    async listAdminDatasetCandidates(input: { page: number; pageSize: number }, _auth: AuthContext) {
+      const { candidates } = await loadDatasetEligibility();
+      const ids = candidates.map(({ annotation }) => annotation.id);
+      const rows = ids.length ? await db.select({ annotationId: reviewedAnnotations.id, fieldKey: reviewedAnnotations.fieldKey, reviewedValue: reviewedAnnotations.reviewedValue, submissionMapName: submissions.mapName }).from(reviewedAnnotations).innerJoin(submissions, eq(submissions.id, reviewedAnnotations.submissionId)).where(inArray(reviewedAnnotations.id, ids)).orderBy(desc(reviewedAnnotations.reviewedAt), desc(reviewedAnnotations.id)).all() : [];
+      const page = Math.max(input.page, 1);
+      const pageSize = Math.min(Math.max(input.pageSize, 1), 100);
+      const total = rows.length;
+      return { contractVersion: "1", items: rows.slice((page - 1) * pageSize, page * pageSize).map((row) => ({ annotationId: row.annotationId, fieldKey: row.fieldKey as AdminReviewedAnnotation["fieldKey"], reviewedValue: row.reviewedValue, submissionMapName: row.submissionMapName })), page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
     async createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse> {
       const replay = await replayOrConflict<AdminDatasetCreateResponse>(db, auth.subject, "dataset.draft.create", idempotencyKey, input);
       if (replay) return replay;
-      const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
+      const eligibility = await loadDatasetEligibility();
+      const { accepted } = eligibility;
       const excludedAnnotationIds = new Set(input.excludedAnnotationIds ?? []);
-      const acceptedIds = new Set(accepted.map((annotation) => annotation.id));
-      if ([...excludedAnnotationIds].some((annotationId) => !acceptedIds.has(annotationId))) throw new Error("DATASET_ANNOTATION_EXCLUSION_INVALID");
-      // An annotation belongs to at most one snapshot: any membership (draft or
-      // finalized) makes it no longer eligible for a new snapshot.
-      const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
-      const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
-      const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
-      const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
-      const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
-      for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
-        if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
-      }
+      const candidates = new Map(eligibility.candidates.map((candidate) => [candidate.annotation.id, candidate]));
+      if ([...excludedAnnotationIds].some((annotationId) => !candidates.has(annotationId))) throw new Error("DATASET_ANNOTATION_EXCLUSION_INVALID");
       const members: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string | null; contentType: string | null; available: boolean }> = [];
+      const automaticExclusions = new Map(eligibility.exclusions.map((exclusion) => [exclusion.annotationId, exclusion.reason]));
       const exclusions: Array<{ annotationId: string; reason: string }> = [];
       for (const annotation of accepted) {
+        const candidate = candidates.get(annotation.id);
+        if (!candidate) { exclusions.push({ annotationId: annotation.id, reason: automaticExclusions.get(annotation.id)! }); continue; }
         if (excludedAnnotationIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "maintainer_excluded" }); continue; }
-        if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
-        if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
-        if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
-        const evidence = latestAttachment.get(annotation.submissionId);
-        if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
-        const available = evidenceBucket ? Boolean(await evidenceBucket.head(evidence.objectKey)) : true;
-        members.push({ annotation, objectKey: evidence.objectKey, contentType: evidence.contentType, available });
+        members.push({ ...candidate, available: evidenceBucket ? Boolean(await evidenceBucket.head(candidate.objectKey)) : true });
       }
       const timestamp = now();
       const datasetId = crypto.randomUUID();
@@ -5131,7 +5152,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
         : input.decision === "approved"
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasteryOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
-          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
+          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
       const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? [])];
       statements.push(

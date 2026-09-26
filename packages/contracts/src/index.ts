@@ -965,7 +965,7 @@ export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 }).or(z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
-})).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
+})).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional() }));
 export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1).max(32).optional(), challengeId: externalId.optional(), mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).superRefine((value, ctx) => {
   if (!value.selections?.length && !value.challengeId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["selections"], message: "At least one challenge selection is required" });
 });
@@ -1374,6 +1374,20 @@ export const adminDatasetCreateResponseSchema = z.object({
   counts: adminDatasetSnapshotSchema.shape.counts,
 }).strict();
 
+export const adminDatasetCandidateListResponseSchema = z.object({
+  contractVersion,
+  items: z.array(z.object({
+    annotationId: z.string().uuid(),
+    fieldKey: ocrFeedbackFieldKeySchema,
+    reviewedValue: z.string().trim().min(1),
+    submissionMapName: z.string().trim().min(1),
+  }).strict()),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(100),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+}).strict();
+
 export const adminDatasetFinalizeRequestSchema = z.object({
   contractVersion,
   note: z.string().trim().max(1000).optional(),
@@ -1556,6 +1570,7 @@ export type AdminAnnotationDirectCreateResponse = z.infer<typeof adminAnnotation
 export type AdminDatasetSnapshot = z.infer<typeof adminDatasetSnapshotSchema>;
 export type AdminDatasetListResponse = z.infer<typeof adminDatasetListResponseSchema>;
 export type AdminDatasetCreateResponse = z.infer<typeof adminDatasetCreateResponseSchema>;
+export type AdminDatasetCandidateListResponse = z.infer<typeof adminDatasetCandidateListResponseSchema>;
 export type AdminDatasetFinalizeResponse = z.infer<typeof adminDatasetFinalizeResponseSchema>;
 export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailResponseSchema>;
 export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;

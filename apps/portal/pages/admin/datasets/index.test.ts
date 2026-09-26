@@ -24,7 +24,7 @@ const detail = {
 
 const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (path === "/v1/datasets?page=1&pageSize=20") return Promise.resolve({ items: [snapshot], total: 1 });
-  if (path === "/v1/annotations/reviewed?page=1&pageSize=100&state=accepted") return Promise.resolve({ items: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", submissionMapName: "萨摩亚" }], total: 1, hasMore: false });
+  if (path === "/v1/datasets/candidates?page=1&pageSize=100") return Promise.resolve({ items: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", submissionMapName: "萨摩亚" }], total: 1, hasMore: false });
   if (path === "/v1/datasets/00000000-0000-4000-8000-000000000007") return Promise.resolve(detail);
   if (path === "/v1/datasets" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", datasetId: snapshot.datasetId, version: 2, status: "draft", counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } });
   if (options?.method === "POST") return Promise.resolve({ contractVersion: "1", datasetId: snapshot.datasetId, version: 1, status: "finalized", finalizedAt: 2 });
@@ -79,7 +79,7 @@ describe("admin datasets page", () => {
     const createButton = wrapper.findAll("button").find((button) => button.text().includes("创建草稿"));
     await createButton?.trigger("click");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/annotations/reviewed?page=1&pageSize=100&state=accepted");
+    expect(adminApi).toHaveBeenCalledWith("/v1/datasets/candidates?page=1&pageSize=100");
     await wrapper.get('.dataset-candidate input[type="checkbox"]').setValue(true);
     await wrapper.get('[role="dialog"]').findAll("button").find((button) => button.text().trim() === "创建草稿")?.trigger("click");
     await flushPromises();

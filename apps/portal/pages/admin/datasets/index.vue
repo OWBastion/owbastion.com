@@ -67,7 +67,7 @@ async function openDraftDialog() {
     let currentPage = 1;
     let hasMore = true;
     while (hasMore) {
-      const response = await api<{ items: typeof candidates; hasMore: boolean }>(`/v1/annotations/reviewed?page=${currentPage}&pageSize=100&state=accepted`);
+      const response = await api<{ items: typeof candidates; hasMore: boolean }>(`/v1/datasets/candidates?page=${currentPage}&pageSize=100`);
       candidates.push(...response.items);
       hasMore = response.hasMore;
       currentPage += 1;

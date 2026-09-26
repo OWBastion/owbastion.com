@@ -1815,6 +1815,23 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviewed_annotations WHERE submission_id = 'submission.mixed'").get()).toEqual({ count: 3 });
     });
 
+    it("persists confirmed field truth when the business submission is rejected", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.reject', '1003', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.reject', 'identity.reject', 'player.reject', 'qq', 'group.reject', 'member.reject', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.reject', 'binding.reject', 'ocr_review_required', 'unknown', '截图地图', 'Tester', 'portal', 'portal', 'message.reject', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.reject', 'submission.reject', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, model_version: "ocr-v4", layout_version: "layout-v8", data: { map_name: "截图地图" } }), now);
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+      const result = await services.reviewSubmission({ submissionId: "submission.reject", decision: "rejected", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "国王大道" }] }, auth, "review.reject");
+
+      expect(result).toMatchObject({ decision: "rejected", reviewedAnnotationId: expect.any(String), reviewedAnnotationIds: [expect.any(String)] });
+      expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.reject'").get()).toEqual({ status: "rejected" });
+      expect(sqlite.prepare("SELECT field_key, original_ocr_value, reviewed_value, review_state FROM reviewed_annotations WHERE submission_id = 'submission.reject'").get()).toEqual({ field_key: "map_name", original_ocr_value: "截图地图", reviewed_value: "国王大道", review_state: "accepted" });
+    });
+
     it("keeps an incomplete achievement-list confirmation out of reviewed annotations", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);

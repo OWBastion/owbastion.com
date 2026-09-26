@@ -59,6 +59,7 @@ import type {
   AdminAnnotationDirectCreateResponse,
   AdminReviewedAnnotationListResponse,
   AdminDatasetCreateResponse,
+  AdminDatasetCandidateListResponse,
   AdminDatasetListResponse,
   AdminDatasetDetailResponse,
   AdminDatasetFinalizeResponse,
@@ -258,7 +259,8 @@ export type PlatformServices = {
   decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse>;
   createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse>;
   listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, auth: AuthContext): Promise<AdminReviewedAnnotationListResponse>;
-  createAdminDatasetDraft(input: { note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
+  listAdminDatasetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminDatasetCandidateListResponse>;
+  createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
   listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, auth: AuthContext): Promise<AdminDatasetListResponse>;
   getAdminDataset(input: { datasetId: string }, auth: AuthContext): Promise<AdminDatasetDetailResponse>;
   finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse>;
