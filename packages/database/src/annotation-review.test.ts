@@ -50,13 +50,12 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
   );
-  CREATE TABLE qq_sessions (
-    id TEXT PRIMARY KEY NOT NULL, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL,
-    member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL,
-    expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+  CREATE TABLE portal_sessions (
+    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
   );
   CREATE TABLE submissions (
-    id TEXT PRIMARY KEY NOT NULL, binding_id TEXT NOT NULL, status TEXT NOT NULL,
+    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, binding_id TEXT, status TEXT NOT NULL,
     challenge_type TEXT NOT NULL, challenge_id TEXT, target_map_id TEXT, gameplay_revision_id TEXT,
     map_name TEXT NOT NULL, difficulty TEXT, player_name TEXT, review_reason TEXT, grant_id TEXT,
     ocr_fail_count INTEGER NOT NULL DEFAULT 0, rule_snapshot_json TEXT, source_provider TEXT NOT NULL,
@@ -159,11 +158,11 @@ const setup = async (proposals: ProposalSeed[] = []) => {
       ('player-other', '1002', 'Other', 'other', 0, 'active', 1, 1);
     INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES
       ('binding-owner', 'identity-1', 'player-owner', 'qq', 'group-1', 'member-owner', 'active', 1);
-    INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES
-      ('session-owner', 'attempt-1', 'group-1', 'member-owner', 'test', '${tokenHash}', ${Date.now() + 86_400_000}, 1);
-    INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES
-      ('submission-1', 'binding-owner', 'approved', 'map_title_achievement', 'challenge-1', '萨摩亚', '困难', 'Owner', 'qq', 'conv-1', 'msg-1', 1, 1),
-      ('submission-2', 'binding-owner', 'approved', 'map_title_achievement', 'challenge-1', '萨摩亚', '困难', 'Owner', 'qq', 'conv-1', 'msg-2', 1, 1);
+    INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES
+      ('session-owner', 'player-owner', '${tokenHash}', ${Date.now() + 86_400_000});
+    INSERT INTO submissions (id, player_account_id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES
+      ('submission-1', 'player-owner', 'binding-owner', 'approved', 'map_title_achievement', 'challenge-1', '萨摩亚', '困难', 'Owner', 'qq', 'conv-1', 'msg-1', 1, 1),
+      ('submission-2', 'player-owner', 'binding-owner', 'approved', 'map_title_achievement', 'challenge-1', '萨摩亚', '困难', 'Owner', 'qq', 'conv-1', 'msg-2', 1, 1);
     INSERT INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, created_at) VALUES
       ('ocr-1', 'submission-1', 'req-1', 1, 'ok', '${JSON.stringify(ocrResponse()).replaceAll("'", "''")}', 1),
       ('ocr-2', 'submission-2', 'req-2', 1, 'ok', '${JSON.stringify(ocrResponse()).replaceAll("'", "''")}', 1);

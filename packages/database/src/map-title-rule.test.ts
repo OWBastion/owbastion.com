@@ -235,7 +235,8 @@ const installSchema = (sqlite: DatabaseSync) => {
     );
     CREATE TABLE submissions (
       id TEXT PRIMARY KEY NOT NULL,
-      binding_id TEXT NOT NULL,
+      player_account_id TEXT,
+      binding_id TEXT,
       status TEXT NOT NULL,
       challenge_type TEXT NOT NULL,
       challenge_id TEXT,
@@ -271,7 +272,7 @@ const installSchema = (sqlite: DatabaseSync) => {
     );
     CREATE TABLE mastery_runs (
       id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+      player_account_id TEXT NOT NULL,
       source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
       map_id TEXT NOT NULL REFERENCES maps(id),
       gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
@@ -552,6 +553,26 @@ const installSchema = (sqlite: DatabaseSync) => {
       expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );
+    CREATE TABLE portal_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+      token_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TRIGGER submissions_player_account_legacy_backfill
+    AFTER INSERT ON submissions
+    WHEN NEW.player_account_id IS NULL AND NEW.binding_id IS NOT NULL
+    BEGIN
+      UPDATE submissions SET player_account_id = (SELECT player_account_id FROM bindings WHERE id = NEW.binding_id) WHERE id = NEW.id;
+    END;
+    CREATE TRIGGER qq_sessions_portal_session_backfill
+    AFTER INSERT ON qq_sessions
+    BEGIN
+      INSERT OR IGNORE INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at)
+      SELECT NEW.id, player_account_id, NEW.token_hash, NEW.expires_at, NEW.created_at
+      FROM bindings WHERE member_open_id = NEW.member_open_id AND status = 'active';
+    END;
     CREATE TABLE upload_sessions (
       id TEXT PRIMARY KEY NOT NULL,
       submission_id TEXT NOT NULL,

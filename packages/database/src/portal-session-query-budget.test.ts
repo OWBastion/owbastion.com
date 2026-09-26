@@ -88,11 +88,6 @@ const createCountingD1 = () => {
 
 const installSessionSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
-    CREATE TABLE identities (
-      id TEXT PRIMARY KEY NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
     CREATE TABLE player_accounts (
       id TEXT PRIMARY KEY NOT NULL,
       player_id TEXT NOT NULL,
@@ -106,32 +101,17 @@ const installSessionSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE bindings (
+    CREATE TABLE portal_sessions (
       id TEXT PRIMARY KEY NOT NULL,
-      identity_id TEXT NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-      provider TEXT NOT NULL,
-      group_open_id TEXT NOT NULL,
-      member_open_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      revoked_at INTEGER,
-      revoked_by TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX bindings_provider_member_idx ON bindings (provider, member_open_id);
-    CREATE TABLE qq_sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      attempt_id TEXT NOT NULL,
-      group_open_id TEXT NOT NULL,
-      member_open_id TEXT NOT NULL,
-      environment TEXT NOT NULL,
       token_hash TEXT NOT NULL,
+      passkey_challenge_id TEXT,
       expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE submissions (
       id TEXT PRIMARY KEY NOT NULL,
-      binding_id TEXT NOT NULL REFERENCES bindings(id),
+      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
       status TEXT NOT NULL,
       map_name TEXT NOT NULL,
       challenge_id TEXT,
@@ -166,38 +146,28 @@ describe("Portal session query budget and resolution semantics", () => {
     const futureExpiry = timestamp + 24 * 60 * 60 * 1000;
     const pastExpiry = timestamp - 1000;
 
-    // 1. Regular active player
-    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('id.regular', ?, ?)").run(timestamp, timestamp);
+    // Portal sessions resolve directly to their stable Player Account.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.regular', '1001', 'RegularPlayer', 'regularplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.regular', 'id.regular', 'player.regular', 'qq', 'group.1', 'member.regular', 'active', ?)").run(timestamp);
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.regular', 'attempt.1', 'group.1', 'member.regular', 'production', ?, ?, ?)").run(await hashToken("token.regular"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.regular', 'player.regular', ?, ?, ?)").run(await hashToken("token.regular"), futureExpiry, timestamp);
 
     // 2. Admin active player
-    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('id.admin', ?, ?)").run(timestamp, timestamp);
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.admin', '1002', 'AdminPlayer', 'adminplayer', 1, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.admin', 'id.admin', 'player.admin', 'qq', 'group.1', 'member.admin', 'active', ?)").run(timestamp);
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.admin', 'attempt.2', 'group.1', 'member.admin', 'production', ?, ?, ?)").run(await hashToken("token.admin"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.admin', 'player.admin', ?, ?, ?)").run(await hashToken("token.admin"), futureExpiry, timestamp);
 
     // 3. Expired session (regular player)
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.expired', 'attempt.3', 'group.1', 'member.regular', 'production', ?, ?, ?)").run(await hashToken("token.expired"), pastExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.expired', 'player.regular', ?, ?, ?)").run(await hashToken("token.expired"), pastExpiry, timestamp);
 
-    // 4. Revoked binding player
-    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('id.revoked', ?, ?)").run(timestamp, timestamp);
+    // 4. Player without any QQ binding retains a valid Portal session.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked', '1003', 'RevokedPlayer', 'revokedplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, revoked_at, revoked_by, created_at) VALUES ('binding.revoked', 'id.revoked', 'player.revoked', 'qq', 'group.1', 'member.revoked', 'revoked', ?, 'admin', ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.revoked', 'attempt.4', 'group.1', 'member.revoked', 'production', ?, ?, ?)").run(await hashToken("token.revoked"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.unbound', 'player.revoked', ?, ?, ?)").run(await hashToken("token.unbound"), futureExpiry, timestamp);
 
     // 5. Banned player
-    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('id.banned', ?, ?)").run(timestamp, timestamp);
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, banned_at, banned_by, ban_reason, created_at, updated_at) VALUES ('player.banned', '1004', 'BannedPlayer', 'bannedplayer', 0, 'banned', ?, 'admin', 'cheating', ?, ?)").run(timestamp, timestamp, timestamp);
-    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.banned', 'id.banned', 'player.banned', 'qq', 'group.1', 'member.banned', 'active', ?)").run(timestamp);
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.banned', 'attempt.5', 'group.1', 'member.banned', 'production', ?, ?, ?)").run(await hashToken("token.banned"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.banned', 'player.banned', ?, ?, ?)").run(await hashToken("token.banned"), futureExpiry, timestamp);
 
-    // 6. Non-qq provider binding
-    sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('id.other', ?, ?)").run(timestamp, timestamp);
+    // 6. Another unbound Player Account also resolves without a channel binding.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.other', '1005', 'OtherProviderPlayer', 'otherproviderplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.other', 'id.other', 'player.other', 'wechat', 'group.1', 'member.other', 'active', ?)").run(timestamp);
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.other', 'attempt.6', 'group.1', 'member.other', 'production', ?, ?, ?)").run(await hashToken("token.other"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.other', 'player.other', ?, ?, ?)").run(await hashToken("token.other"), futureExpiry, timestamp);
 
     const services = createPlatformServices(database);
     resetCount();
@@ -215,7 +185,6 @@ describe("Portal session query budget and resolution semantics", () => {
     expect(resolved?.player.playerId).toBe("1001");
     expect(resolved?.player.playerName).toBe("RegularPlayer");
     expect(resolved?.player.isAdmin).toBe(0);
-    expect(resolved?.binding.id).toBe("binding.regular");
 
     resetCount();
     const adminResolved = await resolvePortalSession(database, "token.admin");
@@ -240,17 +209,17 @@ describe("Portal session query budget and resolution semantics", () => {
     expect(getCount()).toBe(1);
     expect(expired).toBeNull();
 
-    // Revoked binding
+    // Unbinding QQ cannot revoke Portal access.
     resetCount();
-    const revoked = await resolvePortalSession(database, "token.revoked");
+    const unbound = await resolvePortalSession(database, "token.unbound");
     expect(getCount()).toBe(1);
-    expect(revoked).toBeNull();
+    expect(unbound?.player.playerId).toBe("1003");
 
-    // Non-qq binding
+    // A player account without QQ can authenticate directly.
     resetCount();
     const other = await resolvePortalSession(database, "token.other");
     expect(getCount()).toBe(1);
-    expect(other).toBeNull();
+    expect(other?.player.playerId).toBe("1005");
 
     // Banned player
     resetCount();
@@ -278,9 +247,9 @@ describe("Portal session query budget and resolution semantics", () => {
     expect(banned).toBeNull();
 
     resetCount();
-    const revoked = await services.getCurrentPlayer({ sessionToken: "token.revoked" });
-    expect(getCount()).toBe(1);
-    expect(revoked).toBeNull();
+    const unbound = await services.getCurrentPlayer({ sessionToken: "token.unbound" });
+    expect(getCount()).toBe(2);
+    expect(unbound?.player.playerId).toBe("1003");
   });
 
   it("correctly differentiates admin vs non-admin player via services.getCurrentPlayer", async () => {
@@ -316,18 +285,11 @@ describe("Portal session query budget and resolution semantics", () => {
     expect(after).toBeNull();
   });
 
-  it("denies player request immediately when binding is revoked (no caching)", async () => {
+  it("allows a Player Account without a QQ binding to keep using the Portal", async () => {
     const { services, sqlite } = await setupFixture();
 
-    const before = await services.getCurrentPlayer({ sessionToken: "token.regular" });
-    expect(before).not.toBeNull();
-
-    // Revoke the binding
-    sqlite.prepare("UPDATE bindings SET status = 'revoked' WHERE id = 'binding.regular'").run();
-
-    // Very next request must be denied
-    const after = await services.getCurrentPlayer({ sessionToken: "token.regular" });
-    expect(after).toBeNull();
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'bindings'").get()).toEqual({ count: 0 });
+    expect((await services.getCurrentPlayer({ sessionToken: "token.regular" }))?.player.playerId).toBe("1001");
   });
 
   it("denies player request immediately when session expires or is deleted (no caching)", async () => {
@@ -337,17 +299,17 @@ describe("Portal session query budget and resolution semantics", () => {
     expect(before).not.toBeNull();
 
     // Expire session
-    sqlite.prepare("UPDATE qq_sessions SET expires_at = 0 WHERE id = 'session.regular'").run();
+    sqlite.prepare("UPDATE portal_sessions SET expires_at = 0 WHERE id = 'session.regular'").run();
 
     // Very next request must be denied
     const after = await services.getCurrentPlayer({ sessionToken: "token.regular" });
     expect(after).toBeNull();
 
     // Restore expiry, verify success, then delete session
-    sqlite.prepare("UPDATE qq_sessions SET expires_at = ? WHERE id = 'session.regular'").run(Date.now() + 100_000);
+    sqlite.prepare("UPDATE portal_sessions SET expires_at = ? WHERE id = 'session.regular'").run(Date.now() + 100_000);
     expect(await services.getCurrentPlayer({ sessionToken: "token.regular" })).not.toBeNull();
 
-    sqlite.prepare("DELETE FROM qq_sessions WHERE id = 'session.regular'").run();
+    sqlite.prepare("DELETE FROM portal_sessions WHERE id = 'session.regular'").run();
     expect(await services.getCurrentPlayer({ sessionToken: "token.regular" })).toBeNull();
   });
 });

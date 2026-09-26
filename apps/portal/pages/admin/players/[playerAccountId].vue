@@ -14,6 +14,14 @@ const loading = shallowRef(true);
 const actionLoading = shallowRef(false);
 const identityEditorOpen = shallowRef(false);
 const identityLoading = shallowRef(false);
+const recoveryOpen = shallowRef(false);
+const recoveryLoading = shallowRef(false);
+const recoveryIdentityVerified = shallowRef(false);
+const recoveryRequestId = shallowRef("");
+const recoveryError = shallowRef("");
+const recoveryLink = shallowRef("");
+const recoveryExpiresAt = shallowRef<number | null>(null);
+const recoveryCopied = shallowRef(false);
 const errorMessage = shallowRef("");
 const pendingAction = shallowRef<{ type: "set-status"; status: "active" | "banned" } | { type: "unbind"; bindingId: string } | null>(null);
 const banReason = shallowRef("");
@@ -74,6 +82,38 @@ async function updateIdentity(playerName: string) {
   } finally { identityLoading.value = false; }
 }
 
+function openRecovery() {
+  recoveryIdentityVerified.value = false;
+  recoveryError.value = "";
+  recoveryRequestId.value = createRequestId();
+  recoveryOpen.value = true;
+}
+
+async function issueRecovery() {
+  if (!player.value || !recoveryIdentityVerified.value || !recoveryRequestId.value) return;
+  recoveryLoading.value = true;
+  recoveryError.value = "";
+  try {
+    const result = await api<{ contractVersion: "1"; recoveryUrl: string; expiresAt: number }>(`/v1/player-accounts/${encodeURIComponent(player.value.playerAccountId)}/passkey-recovery`, {
+      method: "POST",
+      headers: { "Idempotency-Key": recoveryRequestId.value },
+      body: { contractVersion: "1", identityVerified: true },
+    });
+    recoveryLink.value = result.recoveryUrl;
+    recoveryExpiresAt.value = result.expiresAt;
+    recoveryOpen.value = false;
+  } catch (error) {
+    recoveryError.value = portalErrorDetails(error, "无法签发恢复链接，请稍后重试。").description;
+  } finally { recoveryLoading.value = false; }
+}
+
+async function copyRecoveryLink() {
+  if (!recoveryLink.value || !navigator.clipboard) return;
+  await navigator.clipboard.writeText(recoveryLink.value);
+  recoveryCopied.value = true;
+  window.setTimeout(() => { recoveryCopied.value = false; }, 1600);
+}
+
 onMounted(() => { void load(); });
 </script>
 
@@ -81,11 +121,39 @@ onMounted(() => { void load(); });
   <AdminWorkspace :title="player ? `${player.playerName}#${player.playerId}` : '玩家详情'">
     <template #actions><UButton :to="`/admin/mastery-runs?playerAccountId=${encodeURIComponent(playerAccountId)}`" label="通关记录" color="neutral" variant="outline" /><UButton to="/admin/players" label="返回玩家列表" color="neutral" variant="outline" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
-    <section v-if="player" class="player-detail-page"><AdminPlayerDetail :player="player" :loading="actionLoading || identityLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="load" @edit-identity="identityEditorOpen = true" /></section>
+    <section v-if="player" class="player-detail-page">
+      <AdminPlayerDetail :player="player" :loading="actionLoading || identityLoading || recoveryLoading" @set-status="requestStatus" @unbind="requestUnbind" @grant-completed="load" @edit-identity="identityEditorOpen = true" />
+      <section class="recovery-panel surface-card" aria-labelledby="recovery-title">
+        <div>
+          <h2 id="recovery-title">Passkey 恢复</h2>
+          <p>核验玩家身份后，可撤销此帐号当前的 Passkey 与 Portal 会话，并签发一次性链接。恢复会回到同一个 Player Account，原有提交、称号和精通记录继续保留。</p>
+        </div>
+        <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
+        <div v-if="recoveryLink" class="recovery-result">
+          <UAlert color="success" variant="subtle" title="一次性恢复链接已签发" :description="recoveryExpiresAt ? `有效至 ${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(recoveryExpiresAt)}` : undefined" />
+          <code>{{ recoveryLink }}</code>
+          <UButton :label="recoveryCopied ? '已复制' : '复制恢复链接'" icon="i-lucide-copy" color="neutral" variant="outline" @click="copyRecoveryLink" />
+        </div>
+        <UButton label="核验并签发恢复链接" icon="i-lucide-key-round" color="warning" variant="soft" :disabled="recoveryLoading || player.status !== 'active'" @click="openRecovery" />
+      </section>
+    </section>
     <UEmpty v-else-if="!loading" title="找不到该玩家" description="玩家帐号可能已不存在或链接无效。" />
     <AdminResponsiveDialog :open="pendingAction !== null" :title="actionTitle" :description="actionDescription" size="sm" :dismissible="!actionLoading" @update:open="(open) => { if (!open) closeAction(); }">
       <template #body><form v-if="pendingAction" id="player-action" class="player-action" @submit.prevent="confirmAction"><p v-if="pendingAction.type === 'unbind'">解除后，历史提交会保留。</p><template v-else><p>{{ pendingAction.status === 'banned' ? '封禁后，玩家无法继续使用当前帐号。' : '解除后，玩家可以继续使用当前帐号。' }}</p><UFormField v-if="pendingAction.status === 'banned'" label="封禁原因"><UTextarea v-model="banReason" maxlength="256" :disabled="actionLoading" /></UFormField></template></form></template>
       <template #footer><UButton :label="actionTitle" :color="pendingAction?.type === 'unbind' || (pendingAction?.type === 'set-status' && pendingAction.status === 'banned') ? 'error' : 'primary'" :variant="pendingAction?.type === 'unbind' || (pendingAction?.type === 'set-status' && pendingAction.status === 'banned') ? 'soft' : 'solid'" type="submit" form="player-action" :loading="actionLoading" /><UButton label="取消" color="neutral" variant="outline" :disabled="actionLoading" @click="closeAction()" /></template>
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog v-model:open="recoveryOpen" title="签发 Passkey 恢复链接" :description="actionDescription" size="sm" :dismissible="!recoveryLoading">
+      <template #body>
+        <div class="recovery-confirm">
+          <p>签发后会立即移除此帐号现有 Passkey，并撤销其所有 Portal 会话。玩家完成新 Passkey 注册后仍使用原 Player Account。</p>
+          <UCheckbox v-model="recoveryIdentityVerified" label="我已通过独立方式核验玩家身份，并确认恢复到此帐号。" :disabled="recoveryLoading" />
+          <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
+        </div>
+      </template>
+      <template #footer>
+        <UButton label="签发一次性链接" color="warning" variant="soft" :loading="recoveryLoading" :disabled="recoveryLoading || !recoveryIdentityVerified" @click="issueRecovery" />
+        <UButton label="取消" color="neutral" variant="outline" :disabled="recoveryLoading" @click="recoveryOpen = false" />
+      </template>
     </AdminResponsiveDialog>
     <AdminPlayerIdentityEditor v-if="player" v-model:open="identityEditorOpen" :player="player" :loading="identityLoading" @save="updateIdentity" />
   </AdminWorkspace>
@@ -95,4 +163,10 @@ onMounted(() => { void load(); });
 .detail-loading { width: 100%; height: 120px; }
 .player-action { display: grid; gap: var(--space-4); }
 .player-action p { margin: 0; color: var(--muted); line-height: 1.55; }
+.recovery-panel { display: grid; gap: var(--space-4); margin-top: var(--space-5); padding: var(--space-6); }
+.recovery-panel h2 { margin: 0; font-size: var(--type-section-title-size); }
+.recovery-panel p, .recovery-confirm p { margin: var(--space-2) 0 0; color: var(--muted); line-height: 1.6; }
+.recovery-result { display: grid; gap: var(--space-3); }
+.recovery-result code { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; background: var(--surface-raised); }
+.recovery-confirm { display: grid; gap: var(--space-4); }
 </style>

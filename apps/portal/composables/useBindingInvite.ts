@@ -35,14 +35,6 @@ export function useBindingInvite() {
     if (import.meta.client && claim.value) sessionStorage.setItem(storageKey, JSON.stringify(claim.value));
   };
 
-  const establishSession = async () => {
-    if (!claim.value) return;
-    await api(`/v1/public/binding-claims/${claim.value.claimId}/session`, { method: "POST", headers: { "x-claim-token": claim.value.claimToken } });
-    state.value = "completed";
-    clearClaim();
-    await navigateTo({ path: "/login/complete", query: { returnTo: "/me" } });
-  };
-
   const pollStatus = async () => {
     if (!claim.value || ["completed", "rejected", "expired"].includes(state.value)) return;
     try {
@@ -51,7 +43,9 @@ export function useBindingInvite() {
       claim.value.expiresAt = result.expiresAt;
       persistClaim();
       if (result.status === "approved") {
-        await establishSession();
+        state.value = "completed";
+        clearClaim();
+        stopPolling();
         return;
       }
       if (result.status === "pending_review") state.value = "review";

@@ -4,7 +4,7 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | QQ bindings, player accounts, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, login attempts, sessions, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
+| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, verified mastery runs and lifecycle events, review records, idempotency records, audit events, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
@@ -22,8 +22,10 @@ No private screenshot is committed to the repository.
 ## Platform trust boundaries
 
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
-channel:write plus channel:read. Binding, submission, and QQ login verification
-writes require an idempotency key and record an audit event. Administrative
+channel:write plus channel:read. Binding and submission writes require an
+idempotency key and record an audit event. QQ verification may attach a channel
+binding only to an existing active Player Account; it cannot create an account
+or authenticate the Portal. Administrative
 requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
@@ -86,21 +88,28 @@ not shared through public HTTP cache boundaries.
 
 ## Private login and player data
 
-QQ login codes, attempt tokens, session tokens, group OpenIDs, and member
-OpenIDs are private. The database stores hashes of the short-lived attempt
-token and code. Invitation codes are hashed for verification and encrypted at
-rest for maintainer re-copy, are single-use, target one BattleTag, and expire
-after seven days. A maintainer can revoke only an unused, unexpired invitation;
-the reason is retained in the audit record and revocation takes effect
-immediately. Invitation confirmation codes expire after two minutes; a clean
-first invitation activates a binding automatically after the platform verifies
-a code from an enabled group, while conflicts remain under maintainer review.
-Login attempts expire after two minutes; a verified browser session expires
-after 30 days. The Portal receives a session cookie only after the platform
-verifies both the completed claim and the original browser claim capability.
+Passkey challenges, session tokens, recovery tokens, QQ group OpenIDs, and
+member OpenIDs are private. The database stores hashes of session and recovery
+tokens. Passkey challenges expire after five minutes and can be consumed only
+once. Authentication and registration require user verification; registration
+requires a discoverable credential. The Worker checks the exact Portal Origin
+and derives the WebAuthn RP ID from its hostname before it asks the auth package
+to verify a response. Invitation codes are hashed for verification and
+encrypted at rest for maintainer re-copy, are single-use, target one BattleTag,
+and expire after seven days. A maintainer can revoke only an unused,
+unexpired invitation; the reason is retained in the audit record and
+revocation takes effect immediately. Invitation confirmation codes expire
+after two minutes. A first invitation creates its Player Account only after
+valid Passkey registration. A later QQ confirmation attaches the optional
+channel or sends a conflict to maintainer review. Portal sessions expire after
+30 days and are stored against the Player Account, independent of QQ binding
+state. Existing active QQ sessions are backfilled to direct Player Account
+sessions during the cutover. Maintainer recovery grants expire after 30 minutes,
+are single-use, replace the account's Passkeys, revoke its Portal sessions, and
+preserve all business records on that Player Account.
 
 GET /v1/me returns only the authenticated player's name, numeric player ID,
-binding status, and up to five recent player-facing submissions. The separate
+and up to five recent player-facing submissions. The separate
 authenticated player-title response returns only the caller's active grants and
 the public title and map-scope data needed to display them; it never returns
 historical holder names, QQ identities, or audit data. QQ identities, evidence

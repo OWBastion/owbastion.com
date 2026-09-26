@@ -67,8 +67,8 @@ export const adminActiveBindingListResponseSchema = z.object({ contractVersion, 
 export const bindingInviteRedeemRequestSchema = z.object({ contractVersion, code: inviteCode }).strict();
 export const bindingInviteRedeemResponseSchema = z.object({ contractVersion, claimId: z.string().uuid(), claimToken: z.string().min(32), code: inviteClaimCode, playerName: z.string().trim().min(1).max(64), playerId, expiresAt: z.number().int() });
 export const bindingClaimStatusResponseSchema = z.object({ contractVersion, status: z.enum(["pending_confirmation", "pending_review", "approved", "rejected", "expired"]), expiresAt: z.number().int(), historicalMigration: publicHistoricalMigrationSummarySchema });
-export const bindingClaimSessionResponseSchema = z.object({ contractVersion, status: z.literal("authenticated") });
 export const qqBindingClaimVerifyRequestSchema = z.object({ contractVersion, provider: z.literal("qq"), code: inviteClaimCode, groupOpenId: externalId, memberOpenId: externalId, messageId: externalId });
+export const qqBindingClaimVerifyResponseSchema = z.object({ contractVersion, status: z.literal("verified"), environment: z.enum(["production", "test"]) });
 export const adminBindingClaimDecisionRequestSchema = z.object({ contractVersion, decision: z.enum(["approved", "rejected"]), reason: z.string().trim().max(256).optional() });
 export const adminBindingClaimOperationTypeSchema = z.enum(["initial_binding", "rebind_account", "qq_transfer", "conflict"]);
 export const targetAccountBindingSchema = z.object({ bindingId: z.string().uuid(), memberOpenId: externalId, groupOpenId: externalId.optional() });
@@ -86,38 +86,26 @@ export const adminBindingClaimSchema = z.object({
   targetAccountBinding: targetAccountBindingSchema.optional(),
   qqBoundAccounts: z.array(qqBoundAccountSchema).optional(),
   revokingBindingCount: z.number().int().nonnegative().optional(),
-  invalidatingSessionCount: z.number().int().nonnegative().optional(),
   operationType: adminBindingClaimOperationTypeSchema.optional(),
 });
 export const adminBindingClaimListResponseSchema = z.object({ contractVersion, items: z.array(adminBindingClaimSchema) });
 
-export const qqLoginAttemptRequestSchema = z.object({ contractVersion, provider: z.literal("qq") });
-export const qqLoginAttemptResponseSchema = z.object({
-  contractVersion,
-  attemptId: z.string().uuid(),
-  attemptToken: z.string().min(32),
-  code: z.string().regex(/^[A-Z2-9]{6}$/),
-  expiresAt: z.number().int(),
-});
-export const qqLoginStatusResponseSchema = z.object({
-  contractVersion,
-  status: z.enum(["pending", "verified", "expired"]),
-  environment: z.enum(["production", "test"]).optional(),
-  sessionToken: z.string().min(32).optional(),
-});
-export const qqLoginVerifyRequestSchema = z.object({
-  contractVersion,
-  provider: z.literal("qq"),
-  code: z.string().regex(/^[A-Z2-9]{6}$/),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  messageId: externalId,
-});
-export const qqLoginVerifyResponseSchema = z.object({
-  contractVersion,
-  status: z.literal("verified"),
-  environment: z.enum(["production", "test"]),
-});
+const passkeyCredentialResponseSchema = z.record(z.string(), z.unknown());
+const passkeyOptionsSchema = z.record(z.string(), z.unknown());
+export const passkeyLoginOptionsRequestSchema = z.object({ contractVersion }).strict();
+export const passkeyLoginOptionsResponseSchema = z.object({ contractVersion, challengeId: z.string().uuid(), options: passkeyOptionsSchema });
+export const passkeyLoginVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), credential: passkeyCredentialResponseSchema }).strict();
+export const passkeyRegistrationOptionsRequestSchema = z.object({ contractVersion, code: inviteCode }).strict();
+export const passkeyAuthenticatedRegistrationOptionsRequestSchema = z.object({ contractVersion, name: z.string().trim().min(1).max(64) }).strict();
+export const passkeyPublicRegistrationOptionsRequestSchema = z.object({ contractVersion, token: z.string().min(32).max(256), name: z.string().trim().min(1).max(64) }).strict();
+export const passkeyRegistrationOptionsResponseSchema = z.object({ contractVersion, challengeId: z.string().uuid(), options: passkeyOptionsSchema });
+export const passkeyRegistrationVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), credential: passkeyCredentialResponseSchema, name: z.string().trim().min(1).max(64) }).strict();
+export const passkeyPublicRegistrationVerifyRequestSchema = z.object({ contractVersion, challengeId: z.string().uuid(), token: z.string().min(32).max(256), credential: passkeyCredentialResponseSchema, name: z.string().trim().min(1).max(64) }).strict();
+export const passkeyCredentialSchema = z.object({ passkeyId: z.string().uuid(), name: z.string().trim().min(1).max(64), createdAt: z.number().int().positive(), lastUsedAt: z.number().int().positive().nullable() });
+export const passkeyCredentialListResponseSchema = z.object({ contractVersion, items: z.array(passkeyCredentialSchema) });
+export const passkeyCredentialDeleteResponseSchema = z.object({ contractVersion, removed: z.literal(true) });
+export const adminPasskeyRecoveryRequestSchema = z.object({ contractVersion, identityVerified: z.literal(true) }).strict();
+export const adminPasskeyRecoveryResponseSchema = z.object({ contractVersion, recoveryUrl: z.string().url(), expiresAt: z.number().int().positive() });
 const qqGroupStatus = z.enum(["pending", "active", "legacy", "disconnected"]);
 export const qqGroupAccessRequestSchema = z.object({ contractVersion, groupOpenId: externalId, displayName: z.string().trim().max(128).default(""), environment: z.enum(["production", "test"]), status: qqGroupStatus, bindEnabled: z.boolean(), verifyEnabled: z.boolean() });
 export const qqGroupAccessResponseSchema = qqGroupAccessRequestSchema.extend({ updatedAt: z.number().int() });
@@ -1444,7 +1432,6 @@ export const currentPlayerResponseSchema = z.object({
   player: z.object({
     playerId,
     playerName: z.string().trim().min(1).max(64),
-    bindingStatus: z.literal("bound"),
     isAdmin: z.boolean().default(false),
   }),
   recentSubmissions: z.array(submissionStatusResponseSchema.omit({ contractVersion: true })).max(5),
@@ -1517,15 +1504,20 @@ export type AdminActiveBindingListResponse = z.infer<typeof adminActiveBindingLi
 export type BindingInviteRedeemRequest = z.infer<typeof bindingInviteRedeemRequestSchema>;
 export type BindingInviteRedeemResponse = z.infer<typeof bindingInviteRedeemResponseSchema>;
 export type BindingClaimStatusResponse = z.infer<typeof bindingClaimStatusResponseSchema>;
-export type BindingClaimSessionResponse = z.infer<typeof bindingClaimSessionResponseSchema>;
 export type QqBindingClaimVerifyRequest = z.infer<typeof qqBindingClaimVerifyRequestSchema>;
+export type QqBindingClaimVerifyResponse = z.infer<typeof qqBindingClaimVerifyResponseSchema>;
 export type AdminBindingClaimDecisionRequest = z.infer<typeof adminBindingClaimDecisionRequestSchema>;
 export type AdminBindingClaimListResponse = z.infer<typeof adminBindingClaimListResponseSchema>;
-export type QqLoginAttemptRequest = z.infer<typeof qqLoginAttemptRequestSchema>;
-export type QqLoginAttemptResponse = z.infer<typeof qqLoginAttemptResponseSchema>;
-export type QqLoginStatusResponse = z.infer<typeof qqLoginStatusResponseSchema>;
-export type QqLoginVerifyRequest = z.infer<typeof qqLoginVerifyRequestSchema>;
-export type QqLoginVerifyResponse = z.infer<typeof qqLoginVerifyResponseSchema>;
+export type PasskeyLoginOptionsResponse = z.infer<typeof passkeyLoginOptionsResponseSchema>;
+export type PasskeyLoginVerifyRequest = z.infer<typeof passkeyLoginVerifyRequestSchema>;
+export type PasskeyRegistrationOptionsRequest = z.infer<typeof passkeyRegistrationOptionsRequestSchema>;
+export type PasskeyRegistrationVerifyRequest = z.infer<typeof passkeyRegistrationVerifyRequestSchema>;
+export type PasskeyPublicRegistrationOptionsRequest = z.infer<typeof passkeyPublicRegistrationOptionsRequestSchema>;
+export type PasskeyPublicRegistrationVerifyRequest = z.infer<typeof passkeyPublicRegistrationVerifyRequestSchema>;
+export type PasskeyCredential = z.infer<typeof passkeyCredentialSchema>;
+export type PasskeyCredentialListResponse = z.infer<typeof passkeyCredentialListResponseSchema>;
+export type AdminPasskeyRecoveryRequest = z.infer<typeof adminPasskeyRecoveryRequestSchema>;
+export type AdminPasskeyRecoveryResponse = z.infer<typeof adminPasskeyRecoveryResponseSchema>;
 export type QqGroupAccessRequest = z.infer<typeof qqGroupAccessRequestSchema>;
 export type QqGroupAccessResponse = z.infer<typeof qqGroupAccessResponseSchema>;
 export type QqGroupRegistrationRequest = z.infer<typeof qqGroupRegistrationRequestSchema>;

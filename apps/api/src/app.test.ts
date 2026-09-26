@@ -98,16 +98,12 @@ const services: PlatformServices = {
   revokeAdminBindingInvite: async () => {},
   redeemBindingInvite: async () => ({ contractVersion: "1", claimId: "00000000-0000-0000-0000-000000000008", claimToken: "a".repeat(64), code: "ABC234", playerName: "Player", playerId: "1234", expiresAt: 1 }),
   getBindingClaimStatus: async () => ({ contractVersion: "1", status: "pending_confirmation", expiresAt: 1, historicalMigration: { status: "not_requested" as const, requestedCount: 0, restoredCount: 0 } }),
-  exchangeBindingClaimSession: async () => ({ contractVersion: "1", status: "authenticated", sessionToken: "a".repeat(64) }),
   verifyBindingClaim: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
   retryHistoricalTitleMigration: async () => {},
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
-  createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
-  getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
-  verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   upsertQqGroupAccess: async () => {},
   registerQqGroup: async () => {},
   listQqGroupAccess: async () => [],
@@ -132,9 +128,20 @@ const services: PlatformServices = {
   restoreReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
-    player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
+    player: { playerId: "1234", playerName: "Player", isAdmin: false },
     recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
+  createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
+  completePasskeyLogin: async () => ({ sessionToken: "passkey-session-token" }),
+  createPasskeyInvitationOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000012", options: { challenge: "challenge" }, playerName: "Player", playerId: "1234" }),
+  completePasskeyInvitationRegistration: async () => ({ sessionToken: "invitation-session-token" }),
+  createCurrentPlayerPasskeyRegistrationOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000013", options: { challenge: "challenge" } }),
+  completeCurrentPlayerPasskeyRegistration: async () => {},
+  listCurrentPlayerPasskeys: async () => ({ contractVersion: "1", items: [] }),
+  removeCurrentPlayerPasskey: async () => {},
+  createAdminPasskeyRecovery: async () => ({ token: "r".repeat(64), expiresAt: 1_800_000_000_000 }),
+  createPasskeyRecoveryOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000014", options: { challenge: "challenge" } }),
+  completePasskeyRecoveryRegistration: async () => ({ sessionToken: "recovery-session-token" }),
   logoutPortalSession: async () => {},
   listLocalDevAccounts: async () => [],
   createLocalDevSession: async () => ({ sessionToken: "local-session-token" }),
@@ -405,7 +412,7 @@ describe("API", () => {
         ...services,
         getCurrentPlayer: async ({ sessionToken }) => sessionToken === "player-session" ? {
           contractVersion: "1" as const,
-          player: { playerId: "p1", playerName: "Player", bindingStatus: "bound" as const, isAdmin: false },
+          player: { playerId: "p1", playerName: "Player", isAdmin: false },
           recentSubmissions: [],
         } : null,
         listChallenges: async () => [],
@@ -681,16 +688,10 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ claimId: "00000000-0000-0000-0000-000000000008", code: "ABC234", playerName: "Player", playerId: "1234" });
   });
 
-  it("exchanges a completed invitation claim for the normal Portal session", async () => {
-    const exchangeApp = createApp({ authenticate: auth, services: () => ({ ...services, exchangeBindingClaimSession: async ({ claimId, claimToken }) => {
-      expect(claimId).toBe("00000000-0000-0000-0000-000000000008");
-      expect(claimToken).toBe("a".repeat(64));
-      return { contractVersion: "1" as const, status: "authenticated" as const, sessionToken: "s".repeat(64) };
-    } }) });
-    const response = await exchangeApp.request("https://owbastion.com/v1/public/binding-claims/00000000-0000-0000-0000-000000000008/session", { method: "POST", headers: { "x-claim-token": "a".repeat(64) } }, env);
-    expect(response.status).toBe(200);
-    expect(response.headers.get("set-cookie")).toContain("owb_session=");
-    expect(await response.json()).toEqual({ contractVersion: "1", status: "authenticated" });
+  it("does not exchange a QQ channel claim for a Portal session", async () => {
+    const response = await app.request("https://owbastion.com/v1/public/binding-claims/00000000-0000-0000-0000-000000000008/session", { method: "POST", headers: { "x-claim-token": "a".repeat(64) } }, env);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 
   it("limits invitation creation and claim decisions to maintainers", async () => {
@@ -747,11 +748,10 @@ describe("API", () => {
     expect((await adminApp.request("http://localhost/v1/admin/binding-invites/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-invite-duplicate" }, body: duplicate }, env)).status).toBe(422);
   });
 
-  it("reuses the existing QQ verification endpoint for invitation confirmation", async () => {
+  it("uses QQ verification only for binding requests, not Portal sessions", async () => {
     const body = JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" });
-    const claimApp = createApp({ authenticate: auth, services: () => ({ ...services, verifyQqLogin: async () => { throw new Error("LOGIN_CODE_INVALID"); } }) });
-    expect((await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
-    const response = await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
+    expect((await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
+    const response = await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: "verified", environment: "test" });
   });
@@ -802,23 +802,57 @@ describe("API", () => {
     expect(await response.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 });
   });
 
-  it("creates and polls a browser login attempt", async () => {
+  it("retires the QQ login-attempt endpoints", async () => {
     const create = await app.request("http://localhost/v1/auth/qq/login-attempt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq" }) }, env);
-    expect(create.status).toBe(201);
-    const payload = await create.json() as { attemptId: string; attemptToken: string };
-    const status = await app.request(`http://localhost/v1/auth/qq/login-attempt/${payload.attemptId}`, { headers: { "x-login-attempt-token": payload.attemptToken } }, env);
-    expect(status.status).toBe(200);
-    expect(await status.json()).toMatchObject({ contractVersion: "1", status: "pending" });
+    expect(create.status).toBe(404);
   });
 
-  it("sets a secure cookie only over HTTPS", async () => {
+  it("creates a Passkey challenge only for the configured Portal origin", async () => {
+    const originEnv = { ...env, PORTAL_ORIGIN: "https://owbastion.com" };
+    const invalid = await app.request("https://api.owbastion.com/v1/auth/passkeys/login/options", { method: "POST", headers: { origin: "https://attacker.example", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, originEnv);
+    expect(invalid.status).toBe(403);
+    const response = await app.request("https://api.owbastion.com/v1/auth/passkeys/login/options", { method: "POST", headers: { origin: "https://owbastion.com", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, originEnv);
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } });
+  });
+
+  it("sets a secure Portal session only after Passkey verification from the Portal origin", async () => {
+    const completed: Array<{ challengeId: string; origin: string; rpId: string }> = [];
     const verifiedApp = createApp({
       authenticate: auth,
-      services: () => ({ ...services, getQqLoginStatus: async () => ({ contractVersion: "1", status: "verified", environment: "production", sessionToken: "a".repeat(64) }) }),
+      services: () => ({ ...services, completePasskeyLogin: async (input) => { completed.push({ challengeId: input.challengeId, origin: input.origin, rpId: input.rpId }); return { sessionToken: "a".repeat(64) }; } }),
     });
-    const response = await verifiedApp.request("https://api.owbastion.com/v1/auth/qq/login-attempt/00000000-0000-0000-0000-000000000005", { headers: { "x-login-attempt-token": "a".repeat(64) } }, env);
+    const body = JSON.stringify({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", credential: { id: "credential" } });
+    const denied = await verifiedApp.request("https://api.owbastion.com/v1/auth/passkeys/login/verify", { method: "POST", headers: { origin: "https://attacker.example", "content-type": "application/json" }, body }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
+    expect(denied.status).toBe(403);
+    expect(completed).toEqual([]);
+    const response = await verifiedApp.request("https://api.owbastion.com/v1/auth/passkeys/login/verify", { method: "POST", headers: { origin: "https://owbastion.com", "content-type": "application/json" }, body }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
     expect(response.headers.get("set-cookie")).toContain("Secure");
     expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.com");
+    expect(completed).toEqual([{ challengeId: "00000000-0000-4000-8000-000000000011", origin: "https://owbastion.com", rpId: "owbastion.com" }]);
+  });
+
+  it("restricts assisted Passkey recovery to maintainers with explicit identity verification", async () => {
+    const issued: Array<{ input: unknown; auth: unknown; idempotencyKey: string }> = [];
+    const adminApp = createApp({
+      authenticate: async () => ({ actorType: "user" as const, subject: "admin.1", roles: ["maintainer"], provider: "test" }),
+      services: () => ({ ...services, createAdminPasskeyRecovery: async (input, auth, idempotencyKey) => {
+        issued.push({ input, auth, idempotencyKey });
+        return { token: "r".repeat(64), expiresAt: 1_800_000_000_000 };
+      } }),
+    });
+    const path = "https://api.owbastion.com/v1/admin/player-accounts/player.1/passkey-recovery";
+    const headers = { origin: "https://owbastion.com", "content-type": "application/json", "idempotency-key": "recovery.1" };
+    const unprivileged = await app.request(path, { method: "POST", headers, body: JSON.stringify({ contractVersion: "1", identityVerified: true }) }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
+    expect(unprivileged.status).toBe(403);
+    const unverified = await adminApp.request(path, { method: "POST", headers, body: JSON.stringify({ contractVersion: "1", identityVerified: false }) }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
+    expect(unverified.status).toBe(422);
+    const wrongOrigin = await adminApp.request(path, { method: "POST", headers: { ...headers, origin: "https://attacker.example" }, body: JSON.stringify({ contractVersion: "1", identityVerified: true }) }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
+    expect(wrongOrigin.status).toBe(403);
+    const response = await adminApp.request(path, { method: "POST", headers, body: JSON.stringify({ contractVersion: "1", identityVerified: true }) }, { ...env, PORTAL_ORIGIN: "https://owbastion.com" });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ contractVersion: "1", recoveryUrl: `https://owbastion.com/recover#token=${"r".repeat(64)}`, expiresAt: 1_800_000_000_000 });
+    expect(issued).toEqual([{ input: { contractVersion: "1", identityVerified: true, playerAccountId: "player.1" }, auth: { actorType: "user", subject: "admin.1", roles: ["maintainer"], provider: "test" }, idempotencyKey: "recovery.1" }]);
   });
 
   it("requires a valid portal session and returns only player-facing fields", async () => {
@@ -829,7 +863,7 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       contractVersion: "1",
-      player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: false },
+      player: { playerId: "1234", playerName: "Player", isAdmin: false },
       recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
@@ -1725,7 +1759,7 @@ describe("API", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
-  it("requires a service idempotency key for QQ login verification", async () => {
+  it("requires a service idempotency key for QQ binding verification", async () => {
     const response = await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { authorization: "Bearer service", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" }) }, env);
     expect(response.status).toBe(422);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
@@ -1771,7 +1805,7 @@ describe("API", () => {
   });
 
   it("protects administrative player data with the platform session", async () => {
-    const adminServices: PlatformServices = { ...services, getCurrentPlayer: async ({ sessionToken }) => sessionToken === "admin-session" ? { contractVersion: "1", player: { playerId: "1234", playerName: "Player", bindingStatus: "bound", isAdmin: true }, recentSubmissions: [] } : null };
+    const adminServices: PlatformServices = { ...services, getCurrentPlayer: async ({ sessionToken }) => sessionToken === "admin-session" ? { contractVersion: "1", player: { playerId: "1234", playerName: "Player", isAdmin: true }, recentSubmissions: [] } : null };
     const adminApp = createApp({ authenticate: async () => null, services: () => adminServices });
     const denied = await adminApp.request("http://localhost/v1/admin/player-accounts", {}, env);
     expect(denied.status).toBe(401);
@@ -1834,7 +1868,7 @@ describe("API", () => {
       ...services,
       listLocalDevAccounts: async () => [{ accountId: "local-player-account", playerId: "local-player", playerName: "Local Player", isAdmin: false }],
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
-      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] } : null,
+      getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false }, recentSubmissions: [] } : null,
     };
     const localApp = createApp({ authenticate: async () => null, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);

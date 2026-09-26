@@ -21,7 +21,6 @@ const adminApi = vi.fn((path: string, options?: any) => {
           targetAccountBinding: { bindingId: "old-b1", memberOpenId: "old-member-1" },
           qqBoundAccounts: [{ playerAccountId: "p-acc-2", playerName: "PlayerTwo", playerId: "5678" }],
           revokingBindingCount: 2,
-          invalidatingSessionCount: 1,
           operationType: "conflict",
         },
         {
@@ -34,7 +33,6 @@ const adminApi = vi.fn((path: string, options?: any) => {
           memberOpenId: "member-3",
           groupOpenId: "group-3",
           revokingBindingCount: 0,
-          invalidatingSessionCount: 0,
           operationType: "initial_binding",
         },
         {
@@ -47,7 +45,6 @@ const adminApi = vi.fn((path: string, options?: any) => {
           memberOpenId: "member-4",
           groupOpenId: "group-4",
           revokingBindingCount: 0,
-          invalidatingSessionCount: 0,
           operationType: "initial_binding",
         },
       ],

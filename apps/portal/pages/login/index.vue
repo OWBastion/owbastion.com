@@ -1,102 +1,44 @@
 <script setup lang="ts">
 import { hasSafeReturnTo, safeReturnTo as normalizeReturnTo } from "~/utils/safeReturnTo";
-import { qqVerificationCommand } from "~/utils/binding-invite";
 
-useSeoMeta({ title: "登录 · 躲避堡垒 3" });
+useSeoMeta({ title: "Passkey 登录 · 躲避堡垒 3" });
 definePageMeta({ middleware: "guest" });
 
 const route = useRoute();
-const { state, attempt, secondsLeft, message, start, restore, cancel, copyCode, safeReturnTo } = useLoginAttempt();
-const returnTo = computed(() => safeReturnTo(route.query.returnTo));
-const copied = ref(false);
+const { busy, errorMessage, login } = usePasskeys();
 const { accounts: localAccounts, selectedAccountId, loading: localLoading, errorMessage: localError, enabled: localEnabled, load: loadLocalAccounts, login: loginLocal } = useLocalDevAuth();
-const localReturnTo = computed(() => hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : undefined);
+const returnTo = computed(() => hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : "/me");
 const localAccountItems = computed(() => localAccounts.value.map((account) => ({
   label: `${account.playerName}#${account.playerId}${account.isAdmin ? "（管理员）" : "（玩家）"}`,
   value: account.accountId,
 })));
 
-onMounted(() => {
-  restore(returnTo.value);
-  void loadLocalAccounts();
-});
-
-async function copy() {
-  await copyCode();
-  copied.value = true;
-  window.setTimeout(() => { copied.value = false; }, 1600);
-}
+onMounted(() => { void loadLocalAccounts(); });
 
 async function handleLocalLogin() {
   const account = await loginLocal();
   if (!account) return;
-  await navigateTo(localReturnTo.value ?? (account.isAdmin ? "/admin" : "/me"), { replace: true });
+  await navigateTo(hasSafeReturnTo(route.query.returnTo) ? normalizeReturnTo(route.query.returnTo) : account.isAdmin ? "/admin" : "/me", { replace: true });
 }
 </script>
 
 <template>
   <main class="login-page page-shell--narrow">
     <section class="login-card surface-card" aria-live="polite">
-      <h1 class="page-title">用 QQ 机器人<br>完成登录验证</h1>
-      <p class="body-copy intro">在已绑定的 QQ 群中完成验证。</p>
+      <h1 class="page-title">使用 Passkey<br>登录玩家帐号</h1>
+      <p class="body-copy intro">使用已注册的设备凭据验证身份。QQ 绑定仅用于 QQBot 功能。</p>
+      <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
+      <UButton :label="busy ? '正在验证…' : '使用 Passkey 登录'" color="primary" size="lg" :loading="busy" :disabled="busy" @click="login(returnTo)" />
+      <p class="account-help">首次使用？请打开管理员发送的邀请链接，先注册 Passkey。</p>
 
-      <div v-if="state === 'idle' || state === 'cancelled' || state === 'expired' || state === 'failed'" class="action-panel">
-        <p v-if="state === 'expired'" class="notice warning">验证码已过期，请重新获取。</p>
-        <p v-else-if="state === 'failed'" class="notice error">{{ message }}</p>
-        <p v-else-if="state === 'cancelled'" class="notice">已取消本次验证。</p>
-        <UButton
-          :label="state === 'failed' || state === 'expired' ? '重新获取验证码' : '生成登录验证码'"
-          color="primary"
-          size="lg"
-          @click="start(returnTo)"
-        />
-      </div>
-
-      <div v-else-if="state === 'creating'" class="action-panel"><p class="notice">生成验证码中…</p></div>
-
-      <div v-else-if="state === 'waiting' && attempt" class="challenge-panel">
-        <div class="challenge-heading"><div><p class="challenge-label">群内验证</p><p class="challenge-copy">在已开放的 QQ 群中发送：</p></div><strong>{{ secondsLeft }} 秒</strong></div>
-        <p class="login-code">{{ qqVerificationCommand(attempt.code) }}</p>
-        <div class="challenge-actions">
-          <UButton
-            :label="copied ? '已复制' : '复制指令'"
-            :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'"
-            color="neutral"
-            variant="outline"
-            @click="copy"
-          />
-          <UButton
-            label="取消"
-            color="neutral"
-            variant="ghost"
-            @click="cancel"
-          />
+      <section v-if="localEnabled" class="local-dev-panel" aria-label="本地开发登录">
+        <p class="local-dev-copy">本地开发环境</p>
+        <div v-if="localAccounts.length" class="local-dev-actions">
+          <USelect v-model="selectedAccountId" :items="localAccountItems" aria-label="本地开发账号" class="min-w-64" />
+          <UButton :label="localLoading ? '登录中…' : '使用本地账号登录'" :loading="localLoading" color="neutral" variant="outline" @click="handleLocalLogin" />
         </div>
-        <p class="hint">请手动输入 @，从列表选择机器人，再发送上方指令。成功后进入玩家中心；验证码仅保存在当前标签页。</p>
-      </div>
-
-      <div v-else class="action-panel"><p class="notice">确认登录中…</p></div>
-
-      <section v-if="localEnabled" class="local-dev-panel" aria-labelledby="local-dev-title">
-        <p class="challenge-label" id="local-dev-title">本地开发</p>
-        <p class="local-dev-copy">使用本地账号登录 Portal。</p>
-        <p v-if="localError" class="notice error">{{ localError }}</p>
-        <div v-else-if="localAccounts.length" class="local-dev-actions">
-          <USelect
-            v-model="selectedAccountId"
-            :items="localAccountItems"
-            aria-label="本地开发账号"
-            class="min-w-64"
-          />
-          <UButton
-            :label="localLoading ? '登录中…' : '使用本地账号登录'"
-            :loading="localLoading"
-            color="neutral"
-            variant="outline"
-            @click="handleLocalLogin"
-          />
-        </div>
-        <p v-else class="notice">读取中…</p>
+        <p v-else-if="localError" class="notice">{{ localError }}</p>
+        <p v-else class="notice">读取本地账号中…</p>
       </section>
     </section>
   </main>
@@ -104,30 +46,17 @@ async function handleLocalLogin() {
 
 <style scoped>
 .login-page { display: grid; min-height: calc(100svh - 68px); place-items: center; padding-block: clamp(4.5rem, 11vh, 8.125rem) 3.5rem; }
-.login-card { width: 100%; padding: clamp(var(--space-6), 6vw, var(--space-16)); }
-.intro { max-width: 43ch; margin: var(--space-5) 0 var(--space-8); }
-.action-panel { min-height: 118px; }
-.notice { margin: 0 0 var(--space-4); color: var(--muted); line-height: 1.55; }
-.warning { color: var(--warning); }
-.error { color: var(--danger); }
-.challenge-panel { padding: var(--space-5); border: 1px solid color-mix(in oklch, var(--accent) 46%, var(--line)); border-radius: var(--radius-card); background: var(--accent-surface); }
-.challenge-heading { display: flex; justify-content: space-between; gap: var(--space-4); color: var(--text); }
-.challenge-heading strong { color: var(--accent); font-size: .85rem; white-space: nowrap; }
-.challenge-label { margin: 0 0 var(--space-1); color: var(--muted); font-size: .72rem; font-weight: 500; letter-spacing: .02em; }
-.challenge-copy { margin: 0; font-size: .88rem; }
-.login-code { margin: var(--space-5) 0; overflow-wrap: anywhere; color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: clamp(1.3rem, 4vw, 2rem); font-weight: 600; letter-spacing: .04em; }
-.challenge-actions { display: flex; align-items: center; gap: var(--space-4); }
-.hint { margin: var(--space-5) 0 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }
-.local-dev-panel { margin-top: var(--space-8); padding: var(--space-5); border: 1px dashed var(--line-strong); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }
-.local-dev-copy { margin: 0 0 var(--space-4); color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.login-card { display: grid; width: 100%; gap: var(--space-5); padding: clamp(var(--space-6), 6vw, var(--space-16)); }
+.intro { max-width: 43ch; margin: 0; }
+.account-help, .notice { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.local-dev-panel { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding: var(--space-5); border: 1px dashed var(--line-strong); border-radius: var(--radius-card); background: color-mix(in oklch, var(--surface) 82%, var(--accent-surface)); }
+.local-dev-copy { margin: 0; font-size: .82rem; font-weight: 600; }
 .local-dev-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 @media (max-width: 47.99rem) {
   .login-page { padding-top: 3.625rem; }
   .login-card { padding: var(--space-6) var(--space-4); }
   .login-card .page-title { font-size: clamp(2.15rem, 10vw, 3rem); }
-  .challenge-panel, .local-dev-panel { padding: var(--space-4); }
-  .challenge-heading { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
-  .challenge-actions, .local-dev-actions { align-items: stretch; flex-direction: column; }
-  .challenge-actions :deep(button), .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; }
+  .local-dev-actions { align-items: stretch; flex-direction: column; }
+  .local-dev-actions :deep(button), .local-dev-actions > * { width: 100%; }
 }
 </style>

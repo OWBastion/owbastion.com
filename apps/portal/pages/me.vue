@@ -136,6 +136,8 @@ onMounted(() => {
 
       <PlayerIdentityCard :player-name="player.player.playerName" :player-id="player.player.playerId" />
 
+      <section class="section-block" aria-label="登录凭据"><PlayerPasskeyManager /></section>
+
       <section class="section-block" aria-labelledby="submissions-title">
         <PageSectionHeader title="最近提交" heading-id="submissions-title" />
         <PlayerRecentSubmissions :submissions="player.recentSubmissions" />

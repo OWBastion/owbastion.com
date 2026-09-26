@@ -2,8 +2,15 @@ import { Hono } from "hono";
 import {
   qqBindingRequestSchema,
   submissionRequestSchema,
-  qqLoginAttemptRequestSchema,
-  qqLoginVerifyRequestSchema,
+  qqBindingClaimVerifyRequestSchema,
+  passkeyLoginOptionsRequestSchema,
+  passkeyLoginVerifyRequestSchema,
+  passkeyRegistrationOptionsRequestSchema,
+  passkeyRegistrationVerifyRequestSchema,
+  passkeyAuthenticatedRegistrationOptionsRequestSchema,
+  passkeyPublicRegistrationOptionsRequestSchema,
+  passkeyPublicRegistrationVerifyRequestSchema,
+  adminPasskeyRecoveryRequestSchema,
   qqGroupAccessRequestSchema,
   qqGroupRegistrationRequestSchema,
   adminPlayerStatusRequestSchema,
@@ -267,12 +274,33 @@ export const createApp = (dependencies: AppDependencies) => {
     return {
       "Access-Control-Allow-Origin": localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.com",
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Headers": "content-type, x-login-attempt-token, x-claim-token, idempotency-key",
+      "Access-Control-Allow-Headers": "content-type, x-claim-token, idempotency-key",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     };
   };
   const allowPortal = (c: any) => {
     for (const [name, value] of Object.entries(portalResponseHeaders(c))) c.header(name, value);
+  };
+  const passkeyOrigin = (c: any) => {
+    const requestOrigin = c.req.header("origin");
+    const configuredOrigin = c.env.PORTAL_ORIGIN ?? "https://owbastion.com";
+    const localOrigin = c.env.LOCAL_DEV_AUTH === "true" && requestOrigin && /^http:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):3000$/.test(requestOrigin) ? requestOrigin : undefined;
+    const expectedOrigin = localOrigin ?? new URL(configuredOrigin).origin;
+    if (!requestOrigin || requestOrigin !== expectedOrigin) return null;
+    const parsed = new URL(expectedOrigin);
+    return { origin: expectedOrigin, rpId: parsed.hostname };
+  };
+  const passkeyError = (c: any, error: unknown) => {
+    const code = error instanceof Error ? error.message : "PASSKEY_VERIFICATION_FAILED";
+    if (["PASSKEY_CHALLENGE_INVALID", "PASSKEY_CHALLENGE_REPLAYED", "PASSKEY_CREDENTIAL_INVALID", "PASSKEY_REGISTRATION_INVALID", "PASSKEY_AUTHENTICATION_INVALID", "PASSKEY_RECOVERY_INVALID"].includes(code)) return errorResponse(c, 422, "PASSKEY_VERIFICATION_FAILED", "The passkey response cannot be verified");
+    if (code === "INVITE_INVALID") return errorResponse(c, 422, code, "The invitation cannot be used");
+    if (code === "PLAYER_ACCOUNT_EXISTS") return errorResponse(c, 409, code, "A player account already exists for this BattleTag");
+    if (code === "PASSKEY_LAST_CREDENTIAL") return errorResponse(c, 409, code, "Keep at least one passkey on this account");
+    if (code === "PASSKEY_NOT_FOUND") return errorResponse(c, 404, code, "The passkey does not exist");
+    if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player account does not exist");
+    if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+    if (code === "BINDING_INVITE_CODE_ENCRYPTION_NOT_CONFIGURED") return errorResponse(c, 503, code, "Passkey recovery is not configured");
+    return null;
   };
   const decoratePortalCacheHit = (c: any) => (response: Response) => {
     const headers = new Headers(response.headers);
@@ -337,13 +365,21 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/auth/passkeys/login/options", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/auth/passkeys/login/verify", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/passkeys/invitations/options", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/passkeys/invitations/verify", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/passkeys/recovery/options", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/passkeys/recovery/verify", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-invites/redeem", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-claims/:claimId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/public/binding-claims/:claimId/session", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/passkeys", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/passkeys/registration/options", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/passkeys/registration/verify", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/me/passkeys/:passkeyId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/mastery", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/titles", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/submissions/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -448,23 +484,6 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.post("/v1/public/binding-claims/:claimId/session", async (c) => {
-    allowPortal(c);
-    const claimId = c.req.param("claimId");
-    const claimToken = c.req.header("x-claim-token");
-    if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
-    try {
-      const result = await dependencies.services(c.env).exchangeBindingClaimSession({ claimId, claimToken });
-      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
-      return c.json({ contractVersion: "1" as const, status: result.status });
-    } catch (error) {
-      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
-      if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
-      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_COMPLETE") return errorResponse(c, 409, "BINDING_CLAIM_NOT_COMPLETE", "The binding claim is not complete");
-      throw error;
-    }
-  });
-
   app.post("/v1/admin/binding-invites", async (c) => {
     const access = await requireMaintainer(c); if (access.error) return access.error;
     const idempotencyKey = c.req.header("idempotency-key"); if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
@@ -521,13 +540,6 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) { if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_REVIEWABLE") return errorResponse(c, 422, "BINDING_CLAIM_NOT_REVIEWABLE", "The claim cannot be reviewed"); throw error; }
   });
 
-  app.post("/v1/auth/qq/login-attempt", async (c) => {
-    allowPortal(c);
-    const parsed = qqLoginAttemptRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    return c.json(await dependencies.services(c.env).createQqLoginAttempt(parsed.data), 201);
-  });
-
   app.get("/v1/__local/accounts", async (c) => {
     allowPortal(c);
     if (c.env.LOCAL_DEV_AUTH !== "true") return errorResponse(c, 404, "NOT_FOUND", "The local development API is disabled");
@@ -549,20 +561,133 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.get("/v1/auth/qq/login-attempt/:attemptId", async (c) => {
+  app.post("/v1/auth/passkeys/login/options", async (c) => {
     allowPortal(c);
-    const attemptId = c.req.param("attemptId");
-    const attemptToken = c.req.header("x-login-attempt-token");
-    if (!/^[0-9a-f-]{36}$/.test(attemptId) || !attemptToken) return errorResponse(c, 422, "INVALID_LOGIN_ATTEMPT", "The login attempt is invalid");
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyLoginOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    return c.json(await dependencies.services(c.env).createPasskeyLoginOptions({ rpId: origin.rpId }), 201);
+  });
+
+  app.post("/v1/auth/passkeys/login/verify", async (c) => {
+    allowPortal(c);
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await dependencies.services(c.env).getQqLoginStatus({ attemptId, attemptToken });
-      if (result.sessionToken) c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
-      return c.json(result);
-    } catch (error) {
-      if (error instanceof Error && error.message === "LOGIN_ATTEMPT_NOT_FOUND") return errorResponse(c, 404, "LOGIN_ATTEMPT_NOT_FOUND", "The login attempt does not exist");
-      if (error instanceof Error && error.message === "LOGIN_ATTEMPT_FORBIDDEN") return errorResponse(c, 403, "LOGIN_ATTEMPT_FORBIDDEN", "The login attempt token is invalid");
-      throw error;
-    }
+      const result = await dependencies.services(c.env).completePasskeyLogin({ ...parsed.data, ...origin });
+      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/public/passkeys/invitations/options", async (c) => {
+    allowPortal(c);
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createPasskeyInvitationOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
+    catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/public/passkeys/invitations/verify", async (c) => {
+    allowPortal(c);
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const result = await dependencies.services(c.env).completePasskeyInvitationRegistration({ ...parsed.data, ...origin });
+      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.get("/v1/me/passkeys", async (c) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken! });
+    return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+  });
+
+  app.post("/v1/me/passkeys/registration/options", async (c) => {
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const parsed = passkeyAuthenticatedRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken!, rpId: origin.rpId }), 201); }
+    catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/me/passkeys/registration/verify", async (c) => {
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken!, ...origin });
+      return c.body(null, 204);
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.delete("/v1/me/passkeys/:passkeyId", async (c) => {
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    const passkeyId = c.req.param("passkeyId");
+    if (!/^[0-9a-f-]{36}$/i.test(passkeyId)) return errorResponse(c, 422, "INVALID_PASSKEY", "The passkey id is invalid");
+    try {
+      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken!, passkeyId });
+      return c.json({ contractVersion: "1" as const, removed: true as const });
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminPasskeyRecoveryRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const result = await dependencies.services(c.env).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
+      const recoveryUrl = new URL("/recover", origin.origin);
+      recoveryUrl.hash = new URLSearchParams({ token: result.token }).toString();
+      return c.json({ contractVersion: "1" as const, recoveryUrl: recoveryUrl.toString(), expiresAt: result.expiresAt }, 201);
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/public/passkeys/recovery/options", async (c) => {
+    allowPortal(c);
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyPublicRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).createPasskeyRecoveryOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
+    catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
+  });
+
+  app.post("/v1/public/passkeys/recovery/verify", async (c) => {
+    allowPortal(c);
+    const origin = passkeyOrigin(c);
+    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
+    const parsed = passkeyPublicRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const result = await dependencies.services(c.env).completePasskeyRecoveryRegistration({ ...parsed.data, ...origin });
+      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
+    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
   app.post("/v1/qq/auth/verify", async (c) => {
@@ -571,22 +696,15 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = qqLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    const parsed = qqBindingClaimVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
+      return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
-      if (code === "LOGIN_CODE_INVALID") {
-        try { return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
-        catch (claimError) {
-          const claimCode = claimError instanceof Error ? claimError.message : "LOGIN_FAILED";
-          if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(claimCode)) return errorResponse(c, 422, claimCode, "The verification code cannot be used");
-          if (claimCode === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, claimCode, "The idempotency key was used with a different request");
-          throw claimError;
-        }
-      }
-      if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED", "LOGIN_BINDING_REQUIRED", "BINDING_CONFLICT", "PLAYER_BANNED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
+      if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(code)) return errorResponse(c, 422, code, "The verification code cannot be used");
+      if (code === "PASSKEY_REGISTRATION_REQUIRED") return errorResponse(c, 409, code, "Register a passkey before binding a channel identity");
+      if (code === "PLAYER_BANNED") return errorResponse(c, 422, code, "The player account is unavailable");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

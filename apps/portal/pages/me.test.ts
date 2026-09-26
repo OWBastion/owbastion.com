@@ -4,11 +4,11 @@ import { ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import MePage from "./me.vue";
 
-type Player = { player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean }; recentSubmissions: never[] };
+type Player = { player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] };
 type Title = { grantId: string; titleKey: string; label: string; category: string; condition: string; scope: "global"; grantedAt: number };
 
 const player = ref<Player | null>({
-  player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false },
+  player: { playerId: "1", playerName: "Player", isAdmin: false },
   recentSubmissions: [],
 });
 const titles = ref<Title[]>(Array.from({ length: 4 }, (_, index) => ({
@@ -45,6 +45,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
     attachTo: options?.attachTo,
     global: {
       stubs: {
+        PlayerPasskeyManager: true,
         PlayerIdentityCard: { template: "<div>玩家身份卡</div>" },
         StatusBadge: true,
         PlayerRecentSubmissions: { template: "<div>近期提交内容</div>" },
@@ -70,7 +71,7 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
 
 describe("me page", () => {
   it("shows only the three most recently granted titles and links to achievements", async () => {
-    player.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     titles.value = [
       { grantId: "grant-old", titleKey: "TITLE-OLD", label: "旧称号", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 1 },
       { grantId: "grant-newest", titleKey: "TITLE-NEW", label: "最新称号", category: "测试", condition: "完成挑战", scope: "global" as const, grantedAt: 4 },
@@ -89,7 +90,7 @@ describe("me page", () => {
   });
 
   it("shows a successful empty title state without treating it as an error", async () => {
-    player.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     titles.value = [];
     status.value = "authenticated";
     refreshPlayer.mockResolvedValue(player.value);
@@ -102,7 +103,7 @@ describe("me page", () => {
   });
 
   it("keeps player content visible when title loading fails and supports retry", async () => {
-    player.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     titles.value = [];
     status.value = "authenticated";
     refreshPlayer.mockResolvedValue(player.value);
@@ -136,7 +137,7 @@ describe("me page", () => {
     expect(wrapper.text()).toContain("无法读取玩家信息");
     expect(wrapper.text()).toContain("重试");
 
-    player.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     titles.value = [];
     status.value = "authenticated";
     refreshPlayer.mockResolvedValueOnce(player.value);

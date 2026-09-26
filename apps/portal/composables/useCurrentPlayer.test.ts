@@ -29,13 +29,13 @@ describe("useCurrentPlayer", () => {
     const secondRefresh = second.refresh();
     expect(api).toHaveBeenCalledTimes(1);
 
-    resolve({ contractVersion: "1", player: { playerId: "p1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] });
+    resolve({ contractVersion: "1", player: { playerId: "p1", playerName: "Player", isAdmin: false }, recentSubmissions: [] });
     await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toHaveLength(2);
     expect(first.status.value).toBe("authenticated");
   });
 
   it("preserves an authenticated player on a transient refresh error", async () => {
-    const player = { contractVersion: "1", player: { playerId: "p1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    const player = { contractVersion: "1", player: { playerId: "p1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     const api = vi.fn().mockResolvedValueOnce(player).mockRejectedValueOnce(Object.assign(new Error("network"), { statusCode: 503 }));
     const useCurrentPlayer = await setup(api);
     const auth = useCurrentPlayer();

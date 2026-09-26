@@ -40,7 +40,6 @@ export type AdminBindingClaim = {
   targetAccountBinding?: { bindingId: string; memberOpenId: string; groupOpenId?: string };
   qqBoundAccounts?: Array<{ playerAccountId: string; playerName: string; playerId: string }>;
   revokingBindingCount?: number;
-  invalidatingSessionCount?: number;
   operationType?: "initial_binding" | "rebind_account" | "qq_transfer" | "conflict";
 };
 export type AdminBindingInvitation = {

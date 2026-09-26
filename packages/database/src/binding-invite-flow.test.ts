@@ -63,6 +63,7 @@ describe("invitation binding flow", () => {
   it("migrates only explicitly authorized historical titles after a clean binding", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
     sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
@@ -123,6 +124,7 @@ describe("invitation binding flow", () => {
   it("does not authorize a name-equal historical holder without explicit selection", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
     sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
@@ -182,6 +184,7 @@ describe("invitation binding flow", () => {
   it("records a conflict without reassigning an already migrated historical title", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
     sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
@@ -194,9 +197,10 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT status FROM binding_invite_historical_title_grants").get()).toEqual({ status: "conflict" });
   });
 
-  it("automatically activates a clean first binding and records the decision", async () => {
+  it("automatically activates a clean first binding without creating a Portal session", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("invite.1", hashRequest("INVITE123456"), "Player", "player", "1234", "admin", now, now + 60_000);
     sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database);
@@ -210,10 +214,7 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT provider, member_open_id FROM bindings").get()).toEqual({ provider: "qq", member_open_id: "member.1" });
     expect(sqlite.prepare("SELECT operation FROM audit_events WHERE operation = 'qq.binding_claim.auto_activate'").get()).toEqual({ operation: "qq.binding_claim.auto_activate" });
 
-    const sessionOne = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
-    const sessionTwo = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
-    expect(sessionTwo.sessionToken).toBe(sessionOne.sessionToken);
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM qq_sessions").get()).toEqual({ count: 1 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM qq_sessions").get()).toEqual({ count: 0 });
   });
 
   it("routes an existing account binding to review instead of replacing it", async () => {
