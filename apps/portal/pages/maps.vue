@@ -5,32 +5,30 @@ import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "地图 · 躲避堡垒 3", description: "查看当前支持的地图与挑战。" });
 
-const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
 const { profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery, history: masteryHistory, historyMapId, historyLoading: masteryHistoryLoading, historyError: masteryHistoryError, loadHistory: loadMasteryHistory } = usePlayerMastery();
 const route = useRoute();
-const maps = ref<Map[]>([]);
-const challenges = ref<MapChallenge[]>([]);
-const loading = shallowRef(true);
-const error = shallowRef("");
+const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-map-directory", async () => {
+  const [mapResponse, challengeResponse] = await Promise.all([
+    usePublicCatalog<{ items: Map[] }>("maps"),
+    usePublicCatalog<{ items: MapChallenge[] }>("mapChallenges"),
+  ]);
+  return { maps: mapResponse.items, challenges: challengeResponse.items };
+});
+const maps = computed(() => catalog.value?.maps ?? []);
+const challenges = computed(() => catalog.value?.challenges ?? []);
+const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
 const selectedMapId = computed(() => typeof route.query.mapId === "string" ? route.query.mapId : undefined);
 
 const refreshMapMastery = async () => { await refreshMastery(); };
 const changeMasteryHistory = async (input: { mapId: string; page: number }) => { await loadMasteryHistory(input); };
 
 onMounted(async () => {
-  const [mapResult, challengeResult, playerResult] = await Promise.allSettled([
-    api<{ items: Map[] }>("/v1/maps"),
-    api<{ items: MapChallenge[] }>("/v1/challenges?family=map"),
-    refresh(),
-  ]);
-  if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
-  if (challengeResult.status === "fulfilled") challenges.value = challengeResult.value.items;
-  if (playerResult.status === "rejected") player.value = null;
-  if (playerResult.status === "fulfilled" && playerResult.value) void refreshMapMastery();
-  const failed = [mapResult, challengeResult].find((result) => result.status === "rejected");
-  error.value = failed?.status === "rejected" ? portalErrorDetails(failed.reason, "请稍后重试。").description : "";
-  loading.value = false;
+  try {
+    if (await refresh()) void refreshMapMastery();
+  } catch {
+    player.value = null;
+  }
 });
 </script>
 

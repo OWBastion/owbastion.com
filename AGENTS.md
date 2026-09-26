@@ -42,7 +42,7 @@ Implementation/fix work normally uses a non-default branch and PR unless explici
 - Tests, queues, CI, release behavior, or implementation-change policy: `docs/dev-rules/testing-and-change-policy.md`.
 - Portal UI/layout/components/interaction/accessibility/copy: root `DESIGN.md`, then `docs/design-rules/README.md` and the routed topic.
 - Product terminology/copy: `docs/design-rules/terminology.md` and `docs/design-rules/portal-copy-guidelines.md`.
-- Nuxt Content/editorial schemas/Studio/Git publishing: relevant development/design indexes and runbooks under `docs/deployment/`.
+- Nuxt Content/editorial schemas and Git-backed authoring: relevant development/design indexes; edits use the normal repository workflow.
 - Deployment or production verification: applicable `docs/deployment/` runbook. Local implementation, integration evidence, deployment, and production business-path verification are distinct states.
 - Public API routes/contracts: update and validate `docs/api/openapi.json` with implementation.
 

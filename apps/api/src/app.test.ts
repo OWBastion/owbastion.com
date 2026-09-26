@@ -79,6 +79,7 @@ const services: PlatformServices = {
   decideAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
   createAdminReviewedAnnotation: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); },
   listAdminReviewedAnnotations: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
+  listAdminDatasetCandidates: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
   createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", counts: { eligibleCount: 0, excludedCount: 0, submissionCount: 0, annotationCount: 0 } }),
   listAdminDatasets: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
   getAdminDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
@@ -1116,6 +1117,7 @@ describe("API", () => {
       services: () => ({
         ...services,
         createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }),
+        listAdminDatasetCandidates: async ({ page, pageSize }) => ({ contractVersion: "1", items: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", submissionMapName: "萨摩亚" }], page, pageSize, total: 1, hasMore: false }),
         listAdminDatasets: async (input) => ({ contractVersion: "1", items: [{ datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
         getAdminDataset: async () => ({ contractVersion: "1", snapshot: { datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { available: true, contentType: "image/png" } }], exclusions: [{ annotationId: "00000000-0000-4000-8000-000000000008", reason: "missing_model_version" }] }),
         finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
@@ -1131,6 +1133,11 @@ describe("API", () => {
     expect(list.status).toBe(200);
     expect(await list.json()).toMatchObject({ items: [{ version: 1, status: "draft" }], total: 1 });
     expect((await datasetApp.request("http://localhost/v1/admin/datasets?status=bogus", {}, env)).status).toBe(422);
+
+    const candidates = await datasetApp.request("http://localhost/v1/admin/datasets/candidates?page=1&pageSize=100", {}, env);
+    expect(candidates.status).toBe(200);
+    expect(await candidates.json()).toMatchObject({ items: [{ annotationId: "00000000-0000-4000-8000-000000000006", submissionMapName: "萨摩亚" }], total: 1 });
+    expect((await datasetApp.request("http://localhost/v1/admin/datasets/candidates?page=0", {}, env)).status).toBe(422);
 
     const detail = await datasetApp.request("http://localhost/v1/admin/datasets/00000000-0000-4000-8000-000000000007", {}, env);
     expect(detail.status).toBe(200);

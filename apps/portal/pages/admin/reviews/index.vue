@@ -7,7 +7,7 @@ import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
-useSeoMeta({ title: "审核 · 躲避堡垒 3" });
+useSeoMeta({ title: "截图审核 · 躲避堡垒 3" });
 const route = useRoute();
 const router = useRouter();
 const api = useAdminApi();
@@ -102,7 +102,7 @@ onMounted(() => { void load(); });
 </script>
 
 <template>
-  <AdminWorkspace title="审核" :count="loading ? '读取中…' : `${total} 条`">
+  <AdminWorkspace title="截图审核" :count="loading ? '读取中…' : `${total} 条`">
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /></template>
     <section aria-label="提交记录"><AdminDataTable v-model:sorting="reviewSorting" :sorting-options="reviewSortingOptions" :default-sorting="defaultReviewSorting" :data="submissions" :columns="columns" :mobile-columns="[{ id: 'ocrContent', priority: 'primary', order: 0 }, { id: 'status', priority: 'primary', order: 1 }, { id: 'playerName', priority: 'detail', order: 2 }, { id: 'spotCheck', priority: 'detail', order: 3 }]" row-key="submissionId" :mobile-row-link="(row) => `/admin/reviews/${encodeURIComponent(row.submissionId)}`" :loading="loading" empty="暂无提交记录。" table-key="reviews" :reset-scroll-key="`${page}-${reviewStatus}-${spotCheckFilter}`" class="admin-table">
       <template #filters><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /></div></template>

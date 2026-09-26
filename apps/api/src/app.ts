@@ -402,6 +402,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/annotations/proposals/:proposalId/decision", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/direct", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/annotations/reviewed", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/datasets/candidates", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/datasets", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/datasets/:datasetId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/datasets/:datasetId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -1783,6 +1784,17 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json(await dependencies.services(c.env).listAdminDatasets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" } : {}) }, access.auth!));
   });
 
+  app.get("/v1/admin/datasets/candidates", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const page = Number(c.req.query("page") ?? "1");
+    const pageSize = Number(c.req.query("pageSize") ?? "20");
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+      return errorResponse(c, 422, "INVALID_REQUEST", "The dataset candidate query is invalid");
+    }
+    return c.json(await dependencies.services(c.env).listAdminDatasetCandidates({ page, pageSize }, access.auth!));
+  });
+
   app.post("/v1/admin/datasets", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -1790,8 +1802,14 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminDatasetCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = parsed.data.note === undefined ? {} : { note: parsed.data.note };
-    return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201);
+    const input = { ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}), ...(parsed.data.excludedAnnotationIds ? { excludedAnnotationIds: parsed.data.excludedAnnotationIds } : {}) };
+    try { return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "DATASET_CREATE_FAILED";
+      if (code === "DATASET_ANNOTATION_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded annotation is not eligible for this dataset");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/admin/datasets/:datasetId", async (c) => {
@@ -1958,7 +1976,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, achievementTitlesReview: parsed.data.achievementTitlesReview }, access.auth!, idempotencyKey)); }
+    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections }, access.auth!, idempotencyKey)); }
     catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 

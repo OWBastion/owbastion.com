@@ -31,10 +31,17 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
-  "review-achievements": [value: { complete: boolean; titles: string[] }];
+  "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }>];
 }>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
+const annotatableFields = [
+  { key: "map_name", label: "地图" },
+  { key: "difficulty", label: "难度" },
+  { key: "viewer_player", label: "玩家名称" },
+  { key: "challenge_completed", label: "通关标记" },
+  { key: "achievement_titles", label: "完整成就列表" },
+] as const;
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: MatchCandidate[] } | undefined | null);
@@ -58,17 +65,20 @@ const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achie
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
 const manualSearchOpen = ref(false);
 const manualSearch = ref("");
-const achievementTitlesInput = ref("");
-const achievementTitlesComplete = ref(false);
-const initializedAchievementTitles = ref(false);
-watch(checkedTitles, (titles) => {
-  if (initializedAchievementTitles.value) return;
-  achievementTitlesInput.value = titles.join("、");
-  initializedAchievementTitles.value = true;
+const correctionInputs = reactive<Record<string, string>>({});
+const confirmedFields = ref<string[]>([]);
+watch(() => ocrPayload.value?.data, (data) => {
+  if (!data) return;
+  for (const field of annotatableFields) {
+    const value = data[field.key];
+    correctionInputs[field.key] = Array.isArray(value) ? value.join("、") : value === null || value === undefined ? "" : String(value);
+  }
 }, { immediate: true });
-const parseAchievementTitles = () => achievementTitlesInput.value.split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean);
-const emitAchievementReview = () => emit("review-achievements", { complete: achievementTitlesComplete.value, titles: parseAchievementTitles() });
-watch([achievementTitlesInput, achievementTitlesComplete], emitAchievementReview);
+const fieldCorrections = computed(() => annotatableFields.filter((field) => confirmedFields.value.includes(field.key) && correctionInputs[field.key]?.trim()).map((field) => ({ fieldKey: field.key, reviewedValue: field.key === "achievement_titles" ? correctionInputs[field.key]!.split(/[、,，\n]/).map((value) => value.trim()).filter(Boolean).join("、") : correctionInputs[field.key]!.trim() })));
+watch(fieldCorrections, (value) => emit("field-corrections", value), { immediate: true });
+const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
+  confirmedFields.value = checked ? [...new Set([...confirmedFields.value, fieldKey])] : confirmedFields.value.filter((key) => key !== fieldKey);
+};
 const selectedCandidateIds = ref<string[]>([]);
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
@@ -171,13 +181,15 @@ const saveSelectedCandidate = () => {
         <UButton class="pressable" type="button" label="保存所选挑战" icon="i-lucide-check" color="primary" :loading="challengeSelectionLoading" :disabled="challengeSelectionLoading" @click="saveSelectedCandidate" />
       </div>
       <p v-if="challengeSelectionError" class="signal-error" role="alert">{{ challengeSelectionError }}</p>
-      <section v-if="checkedTitles.length || selectedCandidates.some((candidate) => Boolean(candidate.titleName))" class="achievement-review" aria-labelledby="achievement-review-title">
+      <section class="field-review" aria-labelledby="field-review-title">
         <div>
-          <h4 id="achievement-review-title">完整成就列表</h4>
-          <p>只有确认截图中的完整列表，才会生成 achievement_titles 训练标注；称号发放仍按上方选择独立处理。</p>
+          <h4 id="field-review-title">审核中确认识别字段</h4>
+          <p>勾选并确认完整可见值后，会随本次审核保存为审定标注；截图证据与 OCR 原始结果保持不变。称号发放按上方选择独立处理。</p>
         </div>
-        <UCheckbox v-model="achievementTitlesComplete" label="我已确认截图中的成就列表完整" :disabled="challengeSelectionLoading" />
-        <UInput v-if="achievementTitlesComplete" v-model="achievementTitlesInput" aria-label="截图中的完整成就列表" placeholder="例如：成就一、成就二" :disabled="challengeSelectionLoading" />
+        <div v-for="field in annotatableFields" :key="field.key" class="field-review__row">
+          <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="challengeSelectionLoading" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />
+          <UInput v-if="confirmedFields.includes(field.key)" v-model="correctionInputs[field.key]" :aria-label="`截图中的${field.label}完整值`" :placeholder="field.key === 'achievement_titles' ? '多个成就以顿号分隔' : `输入截图中完整的${field.label}`" :disabled="challengeSelectionLoading" />
+        </div>
       </section>
     </section>
 
@@ -335,7 +347,7 @@ const saveSelectedCandidate = () => {
   max-width: 100%;
 }
 .manual-add,
-.achievement-review {
+.field-review {
   display: grid;
   gap: var(--space-2);
   margin-top: var(--space-4);
@@ -345,14 +357,14 @@ const saveSelectedCandidate = () => {
 .manual-add :deep(button) {
   justify-self: start;
 }
-.achievement-review h4,
-.achievement-review p {
+.field-review h4,
+.field-review p {
   margin: 0;
 }
-.achievement-review h4 {
+.field-review h4 {
   font-size: var(--type-label-sm-size);
 }
-.achievement-review p {
+.field-review p {
   color: var(--muted);
   font-size: var(--type-caption-size);
   line-height: 1.5;

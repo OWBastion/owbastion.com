@@ -1838,35 +1838,39 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   const prepareSubmissionReviewAnnotation = async (
     row: typeof submissions.$inferSelect,
-    input: Pick<AdminSubmissionReviewRequest, "decision" | "reason" | "achievementTitlesReview">,
+    input: Pick<AdminSubmissionReviewRequest, "decision" | "reason" | "fieldCorrections">,
     auth: AuthContext,
     timestamp: number,
-  ): Promise<{ annotationId: string; statements: D1PreparedStatement[] } | null> => {
-    const correction = input.decision === "approved" ? input.achievementTitlesReview : undefined;
-    if (!correction?.complete || !correction.titles.length) return null;
+  ): Promise<{ annotationIds: string[]; statements: D1PreparedStatement[] } | null> => {
+    const corrections = input.fieldCorrections ?? [];
+    if (!corrections.length) return null;
     const ocrRows = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt));
     const ocrResult = ocrRows.find((candidate) => Boolean(candidate.responseJson));
     if (!ocrResult?.responseJson) return null;
     let response: OcrResponse;
     try { response = JSON.parse(ocrResult.responseJson) as OcrResponse; } catch { return null; }
-    const annotationId = crypto.randomUUID();
-    const existing = await db.select({ id: reviewedAnnotations.id }).from(reviewedAnnotations).where(and(
-      eq(reviewedAnnotations.submissionId, row.id),
-      eq(reviewedAnnotations.ocrResultId, ocrResult.id),
-      eq(reviewedAnnotations.fieldKey, "achievement_titles"),
-      eq(reviewedAnnotations.reviewState, "accepted"),
-    )).get();
-    const reviewedValue = correction.titles.join("、");
     const statements: D1PreparedStatement[] = [];
-    if (existing) {
-      statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ source: "submission_review", submissionId: row.id, ocrResultId: ocrResult.id }), timestamp));
+    const annotationIds: string[] = [];
+    for (const correction of corrections) {
+      if (!ocrFeedbackSafeKeys.includes(correction.fieldKey)) continue;
+      const annotationId = crypto.randomUUID();
+      annotationIds.push(annotationId);
+      const existing = await db.select({ id: reviewedAnnotations.id }).from(reviewedAnnotations).where(and(
+        eq(reviewedAnnotations.submissionId, row.id),
+        eq(reviewedAnnotations.ocrResultId, ocrResult.id),
+        eq(reviewedAnnotations.fieldKey, correction.fieldKey),
+        eq(reviewedAnnotations.reviewState, "accepted"),
+      )).get();
+      if (existing) {
+        statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
+        statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ source: "submission_review", submissionId: row.id, ocrResultId: ocrResult.id, fieldKey: correction.fieldKey }), timestamp));
+      }
+      statements.push(database.prepare(
+        "INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'accepted', ?, ?, ?, ?, ?)",
+      ).bind(annotationId, row.id, ocrResult.id, correction.fieldKey, ocrFeedbackValue(response, correction.fieldKey), response.model_version ?? null, response.layout_version ?? null, correction.reviewedValue, auth.subject, timestamp, input.reason ?? null, existing?.id ?? null, timestamp));
+      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.submission_review.created', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, annotationId, JSON.stringify({ submissionId: row.id, ocrResultId: ocrResult.id, fieldKey: correction.fieldKey, reviewedValue: correction.reviewedValue, source: "submission_review" }), timestamp));
     }
-    statements.push(database.prepare(
-      "INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, NULL, 'achievement_titles', ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'accepted', ?, ?, ?, ?, ?)",
-    ).bind(annotationId, row.id, ocrResult.id, ocrFeedbackValue(response, "achievement_titles"), response.model_version ?? null, response.layout_version ?? null, reviewedValue, auth.subject, timestamp, input.reason ?? null, existing?.id ?? null, timestamp));
-    statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.submission_review.created', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, annotationId, JSON.stringify({ submissionId: row.id, ocrResultId: ocrResult.id, fieldKey: "achievement_titles", reviewedValue, source: "submission_review" }), timestamp));
-    return { annotationId, statements };
+    return annotationIds.length ? { annotationIds, statements } : null;
   };
 
   const existingMasteryOutcome = (outcome: MasterySubmissionOutcome) => ({ ...outcome, conflictFields: [...outcome.conflictFields] });
@@ -2654,6 +2658,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (persisted.id === runId) return { outcome: "created", run };
     const conflictFields = masteryConflictFields(run, candidate);
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
+  };
+
+  const loadDatasetEligibility = async () => {
+    const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
+    const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
+    const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
+    const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
+    const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
+    const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
+    for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
+      if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
+    }
+    const candidates: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string; contentType: string }> = [];
+    const exclusions: Array<{ annotationId: string; reason: string }> = [];
+    for (const annotation of accepted) {
+      if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
+      if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
+      if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
+      const evidence = latestAttachment.get(annotation.submissionId);
+      if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
+      candidates.push({ annotation, ...evidence });
+    }
+    return { accepted, candidates, exclusions };
   };
 
   return {
@@ -4810,30 +4837,32 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     // ---- Immutable reviewed dataset snapshots (#105) ----
 
-    async createAdminDatasetDraft(input: { note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse> {
+    async listAdminDatasetCandidates(input: { page: number; pageSize: number }, _auth: AuthContext) {
+      const { candidates } = await loadDatasetEligibility();
+      const ids = candidates.map(({ annotation }) => annotation.id);
+      const rows = ids.length ? await db.select({ annotationId: reviewedAnnotations.id, fieldKey: reviewedAnnotations.fieldKey, reviewedValue: reviewedAnnotations.reviewedValue, submissionMapName: submissions.mapName }).from(reviewedAnnotations).innerJoin(submissions, eq(submissions.id, reviewedAnnotations.submissionId)).where(inArray(reviewedAnnotations.id, ids)).orderBy(desc(reviewedAnnotations.reviewedAt), desc(reviewedAnnotations.id)).all() : [];
+      const page = Math.max(input.page, 1);
+      const pageSize = Math.min(Math.max(input.pageSize, 1), 100);
+      const total = rows.length;
+      return { contractVersion: "1", items: rows.slice((page - 1) * pageSize, page * pageSize).map((row) => ({ annotationId: row.annotationId, fieldKey: row.fieldKey as AdminReviewedAnnotation["fieldKey"], reviewedValue: row.reviewedValue, submissionMapName: row.submissionMapName })), page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
+    async createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse> {
       const replay = await replayOrConflict<AdminDatasetCreateResponse>(db, auth.subject, "dataset.draft.create", idempotencyKey, input);
       if (replay) return replay;
-      const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
-      // An annotation belongs to at most one snapshot: any membership (draft or
-      // finalized) makes it no longer eligible for a new snapshot.
-      const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
-      const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
-      const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
-      const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
-      const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
-      for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
-        if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
-      }
+      const eligibility = await loadDatasetEligibility();
+      const { accepted } = eligibility;
+      const excludedAnnotationIds = new Set(input.excludedAnnotationIds ?? []);
+      const candidates = new Map(eligibility.candidates.map((candidate) => [candidate.annotation.id, candidate]));
+      if ([...excludedAnnotationIds].some((annotationId) => !candidates.has(annotationId))) throw new Error("DATASET_ANNOTATION_EXCLUSION_INVALID");
       const members: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string | null; contentType: string | null; available: boolean }> = [];
+      const automaticExclusions = new Map(eligibility.exclusions.map((exclusion) => [exclusion.annotationId, exclusion.reason]));
       const exclusions: Array<{ annotationId: string; reason: string }> = [];
       for (const annotation of accepted) {
-        if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
-        if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
-        if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
-        const evidence = latestAttachment.get(annotation.submissionId);
-        if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
-        const available = evidenceBucket ? Boolean(await evidenceBucket.head(evidence.objectKey)) : true;
-        members.push({ annotation, objectKey: evidence.objectKey, contentType: evidence.contentType, available });
+        const candidate = candidates.get(annotation.id);
+        if (!candidate) { exclusions.push({ annotationId: annotation.id, reason: automaticExclusions.get(annotation.id)! }); continue; }
+        if (excludedAnnotationIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "maintainer_excluded" }); continue; }
+        members.push({ ...candidate, available: evidenceBucket ? Boolean(await evidenceBucket.head(candidate.objectKey)) : true });
       }
       const timestamp = now();
       const datasetId = crypto.randomUUID();
@@ -5035,8 +5064,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
         const grants = grantResults.map(({ reward, grantId, alreadyOwned }) => ({ grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }));
         const playerMasteryOutcome = masteryOutcome ? playerMasterySubmissionOutcome(masteryOutcome) : null;
-        const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationId } : {}) };
-        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId })), ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationId } : {}) };
+        const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId })), ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
         const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? []), database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)];
         for (const { reward, grantId } of grantResults) {
           statements.push(database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) SELECT ?, s.player_account_id, ?, ?, ?, ?, 'active', 'submission', s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(grantId, reward.titleKey, reward.mapId, reward.gameplayRevisionId, reward.slot, auth.subject, timestamp, row.id, reviewId));
@@ -5106,12 +5135,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const requestHash = await hashRequest(input);
       const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
       const playerMasteryOutcome = masteryOutcome ? playerMasterySubmissionOutcome(masteryOutcome) : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationId } : {}) };
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationId } : {}) }
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerMasteryOutcome ? { masteryOutcome: playerMasteryOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
         : input.decision === "approved"
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasteryOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationId } : {}) }
-          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, masteryOutcome: playerMasteryOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
+          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
       const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? [])];
       statements.push(
