@@ -1,7 +1,7 @@
 import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import OcrFeedbackPanel from "./OcrFeedbackPanel.vue";
 
 const api = vi.fn();
