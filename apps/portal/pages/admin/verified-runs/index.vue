@@ -188,7 +188,7 @@ async function saveAction() {
   }
 }
 
-async function saveCorrection(payload: { changes: AdminVerifiedRunCorrectionChanges; reason: string }) {
+async function saveCorrection(payload: { changes: AdminVerifiedRunCorrectionChanges; reason?: string }) {
   const detail = selectedDetail.value;
   if (!detail || saving.value) return;
   saving.value = true;
@@ -197,14 +197,14 @@ async function saveCorrection(payload: { changes: AdminVerifiedRunCorrectionChan
     const response = await api<AdminVerifiedRunCorrectionResponse>(`/v1/verified-runs/${encodeURIComponent(detail.run.runId)}/corrections`, {
       method: "POST",
       headers: { "Idempotency-Key": createRequestId() },
-      body: { contractVersion: "1", changes: payload.changes, reason: payload.reason },
+      body: { contractVersion: "1", changes: payload.changes, ...(payload.reason ? { reason: payload.reason } : {}) },
     });
     selectedDetail.value = response.detail;
     correctionMode.value = false;
     toast.add({ title: "通关记录事实已更正", color: "success" });
     await Promise.all([load(), loadDetail(detail.run.runId)]);
   } catch (error) {
-    correctionError.value = portalErrorDetails(error, "更正未完成，请检查数据和理由后重试。").description;
+    correctionError.value = portalErrorDetails(error, "更正未完成，请检查更正数据后重试。").description;
   } finally {
     saving.value = false;
   }

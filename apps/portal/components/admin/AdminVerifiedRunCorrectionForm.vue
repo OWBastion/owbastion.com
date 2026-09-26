@@ -7,7 +7,7 @@ const props = defineProps<{
   error?: string;
 }>();
 const emit = defineEmits<{
-  submit: [payload: { changes: AdminVerifiedRunCorrectionChanges; reason: string }];
+  submit: [payload: { changes: AdminVerifiedRunCorrectionChanges; reason?: string }];
   cancel: [];
 }>();
 
@@ -38,7 +38,6 @@ function submit() {
   try {
     if (!draft.mapId.trim() || !draft.gameplayRevisionId.trim()) throw new Error("地图 ID 和玩法修订 ID 不能为空");
     if (!draft.gameVersion.trim()) throw new Error("游戏版本不能为空");
-    if (!draft.reason.trim()) throw new Error("请填写更正理由和依据");
     const eventCounters = JSON.parse(draft.eventCounters) as unknown;
     if (!eventCounters || Array.isArray(eventCounters) || typeof eventCounters !== "object" || Object.values(eventCounters).some((value) => !Number.isInteger(value) || Number(value) < 0)) {
       throw new Error("事件计数必须是键为事件 ID、值为非负整数的 JSON 对象");
@@ -55,7 +54,7 @@ function submit() {
         skips: parseCount(draft.skips, "跳过次数"),
         eventCounters: eventCounters as Record<string, number>,
       },
-      reason: draft.reason.trim(),
+      ...(draft.reason.trim() ? { reason: draft.reason.trim() } : {}),
     });
   } catch (error) {
     validationError.value = error instanceof Error ? error.message : "更正内容无效";
@@ -80,7 +79,7 @@ function submit() {
       <UFormField label="跳过次数" hint="留空表示未知"><UInput v-model="draft.skips" type="number" min="0" step="1" :disabled="saving" /></UFormField>
     </div>
     <UFormField label="事件计数（JSON）"><UTextarea v-model="draft.eventCounters" :rows="5" :disabled="saving" /></UFormField>
-    <UFormField label="更正理由和依据"><UTextarea v-model="draft.reason" :rows="3" required :disabled="saving" placeholder="说明核对依据和本次修正内容" /></UFormField>
+    <UFormField label="更正理由和依据（可选）"><UTextarea v-model="draft.reason" :rows="3" :disabled="saving" placeholder="核对依据和本次修正内容" /></UFormField>
     <div class="verified-run-correction__actions">
       <UButton type="submit" label="保存更正" :loading="saving" />
       <UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="emit('cancel')" />

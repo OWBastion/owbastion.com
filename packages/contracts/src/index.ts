@@ -1163,7 +1163,7 @@ export const adminVerifiedRunCorrectionRequestSchema = z.object({
     if (!Object.keys(changes).length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "At least one corrected fact is required" });
     if (Boolean(changes.mapId) !== Boolean(changes.gameplayRevisionId)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["gameplayRevisionId"], message: "Map and gameplay revision must be corrected together" });
   }),
-  reason: z.string().trim().min(1).max(512),
+  reason: z.string().trim().min(1).max(512).optional(),
 }).strict();
 export const adminVerifiedRunCorrectionResponseSchema = z.object({
   contractVersion,

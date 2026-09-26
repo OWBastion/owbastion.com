@@ -34,7 +34,7 @@ const run: AdminVerifiedRun = {
 };
 
 describe("AdminVerifiedRunCorrectionForm", () => {
-  it("submits normalized facts with a justification and preserves nullable settlement values", async () => {
+  it("submits normalized facts without requiring a justification and preserves nullable settlement values", async () => {
     const wrapper = await mountSuspended(AdminVerifiedRunCorrectionForm, {
       props: { run },
       global: {
@@ -51,7 +51,6 @@ describe("AdminVerifiedRunCorrectionForm", () => {
 
     const textareas = wrapper.findAll("textarea");
     await textareas[0]!.setValue('{"event.alpha":3}');
-    await textareas[1]!.setValue("核对原始截图，修正识别结果");
     await wrapper.find("form").trigger("submit");
 
     expect(wrapper.emitted("submit")).toEqual([[
@@ -67,7 +66,6 @@ describe("AdminVerifiedRunCorrectionForm", () => {
           skips: 0,
           eventCounters: { "event.alpha": 3 },
         },
-        reason: "核对原始截图，修正识别结果",
       },
     ]]);
   });

@@ -2795,13 +2795,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
     }
 
-    const activeByCode = await db.select().from(verifiedRuns).where(and(
+    const existingByMatchCode = await db.select().from(verifiedRuns).where(and(
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
       eq(verifiedRuns.matchCode, candidate.matchCode),
-      eq(verifiedRuns.status, "active"),
     )).get();
-    if (activeByCode) {
-      const run = asVerifiedRun(activeByCode);
+    if (existingByMatchCode) {
+      const run = asVerifiedRun(existingByMatchCode);
       const conflictFields = masteryConflictFields(run, candidate);
       return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
     }
@@ -2821,7 +2820,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const persisted = persistedBySource ?? await db.select().from(verifiedRuns).where(and(
       eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
       eq(verifiedRuns.matchCode, candidate.matchCode),
-      eq(verifiedRuns.status, "active"),
     )).get();
     if (!persisted) throw new Error("VERIFIED_RUN_PERSIST_FAILED");
     const run = asVerifiedRun(persisted);

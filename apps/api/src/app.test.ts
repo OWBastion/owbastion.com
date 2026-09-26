@@ -1326,9 +1326,9 @@ describe("API", () => {
 
     const correctionUrl = `http://localhost/v1/admin/verified-runs/${verifiedRunId}/corrections`;
     expect((await masteryApp.request(correctionUrl, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "verified-run-correction-invalid" }, body: JSON.stringify({ contractVersion: "1", changes: { mapId: "map.test" }, reason: "来自来源截图" }) }, env)).status).toBe(422);
-    const correction = await masteryApp.request(correctionUrl, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "verified-run-correction-1" }, body: JSON.stringify({ contractVersion: "1", changes: { difficulty: "传奇", deaths: 0 }, reason: "依据原始来源截图复核" }) }, env);
+    const correction = await masteryApp.request(correctionUrl, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "verified-run-correction-1" }, body: JSON.stringify({ contractVersion: "1", changes: { difficulty: "传奇", deaths: 0 } }) }, env);
     expect(correction.status).toBe(200);
-    expect(calls).toContainEqual({ operation: "correct", input: { verifiedRunId, contractVersion: "1", changes: { difficulty: "传奇", deaths: 0 }, reason: "依据原始来源截图复核" }, key: "verified-run-correction-1" });
+    expect(calls).toContainEqual({ operation: "correct", input: { verifiedRunId, contractVersion: "1", changes: { difficulty: "传奇", deaths: 0 } }, key: "verified-run-correction-1" });
   });
 
   it("serves privacy-safe public review summaries and comments", async () => {

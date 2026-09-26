@@ -177,7 +177,7 @@ const input = (overrides: Partial<VerifiedRunInput> = {}): VerifiedRunInput => (
 });
 
 describe("verified run ledger", () => {
-  it("enforces active player/run-code uniqueness while allowing a shared room code for another player", async () => {
+  it("enforces same-player match-code uniqueness while allowing a shared code for another player", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
@@ -234,7 +234,7 @@ describe("verified run ledger", () => {
     ]);
   });
 
-  it("does not restore an invalidated run over a newer active run with the same code", async () => {
+  it("reuses an invalidated Run for the same match code and can restore that Run", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
@@ -242,8 +242,10 @@ describe("verified run ledger", () => {
     const original = await services.recordVerifiedRun(input());
     if (original.outcome !== "created") throw new Error("fixture setup failed");
     await services.invalidateVerifiedRun({ verifiedRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" });
-    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 2_000 }))).toMatchObject({ outcome: "created" });
-    await expect(services.restoreVerifiedRun({ verifiedRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).rejects.toThrow("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 2_000 }))).toMatchObject({ outcome: "reused", run: { runId: original.run.runId, status: "invalidated" } });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
+    await expect(services.restoreVerifiedRun({ verifiedRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).resolves.toMatchObject({ runId: original.run.runId, status: "active" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
   });
 
   it("corrects source facts in place, recalculates XP and both revision-scoped projections, and audits before and after", async () => {
@@ -262,7 +264,6 @@ describe("verified run ledger", () => {
       contractVersion: "1",
       verifiedRunId: created.run.runId,
       changes: { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "传奇", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 } },
-      reason: "复核来源截图，修正地图和结算事实",
     } as const;
     const auth = { actorType: "user" as const, subject: "maintainer-1", roles: ["maintainer"], provider: "test" };
     const corrected = await services.correctAdminVerifiedRun(correctionInput, auth, "correction-1");
@@ -273,7 +274,7 @@ describe("verified run ledger", () => {
       { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 495, verifiedRunCount: 1 },
     ]);
     expect(corrected.detail.corrections).toHaveLength(1);
-    expect(corrected.detail.corrections[0]).toMatchObject({ actorId: "maintainer-1", reason: "复核来源截图，修正地图和结算事实", before: { mapId: "map.test", xpRuleVersion: "v2", awardedXp: 225 }, after: { mapId: "map.next", xpRuleVersion: "v2", awardedXp: 495 } });
+    expect(corrected.detail.corrections[0]).toMatchObject({ actorId: "maintainer-1", reason: null, before: { mapId: "map.test", xpRuleVersion: "v2", awardedXp: 225 }, after: { mapId: "map.next", xpRuleVersion: "v2", awardedXp: 495 } });
     expect(sqlite.prepare("SELECT awarded_xp FROM submission_outcomes WHERE id = 'outcome-1'").get()).toEqual({ awarded_xp: 495 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
     expect(sqlite.prepare("SELECT operation, entity_type FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ operation: "verified_run.correct", entity_type: "verified_run" });

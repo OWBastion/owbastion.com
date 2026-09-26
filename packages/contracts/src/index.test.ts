@@ -120,7 +120,8 @@ describe("v1 platform contracts", () => {
     expect(adminVerifiedRunSchema.safeParse({ ...run, xpRuleVersion: "v2" }).success).toBe(false);
     expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { mapId: "map.next" }, reason: "来自原始截图" }).success).toBe(false);
     expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: null }, reason: "依据原始截图复核" }).success).toBe(true);
-    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: 0 } }).success).toBe(false);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: 0 } }).success).toBe(true);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: 0 }, reason: "" }).success).toBe(false);
   });
 
   it("keeps player review contracts limited to current-review fields", () => {
