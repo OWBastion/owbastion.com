@@ -1,9 +1,8 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const root = fileURLToPath(new URL("../..", import.meta.url));
+const root = process.cwd();
 const uiRoots = [join(root, "components"), join(root, "pages")];
 
 const walk = (directory: string): string[] => readdirSync(directory).flatMap((name) => {
