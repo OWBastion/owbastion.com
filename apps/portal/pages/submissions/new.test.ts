@@ -1,5 +1,5 @@
 import { mockNuxtImport, mountSuspended } from "@nuxt/test-utils/runtime";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import NewSubmissionPage from "./new.vue";
 
 const portalApi = vi.fn(async (path: string) => {
@@ -12,6 +12,8 @@ const portalApi = vi.fn(async (path: string) => {
 mockNuxtImport("usePortalApi", () => () => portalApi);
 
 describe("new submission page privacy statement", () => {
+  beforeEach(() => { URL.createObjectURL = vi.fn(() => "blob:preview"); });
+
   it("renders verified screenshot privacy facts", async () => {
     const wrapper = await mountSuspended(NewSubmissionPage, {
       route: "/submissions/new",
@@ -39,5 +41,29 @@ describe("new submission page privacy statement", () => {
     expect(text).not.toContain("模型训练");
     expect(text).not.toContain("OCR");
     expect(text).not.toContain("第三方");
+  });
+
+  it("accepts a pasted image and enables upload", async () => {
+    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/submissions/new" });
+    const submit = () => wrapper.find("button[type=submit]");
+    expect(submit().attributes("disabled")).toBeDefined();
+
+    const event = new Event("paste") as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: { files: [new File(["x"], "image.png", { type: "image/png" })] } });
+    document.dispatchEvent(event);
+    await nextTick();
+
+    expect(submit().attributes("disabled")).toBeUndefined();
+  });
+
+  it("rejects an unsupported pasted file before upload", async () => {
+    const wrapper = await mountSuspended(NewSubmissionPage, { route: "/submissions/new" });
+    const event = new Event("paste") as ClipboardEvent;
+    Object.defineProperty(event, "clipboardData", { value: { files: [new File(["x"], "a.gif", { type: "image/gif" })] } });
+    document.dispatchEvent(event);
+    await nextTick();
+
+    expect(wrapper.text()).toContain("仅支持 JPEG、PNG 或 WebP 格式。");
+    expect(wrapper.find("button[type=submit]").attributes("disabled")).toBeDefined();
   });
 });

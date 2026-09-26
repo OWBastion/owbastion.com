@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
-import type { FormError, FormSubmitEvent } from "@nuxt/ui";
+import type { FormSubmitEvent } from "@nuxt/ui";
 import SubmissionProcess from "~/components/submissions/SubmissionProcess.vue";
 import SubmissionRequirements from "~/components/submissions/SubmissionRequirements.vue";
 import SubmissionSectionHeading from "~/components/submissions/SubmissionSectionHeading.vue";
@@ -13,24 +13,30 @@ const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
 
 const toast = useToast();
-const { loading, error, submit } = useSubmissionUpload();
+const { loading, phaseLabel, error, submit } = useSubmissionUpload();
 
 const state = reactive<{ screenshot: File | null }>({ screenshot: null });
 
-const validate = (s: typeof state): FormError[] => {
-  const errs: FormError[] = [];
-  if (!s.screenshot) {
-    errs.push({ name: "screenshot", message: "请选择一张截图。" });
-  } else if (!(ACCEPTED_TYPES as readonly string[]).includes(s.screenshot.type)) {
-    errs.push({ name: "screenshot", message: "仅支持 JPEG、PNG 或 WebP 格式。" });
-  } else if (s.screenshot.size > MAX_BYTES) {
-    errs.push({ name: "screenshot", message: "截图不能超过 10MB，请使用游戏内截图，或降低截图分辨率后重试。" });
-  }
-  return errs;
+// Validated as soon as a file is chosen, so a bad file is caught before the player presses upload.
+const fileError = computed(() => {
+  const file = state.screenshot;
+  if (!file) return undefined;
+  if (!(ACCEPTED_TYPES as readonly string[]).includes(file.type)) return "仅支持 JPEG、PNG 或 WebP 格式。";
+  if (file.size > MAX_BYTES) return "截图不能超过 10MB，请使用游戏内截图，或降低截图分辨率后重试。";
+  return undefined;
+});
+
+// Players usually capture with a screenshot tool that copies to the clipboard, so paste works anywhere on the page.
+const onPaste = (event: ClipboardEvent) => {
+  if (loading.value) return;
+  const image = Array.from(event.clipboardData?.files ?? []).find((file) => file.type.startsWith("image/"));
+  if (image) state.screenshot = image;
 };
+onMounted(() => document.addEventListener("paste", onPaste));
+onBeforeUnmount(() => document.removeEventListener("paste", onPaste));
 
 const send = async (_event: FormSubmitEvent<typeof state>) => {
-  if (loading.value || !state.screenshot) return;
+  if (loading.value || !state.screenshot || fileError.value) return;
   try {
     const result = await submit(state.screenshot);
     const title = result.status === "awaiting_player_confirmation"
@@ -58,19 +64,19 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
       <div class="submission-columns">
         <section class="upload-section" aria-labelledby="upload-title">
           <SubmissionSectionHeading title="上传截图" heading-id="upload-title" />
-          <UForm :state="state" :validate="validate" :disabled="loading" aria-labelledby="upload-title" @submit="send">
-            <UFormField name="screenshot">
+          <UForm :state="state" :disabled="loading" aria-labelledby="upload-title" @submit="send">
+            <UFormField name="screenshot" :error="fileError">
               <UFileUpload
                 v-model="state.screenshot"
                 class="upload-control"
-                label="点击上传或拖拽截图到此处"
+                label="点击选择、拖拽或直接粘贴截图"
                 :accept="ACCEPT_ATTR"
                 :multiple="false"
                 layout="grid"
                 position="outside"
                 :preview="true"
                 :ui="{ files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
-                description="支持 JPEG、PNG、WebP，不超过 10MB"
+                description="支持 JPEG、PNG、WebP，不超过 10MB；截图后可直接按 Ctrl / ⌘ + V 粘贴"
                 :disabled="loading"
               />
             </UFormField>
@@ -78,10 +84,10 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
             <div class="action-row">
               <UButton
                 size="lg"
-                :label="loading ? '上传中…' : '上传并识别截图'"
+                :label="loading ? `${phaseLabel}…` : '上传并识别截图'"
                 icon="i-lucide-upload"
                 :loading="loading"
-                :disabled="loading || !state.screenshot"
+                :disabled="loading || !state.screenshot || !!fileError"
                 type="submit"
               />
             </div>
