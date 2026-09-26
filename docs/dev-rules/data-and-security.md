@@ -4,7 +4,7 @@
 
 | Store | Current responsibility |
 | --- | --- |
-| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, achievement challenge rules, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
+| D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, source achievement rules, canonical Challenges, Challenge Completions and satisfaction relations, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
@@ -142,11 +142,12 @@ proof. `player_title_grants` is the single entitlement table: each record
 stores the player, stable `title_key`, optional map context, source (`historical`,
 `submission`, `manual`, or `automatic`), source ID, and revocation fields.
 Active uniqueness prevents a player from holding the same title in the same
-scope twice. Grant creation and revocation are idempotent and auditable;
-revocation preserves the record and removes the title from the player-facing
-result. Manual grants use `source_type = manual` and never create a Submission
-or Review record; they may target retired titles when explicitly selected by a
-maintainer.
+qualification scope twice. Grant creation and revocation are idempotent and
+auditable; revocation preserves the record and removes the title from the
+player-facing result. A Grant links to its qualifying Challenge Completion.
+Manual grants use `source_type = manual`, create a manual Completion, and never
+create a Submission or Review record; they may target retired titles when
+explicitly selected by a maintainer.
 
 ## Public-repository policy
 

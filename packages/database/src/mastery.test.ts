@@ -97,6 +97,17 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL DEFAULT 1,
     updated_at INTEGER NOT NULL DEFAULT 1
   );
+  CREATE TABLE challenge_completions (
+    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, challenge_id TEXT NOT NULL, gameplay_revision_id TEXT,
+    status TEXT NOT NULL DEFAULT 'active', source_type TEXT NOT NULL, source_id TEXT NOT NULL, completed_at INTEGER NOT NULL,
+    invalidated_by TEXT, invalidated_at INTEGER, invalidation_reason TEXT, created_at INTEGER NOT NULL
+  );
+  CREATE TABLE player_title_grants (
+    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT,
+    gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL,
+    granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT,
+    completion_id TEXT, revocation_type TEXT
+  );
   CREATE TABLE submission_challenge_selections (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, position INTEGER NOT NULL, challenge_type TEXT NOT NULL, challenge_id TEXT NOT NULL, target_map_id TEXT, gameplay_revision_id TEXT, map_name TEXT NOT NULL, difficulty TEXT, rule_snapshot_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE mastery_runs (
     id TEXT PRIMARY KEY NOT NULL,

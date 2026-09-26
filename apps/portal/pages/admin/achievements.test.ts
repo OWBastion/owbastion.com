@@ -7,7 +7,7 @@ import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue"
 
 const title = { challengeId: "title-1", family: "achievement", type: "title_achievement", titleKey: "FLAWLESS", titleName: "守望先锋", icon: "trophy", iconUrl: null, category: "战绩", categoryOverride: null, condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.1.0", introducedVersion: "3.1.0", retiredVersion: null };
 const secondTitle = { ...title, challengeId: "title-2", titleName: "游戏先锋", status: "scheduled" };
-const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
+const catalogTitle = { challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", iconUrl: null, category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "3.1.0", hasChallenge: false };
 const linkedCatalogTitle = { ...catalogTitle, challengeId: "title.FLAWLESS", titleKey: "FLAWLESS", titleName: "守望先锋", category: "战绩", condition: "完成挑战", hasChallenge: true };
 const map = { challengeId: "map-1", family: "map", gameplayRevisionId: "revision:map.kings-row:initial", type: "map_completion", name: "国王大道挑战", mapId: "map.kings-row", mapName: "国王大道", difficulty: "困难", condition: "完成国王大道挑战。", evidenceRule: "完整截图", submissionMode: "manual", status: "active", gameVersion: "3.0.0", introducedVersion: "3.0.0", retiredVersion: null };
 const secondMap = { ...map, challengeId: "map-2", name: "国王大道专家挑战" };
@@ -151,7 +151,7 @@ describe("achievement admin page", () => {
     expect(wrapper.text()).not.toContain("守望先锋");
   });
 
-  it("opens status editing for catalog titles regardless of their lifecycle status", async () => {
+  it("edits title lifecycle and public visibility without creating a challenge", async () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="称号目录"]').trigger("click");
     await flushPromises();
@@ -160,9 +160,11 @@ describe("achievement admin page", () => {
     expect(wrapper.find("form").text()).toContain("称号标签");
     expect(wrapper.findAll("textarea")).toHaveLength(0);
     expect(wrapper.findAllComponents(AdminDateTimePicker)).toHaveLength(0);
+    await wrapper.get("form#achievement-editor").findAll("select")[3]!.setValue("draft");
+    await wrapper.get('form#achievement-editor [role="checkbox"][aria-label="公开显示"]').trigger("click");
     await wrapper.get("form").trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "active", label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "active", lifecycle: "draft", publicVisibility: false, label: "内部称号", icon: "wrench", category: "开发保留", scope: "global", displayKind: "fixed", color: null }) }));
   });
 
   it("keeps the complete editor visible while scheduling an achievement", async () => {
@@ -283,20 +285,20 @@ describe("achievement admin page", () => {
     expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it("updates catalog-only title availability without creating a challenge", async () => {
+  it("retires a catalog-only title without creating a challenge", async () => {
     const wrapper = await mountPage();
     await wrapper.get('button[aria-label="称号目录"]').trigger("click");
     await flushPromises();
-    const endButton = wrapper.get('button[aria-label="下线称号"]');
+    const endButton = wrapper.get('button[aria-label="退休称号"]');
     await endButton.trigger("click");
     await flushPromises();
-    expect(document.body.textContent).toContain("下线后该称号不再发放。");
-    expect(document.body.textContent).toContain("确认下线");
+    expect(document.body.textContent).toContain("退休后该称号不再发放。");
+    expect(document.body.textContent).toContain("确认退休");
     expect(document.body.textContent).not.toContain("结束后不再接受新的截图提交。");
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", label: "内部称号", icon: "wrench", category: "开发保留" }) }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", lifecycle: "retired", publicVisibility: true, label: "内部称号", icon: "wrench", category: "开发保留" }) }));
     expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBe(1);
-    expect(wrapper.text()).toContain("已下线");
+    expect(wrapper.text()).toContain("已退休");
   });
 });

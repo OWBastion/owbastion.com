@@ -34,3 +34,4 @@
 0080_scope_equipped_titles_to_global.sql
 0082_player_passkeys.sql
 0083_verified_run_outcome_terms.sql
+0084_challenge_completion_chain.sql

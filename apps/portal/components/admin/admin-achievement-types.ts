@@ -62,11 +62,13 @@ export type CatalogTitle = {
   startsAt?: number | null;
   endsAt?: number | null;
   retiredVersion?: string | null;
+  lifecycle: "draft" | "active" | "retired";
+  publicVisibility: boolean;
   availability: "active" | "retired";
   scope: "global" | "map";
   displayKind: "fixed" | "map_pioneer" | "map_name_suffix";
   color?: { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
-  status: AchievementStatus;
+  status: "draft" | "active" | "retired";
   gameVersion: string | null;
   hasChallenge: boolean;
 };
