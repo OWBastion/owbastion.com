@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Map, MapChallenge } from "../composables/useSubmissionUpload";
+import type { Map, MapChallenge } from "~/types/challenge";
 import MapDirectory from "../components/maps/MapDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 

@@ -5,6 +5,7 @@ import type {
   SubmissionRequest,
   SubmissionResponse,
   SubmissionStatusResponse,
+  PlayerSubmissionStatus,
   PlayerSubmissionDetail,
   QqLoginAttemptRequest,
   QqLoginAttemptResponse,
@@ -30,9 +31,6 @@ import type {
   CurrentPlayerMasteryResponse,
   AdminSubmission,
   AdminSubmissionListResponse,
-  AdminSubmissionChallengeListResponse,
-  AdminSubmissionChallengeRequest,
-  AdminSubmissionChallengeResponse,
   AdminSubmissionReviewRequest,
   AdminSubmissionReviewResponse,
   AdminSubmissionOcrRetryResponse,
@@ -57,7 +55,6 @@ import type {
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
-  PlayerSubmissionChallengeRequest,
   PlayerOcrFeedbackRequest,
   PlayerOcrFeedbackResponse,
   AdminAnnotationProposalListResponse,
@@ -82,6 +79,7 @@ export * from "./mastery";
 export * from "./gameplay-revision";
 export * from "./ocr-feedback";
 export * from "./annotation-review";
+export * from "./challenge-conditions";
 
 export type LocalDevAccount = {
   accountId: string;
@@ -234,13 +232,10 @@ export type PlatformServices = {
   listAdminMapTitleInheritance(input: { mapId: string }, auth: AuthContext): Promise<AdminMapTitleInheritanceResponse>;
   upsertAdminMapTitleRuleException(input: AdminMapTitleRuleExceptionUpsertRequest & { mapId: string; ruleId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createPlayerUploadSession(input: PlayerUploadSessionRequest, sessionToken: string): Promise<PlayerUploadSessionResponse>;
-  completePlayerUpload(input: { uploadId: string }, sessionToken: string, requestId?: string): Promise<{ submissionId: string; status: string }>;
-  confirmPlayerSubmissionChallenge(input: PlayerSubmissionChallengeRequest & { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
+  completePlayerUpload(input: { uploadId: string }, sessionToken: string, requestId?: string): Promise<{ submissionId: string; status: PlayerSubmissionStatus }>;
   uploadEvidence(input: { uploadId: string; body: ArrayBuffer; contentType: string }, sessionToken: string): Promise<void>;
   listAdminSubmissions(input: { statuses?: AdminSubmission["status"][]; spotCheck?: "pending" | "confirmed" | "revoked"; page: number; pageSize: number }, auth: AuthContext): Promise<AdminSubmissionListResponse>;
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
-  listAdminSubmissionChallenges(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmissionChallengeListResponse>;
-  selectAdminSubmissionChallenge(input: AdminSubmissionChallengeRequest & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionChallengeResponse>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
   processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;

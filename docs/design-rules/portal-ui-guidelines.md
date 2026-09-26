@@ -69,7 +69,7 @@ Use this pattern for screenshot uploads, submission status, and result pages:
 
 - Use `UCard` as the upload form container, `UFormField` for fields, and `UFileUpload` for files.
 - The submit button is the form's only primary action. During submission, use `loading` and disable inputs/actions that could cause duplicate submissions.
-- Reuse `SubmissionCatalog`, `MapSubmissionCatalog`, or `AchievementSubmissionCatalog` for challenge selection. Do not copy directory grouping rules into a page.
+- Screenshot submission accepts evidence only; the platform matches it against eligible Challenge Conditions.
 - Reuse `SubmissionStatusBadge` for status display. Status wording comes from `docs/design-rules/portal-copy-guidelines.md`.
 - Submission details may be organized as overview → screenshot evidence → recognition result. Show unlisted screenshots only in the matching player-owned or maintainer submission detail; anyone with the CDN URL can read the image.
 - Screenshot evidence in submission details must use the source image's natural aspect ratio (`width: 100%; height: auto`); do not impose a fixed-height frame or crop the evidence with `object-fit`.

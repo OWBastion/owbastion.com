@@ -1,4 +1,4 @@
-import type { Map } from "./useSubmissionUpload";
+import type { Map } from "~/types/challenge";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 

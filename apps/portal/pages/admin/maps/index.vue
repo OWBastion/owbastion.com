@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
-import type { Map } from "~/composables/useSubmissionUpload";
+import type { Map } from "~/types/challenge";
 import { portalErrorDetails } from "~/utils/portal-error";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });

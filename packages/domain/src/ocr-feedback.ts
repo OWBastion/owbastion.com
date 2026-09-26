@@ -11,6 +11,7 @@ export const ocrFeedbackFieldKeys = [
   "difficulty",
   "viewer_player",
   "challenge_completed",
+  "map_variant",
   "achievement_titles",
 ] as const;
 

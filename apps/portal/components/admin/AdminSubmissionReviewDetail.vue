@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionChallengeOption } from "~/composables/useAdminApi";
+import type { AdminSubmission } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
-import { mapVariantLabel } from "~/utils/map-variant";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -12,15 +11,11 @@ const props = defineProps<{
   evidenceError?: boolean;
   reviewError?: string;
   actionLoading?: boolean;
-  challengeSelectionError?: string;
-  challengeSelectionLoading?: boolean;
-  challengeOptions?: AdminSubmissionChallengeOption[];
   ocrRetryError?: string;
   ocrRetryLoading?: boolean;
 }>();
 const emit = defineEmits<{
   review: [decision: ReviewDecision, fieldCorrections?: Array<{ fieldKey: string; reviewedValue: string }>];
-  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "open-direct-annotation": [];
@@ -29,7 +24,7 @@ const emit = defineEmits<{
 
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
-const actionsLoading = computed(() => Boolean(props.actionLoading || props.challengeSelectionLoading || props.ocrRetryLoading));
+const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
@@ -69,33 +64,6 @@ function emitSpotCheck(decision: SpotCheckDecision) {
 function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
-
-const selectedChallengeNames = computed(() => (props.submission.challengeSelections ?? []).map((selection) => {
-  const challenge = selection.challenge;
-  if (!challenge) return null;
-  return challenge.family === "achievement" ? challenge.titleName : challenge.name;
-}).filter((name): name is string => Boolean(name)));
-
-const challengeSummary = computed(() => {
-  const challenge = props.submission.challenge;
-  if (!challenge) return null;
-  if (challenge.family === "achievement") {
-    return {
-      kind: "成就挑战",
-      title: challenge.titleName,
-      meta: [challenge.category, challenge.mapVariant === "classic" ? mapVariantLabel(challenge.mapVariant) : null].filter(Boolean).join(" · "),
-      condition: challenge.condition,
-      evidenceRule: challenge.evidenceRule,
-    };
-  }
-  return {
-    kind: "地图挑战",
-    title: challenge.name,
-    meta: [challenge.mapName, mapVariantLabel(challenge.mapVariant), challenge.difficulty ?? "地图通关"].filter(Boolean).join(" · "),
-    condition: null as string | null,
-    evidenceRule: null as string | null,
-  };
-});
 
 /**
  * review-layout's column count comes from `grid-template-columns:
@@ -174,19 +142,10 @@ onBeforeUnmount(() => {
       <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
-            <h3 id="claim-title">{{ challengeSummary?.title ?? "未绑定挑战" }}</h3>
-            <p v-if="selectedChallengeNames.length > 1" class="claim-card__multiple">已选 {{ selectedChallengeNames.length }} 个挑战：{{ selectedChallengeNames.join("、") }}</p>
+            <h3 id="claim-title">证据驱动处理</h3>
           </div>
-          <span v-if="challengeSummary" class="claim-kind">{{ challengeSummary.kind }}</span>
         </header>
-        <template v-if="challengeSummary">
-          <p v-if="challengeSummary.meta" class="claim-meta">{{ challengeSummary.meta }}</p>
-          <dl v-if="challengeSummary.condition || challengeSummary.evidenceRule" class="claim-facts">
-            <div v-if="challengeSummary.condition"><dt>完成条件</dt><dd>{{ challengeSummary.condition }}</dd></div>
-            <div v-if="challengeSummary.evidenceRule"><dt>截图规则</dt><dd>{{ challengeSummary.evidenceRule }}</dd></div>
-          </dl>
-        </template>
-        <p v-else class="claim-empty">请在自动判定中选择挑战后再通过。</p>
+        <p class="claim-empty">审核批准会使用校正后的结构化证据重新计算 Verified Run 与所有适用称号，不需要选择目标挑战。</p>
       </section>
 
       <section
@@ -278,10 +237,7 @@ onBeforeUnmount(() => {
           <AdminSubmissionReviewSignals
             stacked
             :submission="submission"
-            :challenge-options="challengeOptions"
-            :challenge-selection-error="challengeSelectionError"
-            :challenge-selection-loading="challengeSelectionLoading"
-            @select-challenge="emit('select-challenge', $event)"
+            :disabled="actionsLoading"
             @field-corrections="updateFieldCorrections"
           />
       </div>

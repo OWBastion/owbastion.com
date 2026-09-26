@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { createReusableTemplate, useMediaQuery, usePreferredReducedMotion } from "@vueuse/core";
-import type { Map, MapChallenge } from "../../composables/useSubmissionUpload";
+import type { Map, MapChallenge } from "~/types/challenge";
 import PlayerReviewPanel from "../reviews/PlayerReviewPanel.vue";
 import MapMasteryProfile from "./MapMasteryProfile.vue";
 import type { CurrentPlayerMasteryResponse, PlayerMasteryMapProfile } from "~/composables/usePortalApi";

@@ -6,8 +6,8 @@ import { verifiedRunOutcomePresentation } from "~/utils/mastery";
 type SubmissionDetail = {
   submissionId: string;
   status: string;
+  resubmissionRequired?: boolean;
   mapName: string;
-  challengeId?: string;
   difficulty?: string;
   reason?: string;
   createdAt: number;
@@ -39,15 +39,9 @@ const { data, error, status: fetchStatus, refresh } = await useAsyncData(
   `player-submission:${submissionId}`,
   () => api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`),
 );
-const { maps, mapChallenges, achievementChallenges, catalogLoading, error: catalogError, loadCatalog } = useSubmissionUpload();
-const selectedChallengeId = shallowRef("");
-const selectedMapId = shallowRef("");
-const selectedGameplayRevisionId = shallowRef("");
-const confirming = shallowRef(false);
 const requestingManualReview = shallowRef(false);
 const refreshingStatus = shallowRef(false);
 const manualReviewRequested = shallowRef(false);
-const confirmError = shallowRef("");
 const manualReviewError = shallowRef("");
 const refreshError = shallowRef("");
 const actionMessage = shallowRef("");
@@ -63,44 +57,18 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
 const ocrValue = (value: string | boolean | null) => value === null ? "未识别" : typeof value === "boolean" ? value ? "已识别完成" : "未识别完成" : value;
 const manualReviewEligible = computed(() => data.value?.manualReviewEligible === true);
 const verifiedRunOutcome = computed(() => verifiedRunOutcomePresentation(data.value?.verifiedRunOutcome));
-const needsChallengeConfirmation = computed(() => Boolean(data.value && !data.value.challengeId && data.value.status === "awaiting_player_confirmation"));
-const mutationBusy = computed(() => confirming.value || requestingManualReview.value || refreshingStatus.value);
+const mutationBusy = computed(() => requestingManualReview.value || refreshingStatus.value);
 // Status is carried by the badge and progress; the alert stays only for a distinct,
 // actionable fact (a resubmission reason, or a granted title name).
 const statusAlert = computed(() => {
-  if (data.value?.status === "resubmission_required") return { title: "需重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
+  if (data.value?.resubmissionRequired) return { title: "需重新提交", description: data.value.reason ?? "请重新提交截图。", color: "warning" as const };
+  if (data.value?.status === "rejected") return { title: "未通过", description: data.value.reason ?? "本次提交未通过核对。", color: "warning" as const };
   if (data.value?.titleGrant) return { title: "已获得称号", description: `「${data.value.titleGrant.titleName}」${data.value.titleGrant.mapName ? ` · ${data.value.titleGrant.mapName}` : ""}`, color: "success" as const };
   return null;
 });
 const evidenceDisplaySrc = computed(() => evidenceState.value === "ready" || evidenceState.value === "loading" ? data.value?.evidenceUrl ?? null : null);
 
 const hasEvidenceSource = computed(() => Boolean(data.value?.evidenceUrl));
-
-const selectChallenge = (event: { challengeId: string; mapId?: string; gameplayRevisionId?: string }) => {
-  if (confirming.value) return;
-  selectedChallengeId.value = event.challengeId;
-  selectedMapId.value = event.mapId ?? "";
-  selectedGameplayRevisionId.value = event.gameplayRevisionId ?? "";
-};
-
-const confirmChallenge = async () => {
-  if (!selectedChallengeId.value || confirming.value) return;
-  confirming.value = true;
-  confirmError.value = "";
-  actionMessage.value = "";
-  try {
-    await api(`/v1/player/submissions/${encodeURIComponent(submissionId)}/challenge`, {
-      method: "POST",
-      body: { contractVersion: "1", challengeId: selectedChallengeId.value, ...(selectedMapId.value ? { mapId: selectedMapId.value } : {}), ...(selectedGameplayRevisionId.value ? { gameplayRevisionId: selectedGameplayRevisionId.value } : {}) },
-    });
-    actionMessage.value = "挑战已确认。";
-    await refresh();
-  } catch (cause) {
-    confirmError.value = portalErrorDetails(cause, "无法确认挑战，请稍后重试。").description;
-  } finally {
-    confirming.value = false;
-  }
-};
 
 const handleRequestManualReview = async () => {
   if (requestingManualReview.value) return;
@@ -140,14 +108,13 @@ const markEvidenceFailed = () => {
 
 const loadEvidence = () => { evidenceState.value = hasEvidenceSource.value ? "ready" : "missing"; };
 
-onMounted(() => { if (data.value && !data.value.challengeId) void loadCatalog(); });
 onMounted(() => {
-  if (data.value?.status !== "ocr_pending") return;
+  if (data.value?.status !== "processing") return;
   ocrPollTimer = setInterval(async () => {
     if (document.visibilityState === "hidden") return;
     if (fetchStatus.value === "pending" || mutationBusy.value) return;
     try { await refresh(); } catch { return; }
-    if (data.value?.status !== "ocr_pending" && ocrPollTimer) {
+    if (data.value?.status !== "processing" && ocrPollTimer) {
       clearInterval(ocrPollTimer);
       ocrPollTimer = null;
     }
@@ -184,13 +151,12 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
       />
       <!-- Single live region for ephemeral mutation feedback only (one visible + announced path). -->
       <div
-        v-if="confirmError || manualReviewError || refreshError || actionMessage"
+        v-if="manualReviewError || refreshError || actionMessage"
         class="status-live"
         aria-live="polite"
         aria-atomic="true"
       >
-        <UAlert v-if="confirmError" color="error" variant="subtle" title="无法确认挑战" :description="confirmError" />
-        <UAlert v-else-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
+        <UAlert v-if="manualReviewError" color="error" variant="subtle" title="无法申请人工核对" :description="manualReviewError" />
         <UAlert v-else-if="refreshError" color="error" variant="subtle" title="无法刷新状态" :description="refreshError" />
         <UAlert v-else-if="actionMessage" color="success" variant="subtle" :title="actionMessage" />
       </div>
@@ -215,31 +181,6 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
         </div>
 
         <div class="info-col">
-          <UCard v-if="needsChallengeConfirmation" class="confirm-card elevation-2">
-            <template #header>
-              <div class="card-heading">
-                <h2>确认挑战</h2>
-                <span>识别结果仅供参考</span>
-              </div>
-            </template>
-            <UAlert v-if="catalogError" color="error" variant="subtle" :description="catalogError" />
-            <div v-else-if="catalogLoading" class="message catalog-loading" role="status">读取挑战目录…</div>
-            <template v-else>
-              <div class="confirm-catalog" :class="{ 'confirm-catalog--busy': confirming }" :aria-busy="confirming || undefined" :inert="confirming || undefined">
-                <SubmissionCatalog
-                  :maps="maps"
-                  :map-challenges="mapChallenges"
-                  :achievement-challenges="achievementChallenges"
-                  :selected-challenge-id="selectedChallengeId"
-                  :selected-map-id="selectedMapId"
-                  :selected-gameplay-revision-id="selectedGameplayRevisionId"
-                  @select="selectChallenge"
-                />
-              </div>
-              <UButton label="确认挑战" :loading="confirming" :disabled="!selectedChallengeId || confirming" @click="confirmChallenge" block />
-            </template>
-          </UCard>
-
           <UCard class="overview-card elevation-2">
             <template #header>
               <div class="card-heading">
@@ -251,13 +192,13 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
               <div class="detail-grid__row"><dt>提交编号</dt><dd>{{ data.submissionId }}</dd></div>
               <div class="detail-grid__row"><dt>提交时间</dt><dd>{{ formatTime(data.createdAt) }}</dd></div>
               <div class="detail-grid__row" v-if="data.difficulty"><dt>难度</dt><dd>{{ data.difficulty }}</dd></div>
-              <div class="detail-grid__row" v-if="data.reason && data.status !== 'resubmission_required'"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
+              <div class="detail-grid__row" v-if="data.reason && !data.resubmissionRequired"><dt>说明</dt><dd>{{ data.reason }}</dd></div>
               <div class="detail-grid__row"><dt>最后更新</dt><dd>{{ formatTime(data.updatedAt) }}</dd></div>
             </dl>
             <UAlert v-if="verifiedRunOutcome" class="mastery-outcome" :color="data.verifiedRunOutcome?.status === 'created' || data.verifiedRunOutcome?.status === 'reused' ? 'success' : 'neutral'" variant="subtle" :title="verifiedRunOutcome.title" :description="verifiedRunOutcome.description || undefined" />
             <div class="overview-actions">
               <UButton
-                v-if="data.status === 'resubmission_required'"
+                v-if="data.resubmissionRequired"
                 to="/submissions/new"
                 label="重新提交截图"
                 icon="i-lucide-upload"
@@ -284,14 +225,14 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
                 variant="outline"
                 aria-label="刷新状态"
                 :loading="refreshingStatus || fetchStatus === 'pending'"
-                :disabled="refreshingStatus || fetchStatus === 'pending' || confirming || requestingManualReview"
+                :disabled="refreshingStatus || fetchStatus === 'pending' || requestingManualReview"
                 @click="refreshSubmission"
                 block
               />
             </div>
           </UCard>
 
-          <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" />
+          <SubmissionProgress :status="data.status" :updated-at="data.updatedAt" :resubmission-required="data.resubmissionRequired" />
 
           <UCard v-if="data.ocr" class="ocr-card elevation-2">
             <template #header>
@@ -316,7 +257,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
         </div>
       </section>
 
-      <UCard v-if="data.status === 'resubmission_required'" class="resubmission-card elevation-2" aria-labelledby="resubmission-title">
+      <UCard v-if="data.resubmissionRequired" class="resubmission-card elevation-2" aria-labelledby="resubmission-title">
         <template #header>
           <div class="card-heading"><h2 id="resubmission-title">重新提交建议</h2></div>
         </template>

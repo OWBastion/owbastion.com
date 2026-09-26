@@ -5,7 +5,7 @@
 // exposes a concise, explainable reason/category. It never automatically
 // accepts or rejects an annotation and never becomes a Submission risk score.
 
-export const annotationFieldKeys = ["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"] as const;
+export const annotationFieldKeys = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"] as const;
 export type AnnotationFieldKey = (typeof annotationFieldKeys)[number];
 
 export const annotationPriorityCategories = ["correction", "calibration_failure", "uncertain", "repeat", "confirmation"] as const;
