@@ -87,11 +87,9 @@ do not replace platform D1 facts or Bastion's authoritative implementation,
 build, release, and published-artifact state. This content foundation does not
 add D1, R2, or an editorial API.
 
-Nuxt Studio is an editor for this Git-backed surface, not a second platform
-identity system. Its same-origin custom-auth bridge verifies the current Portal
-session server-side and requires `player.isAdmin`; Studio routes and server
-write requests are rejected when that platform authorization is absent or
-revoked. Git provider credentials remain an external deployment concern.
+Editorial changes use the repository's ordinary Git workflow. The Portal reads
+the Markdown content during development and build; it does not provide a CMS or
+editorial publishing authority.
 
 Achievement catalog management changes platform-owned title and challenge
 metadata. It does not edit Bastion's game implementation or build artifacts;

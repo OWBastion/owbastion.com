@@ -8,7 +8,7 @@ export default defineNuxtConfig({
       enabled: true
     }
   },
-  modules: ["@nuxt/content", "nuxt-studio", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
+  modules: ["@nuxt/content", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
   nitro: {
     storage: { cache: { driver: "memory" } },
   },
@@ -27,18 +27,6 @@ export default defineNuxtConfig({
       "rehype-katex": {
         src: "rehype-katex",
       },
-    },
-  },
-  studio: {
-    route: "/_studio",
-    dev: false,
-    repository: {
-      provider: "github",
-      owner: "OWBastion",
-      repo: "owbastion.com",
-      branch: "main",
-      rootDir: "apps/portal",
-      private: false,
     },
   },
   css: ["~/assets/css/main.css"],

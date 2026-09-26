@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { studioEntryLink } from "~/utils/studio-entry";
-
 const { player, loaded, refresh, logout } = useCurrentPlayer();
 const loggingOut = ref(false);
 const menuOpen = ref(false);
@@ -16,63 +14,66 @@ function menuFocusableElements(panel: HTMLElement): HTMLElement[] {
 const isAdminPage = computed(() => route.path.startsWith("/admin"));
 const adminPathActive = (to: string, exact = false) => exact ? route.path === to : route.path === to || route.path.startsWith(`${to}/`);
 const adminNavigationItems = computed(() => {
-  const playerActive = ["/admin/players", "/admin/bindings"].some((to) => adminPathActive(to));
-  const gameDataActive = ["/admin/maps", "/admin/events", "/admin/achievements", "/admin/map-titles"].some((to) => adminPathActive(to));
-  const qualityActive = ["/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to));
-  const maintenanceActive = ["/admin/mastery-runs", "/admin/player-reviews", "/admin/grants", "/admin/titles"].some((to) => adminPathActive(to));
+  const achievementPageActive = adminPathActive("/admin/achievements");
+  const section = Array.isArray(route.query.section) ? route.query.section[0] : route.query.section;
+  const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  const invitationTabActive = ["invitations", "create", "batch"].includes(tab ?? "");
+  const playerBindingActive = adminPathActive("/admin/bindings") && !invitationTabActive;
+  const playerActive = adminPathActive("/admin/players") || playerBindingActive;
+  const invitationActive = adminPathActive("/admin/bindings") && invitationTabActive;
+  const ocrActive = ["/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to));
+  const toolsActive = ["/admin/grants", "/admin/mastery-runs", "/admin/titles"].some((to) => adminPathActive(to));
   return [
-    { label: "待处理", icon: "i-lucide-inbox", to: "/admin", active: route.path === "/admin" },
+    { label: "称号", icon: "i-lucide-award", to: "/admin/achievements?section=catalog", active: achievementPageActive && section === "catalog" },
+    { label: "挑战", icon: "i-lucide-list-checks", to: "/admin/achievements?section=generic", active: achievementPageActive && section !== "catalog" },
+    { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
+    { label: "随机事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
     {
       label: "玩家",
       icon: "i-lucide-users",
       active: playerActive,
       defaultOpen: playerActive,
       children: [
-        { label: "玩家列表", description: "身份、绑定和称号", icon: "i-lucide-user-round", to: "/admin/players", active: adminPathActive("/admin/players") },
-        { label: "绑定例外与邀请", description: "冲突、换绑和批量邀请", icon: "i-lucide-link", to: "/admin/bindings", active: adminPathActive("/admin/bindings") },
+        { label: "玩家列表", description: "身份、称号与进度", icon: "i-lucide-user-round", to: "/admin/players", active: adminPathActive("/admin/players") },
+        { label: "绑定例外", description: "冲突与换绑", icon: "i-lucide-link", to: "/admin/bindings", active: playerBindingActive },
       ],
     },
     {
-      label: "游戏数据",
-      icon: "i-lucide-panels-top-left",
-      active: gameDataActive,
-      defaultOpen: gameDataActive,
+      label: "邀请",
+      icon: "i-lucide-mail-plus",
+      active: invitationActive || adminPathActive("/admin/channels"),
+      defaultOpen: invitationActive || adminPathActive("/admin/channels"),
       children: [
-        { label: "地图", icon: "i-lucide-map", to: "/admin/maps", active: adminPathActive("/admin/maps") },
-        { label: "事件", icon: "i-lucide-zap", to: "/admin/events", active: adminPathActive("/admin/events") },
-        { label: "挑战与称号", description: "可复用挑战和称号定义", icon: "i-lucide-award", to: "/admin/achievements", active: adminPathActive("/admin/achievements") || adminPathActive("/admin/map-titles") },
+        { label: "邀请管理", description: "首次注册与绑定", icon: "i-lucide-ticket", to: "/admin/bindings?tab=invitations", active: invitationActive },
+        { label: "QQ 群组策略", description: "绑定渠道接入", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
       ],
     },
-    { label: "内容编辑", icon: "i-lucide-file-pen-line", ...studioEntryLink },
+    { label: "截图审核", icon: "i-lucide-scan-eye", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
     {
-      label: "OCR 数据质量",
+      label: "OCR",
       icon: "i-lucide-scan-text",
-      active: qualityActive,
-      defaultOpen: qualityActive,
+      active: ocrActive,
+      defaultOpen: ocrActive,
       children: [
-        { label: "标注提案与审定", description: "平台拥有的审定工作流", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
-        { label: "数据集快照", description: "创建与定稿训练数据快照", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
+        { label: "标注与反馈", description: "OCR 质量核对", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
+        { label: "数据集快照", description: "样本查询与定稿", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
       ],
     },
     {
-      label: "设置",
-      icon: "i-lucide-settings-2",
-      active: adminPathActive("/admin/channels"),
-      defaultOpen: adminPathActive("/admin/channels"),
-      children: [
-        { label: "QQ 群组与策略", description: "平台管理的渠道接入策略", icon: "i-lucide-radio", to: "/admin/channels", active: adminPathActive("/admin/channels") },
-      ],
+      label: "评价与审核",
+      icon: "i-lucide-message-square-quote",
+      to: "/admin/player-reviews",
+      active: adminPathActive("/admin/player-reviews"),
     },
     {
-      label: "维护工具",
+      label: "更多",
       icon: "i-lucide-wrench",
-      active: maintenanceActive,
-      defaultOpen: maintenanceActive,
+      active: toolsActive,
+      defaultOpen: toolsActive,
       children: [
-        { label: "通关记录", description: "事实检索与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
-        { label: "玩家评价记录", description: "评价与评论审核历史", icon: "i-lucide-message-square-quote", to: "/admin/player-reviews", active: adminPathActive("/admin/player-reviews") },
-        { label: "批量发放称号", description: "为多个玩家发放称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
-        { label: "历史称号迁移", description: "历史数据关联与修复", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
+        { label: "通关记录", description: "Verified Run 查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
+        { label: "称号授予", description: "历史授权维护", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
+        { label: "称号迁移", description: "历史数据关联与修复", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
       ],
     },
   ];

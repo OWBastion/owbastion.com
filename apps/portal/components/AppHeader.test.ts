@@ -4,7 +4,7 @@ import { reactive, ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
 import AppHeader from "./AppHeader.vue";
 
-const route = reactive({ path: "/admin", fullPath: "/admin" });
+const route = reactive({ path: "/admin", fullPath: "/admin", query: {} as Record<string, string> });
 mockNuxtImport("useRoute", () => () => route);
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref(null), loaded: ref(true), refresh: async () => null, logout: async () => undefined }));
 
@@ -39,28 +39,34 @@ describe("AppHeader", () => {
   it("shows the management navigation on admin routes", async () => {
     route.path = "/admin";
     route.fullPath = "/admin";
+    route.query = {};
     const wrapper = await mountHeader();
 
     expect(wrapper.get(".main-nav").attributes("aria-label")).toBe("管理导航");
-    expect(wrapper.text()).toContain("待处理");
-    expect(wrapper.text()).toContain("内容编辑");
+    expect(wrapper.text()).toContain("称号");
+    expect(wrapper.text()).toContain("挑战");
+    expect(wrapper.text()).toContain("地图");
+    expect(wrapper.text()).toContain("随机事件");
     expect(wrapper.text()).toContain("玩家");
-    expect(wrapper.text()).toContain("游戏数据");
-    expect(wrapper.text()).toContain("OCR 数据质量");
-    expect(wrapper.text()).toContain("设置");
-    expect(wrapper.text()).toContain("维护工具");
-    expect(wrapper.text()).not.toContain("核对");
-    expect(wrapper.text()).not.toContain("地图称号规则");
+    expect(wrapper.text()).toContain("邀请");
+    expect(wrapper.text()).toContain("截图审核");
+    expect(wrapper.text()).toContain("OCR");
+    expect(wrapper.text()).toContain("评价与审核");
+    expect(wrapper.text()).toContain("更多");
+    expect(wrapper.text()).not.toContain("待处理");
+    expect(wrapper.text()).not.toContain("内容编辑");
     expect(wrapper.text()).not.toContain("天梯排名");
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements?section=catalog"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/achievements?section=generic"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/maps"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/events"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/reviews"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="管理导航"] a[href="/admin/player-reviews"]').exists()).toBe(true);
 
     const toggle = wrapper.get('button[aria-label="打开菜单"]');
     // aria-controls must be absent while the panel is not in the DOM (no-missing-references regression).
     expect(toggle.attributes("aria-controls")).toBeUndefined();
     expect(toggle.attributes("aria-expanded")).toBe("false");
-    const studioLink = wrapper.find('nav[aria-label="管理导航"] a[href="/api/studio/login?redirect=%2Fstudio"]');
-    expect(studioLink.exists()).toBe(true);
-    expect(studioLink.attributes("target")).toBe("_blank");
-    expect(studioLink.attributes("rel")).toBe("noopener");
     await toggle.trigger("click");
     expect(toggle.attributes("aria-expanded")).toBe("true");
     // aria-controls must be present and reference the panel once it is in the DOM.
@@ -147,6 +153,7 @@ describe("AppHeader", () => {
   it("closes on outside pointer interaction without restoring focus", async () => {
     route.path = "/admin";
     route.fullPath = "/admin";
+    route.query = {};
     const wrapper = await mountHeader();
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
@@ -170,22 +177,31 @@ describe("AppHeader", () => {
 
     const nav = wrapper.get("#mobile-nav");
     const playerTrigger = nav.findAll("button").find((button) => button.text().includes("玩家"));
-    const maintenanceTrigger = nav.findAll("button").find((button) => button.text().includes("维护工具"));
+    const invitationsTrigger = nav.findAll("button").find((button) => button.text().includes("邀请"));
+    const maintenanceTrigger = nav.findAll("button").find((button) => button.text().includes("更多"));
     expect(playerTrigger).toBeTruthy();
+    expect(invitationsTrigger).toBeTruthy();
     expect(maintenanceTrigger).toBeTruthy();
 
     await playerTrigger!.trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
     expect(nav.text()).toContain("玩家列表");
-    expect(nav.text()).toContain("绑定例外与邀请");
+    expect(nav.text()).toContain("绑定例外");
     expect(nav.find("a[href=\"/admin/bindings\"]").exists()).toBe(true);
+
+    await invitationsTrigger!.trigger("click");
+    await flushPromises();
+    expect(nav.text()).toContain("邀请管理");
+    expect(nav.text()).toContain("QQ 群组策略");
+    expect(nav.find('a[href="/admin/bindings?tab=invitations"]').exists()).toBe(true);
+    expect(nav.find('a[href="/admin/channels"]').exists()).toBe(true);
 
     await maintenanceTrigger!.trigger("click");
     await flushPromises();
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
     expect(nav.text()).toContain("通关记录");
-    expect(nav.text()).toContain("批量发放称号");
+    expect(nav.text()).toContain("称号授予");
     expect(nav.find("a[href=\"/admin/mastery-runs\"]").exists()).toBe(true);
 
     await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
@@ -197,6 +213,7 @@ describe("AppHeader", () => {
   it("closes the mobile panel when the route changes", async () => {
     route.path = "/admin";
     route.fullPath = "/admin";
+    route.query = {};
     const wrapper = await mountHeader();
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     await flushPromises();
