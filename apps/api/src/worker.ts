@@ -1,5 +1,5 @@
 import { authenticateQqBot } from "@owbastion/auth";
-import { createMasteryEvidenceCompatibilityV1 } from "@owbastion/domain";
+import { createVerifiedRunEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
 
@@ -8,7 +8,7 @@ type QqPolicyQueueMessage = { version: 1; eventId: string };
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
 const ocrFeedbackCalibrationRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_FEEDBACK_CALIBRATION_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.02; };
-const masteryCompatibility = (env: RuntimeEnv) => createMasteryEvidenceCompatibilityV1({
+const masteryCompatibility = (env: RuntimeEnv) => createVerifiedRunEvidenceCompatibilityV1({
   minimumGameVersion: env.MASTERY_MIN_GAME_VERSION,
   supportedOcrLayoutVersions: env.MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?.split(","),
 });

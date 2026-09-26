@@ -1,8 +1,8 @@
-import type { MasterySubmissionOutcome } from "~/composables/usePortalApi";
+import type { VerifiedRunSubmissionOutcome } from "~/composables/usePortalApi";
 
 export type MasteryOutcomePresentation = { title: string; description: string; inline: string };
 
-export const masteryOutcomePresentation = (outcome: MasterySubmissionOutcome | undefined): MasteryOutcomePresentation | null => {
+export const verifiedRunOutcomePresentation = (outcome: VerifiedRunSubmissionOutcome | undefined): MasteryOutcomePresentation | null => {
   if (!outcome) return null;
   if (outcome.status === "created") {
     const xp = `${outcome.awardedXp} XP`;

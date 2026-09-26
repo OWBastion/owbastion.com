@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeListResponseSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeListResponseSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -81,8 +81,47 @@ describe("v1 platform contracts", () => {
     };
     expect(currentPlayerMasteryResponseSchema.safeParse(response).success).toBe(true);
     expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, status: "invalidated" }] }).success).toBe(true);
-    expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, runCode: "1234-5678-9012" }] }).success).toBe(false);
+    expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, runs: [{ ...run, matchCode: "1234-5678-9012" }] }).success).toBe(false);
     expect(currentPlayerMasteryResponseSchema.safeParse({ ...response, profiles: [{ ...response.profiles[0], recentRuns: [{ ...run, sourceSubmissionId: "00000000-0000-4000-8000-000000000011" }] }] }).success).toBe(false);
+  });
+
+  it("accepts v1 history and v2 Verified Run facts while requiring an auditable correction", () => {
+    const run = {
+      runId: "00000000-0000-4000-8000-000000000001",
+      playerAccountId: "00000000-0000-4000-8000-000000000002",
+      playerId: "1234",
+      playerName: "Player",
+      sourceSubmissionId: "00000000-0000-4000-8000-000000000003",
+      mapId: "map.test",
+      mapName: "Test",
+      gameplayRevisionId: "revision:map.test:initial",
+      gameplayRevisionLifecycle: "default",
+      mapVariant: null,
+      difficulty: "困难",
+      gameVersion: "26.0810.1",
+      matchCode: "1234-5678-9012",
+      completionDurationSeconds: 600,
+      deaths: 1,
+      skips: 0,
+      eventCounters: {},
+      acceptanceSource: "submission_review",
+      acceptedAt: 1,
+      status: "active",
+      invalidatedAt: null,
+      invalidatedBy: null,
+      invalidationReason: null,
+      xpRuleVersion: "v1",
+      xpInputSnapshot: { ruleVersion: "v1", baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 0.05, performanceBonusReasons: ["no_skips"], challengeBonus: 0 },
+      awardedXp: 236,
+      conflictCount: 0,
+    };
+    expect(adminVerifiedRunSchema.safeParse(run).success).toBe(true);
+    expect(adminVerifiedRunSchema.safeParse({ ...run, xpRuleVersion: "v2", xpInputSnapshot: { ruleVersion: "v2", baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 0.05, performanceBonusReasons: ["no_skips"] } }).success).toBe(true);
+    expect(adminVerifiedRunSchema.safeParse({ ...run, xpRuleVersion: "v2" }).success).toBe(false);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { mapId: "map.next" }, reason: "来自原始截图" }).success).toBe(false);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: null }, reason: "依据原始截图复核" }).success).toBe(true);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: 0 } }).success).toBe(true);
+    expect(adminVerifiedRunCorrectionRequestSchema.safeParse({ contractVersion: "1", changes: { deaths: 0 }, reason: "" }).success).toBe(false);
   });
 
   it("keeps player review contracts limited to current-review fields", () => {
@@ -107,9 +146,9 @@ describe("v1 platform contracts", () => {
     expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ready_for_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true } }).success).toBe(true);
     expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "awaiting_player_confirmation", mapName: "成就挑战", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true, achievementTitles: ["守望先锋"] } }).success).toBe(true);
     expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "resubmission_required", mapName: "测试地图", createdAt: 1, updatedAt: 2, manualReviewEligible: true }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, masteryOutcome: { status: "reused", awardedXp: 0, reason: "private" } }).success).toBe(false);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, masteryOutcome: { status: "created", awardedXp: 225 } }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ocr_review_required", mapName: "测试地图", createdAt: 1, updatedAt: 2, masteryOutcome: { status: "conflict", awardedXp: 0 } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "reused", awardedXp: 0, reason: "private" } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "created", awardedXp: 225 } }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ocr_review_required", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "conflict", awardedXp: 0 } }).success).toBe(false);
     expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ready_for_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { responseJson: {} } }).success).toBe(false);
   });
 

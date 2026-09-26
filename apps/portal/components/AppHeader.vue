@@ -22,7 +22,7 @@ const adminNavigationItems = computed(() => {
   const playerActive = adminPathActive("/admin/players") || playerBindingActive;
   const invitationActive = adminPathActive("/admin/bindings") && invitationTabActive;
   const ocrActive = ["/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to));
-  const toolsActive = ["/admin/grants", "/admin/mastery-runs", "/admin/titles"].some((to) => adminPathActive(to));
+  const toolsActive = ["/admin/grants", "/admin/verified-runs", "/admin/titles"].some((to) => adminPathActive(to));
   return [
     { label: "称号", icon: "i-lucide-award", to: "/admin/achievements?section=catalog", active: achievementPageActive && section === "catalog" },
     { label: "挑战", icon: "i-lucide-list-checks", to: "/admin/achievements?section=generic", active: achievementPageActive && section !== "catalog" },
@@ -71,7 +71,7 @@ const adminNavigationItems = computed(() => {
       active: toolsActive,
       defaultOpen: toolsActive,
       children: [
-        { label: "通关记录", description: "Verified Run 查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/mastery-runs", active: adminPathActive("/admin/mastery-runs") },
+        { label: "通关记录", description: "Verified Run 查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/verified-runs", active: adminPathActive("/admin/verified-runs") },
         { label: "称号授予", description: "历史授权维护", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
         { label: "称号迁移", description: "历史数据关联与修复", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
       ],

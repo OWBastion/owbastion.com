@@ -38,12 +38,14 @@ import type {
   AdminSubmissionOcrRetryResponse,
   AdminSubmissionSpotCheckRequest,
   AdminSubmissionSpotCheckResponse,
-  AdminMasteryRunListResponse,
-  AdminMasteryRunDetailResponse,
-  AdminMasteryRunStateRequest,
-  AdminMasteryRunStateResponse,
-  AdminMasteryRunConflictResolutionRequest,
-  AdminMasteryRunConflictResolutionResponse,
+  AdminVerifiedRunListResponse,
+  AdminVerifiedRunDetailResponse,
+  AdminVerifiedRunStateRequest,
+  AdminVerifiedRunStateResponse,
+  AdminVerifiedRunConflictResolutionRequest,
+  AdminVerifiedRunConflictResolutionResponse,
+  AdminVerifiedRunCorrectionRequest,
+  AdminVerifiedRunCorrectionResponse,
   Challenge,
   Map,
   Title,
@@ -74,7 +76,7 @@ import type {
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
-import type { MasteryDifficulty, MasteryMapProfile, MasteryRunActor, RecordVerifiedMasteryRunResult, VerifiedMasteryRun, VerifiedMasteryRunInput } from "./mastery";
+import type { VerifiedRunDifficulty, MasteryMapProfile, VerifiedRunActor, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "./mastery";
 
 export * from "./mastery";
 export * from "./gameplay-revision";
@@ -159,28 +161,29 @@ export type AgentTitleQuery = AgentPageInput & { query?: string; category?: stri
 export type AgentPlayerTitleGrantQuery = AgentPageInput;
 export type AgentMapTitleHolderQuery = AgentPageInput & { mapId: string };
 export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
-export type AdminMasteryRunQuery = AgentPageInput & {
+export type AdminVerifiedRunQuery = AgentPageInput & {
   playerAccountId?: string;
   mapId?: string;
   gameplayRevisionId?: string;
-  difficulty?: MasteryDifficulty;
+  difficulty?: VerifiedRunDifficulty;
   status?: "active" | "invalidated";
   unresolvedConflictsOnly?: boolean;
   acceptanceSource?: "submission_automatic" | "submission_review";
-  runCode?: string;
+  matchCode?: string;
   from?: number;
   to?: number;
 };
 
 export type PlatformServices = {
-  recordVerifiedMasteryRun(input: VerifiedMasteryRunInput): Promise<RecordVerifiedMasteryRunResult>;
-  invalidateVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
-  restoreVerifiedMasteryRun(input: { masteryRunId: string; reason?: string }, actor: MasteryRunActor): Promise<VerifiedMasteryRun>;
+  recordVerifiedRun(input: VerifiedRunInput): Promise<RecordVerifiedRunResult>;
+  invalidateVerifiedRun(input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor): Promise<VerifiedRun>;
+  restoreVerifiedRun(input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor): Promise<VerifiedRun>;
   rebuildMasteryProfiles(input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; recentLimit?: number }): Promise<MasteryMapProfile[]>;
-  listAdminMasteryRuns(input: AdminMasteryRunQuery, auth: AuthContext): Promise<AdminMasteryRunListResponse>;
-  getAdminMasteryRun(input: { masteryRunId: string }, auth: AuthContext): Promise<AdminMasteryRunDetailResponse>;
-  transitionAdminMasteryRun(input: AdminMasteryRunStateRequest & { masteryRunId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunStateResponse>;
-  resolveAdminMasteryRunConflict(input: AdminMasteryRunConflictResolutionRequest & { masteryRunId: string; submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMasteryRunConflictResolutionResponse>;
+  listAdminVerifiedRuns(input: AdminVerifiedRunQuery, auth: AuthContext): Promise<AdminVerifiedRunListResponse>;
+  getAdminVerifiedRun(input: { verifiedRunId: string }, auth: AuthContext): Promise<AdminVerifiedRunDetailResponse>;
+  correctAdminVerifiedRun(input: AdminVerifiedRunCorrectionRequest & { verifiedRunId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminVerifiedRunCorrectionResponse>;
+  transitionAdminVerifiedRun(input: AdminVerifiedRunStateRequest & { verifiedRunId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminVerifiedRunStateResponse>;
+  resolveAdminVerifiedRunConflict(input: AdminVerifiedRunConflictResolutionRequest & { verifiedRunId: string; submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminVerifiedRunConflictResolutionResponse>;
   listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
   getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;

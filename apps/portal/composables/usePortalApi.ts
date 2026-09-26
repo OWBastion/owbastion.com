@@ -3,18 +3,18 @@ import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
 export type SubmissionStatus = "received" | "evidence_pending" | "evidence_stored" | "upload_pending" | "ocr_pending" | "awaiting_player_confirmation" | "ready_for_review" | "ocr_review_required" | "approved" | "rejected" | "resubmission_required";
 
-export type MasterySubmissionOutcome = {
+export type VerifiedRunSubmissionOutcome = {
   status: "created" | "reused" | "ineligible" | "invalidated";
   awardedXp: number;
 };
 
-export type MasteryDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
+export type VerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
 
-export type PlayerMasteryRun = {
+export type PlayerVerifiedRun = {
   runId: string;
   mapId: string;
   mapVariant: "classic" | null;
-  difficulty: MasteryDifficulty;
+  difficulty: VerifiedRunDifficulty;
   completionDurationSeconds: number;
   deaths: number | null;
   skips: number | null;
@@ -29,12 +29,12 @@ export type PlayerMasteryMapProfile = {
   gameplayRevisionLifecycle?: "preparing" | "default" | "selectable" | "historical";
   totalXp: number;
   verifiedRunCount: number;
-  difficultyStats: Array<{ difficulty: MasteryDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
+  difficultyStats: Array<{ difficulty: VerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
   lowestDeaths: number | null;
   fewestSkips: number | null;
   highestSingleRunXp: number | null;
-  highestCompletedDifficulty: MasteryDifficulty | null;
-  recentRuns: PlayerMasteryRun[];
+  highestCompletedDifficulty: VerifiedRunDifficulty | null;
+  recentRuns: PlayerVerifiedRun[];
 };
 
 export type PortalMap = {
@@ -46,7 +46,7 @@ export type PortalMap = {
 export type CurrentPlayerMasteryResponse = {
   contractVersion: "1";
   profiles: PlayerMasteryMapProfile[];
-  runs: PlayerMasteryRun[];
+  runs: PlayerVerifiedRun[];
   page: number;
   pageSize: number;
   total: number;
@@ -56,7 +56,7 @@ export type CurrentPlayerMasteryResponse = {
 export type CurrentPlayer = {
   contractVersion: "1";
   player: { playerId: string; playerName: string; isAdmin: boolean };
-  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; masteryOutcome?: MasterySubmissionOutcome; createdAt: number; updatedAt: number }>;
+  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; verifiedRunOutcome?: VerifiedRunSubmissionOutcome; createdAt: number; updatedAt: number }>;
 };
 
 export type PortalApiError = Error & { statusCode?: number; requestId?: string; data?: { error?: PortalErrorData }; response?: { status?: number; headers?: Headers; _data?: unknown } };

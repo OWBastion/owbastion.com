@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import type { VerifiedMasteryRunInput } from "@owbastion/domain";
+import type { VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
 
 const createD1 = () => {
@@ -75,7 +75,29 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
   CREATE TABLE portal_sessions (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
-  CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), binding_id TEXT REFERENCES bindings(id), gameplay_revision_id TEXT REFERENCES gameplay_revisions(id));
+  CREATE TABLE submissions (
+    id TEXT PRIMARY KEY NOT NULL,
+    player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+    binding_id TEXT REFERENCES bindings(id),
+    status TEXT NOT NULL DEFAULT 'approved',
+    challenge_type TEXT NOT NULL DEFAULT 'map_completion',
+    challenge_id TEXT,
+    target_map_id TEXT,
+    gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
+    map_name TEXT NOT NULL DEFAULT 'Test',
+    difficulty TEXT,
+    player_name TEXT,
+    review_reason TEXT,
+    grant_id TEXT,
+    ocr_fail_count INTEGER NOT NULL DEFAULT 0,
+    rule_snapshot_json TEXT,
+    source_provider TEXT NOT NULL DEFAULT 'qq',
+    source_conversation_id TEXT NOT NULL DEFAULT 'conversation',
+    source_message_id TEXT NOT NULL DEFAULT 'message',
+    created_at INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE TABLE submission_challenge_selections (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, position INTEGER NOT NULL, challenge_type TEXT NOT NULL, challenge_id TEXT NOT NULL, target_map_id TEXT, gameplay_revision_id TEXT, map_name TEXT NOT NULL, difficulty TEXT, rule_snapshot_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE mastery_runs (
     id TEXT PRIMARY KEY NOT NULL,
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -118,6 +140,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE audit_events (id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+  CREATE TABLE ocr_results (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL, status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL);
+  CREATE TABLE submission_spot_checks (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, status TEXT NOT NULL, policy_json TEXT NOT NULL, sampled_at INTEGER NOT NULL, resolved_at INTEGER, reviewer TEXT, reason TEXT);
   CREATE TABLE mastery_run_conflict_resolutions (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), conflict_submission_id TEXT NOT NULL REFERENCES submissions(id), action TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, resolved_at INTEGER NOT NULL, UNIQUE (mastery_run_id, conflict_submission_id));
 `);
 
@@ -134,7 +158,7 @@ const seed = (sqlite: DatabaseSync) => sqlite.exec(`
     ('submission-1', 'account-1', 'binding-1'), ('submission-2', 'account-1', 'binding-1'), ('submission-3', 'account-2', 'binding-2'), ('submission-4', 'account-1', 'binding-1'), ('submission-5', 'account-1', 'binding-1');
 `);
 
-const input = (overrides: Partial<VerifiedMasteryRunInput> = {}): VerifiedMasteryRunInput => ({
+const input = (overrides: Partial<VerifiedRunInput> = {}): VerifiedRunInput => ({
   playerAccountId: "account-1",
   sourceSubmissionId: "submission-1",
   mapId: "map.test",
@@ -142,7 +166,7 @@ const input = (overrides: Partial<VerifiedMasteryRunInput> = {}): VerifiedMaster
   mapVariant: null,
   difficulty: "困难",
   gameVersion: "26.0810.1",
-  runCode: "1234-5678-9012",
+  matchCode: "1234-5678-9012",
   completionDurationSeconds: 600,
   deaths: 2,
   skips: 1,
@@ -152,19 +176,19 @@ const input = (overrides: Partial<VerifiedMasteryRunInput> = {}): VerifiedMaster
   ...overrides,
 });
 
-describe("verified mastery run ledger", () => {
-  it("enforces active player/run-code uniqueness while allowing a shared room code for another player", async () => {
+describe("verified run ledger", () => {
+  it("enforces same-player match-code uniqueness while allowing a shared code for another player", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
 
-    const created = await services.recordVerifiedMasteryRun(input());
-    expect(created).toMatchObject({ outcome: "created", run: { playerAccountId: "account-1", runCode: "1234-5678-9012", awardedXp: 225, xpRuleVersion: "v1", xpInputSnapshot: { mapFactor: 1, performanceBonus: 0 } } });
-    expect(await services.recordVerifiedMasteryRun(input())).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
-    expect(await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 1_100 }))).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
-    expect(await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-4", difficulty: "传奇", acceptedAt: 1_200 }))).toMatchObject({ outcome: "conflict", run: { runId: created.run.runId }, conflictFields: ["difficulty"] });
-    expect(await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_300 }))).toMatchObject({ outcome: "created", run: { playerAccountId: "account-2", runCode: "1234-5678-9012" } });
+    const created = await services.recordVerifiedRun(input());
+    expect(created).toMatchObject({ outcome: "created", run: { playerAccountId: "account-1", matchCode: "1234-5678-9012", awardedXp: 225, xpRuleVersion: "v2", xpInputSnapshot: { ruleVersion: "v2", mapFactor: 1, performanceBonus: 0 } } });
+    expect(await services.recordVerifiedRun(input())).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
+    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 1_100 }))).toMatchObject({ outcome: "reused", run: { runId: created.run.runId } });
+    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-4", difficulty: "传奇", acceptedAt: 1_200 }))).toMatchObject({ outcome: "conflict", run: { runId: created.run.runId }, conflictFields: ["difficulty"] });
+    expect(await services.recordVerifiedRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_300 }))).toMatchObject({ outcome: "created", run: { playerAccountId: "account-2", matchCode: "1234-5678-9012" } });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition").all()).toEqual([{ transition: "accepted", count: 2 }]);
   });
@@ -176,8 +200,8 @@ describe("verified mastery run ledger", () => {
     const services = createPlatformServices(database);
 
     const results = await Promise.all([
-      services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-1" })),
-      services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2" })),
+      services.recordVerifiedRun(input({ sourceSubmissionId: "submission-1" })),
+      services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2" })),
     ]);
 
     expect(results.map((result) => result.outcome).sort()).toEqual(["created", "reused"]);
@@ -191,17 +215,17 @@ describe("verified mastery run ledger", () => {
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
-    const first = await services.recordVerifiedMasteryRun(input());
-    const second = await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", runCode: "2234-5678-9012", difficulty: "传奇", completionDurationSeconds: 500, deaths: 0, skips: 0, acceptedAt: 2_000 }));
+    const first = await services.recordVerifiedRun(input());
+    const second = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", difficulty: "传奇", completionDurationSeconds: 500, deaths: 0, skips: 0, acceptedAt: 2_000 }));
     if (first.outcome !== "created" || second.outcome !== "created") throw new Error("fixture setup failed");
 
     const before = await services.rebuildMasteryProfiles({ playerAccountId: "account-1" });
     expect(before).toMatchObject([{ mapId: "map.test", totalXp: 720, verifiedRunCount: 2, lowestDeaths: 0, fewestSkips: 0, highestSingleRunXp: 495, highestCompletedDifficulty: "传奇" }]);
-    await services.invalidateVerifiedMasteryRun({ masteryRunId: second.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
-    await services.invalidateVerifiedMasteryRun({ masteryRunId: second.run.runId, reason: "replay" }, { actorType: "user", actorId: "maintainer-1" });
+    await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId, reason: "replay" }, { actorType: "user", actorId: "maintainer-1" });
     expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.test", totalXp: 225, verifiedRunCount: 1, highestCompletedDifficulty: "困难" }]);
-    await services.restoreVerifiedMasteryRun({ masteryRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
-    await services.restoreVerifiedMasteryRun({ masteryRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
+    await services.restoreVerifiedRun({ verifiedRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
+    await services.restoreVerifiedRun({ verifiedRunId: second.run.runId }, { actorType: "user", actorId: "maintainer-1" });
     expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toEqual(before);
     expect(sqlite.prepare("SELECT transition, COUNT(*) AS count FROM mastery_run_lifecycle_events GROUP BY transition ORDER BY transition").all()).toEqual([
       { transition: "accepted", count: 2 },
@@ -210,16 +234,102 @@ describe("verified mastery run ledger", () => {
     ]);
   });
 
-  it("does not restore an invalidated run over a newer active run with the same code", async () => {
+  it("reuses an invalidated Run for the same match code and can restore that Run", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
-    const original = await services.recordVerifiedMasteryRun(input());
+    const original = await services.recordVerifiedRun(input());
     if (original.outcome !== "created") throw new Error("fixture setup failed");
-    await services.invalidateVerifiedMasteryRun({ masteryRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" });
-    expect(await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 2_000 }))).toMatchObject({ outcome: "created" });
-    await expect(services.restoreVerifiedMasteryRun({ masteryRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).rejects.toThrow("MASTERY_RUN_CODE_CONFLICT");
+    await services.invalidateVerifiedRun({ verifiedRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" });
+    expect(await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", acceptedAt: 2_000 }))).toMatchObject({ outcome: "reused", run: { runId: original.run.runId, status: "invalidated" } });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
+    await expect(services.restoreVerifiedRun({ verifiedRunId: original.run.runId }, { actorType: "user", actorId: "maintainer-1" })).resolves.toMatchObject({ runId: original.run.runId, status: "active" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
+  });
+
+  it("corrects source facts in place, recalculates XP and both revision-scoped projections, and audits before and after", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    sqlite.exec("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.next', 'Next', '26.0810.2', 'active', '26.0810.2', 1, 1);");
+    sqlite.exec("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.next:initial', 'map.next', 'default', NULL, NULL, NULL, '26.0810.2', 1, 1);");
+    const services = createPlatformServices(database);
+    const created = await services.recordVerifiedRun(input({ deaths: 2, skips: 1 }));
+    if (created.outcome !== "created") throw new Error("fixture setup failed");
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, created_at, updated_at) VALUES (?, ?, 'verified_run', 'verified_run', 'created', ?, ?, 1, 1)")
+      .run("outcome-1", "submission-1", created.run.runId, created.run.awardedXp);
+
+    const correctionInput = {
+      contractVersion: "1",
+      verifiedRunId: created.run.runId,
+      changes: { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "传奇", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 } },
+    } as const;
+    const auth = { actorType: "user" as const, subject: "maintainer-1", roles: ["maintainer"], provider: "test" };
+    const corrected = await services.correctAdminVerifiedRun(correctionInput, auth, "correction-1");
+
+    expect(corrected.detail.run).toMatchObject({ runId: created.run.runId, sourceSubmissionId: "submission-1", mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", difficulty: "传奇", matchCode: "2234-5678-9012", completionDurationSeconds: 500, deaths: 0, skips: 0, eventCounters: { "event.alpha": 3 }, xpRuleVersion: "v2", awardedXp: 495 });
+    expect(corrected.affectedProjections).toMatchObject([
+      { mapId: "map.test", gameplayRevisionId: "revision:map.test:initial", totalXp: 0, verifiedRunCount: 0 },
+      { mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 495, verifiedRunCount: 1 },
+    ]);
+    expect(corrected.detail.corrections).toHaveLength(1);
+    expect(corrected.detail.corrections[0]).toMatchObject({ actorId: "maintainer-1", reason: null, before: { mapId: "map.test", xpRuleVersion: "v2", awardedXp: 225 }, after: { mapId: "map.next", xpRuleVersion: "v2", awardedXp: 495 } });
+    expect(sqlite.prepare("SELECT awarded_xp FROM submission_outcomes WHERE id = 'outcome-1'").get()).toEqual({ awarded_xp: 495 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs").get()).toEqual({ count: 1 });
+    expect(sqlite.prepare("SELECT operation, entity_type FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ operation: "verified_run.correct", entity_type: "verified_run" });
+    expect(await services.rebuildMasteryProfiles({ playerAccountId: "account-1" })).toMatchObject([{ mapId: "map.next", gameplayRevisionId: "revision:map.next:initial", totalXp: 495, verifiedRunCount: 1 }]);
+    await expect(services.correctAdminVerifiedRun(correctionInput, auth, "correction-1")).resolves.toEqual(corrected);
+    await expect(services.correctAdminVerifiedRun({ ...correctionInput, reason: "different request" }, auth, "correction-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ count: 1 });
+  });
+
+  it.each([
+    ["active against invalidated", "active", "invalidated"],
+    ["invalidated against active", "invalidated", "active"],
+    ["invalidated against invalidated", "invalidated", "invalidated"],
+  ] as const)("rejects a correction that reuses another run's match code for the same player (%s)", async (_scenario, targetStatus, ownerStatus) => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    const first = await services.recordVerifiedRun(input());
+    const second = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", acceptedAt: 2_000 }));
+    if (first.outcome !== "created" || second.outcome !== "created") throw new Error("fixture setup failed");
+    const actor = { actorType: "user" as const, actorId: "maintainer-1" };
+    if (targetStatus === "invalidated") await services.invalidateVerifiedRun({ verifiedRunId: first.run.runId }, actor);
+    if (ownerStatus === "invalidated") await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId }, actor);
+
+    await expect(services.correctAdminVerifiedRun({
+      contractVersion: "1",
+      verifiedRunId: first.run.runId,
+      changes: { matchCode: "2234-5678-9012" },
+    }, { actorType: "user", subject: "maintainer-1", roles: ["maintainer"], provider: "test" }, `collision-correction-${_scenario}`)).rejects.toThrow("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+    expect(sqlite.prepare("SELECT run_code FROM mastery_runs WHERE id = ?").get(first.run.runId)).toEqual({ run_code: "1234-5678-9012" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'verified_run.correct'").get()).toEqual({ count: 0 });
+  });
+
+  it("preserves an untouched historical XP v1 snapshot when a correction is a no-op", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seed(sqlite);
+    const services = createPlatformServices(database);
+    const created = await services.recordVerifiedRun(input());
+    if (created.outcome !== "created") throw new Error("fixture setup failed");
+    const historicalSnapshot = { ruleVersion: "v1", baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 0, performanceBonusReasons: [], challengeBonus: 0 };
+    sqlite.prepare("UPDATE mastery_runs SET xp_rule_version = 'v1', xp_input_snapshot_json = ?, awarded_xp = 225 WHERE id = ?")
+      .run(JSON.stringify(historicalSnapshot), created.run.runId);
+
+    const corrected = await services.correctAdminVerifiedRun({
+      contractVersion: "1",
+      verifiedRunId: created.run.runId,
+      changes: { difficulty: "困难" },
+      reason: "核对后确认原事实无误",
+    }, { actorType: "user", subject: "maintainer-1", roles: ["maintainer"], provider: "test" }, "noop-correction");
+
+    expect(corrected.detail.run).toMatchObject({ xpRuleVersion: "v1", xpInputSnapshot: historicalSnapshot, awardedXp: 225 });
+    expect(sqlite.prepare("SELECT xp_rule_version, xp_input_snapshot_json, awarded_xp FROM mastery_runs WHERE id = ?").get(created.run.runId)).toEqual({ xp_rule_version: "v1", xp_input_snapshot_json: JSON.stringify(historicalSnapshot), awarded_xp: 225 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 0 });
   });
 
   it("returns only the current player's active aggregate and privacy-safe mastery history", async () => {
@@ -227,17 +337,17 @@ describe("verified mastery run ledger", () => {
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
-    const first = await services.recordVerifiedMasteryRun(input());
+    const first = await services.recordVerifiedRun(input());
     if (first.outcome !== "created") throw new Error("fixture setup failed");
-    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", runCode: "2234-5678-9012", difficulty: "传奇", acceptedAt: 1_200 }));
-    await services.invalidateVerifiedMasteryRun({ masteryRunId: first.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
-    await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_100 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", difficulty: "传奇", acceptedAt: 1_200 }));
+    await services.invalidateVerifiedRun({ verifiedRunId: first.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
+    await services.recordVerifiedRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_100 }));
     sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES (?, ?, ?, ?)")
       .run("session-1", "account-1", await hashRequest("mastery-session"), Date.now() + 60_000);
 
     const projection = await services.getCurrentPlayerMastery({ sessionToken: "mastery-session", page: 1, pageSize: 20 });
     expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", verifiedRunCount: 1, highestCompletedDifficulty: "传奇" }], runs: [{ mapId: "map.test", status: "active" }, { mapId: "map.test", status: "invalidated" }], page: 1, pageSize: 20, total: 2, hasMore: false });
-    expect(JSON.stringify(projection)).not.toMatch(/playerAccountId|sourceSubmissionId|runCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
+    expect(JSON.stringify(projection)).not.toMatch(/playerAccountId|sourceSubmissionId|matchCode|gameVersion|eventCounters|acceptanceSource|xpInputSnapshot|invalidation/);
     await expect(services.getCurrentPlayerMastery({ sessionToken: "other-session", page: 1, pageSize: 20 })).resolves.toBeNull();
   });
 
@@ -246,10 +356,10 @@ describe("verified mastery run ledger", () => {
     installSchema(sqlite);
     seed(sqlite);
     const services = createPlatformServices(database);
-    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-1", runCode: "1234-5678-9012", acceptedAt: 1_000 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-1", matchCode: "1234-5678-9012", acceptedAt: 1_000 }));
     sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = 'revision:map.test:initial'").run();
     sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.test:rework', 'map.test', 'default', NULL, 'revision:map.test:initial', 'difficulty redesign', '26.0810.2', 2, 2)").run();
-    await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", gameplayRevisionId: "revision:map.test:rework", runCode: "2234-5678-9012", acceptedAt: 2_000 }));
+    await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", gameplayRevisionId: "revision:map.test:rework", matchCode: "2234-5678-9012", acceptedAt: 2_000 }));
     sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-revision', 'account-1', ?, ?)")
       .run(await hashRequest("revision-session"), Date.now() + 60_000);
 

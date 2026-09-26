@@ -14,7 +14,7 @@ were added independently:
 - title issuance through direct Grants, title challenges, and map-title rules;
 - screenshot processing that could require player/admin challenge selection in
   addition to OCR evidence;
-- a `Verified Mastery Run` whose accepted gameplay facts are useful beyond
+- a `Verified Run` whose accepted gameplay facts are useful beyond
   Mastery;
 - OCR matching rules that can duplicate Challenge qualification rules;
 - standalone admin CRUD surfaces for low-frequency or derived concepts;
@@ -100,7 +100,7 @@ Grants. Historical business records remain auditable.
 
 Rejected. Hiding old pages would reduce visible clutter but retain multiple rule
 systems and duplicated business state. New features would continue to choose
-between map-title rules, title challenges, direct Grants, mastery-run facts, and
+between map-title rules, title challenges, direct Grants, Verified Run facts, and
 OCR-specific matching rules.
 
 ### Create a new generic rules engine
@@ -116,7 +116,7 @@ be re-reviewed, corrected, invalidated, or reused independently of the upload
 workflow, and a Submission can produce title and progression outcomes without
 those outcomes becoming Submission state.
 
-### Keep Mastery Run as a Mastery-owned ledger and add another run model later
+### Keep Verified Run as a Mastery-owned ledger and add another run model later
 
 Rejected. The same accepted run facts are already required by Challenges,
 Mastery, XP, personal bests, and leaderboards. A second run ledger would create

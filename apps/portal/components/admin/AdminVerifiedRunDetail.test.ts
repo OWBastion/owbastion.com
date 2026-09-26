@@ -1,9 +1,9 @@
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
-import type { AdminMasteryRunDetail as MasteryRunDetail } from "~/composables/useAdminApi";
-import AdminMasteryRunDetail from "./AdminMasteryRunDetail.vue";
+import type { AdminVerifiedRunDetail as VerifiedRunDetail } from "~/composables/useAdminApi";
+import AdminVerifiedRunDetail from "./AdminVerifiedRunDetail.vue";
 
-const detail: MasteryRunDetail = {
+const detail: VerifiedRunDetail = {
   contractVersion: "1",
   run: {
     runId: "00000000-0000-4000-8000-000000000001",
@@ -18,7 +18,7 @@ const detail: MasteryRunDetail = {
     mapVariant: null,
     difficulty: "困难",
     gameVersion: "26.0810.1",
-    runCode: "1234-5678-9012",
+    matchCode: "1234-5678-9012",
     completionDurationSeconds: 600,
     deaths: 1,
     skips: 0,
@@ -63,20 +63,21 @@ const detail: MasteryRunDetail = {
     evidenceUrl: null,
   },
   lifecycle: [{ transition: "accepted", actorType: "service", actorId: "submission_review", reason: null, createdAt: 1 }],
+  corrections: [],
   conflicts: [{
     submissionId: "00000000-0000-4000-8000-000000000004",
     submissionStatus: "ocr_review_required",
     playerAccountId: "00000000-0000-4000-8000-000000000002",
     playerName: "Tester",
     conflictFields: ["difficulty", "completion_duration"],
-    facts: { mapName: "测试地图", mapVariant: null, difficulty: "传奇", gameVersion: "26.0810.1", runCode: "1234-5678-9012", completionDurationSeconds: 550, deaths: 1, skips: 0 },
+    facts: { mapName: "测试地图", mapVariant: null, difficulty: "传奇", gameVersion: "26.0810.1", matchCode: "1234-5678-9012", completionDurationSeconds: 550, deaths: 1, skips: 0 },
     resolution: null,
   }],
 };
 
-describe("AdminMasteryRunDetail", () => {
+describe("AdminVerifiedRunDetail", () => {
   it("renders maintainer-only run facts and emits auditable reconciliation actions", async () => {
-    const wrapper = await mountSuspended(AdminMasteryRunDetail, {
+    const wrapper = await mountSuspended(AdminVerifiedRunDetail, {
       props: { detail },
       global: {
         stubs: {
@@ -95,7 +96,9 @@ describe("AdminMasteryRunDetail", () => {
     const buttons = wrapper.findAll("button");
     await buttons.find((button) => button.text() === "作废通关记录")!.trigger("click");
     await buttons.find((button) => button.text() === "作废原记录")!.trigger("click");
+    await buttons.find((button) => button.text() === "更正记录事实")!.trigger("click");
     expect(wrapper.emitted("state")).toEqual([["invalidate"]]);
     expect(wrapper.emitted("conflict")).toEqual([[{ submissionId: "00000000-0000-4000-8000-000000000004", action: "invalidate_existing" }]]);
+    expect(wrapper.emitted("correct")).toEqual([[]]);
   });
 });

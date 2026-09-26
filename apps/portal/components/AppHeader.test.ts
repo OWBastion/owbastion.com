@@ -202,7 +202,7 @@ describe("AppHeader", () => {
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
     expect(nav.text()).toContain("通关记录");
     expect(nav.text()).toContain("称号授予");
-    expect(nav.find("a[href=\"/admin/mastery-runs\"]").exists()).toBe(true);
+    expect(nav.find("a[href=\"/admin/verified-runs\"]").exists()).toBe(true);
 
     await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
     await flushPromises();

@@ -348,7 +348,10 @@ applicable game/layout provenance, and reliable settlement statistics.
 
 Administrators may correct recognized gameplay facts when the source evidence
 supports the correction. The platform records the before/after audit and then
-recalculates affected projections and Challenge results from the corrected Run.
+recalculates current XP and Mastery projections from the corrected Run. The
+correction keeps the source Submission, accepting decision, and lifecycle
+history attached to the same Run. Challenge/Completion/Grant recalculation is
+handled by the separate convergence work and must not create another Run ledger.
 Administrators do not manually patch XP, mastery, ranking, and Challenge state
 independently.
 
@@ -361,6 +364,11 @@ XP represents value from the verified gameplay run itself.
 
 Challenge completion does not directly add Mastery XP. The existing
 `challengeBonus` concept is removed from the target product contract.
+
+New awards use XP rule v2, which has no Challenge bonus input. Existing accepted
+v1 snapshots and awards remain historical facts until an administrator corrects
+the underlying gameplay facts; an explicit correction records the prior
+snapshot and recalculates the Run using the current rule.
 
 The XP rule may use approved Verified Run facts such as difficulty, map factor,
 and reliable performance fields. It remains deterministic, centralized,

@@ -378,7 +378,7 @@ export const submissionChallengeSelections = sqliteTable("submission_challenge_s
   submissionIdx: index("submission_challenge_selections_submission_idx").on(table.submissionId),
 }));
 
-export const masteryRuns = sqliteTable("mastery_runs", {
+export const verifiedRuns = sqliteTable("mastery_runs", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   sourceSubmissionId: text("source_submission_id").notNull().references(() => submissions.id),
@@ -387,7 +387,7 @@ export const masteryRuns = sqliteTable("mastery_runs", {
   mapVariant: text("map_variant"),
   difficulty: text("difficulty").notNull(),
   gameVersion: text("game_version").notNull(),
-  runCode: text("run_code").notNull(),
+  matchCode: text("run_code").notNull(),
   completionDurationSeconds: integer("completion_duration_seconds").notNull(),
   deaths: integer("deaths"),
   skips: integer("skips"),
@@ -404,25 +404,25 @@ export const masteryRuns = sqliteTable("mastery_runs", {
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
   sourceSubmissionIdx: uniqueIndex("mastery_runs_source_submission_idx").on(table.sourceSubmissionId),
-  activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.runCode).where(sql`${table.status} = 'active'`),
+  activePlayerRunCodeIdx: uniqueIndex("mastery_runs_active_player_run_code_idx").on(table.playerAccountId, table.matchCode).where(sql`${table.status} = 'active'`),
   activePlayerMapAcceptedIdx: index("mastery_runs_active_player_map_revision_accepted_idx").on(table.playerAccountId, table.mapId, table.gameplayRevisionId, table.acceptedAt).where(sql`${table.status} = 'active'`),
 }));
 
-export const masteryRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_events", {
+export const verifiedRunLifecycleEvents = sqliteTable("mastery_run_lifecycle_events", {
   id: text("id").primaryKey(),
-  masteryRunId: text("mastery_run_id").notNull().references(() => masteryRuns.id),
+  verifiedRunId: text("mastery_run_id").notNull().references(() => verifiedRuns.id),
   transition: text("transition").notNull(),
   actorType: text("actor_type").notNull(),
   actorId: text("actor_id").notNull(),
   reason: text("reason"),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
-  runCreatedIdx: index("mastery_run_lifecycle_events_run_created_idx").on(table.masteryRunId, table.createdAt),
+  runCreatedIdx: index("mastery_run_lifecycle_events_run_created_idx").on(table.verifiedRunId, table.createdAt),
 }));
 
-export const masteryRunConflictResolutions = sqliteTable("mastery_run_conflict_resolutions", {
+export const verifiedRunConflictResolutions = sqliteTable("mastery_run_conflict_resolutions", {
   id: text("id").primaryKey(),
-  masteryRunId: text("mastery_run_id").notNull().references(() => masteryRuns.id),
+  verifiedRunId: text("mastery_run_id").notNull().references(() => verifiedRuns.id),
   conflictSubmissionId: text("conflict_submission_id").notNull().references(() => submissions.id),
   action: text("action").notNull(),
   actorType: text("actor_type").notNull(),
@@ -430,8 +430,8 @@ export const masteryRunConflictResolutions = sqliteTable("mastery_run_conflict_r
   reason: text("reason"),
   resolvedAt: integer("resolved_at").notNull(),
 }, (table) => ({
-  runSubmissionIdx: uniqueIndex("mastery_run_conflict_resolutions_run_submission_idx").on(table.masteryRunId, table.conflictSubmissionId),
-  runResolvedIdx: index("mastery_run_conflict_resolutions_run_resolved_idx").on(table.masteryRunId, table.resolvedAt),
+  runSubmissionIdx: uniqueIndex("mastery_run_conflict_resolutions_run_submission_idx").on(table.verifiedRunId, table.conflictSubmissionId),
+  runResolvedIdx: index("mastery_run_conflict_resolutions_run_resolved_idx").on(table.verifiedRunId, table.resolvedAt),
 }));
 
 export const submissionOutcomes = sqliteTable("submission_outcomes", {
