@@ -41,6 +41,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: Portal API path contract
+            command: pnpm run check:admin-api-paths
           - name: Portal styles
             command: pnpm run lint:styles
           - name: Portal UI tests
