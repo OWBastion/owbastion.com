@@ -199,8 +199,13 @@ export type AdminDatasetDetail = {
   exclusions: Array<{ annotationId: string; reason: string }>;
 };
 
+const assertAdminApiPath = (path: string) => {
+  if (path === "/v1/admin" || path.startsWith("/v1/admin/")) throw new Error("ADMIN_API_PATH_INCLUDES_ADMIN_PREFIX");
+};
+
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
+    assertAdminApiPath(path);
     const requestId = createRequestId();
     const headers = new Headers(options?.headers as HeadersInit | undefined);
     if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
