@@ -203,6 +203,20 @@ describe("immutable reviewed dataset snapshots", () => {
     expect(member.position).toBe(0);
   });
 
+  it("includes accepted candidates by default and records explicit anomaly exclusions", async () => {
+    const { sqlite, services } = await setup([
+      { id: "ann-1", fieldKey: "difficulty", reviewedValue: "一般" },
+      { id: "ann-2", fieldKey: "map_name", reviewedValue: "皇家赛道" },
+    ]);
+    const draft = await services.createAdminDatasetDraft({ excludedAnnotationIds: ["ann-2"] }, maintainer, "key-exclude");
+    expect(draft.counts).toEqual({ eligibleCount: 1, excludedCount: 1, submissionCount: 1, annotationCount: 1 });
+    expect(memberCount(sqlite, draft.datasetId)).toBe(1);
+    const detail = await services.getAdminDataset({ datasetId: draft.datasetId }, maintainer);
+    expect(detail.members.map((member) => member.annotationId)).toEqual(["ann-1"]);
+    expect(detail.exclusions).toEqual([{ annotationId: "ann-2", reason: "maintainer_excluded" }]);
+    await expect(services.createAdminDatasetDraft({ excludedAnnotationIds: ["unknown"] }, maintainer, "key-invalid-exclusion")).rejects.toThrow("DATASET_ANNOTATION_EXCLUSION_INVALID");
+  });
+
   it("reports validation/exclusion results for missing provenance or unavailable evidence", async () => {
     const { sqlite, services } = await setup([
       { id: "ann-1", fieldKey: "difficulty", reviewedValue: "一般" },

@@ -954,15 +954,17 @@ export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
-  achievementTitlesReview: z.object({
-    complete: z.boolean(),
-    titles: z.array(z.string().trim().min(1).max(256)).max(64),
-  }).strict().optional(),
+  fieldCorrections: z.array(z.object({
+    fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"]),
+    reviewedValue: z.string().trim().min(1).max(2048),
+  }).strict()).max(5).superRefine((corrections, ctx) => {
+    if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });
+  }).optional(),
 });
 export const adminSubmissionReviewResponseSchema = z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), masteryOutcome: playerMasterySubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 }).or(z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), masteryOutcome: playerMasterySubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1).max(32).optional(), challengeId: externalId.optional(), mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).superRefine((value, ctx) => {
   if (!value.selections?.length && !value.challengeId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["selections"], message: "At least one challenge selection is required" });
@@ -1361,6 +1363,7 @@ export const adminDatasetListResponseSchema = z.object({
 export const adminDatasetCreateRequestSchema = z.object({
   contractVersion,
   note: z.string().trim().max(1000).optional(),
+  excludedAnnotationIds: z.array(z.string().uuid()).max(500).optional(),
 }).strict();
 
 export const adminDatasetCreateResponseSchema = z.object({

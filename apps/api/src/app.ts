@@ -1672,8 +1672,14 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminDatasetCreateRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = parsed.data.note === undefined ? {} : { note: parsed.data.note };
-    return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201);
+    const input = { ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}), ...(parsed.data.excludedAnnotationIds ? { excludedAnnotationIds: parsed.data.excludedAnnotationIds } : {}) };
+    try { return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "DATASET_CREATE_FAILED";
+      if (code === "DATASET_ANNOTATION_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded annotation is not an accepted candidate");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
   });
 
   app.get("/v1/admin/datasets/:datasetId", async (c) => {
@@ -1840,7 +1846,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, achievementTitlesReview: parsed.data.achievementTitlesReview }, access.auth!, idempotencyKey)); }
+    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections }, access.auth!, idempotencyKey)); }
     catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 

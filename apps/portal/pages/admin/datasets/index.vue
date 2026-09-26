@@ -22,10 +22,14 @@ const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailError = ref('');
 const finalizing = ref(false);
+const draftDialogOpen = ref(false);
+const draftCandidates = ref<Array<{ annotationId: string; fieldKey: string; reviewedValue: string; submissionMapName: string }>>([]);
+const excludedAnnotationIds = ref<string[]>([]);
+const draftCandidatesLoading = ref(false);
 
 const formatTime = (value: number) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value);
 const statusLabel = (status: string) => status === 'draft' ? '草稿' : '已定稿';
-const exclusionReasonLabel = (reason: string) => ({ already_snapshotted: '已在其他快照中', missing_model_version: '缺少模型版本', missing_layout_version: '缺少布局版本', missing_evidence: '缺少源证据' })[reason] ?? reason;
+const exclusionReasonLabel = (reason: string) => ({ already_snapshotted: '已在其他快照中', missing_model_version: '缺少模型版本', missing_layout_version: '缺少布局版本', missing_evidence: '缺少源证据', maintainer_excluded: '维护者排除异常' })[reason] ?? reason;
 
 const columns: TableColumn<AdminDatasetSnapshot>[] = [
   { id: 'version', accessorKey: 'version', header: '版本' },
@@ -54,6 +58,28 @@ async function load() {
   } finally { loading.value = false; }
 }
 
+async function openDraftDialog() {
+  if (draftCandidatesLoading.value) return;
+  draftCandidatesLoading.value = true;
+  errorMessage.value = '';
+  try {
+    const candidates: typeof draftCandidates.value = [];
+    let currentPage = 1;
+    let hasMore = true;
+    while (hasMore) {
+      const response = await api<{ items: typeof candidates; hasMore: boolean }>(`/v1/annotations/reviewed?page=${currentPage}&pageSize=100&state=accepted`);
+      candidates.push(...response.items);
+      hasMore = response.hasMore;
+      currentPage += 1;
+    }
+    draftCandidates.value = candidates;
+    excludedAnnotationIds.value = [];
+    draftDialogOpen.value = true;
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, '无法读取候选标注，未创建数据集草稿。').description;
+  } finally { draftCandidatesLoading.value = false; }
+}
+
 async function createDraft() {
   if (creating.value) return;
   creating.value = true;
@@ -62,9 +88,10 @@ async function createDraft() {
     const response = await api<AdminDatasetDetail['snapshot']>('/v1/datasets', {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
-      body: { contractVersion: '1' },
+      body: { contractVersion: '1', ...(excludedAnnotationIds.value.length ? { excludedAnnotationIds: excludedAnnotationIds.value } : {}) },
     });
     toast.add({ title: `已创建 v${response.version} 草稿`, description: `入选 ${response.counts.eligibleCount} 条，排除 ${response.counts.excludedCount} 条。`, color: 'success' });
+    draftDialogOpen.value = false;
     await load();
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, '无法创建数据集草稿。').description;
@@ -110,7 +137,7 @@ onMounted(() => { void load(); });
   <AdminWorkspace title='数据集' :count='loading ? "读取中…" : total + " 个"'>
     <template #toolbar><AdminOcrQualityStages active='datasets' /></template>
     <template #actions>
-      <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='creating' @click='createDraft' />
+      <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='draftCandidatesLoading' @click='openDraftDialog' />
       <UButton class='admin-workspace__icon-action hit-target-lg' icon='i-lucide-refresh-cw' square color='neutral' variant='outline' aria-label='刷新' :loading='loading' @click='load' />
     </template>
     <template #messages>
@@ -130,6 +157,22 @@ onMounted(() => { void load(); });
       </AdminDataTable>
       <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
     </section>
+
+    <AdminResponsiveDialog v-model:open='draftDialogOpen' title='创建数据集草稿' description='默认包含全部合格标注。选中异常项可仅从本次快照排除；原审定标注不会改变。' size='lg'>
+      <template #body>
+        <p class='dataset-dialog-message'>合格候选 {{ draftCandidates.length }} 条 · 本次排除 {{ excludedAnnotationIds.length }} 条</p>
+        <div v-if='draftCandidates.length' class='dataset-candidate-list'>
+          <label v-for='candidate in draftCandidates' :key='candidate.annotationId' class='dataset-candidate'>
+            <input v-model='excludedAnnotationIds' type='checkbox' :value='candidate.annotationId' />
+            <span><strong>{{ candidate.fieldKey }} · {{ candidate.submissionMapName }}</strong><span class='table-meta'>{{ candidate.reviewedValue }}</span></span>
+          </label>
+        </div>
+        <p v-else class='dataset-dialog-message'>当前没有合格的审定标注。</p>
+      </template>
+      <template #footer>
+        <UButton label='创建草稿' icon='i-lucide-database-plus' color='primary' :loading='creating' :disabled='creating' @click='createDraft' />
+      </template>
+    </AdminResponsiveDialog>
 
     <AdminResponsiveDialog v-model:open='detailOpen' :title="selectedDetail ? `数据集 v${selectedDetail.snapshot.version}` : '数据集'" :description="selectedDetail?.snapshot.status === 'finalized' ? '已定稿快照的成员与来源不可再变更。' : undefined" size='lg' @update:open='(open) => { if (!open) closeDetail(); }'>
       <template #body>
@@ -175,6 +218,9 @@ onMounted(() => { void load(); });
 .dataset-filters { display: grid; grid-template-columns: minmax(140px, 220px); }
 .dataset-dialog-error { margin-bottom: var(--space-3); }
 .dataset-dialog-message { margin: 0; padding: var(--space-8) 0; color: var(--muted); text-align: center; }
+.dataset-candidate-list { display: grid; max-height: 55vh; gap: var(--space-2); overflow: auto; }
+.dataset-candidate { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
+.dataset-candidate > span { display: grid; gap: var(--space-1); min-width: 0; overflow-wrap: anywhere; }
 .dataset-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); margin: 0 0 var(--space-5); }
 .dataset-facts > div { display: grid; gap: var(--space-1); min-width: 0; }
 .dataset-facts dt { color: var(--quiet); font-size: .74rem; }

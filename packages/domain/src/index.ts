@@ -233,7 +233,7 @@ export type PlatformServices = {
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
   processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
   markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
-  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; achievementTitlesReview?: AdminSubmissionReviewRequest["achievementTitlesReview"] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
+  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
   createAdminBindingInviteBatch(input: AdminBindingInviteBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteBatchResponse>;
