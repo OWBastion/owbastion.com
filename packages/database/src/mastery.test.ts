@@ -284,7 +284,11 @@ describe("verified run ledger", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_id = ?").get(created.run.runId)).toEqual({ count: 1 });
   });
 
-  it("rejects a correction that reuses another active run's match code for the same player", async () => {
+  it.each([
+    ["active against invalidated", "active", "invalidated"],
+    ["invalidated against active", "invalidated", "active"],
+    ["invalidated against invalidated", "invalidated", "invalidated"],
+  ] as const)("rejects a correction that reuses another run's match code for the same player (%s)", async (_scenario, targetStatus, ownerStatus) => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seed(sqlite);
@@ -292,15 +296,17 @@ describe("verified run ledger", () => {
     const first = await services.recordVerifiedRun(input());
     const second = await services.recordVerifiedRun(input({ sourceSubmissionId: "submission-2", matchCode: "2234-5678-9012", acceptedAt: 2_000 }));
     if (first.outcome !== "created" || second.outcome !== "created") throw new Error("fixture setup failed");
+    const actor = { actorType: "user" as const, actorId: "maintainer-1" };
+    if (targetStatus === "invalidated") await services.invalidateVerifiedRun({ verifiedRunId: first.run.runId }, actor);
+    if (ownerStatus === "invalidated") await services.invalidateVerifiedRun({ verifiedRunId: second.run.runId }, actor);
 
     await expect(services.correctAdminVerifiedRun({
       contractVersion: "1",
       verifiedRunId: first.run.runId,
       changes: { matchCode: "2234-5678-9012" },
-      reason: "复核通关码",
-    }, { actorType: "user", subject: "maintainer-1", roles: ["maintainer"], provider: "test" }, "collision-correction")).rejects.toThrow("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+    }, { actorType: "user", subject: "maintainer-1", roles: ["maintainer"], provider: "test" }, `collision-correction-${_scenario}`)).rejects.toThrow("VERIFIED_RUN_MATCH_CODE_CONFLICT");
     expect(sqlite.prepare("SELECT run_code FROM mastery_runs WHERE id = ?").get(first.run.runId)).toEqual({ run_code: "1234-5678-9012" });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'verified_run.correct'").get()).toEqual({ count: 0 });
   });
 
   it("preserves an untouched historical XP v1 snapshot when a correction is a no-op", async () => {

@@ -2435,15 +2435,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const nextScope = { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameplayRevisionId: corrected.gameplayRevisionId };
 
     if (!sameFacts) {
-      if (loaded.row.run.status === "active") {
-        const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-          eq(verifiedRuns.playerAccountId, previous.playerAccountId),
-          eq(verifiedRuns.matchCode, corrected.matchCode),
-          eq(verifiedRuns.status, "active"),
-          ne(verifiedRuns.id, previous.runId),
-        )).get();
-        if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
-      }
+      const duplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
+        eq(verifiedRuns.playerAccountId, previous.playerAccountId),
+        eq(verifiedRuns.matchCode, corrected.matchCode),
+        ne(verifiedRuns.id, previous.runId),
+      )).get();
+      if (duplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       const award = calculateVerifiedRunXpV2({
         difficulty: corrected.difficulty,
         mapFactor: previous.xpInputSnapshot.mapFactor,
