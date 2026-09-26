@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'apps/portal/**'
+      - 'tools/check-admin-api-paths.sh'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -14,6 +15,7 @@ on:
     branches: [main]
     paths:
       - 'apps/portal/**'
+      - 'tools/check-admin-api-paths.sh'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
