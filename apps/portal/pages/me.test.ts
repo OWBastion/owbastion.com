@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
@@ -32,7 +33,7 @@ const portalApi = vi.fn(async (path: string) => path === "/v1/maps" || path === 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player, status, refresh: refreshPlayer }));
 mockNuxtImport("usePlayerTitles", () => () => ({ items: titles, refresh: refreshTitles }));
 mockNuxtImport("usePlayerMastery", () => () => ({ profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery }));
-mockNuxtImport("usePortalApi", () => () => portalApi);
+installApiTestFetch({ portal: portalApi });
 
 async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapper> {
   refreshPlayer.mockClear();

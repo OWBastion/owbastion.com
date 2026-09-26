@@ -63,6 +63,10 @@ without an architecture decision record.
   roles, accessible names, labels, and visible text as locators. Do not assert
   utility classes, internal component props, framework-generated slots, or
   wrapper structure unless that detail is itself an accepted public contract.
+  When a component or page calls `useAdminApi` or `usePortalApi` directly,
+  fake responses at the fetch boundary instead of replacing the API client.
+  This keeps client-side proxy paths, methods, headers, and request options in
+  the exercised path while still avoiding live services.
 - Vitest + happy-dom is the code-level Portal UI layer. It verifies component
   and page behavior without a browser layout engine; it does not establish that
   CSS layout, viewport fit, clipping, scrolling, focus placement, or overlays
@@ -72,15 +76,17 @@ Normal unit tests must not depend on live external services. Run `pnpm check`
 (which executes migration checks, the granular unit/UI suites, typecheck, the
 workspace build, and the built Portal SSR smoke) for repository changes.
 
-## Portal SSR smoke
+## Portal built-server integration
 
 `pnpm test:portal-e2e:built` / `apps/portal` `test:e2e` assumes that
-`apps/portal/.output` already exists, starts that production server, and asserts
-the home page SSR HTML. It does not launch a browser and does not depend on
-Playwright. `pnpm test:portal-e2e` remains a local convenience wrapper that
-builds the Portal once and then runs the built-artifact smoke. CI keeps those
-two commands in the same job so the smoke validates the artifact that was
-built for that run.
+`apps/portal/.output` already exists and starts that production server. The
+suite verifies SSR output and the browser-facing Portal API proxies against a
+fake upstream, including admin/player path composition and request forwarding.
+It does not launch a browser and does not depend on Playwright.
+`pnpm test:portal-e2e` remains a local convenience wrapper that builds the
+Portal once and then runs the built-artifact integration suite. CI keeps those
+two commands in the same job so the tests validate the artifact built for that
+run.
 
 ```bash
 pnpm test:portal-e2e

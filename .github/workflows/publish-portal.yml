@@ -49,7 +49,7 @@ jobs:
             command: >-
               pnpm --filter @owbastion/portal exec nuxi prepare &&
               pnpm run typecheck:portal
-          - name: Portal build and SSR smoke
+          - name: Portal build and integration
             command: >-
               pnpm run build:portal && NUXT_TEST_PORT=3000
               pnpm run test:portal-e2e:built

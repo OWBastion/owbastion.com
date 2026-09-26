@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { describe, expect, it, vi } from "vitest";
 import EventDirectory from "./EventDirectory.vue";
@@ -7,7 +8,7 @@ const portalApi = vi.fn(async (path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 
-mockNuxtImport("usePortalApi", () => () => portalApi);
+installApiTestFetch({ portal: portalApi });
 
 const event = (overrides: Partial<RandomEvent> = {}) => ({
   eventId: "event.default",

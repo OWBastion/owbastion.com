@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -72,7 +73,7 @@ const adminApi = vi.fn((path: string, options?: any) => {
 });
 
 mockNuxtImport("useRoute", () => () => route);
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 const USelectStub = {
   props: ["modelValue", "items"],

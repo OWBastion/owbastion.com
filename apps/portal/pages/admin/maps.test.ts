@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -20,7 +21,7 @@ const adminApi = vi.fn(async (path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 async function mountPage(): Promise<VueWrapper> {
   adminApi.mockClear();

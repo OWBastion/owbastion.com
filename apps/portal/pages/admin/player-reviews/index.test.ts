@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from '@nuxt/test-utils/runtime';
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,7 +30,7 @@ const adminApi = vi.fn((path: string, options?: Record<string, unknown>) => {
   if (path === '/v1/reviews/' + review.reviewId && !options) return Promise.resolve(detail);
   throw new Error('Unexpected request: ' + path);
 });
-mockNuxtImport('useAdminApi', () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 
 describe('admin player reviews page', () => {
   it('shows maintainer identity context and explicit moderation filters', async () => {

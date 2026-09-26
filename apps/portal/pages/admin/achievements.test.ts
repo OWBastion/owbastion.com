@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -29,7 +30,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/titles/INTERNAL" && options?.method === "PUT") return Promise.resolve();
   throw new Error(`Unexpected request: ${path}`);
 });
-mockNuxtImport("useAdminApi", () => () => adminApi);
+installApiTestFetch({ admin: adminApi });
 const mountedWrappers: VueWrapper[] = [];
 
 async function mountPage(): Promise<VueWrapper> {

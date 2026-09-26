@@ -1,3 +1,4 @@
+import { installApiTestFetch } from "~/tests/utils/api-test-fetch";
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
@@ -22,7 +23,7 @@ const api = vi.fn((path?: string, options?: { method?: string }) => {
   if (path?.includes("/manual-review") && options?.method === "POST") return Promise.resolve({});
   return Promise.resolve({ ...baseSubmission });
 });
-mockNuxtImport("usePortalApi", () => () => api);
+installApiTestFetch({ portal: api });
 
 const stubs = {
   StatusBadge: { props: ["label"], template: "<span>{{ label }}</span>" },
