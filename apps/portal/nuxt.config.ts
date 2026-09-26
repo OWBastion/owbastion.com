@@ -9,6 +9,9 @@ export default defineNuxtConfig({
     }
   },
   modules: ["@nuxt/content", "nuxt-studio", "@nuxt/ui", "@nuxtjs/color-mode", "@nuxt/hints"],
+  nitro: {
+    storage: { cache: { driver: "memory" } },
+  },
   content: {
     experimental: {
       sqliteConnector: "native",

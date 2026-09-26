@@ -10,15 +10,15 @@ const allTitles = ref(false);
 const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const refreshTitles = vi.fn(async () => ownedTitles.value);
 const replaceEquipped = vi.fn(async (grantIds: string[]) => ({ grantIds }));
-const portalApi = vi.fn(async (path: string) => {
-  if (path === "/v1/public/achievements") return { items: [{ challengeId: "title-1", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "TEST", titleName: "测试称号", icon: "trophy", iconUrl: null, category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" }] };
-  if (path === "/v1/maps" || path === "/v1/challenges?family=map") return { items: [] };
-  throw new Error(`Unexpected request: ${path}`);
+const publicCatalogFetch = vi.fn(async (name: string) => {
+  if (name === "achievements") return { items: [{ challengeId: "title-1", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "TEST", titleName: "测试称号", icon: "trophy", iconUrl: null, category: "测试", condition: "完成挑战", evidenceRule: "完整截图", gameVersion: "26.0713.1", status: "active", submissionMode: "manual" }] };
+  if (name === "maps" || name === "mapChallenges") return { items: [] };
+  throw new Error(`Unexpected catalog request: ${name}`);
 });
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, refresh: refreshPlayer }));
 mockNuxtImport("usePlayerTitles", () => () => ({ items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped }));
-mockNuxtImport("usePortalApi", () => () => portalApi);
+mockNuxtImport("usePublicCatalog", () => (name: string) => publicCatalogFetch(name));
 
 describe("achievements page", () => {
   it("renders the public catalog for signed-out visitors", async () => {

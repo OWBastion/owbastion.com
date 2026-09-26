@@ -29,14 +29,27 @@ const defaultPortalApi = async (path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 };
 const portalApi = vi.fn(defaultPortalApi);
+const publicCatalogFetch = vi.fn(async (name: string) => {
+  if (name === "maps") return { items: (await defaultPortalApi("/v1/maps")).items };
+  if (name === "mapChallenges") return { items: (await defaultPortalApi("/v1/challenges?family=map")).items };
+  throw new Error(`Unexpected catalog request: ${name}`);
+});
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: currentPlayer, refresh: refreshPlayer }));
 mockNuxtImport("usePortalApi", () => () => portalApi);
+mockNuxtImport("usePublicCatalog", () => (name: string) => publicCatalogFetch(name));
 
 describe("maps page", () => {
   beforeEach(() => {
+    clearNuxtData("public-map-directory");
     portalApi.mockReset();
     portalApi.mockImplementation(defaultPortalApi);
+    publicCatalogFetch.mockReset();
+    publicCatalogFetch.mockImplementation(async (name: string) => {
+      if (name === "maps") return { items: (await defaultPortalApi("/v1/maps")).items };
+      if (name === "mapChallenges") return { items: (await defaultPortalApi("/v1/challenges?family=map")).items };
+      throw new Error(`Unexpected catalog request: ${name}`);
+    });
     refreshPlayer.mockClear();
   });
 
@@ -48,8 +61,8 @@ describe("maps page", () => {
     expect(wrapper.text()).toContain("登录后查看");
     expect(wrapper.text()).toContain("登录后可查看精通与评价。");
     expect(wrapper.get('button[aria-label="查看萨摩亚详情"] img').attributes("src")).toBe("https://cdn.example.com/samoa-cover.png");
-    expect(portalApi).toHaveBeenCalledWith("/v1/maps");
-    expect(portalApi).toHaveBeenCalledWith("/v1/challenges?family=map");
+    expect(publicCatalogFetch).toHaveBeenCalledWith("maps");
+    expect(publicCatalogFetch).toHaveBeenCalledWith("mapChallenges");
     expect(portalApi).not.toHaveBeenCalledWith("/v1/me/mastery?page=1&pageSize=1");
   });
 
@@ -61,7 +74,11 @@ describe("maps page", () => {
   });
 
   it("does not fail when a legacy map response omits metadata", async () => {
-    portalApi.mockImplementationOnce(async () => ({ items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1" }] }));
+    publicCatalogFetch.mockImplementationOnce(async (name: string) => {
+      if (name === "maps") return { items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1" }] };
+      if (name === "mapChallenges") return { items: [] };
+      throw new Error(`Unexpected catalog request: ${name}`);
+    });
     currentPlayer.value = null;
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
@@ -97,10 +114,13 @@ describe("maps page", () => {
 
   it("shows the factual error state when either public catalog request fails", async () => {
     portalApi.mockImplementation(async (path: string) => {
-      if (path === "/v1/maps") throw new Error("maps unavailable");
-      if (path === "/v1/challenges?family=map") return { items: [] };
       if (path.startsWith("/v1/public/reviews/summaries?")) return { contractVersion: "1", targetType: "map", items: [] };
       throw new Error(`Unexpected request: ${path}`);
+    });
+    publicCatalogFetch.mockImplementation(async (name: string) => {
+      if (name === "maps") throw new Error("maps unavailable");
+      if (name === "mapChallenges") return { items: [] };
+      throw new Error(`Unexpected catalog request: ${name}`);
     });
     currentPlayer.value = null;
     const wrapper = await mountSuspended(MapsPage);
