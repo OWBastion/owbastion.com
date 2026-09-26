@@ -17,6 +17,6 @@ defineProps<{
 
 <style scoped>
 .section-heading { margin-bottom: var(--space-4); }
-.section-heading h2 { margin: 0; color: var(--text); font-size: 1.1rem; letter-spacing: -.03em; }
+.section-heading h2 { margin: 0; color: var(--text); font-size: var(--type-card-title-size); font-weight: 600; line-height: var(--type-card-title-leading); letter-spacing: var(--type-card-title-tracking); }
 .section-heading p:last-child { margin: var(--space-1) 0 0; color: var(--muted); font-size: .84rem; }
 </style>
