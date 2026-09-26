@@ -7,36 +7,32 @@ import { portalErrorDetails } from "~/utils/portal-error";
 
 useSeoMeta({ title: "成就 · 躲避堡垒 3", description: "查看已发布的成就挑战与完成条件。" });
 
-const api = usePortalApi();
 const { player, refresh } = useCurrentPlayer();
 const { items: ownedTitles, allTitles, refresh: refreshTitles, replaceEquipped } = usePlayerTitles();
-const challenges = ref<PublicAchievement[]>([]);
-const maps = ref<PortalMap[]>([]);
-const mapChallenges = ref<MapProgressChallenge[]>([]);
-const loading = ref(true);
-const error = shallowRef("");
+const { data: catalog, pending: loading, error: catalogError } = await useAsyncData("public-achievement-directory", async () => {
+  const [achievementResponse, mapResponse, mapChallengeResponse] = await Promise.all([
+    usePublicCatalog<{ items: PublicAchievement[] }>("achievements"),
+    usePublicCatalog<{ items: PortalMap[] }>("maps"),
+    usePublicCatalog<{ items: MapProgressChallenge[] }>("mapChallenges"),
+  ]);
+  return { challenges: achievementResponse.items, maps: mapResponse.items, mapChallenges: mapChallengeResponse.items };
+});
+const challenges = computed(() => catalog.value?.challenges ?? []);
+const maps = computed(() => catalog.value?.maps ?? []);
+const mapChallenges = computed(() => catalog.value?.mapChallenges ?? []);
+const playerError = shallowRef("");
+const error = computed(() => catalogError.value
+  ? portalErrorDetails(catalogError.value, "无法读取成就，请稍后重试。").description
+  : playerError.value);
 
 onMounted(async () => {
   try {
     const currentPlayer = await refresh();
     if (currentPlayer) {
-      const [challengeResult, titleResult, mapResult, mapChallengeResult] = await Promise.all([
-        api<{ items: PublicAchievement[] }>("/v1/public/achievements"),
-        refreshTitles(),
-        api<{ items: PortalMap[] }>("/v1/maps"),
-        api<{ items: MapProgressChallenge[] }>("/v1/challenges?family=map"),
-      ]);
-      challenges.value = challengeResult.items;
-      ownedTitles.value = titleResult;
-      maps.value = mapResult.items;
-      mapChallenges.value = mapChallengeResult.items;
-    } else {
-      challenges.value = (await api<{ items: PublicAchievement[] }>("/v1/public/achievements")).items;
+      await refreshTitles();
     }
   } catch (cause) {
-    error.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
-  } finally {
-    loading.value = false;
+    playerError.value = portalErrorDetails(cause, "无法读取成就，请稍后重试。").description;
   }
 });
 const equipError = shallowRef("");

@@ -3,13 +3,13 @@ import type { RandomEvent } from "~/types/random-event";
 import EventDirectory from "~/components/events/EventDirectory.vue";
 import { portalErrorDetails } from "~/utils/portal-error";
 useSeoMeta({ title: "随机事件 · 躲避堡垒 3", description: "查看当前随机事件与开放挑战。" });
-const api = usePortalApi(); const { player, refresh } = useCurrentPlayer(); const events = ref<RandomEvent[]>([]); const loading = shallowRef(true); const error = shallowRef("");
+const { player, refresh } = useCurrentPlayer();
+const { data: eventResponse, pending: loading, error: catalogError } = await useAsyncData("public-event-directory", () => usePublicCatalog<{ items: RandomEvent[] }>("events"));
+const events = computed(() => eventResponse.value?.items ?? []);
+const error = computed(() => catalogError.value ? portalErrorDetails(catalogError.value, "请稍后重试。").description : "");
 onMounted(async () => {
-  const [eventResult, playerResult] = await Promise.allSettled([api<{ items: RandomEvent[] }>("/v1/events"), refresh()]);
-  if (eventResult.status === "fulfilled") events.value = eventResult.value.items;
-  if (playerResult.status === "rejected") player.value = null;
-  error.value = eventResult.status === "rejected" ? portalErrorDetails(eventResult.reason, "请稍后重试。").description : "";
-  loading.value = false;
+  try { await refresh(); }
+  catch { player.value = null; }
 });
 </script>
 <template>
