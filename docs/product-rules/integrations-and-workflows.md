@@ -129,17 +129,18 @@ channel flows:
   conflict with another account sharing the same numeric ID, and records an
   audit event;
 - a versioned Queue message invokes OCRKit and persists the raw result and match
-  evidence. For an unselected challenge, the platform compares the response
-  with the current active catalog and auto-approves exactly one complete,
-  high-confidence rewardable candidate; ambiguous or low-confidence matches
-  become `ocr_review_required`, while an explicit mismatch becomes
-  `resubmission_required`;
+  evidence. The platform compares structured OCR fields with each eligible
+  Challenge's canonical Conditions. It grants every matching reward whose
+  required evidence meets the centralized confidence/layout policy; weak,
+  unsupported, or conflicting evidence becomes `ocr_review_required`, while a
+  reliable non-match becomes `resubmission_required`;
 - the maintainer Portal can inspect the unlisted CDN screenshot and OCR output and record
-  an idempotent review decision. For ambiguous evidence, the maintainer may
-  select every checked achievement supported by the screenshot; approval
-  atomically creates or reuses each platform title Grant and links each
-  selected challenge outcome to the Submission. A mastery-only approval
-  records its accepted Verified Run outcome without a title Grant.
+  an idempotent review decision. A maintainer may correct visible OCR fields;
+  the platform reruns the same Conditions matcher over those corrected facts
+  and approval atomically creates or reuses every matching title Grant and
+  Challenge Completion. A mastery-only approval records its accepted Verified
+  Run outcome without a title Grant. A player never selects a Challenge during
+  upload or processing.
 - maintainer-only Verified Run reads list and filter runs by player,
   map, difficulty, lifecycle state, accepted date, acceptance origin, and run
   match code. Detail includes source Submission metadata without the evidence URL, recognized
@@ -256,32 +257,25 @@ values, never OCRKit's raw response or internal match evidence.
 ## Submission lifecycle
 
 ~~~text
-upload_pending
-→ ocr_pending
-  ├→ approved (unique automatic match) / ocr_review_required / resubmission_required
-  ├→ awaiting_player_confirmation → ready_for_review / resubmission_required
-  ├→ ready_for_review → approved / rejected / resubmission_required
-  ├→ ocr_review_required → approved / rejected / resubmission_required
-  └→ resubmission_required
+Player API: processing → needs_review / completed / rejected
+Internal lifecycle: upload_pending → ocr_pending → approved,
+                                      ocr_review_required, or resubmission_required
+                    ocr_review_required → approved / rejected / resubmission_required
 ~~~
 
-When an ambiguous automatic match enters `ocr_review_required`, a maintainer
-may select one or more general achievements with checked title evidence or
-map challenges belonging to the map identified in that submission's OCR
-evidence. OCR candidates are recommendations only: the maintainer may use the
-maintainer-only challenge options endpoint and its searchable `手动添加` path
-to add an eligible challenge that OCR did not recommend. Every manual choice
-still passes the authoritative catalog, lifecycle, map scope, gameplay
-revision, difficulty, evidence, and submission-time eligibility checks; a map
-choice must match the OCR map context, and a global achievement does not need
-an OCR candidate. The platform persists the ordered selection set, records an
-audit event, and moves the submission to `ready_for_review`; the final approval
-grants every selected reward in one review transaction while retaining one
-primary challenge for legacy views. Challenge eligibility for an already-created
-submission is evaluated at `submissions.created_at`, not at OCR, queue,
-selection, or review time. Thus a Pioneer submission created in its half-open
-window remains processable after `endsAt`, while a submission created before
-`startsAt` or at/after `endsAt` never gains Pioneer eligibility later.
+The platform evaluates every eligible Challenge against its canonical
+Conditions; no upload-time Challenge choice or maintainer challenge selector
+defines the match. Evidence must satisfy the fields named by those Conditions
+and the centralized OCR schema, layout, and confidence policy. Missing,
+unsupported, low-confidence, or conflicting evidence remains in review without
+creating an unverified grant. A maintainer can visually confirm unsupported OCR
+layouts or correct structured values when the business facts are established;
+the same Conditions matcher then decides all eligible grants. Challenge
+eligibility for an already-created submission is evaluated at
+`submissions.created_at`, not at OCR, queue, or review time. Thus a Pioneer
+submission created in its half-open window remains processable after `endsAt`,
+while a submission created before `startsAt` or at/after `endsAt` never gains
+Pioneer eligibility later.
 
 During approval, a maintainer may confirm or correct the complete visible
 value of any safe structured OCR field. Each complete field value creates or

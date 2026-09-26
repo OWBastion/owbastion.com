@@ -14,6 +14,7 @@ const highConfidenceFields = (): OcrFeedbackFieldInput[] => [
   field("difficulty", { value: "困难" }),
   field("viewer_player", { value: "Player" }),
   field("challenge_completed", { value: true }),
+  field("map_variant", { value: "classic" }),
   field("achievement_titles", { value: "征服者" }),
 ];
 

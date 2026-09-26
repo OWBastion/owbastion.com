@@ -1,42 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { assessOcrQuality } from "./ocr-response";
+import { parseCanonicalChallengeConditions } from "@owbastion/domain";
+import { assessChallengeOcrQuality } from "./ocr-response";
 
-const fields = {
-  challenge_completed: { status: "ok", confidence: 0.9 },
-  viewer_player: { status: "ok", confidence: 0.9 },
-  map_name: { status: "ok", confidence: 0.9 },
-  difficulty: { status: "ok", confidence: 0.9 },
-  map_variant: { status: "ok", confidence: 0.9 },
+const conditions = parseCanonicalChallengeConditions({
+  operator: "and",
+  conditions: [
+    { type: "map", mapId: "map.test" },
+    { type: "completed" },
+    { type: "difficulty_at_least", difficulty: "传奇" },
+  ],
+});
+
+const response = {
+  schema_version: "1",
+  ok: true,
+  layout_version: "1280x720-v6",
+  fields: {
+    map_name: { status: "ok", confidence: 0.9 },
+    challenge_completed: { status: "ok", confidence: 0.9 },
+    difficulty: { status: "ok", confidence: 0.9 },
+  },
+  data: { map_name: "测试地图", challenge_completed: true, difficulty: "地狱" },
 };
 
-describe("assessOcrQuality", () => {
-  it("requires all map challenge fields to be reliable", () => {
-    expect(assessOcrQuality("difficulty_completion", { schema_version: "1", ok: true, fields }).accepted).toBe(true);
-    expect(assessOcrQuality("difficulty_completion", { schema_version: "1", ok: true, fields: { ...fields, difficulty: { status: "missing", confidence: 0 } } }).reasons).toContain("difficulty:missing");
+describe("platform-owned Challenge OCR quality policy", () => {
+  it("accepts supported layouts with reliable evidence for every required Condition field", () => {
+    expect(assessChallengeOcrQuality(conditions, response).accepted).toBe(true);
   });
 
-  it("requires only completion and viewer player for title challenges", () => {
-    expect(assessOcrQuality("title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } }).accepted).toBe(true);
-    expect(assessOcrQuality("title_achievement", { schema_version: "2", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: { status: "ok", confidence: 0.2 } } }).reasons).toEqual(["unsupported_schema_version", "viewer_player:low_confidence"]);
+  it("routes unsupported layouts and low-confidence required evidence to review", () => {
+    expect(assessChallengeOcrQuality(conditions, { ...response, layout_version: "future-layout" }).reasons).toContain("unsupported_layout_version");
+    expect(assessChallengeOcrQuality(conditions, {
+      ...response,
+      fields: { ...response.fields, difficulty: { status: "ok", confidence: 0.4 } },
+    }).reasons).toContain("difficulty:low_confidence");
   });
 
-  it("requires the map name for map-scoped title challenges", () => {
-    expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player, map_name: fields.map_name } }).accepted).toBe(true);
-    expect(assessOcrQuality("map_title_achievement", { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } }).reasons).toContain("map_name:missing_evidence");
-  });
-
-  it("requires the declared map variant for classic challenges", () => {
-    const response = { schema_version: "1", ok: true, fields, data: { map_variant: "classic" } };
-    expect(assessOcrQuality("map_title_achievement", response, "classic").accepted).toBe(true);
-    const missing = assessOcrQuality("map_title_achievement", { ...response, data: { map_variant: null } }, "classic");
-    expect(missing.reasons).toContain("map_variant:expected_classic");
-    expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: undefined }, data: { map_variant: "classic" } }, "classic").reasons).toContain("map_variant:missing_evidence");
-    expect(assessOcrQuality("map_title_achievement", { ...response, fields: { ...fields, map_variant: { status: "ok", confidence: 0.4 } } }, "classic").reasons).toContain("map_variant:low_confidence");
-  });
-
-  it("requires confident structured or panel evidence for automatic title matching", () => {
-    const response = { schema_version: "1", ok: true, fields: { challenge_completed: fields.challenge_completed, viewer_player: fields.viewer_player } };
-    expect(assessOcrQuality("title_achievement", response, null, true).reasons).toContain("achievement_evidence:missing_evidence");
-    expect(assessOcrQuality("title_achievement", { ...response, fields: { ...response.fields, achievement_titles: { status: "ok", confidence: 0.9 } } }, null, true).accepted).toBe(true);
+  it("allows human visual confirmation to bypass OCR quality metadata but not missing business facts", () => {
+    expect(assessChallengeOcrQuality(conditions, { ...response, layout_version: "future-layout", fields: {} }, true).accepted).toBe(true);
+    expect(assessChallengeOcrQuality(conditions, { ...response, data: { ...response.data, difficulty: null } }, true).reasons).toContain("difficulty:missing_value");
   });
 });

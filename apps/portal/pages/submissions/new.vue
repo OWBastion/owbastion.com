@@ -33,14 +33,14 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
   if (loading.value || !state.screenshot) return;
   try {
     const result = await submit(state.screenshot);
-    const title = result.status === "awaiting_player_confirmation"
-      ? "识别完成，请确认挑战。"
-      : result.status === "ready_for_review"
-        ? "识别通过，等待核对。"
-        : result.status === "resubmission_required"
-          ? "截图未通过识别，请重新提交。"
-          : "截图已上传，等待识别。";
-    toast.add({ title, color: result.status === "resubmission_required" ? "warning" : "success" });
+    const title = result.status === "needs_review"
+      ? "截图已处理，等待核对。"
+      : result.status === "rejected"
+        ? "截图未通过处理，请查看提交详情。"
+        : result.status === "completed"
+          ? "截图处理完成。"
+          : "截图已上传，等待处理。";
+    toast.add({ title, color: result.status === "rejected" ? "warning" : "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
   } catch (cause) {
     toast.add({ title: "截图提交失败", description: portalErrorDetails(cause, error.value || "请检查截图后重试。").description, color: "error" });

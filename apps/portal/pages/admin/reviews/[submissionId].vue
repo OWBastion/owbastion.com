@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionChallengeOption } from "~/composables/useAdminApi";
+import type { AdminSubmission } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
@@ -8,14 +8,11 @@ const route = useRoute();
 const api = useAdminApi();
 const toast = useToast();
 const submission = shallowRef<AdminSubmission | null>(null);
-const challengeOptions = ref<AdminSubmissionChallengeOption[]>([]);
 const loading = ref(true);
 const actionLoading = ref(false);
-const challengeSelectionLoading = ref(false);
 const ocrRetryLoading = ref(false);
 const errorMessage = ref("");
 const reviewError = ref("");
-const challengeSelectionError = ref("");
 const ocrRetryError = ref("");
 const spotCheckError = ref("");
 const annotationOpen = shallowRef(false);
@@ -35,12 +32,8 @@ async function load() {
   errorMessage.value = "";
   evidenceError.value = false;
   try {
-    const [detail, options] = await Promise.all([
-      api<AdminSubmission>(`/v1/submissions/${encodeURIComponent(submissionId.value)}`),
-      api<{ items: AdminSubmissionChallengeOption[] }>(`/v1/submissions/${encodeURIComponent(submissionId.value)}/challenges`),
-    ]);
+    const detail = await api<AdminSubmission>(`/v1/submissions/${encodeURIComponent(submissionId.value)}`);
     submission.value = detail;
-    challengeOptions.value = options.items;
   } catch (error) {
     if (submission.value) evidenceError.value = true;
     else errorMessage.value = portalErrorDetails(error, "无法读取审核详情，请稍后重试。").description;
@@ -60,20 +53,6 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
     const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
     reviewError.value = details.code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "该挑战尚未配置可发放的称号，无法审核通过。" : details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description;
   } finally { actionLoading.value = false; }
-}
-
-async function selectChallenge(selections: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]) {
-  if (!submission.value || challengeSelectionLoading.value || actionLoading.value) return;
-  challengeSelectionLoading.value = true;
-  challengeSelectionError.value = "";
-  try {
-    await api(`/v1/submissions/${encodeURIComponent(submission.value.submissionId)}/challenge`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", selections } });
-    toast.add({ title: `已选择 ${selections.length} 个挑战`, color: "success" });
-    await load();
-  } catch (error) {
-    const details = portalErrorDetails(error, "挑战选择失败，请稍后重试。");
-    challengeSelectionError.value = details.code === "CHALLENGE_NOT_FOUND" ? "该挑战已不可用，请刷新页面。" : details.code ? `挑战选择失败（${details.code}）：${details.description}` : details.description;
-  } finally { challengeSelectionLoading.value = false; }
 }
 
 async function resolveSpotCheck(decision: "confirmed" | "revoked") {
@@ -112,7 +91,7 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton to="/admin/reviews" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :challenge-options="challengeOptions" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :challenge-selection-error="challengeSelectionError" :challenge-selection-loading="challengeSelectionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @select-challenge="selectChallenge" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @open-direct-annotation="annotationOpen = true" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" @review="review" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @open-direct-annotation="annotationOpen = true" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" />
     <AdminAnnotationDirectDialog v-model:open="annotationOpen" :initial-submission-id="submissionId" @created="toast.add({ title: '已创建审定标注', color: 'success' })" />
   </AdminWorkspace>

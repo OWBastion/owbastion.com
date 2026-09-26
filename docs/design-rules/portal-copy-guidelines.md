@@ -94,22 +94,16 @@
 
 ## 提交状态词汇
 
-Portal 各页面使用[术语表](terminology.md)中的统一显示文本，不在本规范中
-重复维护。接口状态键保持英文，不在本规范中改名。摘要如下：
+玩家提交接口只公开以下四种状态；`rejected` 可附 `resubmissionRequired`，提示玩家重新提交：
 
 | 状态键 | Portal 文案 |
 | --- | --- |
-| `upload_pending` | 上传中… |
-| `received` | 已收到 |
-| `evidence_pending` | 保存截图中 |
-| `evidence_stored` | 截图已保存 |
-| `ocr_pending` | 等待识别 |
-| `awaiting_player_confirmation` | 等待确认挑战 |
-| `ready_for_review` | 等待核对 |
-| `ocr_review_required` | 等待处理 |
-| `approved` | 已通过 |
+| `processing` | 处理中 |
+| `needs_review` | 等待核对 |
+| `completed` | 已完成 |
 | `rejected` | 未通过 |
-| `resubmission_required` | 需重新提交 |
+
+管理后台仍会显示历史及处理中状态：`upload_pending`（上传中…）、`received`（已收到）、`evidence_pending`（保存截图中）、`evidence_stored`（截图已保存）、`ocr_pending`（等待识别）、`ready_for_review`（等待核对）、`ocr_review_required`（等待处理）、`approved`（已通过）和 `resubmission_required`（需重新提交）。
 
 加载状态统一使用：`读取中…`、`上传中…`、`保存中…`、`提交中…`、`识别中…`。
 

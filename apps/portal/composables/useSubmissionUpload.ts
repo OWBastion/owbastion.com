@@ -2,39 +2,13 @@ import type { PortalApiError } from "./usePortalApi";
 import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
 import { portalErrorDetails, recordPortalError } from "~/utils/portal-error";
 
-export type Map = { mapId: string; mapName: string; gameVersion: string; difficultyRating: "T0" | "T1" | "T2" | "T3" | "T4" | "T5" | null; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null };
-export type ChallengeStatus = "active" | "sunsetting";
-export type MapChallenge = { challengeId: string; family: "map"; gameplayRevisionId: string; type: "map_completion"; kind: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; name: string; mapId: string; mapName: string; titleKey?: string; mapVariant?: "classic"; difficulty?: string; gameVersion: string; status: ChallengeStatus; retiredVersion?: string };
-export type AchievementChallenge = { challengeId: string; family: "achievement"; type: "title_achievement"; kind: "title_achievement"; titleKey: string; titleName: string; category: string; condition: string; evidenceRule: string; gameVersion: string; status: "scheduled" | ChallengeStatus; startsAt?: number; endsAt?: number; retiredVersion?: string; submissionMode: "manual" | "automatic"; scope?: "global" | "map"; mapIds?: string[]; mapVariant?: "classic" };
-export type Challenge = MapChallenge | AchievementChallenge;
-
 const hex = (bytes: ArrayBuffer) => Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 const phaseLabels = { hash: "读取截图", session: "开始上传", upload: "上传截图", complete: "完成上传" } as const;
 
 export function useSubmissionUpload() {
   const api = usePortalApi();
-  const maps = ref<Map[]>([]);
-  const mapChallenges = ref<MapChallenge[]>([]);
-  const achievementChallenges = ref<AchievementChallenge[]>([]);
   const loading = ref(false);
-  const catalogLoading = ref(false);
   const error = ref("");
-
-  const loadCatalog = async () => {
-    catalogLoading.value = true;
-    error.value = "";
-    const [mapResult, mapChallengeResult, achievementChallengeResult] = await Promise.allSettled([
-      api<{ items: Map[] }>("/v1/maps"),
-      api<{ items: MapChallenge[] }>("/v1/challenges?family=map"),
-      api<{ items: AchievementChallenge[] }>("/v1/challenges?family=achievement"),
-    ]);
-    if (mapResult.status === "fulfilled") maps.value = mapResult.value.items;
-    if (mapChallengeResult.status === "fulfilled") mapChallenges.value = mapChallengeResult.value.items;
-    if (achievementChallengeResult.status === "fulfilled") achievementChallenges.value = achievementChallengeResult.value.items;
-    const failed = [mapResult, mapChallengeResult, achievementChallengeResult].find((result) => result.status === "rejected");
-    if (failed?.status === "rejected") error.value = portalErrorDetails(failed.reason, "挑战目录无法读取，请稍后重试。").description;
-    catalogLoading.value = false;
-  };
   // Keeps a started upload session so a retry resumes at the failed step instead of creating a second submission.
   let pending: { key: string; uploadId: string; expiresAt: number; uploaded: boolean } | null = null;
   const errorCode = (cause: unknown) => (cause as PortalApiError).data?.error?.code;
@@ -60,17 +34,17 @@ export function useSubmissionUpload() {
       catch (retryCause) { if (errorCode(retryCause) !== "UPLOAD_SESSION_INVALID") throw retryCause; }
     }
   };
-  const submit = async (file: File, challengeId?: string, mapId?: string, gameplayRevisionId?: string) => {
+  const submit = async (file: File) => {
     loading.value = true;
     error.value = "";
     let phase: keyof typeof phaseLabels = "hash";
     try {
       const sha256 = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
-      const key = [sha256, file.type, challengeId, mapId, gameplayRevisionId].join("|");
+      const key = [sha256, file.type].join("|");
       if (pending && (pending.key !== key || pending.expiresAt - Date.now() < 30_000)) pending = null;
       if (!pending) {
         phase = "session";
-        const session = await api<{ uploadId: string; expiresAt: number }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", ...(challengeId ? { challengeId } : {}), ...(mapId ? { mapId } : {}), ...(gameplayRevisionId ? { gameplayRevisionId } : {}), contentType: file.type, byteSize: file.size, sha256 } });
+        const session = await api<{ uploadId: string; expiresAt: number }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", contentType: file.type, byteSize: file.size, sha256 } });
         pending = { key, uploadId: session.uploadId, expiresAt: session.expiresAt, uploaded: false };
       }
       if (!pending.uploaded) {
@@ -95,5 +69,5 @@ export function useSubmissionUpload() {
     } finally { loading.value = false; }
   };
 
-  return { maps, mapChallenges, achievementChallenges, loading, catalogLoading, error, loadCatalog, submit };
+  return { loading, error, submit };
 }

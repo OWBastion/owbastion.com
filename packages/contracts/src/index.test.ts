@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionChallengeListResponseSchema, adminSubmissionChallengeRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -43,8 +43,7 @@ describe("v1 platform contracts", () => {
     expect(submissionRequestSchema.safeParse({ contractVersion: "1", actor: { provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1" }, challenge: { type: "map_completion", mapName: "Test Map" }, source: { provider: "qq", conversationId: "group-1", messageId: "message-1" }, attachments: [] }).success).toBe(false);
   });
 
-  it("keeps manual submission challenge options and complete OCR field review explicit", () => {
-    expect(adminSubmissionChallengeListResponseSchema.safeParse({ contractVersion: "1", items: [{ challengeId: "title.hero", challenge: { family: "achievement", titleName: "称号 HERO", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } }] }).success).toBe(true);
+  it("keeps challenge qualification canonical and complete OCR field review explicit", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "achievement_titles", reviewedValue: "HERO、SECOND" }] }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "一般" }] }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "一般" }, { fieldKey: "difficulty", reviewedValue: "困难" }] }).success).toBe(false);
@@ -143,13 +142,13 @@ describe("v1 platform contracts", () => {
   });
 
   it("accepts player OCR summaries without raw recognition output", () => {
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ready_for_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true } }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "awaiting_player_confirmation", mapName: "成就挑战", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true, achievementTitles: ["守望先锋"] } }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "resubmission_required", mapName: "测试地图", createdAt: 1, updatedAt: 2, manualReviewEligible: true }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "reused", awardedXp: 0, reason: "private" } }).success).toBe(false);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "created", awardedXp: 225 } }).success).toBe(true);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ocr_review_required", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "conflict", awardedXp: 0 } }).success).toBe(false);
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ready_for_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { responseJson: {} } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "needs_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true } }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "processing", mapName: "成就挑战", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true, achievementTitles: ["守望先锋"] } }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "rejected", resubmissionRequired: true, mapName: "测试地图", createdAt: 1, updatedAt: 2, manualReviewEligible: true }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "created", awardedXp: 225 } }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "rejected", mapName: "测试地图", createdAt: 1, updatedAt: 2, verifiedRunOutcome: { status: "reused", awardedXp: 0, reason: "private" } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "ocr_review_required", mapName: "测试地图", createdAt: 1, updatedAt: 2 }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "needs_review", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { responseJson: {} } }).success).toBe(false);
   });
 
   it("keeps legacy submission states visible in the admin contract", () => {
@@ -159,7 +158,7 @@ describe("v1 platform contracts", () => {
   it("includes resolved challenge detail on admin player recent submissions", () => {
     const base = {
       submissionId: "00000000-0000-4000-8000-000000000003",
-      status: "approved",
+      status: "completed",
       mapName: "釜山",
       createdAt: 1,
       updatedAt: 2,
@@ -180,9 +179,11 @@ describe("v1 platform contracts", () => {
     }).success).toBe(true);
   });
 
-  it("validates the single-image portal upload contract", () => {
-    expect(playerUploadSessionRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.samoa.hell", contentType: "image/png", byteSize: 1024, sha256: "a".repeat(64) }).success).toBe(true);
-    expect(playerUploadSessionRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.samoa.hell", contentType: "application/pdf", byteSize: 1024, sha256: "a".repeat(64) }).success).toBe(false);
+  it("validates the single-image portal upload without a challenge selector", () => {
+    const upload = { contractVersion: "1", contentType: "image/png", byteSize: 1024, sha256: "a".repeat(64) };
+    expect(playerUploadSessionRequestSchema.safeParse(upload).success).toBe(true);
+    expect(playerUploadSessionRequestSchema.safeParse({ ...upload, challengeId: "map.samoa.hell" }).success).toBe(false);
+    expect(playerUploadSessionRequestSchema.safeParse({ ...upload, contentType: "application/pdf" }).success).toBe(false);
   });
 
   it("requires a gameplay revision on every map challenge projection", () => {
@@ -362,12 +363,6 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeUpdateRequestSchema.safeParse({ contractVersion: "1", family: "map", status: "active", retiredVersion: null }).success).toBe(true);
   });
 
-  it("validates an administrator challenge selection", () => {
-    expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", challengeId: "map.paraiso.hell", mapId: "map.paraiso" }).success).toBe(true);
-    expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", selections: [{ challengeId: "title.hero" }, { challengeId: "map.paraiso.conqueror", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:initial" }] }).success).toBe(true);
-    expect(adminSubmissionChallengeRequestSchema.safeParse({ contractVersion: "1", challengeId: "" }).success).toBe(false);
-  });
-
   it("accepts scheduled title challenges without a time window", () => {
     const input = { contractVersion: "1", family: "achievement", condition: "完成挑战", evidenceRule: "完整截图", submissionMode: "manual", categoryOverride: null, status: "scheduled", startsAt: 2_000, endsAt: 3_000 };
     expect(adminChallengeUpdateRequestSchema.safeParse(input).success).toBe(true);
@@ -400,11 +395,11 @@ describe("v1 platform contracts", () => {
 
   it("keeps player OCR feedback to safe fields and a bounded presentation contract", () => {
     const feedback = { mode: "targeted", promptOrigin: "uncertainty", promptFieldKeys: ["difficulty"], fields: [{ key: "difficulty", value: "困难" }], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: true };
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true }, feedback }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true }, feedback }).success).toBe(true);
     // Numeric confidence, thresholds, raw warnings and internal signals must not be part of the contract.
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, fields: [{ key: "difficulty", value: "困难", confidence: 0.7 }] } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, fields: [{ key: "difficulty", value: "困难", confidence: 0.7 }] } }).success).toBe(false);
     // Only safe field keys may appear.
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "approved", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, promptFieldKeys: ["run_code"] } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, promptFieldKeys: ["run_code"] } }).success).toBe(false);
   });
 
   it("validates player OCR feedback submissions", () => {

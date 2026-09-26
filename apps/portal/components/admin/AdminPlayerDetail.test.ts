@@ -13,7 +13,7 @@ const player: AdminPlayerDetailData = {
   createdAt: 0,
   updatedAt: 1700000000000,
   bindings: [{ bindingId: "binding-1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", createdAt: 0 }],
-  recentSubmissions: [{ submissionId: "submission-1", mapName: "花村", challenge: null, status: "ready_for_review", createdAt: 0, updatedAt: 0 }],
+  recentSubmissions: [{ submissionId: "submission-1", mapName: "花村", challenge: null, status: "needs_review", createdAt: 0, updatedAt: 0 }],
   titleGrants: [],
 };
 

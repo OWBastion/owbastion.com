@@ -5,10 +5,11 @@ import SubmissionPage from "./[submissionId].vue";
 
 const baseSubmission = {
   submissionId: "submission-1",
-  status: "resubmission_required",
+  status: "rejected",
+  resubmissionRequired: true,
   mapName: "帕拉伊苏",
   difficulty: "困难",
-  reason: "截图与目标挑战不匹配",
+  reason: "截图证据需要重新提交",
   createdAt: 0,
   updatedAt: 1,
   evidenceUrl: "https://example.test/evidence.png",
@@ -32,11 +33,6 @@ const stubs = {
     props: ["submissionId", "feedback"],
     template: `<section aria-label="识别反馈">{{ submissionId }}:{{ feedback.mode }}</section>`,
   },
-  SubmissionCatalog: {
-    props: ["selectedChallengeId", "selectedMapId", "selectedGameplayRevisionId"],
-    emits: ["select"],
-    template: `<button type="button" @click="$emit('select', { challengeId: 'challenge-1', mapId: 'map-1', gameplayRevisionId: 'revision:map-1:rework' })">选择挑战</button>`,
-  },
 };
 
 async function mountSubmission(route = "/submissions/submission-1") {
@@ -55,7 +51,7 @@ describe("submission detail page", () => {
     const wrapper = await mountSubmission();
 
     expect(wrapper.text()).toContain("需重新提交");
-    expect(wrapper.text()).toContain("截图与目标挑战不匹配");
+    expect(wrapper.text()).toContain("截图证据需要重新提交");
     expect(wrapper.text()).toContain("识别摘要");
     expect(wrapper.text()).toContain("提交编号");
     expect(wrapper.text()).toContain("最后更新");
@@ -78,7 +74,7 @@ describe("submission detail page", () => {
   it("shows missing evidence as a distinct empty state", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-missing",
-      status: "ocr_pending",
+      status: "processing",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 1,
@@ -89,34 +85,35 @@ describe("submission detail page", () => {
     expect(wrapper.text()).not.toContain("无法读取截图");
   });
 
-  it("passes waiting and ready-for-review statuses to the status badge", async () => {
+  it("passes compact needs-review status to the status badge", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-waiting",
-      status: "ready_for_review",
+      status: "needs_review",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 1,
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const waiting = await mountSubmission("/submissions/submission-waiting");
-    expect(waiting.text()).toContain("ready_for_review");
+    expect(waiting.text()).toContain("needs_review");
 
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-ocr-review",
-      status: "ocr_review_required",
+      status: "needs_review",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 1,
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const ocrReview = await mountSubmission("/submissions/submission-ocr-review");
-    expect(ocrReview.text()).toContain("ocr_review_required");
+    expect(ocrReview.text()).toContain("needs_review");
   });
 
   it("hides manual review button when the API marks the submission ineligible", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-1",
-      status: "resubmission_required",
+      status: "rejected",
+      resubmissionRequired: true,
       mapName: "帕拉伊苏",
       createdAt: 0,
       updatedAt: 1,
@@ -153,7 +150,7 @@ describe("submission detail page", () => {
       return Promise.resolve({
         ...baseSubmission,
         submissionId: "submission-manual-ok",
-        status: "ocr_review_required",
+        status: "needs_review",
         manualReviewEligible: true,
       });
     });
@@ -170,39 +167,26 @@ describe("submission detail page", () => {
 
 
 
-  it("places challenge confirmation before overview and surfaces confirmation failures", async () => {
-    api.mockImplementation((path?: string, options?: { method?: string }) => {
-      if (path === "/v1/maps") return Promise.resolve({ items: [] });
-      if (path === "/v1/challenges?family=map") return Promise.resolve({ items: [] });
-      if (path === "/v1/challenges?family=achievement") return Promise.resolve({ items: [] });
-      if (path?.includes("/challenge") && options?.method === "POST") return Promise.reject(new Error("confirm failed"));
-      return Promise.resolve({
-        submissionId: "submission-awaiting",
-        status: "awaiting_player_confirmation",
-        mapName: "花村",
-        createdAt: 0,
-        updatedAt: 1,
-        evidenceUrl: "https://example.test/evidence.png",
-        ocr: { mapName: "花村", difficulty: "地狱", playerName: "他又", challengeCompleted: true, achievementTitles: [] },
-      });
-    });
-    const wrapper = await mountSubmission("/submissions/submission-awaiting");
-
-    await wrapper.findAll("button").find((button) => button.text() === "选择挑战")!.trigger("click");
-    const confirmButton = wrapper.findAll("button").find((button) => button.text() === "确认挑战");
-    expect(confirmButton).toBeDefined();
-    await confirmButton!.trigger("click");
-    await flushPromises();
-    expect(api).toHaveBeenCalledWith("/v1/player/submissions/submission-awaiting/challenge", expect.objectContaining({ method: "POST", body: { contractVersion: "1", challengeId: "challenge-1", mapId: "map-1", gameplayRevisionId: "revision:map-1:rework" } }));
-    expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法确认挑战");
-    expect(wrapper.findAll("button").find((button) => button.text() === "确认挑战")?.attributes("disabled")).toBeUndefined();
+  it("does not ask the player to select a challenge", async () => {
+    api.mockImplementation(() => Promise.resolve({
+      submissionId: "submission-needs-review",
+      status: "needs_review",
+      mapName: "花村",
+      createdAt: 0,
+      updatedAt: 1,
+      evidenceUrl: "https://example.test/evidence.png",
+    }));
+    const wrapper = await mountSubmission("/submissions/submission-needs-review");
+    expect(wrapper.text()).not.toContain("确认挑战");
+    expect(wrapper.text()).not.toContain("选择挑战");
+    expect(api).not.toHaveBeenCalledWith(expect.stringContaining("/challenge"), expect.objectContaining({ method: "POST" }));
   });
 
 
   it("shows approved grant state distinctly", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-approved",
-      status: "approved",
+      status: "completed",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 2,
@@ -217,7 +201,7 @@ describe("submission detail page", () => {
   it("shows safe mastery outcomes alongside an independent title outcome", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-mastery-created",
-      status: "approved",
+      status: "completed",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 2,
@@ -232,7 +216,7 @@ describe("submission detail page", () => {
 
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-mastery-reused",
-      status: "approved",
+      status: "completed",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 2,
@@ -244,7 +228,8 @@ describe("submission detail page", () => {
 
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-mastery-ineligible",
-      status: "resubmission_required",
+      status: "rejected",
+      resubmissionRequired: true,
       mapName: "花村",
       createdAt: 0,
       updatedAt: 2,
@@ -258,14 +243,14 @@ describe("submission detail page", () => {
   it("shows approved without grant as a distinct passed state", async () => {
     api.mockImplementation(() => Promise.resolve({
       submissionId: "submission-passed",
-      status: "approved",
+      status: "completed",
       mapName: "花村",
       createdAt: 0,
       updatedAt: 2,
       evidenceUrl: "https://example.test/evidence.png",
     }));
     const wrapper = await mountSubmission("/submissions/submission-passed");
-    expect(wrapper.text()).toContain("approved");
+    expect(wrapper.text()).toContain("completed");
     expect(wrapper.text()).not.toContain("已获得称号");
   });
 
@@ -276,7 +261,7 @@ describe("submission detail page", () => {
       refreshed = true;
       return Promise.resolve({
         submissionId: "submission-refresh",
-        status: "ocr_pending",
+        status: "processing",
         mapName: "花村",
         createdAt: 0,
         updatedAt: 1,
@@ -284,17 +269,17 @@ describe("submission detail page", () => {
       });
     });
     const wrapper = await mountSubmission("/submissions/submission-refresh");
-    expect(wrapper.text()).toContain("ocr_pending");
+    expect(wrapper.text()).toContain("processing");
     await wrapper.get('button[aria-label="刷新状态"]').trigger("click");
     await flushPromises();
     expect(wrapper.get('[aria-live="polite"]').text()).toContain("无法刷新状态");
-    expect(wrapper.text()).toContain("ocr_pending");
+    expect(wrapper.text()).toContain("processing");
   });
 
   it("renders the OCR feedback panel only when feedback is available", async () => {
     api.mockImplementation(() => Promise.resolve({
       ...baseSubmission,
-      status: "approved",
+      status: "completed",
       reason: undefined,
       feedback: {
         mode: "targeted",
@@ -313,7 +298,7 @@ describe("submission detail page", () => {
   });
 
   it("omits the OCR feedback panel when feedback is unavailable", async () => {
-    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "approved", reason: undefined, feedback: { mode: "none", promptOrigin: null, promptFieldKeys: [], fields: [], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: false } }));
+    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined, feedback: { mode: "none", promptOrigin: null, promptFieldKeys: [], fields: [], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: false } }));
     const wrapper = await mountSubmission("/submissions/submission-no-feedback");
     expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
   });

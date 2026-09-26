@@ -19,13 +19,13 @@ beforeEach(() => {
 
 describe("screenshot upload retry", () => {
   it("retries a failed upload on the same session without creating another submission", async () => {
-    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session() : { submissionId: "submission-1", status: "ocr_pending" });
+    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session() : { submissionId: "submission-1", status: "processing" });
     putEvidence.mockRejectedValueOnce(failure(503)).mockRejectedValueOnce(failure(503)).mockResolvedValue(undefined);
     const { submit, error } = useSubmissionUpload();
 
     await expect(submit(file())).rejects.toThrow();
     expect(error.value).toContain("无需重新选择截图");
-    await expect(submit(file())).resolves.toEqual({ submissionId: "submission-1", status: "ocr_pending" });
+    await expect(submit(file())).resolves.toEqual({ submissionId: "submission-1", status: "processing" });
 
     expect(calls("/session")).toBe(1);
     expect(putEvidence).toHaveBeenCalledTimes(3);
@@ -36,32 +36,32 @@ describe("screenshot upload retry", () => {
     api.mockImplementation(async (path: string) => {
       if (path.endsWith("/session")) return session();
       if (++completions === 1) throw failure(503);
-      return { submissionId: "submission-1", status: "ocr_pending" };
+      return { submissionId: "submission-1", status: "processing" };
     });
     putEvidence.mockResolvedValue(undefined);
     const { submit, error } = useSubmissionUpload();
 
     await expect(submit(file())).rejects.toThrow();
     expect(error.value).toContain("不会重复上传");
-    await expect(submit(file())).resolves.toMatchObject({ status: "ocr_pending" });
+    await expect(submit(file())).resolves.toMatchObject({ status: "processing" });
 
     expect(calls("/session")).toBe(1);
     expect(putEvidence).toHaveBeenCalledTimes(1);
   });
 
   it("retries a transient upload failure once and treats a rejected replay as already uploaded", async () => {
-    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session() : { submissionId: "submission-1", status: "ocr_pending" });
+    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session() : { submissionId: "submission-1", status: "processing" });
     putEvidence.mockRejectedValueOnce(failure()).mockRejectedValueOnce(failure(422, "UPLOAD_SESSION_INVALID"));
     const { submit } = useSubmissionUpload();
 
-    await expect(submit(file())).resolves.toMatchObject({ status: "ocr_pending" });
+    await expect(submit(file())).resolves.toMatchObject({ status: "processing" });
     expect(putEvidence).toHaveBeenCalledTimes(2);
     expect(calls("/complete")).toBe(1);
   });
 
   it("starts a new session when the server rejected the previous one", async () => {
     let sessions = 0;
-    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session(`upload-${++sessions}`) : { submissionId: "submission-1", status: "ocr_pending" });
+    api.mockImplementation(async (path: string) => path.endsWith("/session") ? session(`upload-${++sessions}`) : { submissionId: "submission-1", status: "processing" });
     putEvidence.mockRejectedValueOnce(failure(422, "UPLOAD_HASH_MISMATCH")).mockResolvedValue(undefined);
     const { submit } = useSubmissionUpload();
 

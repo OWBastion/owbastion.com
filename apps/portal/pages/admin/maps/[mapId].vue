@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Map } from "~/composables/useSubmissionUpload";
+import type { Map } from "~/types/challenge";
 import type { AdminMapRevisionUpdateInput } from "~/composables/useAdminMapEditor";
 import { useAdminMapEditor } from "~/composables/useAdminMapEditor";
 import { formatCurrentGameVersion } from "~/utils/game-version";
