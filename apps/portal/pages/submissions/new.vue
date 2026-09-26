@@ -69,18 +69,29 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
               <UFileUpload
                 v-model="state.screenshot"
                 class="upload-control"
-                label="点击选择、拖拽或直接粘贴截图"
+                label="点击选择、拖拽或粘贴截图"
                 :accept="ACCEPT_ATTR"
                 :multiple="false"
                 layout="grid"
                 position="outside"
                 :preview="true"
-                :ui="{ files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
-                description="支持 JPEG、PNG、WebP，不超过 10MB；截图后可直接按 Ctrl / ⌘ + V 粘贴"
+                :ui="{ base: 'min-h-48', files: 'w-full', file: 'w-full', fileLeadingAvatar: 'size-full rounded-lg object-contain', fileTrailingButton: 'absolute top-2 end-2 rounded-full border-2 border-bg' }"
+                description="JPEG、PNG、WebP，不超过 10MB"
                 :disabled="loading"
               />
             </UFormField>
             <UAlert v-if="error" color="error" variant="subtle" :description="error" role="alert" />
+            <div class="privacy-note">
+              <div class="privacy-header">
+                <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
+                <span>截图用途</span>
+              </div>
+              <ul class="privacy-details">
+                <li>截图仅用于挑战核对与截图识别</li>
+                <li>提交截图不会对外公开</li>
+                <li>原始识别结果仅平台内部使用</li>
+              </ul>
+            </div>
             <div class="action-row">
               <UButton
                 size="lg"
@@ -92,17 +103,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
               />
             </div>
           </UForm>
-          <div class="privacy-note">
-            <div class="privacy-header">
-              <UIcon name="i-lucide-lock-keyhole" aria-hidden="true" />
-              <span>截图用途</span>
-            </div>
-            <ul class="privacy-details">
-              <li>截图仅用于挑战核对与截图识别</li>
-              <li>提交截图不会对外公开</li>
-              <li>原始识别结果仅平台内部使用</li>
-            </ul>
-          </div>
         </section>
         <SubmissionRequirements />
       </div>
@@ -126,7 +126,6 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
 .privacy-note {
   display: grid;
   gap: var(--space-1);
-  margin: var(--space-2) 0 0;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);

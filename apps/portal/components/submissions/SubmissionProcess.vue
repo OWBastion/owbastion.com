@@ -14,7 +14,7 @@ const steps = [
       <h2 id="process-title">获得称号流程</h2>
     </div>
     <ol class="process-steps">
-      <li v-for="step in steps" :key="step.title">
+      <li v-for="step in steps" :key="step.title" class="process-step">
         <strong>{{ step.title }}</strong>
         <span>{{ step.detail }}</span>
       </li>
@@ -27,9 +27,23 @@ const steps = [
 .process-heading { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5); }
 .process-heading > svg { width: 19px; height: 19px; color: var(--muted); }
 .process-heading h2 { margin: 0; font-size: .98rem; letter-spacing: -.02em; }
-.process-steps { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.45em; color: var(--muted); }
-.process-steps li { padding-left: var(--space-1); }
-.process-steps li::marker { color: var(--quiet); font-size: .74rem; font-weight: 700; }
-.process-steps strong { display: block; color: var(--text); font-size: .86rem; font-weight: 600; }
-.process-steps span { display: block; margin-top: var(--space-1); color: var(--muted); font-size: .76rem; line-height: 1.45; }
+.process-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.process-step { display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-3); align-items: start; counter-increment: step; }
+.process-step::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  grid-row: span 2;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--type-label-sm-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.process-step strong { color: var(--text); font-size: var(--type-label-size); font-weight: 600; }
+.process-step span { margin-top: var(--space-1); color: var(--muted); font-size: var(--type-label-sm-size); line-height: 1.45; }
 </style>
