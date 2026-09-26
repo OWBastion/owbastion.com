@@ -203,6 +203,20 @@ describe("immutable reviewed dataset snapshots", () => {
     expect(member.position).toBe(0);
   });
 
+  it("includes accepted candidates by default and records explicit anomaly exclusions", async () => {
+    const { sqlite, services } = await setup([
+      { id: "ann-1", fieldKey: "difficulty", reviewedValue: "一般" },
+      { id: "ann-2", fieldKey: "map_name", reviewedValue: "皇家赛道" },
+    ]);
+    const draft = await services.createAdminDatasetDraft({ excludedAnnotationIds: ["ann-2"] }, maintainer, "key-exclude");
+    expect(draft.counts).toEqual({ eligibleCount: 1, excludedCount: 1, submissionCount: 1, annotationCount: 1 });
+    expect(memberCount(sqlite, draft.datasetId)).toBe(1);
+    const detail = await services.getAdminDataset({ datasetId: draft.datasetId }, maintainer);
+    expect(detail.members.map((member) => member.annotationId)).toEqual(["ann-1"]);
+    expect(detail.exclusions).toEqual([{ annotationId: "ann-2", reason: "maintainer_excluded" }]);
+    await expect(services.createAdminDatasetDraft({ excludedAnnotationIds: ["unknown"] }, maintainer, "key-invalid-exclusion")).rejects.toThrow("DATASET_ANNOTATION_EXCLUSION_INVALID");
+  });
+
   it("reports validation/exclusion results for missing provenance or unavailable evidence", async () => {
     const { sqlite, services } = await setup([
       { id: "ann-1", fieldKey: "difficulty", reviewedValue: "一般" },
@@ -211,6 +225,9 @@ describe("immutable reviewed dataset snapshots", () => {
     ]);
     // ann-3's submission has evidence; make ann-2 and ann-3 share submission-2 with an
     // object key that no longer exists to force a missing-evidence exclusion.
+    await expect(services.createAdminDatasetDraft({ excludedAnnotationIds: ["ann-2"] }, maintainer, "key-invalid-provenance-exclusion")).rejects.toThrow("DATASET_ANNOTATION_EXCLUSION_INVALID");
+    const candidates = await services.listAdminDatasetCandidates({ page: 1, pageSize: 100 }, maintainer);
+    expect(candidates.items.map((candidate) => candidate.annotationId)).toEqual(["ann-1"]);
     const draft = await services.createAdminDatasetDraft({}, maintainer, "key-2");
     expect(draft.counts.eligibleCount).toBe(1);
     expect(draft.counts.excludedCount).toBe(2);
@@ -237,6 +254,8 @@ describe("immutable reviewed dataset snapshots", () => {
     expect(second.counts.eligibleCount).toBe(0);
     const detail = await services.getAdminDataset({ datasetId: second.datasetId }, maintainer);
     expect(detail.exclusions.map((exclusion) => exclusion.reason)).toEqual(["already_snapshotted", "already_snapshotted"]);
+    expect((await services.listAdminDatasetCandidates({ page: 1, pageSize: 100 }, maintainer)).items).toEqual([]);
+    await expect(services.createAdminDatasetDraft({ excludedAnnotationIds: ["ann-1"] }, maintainer, "key-already-snapshotted-exclusion")).rejects.toThrow("DATASET_ANNOTATION_EXCLUSION_INVALID");
   });
 
   it("keeps later corrections out of finalized snapshots without mutating them", async () => {

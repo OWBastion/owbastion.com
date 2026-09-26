@@ -59,6 +59,7 @@ import type {
   AdminAnnotationDirectCreateResponse,
   AdminReviewedAnnotationListResponse,
   AdminDatasetCreateResponse,
+  AdminDatasetCandidateListResponse,
   AdminDatasetListResponse,
   AdminDatasetDetailResponse,
   AdminDatasetFinalizeResponse,
@@ -233,7 +234,7 @@ export type PlatformServices = {
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
   processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
   markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
-  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; achievementTitlesReview?: AdminSubmissionReviewRequest["achievementTitlesReview"] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
+  reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;
   createBinding(input: QqBindingRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingResponse>;
   createAdminBindingInvite(input: AdminBindingInviteRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteResponse>;
   createAdminBindingInviteBatch(input: AdminBindingInviteBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminBindingInviteBatchResponse>;
@@ -258,7 +259,8 @@ export type PlatformServices = {
   decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse>;
   createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse>;
   listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, auth: AuthContext): Promise<AdminReviewedAnnotationListResponse>;
-  createAdminDatasetDraft(input: { note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
+  listAdminDatasetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminDatasetCandidateListResponse>;
+  createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
   listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, auth: AuthContext): Promise<AdminDatasetListResponse>;
   getAdminDataset(input: { datasetId: string }, auth: AuthContext): Promise<AdminDatasetDetailResponse>;
   finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse>;

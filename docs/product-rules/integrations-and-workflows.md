@@ -277,13 +277,19 @@ selection, or review time. Thus a Pioneer submission created in its half-open
 window remains processable after `endsAt`, while a submission created before
 `startsAt` or at/after `endsAt` never gains Pioneer eligibility later.
 
-During approval, a maintainer may confirm the complete visible
-`achievement_titles` list from the source screenshot. A complete confirmation
-creates or supersedes an accepted reviewed annotation linked to the exact OCR
-result, preserving the original OCR value, model/layout versions, reviewer,
-time, and submission evidence provenance. An incomplete confirmation does not
-create a training annotation, and review/grant processing remains independent.
+During approval, a maintainer may confirm or correct the complete visible
+value of any safe structured OCR field. Each complete field value creates or
+supersedes its accepted reviewed annotation in the same review operation,
+linked to the exact OCR result and preserving the original OCR value,
+model/layout versions, reviewer, time, and submission evidence provenance.
+Incomplete visual knowledge creates no annotation. Raw OCR evidence remains
+unchanged, and annotation creation does not decide business matches or grants.
 This path does not mutate finalized dataset snapshots or trigger training.
+
+Dataset drafts include every eligible accepted annotation by default. During
+draft creation, maintainers may explicitly exclude anomalous candidates; each
+exclusion is recorded in that snapshot's eligibility report. Snapshot membership
+is fixed at draft creation and becomes immutable when finalized.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
