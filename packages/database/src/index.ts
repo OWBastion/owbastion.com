@@ -365,6 +365,20 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
 
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
+  const pruneExpiredPasskeyChallenges = async (timestamp: number) => {
+    await database.batch([
+      database.prepare("DELETE FROM portal_sessions WHERE expires_at <= ? AND passkey_challenge_id IN (SELECT id FROM passkey_challenges WHERE expires_at <= ?)").bind(timestamp, timestamp),
+      database.prepare(`
+        DELETE FROM passkey_challenges
+        WHERE expires_at <= ?
+          AND NOT EXISTS (
+            SELECT 1 FROM portal_sessions
+            WHERE portal_sessions.passkey_challenge_id = passkey_challenges.id
+              AND portal_sessions.expires_at > ?
+          )
+      `).bind(timestamp, timestamp),
+    ]);
+  };
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
     historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
@@ -5660,6 +5674,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const options = await createPasskeyAuthenticationOptions(input.rpId);
       const timestamp = now();
       const challengeId = crypto.randomUUID();
+      await pruneExpiredPasskeyChallenges(timestamp);
       await db.insert(passkeyChallenges).values({ id: challengeId, purpose: "login", challenge: options.challenge, playerAccountId: null, inviteId: null, recoveryGrantId: null, expiresAt: timestamp + passkeyChallengeTtlMs, usedAt: null, consumedBy: null, createdAt: timestamp });
       return { contractVersion: "1" as const, challengeId, options: { ...options } };
     },
@@ -5673,6 +5688,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const accountId = crypto.randomUUID();
       const options = await createPasskeyRegistrationOptions({ rpId: input.rpId, accountId, userName: `${invite.playerName}#${invite.playerId}`, displayName: invite.playerName });
       const challengeId = crypto.randomUUID();
+      await pruneExpiredPasskeyChallenges(timestamp);
       await db.insert(passkeyChallenges).values({ id: challengeId, purpose: "invitation", challenge: options.challenge, playerAccountId: accountId, inviteId: invite.id, recoveryGrantId: null, expiresAt: timestamp + passkeyChallengeTtlMs, usedAt: null, consumedBy: null, createdAt: timestamp });
       return { contractVersion: "1" as const, challengeId, options: { ...options }, playerName: invite.playerName, playerId: invite.playerId };
     },
@@ -5719,6 +5735,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
       const timestamp = now();
       const challengeId = crypto.randomUUID();
+      await pruneExpiredPasskeyChallenges(timestamp);
       await db.insert(passkeyChallenges).values({ id: challengeId, purpose: "registration", challenge: options.challenge, playerAccountId: current.player.id, inviteId: null, recoveryGrantId: null, expiresAt: timestamp + passkeyChallengeTtlMs, usedAt: null, consumedBy: null, createdAt: timestamp });
       return { contractVersion: "1" as const, challengeId, options: { ...options } };
     },
@@ -5797,6 +5814,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!grant) throw new Error("PASSKEY_RECOVERY_INVALID");
       const options = await createPasskeyRegistrationOptions({ rpId: input.rpId, accountId: grant.player.id, userName: `${grant.player.playerName}#${grant.player.playerId}`, displayName: grant.player.playerName });
       const challengeId = crypto.randomUUID();
+      await pruneExpiredPasskeyChallenges(timestamp);
       await db.insert(passkeyChallenges).values({ id: challengeId, purpose: "recovery", challenge: options.challenge, playerAccountId: grant.player.id, inviteId: null, recoveryGrantId: grant.grant.id, expiresAt: timestamp + passkeyChallengeTtlMs, usedAt: null, consumedBy: null, createdAt: timestamp });
       return { contractVersion: "1" as const, challengeId, options: { ...options } };
     },

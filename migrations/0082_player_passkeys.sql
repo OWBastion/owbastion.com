@@ -1,5 +1,18 @@
 PRAGMA defer_foreign_keys = ON;
 
+CREATE TABLE submissions_player_account_preflight (
+  resolved_account_count INTEGER NOT NULL CHECK (resolved_account_count = 1)
+);
+
+INSERT INTO submissions_player_account_preflight (resolved_account_count)
+SELECT COUNT(DISTINCT player_accounts.id)
+FROM submissions
+LEFT JOIN bindings ON bindings.id = submissions.binding_id
+LEFT JOIN player_accounts ON player_accounts.id = bindings.player_account_id
+GROUP BY submissions.id;
+
+DROP TABLE submissions_player_account_preflight;
+
 CREATE TABLE submissions_next (
   id TEXT PRIMARY KEY NOT NULL,
   player_account_id TEXT NOT NULL REFERENCES player_accounts(id),

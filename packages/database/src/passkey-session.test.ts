@@ -113,7 +113,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE portal_sessions (
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-    token_hash TEXT NOT NULL UNIQUE, passkey_challenge_id TEXT UNIQUE,
+    token_hash TEXT NOT NULL UNIQUE, passkey_challenge_id TEXT UNIQUE REFERENCES passkey_challenges(id),
     expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
   );
   CREATE TABLE audit_events (
@@ -293,5 +293,36 @@ describe("Passkey session and ownership boundaries", () => {
     expect(await resolvePortalSession(database, "session-token.old")).toBeNull();
     const issued = results.find((result) => result.status === "fulfilled");
     expect(issued?.status === "fulfilled" ? (await resolvePortalSession(database, issued.value.sessionToken))?.player.id : null).toBe("account.one");
+  });
+
+  it("prunes expired challenges and sessions while retaining challenges referenced by live sessions", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    addAccount(sqlite, "account.one", "1001");
+    const timestamp = Date.now();
+    const insertChallenge = (id: string, expiresAt: number, usedAt: number | null = null) => sqlite.prepare(`
+      INSERT INTO passkey_challenges (id, purpose, challenge, expires_at, used_at, created_at)
+      VALUES (?, 'login', ?, ?, ?, ?)
+    `).run(id, id, expiresAt, usedAt, timestamp - 60_000);
+    insertChallenge("challenge.expired", timestamp - 1);
+    insertChallenge("challenge.live-session", timestamp - 1, timestamp - 2);
+    insertChallenge("challenge.expired-session", timestamp - 1);
+    insertChallenge("challenge.unexpired", timestamp + 60_000);
+    sqlite.prepare(`
+      INSERT INTO portal_sessions (id, player_account_id, token_hash, passkey_challenge_id, expires_at, created_at)
+      VALUES ('session.live', 'account.one', 'token.live', 'challenge.live-session', ?, ?),
+             ('session.expired', 'account.one', 'token.expired', 'challenge.expired-session', ?, ?)
+    `).run(timestamp + 60_000, timestamp - 30_000, timestamp, timestamp - 30_000);
+    const services = createPlatformServices(database);
+
+    const issued = await services.createPasskeyLoginOptions({ rpId: "owbastion.com" });
+
+    expect(issued.options.challenge).toMatch(/^login-challenge-\d+$/u);
+    const remainingChallengeIds = sqlite.prepare("SELECT id FROM passkey_challenges").all() as Array<{ id: string }>;
+    expect(remainingChallengeIds.map(({ id }) => id).sort()).toEqual(["challenge.live-session", "challenge.unexpired", issued.challengeId].sort());
+    expect(sqlite.prepare("SELECT id FROM portal_sessions").all()).toEqual([{ id: "session.live" }]);
+    expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 });

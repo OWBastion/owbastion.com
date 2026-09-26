@@ -84,4 +84,21 @@ describe("0082 Player Account and Passkey migration", () => {
     expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('qq_sessions', 'qq_login_attempts')").all()).toEqual([]);
   });
+
+  it("fails before replacing submissions when a submission has no Player Account mapping", () => {
+    const sqlite = new DatabaseSync(":memory:");
+    applyMigrations(sqlite, "0081_allow_retired_equipped_titles.sql");
+    sqlite.exec("PRAGMA foreign_keys = OFF;");
+    sqlite.exec(`
+      INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
+      VALUES ('submission.orphan', 'binding.missing', 'received', 'map_completion', '地图', 'portal', 'portal', 'orphan-upload', 10, 10);
+    `);
+
+    sqlite.exec("BEGIN;");
+    expect(() => sqlite.exec(readFileSync(`${migrationsDirectory}/0082_player_passkeys.sql`, "utf8"))).toThrow();
+    sqlite.exec("ROLLBACK;");
+
+    expect(sqlite.prepare("SELECT id, binding_id FROM submissions").all()).toEqual([{ id: "submission.orphan", binding_id: "binding.missing" }]);
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'submissions_next'").get()).toBeUndefined();
+  });
 });
