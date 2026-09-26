@@ -365,6 +365,15 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
 
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: MasteryEvidenceCompatibilityV1 = masteryEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
+  const runPasskeyRegistrationBatch = async (statements: D1PreparedStatement[]) => {
+    try { return await database.batch(statements); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("UNIQUE constraint failed: player_accounts")) throw new Error("PLAYER_ACCOUNT_EXISTS");
+      if (message.includes("UNIQUE constraint failed: passkey_credentials")) throw new Error("PASSKEY_REGISTRATION_INVALID");
+      throw error;
+    }
+  };
   const pruneExpiredPasskeyChallenges = async (timestamp: number) => {
     await database.batch([
       database.prepare("DELETE FROM portal_sessions WHERE expires_at <= ? AND passkey_challenge_id IN (SELECT id FROM passkey_challenges WHERE expires_at <= ?)").bind(timestamp, timestamp),
@@ -5709,7 +5718,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const sessionId = crypto.randomUUID();
       const credentialRowId = crypto.randomUUID();
       const idempotencyId = crypto.randomUUID();
-      const results = await database.batch([
+      const results = await runPasskeyRegistrationBatch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'invitation' AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM binding_invites WHERE id = ? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > ?)").bind(timestamp, consumedBy, challenge.id, accountId, timestamp, invite.id, timestamp),
         database.prepare("UPDATE binding_invites SET redeemed_at = ? WHERE id = ? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(timestamp, invite.id, timestamp, challenge.id, consumedBy),
         database.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) SELECT ?, ?, ?, ?, 0, 'active', ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM binding_invites WHERE id = ? AND redeemed_at = ?)").bind(accountId, invite.playerId, invite.playerName, invite.normalizedPlayerName, timestamp, timestamp, challenge.id, consumedBy, invite.id, timestamp),
@@ -5748,7 +5757,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const registered = await verifyPasskeyRegistration({ credential: input.credential, challenge: challenge.challenge, origin: input.origin, rpId: input.rpId });
       const consumedBy = randomToken(16);
       const credentialRowId = crypto.randomUUID();
-      const results = await database.batch([
+      const results = await runPasskeyRegistrationBatch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'registration' AND player_account_id = ? AND used_at IS NULL AND expires_at > ?").bind(timestamp, consumedBy, challenge.id, current.player.id, timestamp),
         database.prepare("INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at, last_used_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, NULL WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM player_accounts WHERE id = ? AND status = 'active')").bind(credentialRowId, current.player.id, registered.credentialId, registered.publicKey, registered.counter, JSON.stringify(registered.transports), input.name, timestamp, challenge.id, consumedBy, current.player.id),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'user', ?, 'passkey.register', 'player_account', ?, ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM passkey_credentials WHERE id = ?)").bind(crypto.randomUUID(), crypto.randomUUID(), current.player.id, current.player.id, JSON.stringify({ passkeyName: input.name }), timestamp, challenge.id, consumedBy, credentialRowId),
@@ -5796,8 +5805,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const grantId = crypto.randomUUID();
       await database.batch([
         database.prepare("UPDATE passkey_recovery_grants SET used_at = ? WHERE player_account_id = ? AND used_at IS NULL").bind(timestamp, account.id),
-        database.prepare("DELETE FROM passkey_credentials WHERE player_account_id = ?").bind(account.id),
-        database.prepare("DELETE FROM portal_sessions WHERE player_account_id = ?").bind(account.id),
         database.prepare("INSERT INTO passkey_recovery_grants (id, player_account_id, token_hash, expires_at, used_at, created_by, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?)").bind(grantId, account.id, await hashRequest(token), expiresAt, auth.subject, timestamp),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify({ tokenCiphertext, expiresAt }), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'passkey.recovery.issue', 'player_account', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, account.id, JSON.stringify({ identityVerified: true, expiresAt }), timestamp),
@@ -5832,14 +5839,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const credentialRowId = crypto.randomUUID();
       const sessionToken = randomToken();
       const sessionId = crypto.randomUUID();
-      const results = await database.batch([
+      const results = await runPasskeyRegistrationBatch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'recovery' AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_recovery_grants WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ?)").bind(timestamp, consumedBy, challenge.id, account.id, timestamp, grant.id, account.id, timestamp),
         database.prepare("UPDATE passkey_recovery_grants SET used_at = ? WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(timestamp, grant.id, account.id, timestamp, challenge.id, consumedBy),
+        database.prepare("DELETE FROM passkey_credentials WHERE player_account_id = ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(account.id, challenge.id, consumedBy),
+        database.prepare("DELETE FROM portal_sessions WHERE player_account_id = ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(account.id, challenge.id, consumedBy),
         database.prepare("INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at, last_used_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, NULL WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM passkey_recovery_grants WHERE id = ? AND used_at = ?) AND EXISTS (SELECT 1 FROM player_accounts WHERE id = ? AND status = 'active')").bind(credentialRowId, account.id, registered.credentialId, registered.publicKey, registered.counter, JSON.stringify(registered.transports), input.name, timestamp, challenge.id, consumedBy, grant.id, timestamp, account.id),
         database.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, passkey_challenge_id, expires_at, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM passkey_credentials WHERE id = ?)").bind(sessionId, account.id, await hashRequest(sessionToken), challenge.id, timestamp + sessionTtlMs, timestamp, challenge.id, consumedBy, credentialRowId),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'user', ?, 'passkey.recovery.complete', 'player_account', ?, ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM passkey_credentials WHERE id = ?)").bind(crypto.randomUUID(), crypto.randomUUID(), account.id, account.id, JSON.stringify({ passkeyName: input.name }), timestamp, challenge.id, consumedBy, credentialRowId),
       ]);
-      if (results[0]?.meta.changes !== 1 || results[1]?.meta.changes !== 1 || results[2]?.meta.changes !== 1 || results[3]?.meta.changes !== 1) throw new Error("PASSKEY_RECOVERY_INVALID");
+      if (results[0]?.meta.changes !== 1 || results[1]?.meta.changes !== 1 || results[4]?.meta.changes !== 1 || results[5]?.meta.changes !== 1) throw new Error("PASSKEY_RECOVERY_INVALID");
       return { sessionToken };
     },
 

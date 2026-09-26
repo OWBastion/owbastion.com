@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { portalErrorDetails } from "~/utils/portal-error";
-import { createRequestId } from "~/utils/request-id";
 
 type Passkey = { passkeyId: string; name: string; createdAt: number; lastUsedAt: number | null };
 
@@ -37,7 +36,7 @@ async function remove() {
   saving.value = true;
   error.value = "";
   try {
-    await api(`/v1/me/passkeys/${encodeURIComponent(pendingRemoval.value.passkeyId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } });
+    await api(`/v1/me/passkeys/${encodeURIComponent(pendingRemoval.value.passkeyId)}`, { method: "DELETE" });
     pendingRemoval.value = null;
     await load();
   } catch (cause) {

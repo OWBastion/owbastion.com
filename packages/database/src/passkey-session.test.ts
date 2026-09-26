@@ -295,6 +295,49 @@ describe("Passkey session and ownership boundaries", () => {
     expect(issued?.status === "fulfilled" ? (await resolvePortalSession(database, issued.value.sessionToken))?.player.id : null).toBe("account.one");
   });
 
+  it("keeps existing credentials and sessions until a recovery registration completes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    addAccount(sqlite, "account.one", "1001");
+    sqlite.prepare(`
+      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
+      VALUES ('credential.old', 'account.one', 'credential.old', 'cHVi', 0, '[]', 'old device', 1)
+    `).run();
+    await addSession(sqlite, "session.old", "account.one", "session-token.old");
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "recovery-test-key");
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    await services.createAdminPasskeyRecovery({ playerAccountId: "account.one", identityVerified: true }, maintainer, "recovery.unused");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.one'").get()).toEqual({ count: 1 });
+    expect((await resolvePortalSession(database, "session-token.old"))?.player.id).toBe("account.one");
+  });
+
+  it("maps a credential already registered elsewhere to a verification failure and keeps the invitation usable", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    addAccount(sqlite, "account.one", "1001");
+    sqlite.prepare(`
+      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
+      VALUES ('credential.row.one', 'account.one', 'registration.one', 'cHVi', 0, '[]', 'device', 1)
+    `).run();
+    const timestamp = Date.now();
+    sqlite.prepare(`
+      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
+      VALUES ('invite.two', ?, 'Other', 'other', '2002', 'admin', ?, ?)
+    `).run(await hashRequest("INVITE-TWO"), timestamp, timestamp + 60_000);
+    verifyRegistration.mockResolvedValue({ credentialId: "registration.one", publicKey: "cHVi", counter: 0, transports: [] });
+    const services = createPlatformServices(database);
+    const options = await services.createPasskeyInvitationOptions({ code: "invite-two", rpId: "owbastion.com" });
+
+    await expect(services.completePasskeyInvitationRegistration({
+      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
+      origin: "https://owbastion.com", rpId: "owbastion.com",
+    })).rejects.toThrow("PASSKEY_REGISTRATION_INVALID");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_accounts WHERE player_id = '2002'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.two'").get()).toEqual({ redeemed_at: null });
+  });
+
   it("prunes expired challenges and sessions while retaining challenges referenced by live sessions", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
