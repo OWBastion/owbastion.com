@@ -36,7 +36,7 @@ type TableCell<Item> = {
 const api = useAdminApi();
 const items = ref<AdminAchievement[]>([]);
 const titleStatus = ref<"all" | AchievementStatus>("all");
-const catalogStatus = ref<"all" | AchievementStatus>("all");
+const catalogStatus = ref<"all" | CatalogTitle["lifecycle"]>("all");
 const editingId = ref<string | null>(null);
 const planningId = ref<string | null>(null);
 const retirementVersions = reactive<Record<string, string>>({});
@@ -117,7 +117,13 @@ function statusFilters(source: typeof titleStatus) {
   });
 }
 const titleStatusFilters = statusFilters(titleStatus);
-const catalogStatusFilters = statusFilters(catalogStatus);
+const catalogStatusFilters = computed({
+  get: () => catalogStatus.value === "all" ? [] : [{ id: "status", value: catalogStatus.value }],
+  set: (filters: Array<{ id: string; value: unknown }>) => {
+    const value = filters.find((filter) => filter.id === "status")?.value;
+    catalogStatus.value = value === "draft" || value === "active" || value === "retired" ? value : "all";
+  },
+});
 const titleChallengeItems = computed(() => items.value.filter(isChallengeTitle));
 const catalogItems = computed(() => items.value.filter((item): item is CatalogTitle => item.family === "title_catalog"));
 const mapItems = computed(() => items.value.filter(isMap));
@@ -129,11 +135,13 @@ const editorOpen = computed({
 const achievementStatusText = (item: AdminAchievement) =>
   isChallengeTitle(item)
     ? achievementStatusLabel(item.status)
-    : isCatalog(item) && isDeveloperOnly(item)
-      ? item.status === "active" ? "开发保留" : "已下线"
+    : isCatalog(item)
+      ? isDeveloperOnly(item) && item.lifecycle === "active" ? "开发保留" : item.lifecycle === "draft" ? "草稿" : item.lifecycle === "retired" ? "已退休" : "已启用"
       : item.status === "active" ? "已开放" : "已下线";
 const achievementItemStatusTone = (item: AdminAchievement) =>
-  isCatalog(item) && isDeveloperOnly(item) && item.status === "active" ? "warning" : achievementStatusTone(item.status);
+  isCatalog(item)
+    ? isDeveloperOnly(item) && item.lifecycle === "active" ? "warning" : item.lifecycle === "active" ? "success" : item.lifecycle === "draft" ? "info" : "default"
+    : achievementStatusTone(item.status);
 const endingCatalog = computed(() => endTarget.value !== null && isCatalog(endTarget.value));
 function isGroupContinuation<Item>(cell: TableCell<Item>, groupValue: (item: Item) => string) {
   const rows = cell.getContext().table.getRowModel().rows;
@@ -276,7 +284,7 @@ function updatePayload(item: AdminAchievement, status: AchievementStatus, retire
   throw new Error("CATALOG_TITLE_UPDATE_REQUIRES_CATALOG_ENDPOINT");
 }
 
-async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, includeChallengeFields = false) {
+async function saveCatalogTitle(item: CatalogTitle, lifecycle: CatalogTitle["lifecycle"], includeChallengeFields = false) {
   savingId.value = itemIdentity(item);
   errorMessage.value = "";
   try {
@@ -285,7 +293,9 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
       headers: { "Idempotency-Key": createRequestId() },
       body: {
         contractVersion: "1",
-        status,
+        status: lifecycle === "retired" ? "retired" : "active",
+        lifecycle,
+        publicVisibility: item.publicVisibility,
         label: item.titleName,
         icon: item.icon,
         category: item.category,
@@ -298,20 +308,17 @@ async function saveCatalogTitle(item: CatalogTitle, status: AchievementStatus, i
           submissionMode: item.submissionMode ?? "manual",
           categoryOverride: item.categoryOverride?.trim() || null,
           iconUrl: item.iconUrl?.trim() || null,
-          ...(status === "sunsetting" && item.retiredVersion?.trim() ? { retiredVersion: item.retiredVersion.trim() } : {}),
-          ...(status === "scheduled" ? {
-            ...(item.startsAt && item.startsAt > 0 ? { startsAt: item.startsAt } : {}),
-            ...(item.endsAt && item.endsAt > 0 ? { endsAt: item.endsAt } : {}),
-          } : {}),
+          ...(lifecycle === "retired" && item.retiredVersion?.trim() ? { retiredVersion: item.retiredVersion.trim() } : {}),
         } : {}),
       },
     });
-    toast.add({ title: status === "active" ? "称号已重新开放" : "称号已下线", color: "success" });
+    toast.add({ title: lifecycle === "active" ? "称号已启用" : lifecycle === "draft" ? "称号已设为草稿" : "称号已退休", color: "success" });
     // A-04 — update the catalog row in place instead of reloading the whole page.
     const updated = items.value.find((candidate): candidate is CatalogTitle => candidate.challengeId === item.challengeId && candidate.family === "title_catalog");
     if (updated) {
-      updated.status = status;
-      updated.availability = status === "retired" ? "retired" : "active";
+      updated.status = lifecycle;
+      updated.lifecycle = lifecycle;
+      updated.availability = lifecycle === "retired" ? "retired" : "active";
       if (includeChallengeFields) {
         if (item.condition !== undefined) updated.condition = item.condition;
         if (item.evidenceRule !== undefined) updated.evidenceRule = item.evidenceRule;
@@ -370,7 +377,15 @@ async function saveEditingItem(item: AdminAchievement) {
     await saveMap(item);
     return;
   }
-  if (await saveCatalogTitle(item, item.status)) editingId.value = null;
+  if (await saveCatalogTitle(item, item.lifecycle)) editingId.value = null;
+}
+
+function updateEditingCatalogLifecycle(lifecycle: CatalogTitle["lifecycle"]) {
+  if (editingItem.value && isCatalog(editingItem.value)) editingItem.value.lifecycle = lifecycle;
+}
+
+function updateEditingPublicVisibility(publicVisibility: boolean) {
+  if (editingItem.value && isCatalog(editingItem.value)) editingItem.value.publicVisibility = publicVisibility;
 }
 
 async function planSunsetting(item: AdminAchievement) {
@@ -509,10 +524,10 @@ onMounted(() => void load());
             <h2 id="title-catalog-title" class="sr-only">称号目录</h2>
             <AdminDataTable v-model:column-filters="catalogStatusFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
-                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '已启用', value: 'active' }, { label: '已退休', value: 'retired' }]" />
               </template>
               <template #mobile-secondary>
-                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '已开放', value: 'active' }, { label: '已下线', value: 'retired' }]" />
+                <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '已启用', value: 'active' }, { label: '已退休', value: 'retired' }]" />
               </template>
               <template #titleName-cell="{ row }"><strong>{{ row.original.titleName }}</strong></template>
               <template #icon-cell="{ row }"><span class="table-meta">{{ row.original.icon }}</span></template>
@@ -527,7 +542,7 @@ onMounted(() => void load());
               <template #actions-cell="{ row }">
                 <div class="table-actions">
                   <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" label="编辑" aria-label="编辑状态" :disabled="isSaving(row.original)" @click="toggleEditing(row.original.challengeId)" />
-                  <UButton v-if="row.original.status === 'active'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="下线" aria-label="下线称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
+                  <UButton v-if="row.original.lifecycle === 'active'" size="sm" color="error" variant="soft" icon="i-lucide-square-stop" label="退休" aria-label="退休称号" :disabled="isSaving(row.original)" @click="openEnd(row.original, $event.currentTarget)" />
                   <UButton v-else size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-ccw" label="重开" aria-label="重新开放" :disabled="isSaving(row.original)" @click="reopen(row.original)" />
                 </div>
               </template>
@@ -547,17 +562,19 @@ onMounted(() => void load());
       @save="editingItem && saveEditingItem(editingItem)"
       @cancel="closeEditing"
       @upload-icon="uploadIcon"
+      @update-catalog-lifecycle="updateEditingCatalogLifecycle"
+      @update-public-visibility="updateEditingPublicVisibility"
     />
 
-    <AdminResponsiveDialog :open="endTarget !== null" :title="endingCatalog ? '下线称号' : '结束挑战'" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }">
+    <AdminResponsiveDialog :open="endTarget !== null" :title="endingCatalog ? '退休称号' : '结束挑战'" size="sm" :dismissible="!(endTarget && isSaving(endTarget))" @update:open="(open) => { if (!open) closeEnd(); }">
       <template #body>
         <form v-if="endTarget" id="end-challenge-dialog" class="end-dialog" @submit.prevent="endChallenge">
-          <p>{{ endingCatalog ? "下线后该称号不再发放。" : "结束后不再接受新的截图提交。" }}</p>
+          <p>{{ endingCatalog ? "退休后该称号不再发放。" : "结束后不再接受新的截图提交。" }}</p>
         </form>
       </template>
       <template #footer>
         <template v-if="endTarget">
-          <UButton :label="endingCatalog ? '确认下线' : '结束挑战'" color="error" variant="soft" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
+          <UButton :label="endingCatalog ? '确认退休' : '结束挑战'" color="error" variant="soft" type="submit" form="end-challenge-dialog" :loading="isSaving(endTarget)" />
           <UButton label="取消" color="neutral" variant="outline" :disabled="isSaving(endTarget)" @click="closeEnd" />
         </template>
       </template>

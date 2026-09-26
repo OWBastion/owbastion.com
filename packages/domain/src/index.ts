@@ -221,6 +221,7 @@ export type PlatformServices = {
   createAdminTitleGrant(input: AdminTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createAdminTitleGrantBulk(input: AdminTitleGrantBulkRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminTitleGrantBulkResponse>;
   revokeAdminTitleGrant(input: { grantId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
+  restoreAdminTitleGrant(input: { grantId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;
   createAdminManualTitleGrant(input: AdminManualTitleGrantRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantResponse>;
   createAdminManualTitleGrantBatch(input: AdminManualTitleGrantBatchRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminManualTitleGrantBatchResponse>;
   listAdminChallenges(input: { family?: "map" | "achievement"; status?: string }, auth: AuthContext): Promise<AdminChallengeListResponse>;

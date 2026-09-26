@@ -110,6 +110,8 @@ const installSchema = (sqlite: DatabaseSync) => {
       category TEXT NOT NULL,
       condition TEXT NOT NULL,
       availability TEXT NOT NULL,
+      lifecycle TEXT NOT NULL DEFAULT 'active',
+      public_visibility INTEGER NOT NULL DEFAULT 1,
       scope TEXT NOT NULL,
       display_kind TEXT NOT NULL,
       color_json TEXT NOT NULL DEFAULT 'null',
@@ -188,10 +190,56 @@ const installSchema = (sqlite: DatabaseSync) => {
       granted_at INTEGER NOT NULL,
       revoked_by TEXT,
       revoked_at INTEGER,
-      revoke_reason TEXT
+      revoke_reason TEXT,
+      completion_id TEXT,
+      revocation_type TEXT
     );
     CREATE UNIQUE INDEX player_title_grants_source_idx
       ON player_title_grants (source_type, source_id, title_key);
+    CREATE TABLE challenges (
+      id TEXT PRIMARY KEY NOT NULL,
+      source_family TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      title_key TEXT NOT NULL REFERENCES title_catalog(key),
+      rule_version TEXT NOT NULL DEFAULT 'legacy',
+      map_id TEXT,
+      gameplay_revision_id TEXT,
+      status TEXT NOT NULL,
+      manual INTEGER NOT NULL DEFAULT 0,
+      public_condition INTEGER NOT NULL DEFAULT 1,
+      condition_operator TEXT NOT NULL DEFAULT 'and',
+      conditions_json TEXT NOT NULL DEFAULT '[]',
+      condition TEXT NOT NULL,
+      starts_at INTEGER,
+      ends_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX challenges_source_scope_idx ON challenges(source_family, source_id, rule_version, COALESCE(map_id, ''), COALESCE(gameplay_revision_id, ''));
+    CREATE UNIQUE INDEX challenges_manual_title_idx ON challenges(title_key) WHERE manual = 1 AND status = 'active';
+    CREATE TABLE challenge_completions (
+      id TEXT PRIMARY KEY NOT NULL,
+      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
+      challenge_id TEXT NOT NULL REFERENCES challenges(id),
+      gameplay_revision_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      completed_at INTEGER NOT NULL,
+      invalidated_by TEXT,
+      invalidated_at INTEGER,
+      invalidation_reason TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE UNIQUE INDEX challenge_completions_player_challenge_idx ON challenge_completions(player_account_id, challenge_id, COALESCE(gameplay_revision_id, '')) WHERE status = 'active';
+    CREATE UNIQUE INDEX challenge_completions_source_idx ON challenge_completions(source_type, source_id, challenge_id);
+    CREATE TABLE challenge_satisfies (
+      challenge_id TEXT NOT NULL REFERENCES challenges(id),
+      satisfied_challenge_id TEXT NOT NULL REFERENCES challenges(id),
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (challenge_id, satisfied_challenge_id),
+      CHECK (challenge_id <> satisfied_challenge_id)
+    );
     CREATE TABLE player_equipped_titles (
       grant_id TEXT PRIMARY KEY REFERENCES player_title_grants(id),
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -1181,6 +1229,8 @@ describe("manual title grant batches", () => {
     ]));
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_type = 'manual'").get()).toEqual({ count: 4 });
     expect(sqlite.prepare("SELECT COUNT(DISTINCT source_id) AS count FROM player_title_grants WHERE source_type = 'manual' AND title_key = 'CONQUEROR'").get()).toEqual({ count: 2 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_type = 'manual'").get()).toEqual({ count: 3 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_type = 'manual' AND completion_id IS NOT NULL").get()).toEqual({ count: 3 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.grant.manual.batch'").get()).toEqual({ count: 1 });
 
     await expect(services.createAdminManualTitleGrantBatch(request, auth, "manual-batch-1")).resolves.toEqual(first);
@@ -1188,6 +1238,36 @@ describe("manual title grant batches", () => {
     await expect(services.createAdminManualTitleGrantBatch({ ...request, targets: [{ titleKey: "CONQUEROR", mapId: "map.batch", gameplayRevisionId: "revision:other-map:rework" }] }, auth, "manual-batch-invalid")).rejects.toThrow("GAMEPLAY_REVISION_INVALID");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants").get()).toEqual({ count: 4 });
     await expect(services.createAdminManualTitleGrantBatch({ contractVersion: "1", playerAccountIds: [playerOne, playerTwo], targets: Array.from({ length: 251 }, (_, index) => ({ titleKey: `MISSING_${index}` })) }, auth, "manual-batch-too-large")).rejects.toThrow("MANUAL_TITLE_GRANT_BATCH_TOO_LARGE");
+
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('BLOCKED', '已撤销称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.revoked', ?, 'BLOCKED', 'revoked', 'manual', 'manual:old', 'admin', ?, 'admin', ?, 'revoke', 'administrator')").run(playerOne, now, now);
+    await expect(services.createAdminManualTitleGrant({ contractVersion: "1", playerAccountId: playerOne, titleKey: "BLOCKED" }, auth, "manual-after-revoke")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+    await services.restoreAdminTitleGrant({ grantId: "grant.revoked", reason: "申诉通过" }, auth, "restore-admin-revoke");
+    expect(sqlite.prepare("SELECT status, revocation_type, revoked_by FROM player_title_grants WHERE id = 'grant.revoked'").get()).toEqual({ status: "active", revocation_type: null, revoked_by: null });
+    expect(sqlite.prepare("SELECT operation FROM audit_events WHERE operation = 'admin.title.restore' AND entity_id = 'grant.revoked'").get()).toEqual({ operation: "admin.title.restore" });
+    await expect(services.restoreAdminTitleGrant({ grantId: "grant.revoked" }, auth, "restore-active")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('EVIDENCE_REVOKED', '证据撤销称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.evidence-revoked', ?, 'EVIDENCE_REVOKED', 'revoked', 'automatic', 'submission.evidence', 'system:ocr', ?, 'admin', ?, '证据无效', 'evidence')").run(playerOne, now, now);
+    await expect(services.restoreAdminTitleGrant({ grantId: "grant.evidence-revoked" }, auth, "restore-evidence-revoke")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
+  });
+
+  it("allows an explicit manual grant for a retired title through its manual Challenge", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedTitle(sqlite, "RETIRED_MANUAL");
+    sqlite.prepare("UPDATE title_catalog SET lifecycle = 'retired', scope = 'global', display_kind = 'fixed' WHERE key = 'RETIRED_MANUAL'").run();
+    const playerId = "player.retired.manual";
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(playerId, "retired-manual", "Retired Manual", "retired manual", now, now);
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    const result = await services.createAdminManualTitleGrant({ contractVersion: "1", playerAccountId: playerId, titleKey: "RETIRED_MANUAL" }, auth, "retired-manual-grant");
+
+    expect(result.grantId).toBeTruthy();
+    expect(sqlite.prepare("SELECT lifecycle FROM title_catalog WHERE key = 'RETIRED_MANUAL'").get()).toEqual({ lifecycle: "retired" });
+    expect(sqlite.prepare("SELECT manual, status FROM challenges WHERE title_key = 'RETIRED_MANUAL'").get()).toEqual({ manual: 1, status: "active" });
+    expect(sqlite.prepare("SELECT status, source_type FROM challenge_completions WHERE player_account_id = ?").get(playerId)).toEqual({ status: "active", source_type: "manual" });
+    expect(sqlite.prepare("SELECT status, completion_id FROM player_title_grants WHERE player_account_id = ?").get(playerId)).toMatchObject({ status: "active", completion_id: expect.any(String) });
   });
 });
 
@@ -1464,6 +1544,11 @@ describe("map title rule model – locked invariants", () => {
       seedTitle(sqlite, "DOMINATOR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedRule(sqlite, "rule.dominator", "DOMINATOR", "dominator", { slot: "dominator" });
+      const revisionId = "revision:map.dorado:initial";
+      const canonicalChallenge = sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, map_id, gameplay_revision_id, status, manual, public_condition, condition_operator, conditions_json, condition, created_at, updated_at) VALUES (?, 'map_title_rule', ?, ?, 'map.dorado', ?, 'active', 0, 0, 'and', ?, '完成地图', ?, ?)");
+      canonicalChallenge.run(`legacy:map_title_rule:rule.conqueror:map.dorado:${revisionId}`, "rule.conqueror", "CONQUEROR", revisionId, JSON.stringify({ operator: "and", conditions: [{ type: "completed" }] }), now, now);
+      canonicalChallenge.run(`legacy:map_title_rule:rule.dominator:map.dorado:${revisionId}`, "rule.dominator", "DOMINATOR", revisionId, JSON.stringify({ operator: "and", conditions: [{ type: "completed" }] }), now, now);
+      sqlite.prepare("INSERT INTO challenge_satisfies (challenge_id, satisfied_challenge_id, created_at) VALUES (?, ?, ?)").run(`legacy:map_title_rule:rule.dominator:map.dorado:${revisionId}`, `legacy:map_title_rule:rule.conqueror:map.dorado:${revisionId}`, now);
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.auto', 'auto-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.auto', 'identity.auto', 'player.auto', 'qq', 'group.auto', 'member.auto', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.auto', 'binding.auto', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'auto.1', ?, ?)").run(now, now);
@@ -1493,8 +1578,24 @@ describe("map title rule model – locked invariants", () => {
         { title_key: "CONQUEROR", slot: "conqueror", source_type: "automatic", source_id: "submission.auto" },
         { title_key: "DOMINATOR", slot: "dominator", source_type: "automatic", source_id: "submission.auto" },
       ]);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_id = 'submission.auto' AND status = 'active'").get()).toEqual({ count: 2 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_type = 'automatic' AND completion_id IS NOT NULL").get()).toEqual({ count: 2 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.auto' AND title_key = 'CONQUEROR' AND status = 'active'").get()).toEqual({ count: 1 });
       const auditCount = sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'submission.automatic_grant' AND entity_type = 'player_title_grant'").get() as { count: number };
       expect(auditCount.count).toBe(2);
+
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.auto.repeat', 'binding.auto', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'auto.repeat', ?, ?)").run(now + 1, now + 1);
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.auto.repeat', 'submission.auto.repeat', 'portal', 'external.auto.repeat', 'image/png', 1, 'hash', 'evidence/auto-repeat.png', 'stored', ?)").run(now + 1);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+        await services.processOcrJob({ submissionId: "submission.auto.repeat", objectKey: "evidence/auto-repeat.png", attempt: 1, requestId: "request.auto.repeat" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.auto.repeat'").get()).toEqual({ status: "resubmission_required", grant_id: null });
+      expect(sqlite.prepare("SELECT json_extract(match_json, '$.candidates') AS candidates FROM ocr_results WHERE submission_id = 'submission.auto.repeat'").get()).toEqual({ candidates: "[]" });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
   });
 
@@ -1768,10 +1869,21 @@ describe("map title rule model – locked invariants", () => {
       installSchema(sqlite);
       seedTitle(sqlite, "HERO");
       seedTitle(sqlite, "SECOND");
-      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'SECOND')").run();
+      seedTitle(sqlite, "LOWER");
+      seedTitle(sqlite, "RETIRED");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'SECOND', 'LOWER', 'RETIRED')").run();
+      sqlite.prepare("UPDATE title_catalog SET public_visibility = 0 WHERE key = 'LOWER'").run();
+      sqlite.prepare("UPDATE title_catalog SET lifecycle = 'retired' WHERE key = 'RETIRED'").run();
       const insertChallenge = (id: string, key: string) => sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(id, key, now, now);
       insertChallenge("title.hero", "HERO");
       insertChallenge("title.second", "SECOND");
+      insertChallenge("title.lower", "LOWER");
+      insertChallenge("title.retired", "RETIRED");
+      const insertCanonicalTitleChallenge = (id: string, titleKey: string, publicCondition: number) => sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, status, public_condition, conditions_json, condition, created_at, updated_at) VALUES (?, 'title_challenge', ?, ?, 'active', ?, ?, '完成英雄挑战', ?, ?)").run(`legacy:title_challenge:${id}::`, id, titleKey, publicCondition, JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey }] }), now, now);
+      insertCanonicalTitleChallenge("title.hero", "HERO", 1);
+      insertCanonicalTitleChallenge("title.lower", "LOWER", 0);
+      insertCanonicalTitleChallenge("title.retired", "RETIRED", 1);
+      sqlite.prepare("INSERT INTO challenge_satisfies (challenge_id, satisfied_challenge_id, created_at) VALUES ('legacy:title_challenge:title.hero::', 'legacy:title_challenge:title.lower::', ?), ('legacy:title_challenge:title.hero::', 'legacy:title_challenge:title.retired::', ?) ").run(now, now);
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.multi', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.multi', ?, ?)").run(now, now);
@@ -1792,8 +1904,16 @@ describe("map title rule model – locked invariants", () => {
 
       const result = await services.reviewSubmission({ submissionId: "submission.multi", decision: "approved" } as never, auth, "review.multi");
       expect(result).toMatchObject({ decision: "approved", grants: [{ titleKey: "HERO" }, { titleKey: "SECOND" }] });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi'").get()).toEqual({ count: 2 });
-      expect(sqlite.prepare("SELECT outcome_type, COUNT(*) AS count FROM submission_outcomes WHERE submission_id = 'submission.multi' GROUP BY outcome_type ORDER BY outcome_type").all()).toEqual([{ outcome_type: "challenge", count: 2 }, { outcome_type: "title_grant", count: 2 }]);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi'").get()).toEqual({ count: 3 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_type = 'submission' AND source_id = 'submission.multi' AND status = 'active'").get()).toEqual({ count: 2 });
+      expect(sqlite.prepare("SELECT title_key, source_type FROM challenge_completions JOIN challenges ON challenges.id = challenge_completions.challenge_id WHERE challenge_completions.source_id = 'submission.multi' ORDER BY title_key").all()).toEqual([
+        { title_key: "HERO", source_type: "submission" },
+        { title_key: "LOWER", source_type: "challenge_satisfies" },
+        { title_key: "SECOND", source_type: "submission" },
+      ]);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi' AND completion_id IS NOT NULL").get()).toEqual({ count: 3 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.1' AND title_key = 'RETIRED'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT outcome_type, COUNT(*) AS count FROM submission_outcomes WHERE submission_id = 'submission.multi' GROUP BY outcome_type ORDER BY outcome_type").all()).toEqual([{ outcome_type: "challenge", count: 3 }, { outcome_type: "title_grant", count: 3 }]);
     });
 
     it("writes confirmed OCR field annotations with submission review", async () => {
@@ -2294,6 +2414,8 @@ describe("map title rule model – locked invariants", () => {
       expect(grant?.map_id).toBe("map.paris");
       expect(grant?.gameplay_revision_id).toBe("revision:map.paris:initial");
       expect(grant?.slot).toBe("conqueror");
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_type = 'submission' AND source_id = 'sub.1' AND status = 'active'").get()).toEqual({ count: 1 });
+      expect(sqlite.prepare("SELECT completion_id FROM player_title_grants WHERE source_type = 'submission'").get()).toMatchObject({ completion_id: expect.any(String) });
     });
   });
 });
@@ -2748,7 +2870,7 @@ describe("submission mastery outcomes", () => {
     ]);
   });
 
-  it("keeps a valid no-code legacy title approval separate from mastery and records combined title plus mastery outcomes", async () => {
+  it("keeps title-only administration separate from mastery and blocks acquisition after an admin revoke", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.mastery");
@@ -2781,7 +2903,7 @@ describe("submission mastery outcomes", () => {
     } finally {
       vi.unstubAllGlobals();
     }
-    expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy'").get()).toMatchObject({ status: "approved" });
+    expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy'").get()).toEqual({ status: "resubmission_required", grant_id: null });
     expect(sqlite.prepare("SELECT status, awarded_xp FROM submission_outcomes WHERE submission_id = 'submission.legacy' AND outcome_key = 'verified_run'").get()).toEqual({ status: "ineligible", awarded_xp: 0 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.legacy'").get()).toEqual({ count: 0 });
     expect((await createPlatformServices(database).getSubmission({ submissionId: "submission.legacy" }, {} as never)).verifiedRunOutcome).toEqual({ status: "ineligible", awardedXp: 0 });

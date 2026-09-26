@@ -166,7 +166,10 @@ It may additionally have:
 - a public-condition visibility field.
 
 There is no separate `enabled`, `available`, `obtainable`, `preview`,
-`paused`, or `sunsetting` business state.
+`paused`, `scheduled`, `sunsetting`, or `retired` Challenge lifecycle state.
+Older authoring and response fields may remain during the bounded compatibility
+adapter period; they map into lifecycle and time-window behavior and are not
+canonical Challenge states.
 
 A Challenge is currently completable only when all of the following are true:
 

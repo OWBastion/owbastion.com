@@ -6,7 +6,8 @@ database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants.XXXXXX")"
 empty_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-empty.XXXXXX")"
 repair_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-repair.XXXXXX")"
 equipped_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-grants-equipped.XXXXXX")"
-trap 'rm -f "$database" "$empty_database" "$repair_database" "$equipped_database"' EXIT
+completion_database="$(mktemp "${TMPDIR:-/tmp}/owbastion-title-completions.XXXXXX")"
+trap 'rm -f "$database" "$empty_database" "$repair_database" "$equipped_database" "$completion_database"' EXIT
 
 for migration in "$root_dir"/migrations/*.sql; do
   [[ "$(basename "$migration")" == "0040_generic_title_grants.sql" || "$(basename "$migration")" == "0041_challenge_reward_mapping.sql" ]] && break
@@ -32,6 +33,25 @@ for migration in "$root_dir"/migrations/*.sql; do
   sqlite3 -bail "$empty_database" < "$migration"
 done
 [[ "$(sqlite3 "$empty_database" "SELECT COUNT(*) FROM player_title_grants;")" == "0" ]]
+
+for migration in "$root_dir"/migrations/*.sql; do
+  [[ "$(basename "$migration")" == "0084_challenge_completion_chain.sql" ]] && break
+  sqlite3 -bail "$completion_database" < "$migration"
+done
+
+sqlite3 -bail "$completion_database" <<'SQL'
+INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at)
+VALUES ('completion-migration-player', 'completion-migration', 'Completion Migration', 'completion migration', 0, 'active', 1, 1);
+INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason)
+VALUES
+  ('completion-migration-manual', 'completion-migration-player', 'TEST_LONG', NULL, NULL, 'active', 'manual', 'legacy-manual-source', 'admin', 20, NULL, NULL, NULL),
+  ('completion-migration-historical', 'completion-migration-player', 'IDOL', NULL, NULL, 'revoked', 'historical', 'legacy-historical-source', 'admin', 10, 'admin', 15, 'legacy revoke');
+SQL
+
+sqlite3 -bail "$completion_database" < "$root_dir/migrations/0084_challenge_completion_chain.sql"
+[[ "$(sqlite3 "$completion_database" "SELECT COUNT(*) FROM pragma_table_info('title_catalog') WHERE name = 'availability';")" == "0" ]]
+[[ "$(sqlite3 "$completion_database" "SELECT key || '|' || lifecycle || '|' || public_visibility FROM title_catalog WHERE key IN ('IDOL', 'TEST_LONG') ORDER BY key;")" == $'IDOL|retired|1\nTEST_LONG|active|1' ]]
+[[ "$(sqlite3 "$completion_database" "SELECT g.title_key || '|' || g.status || '|' || COALESCE(g.revocation_type, '') || '|' || g.completion_id || '|' || completion.status || '|' || completion.source_type || '|' || completion.challenge_id FROM player_title_grants g JOIN challenge_completions completion ON completion.id = g.completion_id ORDER BY g.title_key;")" == $'IDOL|revoked|administrator|completion:migration:completion-migration-historical|active|migration|manual:IDOL\nTEST_LONG|active||completion:migration:completion-migration-manual|active|migration|manual:TEST_LONG' ]]
 
 for migration in "$root_dir"/migrations/*.sql; do
   [[ "$(basename "$migration")" == "0075_enforce_dominator_conqueror_inheritance.sql" ]] && break

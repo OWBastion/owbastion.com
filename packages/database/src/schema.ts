@@ -147,7 +147,8 @@ export const titleCatalog = sqliteTable("title_catalog", {
   iconObjectKey: text("icon_object_key"),
   category: text("category").notNull(),
   condition: text("condition").notNull(),
-  availability: text("availability").notNull(),
+  lifecycle: text("lifecycle").notNull().default("active"),
+  publicVisibility: integer("public_visibility").notNull().default(1),
   scope: text("scope").notNull(),
   displayKind: text("display_kind").notNull(),
   colorJson: text("color_json").notNull().default("null"),
@@ -297,6 +298,8 @@ export const playerTitleGrants = sqliteTable("player_title_grants", {
   revokedBy: text("revoked_by"),
   revokedAt: integer("revoked_at"),
   revokeReason: text("revoke_reason"),
+  completionId: text("completion_id"),
+  revocationType: text("revocation_type"),
 }, (table) => ({
   sourceIdx: uniqueIndex("player_title_grants_source_idx").on(table.sourceType, table.sourceId, table.titleKey),
 }));
@@ -325,6 +328,56 @@ export const titleChallenges = sqliteTable("title_challenges", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const challenges = sqliteTable("challenges", {
+  id: text("id").primaryKey(),
+  sourceFamily: text("source_family").notNull(),
+  sourceId: text("source_id").notNull(),
+  titleKey: text("title_key").notNull().references(() => titleCatalog.key),
+  ruleVersion: text("rule_version").notNull().default("legacy"),
+  mapId: text("map_id").references(() => maps.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
+  status: text("status").notNull(),
+  manual: integer("manual").notNull().default(0),
+  publicCondition: integer("public_condition").notNull().default(1),
+  conditionOperator: text("condition_operator").notNull().default("and"),
+  conditionsJson: text("conditions_json").notNull().default("[]"),
+  condition: text("condition").notNull(),
+  startsAt: integer("starts_at"),
+  endsAt: integer("ends_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  sourceScopeIdx: uniqueIndex("challenges_source_scope_idx").on(table.sourceFamily, table.sourceId, table.ruleVersion, sql`COALESCE(${table.mapId}, '')`, sql`COALESCE(${table.gameplayRevisionId}, '')`),
+  titleStatusIdx: index("challenges_title_status_idx").on(table.titleKey, table.status),
+  manualTitleIdx: uniqueIndex("challenges_manual_title_idx").on(table.titleKey).where(sql`${table.manual} = 1 AND ${table.status} = 'active'`),
+}));
+
+export const challengeCompletions = sqliteTable("challenge_completions", {
+  id: text("id").primaryKey(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  challengeId: text("challenge_id").notNull().references(() => challenges.id),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
+  status: text("status").notNull().default("active"),
+  sourceType: text("source_type").notNull(),
+  sourceId: text("source_id").notNull(),
+  completedAt: integer("completed_at").notNull(),
+  invalidatedBy: text("invalidated_by"),
+  invalidatedAt: integer("invalidated_at"),
+  invalidationReason: text("invalidation_reason"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  playerChallengeIdx: uniqueIndex("challenge_completions_player_challenge_idx").on(table.playerAccountId, table.challengeId, sql`COALESCE(${table.gameplayRevisionId}, '')`).where(sql`${table.status} = 'active'`),
+  sourceIdx: uniqueIndex("challenge_completions_source_idx").on(table.sourceType, table.sourceId, table.challengeId),
+}));
+
+export const challengeSatisfies = sqliteTable("challenge_satisfies", {
+  challengeId: text("challenge_id").notNull().references(() => challenges.id),
+  satisfiedChallengeId: text("satisfied_challenge_id").notNull().references(() => challenges.id),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  relationIdx: primaryKey({ columns: [table.challengeId, table.satisfiedChallengeId] }),
+}));
 
 export const achievementChallengeMaps = sqliteTable("achievement_challenge_maps", {
   challengeId: text("challenge_id").notNull().references(() => titleChallenges.id, { onDelete: "cascade" }),

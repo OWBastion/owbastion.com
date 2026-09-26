@@ -23,6 +23,7 @@ import {
   adminTitleGrantRequestSchema,
   adminTitleGrantBulkRequestSchema,
   adminTitleGrantRevokeRequestSchema,
+  adminTitleGrantRestoreRequestSchema,
   adminManualTitleGrantRequestSchema, adminManualTitleGrantBatchRequestSchema,
   adminChallengeUpdateRequestSchema,
   adminAchievementCreateRequestSchema,
@@ -1276,7 +1277,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const status = c.req.query("status");
     const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
     if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
-    if (status && !["scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
+    if (status && !["draft", "scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
     return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!)));
   });
 
@@ -1617,6 +1618,24 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_REVOKE_FAILED"; if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+  });
+
+  app.post("/v1/admin/title-grants/:grantId/restore", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminTitleGrantRestoreRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      await dependencies.services(c.env).restoreAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey);
+      return c.body(null, 204);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "TITLE_GRANT_RESTORE_FAILED";
+      if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist");
+      if (["TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED", "TITLE_ALREADY_OWNED", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be restored in its current state");
+      throw error;
+    }
   });
 
   app.get("/v1/admin/reviews", async (c) => {

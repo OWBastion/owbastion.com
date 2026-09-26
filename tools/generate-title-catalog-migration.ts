@@ -10,7 +10,7 @@ async function main() {
   const sql = (value: string | null) => value == null ? "NULL" : `'${value.replaceAll("'", "''")}'`;
   const id = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 32);
   const lines = renderCatalogSchemaMigration();
-  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, category, condition, availability, scope, display_kind, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(snapshot.gameVersion)});`);
+  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, category, condition, lifecycle, scope, display_kind, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(snapshot.gameVersion)});`);
   for (const map of snapshot.maps) lines.push(`INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (${sql(map.mapId)}, ${sql(map.mapName)}, ${sql(map.gameVersion)}, ${sql(map.status)}, ${sql(snapshot.gameVersion)}, 1752537600000, 1752537600000) ON CONFLICT(id) DO UPDATE SET name = excluded.name, game_version = excluded.game_version, status = excluded.status, updated_at = excluded.updated_at;`);
   for (const map of snapshot.maps) for (const reward of map.rewards) {
     lines.push(`INSERT INTO map_title_rewards (map_id, slot, title_key, pioneer_prefixes_json) VALUES (${sql(map.mapId)}, ${sql(reward.slot)}, ${sql(reward.titleKey)}, ${sql(JSON.stringify(reward.slot === "pioneer" ? map.pioneerPrefixes : []))});`);

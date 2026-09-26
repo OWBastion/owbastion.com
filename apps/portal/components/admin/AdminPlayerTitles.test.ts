@@ -9,6 +9,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", availability: "retired", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
   if (path === "/v1/title-grants/manual/batch" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", batchId: "batch-1", playerCount: 1, targetCount: 2, requestedCount: 2, createdCount: 2, alreadyOwnedCount: 0, items: [] });
   if (path === "/v1/title-grants/grant-1/revoke" && options?.method === "POST") return Promise.resolve();
+  if (path === "/v1/title-grants/grant-revoked/restore" && options?.method === "POST") return Promise.resolve();
   if (path === "/v1/player-accounts/player-1/titles/equipped" && options?.method === "PUT") return Promise.resolve({ contractVersion: "1", grantIds: [] });
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -21,7 +22,7 @@ describe("AdminPlayerTitles", () => {
     const wrapper = await mountSuspended(AdminPlayerTitles, {
       props: {
         playerAccountId: "player-1",
-        titleGrants: [{ grantId: "grant-1", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, sourceType: "manual", grantedBy: "admin" }],
+        titleGrants: [{ grantId: "grant-1", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, status: "active", revocationType: null, sourceType: "manual", grantedBy: "admin" }],
       },
       global: {
         stubs: {
@@ -51,7 +52,7 @@ describe("AdminPlayerTitles", () => {
     const wrapper = await mountSuspended(AdminPlayerTitles, {
       props: {
         playerAccountId: "player-1",
-        titleGrants: [{ grantId: "grant-1", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, sourceType: "manual", grantedBy: "admin" }],
+        titleGrants: [{ grantId: "grant-1", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, status: "active", revocationType: null, sourceType: "manual", grantedBy: "admin" }],
       },
       global: {
         stubs: {
@@ -70,7 +71,7 @@ describe("AdminPlayerTitles", () => {
   });
 
   it("lets maintainers recover an uninitialized ten-title selection", async () => {
-    const titleGrants = Array.from({ length: 11 }, (_, index) => ({ grantId: `00000000-0000-4000-8000-0000000000${String(index + 1).padStart(2, "0")}`, titleKey: `GLOBAL_${index}`, label: `称号 ${index}`, icon: "award", category: "测试", condition: "测试", scope: "global" as const, grantedAt: index, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true }));
+    const titleGrants = Array.from({ length: 11 }, (_, index) => ({ grantId: `00000000-0000-4000-8000-0000000000${String(index + 1).padStart(2, "0")}`, titleKey: `GLOBAL_${index}`, label: `称号 ${index}`, icon: "award", category: "测试", condition: "测试", scope: "global" as const, grantedAt: index, status: "active" as const, revocationType: null, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true }));
     const wrapper = await mountSuspended(AdminPlayerTitles, {
       props: { playerAccountId: "player-1", titleGrants },
       global: { stubs: { AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' } } },
@@ -84,5 +85,25 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/player-accounts/player-1/titles/equipped", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", grantIds: [titleGrants[0].grantId] } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "佩戴称号已修复", color: "success" });
+  });
+
+  it("restores a title revoked by an administrator", async () => {
+    const wrapper = await mountSuspended(AdminPlayerTitles, {
+      props: {
+        playerAccountId: "player-1",
+        titleGrants: [{ grantId: "grant-revoked", titleKey: "GLOBAL", label: "全局称号", icon: "award", category: "测试", condition: "测试", scope: "global", grantedAt: 0, status: "revoked", revocationType: "administrator", sourceType: "manual", grantedBy: "admin" }],
+      },
+      global: {
+        stubs: { AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' }, UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' } },
+      },
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("已回收");
+    await wrapper.findAll("button").find((button) => button.text() === "恢复")!.trigger("click");
+    expect(wrapper.text()).toContain("恢复会重新启用原称号所有权与资格记录");
+    await wrapper.get("form#restore-player-title").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/grant-revoked/restore", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
+    expect(toastAdd).toHaveBeenCalledWith({ title: "已恢复全局称号", color: "success" });
   });
 });
