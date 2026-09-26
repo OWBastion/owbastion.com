@@ -163,7 +163,7 @@ async function recover() {
   recovering.value = true;
   recoveryError.value = "";
   try {
-    await api(`/v1/admin/player-accounts/${encodeURIComponent(props.playerAccountId)}/titles/equipped`, {
+    await api(`/v1/player-accounts/${encodeURIComponent(props.playerAccountId)}/titles/equipped`, {
       method: "PUT",
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", grantIds: recoveryGrantIds.value },
