@@ -144,8 +144,8 @@ Portal 各页面、状态徽章和管理后台统一使用以下文案。接口�
 | BattleTag / 战网 ID | 玩家身份，格式为“玩家名称#数字 ID”，例如 `玩家名称#1234`。 |
 | 邀请码 | 管理员为指定 BattleTag 生成的单次注册凭据；玩家用它建立 Player Account 并注册 Passkey。 |
 | Passkey | Portal 登录凭据；一个 Player Account 可以注册多个 Passkey。 |
-| QQ 渠道绑定 | 将现有 Player Account 关联到 QQBot 身份，用于 QQBot 功能；不用于 Portal 登录。 |
-| 验证 | 玩家在 QQ 群内手动输入 `@` 并从列表选择机器人后发送 `/验证 <code>`，用于绑定 QQ 渠道。 |
+| QQ 渠道绑定 | 将现有 Player Account 关联到 QQBot 身份，用于 QQBot 功能；已绑定的帐号也可以用 QQ 群验证登录 Portal。 |
+| 验证 | 玩家在 QQ 群内手动输入 `@` 并从列表选择机器人后发送 `/验证 <code>`，用于登录已绑定的帐号或绑定 QQ 渠道。 |
 | 绑定申请 | 玩家发起绑定后等待处理的记录。 |
 | 历史称号迁移 | 将历史持有者记录关联到当前平台玩家账号的过程。 |
 

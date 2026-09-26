@@ -6,6 +6,10 @@ import type {
   SubmissionResponse,
   SubmissionStatusResponse,
   PlayerSubmissionDetail,
+  QqLoginAttemptRequest,
+  QqLoginAttemptResponse,
+  QqLoginStatusResponse,
+  QqLoginVerifyRequest,
   PasskeyLoginOptionsResponse,
   PasskeyLoginVerifyRequest,
   PasskeyRegistrationOptionsRequest,
@@ -292,6 +296,9 @@ export type PlatformServices = {
   restoreReview(input: { reviewId: string; reason?: string }, auth: AuthContext, idempotencyKey: string): Promise<ReviewRecord>;
   getCurrentPlayerMastery(input: { sessionToken: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }): Promise<CurrentPlayerMasteryResponse | null>;
   getCurrentPlayer(input: { sessionToken: string }): Promise<CurrentPlayerResponse | null>;
+  createQqLoginAttempt(input: QqLoginAttemptRequest): Promise<QqLoginAttemptResponse>;
+  getQqLoginStatus(input: { attemptId: string; attemptToken: string }): Promise<QqLoginStatusResponse>;
+  verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
   createPasskeyLoginOptions(input: { rpId: string }): Promise<PasskeyLoginOptionsResponse>;
   completePasskeyLogin(input: PasskeyLoginVerifyRequest & { origin: string; rpId: string }): Promise<{ sessionToken: string }>;
   createPasskeyInvitationOptions(input: PasskeyRegistrationOptionsRequest & { rpId: string }): Promise<{ contractVersion: "1"; challengeId: string; options: Record<string, unknown>; playerName: string; playerId: string }>;

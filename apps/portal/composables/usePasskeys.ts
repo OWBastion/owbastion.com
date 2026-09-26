@@ -23,6 +23,7 @@ export function usePasskeys() {
       const options = await api<OptionsResponse>("/v1/auth/passkeys/login/options", { method: "POST", body: { contractVersion: "1" } });
       const credential = await startAuthentication({ optionsJSON: options.options as unknown as Parameters<typeof startAuthentication>[0]["optionsJSON"] });
       await api("/v1/auth/passkeys/login/verify", { method: "POST", body: { contractVersion: "1", challengeId: options.challengeId, credential } });
+      rememberLoginMethod("passkey");
       await navigateTo({ path: "/login/complete", query: { returnTo } });
     } catch (error) {
       errorMessage.value = registrationError(error);

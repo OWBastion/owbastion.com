@@ -3,6 +3,8 @@ import {
   qqBindingRequestSchema,
   submissionRequestSchema,
   qqBindingClaimVerifyRequestSchema,
+  qqLoginAttemptRequestSchema,
+  qqLoginVerifyRequestSchema,
   passkeyLoginOptionsRequestSchema,
   passkeyLoginVerifyRequestSchema,
   passkeyRegistrationOptionsRequestSchema,
@@ -274,7 +276,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return {
       "Access-Control-Allow-Origin": localOrigin ?? c.env.PORTAL_ORIGIN ?? "https://owbastion.com",
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Headers": "content-type, x-claim-token, idempotency-key",
+      "Access-Control-Allow-Headers": "content-type, x-login-attempt-token, x-claim-token, idempotency-key",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     };
   };
@@ -365,6 +367,8 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
+  app.options("/v1/auth/qq/login-attempt", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/passkeys/login/options", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/passkeys/login/verify", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/passkeys/invitations/options", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -562,6 +566,30 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  app.post("/v1/auth/qq/login-attempt", async (c) => {
+    allowPortal(c);
+    const parsed = qqLoginAttemptRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    return c.json(await dependencies.services(c.env).createQqLoginAttempt(parsed.data), 201);
+  });
+
+  app.get("/v1/auth/qq/login-attempt/:attemptId", async (c) => {
+    allowPortal(c);
+    const attemptId = c.req.param("attemptId");
+    const attemptToken = c.req.header("x-login-attempt-token");
+    if (!/^[0-9a-f-]{36}$/.test(attemptId) || !attemptToken) return errorResponse(c, 422, "INVALID_LOGIN_ATTEMPT", "The login attempt is invalid");
+    try {
+      const result = await dependencies.services(c.env).getQqLoginStatus({ attemptId, attemptToken });
+      if (result.sessionToken) c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json(result);
+    } catch (error) {
+      if (error instanceof Error && error.message === "LOGIN_ATTEMPT_NOT_FOUND") return errorResponse(c, 404, "LOGIN_ATTEMPT_NOT_FOUND", "The login attempt does not exist");
+      if (error instanceof Error && error.message === "LOGIN_ATTEMPT_FORBIDDEN") return errorResponse(c, 403, "LOGIN_ATTEMPT_FORBIDDEN", "The login attempt token is invalid");
+      throw error;
+    }
+  });
+
+
   app.post("/v1/auth/passkeys/login/options", async (c) => {
     allowPortal(c);
     const origin = passkeyOrigin(c);
@@ -697,15 +725,22 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = qqBindingClaimVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
+    const parsed = qqLoginVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey));
+      return c.json(await dependencies.services(c.env).verifyQqLogin(parsed.data, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "LOGIN_FAILED";
-      if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(code)) return errorResponse(c, 422, code, "The verification code cannot be used");
-      if (code === "PASSKEY_REGISTRATION_REQUIRED") return errorResponse(c, 409, code, "Register a passkey before binding a channel identity");
-      if (code === "PLAYER_BANNED") return errorResponse(c, 422, code, "The player account is unavailable");
+      if (code === "LOGIN_CODE_INVALID") {
+        try { return c.json(await dependencies.services(c.env).verifyBindingClaim(parsed.data, auth, idempotencyKey)); }
+        catch (claimError) {
+          const claimCode = claimError instanceof Error ? claimError.message : "LOGIN_FAILED";
+          if (["BINDING_CLAIM_CODE_INVALID", "LOGIN_GROUP_NOT_ALLOWED", "INVITE_INVALID"].includes(claimCode)) return errorResponse(c, 422, claimCode, "The verification code cannot be used");
+          if (claimCode === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, claimCode, "The idempotency key was used with a different request");
+          throw claimError;
+        }
+      }
+      if (["LOGIN_CODE_INVALID", "LOGIN_CODE_EXPIRED", "LOGIN_GROUP_NOT_ALLOWED", "LOGIN_BINDING_REQUIRED", "BINDING_CONFLICT", "PLAYER_BANNED"].includes(code)) return errorResponse(c, 422, code, "The login code cannot be used");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

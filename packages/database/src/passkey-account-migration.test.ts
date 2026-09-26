@@ -82,7 +82,7 @@ describe("0082 Player Account and Passkey migration", () => {
     `).run();
     expect(sqlite.prepare("SELECT player_account_id, binding_id FROM submissions WHERE id = 'submission.no-qq'").get()).toEqual({ player_account_id: "player.no-qq", binding_id: null });
     expect(sqlite.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
-    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('qq_sessions', 'qq_login_attempts')").all()).toEqual([]);
+    expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('qq_sessions', 'qq_login_attempts')").all()).toEqual([{ name: "qq_login_attempts" }]);
   });
 
   it("fails before replacing submissions when a submission has no Player Account mapping", () => {

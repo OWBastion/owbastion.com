@@ -2,7 +2,7 @@ import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { ref } from "vue";
 import { describe, expect, it, vi } from "vitest";
-import MePage from "./me.vue";
+import MePage from "./index.vue";
 
 type Player = { player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] };
 type Title = { grantId: string; titleKey: string; label: string; category: string; condition: string; scope: "global"; grantedAt: number };
@@ -27,7 +27,12 @@ const masteryProfiles = ref([]);
 const masteryLoading = ref(false);
 const masteryError = ref("");
 const refreshMastery = vi.fn(async () => ({ contractVersion: "1" as const, profiles: masteryProfiles.value, runs: [], page: 1, pageSize: 1, total: 0, hasMore: false }));
-const portalApi = vi.fn(async (path: string) => path === "/v1/maps" || path === "/v1/challenges?family=map" ? { items: [] } : Promise.reject(new Error(`Unexpected request: ${path}`)));
+const passkeys = ref<unknown[]>([{ passkeyId: "passkey-1" }]);
+const portalApi = vi.fn(async (path: string) => {
+  if (path === "/v1/maps" || path === "/v1/challenges?family=map") return { items: [] };
+  if (path === "/v1/me/passkeys") return { contractVersion: "1", items: passkeys.value, qqBound: true };
+  throw new Error(`Unexpected request: ${path}`);
+});
 
 mockNuxtImport("useCurrentPlayer", () => () => ({ player, status, refresh: refreshPlayer }));
 mockNuxtImport("usePlayerTitles", () => () => ({ items: titles, refresh: refreshTitles }));
@@ -45,8 +50,6 @@ async function mountPage(options?: { attachTo?: HTMLElement }): Promise<VueWrapp
     attachTo: options?.attachTo,
     global: {
       stubs: {
-        PlayerPasskeyManager: true,
-        PlayerIdentityCard: { template: "<div>玩家身份卡</div>" },
         StatusBadge: true,
         PlayerRecentSubmissions: { template: "<div>近期提交内容</div>" },
         MapProgressOverview: { template: "<div>地图进度内容</div>" },
@@ -99,7 +102,7 @@ describe("me page", () => {
     const wrapper = await mountPage();
     expect(wrapper.text()).toContain("暂无称号");
     expect(wrapper.find("[role=alert]").exists()).toBe(false);
-    expect(wrapper.text()).toContain("玩家身份卡");
+    expect(wrapper.text()).toContain("你好，Player");
   });
 
   it("keeps player content visible when title loading fails and supports retry", async () => {
@@ -110,7 +113,7 @@ describe("me page", () => {
     refreshTitles.mockRejectedValueOnce(new Error("titles unavailable"));
 
     const wrapper = await mountPage();
-    expect(wrapper.text()).toContain("玩家身份卡");
+    expect(wrapper.text()).toContain("你好，Player");
     expect(wrapper.text()).toContain("近期提交内容");
     expect(wrapper.text()).toContain("无法读取称号");
     expect(wrapper.text()).not.toContain("暂无称号");
@@ -144,8 +147,33 @@ describe("me page", () => {
     refreshTitles.mockResolvedValueOnce([]);
     await wrapper.get("button").trigger("click");
     await flushPromises();
-    expect(wrapper.text()).toContain("玩家身份卡");
+    expect(wrapper.text()).toContain("你好，Player");
     expect(wrapper.text()).toContain("暂无称号");
+  });
+
+  it("links to personal settings and offers a dismissible Passkey reminder only when none is registered", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => { stored.set(key, value); }, removeItem: (key: string) => { stored.delete(key); } });
+    player.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
+    status.value = "authenticated";
+    refreshPlayer.mockResolvedValue(player.value);
+    refreshTitles.mockResolvedValue(titles.value);
+
+    passkeys.value = [{ passkeyId: "passkey-1" }];
+    let wrapper = await mountPage();
+    expect(wrapper.get('a[href="/me/settings"]').text()).toContain("个人设置");
+    expect(wrapper.text()).not.toContain("添加 Passkey，下次一键登录");
+
+    passkeys.value = [];
+    wrapper = await mountPage();
+    expect(wrapper.text()).toContain("添加 Passkey，下次一键登录");
+    await wrapper.findAll("button").find((button) => button.text() === "不再提醒")!.trigger("click");
+    expect(wrapper.text()).not.toContain("添加 Passkey，下次一键登录");
+    expect(stored.get("owbastion-passkey-nudge-dismissed")).toBe("1");
+
+    wrapper = await mountPage();
+    expect(wrapper.text()).not.toContain("添加 Passkey，下次一键登录");
+    vi.unstubAllGlobals();
   });
 
   it("distinguishes a missing session from loading and read failure", async () => {

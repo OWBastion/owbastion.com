@@ -24,8 +24,9 @@ No private screenshot is committed to the repository.
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
 channel:write plus channel:read. Binding and submission writes require an
 idempotency key and record an audit event. QQ verification may attach a channel
-binding only to an existing active Player Account; it cannot create an account
-or authenticate the Portal. Administrative
+binding only to an existing active Player Account and cannot create an account.
+A verified QQ login attempt authenticates only the Player Account of the active
+binding for that QQ member. Administrative
 requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
@@ -88,9 +89,11 @@ not shared through public HTTP cache boundaries.
 
 ## Private login and player data
 
-Passkey challenges, session tokens, recovery tokens, QQ group OpenIDs, and
+Passkey challenges, session tokens, recovery tokens, QQ login codes, QQ login attempt tokens, QQ group OpenIDs, and
 member OpenIDs are private. The database stores hashes of session and recovery
-tokens. Passkey challenges expire after five minutes and can be consumed only
+tokens and of the short-lived QQ attempt token and code. QQ login attempts expire
+after two minutes and a verified attempt issues the same direct Player Account
+session as Passkey login. Passkey challenges expire after five minutes and can be consumed only
 once. Authentication and registration require user verification; registration
 requires a discoverable credential. The Worker checks the exact Portal Origin
 and derives the WebAuthn RP ID from its hostname before it asks the auth package

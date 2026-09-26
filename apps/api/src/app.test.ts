@@ -105,6 +105,9 @@ const services: PlatformServices = {
   retryHistoricalTitleMigration: async () => {},
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
+  createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
+  getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
+  verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
   upsertQqGroupAccess: async () => {},
   registerQqGroup: async () => {},
   listQqGroupAccess: async () => [],
@@ -138,7 +141,7 @@ const services: PlatformServices = {
   completePasskeyInvitationRegistration: async () => ({ sessionToken: "invitation-session-token" }),
   createCurrentPlayerPasskeyRegistrationOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000013", options: { challenge: "challenge" } }),
   completeCurrentPlayerPasskeyRegistration: async () => {},
-  listCurrentPlayerPasskeys: async () => ({ contractVersion: "1", items: [] }),
+  listCurrentPlayerPasskeys: async () => ({ contractVersion: "1", items: [], qqBound: false }),
   removeCurrentPlayerPasskey: async () => {},
   createAdminPasskeyRecovery: async () => ({ token: "r".repeat(64), expiresAt: 1_800_000_000_000 }),
   createPasskeyRecoveryOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000014", options: { challenge: "challenge" } }),
@@ -749,10 +752,11 @@ describe("API", () => {
     expect((await adminApp.request("http://localhost/v1/admin/binding-invites/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-invite-duplicate" }, body: duplicate }, env)).status).toBe(422);
   });
 
-  it("uses QQ verification only for binding requests, not Portal sessions", async () => {
+  it("reuses the existing QQ verification endpoint for invitation confirmation", async () => {
     const body = JSON.stringify({ contractVersion: "1", provider: "qq", code: "ABC234", groupOpenId: "group-1", memberOpenId: "member-1", messageId: "message-1" });
-    expect((await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
-    const response = await app.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
+    const claimApp = createApp({ authenticate: auth, services: () => ({ ...services, verifyQqLogin: async () => { throw new Error("LOGIN_CODE_INVALID"); } }) });
+    expect((await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
+    const response = await claimApp.request("http://localhost/v1/qq/auth/verify", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-verify-1" }, body }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ status: "verified", environment: "test" });
   });
@@ -803,9 +807,13 @@ describe("API", () => {
     expect(await response.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 });
   });
 
-  it("retires the QQ login-attempt endpoints", async () => {
+  it("creates and polls a browser login attempt", async () => {
     const create = await app.request("http://localhost/v1/auth/qq/login-attempt", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", provider: "qq" }) }, env);
-    expect(create.status).toBe(404);
+    expect(create.status).toBe(201);
+    const payload = await create.json() as { attemptId: string; attemptToken: string };
+    const status = await app.request(`http://localhost/v1/auth/qq/login-attempt/${payload.attemptId}`, { headers: { "x-login-attempt-token": payload.attemptToken } }, env);
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({ contractVersion: "1", status: "pending" });
   });
 
   it("creates a Passkey challenge only for the configured Portal origin", async () => {
@@ -815,6 +823,16 @@ describe("API", () => {
     const response = await app.request("https://api.owbastion.com/v1/auth/passkeys/login/options", { method: "POST", headers: { origin: "https://owbastion.com", "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, originEnv);
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } });
+  });
+
+  it("sets a secure cookie only over HTTPS", async () => {
+    const verifiedApp = createApp({
+      authenticate: auth,
+      services: () => ({ ...services, getQqLoginStatus: async () => ({ contractVersion: "1", status: "verified", environment: "production", sessionToken: "a".repeat(64) }) }),
+    });
+    const response = await verifiedApp.request("https://api.owbastion.com/v1/auth/qq/login-attempt/00000000-0000-0000-0000-000000000005", { headers: { "x-login-attempt-token": "a".repeat(64) } }, env);
+    expect(response.headers.get("set-cookie")).toContain("Secure");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.com");
   });
 
   it("sets a secure Portal session only after Passkey verification from the Portal origin", async () => {

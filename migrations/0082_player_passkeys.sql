@@ -112,6 +112,5 @@ JOIN bindings AS b ON b.provider = 'qq' AND b.member_open_id = s.member_open_id 
 JOIN player_accounts AS p ON p.id = b.player_account_id AND p.status = 'active';
 
 DROP TABLE qq_sessions;
-DROP TABLE qq_login_attempts;
 
 PRAGMA defer_foreign_keys = OFF;

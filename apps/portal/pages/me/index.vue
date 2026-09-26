@@ -12,6 +12,8 @@ const api = usePortalApi();
 const { profiles: masteryProfiles, overviewLoading: masteryLoading, overviewError: masteryError, refreshOverview: refreshMastery } = usePlayerMastery();
 
 const loading = shallowRef(true);
+const passkeyNudgeKey = "owbastion-passkey-nudge-dismissed";
+const showPasskeyNudge = shallowRef(false);
 const playerError = shallowRef("");
 const titlesError = shallowRef("");
 const titlesReady = shallowRef(false);
@@ -104,8 +106,24 @@ async function retryMastery() {
   }
 }
 
+async function checkPasskeyNudge() {
+  try {
+    if (localStorage.getItem(passkeyNudgeKey)) return;
+    const response = await api<{ items: unknown[] }>("/v1/me/passkeys");
+    showPasskeyNudge.value = response.items.length === 0;
+  } catch {
+    showPasskeyNudge.value = false;
+  }
+}
+
+function dismissPasskeyNudge() {
+  showPasskeyNudge.value = false;
+  try { localStorage.setItem(passkeyNudgeKey, "1"); } catch { /* the reminder may reappear; nothing depends on it */ }
+}
+
 onMounted(() => {
   void load();
+  void checkPasskeyNudge();
 });
 </script>
 
@@ -117,9 +135,22 @@ onMounted(() => {
           <h1 id="dashboard-title" class="page-title">你好，{{ player.player.playerName }}</h1>
         </div>
         <div class="intro-actions">
+          <UButton to="/me/settings" icon="i-lucide-sliders-horizontal" label="个人设置" color="neutral" variant="outline" size="lg" class="intro-action" />
           <UButton to="/submissions/new" icon="i-lucide-upload" label="提交截图" color="primary" size="lg" class="intro-action" />
         </div>
       </section>
+
+      <div v-if="showPasskeyNudge" class="passkey-nudge surface-card" role="region" aria-label="添加 Passkey">
+        <UIcon name="i-lucide-fingerprint" class="passkey-nudge-icon" aria-hidden="true" />
+        <div class="passkey-nudge-copy">
+          <strong>添加 Passkey，下次一键登录</strong>
+          <span>用设备的指纹、面容或屏幕锁登录，无需在 QQ 群里验证。</span>
+        </div>
+        <div class="passkey-nudge-actions">
+          <UButton to="/me/settings" label="去添加" color="primary" size="sm" />
+          <UButton label="不再提醒" color="neutral" variant="ghost" size="sm" @click="dismissPasskeyNudge" />
+        </div>
+      </div>
 
       <UAlert
         v-if="playerError"
@@ -134,11 +165,7 @@ onMounted(() => {
         </template>
       </UAlert>
 
-      <PlayerIdentityCard :player-name="player.player.playerName" :player-id="player.player.playerId" />
-
-      <section class="section-block" aria-label="登录凭据"><PlayerPasskeyManager /></section>
-
-      <section class="section-block" aria-labelledby="submissions-title">
+      <section class="section-block section-block--first" aria-labelledby="submissions-title">
         <PageSectionHeader title="最近提交" heading-id="submissions-title" />
         <PlayerRecentSubmissions :submissions="player.recentSubmissions" />
       </section>
@@ -198,14 +225,6 @@ onMounted(() => {
         </div>
         <USkeleton class="me-skeleton-intro-action" />
       </section>
-
-      <div class="me-skeleton-identity surface-card" aria-hidden="true">
-        <USkeleton class="me-skeleton-avatar" />
-        <div class="me-skeleton-identity-copy">
-          <USkeleton class="me-skeleton-identity-label" />
-          <USkeleton class="me-skeleton-identity-name" />
-        </div>
-      </div>
 
       <section class="me-skeleton-section" aria-hidden="true">
         <div class="me-skeleton-section-heading me-skeleton-section-heading-plain">
@@ -269,7 +288,13 @@ onMounted(() => {
 .intro-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-3); }
 .intro-action { flex: 0 0 auto; }
 .me-alert { margin-bottom: var(--space-5); }
+.passkey-nudge { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); padding: var(--space-4) var(--space-5); }
+.passkey-nudge-icon { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--accent); }
+.passkey-nudge-copy { display: grid; flex: 1; gap: var(--space-1); min-width: 0; }
+.passkey-nudge-copy span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
+.passkey-nudge-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
+.section-block--first { margin-top: 0; }
 .titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .recent-titles { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-title { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
@@ -286,11 +311,7 @@ onMounted(() => {
 .me-skeleton-intro-copy { display: grid; gap: var(--space-3); min-width: 0; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: var(--radius-pill); }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
-.me-skeleton-identity { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-5); }
 .me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }
-.me-skeleton-identity-copy { display: grid; flex: 1; gap: var(--space-2); min-width: 0; }
-.me-skeleton-identity-label { width: 54px; height: 12px; }
-.me-skeleton-identity-name { width: min(44%, 220px); height: 25px; }
 .me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
@@ -332,11 +353,12 @@ onMounted(() => {
   .intro { align-items: stretch; flex-direction: column; gap: var(--space-5); }
   .intro-actions { width: 100%; flex-direction: column; align-items: stretch; }
   .intro-action { width: 100%; justify-content: center; }
+  .passkey-nudge { align-items: stretch; flex-direction: column; }
+  .passkey-nudge-actions { justify-content: flex-end; }
   .me-skeleton-intro { align-items: stretch; flex-direction: column; gap: var(--space-5); margin-bottom: var(--space-5); }
   .me-skeleton-intro-action { width: 100%; }
   .me-skeleton-heading { width: 76%; height: 38px; }
-  .me-skeleton-identity { padding: var(--space-4); }
-  .me-skeleton-section-heading { align-items: flex-start; }
+    .me-skeleton-section-heading { align-items: flex-start; }
   .me-skeleton-section-title { width: 128px; }
   .me-skeleton-action { width: 102px; height: 38px; }
   .me-skeleton-submission-row { align-items: flex-start; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }

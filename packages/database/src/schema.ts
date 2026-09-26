@@ -700,6 +700,25 @@ export const passkeyChallenges = sqliteTable("passkey_challenges", {
   expiry: index("passkey_challenges_expiry_idx").on(table.expiresAt, table.usedAt),
 }));
 
+export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  codeHash: text("code_hash").notNull(),
+  status: text("status").notNull(),
+  purpose: text("purpose").notNull().default("login"),
+  playerAccountId: text("player_account_id"),
+  targetGroupOpenId: text("target_group_open_id"),
+  groupOpenId: text("group_open_id"),
+  memberOpenId: text("member_open_id"),
+  environment: text("environment"),
+  messageId: text("message_id"),
+  sessionTokenHash: text("session_token_hash"),
+  sessionIssuedAt: integer("session_issued_at"),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+  verifiedAt: integer("verified_at"),
+});
+
 export const portalSessions = sqliteTable("portal_sessions", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),

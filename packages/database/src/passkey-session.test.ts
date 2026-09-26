@@ -83,6 +83,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE UNIQUE INDEX player_accounts_battletag_idx ON player_accounts(normalized_player_name, player_id);
+  CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT, member_open_id TEXT, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
   CREATE TABLE binding_invites (
     id TEXT PRIMARY KEY NOT NULL, code_hash TEXT NOT NULL, code_ciphertext TEXT, player_name TEXT NOT NULL,
     normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL,
@@ -336,6 +337,52 @@ describe("Passkey session and ownership boundaries", () => {
     })).rejects.toThrow("PASSKEY_REGISTRATION_INVALID");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_accounts WHERE player_id = '2002'").get()).toEqual({ count: 0 });
     expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.two'").get()).toEqual({ redeemed_at: null });
+  });
+
+  it("issues a direct Player Account session for a verified QQ login attempt and only once", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      CREATE TABLE qq_login_attempts (
+        id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL, status TEXT NOT NULL, purpose TEXT NOT NULL DEFAULT 'login',
+        player_account_id TEXT, target_group_open_id TEXT, group_open_id TEXT, member_open_id TEXT, environment TEXT, message_id TEXT,
+        session_token_hash TEXT, session_issued_at INTEGER, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, verified_at INTEGER
+      );
+    `);
+    addAccount(sqlite, "account.one", "1001");
+    sqlite.prepare("INSERT INTO bindings (id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.one', 'account.one', 'qq', 'group-1', 'member-1', 'active', 1)").run();
+    const services = createPlatformServices(database);
+    const attempt = await services.createQqLoginAttempt({ contractVersion: "1", provider: "qq" });
+    expect(await services.getQqLoginStatus({ attemptId: attempt.attemptId, attemptToken: attempt.attemptToken })).toEqual({ contractVersion: "1", status: "pending" });
+    sqlite.prepare("UPDATE qq_login_attempts SET status = 'verified', group_open_id = 'group-1', member_open_id = 'member-1', environment = 'production' WHERE id = ?").run(attempt.attemptId);
+
+    const first = await services.getQqLoginStatus({ attemptId: attempt.attemptId, attemptToken: attempt.attemptToken });
+    expect(first.sessionToken).toBeDefined();
+    expect((await resolvePortalSession(database, first.sessionToken!))?.player.id).toBe("account.one");
+    const second = await services.getQqLoginStatus({ attemptId: attempt.attemptId, attemptToken: attempt.attemptToken });
+    expect(second.sessionToken).toBeUndefined();
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 1 });
+  });
+
+  it("lets a player remove the last Passkey only while an active QQ binding remains as a login fallback", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    for (const [id, playerId] of [["account.one", "1001"], ["account.two", "1002"]]) {
+      addAccount(sqlite, id, playerId);
+      sqlite.prepare("INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at) VALUES (?, ?, ?, 'cHVi', 0, '[]', 'device', 1)").run(`credential.${id}`, id, `credential-id.${id}`);
+      await addSession(sqlite, `session.${id}`, id, `token.${id}`);
+    }
+    sqlite.prepare("INSERT INTO bindings (id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.one', 'account.one', 'qq', 'group-1', 'member-1', 'active', 1)").run();
+    const services = createPlatformServices(database);
+
+    expect((await services.listCurrentPlayerPasskeys({ sessionToken: "token.account.one" }))?.qqBound).toBe(true);
+    expect((await services.listCurrentPlayerPasskeys({ sessionToken: "token.account.two" }))?.qqBound).toBe(false);
+    await expect(services.removeCurrentPlayerPasskey({ sessionToken: "token.account.two", passkeyId: "credential.account.two" })).rejects.toThrow("PASSKEY_LAST_CREDENTIAL");
+    await services.removeCurrentPlayerPasskey({ sessionToken: "token.account.one", passkeyId: "credential.account.one" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.one'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.two'").get()).toEqual({ count: 1 });
   });
 
   it("prunes expired challenges and sessions while retaining challenges referenced by live sessions", async () => {

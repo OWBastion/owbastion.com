@@ -36,8 +36,8 @@ The platform contract covers Player Account authentication and optional QQ
 channel flows:
 
 - an administrator invitation admits one BattleTag when the player registers
-  a discoverable Passkey; QQ identity is optional and never authenticates the
-  Portal;
+  a discoverable Passkey; QQ identity is optional, and Passkey is the primary Portal
+  login;
 - authenticated QQBot confirms invitation-bound channel claims from a stable
   QQ member OpenID; it never creates or merges Player Accounts directly;
 - authenticated QQBot binding and verification calls use stable QQ group/member
@@ -59,7 +59,12 @@ channel flows:
   conflict or risk signals;
 - the Portal authenticates a discoverable Passkey with user verification, then
   displays the same Player Account's profile and up to five recent submissions;
-  players can add and remove credentials while retaining at least one key;
+  players can add and remove credentials in personal settings, and may
+  remove their last Passkey only while an active QQ binding remains as a login
+  fallback;
+- a bound player can alternatively log in by sending a one-time verification
+  code in an enabled QQ group; the platform issues the same direct Player
+  Account session;
 - maintainers can issue a short-lived, single-use recovery link after identity
   verification. Recovery replaces Passkeys and revokes sessions while keeping
   the existing Player Account and its business records;
