@@ -17,7 +17,7 @@
     "@nuxtjs/mdc": "^0.23.1",
     "@owbastion/contracts": "workspace:*",
     "@simplewebauthn/browser": "14.0.0",
-    "@tanstack/vue-table": "^8.21.3",
+    "@tanstack/vue-table": "^9.2.4",
     "@vueuse/core": "^14.4.0",
     "katex": "^0.16.47",
     "nuxt": "^4.4.8",
