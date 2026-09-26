@@ -5,6 +5,7 @@ import { flushPromises } from "@vue/test-utils";
 import BindPage from "./bind.vue";
 
 const submit = vi.fn();
+const passkeyErrorCode = ref("PLAYER_ACCOUNT_EXISTS");
 const bindingState = {
   state: ref("expired"),
   invite: ref(null),
@@ -16,6 +17,7 @@ const bindingState = {
 };
 
 mockNuxtImport("useBindingInvite", () => () => bindingState);
+mockNuxtImport("usePasskeys", () => () => ({ busy: ref(false), errorMessage: ref(""), errorCode: passkeyErrorCode, registerInvitation: vi.fn() }));
 mockNuxtImport("useRoute", () => () => ({ query: { code: "ABCDEFGHIJKL" } }));
 
 describe("bind page", () => {
@@ -30,7 +32,9 @@ describe("bind page", () => {
       },
     });
 
-    await wrapper.get("button").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("绑定 QQ 渠道"))!.trigger("click");
+    await flushPromises();
+    await wrapper.findAll("button").find((button) => button.text().includes("重新生成确认码"))!.trigger("click");
 
     expect(submit).toHaveBeenCalledWith("ABCDEFGHIJKL");
   });
@@ -51,7 +55,9 @@ describe("bind page", () => {
       },
     });
 
-    await wrapper.get("button").trigger("click");
+    await wrapper.findAll("button").find((button) => button.text().includes("绑定 QQ 渠道"))!.trigger("click");
+    await flushPromises();
+    await wrapper.findAll("button").find((button) => button.text().includes("复制指令"))!.trigger("click");
     await flushPromises();
 
     expect(writeText).toHaveBeenCalledWith("/验证 ABC234");

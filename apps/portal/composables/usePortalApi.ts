@@ -55,7 +55,7 @@ export type CurrentPlayerMasteryResponse = {
 
 export type CurrentPlayer = {
   contractVersion: "1";
-  player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean };
+  player: { playerId: string; playerName: string; isAdmin: boolean };
   recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; mapName: string; challengeId?: string; difficulty?: string; reason?: string; masteryOutcome?: MasterySubmissionOutcome; createdAt: number; updatedAt: number }>;
 };
 

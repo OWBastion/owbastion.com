@@ -322,7 +322,6 @@ onMounted(load);
               </dd>
             </div>
             <div class="detail-grid__row"><dt>将解除的绑定</dt><dd>{{ detailTarget.revokingBindingCount ?? 0 }} 个</dd></div>
-            <div class="detail-grid__row"><dt>将退出的登录</dt><dd>{{ detailTarget.invalidatingSessionCount ?? 0 }} 个</dd></div>
             <div class="detail-grid__row"><dt>申请状态</dt><dd><StatusBadge :label="statusLabel(detailTarget.status)" :tone="detailTarget.status === 'pending_review' ? 'warning' : detailTarget.status === 'approved' ? 'success' : 'default'" /></dd></div>
           </dl>
         </div>
@@ -353,7 +352,6 @@ onMounted(load);
               </dd>
             </div>
             <div class="detail-grid__row"><dt>将解除的绑定</dt><dd>{{ conflictTarget.revokingBindingCount ?? 0 }} 个</dd></div>
-            <div class="detail-grid__row"><dt>将退出的登录</dt><dd>{{ conflictTarget.invalidatingSessionCount ?? 0 }} 个</dd></div>
           </dl>
         </div>
       </template>

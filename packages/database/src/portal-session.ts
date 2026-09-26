@@ -1,6 +1,6 @@
 import { and, eq, gt, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { bindings, playerAccounts, qqSessions } from "./schema";
+import { playerAccounts, portalSessions } from "./schema";
 
 const now = () => Date.now();
 
@@ -17,30 +17,18 @@ export const resolvePortalSession = async (
   const db = "prepare" in databaseOrDb ? drizzle(databaseOrDb) : databaseOrDb;
   const row = await db
     .select({
-      binding: bindings,
       player: playerAccounts,
     })
-    .from(qqSessions)
-    .innerJoin(
-      bindings,
-      and(
-        eq(bindings.provider, "qq"),
-        eq(bindings.memberOpenId, qqSessions.memberOpenId),
-        eq(bindings.status, "active"),
-      ),
-    )
-    .innerJoin(
-      playerAccounts,
-      eq(playerAccounts.id, bindings.playerAccountId),
-    )
+    .from(portalSessions)
+    .innerJoin(playerAccounts, eq(playerAccounts.id, portalSessions.playerAccountId))
     .where(
       and(
-        eq(qqSessions.tokenHash, await hashRequest(sessionToken)),
-        gt(qqSessions.expiresAt, now()),
+        eq(portalSessions.tokenHash, await hashRequest(sessionToken)),
+        gt(portalSessions.expiresAt, now()),
         ne(playerAccounts.status, "banned"),
       ),
     )
     .get();
   if (!row) return null;
-  return { binding: row.binding, player: row.player };
+  return { player: row.player };
 };

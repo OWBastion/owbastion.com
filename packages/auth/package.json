@@ -2,12 +2,18 @@
   "name": "@owbastion/auth",
   "private": true,
   "type": "module",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@owbastion/domain": "workspace:*"
+    "@owbastion/domain": "workspace:*",
+    "@simplewebauthn/server": "14.0.3"
   }
 }

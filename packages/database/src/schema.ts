@@ -336,7 +336,8 @@ export const achievementChallengeMaps = sqliteTable("achievement_challenge_maps"
 
 export const submissions = sqliteTable("submissions", {
   id: text("id").primaryKey(),
-  bindingId: text("binding_id").notNull(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  bindingId: text("binding_id").references(() => bindings.id),
   status: text("status").notNull(),
   challengeType: text("challenge_type").notNull(),
   challengeId: text("challenge_id"),
@@ -657,6 +658,48 @@ export const qqGroupPolicyOutbox = sqliteTable("qq_group_policy_outbox", {
   deliveredAt: integer("delivered_at"),
 });
 
+export const passkeyCredentials = sqliteTable("passkey_credentials", {
+  id: text("id").primaryKey(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  credentialId: text("credential_id").notNull(),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull(),
+  transportsJson: text("transports_json"),
+  name: text("name").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+}, (table) => ({
+  credentialId: uniqueIndex("passkey_credentials_credential_id_idx").on(table.credentialId),
+  playerAccountId: index("passkey_credentials_player_account_idx").on(table.playerAccountId),
+}));
+
+export const passkeyRecoveryGrants = sqliteTable("passkey_recovery_grants", {
+  id: text("id").primaryKey(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  tokenHash: uniqueIndex("passkey_recovery_grants_token_idx").on(table.tokenHash),
+}));
+
+export const passkeyChallenges = sqliteTable("passkey_challenges", {
+  id: text("id").primaryKey(),
+  purpose: text("purpose").notNull(),
+  challenge: text("challenge").notNull(),
+  playerAccountId: text("player_account_id"),
+  inviteId: text("invite_id").references(() => bindingInvites.id),
+  recoveryGrantId: text("recovery_grant_id").references(() => passkeyRecoveryGrants.id),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  consumedBy: text("consumed_by"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  expiry: index("passkey_challenges_expiry_idx").on(table.expiresAt, table.usedAt),
+}));
+
 export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull(),
@@ -676,13 +719,15 @@ export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
   verifiedAt: integer("verified_at"),
 });
 
-export const qqSessions = sqliteTable("qq_sessions", {
+export const portalSessions = sqliteTable("portal_sessions", {
   id: text("id").primaryKey(),
-  attemptId: text("attempt_id").notNull(),
-  groupOpenId: text("group_open_id").notNull(),
-  memberOpenId: text("member_open_id").notNull(),
-  environment: text("environment").notNull(),
+  playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   tokenHash: text("token_hash").notNull(),
+  passkeyChallengeId: text("passkey_challenge_id").references(() => passkeyChallenges.id),
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
-});
+}, (table) => ({
+  tokenHash: uniqueIndex("portal_sessions_token_idx").on(table.tokenHash),
+  passkeyChallengeId: uniqueIndex("portal_sessions_challenge_idx").on(table.passkeyChallengeId),
+  playerAccount: index("portal_sessions_player_account_idx").on(table.playerAccountId, table.expiresAt),
+}));

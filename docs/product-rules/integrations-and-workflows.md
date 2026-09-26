@@ -32,16 +32,21 @@ cookies, stable QQ identifiers, request bodies, or signed URLs.
 
 ## Platform workflow contract
 
-The platform contract covers versioned v1 QQ flows:
+The platform contract covers Player Account authentication and optional QQ
+channel flows:
 
-- authenticated QQBot confirms invitation-bound binding claims from a stable QQ
-  member OpenID; it never creates or merges player accounts directly;
+- an administrator invitation admits one BattleTag when the player registers
+  a discoverable Passkey; QQ identity is optional, and Passkey is the primary Portal
+  login;
+- authenticated QQBot confirms invitation-bound channel claims from a stable
+  QQ member OpenID; it never creates or merges Player Accounts directly;
 - authenticated QQBot binding and verification calls use stable QQ group/member
   metadata; QQBot does not create current Portal screenshot submissions;
 - channel writes require an idempotency key; equal retries replay the original
   response and a changed reuse is rejected;
-- D1 stores player accounts, bindings, submissions, attachment metadata,
-  idempotency records, audit events, QQ login attempts, and sessions;
+- D1 stores Player Accounts, Passkey credentials and challenges, direct Portal
+  sessions, optional bindings, submissions, attachment metadata, idempotency
+  records, and audit events;
 - when EVIDENCE_BUCKET is configured, submission creation validates and
   retrieves HTTPS image sources, writes private objects to R2, and records
   content metadata;
@@ -52,8 +57,17 @@ The platform contract covers versioned v1 QQ flows:
   reads D1 for every request, and excludes evidence, OCR output, player or QQ
   identity, run code, mastery-run ID, review metadata, grants, and internal
   conflict or risk signals;
-- the Portal can create and poll a one-time QQ login attempt, then display the
-  bound player and up to five recent submissions after session verification.
+- the Portal authenticates a discoverable Passkey with user verification, then
+  displays the same Player Account's profile and up to five recent submissions;
+  players can add and remove credentials in personal settings, and may
+  remove their last Passkey only while an active QQ binding remains as a login
+  fallback;
+- a bound player can alternatively log in by sending a one-time verification
+  code in an enabled QQ group; the platform issues the same direct Player
+  Account session;
+- maintainers can issue a short-lived, single-use recovery link after identity
+  verification. Recovery replaces Passkeys and revokes sessions while keeping
+  the existing Player Account and its business records;
 - the Portal can create a single-image upload session without a target, upload
   the screenshot, and complete the upload; after OCR accepts it,
   the player confirms a platform-owned map or achievement challenge before it

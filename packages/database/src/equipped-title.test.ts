@@ -7,10 +7,10 @@ const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(valu
 const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(`
-    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
-    CREATE TABLE qq_sessions (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
+    CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
     CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, availability TEXT NOT NULL, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
     CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL);
     CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL);
@@ -27,9 +27,9 @@ describe("equipped title selection", () => {
   it("keeps zero titles empty, atomically replaces one and ten titles, rejects over-limit and foreign grants, and replays idempotently", async () => {
     const { sqlite, database } = createD1(); const now = Date.now();
     for (const [id, member] of [["player.zero", "member.zero"], ["player.one", "member.one"], ["player.other", "member.other"]]) {
-      sqlite.prepare("INSERT INTO player_accounts VALUES (?, ?, ?, ?, 0, 'active', ?, ?)").run(id, id, id, id, now, now);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'active', ?, ?)").run(id, id, id, id, now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES (?, NULL, ?, 'qq', 'group', ?, 'active', ?)").run(`binding.${id}`, id, member, now);
-      sqlite.prepare("INSERT INTO qq_sessions VALUES (?, 'attempt', 'group', ?, 'production', ?, ?, ?)").run(`session.${id}`, member, hash(`token.${id}`), now + 60_000, now);
+      sqlite.prepare("INSERT INTO portal_sessions VALUES (?, ?, ?, ?)").run(`session.${id}`, id, hash(`token.${id}`), now + 60_000);
     }
     const grantIds = Array.from({ length: 11 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`);
     for (const [index, grantId] of grantIds.entries()) {
@@ -72,7 +72,7 @@ describe("equipped title selection", () => {
   it("projects an explicit all-title entitlement without equipped rows", async () => {
     const { sqlite, database } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts VALUES ('player.all', '9999', 'Developer', 'developer', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.all', '9999', 'Developer', 'developer', 0, 'active', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_entitlements VALUES ('player.all', 1)").run();
     sqlite.prepare("INSERT INTO title_catalog VALUES ('TITLE_NEW', '新称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
     const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
@@ -82,9 +82,9 @@ describe("equipped title selection", () => {
   it("rejects map grants from equipment while preserving their player projection", async () => {
     const { sqlite, database } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts VALUES ('player.map', 'map-player', 'Map Player', 'map player', 0, 'active', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.map', 'map-player', 'Map Player', 'map player', 0, 'active', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.map', NULL, 'player.map', 'qq', 'group', 'member.map', 'active', ?)").run(now);
-    sqlite.prepare("INSERT INTO qq_sessions VALUES ('session.map', 'attempt', 'group', 'member.map', 'production', ?, ?, ?)").run(hash("token.map"), now + 60_000, now);
+    sqlite.prepare("INSERT INTO portal_sessions VALUES ('session.map', 'player.map', ?, ?)").run(hash("token.map"), now + 60_000);
     sqlite.prepare("INSERT INTO maps VALUES ('map.test', '测试地图')").run();
     sqlite.prepare("INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'map.test', 'default')").run();
     sqlite.prepare("INSERT INTO title_catalog VALUES ('GLOBAL_MAP_TEST', '全局测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();

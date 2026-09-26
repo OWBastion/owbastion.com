@@ -74,8 +74,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     updated_at INTEGER NOT NULL
   );
   CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE qq_sessions (id TEXT PRIMARY KEY NOT NULL, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
-  CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, binding_id TEXT NOT NULL REFERENCES bindings(id), gameplay_revision_id TEXT REFERENCES gameplay_revisions(id));
+  CREATE TABLE portal_sessions (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
+  CREATE TABLE submissions (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), binding_id TEXT REFERENCES bindings(id), gameplay_revision_id TEXT REFERENCES gameplay_revisions(id));
   CREATE TABLE mastery_runs (
     id TEXT PRIMARY KEY NOT NULL,
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -130,8 +130,8 @@ const seed = (sqlite: DatabaseSync) => sqlite.exec(`
     ('revision:map.test:initial', 'map.test', 'default', NULL, NULL, NULL, '26.0810.1', 1, 1);
   INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES
     ('binding-1', 'identity-1', 'account-1', 'qq', 'group-1', 'member-1', 'active', 1), ('binding-2', 'identity-2', 'account-2', 'qq', 'group-1', 'member-2', 'active', 1);
-  INSERT INTO submissions (id, binding_id) VALUES
-    ('submission-1', 'binding-1'), ('submission-2', 'binding-1'), ('submission-3', 'binding-2'), ('submission-4', 'binding-1'), ('submission-5', 'binding-1');
+  INSERT INTO submissions (id, player_account_id, binding_id) VALUES
+    ('submission-1', 'account-1', 'binding-1'), ('submission-2', 'account-1', 'binding-1'), ('submission-3', 'account-2', 'binding-2'), ('submission-4', 'account-1', 'binding-1'), ('submission-5', 'account-1', 'binding-1');
 `);
 
 const input = (overrides: Partial<VerifiedMasteryRunInput> = {}): VerifiedMasteryRunInput => ({
@@ -232,8 +232,8 @@ describe("verified mastery run ledger", () => {
     await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", runCode: "2234-5678-9012", difficulty: "传奇", acceptedAt: 1_200 }));
     await services.invalidateVerifiedMasteryRun({ masteryRunId: first.run.runId, reason: "evidence invalidated" }, { actorType: "user", actorId: "maintainer-1" });
     await services.recordVerifiedMasteryRun(input({ playerAccountId: "account-2", sourceSubmissionId: "submission-3", acceptedAt: 1_100 }));
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-      .run("session-1", "attempt-1", "group-1", "member-1", "test", await hashRequest("mastery-session"), Date.now() + 60_000, 1);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES (?, ?, ?, ?)")
+      .run("session-1", "account-1", await hashRequest("mastery-session"), Date.now() + 60_000);
 
     const projection = await services.getCurrentPlayerMastery({ sessionToken: "mastery-session", page: 1, pageSize: 20 });
     expect(projection).toMatchObject({ contractVersion: "1", profiles: [{ mapId: "map.test", verifiedRunCount: 1, highestCompletedDifficulty: "传奇" }], runs: [{ mapId: "map.test", status: "active" }, { mapId: "map.test", status: "invalidated" }], page: 1, pageSize: 20, total: 2, hasMore: false });
@@ -250,7 +250,7 @@ describe("verified mastery run ledger", () => {
     sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = 'revision:map.test:initial'").run();
     sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.test:rework', 'map.test', 'default', NULL, 'revision:map.test:initial', 'difficulty redesign', '26.0810.2', 2, 2)").run();
     await services.recordVerifiedMasteryRun(input({ sourceSubmissionId: "submission-2", gameplayRevisionId: "revision:map.test:rework", runCode: "2234-5678-9012", acceptedAt: 2_000 }));
-    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session-revision', 'attempt-revision', 'group-1', 'member-1', 'test', ?, ?, 1)")
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at) VALUES ('session-revision', 'account-1', ?, ?)")
       .run(await hashRequest("revision-session"), Date.now() + 60_000);
 
     const current = await services.getCurrentPlayerMastery({ sessionToken: "revision-session", mapId: "map.test", page: 1, pageSize: 20 });

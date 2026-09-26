@@ -4,7 +4,7 @@ import { ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MapsPage from "./maps.vue";
 
-const currentPlayer = ref<{ player: { playerId: string; playerName: string; bindingStatus: "bound"; isAdmin: boolean }; recentSubmissions: never[] } | null>(null);
+const currentPlayer = ref<{ player: { playerId: string; playerName: string; isAdmin: boolean }; recentSubmissions: never[] } | null>(null);
 const refreshPlayer = vi.fn(async () => currentPlayer.value);
 const masteryResponse = (path: string) => {
   const query = new URL(`https://portal.test${path}`).searchParams;
@@ -96,7 +96,7 @@ describe("maps page", () => {
   });
 
   it("shows map details and mastery for the selected map", async () => {
-    currentPlayer.value = { player: { playerId: "1", playerName: "Player", bindingStatus: "bound", isAdmin: false }, recentSubmissions: [] };
+    currentPlayer.value = { player: { playerId: "1", playerName: "Player", isAdmin: false }, recentSubmissions: [] };
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();
     await wrapper.get('button[aria-label="查看萨摩亚详情"]').trigger("click");

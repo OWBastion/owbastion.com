@@ -1,5 +1,7 @@
 import type { AuthContext, Authenticator } from "@owbastion/domain";
 
+export * from "./passkey";
+
 type ServiceAuthEnv = {
   QQBOT_API_TOKEN?: string;
 };

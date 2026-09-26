@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@owbastion/auth": "workspace:*",
     "@owbastion/contracts": "workspace:*",
     "@owbastion/domain": "workspace:*",
     "drizzle-orm": "^0.45.2"

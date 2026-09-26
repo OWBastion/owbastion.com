@@ -56,6 +56,7 @@ export function useLoginAttempt() {
         state.value = "verified";
         clearAttempt();
         state.value = "session-establishing";
+        rememberLoginMethod("qq");
         await navigateTo({ path: "/login/complete", query: { returnTo } });
         return;
       }
