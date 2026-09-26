@@ -74,7 +74,11 @@ describe("maps page", () => {
   });
 
   it("does not fail when a legacy map response omits metadata", async () => {
-    portalApi.mockImplementationOnce(async () => ({ items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1" }] }));
+    publicCatalogFetch.mockImplementationOnce(async (name: string) => {
+      if (name === "maps") return { items: [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "26.0713.1" }] };
+      if (name === "mapChallenges") return { items: [] };
+      throw new Error(`Unexpected catalog request: ${name}`);
+    });
     currentPlayer.value = null;
     const wrapper = await mountSuspended(MapsPage);
     await flushPromises();

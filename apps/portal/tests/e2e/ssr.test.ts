@@ -8,6 +8,7 @@ const rootDir = fileURLToPath(new URL("../..", import.meta.url));
 const outputDir = resolve(rootDir, ".output");
 const testPort = process.env.NUXT_TEST_PORT ? Number(process.env.NUXT_TEST_PORT) : undefined;
 const upstreamRequests: Array<{ path: string; cookie?: string }> = [];
+let failingCatalog: string | null = null;
 
 /**
  * Built-server SSR smoke only. Real browser regression is out of the code-level
@@ -18,6 +19,12 @@ describe("Portal SSR", async () => {
     const path = new URL(request.url ?? "/", "http://portal-upstream.test").pathname;
     upstreamRequests.push({ path, cookie: request.headers.cookie });
     response.setHeader("content-type", "application/json");
+    if (path === failingCatalog) {
+      response.statusCode = 503;
+      response.setHeader("x-request-id", "catalog-request-503");
+      response.end(JSON.stringify({ contractVersion: "1", error: { code: "CATALOG_UNAVAILABLE", message: "目录暂不可用", requestId: "catalog-request-503" } }));
+      return;
+    }
     const items = path === "/v1/maps"
       ? [{ mapId: "map.samoa", mapName: "SSR 萨摩亚", gameVersion: "3.2.0", difficultyRating: "T3", mechanics: ["动态掩体"], coverUrl: null, backgroundUrl: null, defaultGameplayRevisionId: "revision:map.samoa:initial" }]
       : path === "/v1/challenges"
@@ -63,6 +70,18 @@ describe("Portal SSR", async () => {
     expect(html).toContain("轮换挑战未开放");
     expect(html).toContain('href="/achievements"');
     expect(html).toContain('href="/changelog"');
+  });
+
+  it("preserves the upstream error message and request ID", async () => {
+    failingCatalog = "/v1/events";
+    try {
+      const html = await $fetch("/events");
+      expect(html).toContain("无法读取事件");
+      expect(html).toContain("目录暂不可用");
+      expect(html).toContain("Request-ID：catalog-request-503");
+    } finally {
+      failingCatalog = null;
+    }
   });
 
   it("renders cached public catalogs in SSR HTML without forwarding player cookies", async () => {
