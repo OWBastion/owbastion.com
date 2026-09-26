@@ -9,7 +9,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   if (path === "/v1/titles?mapId=map.samoa") return Promise.resolve({ items: [{ titleKey: "GLOBAL", label: "全局称号", category: "测试", condition: "测试", availability: "active", scope: "global" }, { titleKey: "OLD_MAP", label: "旧地图称号", category: "历史", condition: "测试", availability: "retired", scope: "map", mapId: "map.samoa", slot: "conqueror" }] });
   if (path === "/v1/title-grants/manual/batch" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", batchId: "batch-1", playerCount: 1, targetCount: 2, requestedCount: 2, createdCount: 2, alreadyOwnedCount: 0, items: [] });
   if (path === "/v1/title-grants/grant-1/revoke" && options?.method === "POST") return Promise.resolve();
-  if (path === "/v1/admin/player-accounts/player-1/titles/equipped" && options?.method === "PUT") return Promise.resolve({ contractVersion: "1", grantIds: [] });
+  if (path === "/v1/player-accounts/player-1/titles/equipped" && options?.method === "PUT") return Promise.resolve({ contractVersion: "1", grantIds: [] });
   throw new Error(`Unexpected request: ${path}`);
 });
 const toastAdd = vi.fn();
@@ -82,7 +82,7 @@ describe("AdminPlayerTitles", () => {
     await checkboxes[0].setValue(true);
     await wrapper.get("form#recover-player-titles").trigger("submit");
     await flushPromises();
-    expect(adminApi).toHaveBeenCalledWith("/v1/admin/player-accounts/player-1/titles/equipped", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", grantIds: [titleGrants[0].grantId] } }));
+    expect(adminApi).toHaveBeenCalledWith("/v1/player-accounts/player-1/titles/equipped", expect.objectContaining({ method: "PUT", body: { contractVersion: "1", grantIds: [titleGrants[0].grantId] } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "佩戴称号已修复", color: "success" });
   });
 });
