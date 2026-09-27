@@ -50,7 +50,7 @@ import {
 } from "@owbastion/contracts";
 import type { AuthContext, Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import type { AdminMutation, AdminMutationOptions } from "./routes/route-contract";
+import { maintainerRoute, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { hasOnlyUniqueQueryNames } from "./query-params";
@@ -497,15 +497,13 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/binding-invites", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    return c.json(await servicesFor(c).listAdminBindingInvites(access.auth!));
-  });
+  app.get("/v1/admin/binding-invites", maintainerRoute(requireMaintainer, async (c, auth) => {
+    return c.json(await dependencies.services(c.env).listAdminBindingInvites(auth));
+  }));
 
-  app.get("/v1/admin/bindings", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    return c.json(await servicesFor(c).listAdminBindings(access.auth!));
-  });
+  app.get("/v1/admin/bindings", maintainerRoute(requireMaintainer, async (c, auth) => {
+    return c.json(await dependencies.services(c.env).listAdminBindings(auth));
+  }));
 
   app.post("/v1/admin/binding-invites/:inviteId/historical-migration/retry", async (c) => {
     return adminMutation(c, {
@@ -515,11 +513,10 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/binding-invites/:inviteId/code", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    try { return c.json(await servicesFor(c).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId") }, access.auth!)); }
+  app.get("/v1/admin/binding-invites/:inviteId/code", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await dependencies.services(c.env).getAdminBindingInviteCode({ inviteId: c.req.param("inviteId")! }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "BINDING_INVITE_CODE_UNAVAILABLE") return errorResponse(c, 422, "BINDING_INVITE_CODE_UNAVAILABLE", "The invitation code cannot be retrieved"); throw error; }
-  });
+  }));
 
   app.post("/v1/admin/binding-invites/:inviteId/revoke", async (c) => {
     return adminMutation(c, {
@@ -530,7 +527,7 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/binding-claims", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await servicesFor(c).listAdminBindingClaims(access.auth!)); });
+  app.get("/v1/admin/binding-claims", maintainerRoute(requireMaintainer, async (c, auth) => { return c.json(await dependencies.services(c.env).listAdminBindingClaims(auth)); }));
   app.post("/v1/admin/binding-claims/:claimId/decision", async (c) => {
     return adminMutation(c, {
       schema: adminBindingClaimDecisionRequestSchema,
@@ -651,9 +648,7 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
-  app.post("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.post("/v1/admin/player-accounts/:playerAccountId/passkey-recovery", maintainerRoute(requireMaintainer, async (c, auth) => {
     const origin = passkeyOrigin(c);
     if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
     const idempotencyKey = c.req.header("idempotency-key");
@@ -661,12 +656,12 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminPasskeyRecoveryRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const result = await servicesFor(c).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId") }, access.auth!, idempotencyKey);
+      const result = await dependencies.services(c.env).createAdminPasskeyRecovery({ ...parsed.data, playerAccountId: c.req.param("playerAccountId")! }, auth, idempotencyKey);
       const recoveryUrl = new URL("/recover", origin.origin);
       recoveryUrl.hash = new URLSearchParams({ token: result.token }).toString();
       return c.json({ contractVersion: "1" as const, recoveryUrl: recoveryUrl.toString(), expiresAt: result.expiresAt }, 201);
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
-  });
+  }));
 
   app.post("/v1/public/passkeys/recovery/options", async (c) => {
     allowPortal(c);
@@ -819,15 +814,13 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.put("/v1/admin/player-accounts/:playerAccountId/titles/equipped", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.put("/v1/admin/player-accounts/:playerAccountId/titles/equipped", maintainerRoute(requireMaintainer, async (c, auth) => {
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminPlayerEquippedTitlesRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      return c.json(await servicesFor(c).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId"), grantIds: parsed.data.grantIds }, access.auth!, idempotencyKey));
+      return c.json(await dependencies.services(c.env).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId")!, grantIds: parsed.data.grantIds }, auth, idempotencyKey));
     } catch (error) {
       const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
       if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player does not exist");
@@ -835,7 +828,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
-  });
+  }));
 
   app.get("/v1/me/reviews/:targetType/:targetId", async (c) => {
     const access = await requirePortalPlayer(c);
@@ -1168,10 +1161,7 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.put("/v1/admin/qq/groups/:groupOpenId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const auth = access.auth!;
+  app.put("/v1/admin/qq/groups/:groupOpenId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = qqGroupAccessRequestSchema.safeParse({ ...(await parseBody(c.req.raw) as object), groupOpenId: c.req.param("groupOpenId") });
@@ -1183,7 +1173,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
       throw error;
     }
-  });
+  }));
 
   app.get("/v1/admin/qq/groups", async (c) => {
     let auth = await dependencies.authenticate(c.req.raw, c.env);
@@ -1197,26 +1187,22 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.json({ contractVersion: "1", items: await servicesFor(c).listQqGroupAccess(auth) });
   });
 
-  app.get("/v1/admin/player-accounts", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/player-accounts", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 25) || 25));
     const status = c.req.query("status");
     if (status && status !== "active" && status !== "banned") return errorResponse(c, 422, "INVALID_REQUEST", "The status is invalid");
-    return c.json(await servicesFor(c).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, access.auth!));
-  });
+    return c.json(await dependencies.services(c.env).listAdminPlayers({ query: c.req.query("query")?.trim() || undefined, status: status as "active" | "banned" | undefined, page, pageSize }, auth));
+  }));
 
-  app.get("/v1/admin/achievements", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/achievements", maintainerRoute(requireMaintainer, async (c, auth) => {
     const type = c.req.query("type");
     const status = c.req.query("status");
     const family = type === "map_completion" || type === "map" ? "map" : type === "title_achievement" || type === "achievement" ? "achievement" : undefined;
     if (type && !family) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement type is invalid");
     if (status && !["draft", "scheduled", "active", "sunsetting", "retired"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The achievement status is invalid");
-    return c.json(await logServiceOperation(c, "admin_list_achievements", () => servicesFor(c).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, access.auth!)));
-  });
+    return c.json(await logServiceOperation(c, "admin_list_achievements", () => dependencies.services(c.env).listAdminChallenges({ family: family as "map" | "achievement" | undefined, status }, auth)));
+  }));
 
   app.post("/v1/admin/achievements", async (c) => {
     return adminMutation(c, {
@@ -1232,31 +1218,21 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.post("/v1/admin/maps", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminMapCreateRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).createAdminMap(parsed.data, access.auth!, idempotencyKey), 201); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "MAP_CREATE_FAILED";
-      if (["MAP_NAME_CONFLICT", "MAP_ID_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The map conflicts with an existing record");
-      throw error;
-    }
-  });
-  app.get("/v1/admin/maps", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => servicesFor(c).listMaps()) });
-  });
+  app.post("/v1/admin/maps", (c) => adminMutation(c, {
+    schema: adminMapCreateRequestSchema,
+    status: 201,
+    action: (input, auth, key) => dependencies.services(c.env).createAdminMap(input, auth, key),
+    errors: {
+      ...errorGroup(409, "The map conflicts with an existing record", "MAP_NAME_CONFLICT", "MAP_ID_CONFLICT"),
+    },
+  }));
+  app.get("/v1/admin/maps", maintainerRoute(requireMaintainer, async (c, auth) => {
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_maps", () => dependencies.services(c.env).listMaps()) });
+  }));
 
-  app.get("/v1/admin/map-title-rules", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    return c.json(await servicesFor(c).listAdminMapTitleRules(access.auth!));
-  });
+  app.get("/v1/admin/map-title-rules", maintainerRoute(requireMaintainer, async (c, auth) => {
+    return c.json(await dependencies.services(c.env).listAdminMapTitleRules(auth));
+  }));
   app.post("/v1/admin/map-title-rules", async (c) => {
     return adminMutation(c, {
       schema: adminMapTitleRuleCreateRequestSchema,
@@ -1281,11 +1257,10 @@ export const createApp = (dependencies: AppDependencies) => {
       },
     });
   });
-  app.get("/v1/admin/maps/:mapId/map-title-inheritance", async (c) => {
-    const access = await requireMaintainer(c); if (access.error) return access.error;
-    try { return c.json(await servicesFor(c).listAdminMapTitleInheritance({ mapId: c.req.param("mapId") }, access.auth!)); }
+  app.get("/v1/admin/maps/:mapId/map-title-inheritance", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await dependencies.services(c.env).listAdminMapTitleInheritance({ mapId: c.req.param("mapId")! }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "MAP_NOT_FOUND") return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist"); throw error; }
-  });
+  }));
   app.put("/v1/admin/maps/:mapId/map-title-rules/:ruleId/exception", async (c) => {
     return adminMutation(c, {
       schema: adminMapTitleRuleExceptionUpsertRequestSchema,
@@ -1298,15 +1273,11 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/titles", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => servicesFor(c).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
-  });
+  app.get("/v1/admin/titles", maintainerRoute(requireMaintainer, async (c, auth) => {
+    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "admin_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId")?.trim() || undefined })) });
+  }));
 
-  app.get("/v1/admin/events", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/events", maintainerRoute(requireMaintainer, async (c, auth) => {
     return c.json({
       contractVersion: "1",
       items: await logServiceOperation(c, "admin_list_events", () => servicesFor(c).listRandomEvents({
@@ -1316,7 +1287,7 @@ export const createApp = (dependencies: AppDependencies) => {
         includeArchived: c.req.query("archived") === "true",
       })),
     });
-  });
+  }));
   app.post("/v1/admin/events", (c) => adminMutation(c, {
     schema: adminRandomEventCreateRequestSchema,
     status: 201,
@@ -1347,7 +1318,7 @@ export const createApp = (dependencies: AppDependencies) => {
       ...errorGroup(404, "The event does not exist", "EVENT_NOT_FOUND"),
     },
   }));
-  app.post("/v1/admin/events/imports/preview", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c.env).previewAdminRandomEventImport(parsed.data, access.auth!)); });
+  app.post("/v1/admin/events/imports/preview", maintainerRoute(requireMaintainer, async (c, auth) => { const parsed = adminRandomEventImportRequestSchema.safeParse(await parseBody(c.req.raw)); if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1"); return c.json(await dependencies.services(c.env).previewAdminRandomEventImport(parsed.data, auth)); }));
   app.post("/v1/admin/events/imports", (c) => adminMutation(c, {
     schema: adminRandomEventImportRequestSchema,
     status: 201,
@@ -1357,7 +1328,7 @@ export const createApp = (dependencies: AppDependencies) => {
       ...errorGroup(409, "The import was already processed", "EVENT_IMPORT_DUPLICATE", "IDEMPOTENCY_CONFLICT"),
     },
   }));
-  app.get("/v1/admin/event-versions", async (c) => { const access = await requireMaintainer(c); if (access.error) return access.error; return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c.env).listAdminRandomEventVersions(access.auth!))); });
+  app.get("/v1/admin/event-versions", maintainerRoute(requireMaintainer, async (c, auth) => { return c.json(await logServiceOperation(c, "admin_list_event_versions", () => dependencies.services(c.env).listAdminRandomEventVersions(auth))); }));
   app.put("/v1/admin/event-versions/:gameVersion/availability", (c) => adminMutation(c, {
     schema: adminRandomEventVersionAvailabilityRequestSchema,
     action: (input, auth, key) => dependencies.services(c.env).updateAdminRandomEventVersion({ ...input, gameVersion: decodeURIComponent(c.req.param("gameVersion")) }, auth, key),
@@ -1366,17 +1337,15 @@ export const createApp = (dependencies: AppDependencies) => {
     },
   }));
 
-  app.get("/v1/admin/maps/:mapId/editor", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => servicesFor(c).getAdminMapEditor({ mapId: c.req.param("mapId") }, access.auth!))); }
+  app.get("/v1/admin/maps/:mapId/editor", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await logServiceOperation(c, "admin_get_map_editor", () => dependencies.services(c.env).getAdminMapEditor({ mapId: c.req.param("mapId")! }, auth))); }
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_EDITOR_READ_FAILED";
       if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
       if (["INVALID_REVISION_LIFECYCLE", "INVALID_MAP_VARIANT", "INVALID_REVISION_ASSIGNMENT", "INVALID_SPATIAL_CONFIG"].includes(code)) return errorResponse(c, 422, code, "The map revision data is invalid");
       throw error;
     }
-  });
+  }));
   app.post("/v1/admin/maps/:mapId/revisions", async (c) => {
     return adminMutation(c, {
       schema: adminMapRevisionCreateRequestSchema,
@@ -1443,14 +1412,12 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.post("/v1/admin/titles/:titleKey/icon", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.post("/v1/admin/titles/:titleKey/icon", maintainerRoute(requireMaintainer, async (c, auth) => {
     try {
       const form = await c.req.raw.formData();
       const file = form.get("file");
       if (!(file instanceof File)) return errorResponse(c, 422, "ICON_FILE_REQUIRED", "An icon file is required");
-      const result = await servicesFor(c).uploadAdminTitleIcon({ titleKey: c.req.param("titleKey"), body: await file.arrayBuffer(), contentType: file.type }, access.auth!);
+      const result = await dependencies.services(c.env).uploadAdminTitleIcon({ titleKey: c.req.param("titleKey")!, body: await file.arrayBuffer(), contentType: file.type }, auth);
       return c.json({ contractVersion: "1", ...result });
     } catch (error) {
       const code = error instanceof Error ? error.message : "ICON_UPLOAD_FAILED";
@@ -1459,7 +1426,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "ICON_BUCKET_UNAVAILABLE") return errorResponse(c, 503, code, "图标存储暂不可用");
       throw error;
     }
-  });
+  }));
 
   app.put("/v1/admin/achievements/:challengeId", async (c) => {
     return adminMutation(c, {
@@ -1476,12 +1443,10 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/player-accounts/:playerAccountId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    try { return c.json(await servicesFor(c).getAdminPlayer({ playerAccountId: c.req.param("playerAccountId") }, access.auth!)); }
+  app.get("/v1/admin/player-accounts/:playerAccountId", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await dependencies.services(c.env).getAdminPlayer({ playerAccountId: c.req.param("playerAccountId")! }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "PLAYER_NOT_FOUND") return errorResponse(c, 404, "PLAYER_NOT_FOUND", "The player does not exist"); throw error; }
-  });
+  }));
 
   app.put("/v1/admin/player-accounts/:playerAccountId/status", async (c) => {
     return adminMutation(c, {
@@ -1516,19 +1481,15 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/title-grants", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/title-grants", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? "20") || 20));
     const filter = c.req.query("filter")?.trim() || "all";
     if (filter !== "all" && filter !== "pending" && filter !== "completed") return errorResponse(c, 422, "INVALID_REQUEST", "The filter is invalid");
-    return c.json(await servicesFor(c).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, access.auth!));
-  });
+    return c.json(await dependencies.services(c.env).listHistoricalTitleGrants({ query: c.req.query("query")?.trim() || undefined, filter, page, pageSize }, auth));
+  }));
 
-  app.get("/v1/admin/title-grants/holder", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/title-grants/holder", maintainerRoute(requireMaintainer, async (c, auth) => {
     const holderName = c.req.query("holderName")?.trim() || "";
     if (!holderName) return errorResponse(c, 422, "INVALID_REQUEST", "holderName is required");
     const page = Math.max(1, Number(c.req.query("page") ?? "1") || 1);
@@ -1536,12 +1497,12 @@ export const createApp = (dependencies: AppDependencies) => {
     const grantStatus = c.req.query("grantStatus")?.trim() || "all";
     if (grantStatus !== "all" && grantStatus !== "unclaimed" && grantStatus !== "active" && grantStatus !== "revoked") return errorResponse(c, 422, "INVALID_REQUEST", "The grantStatus is invalid");
     try {
-      return c.json(await servicesFor(c).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, access.auth!));
+      return c.json(await dependencies.services(c.env).getHistoricalTitleHolder({ holderName, page, pageSize, grantStatus }, auth));
     } catch (error) {
       if (error instanceof Error && error.message === "HISTORICAL_HOLDER_NOT_FOUND") return errorResponse(c, 404, "HISTORICAL_HOLDER_NOT_FOUND", "The historical holder does not exist");
       throw error;
     }
-  });
+  }));
 
   app.post("/v1/admin/title-grants", async (c) => {
     return adminMutation(c, {
@@ -1613,9 +1574,7 @@ export const createApp = (dependencies: AppDependencies) => {
     });
   });
 
-  app.get("/v1/admin/reviews", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/reviews", maintainerRoute(requireMaintainer, async (c, auth) => {
     const pageValue = Number(c.req.query("page") ?? 1);
     const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
     const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
@@ -1637,17 +1596,15 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
-    return c.json(await servicesFor(c).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, access.auth!));
-  });
+    return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, auth));
+  }));
 
-  app.get("/v1/admin/reviews/:reviewId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const reviewId = c.req.param("reviewId");
+  app.get("/v1/admin/reviews/:reviewId", maintainerRoute(requireMaintainer, async (c, auth) => {
+    const reviewId = c.req.param("reviewId")!;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    try { return c.json(await servicesFor(c).getAdminReview({ reviewId }, access.auth!)); }
+    try { return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
-  });
+  }));
 
   app.post("/v1/admin/reviews/:reviewId/comment", (c) => moderateAdminReview(
     c,
@@ -1677,9 +1634,7 @@ export const createApp = (dependencies: AppDependencies) => {
     },
     errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
   ));
-  app.get("/v1/admin/submissions", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/submissions", maintainerRoute(requireMaintainer, async (c, auth) => {
     const page = Math.max(1, Number(c.req.query("page") ?? 1) || 1);
     const pageSize = Math.min(50, Math.max(1, Number(c.req.query("pageSize") ?? 50) || 50));
     const statuses = c.req.query("status")?.split(",").map((status) => status.trim()).filter(Boolean) ?? [];
@@ -1690,15 +1645,13 @@ export const createApp = (dependencies: AppDependencies) => {
     if (statuses.some((status) => !allowedStatuses.includes(status as typeof allowedStatuses[number]))) return errorResponse(c, 422, "INVALID_REQUEST", "The submission status is invalid");
     if (spotCheck && !["pending", "confirmed", "revoked"].includes(spotCheck)) return errorResponse(c, 422, "INVALID_REQUEST", "The spot-check status is invalid");
     if (order && order !== "oldest" && order !== "newest") return errorResponse(c, 422, "INVALID_REQUEST", "The submission order is invalid");
-    return c.json(await servicesFor(c).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, access.auth!));
-  });
+    return c.json(await dependencies.services(c.env).listAdminSubmissions({ statuses: statuses as typeof allowedStatuses[number][], ...(spotCheck ? { spotCheck: spotCheck as "pending" | "confirmed" | "revoked" } : {}), ...(mode ? { mode } : {}), ...(order ? { order: order as "oldest" | "newest" } : {}), page, pageSize }, auth));
+  }));
 
-  app.get("/v1/admin/submissions/:submissionId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    try { return c.json(await servicesFor(c).getAdminSubmission({ submissionId: c.req.param("submissionId") }, access.auth!)); }
+  app.get("/v1/admin/submissions/:submissionId", maintainerRoute(requireMaintainer, async (c, auth) => {
+    try { return c.json(await dependencies.services(c.env).getAdminSubmission({ submissionId: c.req.param("submissionId")! }, auth)); }
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
-  });
+  }));
 
   const submissionReviewErrorCodes = ["SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED", "SUBMISSION_OUTCOME_NOT_CONFIGURED", "SUBMISSION_CORRECTION_INVALID", "CHALLENGE_CONFIRMATION_INELIGIBLE", "CHALLENGE_NOT_COMPLETABLE", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "SUBMISSION_REVISION_MISMATCH", "GAMEPLAY_REVISION_NOT_FOUND"];
   const submissionReviewErrorMessage = (code: string) => code === "CHALLENGE_REWARD_NOT_CONFIGURED"
@@ -1707,19 +1660,17 @@ export const createApp = (dependencies: AppDependencies) => {
       ? "A confirmed challenge is not eligible for this submission"
       : "The submission cannot be reviewed";
 
-  app.post("/v1/admin/submissions/:submissionId/review/preview", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.post("/v1/admin/submissions/:submissionId/review/preview", maintainerRoute(requireMaintainer, async (c, auth) => {
     const parsed = adminSubmissionReviewPreviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await servicesFor(c).previewSubmissionReview({ submissionId: c.req.param("submissionId"), fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!)); }
+    try { return c.json(await dependencies.services(c.env).previewSubmissionReview({ submissionId: c.req.param("submissionId")!, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, auth)); }
     catch (error) {
       const code = error instanceof Error ? error.message : "REVIEW_PREVIEW_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
       if (submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code));
       throw error;
     }
-  });
+  }));
 
   app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
     return adminMutation(c, {
