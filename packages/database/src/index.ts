@@ -3354,6 +3354,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const existing = awards.get(key);
     if (!existing || (!existing.root && award.root)) awards.set(key, award);
   };
+  const selectCompletionGrantAwards = <T extends ChallengeCompletionAward & { grantId: string }>(
+    awards: T[],
+    directGrantsByScope: globalThis.Map<string, { canonicalChallengeId: string }>,
+  ) => {
+    const selected = new Map<string, T>();
+    for (const award of awards) {
+      if (!award.grantable) continue;
+      const scope = titleGrantScopeKey(award);
+      const directGrant = directGrantsByScope.get(scope);
+      if (directGrant) {
+        if (award.root && award.challengeId === directGrant.canonicalChallengeId) selected.set(scope, award);
+      } else if (!selected.has(scope)) {
+        selected.set(scope, award);
+      }
+    }
+    return selected;
+  };
 
   const challengeCompletionChain = async (input: {
     playerAccountId: string;
@@ -3662,16 +3679,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       grantId: grantIdsByScope.get(titleGrantScopeKey(award)) ?? crypto.randomUUID(),
     }));
     const directGrantsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
-    const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
-    for (const award of completionAwardRows.filter((item) => item.grantable)) {
-      const scope = titleGrantScopeKey(award);
-      const directGrant = directGrantsByScope.get(scope);
-      if (directGrant) {
-        if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
-      } else if (!completionGrantsByScope.has(scope)) {
-        completionGrantsByScope.set(scope, award);
-      }
-    }
+    const completionGrantsByScope = selectCompletionGrantAwards(completionAwardRows, directGrantsByScope);
     return { rewards, grantResults, completionAwardRows, completionGrantsByScope, directGrantsByScope };
   };
 
@@ -3718,16 +3726,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       grantId: grants.find((item) => titleGrantScopeKey(item) === titleGrantScopeKey(award))?.grantId ?? crypto.randomUUID(),
     }));
     const directGrantsByScope = new Map(grants.map((grant) => [titleGrantScopeKey(grant), grant]));
-    const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
-    for (const award of completionAwardRows.filter((item) => item.grantable)) {
-      const scope = titleGrantScopeKey(award);
-      const directGrant = directGrantsByScope.get(scope);
-      if (directGrant) {
-        if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
-      } else if (!completionGrantsByScope.has(scope)) {
-        completionGrantsByScope.set(scope, award);
-      }
-    }
+    const completionGrantsByScope = selectCompletionGrantAwards(completionAwardRows, directGrantsByScope);
     const statements: D1PreparedStatement[] = [
       database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, match_json, created_at) SELECT ?, ?, ?, ?, 'matched', ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(crypto.randomUUID(), input.submissionId, input.requestId, input.attempt, input.responseJson, input.matchJson, timestamp, input.submissionId),
       database.prepare("INSERT OR IGNORE INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, ?, 'approved', NULL, 'system:ocr', ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')").bind(reviewId, input.submissionId, timestamp, input.submissionId),
