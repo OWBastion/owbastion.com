@@ -181,6 +181,15 @@ const maxTitleIconBytes = 512 * 1024;
 export const maxReviewCommentLength = 500;
 export const reviewSampleThreshold = 3;
 const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"]]);
+// The stored object key is `.../<version>.<extension>`; the version segment is minted once at
+// upload time and is what the versioned public route matches against, so a previously issued
+// immutable URL can never be answered with a later upload's bytes — it either still matches the
+// current object or 404s once that object is replaced.
+export const titleIconVersionOf = (objectKey: string): string => {
+  const fileName = objectKey.slice(objectKey.lastIndexOf("/") + 1);
+  const dotIndex = fileName.lastIndexOf(".");
+  return dotIndex === -1 ? fileName : fileName.slice(0, dotIndex);
+};
 export const publicTitleChallengeStatus = (status: string, startsAt: number | null, endsAt: number | null, timestamp: number, gameVersion: string | null | undefined = "known") => {
   if (!gameVersion?.trim()) return null;
   if (status !== "scheduled") return status === "active" || status === "sunsetting" ? status : null;
@@ -4637,9 +4646,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!extension || input.body.byteLength === 0 || input.body.byteLength > maxTitleIconBytes) throw new Error("ICON_FILE_INVALID");
       const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (!title) throw new Error("TITLE_NOT_FOUND");
-      const objectKey = `public/achievement-icons/${encodeURIComponent(input.titleKey)}/${crypto.randomUUID()}.${extension}`;
+      const version = crypto.randomUUID();
+      const objectKey = `public/achievement-icons/${encodeURIComponent(input.titleKey)}/${version}.${extension}`;
       await evidenceBucket.put(objectKey, input.body, { httpMetadata: { contentType: input.contentType, cacheControl: "public, max-age=31536000, immutable" } });
-      const iconUrl = `${uploadOrigin}/v1/public/achievement-icons/${encodeURIComponent(input.titleKey)}`;
+      const iconUrl = `${uploadOrigin}/v1/public/achievement-icons/${encodeURIComponent(input.titleKey)}/${version}`;
       await db.update(titleCatalog).set({ iconUrl, iconObjectKey: objectKey }).where(eq(titleCatalog.key, input.titleKey));
       if (title.iconObjectKey) await evidenceBucket.delete(title.iconObjectKey);
       await recordAudit(db, auth, "admin.title.icon.upload", "title_catalog", input.titleKey, { contentType: input.contentType, byteSize: input.body.byteLength });
@@ -4650,6 +4660,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!evidenceBucket) return null;
       const title = await db.select({ objectKey: titleCatalog.iconObjectKey, lifecycle: titleCatalog.lifecycle, publicVisibility: titleCatalog.publicVisibility }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (!title?.objectKey || title.lifecycle === "draft" || title.publicVisibility !== 1) return null;
+      if (input.version !== undefined && titleIconVersionOf(title.objectKey) !== input.version) return null;
       const object = await evidenceBucket.get(title.objectKey);
       if (!object) return null;
       return { body: object.body, contentType: object.httpMetadata?.contentType ?? "application/octet-stream", etag: object.httpEtag };

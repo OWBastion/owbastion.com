@@ -1623,6 +1623,37 @@ describe("API", () => {
     expect(uploads).toEqual([{ titleKey: "FLAWLESS", contentType: "image/png", byteSize: 3 }]);
   });
 
+  it("serves the versioned achievement icon route as immutable and the unversioned route with a short TTL", async () => {
+    const requestedVersions: Array<string | undefined> = [];
+    const iconApp = createApp({
+      authenticate: async () => ({ actorType: "service" as const, subject: "qqbot", roles: [], provider: "test" }),
+      services: () => ({
+        ...services,
+        getPublicTitleIcon: async (input) => {
+          requestedVersions.push(input.version);
+          if (input.version !== undefined && input.version !== "current-version") return null;
+          return { body: new ReadableStream({ start: (controller) => { controller.enqueue(new Uint8Array([1, 2, 3])); controller.close(); } }), contentType: "image/png", etag: "\"abc\"" };
+        },
+      }),
+    });
+
+    const versioned = await iconApp.request("http://localhost/v1/public/achievement-icons/FLAWLESS/current-version", {}, env);
+    expect(versioned.status).toBe(200);
+    expect(versioned.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+
+    const stale = await iconApp.request("http://localhost/v1/public/achievement-icons/FLAWLESS/stale-version", {}, env);
+    expect(stale.status).toBe(404);
+    expect(stale.headers.get("Cache-Control") ?? "").not.toContain("immutable");
+
+    const legacy = await iconApp.request("http://localhost/v1/public/achievement-icons/FLAWLESS", {}, env);
+    expect(legacy.status).toBe(200);
+    expect(legacy.headers.get("Cache-Control")).toBe("public, max-age=300");
+    expect(legacy.headers.get("Cache-Control")).not.toContain("immutable");
+
+    expect(requestedVersions).toEqual(["current-version", "stale-version", undefined]);
+  });
+
+
   it("publishes map catalogs while protecting player-only catalogs", async () => {
     const requestedFamilies: Array<string | undefined> = [];
     const catalogServices: PlatformServices = {
