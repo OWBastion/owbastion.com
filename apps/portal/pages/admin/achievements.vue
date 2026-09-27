@@ -586,7 +586,6 @@ async function endChallenge() {
 .catalog { max-width: none; }
 .catalog-tabs { display: grid; gap: var(--space-6); }
 .catalog-section { display: grid; gap: var(--space-3); }
-.catalog-note { margin: calc(-1 * var(--space-1)) 0 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .table-meta { color: var(--quiet); font-size: var(--type-caption-size); }
 
 /* Keep fixed layout from AdminDataTable but pin column tracks so header/body stay aligned. */
