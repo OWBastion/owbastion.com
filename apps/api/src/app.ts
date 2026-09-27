@@ -1561,7 +1561,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminTitleGrantRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).createAdminTitleGrant(parsed.data, access.auth!, idempotencyKey); return c.body(null, 204); }
-    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_FAILED"; if (["HISTORICAL_TITLE_GRANT_NOT_FOUND", "PLAYER_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The requested record does not exist"); if (code === "HISTORICAL_TITLE_GRANT_CLAIMED") return errorResponse(c, 409, code, "The historical title is already linked"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_FAILED"; if (["HISTORICAL_TITLE_GRANT_NOT_FOUND", "PLAYER_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The requested record does not exist"); if (code === "HISTORICAL_TITLE_GRANT_CLAIMED") return errorResponse(c, 409, code, "The historical title is already linked"); if (["TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "TITLE_GRANT_EVIDENCE_INVALIDATED", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be created in its current state"); throw error; }
   });
 
   app.post("/v1/admin/title-grants/bulk", async (c) => {
@@ -1572,7 +1572,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminTitleGrantBulkRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).createAdminTitleGrantBulk(parsed.data, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_BULK_FAILED"; if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The requested player does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_BULK_FAILED"; if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The requested player does not exist"); if (["TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be created in its current state"); throw error; }
   });
 
   app.post("/v1/admin/title-grants/manual", async (c) => {
@@ -1617,7 +1617,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminTitleGrantRevokeRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { await dependencies.services(c.env).revokeAdminTitleGrant({ grantId: c.req.param("grantId"), reason: parsed.data.reason }, access.auth!, idempotencyKey); return c.body(null, 204); }
-    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_REVOKE_FAILED"; if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "TITLE_GRANT_REVOKE_FAILED"; if (code === "TITLE_GRANT_NOT_FOUND") return errorResponse(c, 404, code, "The title grant does not exist"); if (["TITLE_GRANT_NOT_ACTIVE", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The title grant cannot be revoked in its current state"); throw error; }
   });
 
   app.post("/v1/admin/title-grants/:grantId/restore", async (c) => {
