@@ -44,6 +44,7 @@ import {
 } from "@owbastion/contracts";
 import type { AuthContext, Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
+import type { AdminMutation, AdminMutationOptions } from "./routes/admin-route-contract";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { hasOnlyUniqueQueryNames } from "./query-params";
 
@@ -336,6 +337,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return { auth };
   };
 
+<<<<<<< HEAD
   // Private service boundary for OCRKit screenshot-set consumption (#255). The
   // token is a secret, never a committed variable; without it the endpoints are
   // closed.
@@ -354,6 +356,9 @@ export const createApp = (dependencies: AppDependencies) => {
     action: (input: T, auth: AuthContext, idempotencyKey: string) => Promise<unknown>;
     errors?: Record<string, { status: 404 | 409 | 422 | 503; message: string }>;
   }) => {
+=======
+  const adminMutation: AdminMutation = async <T = undefined>(c: any, options: AdminMutationOptions<T>) => {
+>>>>>>> fe7ae066 (refactor(api): isolate dataset routes)
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
     const earlyResponse = options.before?.();
@@ -1691,7 +1696,6 @@ export const createApp = (dependencies: AppDependencies) => {
     },
     errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
   ));
-
   app.get("/v1/admin/submissions", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
