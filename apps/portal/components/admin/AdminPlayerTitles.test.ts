@@ -71,7 +71,10 @@ describe("AdminPlayerTitles", () => {
   });
 
   it("lets maintainers recover an uninitialized ten-title selection", async () => {
-    const titleGrants = Array.from({ length: 11 }, (_, index) => ({ grantId: `00000000-0000-4000-8000-0000000000${String(index + 1).padStart(2, "0")}`, titleKey: `GLOBAL_${index}`, label: `称号 ${index}`, icon: "award", category: "测试", condition: "测试", scope: "global" as const, grantedAt: index, status: "active" as const, revocationType: null, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true }));
+    const titleGrants = [
+      ...Array.from({ length: 10 }, (_, index) => ({ grantId: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, titleKey: `GLOBAL_${index}`, label: `称号 ${index}`, icon: "award", category: "测试", condition: "测试", scope: "global" as const, grantedAt: index, status: "active" as const, revocationType: null, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true })),
+      { grantId: "00000000-0000-4000-8000-000000000011", titleKey: "GLOBAL_MAP", label: "地图来源全局称号", icon: "award", category: "测试", condition: "测试", scope: "map" as const, mapName: "萨摩亚", grantedAt: 11, status: "active" as const, revocationType: null, sourceType: "manual" as const, grantedBy: "admin", equipped: false, equipable: true },
+    ];
     const wrapper = await mountSuspended(AdminPlayerTitles, {
       props: { playerAccountId: "player-1", titleGrants },
       global: { stubs: { AdminResponsiveDialog: { props: ["open"], template: '<div v-if="open"><slot name="body" /><slot name="footer" /></div>' } } },
@@ -79,6 +82,8 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("该玩家需要选择佩戴称号");
     await wrapper.findAll("button").find((button) => button.text() === "编辑佩戴选择")!.trigger("click");
+    expect(wrapper.findAll(".recovery-item")).toHaveLength(11);
+    expect(wrapper.text()).toContain("萨摩亚");
     const checkboxes = wrapper.findAll("input[type='checkbox']");
     await checkboxes[0].setValue(true);
     await wrapper.get("form#recover-player-titles").trigger("submit");

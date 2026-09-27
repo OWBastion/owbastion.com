@@ -405,18 +405,74 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const publicEvidenceUrl = (objectKey: string | null | undefined) => publicEvidenceBase && objectKey ? `${publicEvidenceBase}/${objectKey.split("/").map(encodeURIComponent).join("/")}` : null;
   const findEquipableGrantIds = async (playerAccountId: string, grantIds: string[]) => {
     if (!grantIds.length) return [];
-    return db.select({ id: playerTitleGrants.id }).from(playerTitleGrants)
+    const grants = await db.select({ id: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey }).from(playerTitleGrants)
       .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
+      .leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
       .where(and(
         inArray(playerTitleGrants.id, grantIds),
         eq(playerTitleGrants.playerAccountId, playerAccountId),
         eq(playerTitleGrants.status, "active"),
         isNotNull(titleCatalog.gameVersion),
         eq(titleCatalog.scope, "global"),
-        isNull(playerTitleGrants.mapId),
-        isNull(playerTitleGrants.gameplayRevisionId),
+        or(
+          and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
+          and(eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+        ),
       ));
+    if (grants.length !== grantIds.length || new Set(grants.map((grant) => grant.titleKey)).size !== grants.length) throw new Error("EQUIPPED_TITLE_GRANT_INVALID");
+    return grants;
   };
+  const reconcileEquippedTitlesForHistoricalRevision = (revisionId: string) => [
+    database.prepare(`
+      WITH replacements AS MATERIALIZED (
+        SELECT equipped.grant_id AS old_grant_id, (
+          SELECT replacement.id
+          FROM player_title_grants AS old_grant
+          JOIN player_title_grants AS replacement
+            ON replacement.player_account_id = old_grant.player_account_id
+           AND replacement.title_key = old_grant.title_key
+          JOIN title_catalog AS title ON title.key = replacement.title_key
+          LEFT JOIN gameplay_revisions AS replacement_revision ON replacement_revision.id = replacement.gameplay_revision_id
+          WHERE old_grant.id = equipped.grant_id
+            AND replacement.status = 'active'
+            AND title.scope = 'global'
+            AND title.game_version IS NOT NULL
+            AND (
+              (replacement.map_id IS NULL AND replacement.gameplay_revision_id IS NULL)
+              OR (replacement.map_id = replacement_revision.map_id AND replacement_revision.lifecycle IN ('default', 'selectable'))
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM player_equipped_titles AS existing
+              WHERE existing.player_account_id = equipped.player_account_id
+                AND existing.grant_id = replacement.id
+            )
+          ORDER BY replacement.granted_at DESC, replacement.id
+          LIMIT 1
+        ) AS replacement_grant_id
+        FROM player_equipped_titles AS equipped
+        JOIN player_title_grants AS old_grant ON old_grant.id = equipped.grant_id
+        JOIN gameplay_revisions AS old_revision ON old_revision.id = old_grant.gameplay_revision_id
+        WHERE old_grant.gameplay_revision_id = ?
+          AND old_revision.lifecycle = 'historical'
+      )
+      UPDATE player_equipped_titles
+      SET grant_id = (
+        SELECT replacement_grant_id FROM replacements
+        WHERE old_grant_id = player_equipped_titles.grant_id
+      )
+      WHERE grant_id IN (SELECT old_grant_id FROM replacements WHERE replacement_grant_id IS NOT NULL)
+    `).bind(revisionId),
+    database.prepare(`
+      DELETE FROM player_equipped_titles
+      WHERE grant_id IN (
+        SELECT grant.id
+        FROM player_title_grants AS grant
+        JOIN gameplay_revisions AS revision ON revision.id = grant.gameplay_revision_id
+        WHERE grant.gameplay_revision_id = ?
+          AND revision.lifecycle = 'historical'
+      )
+    `).bind(revisionId),
+  ];
   const listGlobalAgentTitles = async () => (await db.select().from(titleCatalog)
     .where(eq(titleCatalog.scope, "global"))
     .orderBy(titleCatalog.key)).map(toAgentTitle);
@@ -3712,6 +3768,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           statements.push(insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, rule.id, timestamp));
         }
       }
+      if (current.lifecycle === "selectable" && input.lifecycle === "historical") {
+        statements.push(...reconcileEquippedTitlesForHistoricalRevision(input.revisionId));
+      }
       await database.batch(statements);
       const response = await loadAdminMapRevision(input.revisionId);
       await recordIdempotency(db, auth.subject, "admin.map.revision.update", idempotencyKey, input, response);
@@ -3760,9 +3819,31 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (current.lifecycle !== "default" && otherDefault && !input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_REQUIRED");
       if (current.lifecycle !== "default" && !otherDefault && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_NOT_FOUND");
       const timestamp = now();
+      const defaultMapTitleRules = current.lifecycle === "default" ? [] : await db.select().from(mapTitleRules).where(and(
+        eq(mapTitleRules.defaultScope, "all_active"),
+        inArray(mapTitleRules.status, ["active", "sunsetting"]),
+        isNull(mapTitleRules.mapVariant),
+      ));
+      const projectedRuleAssignments = defaultMapTitleRules
+        .filter((rule) => rule.kind.trim().toLocaleLowerCase() !== "pioneer")
+        .filter((rule) => !assignmentRows.some((assignment) => assignment.challengeFamily === "map_title_rule" && assignment.challengeId === rule.id))
+        .map((rule) => ({
+          id: `assignment:${input.revisionId}:map_title_rule:${rule.id}`,
+          gameplayRevisionId: input.revisionId,
+          mapId: input.mapId,
+          challengeFamily: "map_title_rule",
+          challengeId: rule.id,
+          enabled: 1,
+          condition: null,
+          evidenceRule: null,
+          submissionMode: null,
+          slot: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }));
       const response = asAdminMapRevision(
         { ...current, lifecycle: "default", updatedAt: timestamp },
-        assignmentRows,
+        [...assignmentRows, ...projectedRuleAssignments],
       );
       const requestHash = await hashRequest(input);
       const statements = [
@@ -3770,6 +3851,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
         )] : []),
         ...(current.lifecycle === "default" ? [] : [database.prepare("UPDATE gameplay_revisions SET lifecycle = 'default', updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle IN ('preparing', 'selectable')").bind(timestamp, input.revisionId, input.mapId)]),
+        ...projectedRuleAssignments.map((assignment) => insertDefaultMapTitleRuleAssignment(input.revisionId, input.mapId, assignment.challengeId, timestamp)),
+        ...(otherDefault && input.replacedDefaultLifecycle === "historical" ? reconcileEquippedTitlesForHistoricalRevision(otherDefault.id) : []),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(
           `${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp,
         ),
@@ -4362,7 +4445,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async listCurrentPlayerTitles(input) {
       const current = await getCurrentPortalPlayer(input.sessionToken);
       if (!current) return null;
-      const rows = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId }).from(playerTitleGrants)
+      const rows = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, revisionMapId: gameplayRevisions.mapId, equipped: playerEquippedTitles.grantId }).from(playerTitleGrants)
         .innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key))
         .leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id))
         .leftJoin(maps, eq(playerTitleGrants.mapId, maps.id))
@@ -4371,12 +4454,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           eq(playerTitleGrants.playerAccountId, current.player.id),
           eq(playerTitleGrants.status, "active"),
           or(
-            and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId), eq(titleCatalog.scope, "global"), isNotNull(titleCatalog.gameVersion)),
-            and(eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+            and(
+              eq(titleCatalog.scope, "global"),
+              isNotNull(titleCatalog.gameVersion),
+              or(
+                and(isNull(playerTitleGrants.mapId), isNull(playerTitleGrants.gameplayRevisionId)),
+                and(eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
+              ),
+            ),
+            and(eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion), eq(playerTitleGrants.mapId, gameplayRevisions.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])),
           ),
         )).orderBy(desc(playerTitleGrants.grantedAt));
       const entitlement = await db.select({ allTitles: playerTitleEntitlements.allTitles }).from(playerTitleEntitlements).where(eq(playerTitleEntitlements.playerAccountId, current.player.id)).get();
-      return { items: rows.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped) })), allTitles: entitlement?.allTitles === 1 };
+      return { items: rows.map(({ grant, title, mapName, revisionMapId, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapId: grant.mapId ?? undefined, gameplayRevisionId: grant.gameplayRevisionId ?? undefined, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, equipped: title.scope === "global" && Boolean(equipped) && (grant.mapId === null && grant.gameplayRevisionId === null || grant.mapId === revisionMapId) })), allTitles: entitlement?.allTitles === 1 };
     },
 
     async replaceCurrentPlayerEquippedTitles(input, idempotencyKey) {
@@ -5949,7 +6039,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const playerBindings = await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).orderBy(desc(bindings.createdAt));
       const recentSubmissions = await db.select().from(submissions).where(eq(submissions.playerAccountId, account.id)).orderBy(desc(submissions.createdAt)).limit(10);
       const recentSubmissionDetails = recentSubmissions.length ? await resolveAdminSubmissionDetails(recentSubmissions) : null;
-      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId, revisionLifecycle: gameplayRevisions.lifecycle })
+      const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId, revisionMapId: gameplayRevisions.mapId, revisionLifecycle: gameplayRevisions.lifecycle })
         .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id)).leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
         .where(and(eq(playerTitleGrants.playerAccountId, account.id), or(eq(playerTitleGrants.status, "active"), and(eq(playerTitleGrants.status, "revoked"), eq(playerTitleGrants.revocationType, "administrator"))))).orderBy(desc(playerTitleGrants.grantedAt));
       return {
@@ -5974,7 +6064,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
-        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: grant.status === "active" && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: grant.status === "active" && title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
+        titleGrants: titleGrants.map(({ grant, title, mapName, equipped, revisionMapId, revisionLifecycle }) => {
+          const equipable = grant.status === "active" && title.gameVersion !== null && title.scope === "global" && (
+            grant.mapId === null && grant.gameplayRevisionId === null
+            || grant.mapId === revisionMapId && ["default", "selectable"].includes(revisionLifecycle ?? "")
+          );
+          return { grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: Boolean(equipped) && equipable, equipable };
+        }),
       };
     },
 

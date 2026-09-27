@@ -1374,6 +1374,14 @@ describe("API", () => {
     const batch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.empty&gameplayRevisionIds=revision%3Amap.test%3Ainitial%2Crevision%3Amap.empty%3Ainitial", {}, env);
     expect(batch.status).toBe(200);
     expect(await batch.json()).toMatchObject({ contractVersion: "1", targetType: "map", items: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", reviewCount: 3 }, { targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial", reviewCount: 3 }] });
+    const mapRevisionsBatch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.test&gameplayRevisionIds=revision%3Amap.test%3Ar1%2Crevision%3Amap.test%3Ar2", {}, env);
+    expect(mapRevisionsBatch.status).toBe(200);
+    expect(calls.at(-1)).toEqual({ operation: "batch", input: { targetType: "map", targets: [
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:r1" },
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:r2" },
+    ] } });
+    expect((await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.test&gameplayRevisionIds=revision%3Amap.test%3Ar1%2Crevision%3Amap.test%3Ar1", {}, env)).status).toBe(422);
+    expect((await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=event&targetIds=event.test%2Cevent.test", {}, env)).status).toBe(422);
 
     const comments = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?gameplayRevisionId=revision%3Amap.test%3Ainitial&page=1&pageSize=2", {}, env);
     expect(comments.status).toBe(200);
@@ -1387,6 +1395,7 @@ describe("API", () => {
       { operation: "summary", input: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" } },
       { operation: "summary", input: { targetType: "event", targetId: "event.test" } },
       { operation: "batch", input: { targetType: "map", targets: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, { targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial" }] } },
+      { operation: "batch", input: { targetType: "map", targets: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:r1" }, { targetId: "map.test", gameplayRevisionId: "revision:map.test:r2" }] } },
       { operation: "comments", input: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 2 } },
     ]);
   });

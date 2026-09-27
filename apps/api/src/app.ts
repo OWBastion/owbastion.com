@@ -964,7 +964,10 @@ export const createApp = (dependencies: AppDependencies) => {
     const targetType = reviewTargetTypeSchema.safeParse(c.req.query("targetType"));
     const targetIds = (c.req.query("targetIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
     const gameplayRevisionIds = (c.req.query("gameplayRevisionIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
-    const validIds = targetIds.length > 0 && targetIds.length <= 100 && new Set(targetIds).size === targetIds.length;
+    const uniqueTargets = targetType.success && targetType.data === "map"
+      ? new Set(targetIds.map((targetId: string, index: number) => JSON.stringify([targetId, gameplayRevisionIds[index]]))).size === targetIds.length
+      : new Set(targetIds).size === targetIds.length;
+    const validIds = targetIds.length > 0 && targetIds.length <= 100 && uniqueTargets;
     const targets = targetType.success && targetType.data === "map" && gameplayRevisionIds.length === targetIds.length
       ? targetIds.map((targetId: string, index: number) => ({ targetType: "map", targetId, gameplayRevisionId: gameplayRevisionIds[index] }))
       : [];

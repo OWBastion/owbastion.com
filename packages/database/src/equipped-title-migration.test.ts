@@ -6,14 +6,14 @@ import { describe, expect, it } from "vitest";
 const migrationsDirectory = resolve(import.meta.dirname, "../../../migrations");
 const migration = (name: string) => readFileSync(resolve(migrationsDirectory, name), "utf8");
 
-describe("0080/0081 equipped title scope repair", () => {
+describe("equipped title scope migrations", () => {
   it("removes map equipment and initializes only deterministic global selections", () => {
     const sqlite = new DatabaseSync(":memory:");
     sqlite.exec(`
       PRAGMA foreign_keys = ON;
       CREATE TABLE player_accounts (id TEXT PRIMARY KEY);
       CREATE TABLE title_catalog (key TEXT PRIMARY KEY, scope TEXT NOT NULL, availability TEXT NOT NULL, game_version TEXT);
-      CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, lifecycle TEXT NOT NULL);
+      CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL);
       CREATE TABLE player_title_grants (
         id TEXT PRIMARY KEY,
         player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -27,7 +27,7 @@ describe("0080/0081 equipped title scope repair", () => {
     sqlite.exec(`
       INSERT INTO player_accounts VALUES
         ('preserved'), ('skipped'), ('over-limit'), ('map-only');
-      INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'default');
+      INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'map.test', 'default');
       INSERT INTO title_catalog VALUES
         ('GLOBAL_1', 'global', 'active', '26.1'),
         ('GLOBAL_2', 'global', 'active', '26.1'),
@@ -92,5 +92,14 @@ describe("0080/0081 equipped title scope repair", () => {
       sqlite.prepare("INSERT INTO player_equipped_titles VALUES (?, 'over-limit', 1)").run(`over-limit-global-${index}`);
     }
     expect(() => sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('over-limit-global-11', 'over-limit', 1)").run()).toThrow("EQUIPPED_TITLE_LIMIT_EXCEEDED");
+
+    sqlite.exec(migration("0086_revision_scoped_equipped_titles.sql"));
+    sqlite.prepare("INSERT INTO title_catalog VALUES ('GLOBAL_REVISION', 'global', 'active', '26.1')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, granted_at) VALUES ('revision-global-grant', 'preserved', 'GLOBAL_REVISION', 'map.test', 'revision:map.test:default', 'active', 3)").run();
+    sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('revision-global-grant', 'preserved', 3)").run();
+    expect(sqlite.prepare("SELECT grant_id FROM player_equipped_titles WHERE grant_id = 'revision-global-grant'").get()).toEqual({ grant_id: "revision-global-grant" });
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = 'revision:map.test:default'").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, granted_at) VALUES ('historical-global-grant', 'preserved', 'GLOBAL_REVISION', 'map.test', 'revision:map.test:default', 'active', 4)").run();
+    expect(() => sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('historical-global-grant', 'preserved', 4)").run()).toThrow("EQUIPPED_TITLE_GRANT_INVALID");
   });
 });
