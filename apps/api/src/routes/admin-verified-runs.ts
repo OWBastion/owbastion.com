@@ -4,7 +4,7 @@ import {
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
 import { hasOnlyUniqueQueryNames } from "../query-params";
-import type { AdminRouteDependencies, ApiApp } from "./admin-route-contract";
+import type { AdminRouteDependencies, ApiApp } from "./route-contract";
 
 const verifiedRunUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
