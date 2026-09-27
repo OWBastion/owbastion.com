@@ -109,6 +109,17 @@ const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
+const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K, include?: (item: T) => boolean) => {
+  const groups = new globalThis.Map<K, T[]>();
+  for (const item of items) {
+    if (include && !include(item)) continue;
+    const key = keyOf(item);
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+  return groups;
+};
 type HistoricalMigrationItem = { status: string };
 const summarizeHistoricalMigration = (rows: HistoricalMigrationItem[], invite: { revokedAt: number | null; expiresAt: number }, claimStatus: string | undefined, timestamp: number, completedLegacyRedemption = false) => {
   const completedCount = rows.filter((row) => row.status === "created" || row.status === "reused").length;
@@ -498,12 +509,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       WHERE authorization.invite_id = ?
         AND authorization.status NOT IN ('created', 'reused', 'conflict')
     `).bind(input.playerAccountId, input.inviteId).all<MigrationLookupRow>()).results;
-    const lookupRowsByItemId = new Map<string, MigrationLookupRow[]>();
-    for (const row of lookupRows) {
-      const rows = lookupRowsByItemId.get(row.itemId) ?? [];
-      rows.push(row);
-      lookupRowsByItemId.set(row.itemId, rows);
-    }
+    const lookupRowsByItemId = groupBy(lookupRows, (row) => row.itemId);
 
     const timestamp = now();
     const operations: Array<{ statements: any[]; audit?: { entityId: string; payload: Record<string, unknown> } }> = [];
@@ -697,12 +703,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           .where(inArray(achievementChallengeMaps.challengeId, challengeIds));
     const allowed = challengeIds && challengeIds.length > d1InBindSoftLimit ? new Set(challengeIds) : null;
     const grouped = new globalThis.Map<string, string[]>();
-    for (const { challengeId, mapId } of rows) {
-      if (allowed && !allowed.has(challengeId)) continue;
-      const current = grouped.get(challengeId);
-      if (current) current.push(mapId);
-      else grouped.set(challengeId, [mapId]);
-    }
+    for (const [challengeId, links] of groupBy(rows, (row) => row.challengeId, ({ challengeId }) => !allowed || allowed.has(challengeId))) grouped.set(challengeId, links.map(({ mapId }) => mapId));
     return grouped;
   };
 
@@ -1515,18 +1516,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       "))" + assignmentFilter,
     ].join(" ")).bind(...(input.mapId ? [timestamp, timestamp, input.mapId] : [timestamp, timestamp])).all<AgentRevisionAssignmentRow>();
     const [mapResult, assignmentResult] = await Promise.all([mapQuery, assignmentQuery]);
-    const revisionsByMap = new globalThis.Map<string, AgentMapProjectionRow[]>();
-    for (const row of mapResult.results) {
-      const current = revisionsByMap.get(row.map_id) ?? [];
-      current.push(row);
-      revisionsByMap.set(row.map_id, current);
-    }
-    const assignmentsByRevision = new globalThis.Map<string, AgentRevisionAssignmentRow[]>();
-    for (const row of assignmentResult.results) {
-      const current = assignmentsByRevision.get(row.revision_id) ?? [];
-      current.push(row);
-      assignmentsByRevision.set(row.revision_id, current);
-    }
+    const revisionsByMap = groupBy(mapResult.results, (row) => row.map_id);
+    const assignmentsByRevision = groupBy(assignmentResult.results, (row) => row.revision_id);
     const items: AgentMap[] = [];
     for (const [mapId, rows] of revisionsByMap) {
       const first = rows[0];
@@ -4113,8 +4104,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const)));
         const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
         const challengesByEvent = new Map<string, Challenge[]>(eventIds.map((id) => [id, []]));
-        for (const link of mapLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
-        for (const link of titleLinks) { const c = challengeById.get(link.challengeId); if (c) challengesByEvent.get(link.eventId)?.push(c); }
+        for (const links of [mapLinks, titleLinks]) {
+          for (const link of links) {
+            const challenge = challengeById.get(link.challengeId);
+            if (challenge) challengesByEvent.get(link.eventId)?.push(challenge);
+          }
+        }
       return rows.map((row): RandomEvent => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, effectTags, effectAnnotations: effectTags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: challengesByEvent.get(row.id) ?? [] }; });
     },
     async getRandomEvent(input) {
