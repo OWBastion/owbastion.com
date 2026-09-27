@@ -10,7 +10,6 @@ const route = useRoute();
 const api = useAdminApi();
 const toast = useToast();
 const player = shallowRef<AdminPlayerDetail | null>(null);
-const loading = shallowRef(true);
 const actionLoading = shallowRef(false);
 const identityEditorOpen = shallowRef(false);
 const identityLoading = shallowRef(false);
@@ -29,15 +28,14 @@ const playerAccountId = computed(() => String(route.params.playerAccountId));
 const actionTitle = computed(() => pendingAction.value?.type === "unbind" ? "解除 QQ 绑定" : pendingAction.value?.status === "banned" ? "封禁玩家" : "解除封禁");
 const actionDescription = computed(() => player.value ? `${player.value.playerName}#${player.value.playerId}` : undefined);
 
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  try {
-    player.value = await api<AdminPlayerDetail>(`/v1/player-accounts/${encodeURIComponent(playerAccountId.value)}`);
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取玩家详情，请稍后重试。").description;
-  } finally { loading.value = false; }
-}
+const adminData = useAdminAsyncData("player-detail", () => api<AdminPlayerDetail>(`/v1/player-accounts/${encodeURIComponent(playerAccountId.value)}`), {
+  cacheKey: playerAccountId,
+  onStart: () => { errorMessage.value = ""; },
+  onData: (response) => { player.value = response; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取玩家详情，请稍后重试。").description; },
+});
+const loading = adminData.loading;
+async function load() { errorMessage.value = ""; await adminData.refresh(); }
 function requestStatus(status: "active" | "banned") { banReason.value = ""; pendingAction.value = { type: "set-status", status }; }
 function requestUnbind(bindingId: string) { pendingAction.value = { type: "unbind", bindingId }; }
 function closeAction(force = false) { if (actionLoading.value && !force) return; pendingAction.value = null; banReason.value = ""; }
@@ -114,7 +112,6 @@ async function copyRecoveryLink() {
   window.setTimeout(() => { recoveryCopied.value = false; }, 1600);
 }
 
-onMounted(() => { void load(); });
 </script>
 
 <template>

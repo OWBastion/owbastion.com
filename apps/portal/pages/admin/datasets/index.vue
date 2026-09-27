@@ -11,7 +11,6 @@ useSeoMeta({ title: '数据集 · 躲避堡垒 3' });
 const api = useAdminApi();
 const toast = useToast();
 const datasets = ref<AdminDatasetSnapshot[]>([]);
-const loading = ref(true);
 const errorMessage = ref('');
 const page = ref(1);
 const total = ref(0);
@@ -46,17 +45,21 @@ const query = computed(() => {
 });
 
 async function load() {
-  loading.value = true;
   errorMessage.value = '';
-  try {
-    const response = await api<{ items: AdminDatasetSnapshot[]; total: number }>('/v1/datasets?' + query.value);
-    datasets.value = response.items;
-    total.value = response.total;
-    if (page.value > 1 && !response.items.length && response.total) { page.value -= 1; await load(); }
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, '无法读取数据集，请确认当前账号有管理员权限。').description;
-  } finally { loading.value = false; }
+  await adminData.refresh();
 }
+
+const adminData = useAdminAsyncData('datasets', async () => {
+  const response = await api<{ items: AdminDatasetSnapshot[]; total: number }>('/v1/datasets?' + query.value);
+  if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
+  return response;
+}, {
+  cacheKey: query,
+  onStart: () => { errorMessage.value = ''; },
+  onData: (response) => { datasets.value = response.items; total.value = response.total; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, '无法读取数据集，请确认当前账号有管理员权限。').description; },
+});
+const loading = adminData.loading;
 
 async function openDraftDialog() {
   if (draftCandidatesLoading.value) return;
@@ -129,8 +132,7 @@ async function finalize() {
   finally { finalizing.value = false; }
 }
 
-watch(statusFilter, () => { page.value = 1; void load(); });
-onMounted(() => { void load(); });
+watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
 </script>
 
 <template>
@@ -155,7 +157,7 @@ onMounted(() => { void load(); });
         <template #createdAt-cell='{ row }'><span>{{ formatTime(row.original.createdAt) }}</span><span class='table-meta'>{{ row.original.createdBy }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openDetail(row.original.datasetId)' /></div></template>
       </AdminDataTable>
-      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' />
     </section>
 
     <AdminResponsiveDialog v-model:open='draftDialogOpen' title='创建数据集草稿' description='默认包含全部合格标注。选中异常项可仅从本次快照排除；原审定标注不会改变。' size='lg'>

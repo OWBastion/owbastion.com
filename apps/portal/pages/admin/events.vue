@@ -30,7 +30,6 @@ const editorOpen = shallowRef(false);
 const importOpen = shallowRef(false);
 const importFile = shallowRef<File | null>(null);
 const importPreview = ref<ImportPreview | null>(null);
-const loading = shallowRef(true);
 const toast = useToast();
 const saving = shallowRef(false);
 const importing = shallowRef(false);
@@ -88,20 +87,30 @@ function resetForm(event?: RandomEvent) {
 }
 function openCreate() { selectedEvent.value = null; resetForm(); editorOpen.value = true; }
 function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); editorOpen.value = true; }
-async function load() { loading.value = true; error.value = ""; try { const eventResult = await api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`); events.value = eventResult.items; } catch (cause) { error.value = portalErrorDetails(cause, "无法读取事件目录。").description; } finally { loading.value = false; } }
-async function loadVersions() { try { versions.value = (await api<{ items: EventVersion[] }>("/v1/event-versions")).items; } catch (cause) { error.value = portalErrorDetails(cause, "无法读取事件版本状态。").description; } }
-async function loadAll() { await Promise.all([load(), loadVersions()]); }
-async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
+const adminData = useAdminAsyncData("events", async () => {
+  const [eventResult, versionResult] = await Promise.all([
+    api<{ items: RandomEvent[] }>(`/v1/events?archived=${showArchived.value}`),
+    api<{ items: EventVersion[] }>("/v1/event-versions"),
+  ]);
+  return { events: eventResult.items, versions: versionResult.items };
+}, {
+  cacheKey: computed(() => String(showArchived.value)),
+  onStart: () => { error.value = ""; },
+  onData: (response) => { events.value = response.events; versions.value = response.versions; },
+  onError: (cause) => { error.value = portalErrorDetails(cause, "无法读取事件目录或版本状态。").description; },
+});
+const loading = adminData.loading;
+async function load() { error.value = ""; await adminData.refresh(); }
+async function loadAll() { await load(); }
+async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; await loadAll(); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
 function requestArchive() { archiveOpen.value = true; }
-async function archive() { if (!selectedEvent.value) return; saving.value = true; try { const eventId = selectedEvent.value.eventId; await api(`/v1/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } }); events.value = events.value.filter((event) => event.eventId !== eventId); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
+async function archive() { if (!selectedEvent.value) return; saving.value = true; try { const eventId = selectedEvent.value.eventId; await api(`/v1/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } }); events.value = events.value.filter((event) => event.eventId !== eventId); await loadAll(); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
 function requestVersionAvailability(version: EventVersion, availability: EventVersion["availability"]) { versionTarget.value = { version, availability }; versionAvailabilityOpen.value = true; }
 const versionAvailabilityLabel = (availability: EventVersion["availability"]) => availability === "suspended" ? "已挂起" : "可用";
-async function updateVersionAvailability() { if (!versionTarget.value) return; versionSaving.value = true; error.value = ""; const { version, availability } = versionTarget.value; try { const updated = await api<EventVersion>(`/v1/event-versions/${encodeURIComponent(version.gameVersion)}/availability`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", availability } }); versions.value = versions.value.map((item) => item.gameVersion === updated.gameVersion ? updated : item); versionAvailabilityOpen.value = false; versionTarget.value = null; toast.add({ title: availability === "suspended" ? "事件版本已挂起" : "事件版本已恢复", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法更新事件版本状态。").description; } finally { versionSaving.value = false; } }
+async function updateVersionAvailability() { if (!versionTarget.value) return; versionSaving.value = true; error.value = ""; const { version, availability } = versionTarget.value; try { const updated = await api<EventVersion>(`/v1/event-versions/${encodeURIComponent(version.gameVersion)}/availability`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", availability } }); versions.value = versions.value.map((item) => item.gameVersion === updated.gameVersion ? updated : item); await loadAll(); versionAvailabilityOpen.value = false; versionTarget.value = null; toast.add({ title: availability === "suspended" ? "事件版本已挂起" : "事件版本已恢复", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法更新事件版本状态。").description; } finally { versionSaving.value = false; } }
 async function previewImport() { if (!importFile.value) return; importing.value = true; error.value = ""; try { importPreview.value = await api<ImportPreview>("/v1/events/imports/preview", { method: "POST", body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); } catch (cause) { error.value = portalErrorDetails(cause, "无法预检文件。").description; } finally { importing.value = false; } }
 async function importEvents() { if (!importFile.value || !importPreview.value || importPreview.value.errors.length) return; importing.value = true; try { const result = await api<{ importedCount: number }>("/v1/events/imports", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", fileName: importFile.value.name, csv: await importFile.value.text() } }); importOpen.value = false; importPreview.value = null; importFile.value = null; toast.add({ title: `已导入 ${result.importedCount} 条事件`, color: "success" }); await load(); } catch (cause) { error.value = portalErrorDetails(cause, "导入失败。").description; } finally { importing.value = false; } }
 
-watch(showArchived, () => void load());
-onMounted(() => void loadAll());
 </script>
 
 <template>

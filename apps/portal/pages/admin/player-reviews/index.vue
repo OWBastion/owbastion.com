@@ -9,7 +9,6 @@ useSeoMeta({ title: '玩家评价 · 躲避堡垒 3' });
 
 const api = useAdminApi();
 const reviews = ref<AdminReview[]>([]);
-const loading = ref(true);
 const errorMessage = ref('');
 const feedback = ref('');
 const page = ref(1);
@@ -54,17 +53,21 @@ const query = computed(() => {
 });
 
 async function load() {
-  loading.value = true;
   errorMessage.value = '';
-  try {
-    const response = await api<{ items: AdminReview[]; total: number }>('/v1/reviews?' + query.value);
-    reviews.value = response.items;
-    total.value = response.total;
-    if (page.value > 1 && !reviews.value.length && total.value) { page.value -= 1; await load(); }
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, '无法读取玩家评价，请确认当前账号有管理员权限。').description;
-  } finally { loading.value = false; }
+  await adminData.refresh();
 }
+
+const adminData = useAdminAsyncData('player-reviews', async () => {
+  const response = await api<{ items: AdminReview[]; total: number }>('/v1/reviews?' + query.value);
+  if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
+  return response;
+}, {
+  cacheKey: query,
+  onStart: () => { errorMessage.value = ''; },
+  onData: (response) => { reviews.value = response.items; total.value = response.total; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, '无法读取玩家评价，请确认当前账号有管理员权限。').description; },
+});
+const loading = adminData.loading;
 
 async function openDetail(reviewId: string) {
   detailOpen.value = true;
@@ -99,8 +102,7 @@ async function saveModeration() {
   finally { saving.value = false; }
 }
 
-watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.value = 1; void load(); });
-onMounted(() => { void load(); });
+watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.value = 1; }, { flush: 'sync' });
 </script>
 
 <template>
@@ -123,7 +125,7 @@ onMounted(() => { void load(); });
         <template #createdAt-cell='{ row }'><span class='table-meta'>{{ formatTime(row.original.createdAt) }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openDetail(row.original.reviewId)' /></div></template>
       </AdminDataTable>
-      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' />
     </section>
   </AdminWorkspace>
 

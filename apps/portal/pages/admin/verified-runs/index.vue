@@ -16,7 +16,6 @@ const api = useAdminApi();
 const toast = useToast();
 const route = useRoute();
 const runs = shallowRef<AdminVerifiedRun[]>([]);
-const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
@@ -94,22 +93,21 @@ const query = computed(() => {
 });
 
 async function load() {
-  loading.value = true;
   errorMessage.value = "";
-  try {
-    const response = await api<{ items: AdminVerifiedRun[]; total: number }>(`/v1/verified-runs?${query.value}`);
-    runs.value = response.items;
-    total.value = response.total;
-    if (page.value > 1 && !runs.value.length && total.value) {
-      page.value -= 1;
-      await load();
-    }
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取通关记录，请确认当前账号有管理员权限。").description;
-  } finally {
-    loading.value = false;
-  }
+  await adminData.refresh();
 }
+
+const adminData = useAdminAsyncData("verified-runs", async () => {
+  const response = await api<{ items: AdminVerifiedRun[]; total: number }>(`/v1/verified-runs?${query.value}`);
+  if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
+  return response;
+}, {
+  cacheKey: query,
+  onStart: () => { errorMessage.value = ""; },
+  onData: (response) => { runs.value = response.items; total.value = response.total; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取通关记录，请确认当前账号有管理员权限。").description; },
+});
+const loading = adminData.loading;
 
 async function loadDetail(verifiedRunId: string) {
   detailLoading.value = true;
@@ -212,9 +210,7 @@ async function saveCorrection(payload: { changes: AdminVerifiedRunCorrectionChan
 
 watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, runStatus, acceptanceSource, fromDate, toDate], () => {
   page.value = 1;
-  void load();
-});
-onMounted(() => { void load(); });
+}, { flush: "sync" });
 </script>
 
 <template>
@@ -260,7 +256,7 @@ onMounted(() => { void load(); });
         <template #conflictCount-cell="{ row }"><StatusBadge v-if="row.original.conflictCount" :label="`${row.original.conflictCount} 条`" tone="warning" /><span v-else class="table-meta">—</span></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton label="详情" size="sm" color="neutral" variant="outline" @click="openDetail(row.original.runId)" /></div></template>
       </AdminDataTable>
-      <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
+      <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" />
     </section>
   </AdminWorkspace>
 

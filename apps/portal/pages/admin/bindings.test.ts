@@ -5,6 +5,7 @@ import { reactive } from "vue";
 import BindingsPage from "./bindings.vue";
 
 const route = reactive({ query: {} as Record<string, string> });
+let decidedClaimStatus: "pending_review" | "approved" | "rejected" = "pending_review";
 const adminApi = vi.fn((path: string, options?: any) => {
   if (path === "/v1/binding-claims") {
     return Promise.resolve({
@@ -13,7 +14,7 @@ const adminApi = vi.fn((path: string, options?: any) => {
           claimId: "claim-1",
           playerName: "PlayerOne",
           playerId: "1234",
-          status: "pending_review",
+          status: decidedClaimStatus,
           createdAt: 1000,
           invitedBy: "admin",
           memberOpenId: "member-1",
@@ -63,6 +64,7 @@ const adminApi = vi.fn((path: string, options?: any) => {
     }] });
   }
   if (path.startsWith("/v1/binding-claims/") && path.endsWith("/decision")) {
+    decidedClaimStatus = options?.body?.decision === "approved" ? "approved" : "rejected";
     return Promise.resolve();
   }
   throw new Error(`Unexpected request: ${path}`);
@@ -85,6 +87,7 @@ const UTabsStub = {
 describe("admin bindings page", () => {
   it("renders claims with operation type badges and handles conflict secondary confirmation", async () => {
     adminApi.mockClear();
+    decidedClaimStatus = "pending_review";
     route.query = {};
     const wrapper = await mountSuspended(BindingsPage, { attachTo: document.body, global: { stubs: { USelect: USelectStub } } });
     await flushPromises();
@@ -140,10 +143,9 @@ describe("admin bindings page", () => {
         body: { contractVersion: "1", decision: "approved" },
       }),
     );
-    // A-04 — the row updates in place: status flips to 已批准 and the list is
-    // not re-fetched, so the page does not flash through a full reload.
+    // The decision is reflected from the revalidated authoritative list.
     expect(wrapper.text()).toContain("已批准");
-    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length).toBe(listCallsBefore);
+    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/binding-claims").length).toBeGreaterThan(listCallsBefore);
     wrapper.unmount();
   });
 

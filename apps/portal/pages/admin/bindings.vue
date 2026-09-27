@@ -18,7 +18,6 @@ const route = useRoute();
 const router = useRouter();
 const claims = ref<AdminBindingClaim[]>([]);
 const invitations = ref<AdminBindingInvitation[]>([]);
-const loading = ref(true);
 const errorMessage = ref("");
 const claimStatus = ref<"pending_review" | "all">("pending_review");
 
@@ -132,22 +131,19 @@ const operationTypeTone = (type?: AdminBindingClaim["operationType"]) => {
   }
 };
 
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  try {
+const adminData = useAdminAsyncData("bindings", async () => {
     const [claimResult, invitationResult] = await Promise.all([
       api<{ items: AdminBindingClaim[] }>("/v1/binding-claims"),
       api<{ items: AdminBindingInvitation[] }>("/v1/binding-invites"),
     ]);
-    claims.value = claimResult.items;
-    invitations.value = invitationResult.items;
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取绑定记录，请稍后重试。").description;
-  } finally {
-    loading.value = false;
-  }
-}
+    return { claims: claimResult.items, invitations: invitationResult.items };
+  }, {
+    onStart: () => { errorMessage.value = ""; },
+    onData: (response) => { claims.value = response.claims; invitations.value = response.invitations; },
+    onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取绑定记录，请稍后重试。").description; },
+  });
+const loading = adminData.loading;
+async function load() { errorMessage.value = ""; await adminData.refresh(); }
 
 function handleApprove(claim: AdminBindingClaim) {
   if (claim.operationType === "conflict") {
@@ -179,6 +175,7 @@ async function decide(claim: AdminBindingClaim, decision: "approved" | "rejected
       updated.status = decision === "approved" ? "approved" : "rejected";
       flashRow(updated.claimId, updatedClaimIds);
     }
+    await load();
   } catch (error) {
     toast.add({ title: "无法处理申请", description: portalErrorDetails(error).description, color: "error" });
   } finally {
@@ -215,6 +212,7 @@ async function revokeInvitation() {
       updated.status = "revoked";
       flashRow(updated.inviteId, updatedInviteIds);
     }
+    await load();
   } catch (error) {
     toast.add({ title: "无法撤销邀请码", description: portalErrorDetails(error).description, color: "error" });
   } finally {
@@ -261,7 +259,6 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
   }
 }
 
-onMounted(load);
 </script>
 
 <template>

@@ -8,7 +8,6 @@ const route = useRoute();
 const api = useAdminApi();
 const toast = useToast();
 const submission = shallowRef<AdminSubmission | null>(null);
-const loading = ref(true);
 const actionLoading = ref(false);
 const ocrRetryLoading = ref(false);
 const errorMessage = ref("");
@@ -27,18 +26,17 @@ const pageTitle = computed(() => {
 });
 const evidenceSrc = computed(() => submission.value?.evidenceUrl ?? null);
 
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  evidenceError.value = false;
-  try {
-    const detail = await api<AdminSubmission>(`/v1/submissions/${encodeURIComponent(submissionId.value)}`);
-    submission.value = detail;
-  } catch (error) {
+const adminData = useAdminAsyncData("submission-review-detail", () => api<AdminSubmission>(`/v1/submissions/${encodeURIComponent(submissionId.value)}`), {
+  cacheKey: submissionId,
+  onStart: () => { errorMessage.value = ""; evidenceError.value = false; },
+  onData: (response) => { submission.value = response; },
+  onError: (error) => {
     if (submission.value) evidenceError.value = true;
     else errorMessage.value = portalErrorDetails(error, "无法读取审核详情，请稍后重试。").description;
-  } finally { loading.value = false; }
-}
+  },
+});
+const loading = adminData.loading;
+async function load() { errorMessage.value = ""; evidenceError.value = false; await adminData.refresh(); }
 
 async function review(decision: "approved" | "rejected" | "resubmission_required", fieldCorrections?: Array<{ fieldKey: string; reviewedValue: string }>) {
   if (!submission.value || actionLoading.value) return;
@@ -83,7 +81,6 @@ async function retryOcr() {
   } finally { ocrRetryLoading.value = false; }
 }
 
-onMounted(() => { void load(); });
 useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 </script>
 
