@@ -11,7 +11,7 @@ apply_migrations() {
   local skip_latest="${2:-false}"
   while IFS= read -r migration; do
     local name="$(basename "$migration")"
-    if [[ "$skip_latest" == "true" && "$name" == "0070_dataset_snapshots.sql" ]]; then continue; fi
+    if [[ "$skip_latest" == "true" && ( "$name" == "0070_dataset_snapshots.sql" || "$name" == "0087_ocr_map_variant_annotations.sql" ) ]]; then continue; fi
     sqlite3 -bail "$database" < "$migration"
   done < <(find "$root_dir/migrations" -maxdepth 1 -name '*.sql' -print | sort)
 }
@@ -26,6 +26,8 @@ apply_migrations "$representative_database" true
 sqlite3 -bail "$representative_database" <<'SQL'
 INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at)
 VALUES ('player-1', '1', 'Player', 'player', 0, 'active', 1, 1);
+INSERT INTO identities (id, created_at, updated_at)
+VALUES ('identity-1', 1, 1);
 INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at)
 VALUES ('binding-1', 'identity-1', 'player-1', 'qq', 'group-1', 'member-1', 'active', 1);
 INSERT INTO submissions (id, player_account_id, binding_id, status, challenge_type, challenge_id, map_name, difficulty, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at)
@@ -40,6 +42,9 @@ SQL
 sqlite3 -bail "$representative_database" < "$root_dir/migrations/0070_dataset_snapshots.sql"
 sqlite3 -bail "$representative_database" "INSERT INTO dataset_snapshots (id, version, status, created_by, created_at, note, eligibility_json) VALUES ('dataset-1', 1, 'draft', 'maintainer-1', 3, NULL, '{\"eligibleCount\":1,\"excludedCount\":0,\"submissionCount\":1,\"annotationCount\":1,\"exclusions\":[]}');"
 sqlite3 -bail "$representative_database" "INSERT INTO dataset_snapshot_annotations (snapshot_id, annotation_id, position, evidence_object_key, evidence_content_type, evidence_available) VALUES ('dataset-1', 'annotation-1', 0, 'evidence/1.png', 'image/png', 1);"
+sqlite3 -bail "$representative_database" < "$root_dir/migrations/0087_ocr_map_variant_annotations.sql"
+[[ "$(sqlite3 "$representative_database" "SELECT annotation_id || ':' || evidence_object_key FROM dataset_snapshot_annotations WHERE snapshot_id = 'dataset-1';")" == "annotation-1:evidence/1.png" ]]
+[[ "$(sqlite3 "$representative_database" "PRAGMA foreign_key_check;")" == "" ]]
 # The same annotation cannot belong to a second snapshot.
 if sqlite3 -bail "$representative_database" "INSERT INTO dataset_snapshot_annotations (snapshot_id, annotation_id, position, evidence_object_key, evidence_content_type, evidence_available) VALUES ('dataset-1', 'annotation-1', 1, 'evidence/1.png', 'image/png', 1);" 2>/dev/null; then
   echo "Expected the snapshot membership primary key to reject a duplicate annotation." >&2

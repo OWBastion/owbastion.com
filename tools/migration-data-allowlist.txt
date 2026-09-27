@@ -35,3 +35,4 @@
 0082_player_passkeys.sql
 0083_verified_run_outcome_terms.sql
 0084_challenge_completion_chain.sql
+0087_ocr_map_variant_annotations.sql

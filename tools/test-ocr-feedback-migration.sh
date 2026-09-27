@@ -13,7 +13,7 @@ apply_migrations() {
     local name="$(basename "$migration")"
     # 0069 depends on the ocr_feedback_proposals table, so it is skipped with
     # 0068 and re-applied after the representative seeding below.
-    if [[ "$skip_latest" == "true" && ( "$name" == "0068_ocr_feedback_proposals.sql" || "$name" == "0069_reviewed_annotations.sql" ) ]]; then continue; fi
+    if [[ "$skip_latest" == "true" && ( "$name" == "0068_ocr_feedback_proposals.sql" || "$name" == "0069_reviewed_annotations.sql" || "$name" == "0087_ocr_map_variant_annotations.sql" ) ]]; then continue; fi
     sqlite3 -bail "$database" < "$migration"
   done < <(find "$root_dir/migrations" -maxdepth 1 -name '*.sql' -print | sort)
 }
@@ -46,5 +46,9 @@ if sqlite3 -bail "$representative_database" "INSERT INTO ocr_feedback_proposals 
   echo "Expected the field_key CHECK constraint to reject unsafe fields." >&2
   exit 1
 fi
+
+sqlite3 -bail "$representative_database" < "$root_dir/migrations/0087_ocr_map_variant_annotations.sql"
+sqlite3 -bail "$representative_database" "INSERT INTO ocr_feedback_proposals (id, submission_id, ocr_result_id, field_key, original_value, feedback_type, prompt_origin, proposed_value, model_version, layout_version, player_account_id, status, created_at, updated_at) VALUES ('proposal-map-variant', 'submission-1', 'ocr-1', 'map_variant', 'standard', 'corrected', 'uncertainty', 'classic', 'ocr-v1', 'layout-v2', 'player-1', 'submitted', 4, 4);"
+[[ "$(sqlite3 "$representative_database" "SELECT field_key || ':' || proposed_value FROM ocr_feedback_proposals WHERE id = 'proposal-map-variant';")" == "map_variant:classic" ]]
 
 echo "OCR feedback migration checks passed."

@@ -67,7 +67,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   );
   CREATE TABLE ocr_feedback_proposals (
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
-    field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'achievement_titles')),
+    field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
     original_value TEXT, feedback_type TEXT NOT NULL CHECK (feedback_type IN ('confirmed', 'corrected', 'passive_report')),
     prompt_origin TEXT CHECK (prompt_origin IN ('uncertainty', 'conflict', 'grouped', 'calibration', 'passive')),
     proposed_value TEXT, model_version TEXT, layout_version TEXT, player_account_id TEXT NOT NULL,
@@ -183,6 +183,14 @@ describe("player OCR feedback", () => {
     expect(row.original_value).toBe("困难");
     expect(row.proposed_value).toBe("一般");
     expect(row.feedback_type).toBe("corrected");
+  });
+
+  it("keeps a map-variant correction as a player proposal", async () => {
+    const { sqlite, services } = await setup();
+    const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "map_variant", action: "corrected", proposedValue: "ramparts" }] }, "session-token", "key-map-variant");
+    expect(response.recorded).toEqual([{ fieldKey: "map_variant", action: "corrected", status: "submitted" }]);
+    const row = sqlite.prepare("SELECT field_key, original_value, proposed_value, status FROM ocr_feedback_proposals").get() as Record<string, unknown>;
+    expect(row).toEqual({ field_key: "map_variant", original_value: "classic", proposed_value: "ramparts", status: "submitted" });
   });
 
   it("accepts a passive correction when no prompt was generated and records origin passive", async () => {
