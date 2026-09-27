@@ -1,39 +1,10 @@
-import { Hono } from "hono";
 import {
   adminVerifiedRunConflictResolutionRequestSchema,
   adminVerifiedRunCorrectionRequestSchema,
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
-import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import type { RuntimeEnv } from "../app";
 import { hasOnlyUniqueQueryNames } from "../query-params";
-
-type ApiApp = Hono<{ Bindings: RuntimeEnv; Variables: { requestId: string } }>;
-type ServiceAccessor = (env: RuntimeEnv) => PlatformServices;
-type RouteAccess = { auth?: AuthContext; error?: Response };
-type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503;
-type MutationStatus = 404 | 409 | 422 | 503;
-
-type AdminMutationOptions<T> = {
-  schema?: { safeParse(value: unknown): { success: true; data: T } | { success: false } };
-  status?: 200 | 201;
-  noContent?: boolean;
-  before?: () => Response | undefined;
-  prepare?: (value: unknown) => unknown;
-  invalidMessage?: string;
-  action: (input: T, auth: AuthContext, idempotencyKey: string) => Promise<unknown>;
-  errors?: Record<string, { status: MutationStatus; message: string }>;
-};
-
-type AdminMutation = <T = undefined>(c: any, options: AdminMutationOptions<T>) => Promise<Response>;
-
-type AdminVerifiedRunRouteDependencies = {
-  services: ServiceAccessor;
-  requireMaintainer: (c: any) => Promise<RouteAccess>;
-  errorResponse: (c: any, status: ErrorStatus, code: string, message: string) => Response;
-  errorGroup: (status: MutationStatus, message: string, ...codes: string[]) => Record<string, { status: MutationStatus; message: string }>;
-  adminMutation: AdminMutation;
-};
+import type { AdminRouteDependencies, ApiApp } from "./admin-route-contract";
 
 const verifiedRunUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -83,7 +54,7 @@ const adminVerifiedRunQuery = (request: Request) => {
   };
 };
 
-export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminVerifiedRunRouteDependencies) => {
+export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
   const { services, requireMaintainer, errorResponse, errorGroup, adminMutation } = dependencies;
 
   app.get("/v1/admin/verified-runs", async (c) => {
