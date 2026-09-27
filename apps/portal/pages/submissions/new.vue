@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { portalErrorDetails } from "~/utils/portal-error";
 import type { FormSubmitEvent } from "@nuxt/ui";
 import SubmissionProcess from "~/components/submissions/SubmissionProcess.vue";
 import SubmissionRequirements from "~/components/submissions/SubmissionRequirements.vue";
@@ -48,8 +47,8 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
           : "截图已上传，等待处理。";
     toast.add({ title, color: result.status === "rejected" ? "warning" : "success" });
     await navigateTo(`/submissions/${encodeURIComponent(result.submissionId)}`);
-  } catch (cause) {
-    toast.add({ title: "截图提交失败", description: portalErrorDetails(cause, error.value || "请检查截图后重试。").description, color: "error" });
+  } catch {
+    // useSubmissionUpload already shows the failure inline, with retry guidance, in a role="alert" region.
   }
 };
 </script>

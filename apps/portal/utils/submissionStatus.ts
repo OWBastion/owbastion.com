@@ -24,3 +24,10 @@ export const submissionStatusTone = (status: string): SubmissionStatusTone => {
   if (["processing", "needs_review", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required"].includes(status)) return "info";
   return "default";
 };
+
+/** Player API folds resubmission_required into rejected and flags it with resubmissionRequired. */
+export const playerSubmissionStatusLabel = (status: string, resubmissionRequired?: boolean) => status === "rejected" && resubmissionRequired
+  ? submissionStatusText.resubmission_required!
+  : submissionStatusText[status] ?? status;
+
+export const playerSubmissionStatusTone = (status: string, resubmissionRequired?: boolean) => submissionStatusTone(status === "rejected" && resubmissionRequired ? "resubmission_required" : status);

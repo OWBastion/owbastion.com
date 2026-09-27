@@ -94,7 +94,7 @@
 
 ## 提交状态词汇
 
-玩家提交接口只公开以下四种状态；`rejected` 可附 `resubmissionRequired`，提示玩家重新提交：
+玩家提交接口只公开以下四种状态；`rejected` 可附 `resubmissionRequired`，此时标签显示“需重新提交”并提示玩家重新提交：
 
 | 状态键 | Portal 文案 |
 | --- | --- |

@@ -185,7 +185,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
             <template #header>
               <div class="card-heading">
                 <h2>提交概览</h2>
-                <SubmissionStatusBadge :status="data.status" />
+                <SubmissionStatusBadge :status="data.status" :resubmission-required="data.resubmissionRequired" />
               </div>
             </template>
             <dl class="detail-grid">

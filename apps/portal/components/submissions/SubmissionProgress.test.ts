@@ -21,6 +21,7 @@ describe("SubmissionProgress", () => {
   it("shows resubmission-required rejection at the OCR step", async () => {
     const wrapper = await mountSuspended(SubmissionProgress, { props: { status: "rejected", resubmissionRequired: true, updatedAt: 0 } });
 
-    expect(wrapper.get('[aria-label="截图识别：未通过"]').exists()).toBe(true);
+    expect(wrapper.get('[role="img"][aria-label="截图识别：需重新提交"]').exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("未通过");
   });
 });

@@ -6,10 +6,10 @@ import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, p
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, annotationProposalPriority, deriveOcrFeedbackDecision, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
+import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrFeedbackProposals, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
-import { matchOcrAgainstChallenges, type CanonicalOcrChallenge } from "./ocr-auto-match";
+import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 
@@ -370,6 +370,8 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   await db.update(attachments).set({ objectKey, sha256, byteSize: bytes.byteLength, uploadStatus: "stored" }).where(eq(attachments.id, attachmentId));
   return objectKey;
 };
+
+const playerManualReviewReason = "玩家申请人工处理";
 
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
@@ -2310,7 +2312,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
     const snapshotTitleKeys = [...new Set(snapshots.map(({ snapshot }) => snapshot.titleKey))];
     const playerAccountIds = [...new Set(submissionRows.map((row) => row.playerAccountId))];
-    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes] = await Promise.all([
+    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes, reviewRows, grantRows] = await Promise.all([
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
@@ -2318,6 +2320,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
       playerAccountIds.length ? db.select({ id: playerAccounts.id }).from(playerAccounts).where(inArray(playerAccounts.id, playerAccountIds)) : [],
       loadVerifiedRunSubmissionOutcomes(submissionIds),
+      submissionIds.length ? db.select().from(submissionReviews).where(inArray(submissionReviews.submissionId, submissionIds)).orderBy(submissionReviews.createdAt, sql`rowid`) : [],
+      submissionIds.length ? db.select({ submissionId: playerTitleGrants.sourceId, grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label }).from(playerTitleGrants).innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey)).where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), inArray(playerTitleGrants.sourceId, submissionIds), eq(playerTitleGrants.status, "active"))).orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id) : [],
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
@@ -2332,8 +2336,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (title) challenges.set(challengeId, { family: "achievement", titleName: title.label, category: title.category, condition: snapshot.condition, evidenceRule: snapshot.evidenceRule, ...(snapshot.mapVariant ? { mapVariant: snapshot.mapVariant } : {}) });
     }
     for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
-    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
+    const activeTitleGrants = new Map<string, Array<{ grantId: string; titleKey: string; titleName: string }>>();
+    for (const { submissionId, ...grant } of grantRows) activeTitleGrants.set(submissionId, [...(activeTitleGrants.get(submissionId) ?? []), grant]);
+    return { activeTitleGrants, challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), latestReviews: new Map(reviewRows.map((review) => [review.submissionId, review])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
   };
+
+  const adminSubmissionReview = (review: typeof submissionReviews.$inferSelect | undefined) => review
+    ? { decision: review.decision as "approved" | "rejected" | "resubmission_required", automatic: review.reviewer.startsWith("system:"), reason: review.reason, reviewedAt: review.createdAt }
+    : null;
 
   const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
     const ocr = details.latestOcr.get(row.id);
@@ -2362,6 +2372,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       reason: row.reviewReason,
       evidenceUrl: null,
       spotCheck: details.spotChecks.get(row.id) ? { status: details.spotChecks.get(row.id)!.status as "pending" | "confirmed" | "revoked", sampledAt: details.spotChecks.get(row.id)!.sampledAt, resolvedAt: details.spotChecks.get(row.id)!.resolvedAt, reviewer: details.spotChecks.get(row.id)!.reviewer, reason: details.spotChecks.get(row.id)!.reason } : null,
+      review: adminSubmissionReview(details.latestReviews.get(row.id)),
+      activeTitleGrants: details.activeTitleGrants.get(row.id) ?? [],
       ...(details.verifiedRunOutcomes.get(row.id) ? { verifiedRunOutcome: details.verifiedRunOutcomes.get(row.id)! } : {}),
     };
   };
@@ -2818,14 +2830,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return titleChallenge ? snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, null) : null;
   };
 
-  const canonicalChallengeIdForGrant = async (input: {
+  type CanonicalChallengeInput = {
     snapshot?: MapTitleRuleSnapshot | null;
     legacyChallengeId: string;
     titleKey: string;
     mapId: string | null;
     gameplayRevisionId: string | null;
     timestamp: number;
-  }) => {
+  };
+  type CanonicalChallengeRow = typeof challenges.$inferSelect;
+  // The canonical Challenge a reward resolves to, plus the writes needed to make it exist.
+  type CanonicalChallengePlan = { row: CanonicalChallengeRow; archiveLegacyId: string | null; insert: boolean };
+
+  const planCanonicalChallenge = async (input: CanonicalChallengeInput): Promise<CanonicalChallengePlan> => {
     let ruleId = input.snapshot?.ruleId ?? "";
     let family: "title_challenge" | "map_challenge" | "map_title_rule";
     let sourceId: string;
@@ -2910,44 +2927,86 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       input.mapId ? eq(challenges.mapId, input.mapId) : isNull(challenges.mapId),
       input.gameplayRevisionId ? eq(challenges.gameplayRevisionId, input.gameplayRevisionId) : isNull(challenges.gameplayRevisionId),
     );
-    const exact = await db.select({ id: challenges.id }).from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
-    if (exact) return exact.id;
+    const exact = await db.select().from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
+    if (exact) return { row: exact, archiveLegacyId: null, insert: false };
     const legacy = await db.select().from(challenges).where(and(scope, eq(challenges.ruleVersion, "legacy"))).get();
-    if (legacy && legacy.conditionsJson === conditionsJson && legacy.condition === condition && legacy.startsAt === startsAt && legacy.endsAt === endsAt) return legacy.id;
-    if (legacy) await db.update(challenges).set({ status: "archived", updatedAt: input.timestamp }).where(eq(challenges.id, legacy.id));
-    const canonicalId = `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`;
-    await db.insert(challenges).values({
-      id: canonicalId,
-      sourceFamily: family,
-      sourceId,
-      titleKey: input.titleKey,
-      ruleVersion,
-      mapId: input.mapId,
-      gameplayRevisionId: input.gameplayRevisionId,
-      status: "active",
-      manual: 0,
-      publicCondition: 1,
-      conditionOperator: "and",
-      conditionsJson,
-      condition,
-      startsAt,
-      endsAt,
-      createdAt: input.timestamp,
-      updatedAt: input.timestamp,
-    }).onConflictDoNothing();
-    const canonical = await db.select({ id: challenges.id }).from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
+    if (legacy && legacy.conditionsJson === conditionsJson && legacy.condition === condition && legacy.startsAt === startsAt && legacy.endsAt === endsAt) return { row: legacy, archiveLegacyId: null, insert: false };
+    return {
+      row: {
+        id: `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`,
+        sourceFamily: family,
+        sourceId,
+        titleKey: input.titleKey,
+        ruleVersion,
+        mapId: input.mapId,
+        gameplayRevisionId: input.gameplayRevisionId,
+        status: "active",
+        manual: 0,
+        publicCondition: 1,
+        conditionOperator: "and",
+        conditionsJson,
+        condition,
+        startsAt,
+        endsAt,
+        createdAt: input.timestamp,
+        updatedAt: input.timestamp,
+      },
+      archiveLegacyId: legacy?.id ?? null,
+      insert: true,
+    };
+  };
+
+  const materializeCanonicalChallenge = async (plan: CanonicalChallengePlan) => {
+    if (!plan.insert) return plan.row.id;
+    const { row } = plan;
+    if (plan.archiveLegacyId) await db.update(challenges).set({ status: "archived", updatedAt: row.updatedAt }).where(eq(challenges.id, plan.archiveLegacyId));
+    await db.insert(challenges).values(row).onConflictDoNothing();
+    const canonical = await db.select({ id: challenges.id }).from(challenges).where(and(
+      eq(challenges.sourceFamily, row.sourceFamily),
+      eq(challenges.sourceId, row.sourceId),
+      eq(challenges.titleKey, row.titleKey),
+      row.mapId ? eq(challenges.mapId, row.mapId) : isNull(challenges.mapId),
+      row.gameplayRevisionId ? eq(challenges.gameplayRevisionId, row.gameplayRevisionId) : isNull(challenges.gameplayRevisionId),
+      eq(challenges.ruleVersion, row.ruleVersion),
+    )).get();
     if (!canonical) throw new Error("CHALLENGE_NOT_FOUND");
     return canonical.id;
   };
 
-  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number) => {
+  const canonicalChallengeIdForGrant = async (input: CanonicalChallengeInput) => materializeCanonicalChallenge(await planCanonicalChallenge(input));
+
+  // Write paths materialize canonical Challenges as they resolve them. Read-only
+  // planning (approval preview) keeps planned rows and archivals in memory instead.
+  type CanonicalChallengeOverlay = { rows: globalThis.Map<string, CanonicalChallengeRow>; archived: Set<string> };
+  type CanonicalChallengeResolver = { resolve: (input: CanonicalChallengeInput) => Promise<string>; overlay: CanonicalChallengeOverlay | null };
+  const materializingCanonicalChallenges: CanonicalChallengeResolver = { resolve: canonicalChallengeIdForGrant, overlay: null };
+  const planningCanonicalChallenges = (): CanonicalChallengeResolver => {
+    const overlay: CanonicalChallengeOverlay = { rows: new globalThis.Map(), archived: new Set() };
+    return {
+      overlay,
+      resolve: async (input) => {
+        const plan = await planCanonicalChallenge(input);
+        if (plan.insert) {
+          overlay.rows.set(plan.row.id, plan.row);
+          if (plan.archiveLegacyId) overlay.archived.add(plan.archiveLegacyId);
+        }
+        return plan.row.id;
+      },
+    };
+  };
+  const loadCanonicalChallenge = async (challengeId: string, overlay: CanonicalChallengeOverlay | null) => {
+    const row = overlay?.rows.get(challengeId) ?? await db.select().from(challenges).where(eq(challenges.id, challengeId)).get();
+    return row && overlay?.archived.has(row.id) ? { ...row, status: "archived" } : row;
+  };
+
+  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const resolved: CanonicalOcrChallenge[] = [];
     const snapshots = new Map<string, MapTitleRuleSnapshot>();
     for (const challenge of items) {
       if (!challenge.titleKey) continue;
       const snapshot = await automaticSnapshot(challenge, eligibilityAt);
       if (!snapshot?.titleKey) continue;
-      const canonicalChallengeId = await canonicalChallengeIdForGrant({
+      const canonicalChallengeId = await canonicalChallenges.resolve({
         snapshot,
         legacyChallengeId: challenge.challengeId,
         titleKey: snapshot.titleKey,
@@ -2955,7 +3014,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         gameplayRevisionId: snapshot.gameplayRevisionId,
         timestamp: eligibilityAt,
       });
-      const canonical = await db.select({ conditionsJson: challenges.conditionsJson }).from(challenges).where(eq(challenges.id, canonicalChallengeId)).get();
+      const canonical = await loadCanonicalChallenge(canonicalChallengeId, canonicalChallenges.overlay);
       if (!canonical) continue;
       const conditions = parseCanonicalChallengeConditions(canonical.conditionsJson);
       resolved.push({ challenge, canonicalChallengeId, conditions });
@@ -2981,7 +3040,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return { candidates: resolved, snapshots, titleNamesByKey, mapIdsByName };
   };
 
-  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const [items, gameplayRevisionId] = await Promise.all([
       fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt),
       resolveAutoMatchGameplayRevisionId(row, response),
@@ -2989,6 +3048,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return prepareCanonicalAutoMatchChallenges(
       items.filter((challenge) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId),
       row.createdAt,
+      canonicalChallenges,
     );
   };
 
@@ -3017,8 +3077,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     challengeId: string;
     slot: string | null;
     eligibilityAt: number;
+    overlay?: CanonicalChallengeOverlay | null;
   }): Promise<ChallengeCompletionAward[]> => {
-    const root = await db.select().from(challenges).where(eq(challenges.id, input.challengeId)).get();
+    const overlay = input.overlay ?? null;
+    const root = await loadCanonicalChallenge(input.challengeId, overlay);
     if (!root) throw new Error("CHALLENGE_NOT_FOUND");
     const result: ChallengeCompletionAward[] = [];
     const seen = new Set<string>();
@@ -3084,12 +3146,134 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const satisfied = await db.select({ satisfiedChallengeId: challengeSatisfies.satisfiedChallengeId }).from(challengeSatisfies).where(eq(challengeSatisfies.challengeId, challenge.id));
         for (const relationRow of satisfied) {
           if (seen.has(relationRow.satisfiedChallengeId)) continue;
-          const target = await db.select().from(challenges).where(eq(challenges.id, relationRow.satisfiedChallengeId)).get();
+          const target = await loadCanonicalChallenge(relationRow.satisfiedChallengeId, overlay);
           if (target) pending.push({ challenge: target, root: false });
         }
       }
     }
     return result;
+  };
+
+  type ReviewEvidenceSelection = { challengeId: string; targetMapId: string | null; gameplayRevisionId: string | null; challengeType: string; ruleSnapshotJson: string | null; canonicalChallengeId: string; basis: "conditions" | "reviewer" };
+  type ReviewReward = { challengeId: string; titleKey: string; titleName: string; mapId: string | null; gameplayRevisionId: string | null; slot: string | null; snapshot: MapTitleRuleSnapshot | null };
+
+  // Re-evaluates the latest OCR evidence with the maintainer's field corrections and
+  // resolves which eligible Challenges approval would complete: every canonical
+  // Conditions match plus explicit maintainer confirmations from the same eligible set.
+  // Titles this Submission already granted stay with the player across later review decisions,
+  // so re-approving it can rely on them instead of requiring new rewards.
+  const loadRetainedSubmissionGrants = (submissionId: string) => db
+    .select({ grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label, mapId: playerTitleGrants.mapId })
+    .from(playerTitleGrants)
+    .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
+    .where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), eq(playerTitleGrants.sourceId, submissionId), eq(playerTitleGrants.status, "active")))
+    .orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id);
+
+  const planReviewedEvidence = async (row: typeof submissions.$inferSelect, fieldCorrections: AdminSubmissionReviewRequest["fieldCorrections"], confirmedChallengeIds: readonly string[] = [], canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
+    const latestOcr = await db.select({ responseJson: ocrResults.responseJson }).from(ocrResults)
+      .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+    let rawResponse: OcrResponse | null = null;
+    try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
+    if (!rawResponse) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+    const correctedResponse = applySubmissionFieldCorrections(rawResponse, fieldCorrections);
+    const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse, canonicalChallenges);
+    const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
+    const candidatesById = new globalThis.Map(decision.candidates.map((candidate) => [candidate.canonicalChallengeId, candidate]));
+    const ineligibleConfirmations = confirmedChallengeIds.filter((challengeId) => !candidatesById.has(challengeId));
+    const chosen = new globalThis.Map<string, { candidate: AutoMatchCandidate; basis: ReviewEvidenceSelection["basis"] }>();
+    for (const candidate of decision.exact) chosen.set(candidate.canonicalChallengeId, { candidate, basis: "conditions" });
+    for (const challengeId of confirmedChallengeIds) {
+      const candidate = candidatesById.get(challengeId);
+      if (candidate && !chosen.has(challengeId)) chosen.set(challengeId, { candidate, basis: "reviewer" });
+    }
+    const selections: ReviewEvidenceSelection[] = [...chosen.values()].flatMap(({ candidate, basis }) => {
+      const snapshot = prepared.snapshots.get(candidate.canonicalChallengeId);
+      if (!snapshot) return [];
+      return [{
+        challengeType: candidate.challenge.family === "achievement" ? "title_achievement" : "map_title_achievement",
+        challengeId: candidate.challenge.challengeId,
+        targetMapId: snapshot.mapId,
+        gameplayRevisionId: snapshot.gameplayRevisionId ?? null,
+        ruleSnapshotJson: JSON.stringify(snapshot),
+        canonicalChallengeId: candidate.canonicalChallengeId,
+        basis,
+      }];
+    });
+    return { correctedResponse, prepared, decision, selections, ineligibleConfirmations };
+  };
+
+  // Resolves the Completion -> Grant chain that approving the selections would write,
+  // without writing it. Throws the same business errors approval must surface.
+  const planApprovalRewards = async (row: typeof submissions.$inferSelect, selectedRows: readonly ReviewEvidenceSelection[], timestamp: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
+    const rewards: ReviewReward[] = [];
+    for (const selection of selectedRows) {
+      let reward: ReviewReward | null = null;
+      if (selection.ruleSnapshotJson) {
+        const snapshot = JSON.parse(selection.ruleSnapshotJson) as MapTitleRuleSnapshot;
+        const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get();
+        reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: catalogRow?.label ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
+      } else if (selection.challengeType === "title_achievement") {
+        const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
+        if (!challenge || challenge.scope === "map" || !challenge.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+        reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, gameplayRevisionId: null, slot: null, snapshot: null };
+      } else {
+        const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId, row.createdAt) : null;
+        if (snap) {
+          const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
+          reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
+        } else {
+          const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, selection.challengeId)).get();
+          if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+          reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, gameplayRevisionId: selection.gameplayRevisionId, slot: challenge.slot, snapshot: null };
+        }
+      }
+      if (!reward) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+      if (reward.mapId && !reward.gameplayRevisionId) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
+      if (reward.gameplayRevisionId && row.gameplayRevisionId && reward.gameplayRevisionId !== row.gameplayRevisionId && selection.gameplayRevisionId !== reward.gameplayRevisionId) throw new Error("SUBMISSION_REVISION_MISMATCH");
+      rewards.push(reward);
+    }
+
+    const completionRoots: Array<{ reward: ReviewReward; canonicalChallengeId: string }> = [];
+    for (const reward of rewards) {
+      completionRoots.push({
+        reward,
+        canonicalChallengeId: await canonicalChallenges.resolve({ snapshot: reward.snapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp }),
+      });
+    }
+    const uniqueRewards = [...new Map(completionRoots.map((root) => [titleGrantScopeKey(root.reward), root])).values()];
+    const grantResults = [] as Array<{ reward: ReviewReward; grantId: string; alreadyOwned: boolean; canonicalChallengeId: string }>;
+    for (const root of uniqueRewards) {
+      const { reward, canonicalChallengeId } = root;
+      const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.playerAccountId, row.playerAccountId), eq(playerTitleGrants.titleKey, reward.titleKey), eq(playerTitleGrants.status, "active"), reward.mapId ? eq(playerTitleGrants.mapId, reward.mapId) : isNull(playerTitleGrants.mapId), reward.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, reward.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId))).get();
+      grantResults.push({ reward, grantId: existing?.id ?? crypto.randomUUID(), alreadyOwned: Boolean(existing), canonicalChallengeId });
+    }
+    const grantResultsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
+    const completionAwards = new Map<string, ChallengeCompletionAward>();
+    for (const root of completionRoots) {
+      const grantResult = grantResultsByScope.get(titleGrantScopeKey(root.reward));
+      if (!grantResult || grantResult.alreadyOwned) continue;
+      const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: root.canonicalChallengeId, slot: root.reward.slot, eligibilityAt: row.createdAt, overlay: canonicalChallenges.overlay });
+      if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
+      if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+      for (const award of chain) addChallengeCompletionAward(completionAwards, award);
+    }
+    const grantIdsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result.grantId]));
+    const completionAwardRows = [...completionAwards.values()].map((award) => ({
+      ...award,
+      grantId: grantIdsByScope.get(titleGrantScopeKey(award)) ?? crypto.randomUUID(),
+    }));
+    const directGrantsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
+    const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
+    for (const award of completionAwardRows.filter((item) => item.grantable)) {
+      const scope = titleGrantScopeKey(award);
+      const directGrant = directGrantsByScope.get(scope);
+      if (directGrant) {
+        if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
+      } else if (!completionGrantsByScope.has(scope)) {
+        completionGrantsByScope.set(scope, award);
+      }
+    }
+    return { rewards, grantResults, completionAwardRows, completionGrantsByScope, directGrantsByScope };
   };
 
   const persistAutomaticDecision = async (input: {
@@ -5111,7 +5295,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       const condition = conditions.length ? and(...conditions) : undefined;
       const [rows, [{ total }]] = await Promise.all([
-        db.select().from(submissions).where(condition).orderBy(desc(submissions.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
+        db.select().from(submissions).where(condition).orderBy(...(input.order === "oldest" ? [asc(submissions.updatedAt), asc(submissions.id)] : [desc(submissions.updatedAt), desc(submissions.id)])).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
         db.select({ total: count() }).from(submissions).where(condition),
       ]);
       const visibleRows = rows.slice(0, input.pageSize);
@@ -5216,7 +5400,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         mapName: submission.mapName,
         challengeId: submission.challengeId ?? undefined,
         difficulty: submission.difficulty ?? undefined,
-        reason: submission.status === "ocr_review_required" ? "已提交处理申请，请稍后查看结果。" : submission.reviewReason ?? undefined,
+        reason: submission.status === "ocr_review_required" ? submission.reviewReason === playerManualReviewReason ? "已提交处理申请，请稍后查看结果。" : undefined : submission.reviewReason ?? undefined,
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
         evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
@@ -5651,8 +5835,101 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (submission.status === "ocr_review_required") return;
       if (submission.status !== "resubmission_required" || submission.ocrFailCount < ocrManualReviewThreshold) throw new Error("MANUAL_REVIEW_NOT_ELIGIBLE");
       const timestamp = now();
-      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: "玩家申请人工处理" }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
+      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: playerManualReviewReason }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
       await db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: "user", actorId: submission.id, operation: "submission.manual_review_requested", entityType: "submission", entityId: submission.id, payloadJson: JSON.stringify({ ocrFailCount: submission.ocrFailCount }), createdAt: timestamp });
+    },
+
+    async previewSubmissionReview(input, _auth): Promise<AdminSubmissionReviewPreviewResponse> {
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const canonicalChallenges = planningCanonicalChallenges();
+      const evidence = await planReviewedEvidence(row, input.fieldCorrections, input.confirmedChallengeIds, canonicalChallenges);
+      const selectionBasis = new globalThis.Map(evidence.selections.map((selection) => [selection.canonicalChallengeId, selection.basis]));
+      const lowConfidence = new Set(evidence.decision.lowConfidence.map((candidate) => candidate.canonicalChallengeId));
+      const evidenceFields = new Set<AdminSubmissionReviewCandidate["requiredFields"][number]>(["map_name", "difficulty", "challenge_completed", "map_variant", "achievement_titles"]);
+      const asEvidenceFields = (fields: readonly string[]) => fields.filter((field): field is AdminSubmissionReviewCandidate["requiredFields"][number] => evidenceFields.has(field as AdminSubmissionReviewCandidate["requiredFields"][number]));
+      const evidenceRank = { matched: 0, needs_confirmation: 1, unsupported: 2, not_matched: 3 } as const;
+      const candidates = evidence.decision.candidates.map(({ challenge, canonicalChallengeId, evaluation, quality }): AdminSubmissionReviewCandidate => {
+        const titleName = challenge.titleKey ? evidence.prepared.titleNamesByKey.get(challenge.titleKey) ?? null : null;
+        const status: AdminSubmissionReviewCandidate["evidence"] = !evaluation.supported ? "unsupported" : evaluation.matched ? "matched" : lowConfidence.has(canonicalChallengeId) ? "needs_confirmation" : "not_matched";
+        return {
+          challengeId: canonicalChallengeId,
+          family: challenge.family,
+          kind: challenge.family === "map" ? challenge.kind : challenge.scope === "map" ? "map_title_achievement" : "title_achievement",
+          label: challenge.family === "map" ? challenge.name : challenge.titleName,
+          titleName,
+          mapName: challenge.family === "map" ? challenge.mapName : null,
+          difficulty: challenge.family === "map" ? challenge.difficulty ?? null : null,
+          condition: challenge.condition ?? null,
+          evidence: status,
+          requiredFields: asEvidenceFields(evaluation.supported ? evaluation.requiredFields : quality.requiredFields),
+          missingFields: asEvidenceFields(quality.reasons.flatMap((reason) => reason.endsWith(":missing_value") ? [reason.slice(0, -":missing_value".length)] : [])),
+          selectedBy: selectionBasis.get(canonicalChallengeId) ?? null,
+        };
+      }).sort((left, right) => Number(right.selectedBy !== null) - Number(left.selectedBy !== null)
+        || evidenceRank[left.evidence] - evidenceRank[right.evidence]
+        || left.label.localeCompare(right.label, "zh-CN"));
+
+      let blockingCode: string | null = evidence.ineligibleConfirmations.length ? "CHALLENGE_CONFIRMATION_INELIGIBLE" : null;
+      let rewards: Awaited<ReturnType<typeof planApprovalRewards>> | null = null;
+      if (!blockingCode && evidence.selections.length) {
+        try { rewards = await planApprovalRewards(row, evidence.selections, now(), canonicalChallenges); }
+        catch (error) {
+          const code = error instanceof Error ? error.message : "";
+          if (!["CHALLENGE_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "SUBMISSION_REVISION_MISMATCH", "CHALLENGE_NOT_FOUND", "CHALLENGE_NOT_COMPLETABLE", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "TITLE_NOT_FOUND"].includes(code)) throw error;
+          blockingCode = code;
+        }
+      }
+
+      const completionAwards = rewards?.completionAwardRows ?? [];
+      const chainGrants = rewards ? [...rewards.completionGrantsByScope].filter(([scope]) => !rewards!.directGrantsByScope.has(scope)).map(([, award]) => award) : [];
+      const titleKeys = [...new Set([...completionAwards.map((award) => award.titleKey), ...chainGrants.map((award) => award.titleKey)])];
+      const mapIds = [...new Set([...completionAwards, ...chainGrants, ...(rewards?.grantResults.map(({ reward }) => reward) ?? [])].flatMap((item) => item.mapId ? [item.mapId] : []))];
+      const [titleRows, mapRows] = await Promise.all([
+        titleKeys.length ? db.select({ key: titleCatalog.key, label: titleCatalog.label }).from(titleCatalog).where(inArray(titleCatalog.key, titleKeys)) : Promise.resolve([] as Array<{ key: string; label: string }>),
+        mapIds.length ? db.select({ id: maps.id, name: maps.name }).from(maps).where(inArray(maps.id, mapIds)) : Promise.resolve([] as Array<{ id: string; name: string }>),
+      ]);
+      const titleLabels = new globalThis.Map(titleRows.map(({ key, label }) => [key, label]));
+      const mapNames = new globalThis.Map(mapRows.map(({ id, name }) => [id, name]));
+      const completions = completionAwards.map((award) => ({
+        challengeId: award.challengeId,
+        titleKey: award.titleKey,
+        titleName: titleLabels.get(award.titleKey) ?? award.titleKey,
+        mapName: award.mapId ? mapNames.get(award.mapId) ?? null : null,
+        basis: award.root ? selectionBasis.get(award.challengeId) ?? "conditions" : "satisfies" as const,
+      }));
+      const titles = [
+        ...(rewards?.grantResults ?? []).map(({ reward, alreadyOwned }) => ({ titleKey: reward.titleKey, titleName: reward.titleName, mapName: reward.mapId ? mapNames.get(reward.mapId) ?? null : null, alreadyOwned })),
+        ...chainGrants.map((award) => ({ titleKey: award.titleKey, titleName: titleLabels.get(award.titleKey) ?? award.titleKey, mapName: award.mapId ? mapNames.get(award.mapId) ?? null : null, alreadyOwned: false })),
+      ];
+
+      const recordedRun = await loadVerifiedRunSubmissionOutcome(row.id);
+      const runEvidence = assessVerifiedRunOcrEvidence(evidence.correctedResponse, masteryEvidenceCompatibility, true);
+      const verifiedRun = recordedRun && (recordedRun.status === "created" || recordedRun.status === "reused")
+        ? { status: "recorded" as const, reason: null }
+        : runEvidence.outcome === "eligible"
+          ? { status: "eligible" as const, reason: null }
+          : { status: "ineligible" as const, reason: runEvidence.reason };
+      if (!blockingCode && !evidence.selections.length) {
+        const retainedGrants = await loadRetainedSubmissionGrants(row.id);
+        if (retainedGrants.length) {
+          const retainedMapIds = [...new Set(retainedGrants.flatMap((grant) => grant.mapId ? [grant.mapId] : []))];
+          const retainedMapRows = retainedMapIds.length ? await db.select({ id: maps.id, name: maps.name }).from(maps).where(inArray(maps.id, retainedMapIds)) : [];
+          const retainedMapNames = new globalThis.Map(retainedMapRows.map(({ id, name }) => [id, name]));
+          titles.push(...retainedGrants.map((grant) => ({ titleKey: grant.titleKey, titleName: grant.titleName, mapName: grant.mapId ? retainedMapNames.get(grant.mapId) ?? null : null, alreadyOwned: true })));
+        } else if (verifiedRun.status === "ineligible") blockingCode = "SUBMISSION_OUTCOME_NOT_CONFIGURED";
+      }
+      return {
+        contractVersion: "1",
+        submissionId: row.id,
+        evidenceOutcome: evidence.decision.outcome,
+        candidates,
+        completions,
+        titles,
+        verifiedRun,
+        approvable: blockingCode === null,
+        blockingCode,
+      };
     },
 
     async reviewSubmission(input, auth, idempotencyKey): Promise<AdminSubmissionReviewResponse> {
@@ -5661,111 +5938,31 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       let verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(row.id);
-      let selectedRows: Array<{ challengeId: string; targetMapId: string | null; gameplayRevisionId: string | null; challengeType: string; ruleSnapshotJson: string | null }> = [];
+      let selectedRows: ReviewEvidenceSelection[] = [];
+      let approvalRewards: Awaited<ReturnType<typeof planApprovalRewards>> | null = null;
       let reviewedMatchOutcome: string | null = null;
       let reviewedChallengeIds: string[] = [];
+      let reviewerConfirmedChallengeIds: string[] = [];
+      let retainedGrants: Awaited<ReturnType<typeof loadRetainedSubmissionGrants>> = [];
+      const approvalTimestamp = now();
       if (input.decision === "approved") {
-        const latestOcr = await db.select({ responseJson: ocrResults.responseJson }).from(ocrResults)
-          .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
-        let rawResponse: OcrResponse | null = null;
-        try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
-        if (!rawResponse) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-        const correctedResponse = applySubmissionFieldCorrections(rawResponse, input.fieldCorrections);
-        const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
-        const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
-        reviewedMatchOutcome = decision.outcome;
-        if (decision.outcome === "review") throw new Error("CHALLENGE_CONDITIONS_UNSUPPORTED");
-        if (decision.outcome === "automatic") {
-          selectedRows = decision.exact.flatMap((candidate) => {
-            const snapshot = prepared.snapshots.get(candidate.canonicalChallengeId);
-            if (!snapshot) return [];
-            reviewedChallengeIds.push(candidate.canonicalChallengeId);
-            return [{
-              challengeType: candidate.challenge.family === "achievement" ? "title_achievement" : "map_title_achievement",
-              challengeId: candidate.challenge.challengeId,
-              targetMapId: snapshot.mapId,
-              gameplayRevisionId: snapshot.gameplayRevisionId,
-              ruleSnapshotJson: JSON.stringify(snapshot),
-            }];
-          });
-        } else {
-          selectedRows = [];
-        }
-        verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, correctedResponse, "submission_review", true);
+        const evidence = await planReviewedEvidence(row, input.fieldCorrections, input.confirmedChallengeIds);
+        if (evidence.ineligibleConfirmations.length) throw new Error("CHALLENGE_CONFIRMATION_INELIGIBLE");
+        reviewedMatchOutcome = evidence.decision.outcome;
+        selectedRows = evidence.selections;
+        reviewedChallengeIds = selectedRows.filter((selection) => selection.basis === "conditions").map((selection) => selection.canonicalChallengeId);
+        reviewerConfirmedChallengeIds = selectedRows.filter((selection) => selection.basis === "reviewer").map((selection) => selection.canonicalChallengeId);
+        if (selectedRows.length) approvalRewards = await planApprovalRewards(row, selectedRows, approvalTimestamp);
+        verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
         const verifiedRunAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
-        if (!selectedRows.length && !verifiedRunAccepted) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+        if (!selectedRows.length) {
+          retainedGrants = await loadRetainedSubmissionGrants(row.id);
+          if (!retainedGrants.length && !verifiedRunAccepted) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+        }
       }
-      if (input.decision === "approved" && selectedRows.length) {
-        type ReviewReward = { challengeId: string; titleKey: string; titleName: string; mapId: string | null; gameplayRevisionId: string | null; slot: string | null; snapshot: MapTitleRuleSnapshot | null };
-        const rewards: ReviewReward[] = [];
-        for (const selection of selectedRows) {
-          let reward: ReviewReward | null = null;
-          if (selection.ruleSnapshotJson) {
-            const snapshot = JSON.parse(selection.ruleSnapshotJson) as MapTitleRuleSnapshot;
-            const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snapshot.titleKey)).get();
-            reward = { challengeId: selection.challengeId, titleKey: snapshot.titleKey, titleName: catalogRow?.label ?? snapshot.titleKey, mapId: snapshot.mapId, gameplayRevisionId: snapshot.gameplayRevisionId ?? selection.gameplayRevisionId ?? null, slot: snapshot.slot, snapshot };
-          } else if (selection.challengeType === "title_achievement") {
-            const challenge = await db.select({ titleKey: titleChallenges.titleKey, titleName: titleCatalog.label, scope: titleChallenges.scope }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, selection.challengeId)).get();
-            if (!challenge || challenge.scope === "map" || !challenge.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
-            reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: null, gameplayRevisionId: null, slot: null, snapshot: null };
-          } else {
-            const snap = selection.targetMapId ? await resolveCompatProjection(selection.challengeId, selection.targetMapId, selection.gameplayRevisionId, row.createdAt) : null;
-            if (snap) {
-              const catalogRow = await db.select({ label: titleCatalog.label }).from(titleCatalog).where(eq(titleCatalog.key, snap.titleKey)).get();
-              reward = { challengeId: selection.challengeId, titleKey: snap.titleKey, titleName: catalogRow?.label ?? snap.titleKey, mapId: snap.mapId, gameplayRevisionId: snap.gameplayRevisionId, slot: snap.slot, snapshot: snap };
-            } else {
-              const challenge = await db.select({ titleKey: achievementChallenges.rewardTitleKey, titleName: titleCatalog.label, mapId: achievementChallenges.mapId, slot: mapTitleRewards.slot }).from(achievementChallenges).leftJoin(titleCatalog, eq(achievementChallenges.rewardTitleKey, titleCatalog.key)).leftJoin(mapTitleRewards, and(eq(mapTitleRewards.mapId, achievementChallenges.mapId), eq(mapTitleRewards.titleKey, achievementChallenges.rewardTitleKey))).where(eq(achievementChallenges.id, selection.challengeId)).get();
-              if (!challenge?.titleKey || !challenge.titleName) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
-              reward = { challengeId: selection.challengeId, titleKey: challenge.titleKey, titleName: challenge.titleName, mapId: challenge.mapId, gameplayRevisionId: selection.gameplayRevisionId, slot: challenge.slot, snapshot: null };
-            }
-          }
-          if (!reward) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
-          if (reward.mapId && !reward.gameplayRevisionId) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
-          if (reward.gameplayRevisionId && row.gameplayRevisionId && reward.gameplayRevisionId !== row.gameplayRevisionId && selection.gameplayRevisionId !== reward.gameplayRevisionId) throw new Error("SUBMISSION_REVISION_MISMATCH");
-          rewards.push(reward);
-        }
-
-        const timestamp = now();
-        const completionRoots: Array<{ reward: ReviewReward; canonicalChallengeId: string }> = [];
-        for (const reward of rewards) {
-          completionRoots.push({
-            reward,
-            canonicalChallengeId: await canonicalChallengeIdForGrant({ snapshot: reward.snapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp }),
-          });
-        }
-        const uniqueRewards = [...new Map(completionRoots.map((root) => [titleGrantScopeKey(root.reward), root])).values()];
-        const grantResults = [] as Array<{ reward: ReviewReward; grantId: string; alreadyOwned: boolean; canonicalChallengeId: string }>;
-        for (const root of uniqueRewards) {
-          const { reward, canonicalChallengeId } = root;
-          const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.playerAccountId, row.playerAccountId), eq(playerTitleGrants.titleKey, reward.titleKey), eq(playerTitleGrants.status, "active"), reward.mapId ? eq(playerTitleGrants.mapId, reward.mapId) : isNull(playerTitleGrants.mapId), reward.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, reward.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId))).get();
-          grantResults.push({ reward, grantId: existing?.id ?? crypto.randomUUID(), alreadyOwned: Boolean(existing), canonicalChallengeId });
-        }
-        const grantResultsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
-        const completionAwards = new Map<string, ChallengeCompletionAward>();
-        for (const root of completionRoots) {
-          const grantResult = grantResultsByScope.get(titleGrantScopeKey(root.reward));
-          if (!grantResult || grantResult.alreadyOwned) continue;
-          const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: root.canonicalChallengeId, slot: root.reward.slot, eligibilityAt: row.createdAt });
-          if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
-          if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
-          for (const award of chain) addChallengeCompletionAward(completionAwards, award);
-        }
-        const grantIdsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result.grantId]));
-        const completionAwardRows = [...completionAwards.values()].map((award) => ({
-          ...award,
-          grantId: grantIdsByScope.get(titleGrantScopeKey(award)) ?? crypto.randomUUID(),
-        }));
-        const directGrantsByScope = new Map(grantResults.map((result) => [titleGrantScopeKey(result.reward), result]));
-        const completionGrantsByScope = new Map<string, (typeof completionAwardRows)[number]>();
-        for (const award of completionAwardRows.filter((item) => item.grantable)) {
-          const scope = titleGrantScopeKey(award);
-          const directGrant = directGrantsByScope.get(scope);
-          if (directGrant) {
-            if (award.root && award.challengeId === directGrant.canonicalChallengeId) completionGrantsByScope.set(scope, award);
-          } else if (!completionGrantsByScope.has(scope)) {
-            completionGrantsByScope.set(scope, award);
-          }
-        }
+      if (input.decision === "approved" && approvalRewards) {
+        const { rewards, grantResults, completionAwardRows, completionGrantsByScope, directGrantsByScope } = approvalRewards;
+        const timestamp = approvalTimestamp;
         const primaryGrant = grantResults[0];
         const reviewId = crypto.randomUUID();
         const reviewedAnnotation = await prepareSubmissionReviewAnnotation(row, input, auth, timestamp);
@@ -5774,7 +5971,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const grants = grantResults.map(({ reward, grantId, alreadyOwned }) => ({ grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }));
         const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
         const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
-        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
         const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? []), database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)];
         for (const award of completionAwardRows) {
           statements.push(database.prepare("INSERT OR IGNORE INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) SELECT ?, s.player_account_id, ?, ?, 'active', ?, s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(crypto.randomUUID(), award.challengeId, award.gameplayRevisionId, award.completionSourceType, timestamp, timestamp, row.id, reviewId));
@@ -5791,7 +5988,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         }
         for (const selection of selectedRows) {
           const reward = rewards.find((candidate) => candidate.challengeId === selection.challengeId);
-          statements.push(approvedSubmissionOutcomeStatement({ submissionId: row.id, outcomeKey: `challenge:${selection.challengeId}:${selection.targetMapId ?? ""}:${selection.gameplayRevisionId ?? ""}`, outcomeType: "challenge", status: "created", entityId: selection.challengeId, details: { mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, titleKey: reward?.titleKey ?? null } }));
+          statements.push(approvedSubmissionOutcomeStatement({ submissionId: row.id, outcomeKey: `challenge:${selection.challengeId}:${selection.targetMapId ?? ""}:${selection.gameplayRevisionId ?? ""}`, outcomeType: "challenge", status: "created", entityId: selection.challengeId, details: { mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, titleKey: reward?.titleKey ?? null, basis: selection.basis } }));
         }
         const titleGrantOutcomeScopes = new Set(grantResults.map((result) => titleGrantScopeKey(result.reward)));
         for (const award of completionAwardRows.filter((item) => !item.root)) {
@@ -5851,7 +6048,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       if (reward?.mapId && !reward.gameplayRevisionId) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
       if (reward?.gameplayRevisionId && row.gameplayRevisionId && reward.gameplayRevisionId !== row.gameplayRevisionId) throw new Error("SUBMISSION_REVISION_MISMATCH");
-      if (input.decision === "approved" && !reward && !(verifiedRunOutcome && ["created", "reused"].includes(verifiedRunOutcome.status))) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+      if (input.decision === "approved" && !reward && !retainedGrants.length && !(verifiedRunOutcome && ["created", "reused"].includes(verifiedRunOutcome.status))) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
       const timestamp = now();
       const reviewId = crypto.randomUUID();
@@ -5876,9 +6073,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
       const requestHash = await hashRequest(input);
       const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const response: AdminSubmissionReviewResponse = reward
         ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
+        : input.decision === "approved" && retainedGrants.length
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
         : input.decision === "approved"
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
@@ -5938,8 +6137,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } else {
         statements.push(
           database.prepare(
-            "UPDATE submissions SET status = ?, review_reason = ?, grant_id = NULL, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
-          ).bind(input.decision, input.reason ?? null, timestamp, row.id, reviewId)
+            "UPDATE submissions SET status = ?, review_reason = ?, grant_id = CASE WHEN ? = 'approved' THEN (SELECT g.id FROM player_title_grants g WHERE g.source_type IN ('automatic', 'submission') AND g.source_id = submissions.id AND g.status = 'active' ORDER BY g.granted_at, g.id LIMIT 1) ELSE NULL END, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
+          ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId)
         );
       }
       statements.push(
@@ -6092,7 +6291,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const requestId = input.requestId ?? crypto.randomUUID();
       await database.batch([
         database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, error_code, created_at) VALUES (?, ?, ?, ?, 'error', ?, ?)").bind(crypto.randomUUID(), row.id, requestId, input.attempt, input.errorCode, now()),
-        database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("OCR 识别失败，请重新提交截图", now(), row.id),
+        database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("截图暂时无法处理，请重新提交截图。", now(), row.id),
       ]);
       logOcrEvent("job_failure_recorded", { attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
     },
