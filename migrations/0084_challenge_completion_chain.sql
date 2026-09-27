@@ -165,10 +165,9 @@ WHERE higher.title_key = 'DOMINATOR'
 CREATE INDEX challenge_completions_player_idx ON challenge_completions(player_account_id, completed_at DESC);
 
 ALTER TABLE player_title_grants ADD COLUMN completion_id TEXT REFERENCES challenge_completions(id);
-ALTER TABLE player_title_grants ADD COLUMN revocation_type TEXT CHECK (revocation_type IS NULL OR revocation_type IN ('administrator', 'evidence', 'revision_reset'));
+ALTER TABLE player_title_grants ADD COLUMN revocation_type TEXT CHECK (revocation_type IS NULL OR revocation_type IN ('administrator', 'evidence'));
 UPDATE player_title_grants
 SET revocation_type = CASE
-  WHEN revoked_by LIKE 'migration:%' THEN 'revision_reset'
   WHEN EXISTS (
     SELECT 1 FROM audit_events AS audit
     WHERE audit.operation = 'submission.spot_check.revoked'
@@ -180,7 +179,8 @@ SET revocation_type = CASE
     WHERE run.source_submission_id = player_title_grants.source_id
       AND run.status = 'invalidated'
   ) THEN 'evidence'
-  ELSE 'administrator'
+  WHEN revoked_by NOT LIKE 'migration:%' THEN 'administrator'
+  ELSE NULL
 END
 WHERE status = 'revoked';
 
