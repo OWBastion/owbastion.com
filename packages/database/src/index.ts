@@ -13,6 +13,7 @@ import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrCh
 import type { OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createReviewServices } from "./review-service";
+import { createDatasetServices } from "./dataset-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 
