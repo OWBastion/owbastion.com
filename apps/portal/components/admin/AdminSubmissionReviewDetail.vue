@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import type { AdminSubmission } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
+import { reviewBlockingMessage, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -13,9 +14,16 @@ const props = defineProps<{
   actionLoading?: boolean;
   ocrRetryError?: string;
   ocrRetryLoading?: boolean;
+  preview?: AdminSubmissionReviewPreview | null;
+  previewLoading?: boolean;
+  previewError?: string;
+  /** False while the displayed preview was computed for different review input. */
+  previewCurrent?: boolean;
 }>();
 const emit = defineEmits<{
-  review: [decision: ReviewDecision, fieldCorrections?: Array<{ fieldKey: string; reviewedValue: string }>];
+  review: [decision: ReviewDecision];
+  "review-input": [value: AdminSubmissionReviewInput];
+  "retry-preview": [];
   "spot-check": [decision: SpotCheckDecision];
   "evidence-error": [];
   "open-direct-annotation": [];
@@ -29,7 +37,16 @@ const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRe
 /** Which decision button is in-flight — loading only on that control for direct feedback. */
 const pendingDecision = ref<ReviewDecision | null>(null);
 const pendingSpotCheck = ref<SpotCheckDecision | null>(null);
-const fieldCorrections = ref<Array<{ fieldKey: string; reviewedValue: string }>>([]);
+const reviewInput = shallowRef<AdminSubmissionReviewInput>({ fieldCorrections: [], confirmedChallengeIds: [] });
+const approvalBlocked = computed(() => !props.preview || !props.preview.approvable || Boolean(props.previewLoading) || props.previewCurrent === false);
+const approvalHint = computed(() => {
+  if (props.previewLoading || props.previewCurrent === false) return "正在计算通过后的结果…";
+  if (props.previewError) return props.previewError;
+  if (!props.preview) return "";
+  return reviewBlockingMessage(props.preview.blockingCode);
+});
+const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
+const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
 
 watch(
   () => props.actionLoading,
@@ -43,12 +60,19 @@ watch(
 
 function emitReview(decision: ReviewDecision) {
   if (actionsLoading.value) return;
+  if (decision === "approved" && approvalBlocked.value) return;
   pendingDecision.value = decision;
-  emit("review", decision, fieldCorrections.value);
+  emit("review", decision);
 }
 
 function updateFieldCorrections(value: Array<{ fieldKey: string; reviewedValue: string }>) {
-  fieldCorrections.value = value;
+  reviewInput.value = { ...reviewInput.value, fieldCorrections: value };
+  emit("review-input", reviewInput.value);
+}
+
+function updateConfirmedChallenges(value: string[]) {
+  reviewInput.value = { ...reviewInput.value, confirmedChallengeIds: value };
+  emit("review-input", reviewInput.value);
 }
 
 function decisionLoading(decision: ReviewDecision) {
@@ -139,13 +163,26 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="review-rail">
-      <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title">
+      <section class="claim-card surface-panel elevation-2 flow-claim" aria-labelledby="claim-title" :aria-busy="previewLoading || undefined">
         <header class="claim-card__header">
           <div class="claim-card__title-block">
-            <h3 id="claim-title">证据驱动处理</h3>
+            <h3 id="claim-title">通过后将产生</h3>
           </div>
         </header>
-        <p class="claim-empty">审核批准会使用校正后的结构化证据重新计算 Verified Run 与所有适用称号，不需要选择目标挑战。</p>
+        <template v-if="preview">
+          <ul v-if="preview.titles.length" class="outcome-list">
+            <li v-for="title in preview.titles" :key="`${title.titleKey}:${title.mapName ?? ''}`">
+              <strong>{{ title.alreadyOwned ? `已拥有「${title.titleName}」，不重复获得` : `获得「${title.titleName}」` }}</strong>
+              <span v-if="title.mapName" class="claim-meta">{{ title.mapName }}</span>
+            </li>
+          </ul>
+          <p v-if="satisfiedCompletions.length" class="claim-meta">联动完成：{{ satisfiedCompletions.map((completion) => completion.titleName).join("、") }}</p>
+          <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
+          <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
+        </template>
+        <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以重新发送 OCRKit 请求，或要求重新提交。</p>
+        <p v-if="approvalHint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
+        <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
       </section>
 
       <section
@@ -159,7 +196,7 @@ onBeforeUnmount(() => {
             icon="i-lucide-check"
             label="通过"
             :loading="decisionLoading('approved')"
-            :disabled="actionsLoading"
+            :disabled="actionsLoading || approvalBlocked"
             @click="emitReview('approved')"
           />
           <UButton
@@ -237,8 +274,11 @@ onBeforeUnmount(() => {
           <AdminSubmissionReviewSignals
             stacked
             :submission="submission"
+            :preview="preview"
+            :preview-loading="previewLoading"
             :disabled="actionsLoading"
             @field-corrections="updateFieldCorrections"
+            @confirmed-challenges="updateConfirmedChallenges"
           />
       </div>
 
@@ -484,6 +524,36 @@ onBeforeUnmount(() => {
   color: var(--muted);
   font-size: var(--type-label-sm-size);
   line-height: 1.5;
+}
+.outcome-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.outcome-list li {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.outcome-list strong {
+  color: var(--text);
+  font-size: var(--type-label-sm-size);
+  overflow-wrap: anywhere;
+}
+.outcome-list .claim-meta {
+  margin: 0;
+}
+.claim-hint {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.claim-hint--error {
+  color: var(--danger);
 }
 
 .meta-disclosure {

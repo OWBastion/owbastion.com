@@ -16,6 +16,7 @@ import {
   qqGroupRegistrationRequestSchema,
   adminPlayerStatusRequestSchema,
   adminPlayerIdentityRequestSchema,
+  adminSubmissionReviewPreviewRequestSchema,
   adminSubmissionReviewRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
   adminTitleGrantRequestSchema,
@@ -2058,6 +2059,27 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
   });
 
+  const submissionReviewErrorCodes = ["SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED", "SUBMISSION_OUTCOME_NOT_CONFIGURED", "SUBMISSION_CORRECTION_INVALID", "CHALLENGE_CONFIRMATION_INELIGIBLE", "CHALLENGE_NOT_COMPLETABLE", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "SUBMISSION_REVISION_MISMATCH", "GAMEPLAY_REVISION_NOT_FOUND"];
+  const submissionReviewErrorMessage = (code: string) => code === "CHALLENGE_REWARD_NOT_CONFIGURED"
+    ? "The challenge has no configured title reward"
+    : code === "CHALLENGE_CONFIRMATION_INELIGIBLE"
+      ? "A confirmed challenge is not eligible for this submission"
+      : "The submission cannot be reviewed";
+
+  app.post("/v1/admin/submissions/:submissionId/review/preview", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const parsed = adminSubmissionReviewPreviewRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try { return c.json(await dependencies.services(c.env).previewSubmissionReview({ submissionId: c.req.param("submissionId"), fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!)); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "REVIEW_PREVIEW_FAILED";
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
+      if (submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code));
+      throw error;
+    }
+  });
+
   app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -2065,8 +2087,8 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED", "SUBMISSION_OUTCOME_NOT_CONFIGURED", "SUBMISSION_CORRECTION_INVALID", "CHALLENGE_CONDITIONS_UNSUPPORTED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!, idempotencyKey)); }
+    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (code === "SUBMISSION_NOT_FOUND" || submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code)); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {

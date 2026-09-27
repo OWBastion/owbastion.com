@@ -87,6 +87,7 @@ const services: PlatformServices = {
   finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized", finalizedAt: 2 }),
   getOcrkitDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
   getOcrkitDatasetEvidence: async () => { throw new Error("EVIDENCE_UNAVAILABLE"); },
+  previewSubmissionReview: async ({ submissionId }) => ({ contractVersion: "1", submissionId, evidenceOutcome: "review", candidates: [], completions: [], titles: [], verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
   markOcrJobFailed: async () => {},
@@ -1850,6 +1851,38 @@ describe("API", () => {
     const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved" }) }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ decision: "approved", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false });
+  });
+
+  it("passes maintainer Challenge confirmations to approval and preview", async () => {
+    const reviewInputs: unknown[] = [];
+    const previewInputs: unknown[] = [];
+    const reviewApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({
+      ...services,
+      reviewSubmission: async (input) => { reviewInputs.push(input); return { contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "approved" as const, grantId: "00000000-0000-4000-8000-000000000001", titleKey: "HERO", titleName: "英雄", alreadyOwned: false }; },
+      previewSubmissionReview: async (input) => { previewInputs.push(input); return services.previewSubmissionReview(input, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }); },
+    }) });
+    const body = { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "国王大道" }], confirmedChallengeIds: ["legacy:title_challenge:title.hero:::abc"] };
+    const preview = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, env);
+    expect(preview.status).toBe(200);
+    expect(previewInputs).toEqual([{ submissionId: "00000000-0000-4000-8000-000000000000", fieldCorrections: body.fieldCorrections, confirmedChallengeIds: body.confirmedChallengeIds }]);
+    const approval = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-confirm-1" }, body: JSON.stringify({ ...body, decision: "approved" }) }, env);
+    expect(approval.status).toBe(200);
+    expect(reviewInputs).toEqual([expect.objectContaining({ decision: "approved", confirmedChallengeIds: ["legacy:title_challenge:title.hero:::abc"] })]);
+    const rejectedWithConfirmation = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-confirm-2" }, body: JSON.stringify({ ...body, decision: "rejected" }) }, env);
+    expect(rejectedWithConfirmation.status).toBe(422);
+    expect(reviewInputs).toHaveLength(1);
+  });
+
+  it("maps ineligible Challenge confirmations to a review error", async () => {
+    const reviewApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, reviewSubmission: async () => { throw new Error("CHALLENGE_CONFIRMATION_INELIGIBLE"); } }) });
+    const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-ineligible-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved", confirmedChallengeIds: ["challenge.owned"] }) }, env);
+    expect(response.status).toBe(422);
+    expect((await response.json() as { error: { code: string } }).error.code).toBe("CHALLENGE_CONFIRMATION_INELIGIBLE");
+  });
+
+  it("requires maintainer access for review previews", async () => {
+    const response = await app.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    expect([401, 403]).toContain(response.status);
   });
 
   it("allows maintainers to request another OCRKit attempt", async () => {

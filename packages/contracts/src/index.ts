@@ -962,17 +962,71 @@ export const adminSubmissionSchema = z.object({
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+const submissionReviewFieldCorrectionsSchema = z.array(z.object({
+  fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]),
+  reviewedValue: z.string().trim().min(1).max(2048),
+}).strict()).max(5).superRefine((corrections, ctx) => {
+  if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });
+});
+// Canonical Challenge IDs a maintainer visually confirmed from the screenshot.
+// The platform revalidates them against the Submission's eligible Challenges on every use.
+const confirmedChallengeIdsSchema = z.array(z.string().trim().min(1).max(512)).max(32).superRefine((ids, ctx) => {
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each Challenge may be confirmed only once" });
+});
 export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
-  fieldCorrections: z.array(z.object({
-    fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]),
-    reviewedValue: z.string().trim().min(1).max(2048),
-  }).strict()).max(5).superRefine((corrections, ctx) => {
-    if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });
-  }).optional(),
+  fieldCorrections: submissionReviewFieldCorrectionsSchema.optional(),
+  confirmedChallengeIds: confirmedChallengeIdsSchema.optional(),
+}).superRefine((value, ctx) => {
+  if (value.decision !== "approved" && value.confirmedChallengeIds?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["confirmedChallengeIds"], message: "Challenges can be confirmed only when approving" });
 });
+export const adminSubmissionReviewPreviewRequestSchema = z.object({
+  contractVersion,
+  fieldCorrections: submissionReviewFieldCorrectionsSchema.optional(),
+  confirmedChallengeIds: confirmedChallengeIdsSchema.optional(),
+}).strict();
+const submissionReviewEvidenceFieldSchema = z.enum(["map_name", "difficulty", "challenge_completed", "map_variant", "achievement_titles"]);
+export const adminSubmissionReviewCandidateSchema = z.object({
+  challengeId: z.string().min(1).max(512),
+  family: z.enum(["map", "achievement"]),
+  kind: z.enum(["difficulty_completion", "pioneer", "classic_completion", "map_title_achievement", "title_achievement"]),
+  label: z.string(),
+  titleName: z.string().nullable(),
+  mapName: z.string().nullable(),
+  difficulty: z.string().nullable(),
+  condition: z.string().nullable(),
+  evidence: z.enum(["matched", "needs_confirmation", "not_matched", "unsupported"]),
+  requiredFields: z.array(submissionReviewEvidenceFieldSchema),
+  missingFields: z.array(submissionReviewEvidenceFieldSchema),
+  selectedBy: z.enum(["conditions", "reviewer"]).nullable(),
+}).strict();
+export const adminSubmissionReviewPreviewResponseSchema = z.object({
+  contractVersion,
+  submissionId: z.string().uuid(),
+  evidenceOutcome: z.enum(["automatic", "review", "resubmit"]),
+  candidates: z.array(adminSubmissionReviewCandidateSchema),
+  completions: z.array(z.object({
+    challengeId: z.string().min(1).max(512),
+    titleKey: externalId,
+    titleName: z.string(),
+    mapName: z.string().nullable(),
+    basis: z.enum(["conditions", "reviewer", "satisfies"]),
+  }).strict()),
+  titles: z.array(z.object({
+    titleKey: externalId,
+    titleName: z.string(),
+    mapName: z.string().nullable(),
+    alreadyOwned: z.boolean(),
+  }).strict()),
+  verifiedRun: z.object({
+    status: z.enum(["recorded", "eligible", "ineligible"]),
+    reason: z.string().nullable(),
+  }).strict(),
+  approvable: z.boolean(),
+  blockingCode: z.string().nullable(),
+}).strict();
 export const adminSubmissionReviewResponseSchema = z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 }).or(z.object({
@@ -1756,6 +1810,9 @@ export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
+export type AdminSubmissionReviewPreviewRequest = z.infer<typeof adminSubmissionReviewPreviewRequestSchema>;
+export type AdminSubmissionReviewPreviewResponse = z.infer<typeof adminSubmissionReviewPreviewResponseSchema>;
+export type AdminSubmissionReviewCandidate = z.infer<typeof adminSubmissionReviewCandidateSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
 export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;

@@ -267,13 +267,24 @@ Internal lifecycle: upload_pending → ocr_pending → approved,
 ~~~
 
 The platform evaluates every eligible Challenge against its canonical
-Conditions; no upload-time Challenge choice or maintainer challenge selector
-defines the match. Evidence must satisfy the fields named by those Conditions
-and the centralized OCR schema, layout, and confidence policy. Missing,
-unsupported, low-confidence, or conflicting evidence remains in review without
-creating an unverified grant. A maintainer can visually confirm unsupported OCR
-layouts or correct structured values when the business facts are established;
-the same Conditions matcher then decides all eligible grants. Challenge
+Conditions; there is no upload-time Challenge choice. Evidence must satisfy the
+fields named by those Conditions and the centralized OCR schema, layout, and
+confidence policy. Missing, unsupported, low-confidence, or conflicting evidence
+remains in review without creating an unverified grant. A maintainer can
+visually confirm unsupported OCR layouts or correct structured values when the
+business facts are established; the same Conditions matcher then decides the
+evidence-derived grants. When automatic extraction cannot express what the
+screenshot visibly proves, the maintainer may additionally confirm specific
+Challenges from the Submission's eligible set (the canonical Challenges that were
+completable at `submissions.created_at`, in the recognized map's Gameplay
+Revision, and not already owned or administratively revoked for the player).
+Such a confirmation is reviewed evidence, not a direct Grant: approval
+revalidates it against that eligible set and records it through the normal
+Completion -> Grant chain, including lifecycle, `satisfies`, and revocation
+rules, and the review audit and Submission outcome record the confirmation
+basis. Before approving, the maintainer sees a read-only preview of the
+Completions, Titles, and Verified Run evidence that approval would produce for
+the current corrections and confirmations. Challenge
 eligibility for an already-created submission is evaluated at
 `submissions.created_at`, not at OCR, queue, or review time. Thus a Pioneer
 submission created in its half-open window remains processable after `endsAt`,
