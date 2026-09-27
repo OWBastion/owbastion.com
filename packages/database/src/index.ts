@@ -8649,10 +8649,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       throw new Error("INVITE_REQUIRED");
     },
 
-<<<<<<< HEAD
-=======
-    async createSubmission(input: SubmissionRequest, auth, idempotencyKey) {
-      const replay = await replayOrConflict<ReturnType<PlatformServices["createSubmission"]> extends Promise<infer T> ? T : never>(db, auth.subject, "submission.create", idempotencyKey, input);
+    async getSubmission(input, _auth) {
+      const submission = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
+      const verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(submission.id);
       return { contractVersion: "1" as const, submissionId: submission.id, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
     ...createReviewServices(database, db, {
