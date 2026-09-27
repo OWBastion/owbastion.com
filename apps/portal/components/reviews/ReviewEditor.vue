@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { PlayerReview, ReviewRating } from "~/composables/usePlayerReview";
 
-const props = defineProps<{
+defineProps<{
   currentReview: PlayerReview | null;
   rating: ReviewRating;
   comment: string;

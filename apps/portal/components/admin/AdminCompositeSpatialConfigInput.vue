@@ -133,10 +133,6 @@ function updateStageCoordinatesValidity(value: boolean) {
   emit("valid", value && routeCoordinatesValid.value && agentSpatialConfigSchema.safeParse(config.value).success);
 }
 
-function updateRemainingStageSelection(value: "random_unique" | "stage_id_cycle") {
-  commit({ ...config.value, composition: { ...config.value.composition, remainingStageSelection: value } });
-}
-
 function coordinateInputValue(value: unknown): number | null {
   if (value === "" || value === null || value === undefined) return null;
   if (typeof value !== "string" && typeof value !== "number") return null;
