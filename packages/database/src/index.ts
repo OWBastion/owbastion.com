@@ -1900,6 +1900,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: input.row.sourceSubmissionId, actorId: input.actor.actorId, timestamp, reason, action: input.nextStatus === "invalidated" ? "invalidate" : "restore" }),
     ];
   };
+  const findConflictingVerifiedRun = (input: { playerAccountId: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
+    db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
+      eq(verifiedRuns.playerAccountId, input.playerAccountId),
+      eq(verifiedRuns.matchCode, input.matchCode),
+      input.activeOnly ? eq(verifiedRuns.status, "active") : undefined,
+      ne(verifiedRuns.id, input.exceptRunId),
+    )).get();
 
   const transitionVerifiedRun = async (input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedRun> => {
     const runId = input.verifiedRunId.trim();
@@ -1909,13 +1916,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!row) throw new Error("VERIFIED_RUN_NOT_FOUND");
     if (row.status === nextStatus) return asVerifiedRun(row);
     if (nextStatus === "active") {
-      const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-        eq(verifiedRuns.playerAccountId, row.playerAccountId),
-        eq(verifiedRuns.matchCode, row.matchCode),
-        eq(verifiedRuns.status, "active"),
-        ne(verifiedRuns.id, row.id),
-      )).get();
-      if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      if (await findConflictingVerifiedRun({ playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
+        throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      }
     }
     await database.batch(prepareVerifiedRunTransitionStatements({ row, actor, nextStatus, reason: input.reason }));
     return asVerifiedRun((await db.select().from(verifiedRuns).where(eq(verifiedRuns.id, row.id)).get())!);
@@ -2629,12 +2632,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const nextScope = { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameplayRevisionId: corrected.gameplayRevisionId };
 
     if (!sameFacts) {
-      const duplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-        eq(verifiedRuns.playerAccountId, previous.playerAccountId),
-        eq(verifiedRuns.matchCode, corrected.matchCode),
-        ne(verifiedRuns.id, previous.runId),
-      )).get();
-      if (duplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      if (await findConflictingVerifiedRun({ playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
+        throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+      }
       const award = calculateVerifiedRunXpV2({
         difficulty: corrected.difficulty,
         mapFactor: previous.xpInputSnapshot.mapFactor,
@@ -2690,13 +2690,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const nextStatus = input.action === "invalidate" ? "invalidated" : "active";
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
-        const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
-          eq(verifiedRuns.playerAccountId, loaded.row.run.playerAccountId),
-          eq(verifiedRuns.matchCode, loaded.row.run.matchCode),
-          eq(verifiedRuns.status, "active"),
-          ne(verifiedRuns.id, loaded.row.run.id),
-        )).get();
-        if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+        if (await findConflictingVerifiedRun({ playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
+          throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+        }
       }
       const timestamp = now();
       const reason = input.reason?.trim() || null;
