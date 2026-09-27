@@ -62,7 +62,7 @@ const normalizedOcrDifficulty = (value: unknown) => {
   return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
 };
 
-const masteryRequiredOcrFields = ["challenge_completed", "viewer_player", "map_name", "difficulty", "version", "run_code", "duration_seconds"] as const;
+const masteryRequiredOcrFields = ["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds"] as const;
 const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {
   if (["upload_pending", "received", "evidence_pending", "evidence_stored", "ocr_pending"].includes(status)) return "processing";
   if (["awaiting_player_confirmation", "ready_for_review", "ocr_review_required"].includes(status)) return "needs_review";
@@ -74,7 +74,6 @@ export type VerifiedRunOcrEvidenceAssessment =
   | {
     outcome: "eligible";
     mapName: string;
-    viewerPlayer: string;
     mapVariant: "classic" | null;
     difficulty: VerifiedRunDifficulty;
     gameVersion: string;
@@ -105,8 +104,6 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   if (data.challenge_completed !== true) return ineligibleMasteryEvidence("completion_not_confirmed");
   const mapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
   if (!mapName) return ineligibleMasteryEvidence("missing_map");
-  const viewerPlayer = typeof data.viewer_player === "string" ? data.viewer_player.trim() : "";
-  if (!viewerPlayer) return ineligibleMasteryEvidence("missing_viewer_player");
   const gameVersion = typeof data.version === "string" ? data.version.trim() : "";
   if (!isVerifiedRunGameVersionSupported(gameVersion, compatibility)) return ineligibleMasteryEvidence("unsupported_game_version");
   const difficulty = normalizedOcrDifficulty(data.difficulty);
@@ -134,7 +131,6 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   return {
     outcome: "eligible",
     mapName,
-    viewerPlayer,
     mapVariant: rawVariant === "classic" ? "classic" : null,
     difficulty: difficulty as VerifiedRunDifficulty,
     gameVersion,
@@ -2058,16 +2054,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "required_map_variant_mismatch", conflictFields: [] };
     }
 
-    const owner = await db.select({ playerAccountId: playerAccounts.id, playerName: playerAccounts.playerName }).from(playerAccounts)
+    const owner = await db.select({ playerAccountId: playerAccounts.id }).from(playerAccounts)
       .where(and(eq(playerAccounts.id, row.playerAccountId), eq(playerAccounts.status, "active"))).get();
     if (!owner) {
       if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
       return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "player_not_active", conflictFields: [] };
     }
-    if (normalizedOcrLabel(evidence.viewerPlayer).split("#")[0] !== normalizedOcrLabel(owner.playerName).split("#")[0]) {
-      return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "viewer_player_mismatch", conflictFields: [] };
-    }
-
     const matchingMaps = (await db.select().from(maps).where(eq(maps.status, "active")))
       .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(evidence.mapName));
     if (matchingMaps.length !== 1) return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: matchingMaps.length ? "ambiguous_map" : "canonical_map_not_found", conflictFields: [] };
@@ -2119,6 +2111,22 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       reason: status === "reused" ? "same_player_run_code" : null,
       conflictFields: [],
     };
+  };
+
+  const resolveAutoMatchGameplayRevisionId = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+    const mapName = typeof response.data?.map_name === "string" ? response.data.map_name.trim() : "";
+    const rawMapVariant = typeof response.data?.map_variant === "string" ? response.data.map_variant.trim() : "";
+    if (!mapName || (rawMapVariant && rawMapVariant !== "classic")) return null;
+    const matchingMaps = (await db.select().from(maps).where(eq(maps.status, "active")))
+      .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(mapName));
+    if (matchingMaps.length !== 1 || (row.targetMapId && row.targetMapId !== matchingMaps[0]?.id)) return null;
+    const mapVariant = rawMapVariant === "classic" ? "classic" : await requiredMasteryMapVariant(row);
+    const revision = await resolveMasteryGameplayRevision({
+      mapId: matchingMaps[0]!.id,
+      mapVariant,
+      gameplayRevisionId: snapshotGameplayRevisionId(row),
+    });
+    return revision?.id ?? null;
   };
 
   type AdminSubmissionChallenge =
@@ -2809,6 +2817,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     }
     for (const key of ambiguousMapNames) mapIdsByName.delete(key);
     return { candidates: resolved, snapshots, titleNamesByKey, mapIdsByName };
+  };
+
+  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+    const [items, gameplayRevisionId] = await Promise.all([
+      fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt),
+      resolveAutoMatchGameplayRevisionId(row, response),
+    ]);
+    return prepareCanonicalAutoMatchChallenges(
+      items.filter((challenge) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId),
+      row.createdAt,
+    );
   };
 
   type ChallengeCompletionAward = {
@@ -5371,7 +5390,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
         if (!rawResponse) throw new Error("SUBMISSION_NOT_REVIEWABLE");
         const correctedResponse = applySubmissionFieldCorrections(rawResponse, input.fieldCorrections);
-        const prepared = await prepareCanonicalAutoMatchChallenges(await fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt), row.createdAt);
+        const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
         const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
         reviewedMatchOutcome = decision.outcome;
         if (decision.outcome === "review") throw new Error("CHALLENGE_CONDITIONS_UNSUPPORTED");
@@ -5686,7 +5705,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       let stage = "load_submission";
       try {
         stage = "resolve_auto_candidates";
-        const preparedCanonicalCandidates = await prepareCanonicalAutoMatchChallenges(await fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt), row.createdAt);
+        const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
         const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
         const verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic");
         const masteryAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
