@@ -4,7 +4,7 @@ import {
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
 import { hasOnlyUniqueQueryNames } from "../query-params";
-import type { AdminRouteDependencies, ApiApp } from "./route-contract";
+import { maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const verifiedRunUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -57,27 +57,23 @@ const adminVerifiedRunQuery = (request: Request) => {
 export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
   const { services, requireMaintainer, errorResponse, errorGroup, adminMutation } = dependencies;
 
-  app.get("/v1/admin/verified-runs", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
+  app.get("/v1/admin/verified-runs", maintainerRoute(requireMaintainer, async (c, auth) => {
     const query = adminVerifiedRunQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The verified run query is invalid");
-    return c.json(await services(c.env).listAdminVerifiedRuns(query, access.auth!));
-  });
+    return c.json(await services(c.env).listAdminVerifiedRuns(query, auth));
+  }));
 
-  app.get("/v1/admin/verified-runs/:verifiedRunId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const verifiedRunId = c.req.param("verifiedRunId");
+  app.get("/v1/admin/verified-runs/:verifiedRunId", maintainerRoute(requireMaintainer, async (c, auth) => {
+    const verifiedRunId = c.req.param("verifiedRunId")!;
     if (!verifiedRunUuid.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     try {
-      return c.json(await services(c.env).getAdminVerifiedRun({ verifiedRunId }, access.auth!));
+      return c.json(await services(c.env).getAdminVerifiedRun({ verifiedRunId }, auth));
     } catch (error) {
       const code = error instanceof Error ? error.message : "VERIFIED_RUN_LOOKUP_FAILED";
       if (["VERIFIED_RUN_NOT_FOUND", "VERIFIED_RUN_SUBMISSION_NOT_FOUND"].includes(code)) return errorResponse(c, 404, code, "The verified run does not exist");
       throw error;
     }
-  });
+  }));
 
   app.post("/v1/admin/verified-runs/:verifiedRunId/state", async (c) => {
     const verifiedRunId = c.req.param("verifiedRunId");
