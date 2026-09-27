@@ -1029,15 +1029,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     retiredVersion: challenge.retiredVersion ?? undefined,
   });
 
+  const enabledMapChallengeAssignment = () => and(
+    eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
+    eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
+    eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
+    eq(gameplayRevisionChallengeAssignments.enabled, 1),
+  );
   const mapChallengeQuery = () => db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
     .from(achievementChallenges)
     .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-    .innerJoin(gameplayRevisionChallengeAssignments, and(
-      eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-      eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-      eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-      eq(gameplayRevisionChallengeAssignments.enabled, 1),
-    ))
+    .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
     .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
     .where(and(
       inArray(achievementChallenges.status, ["active", "sunsetting"]),
@@ -1112,12 +1113,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         ? db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .innerJoin(gameplayRevisionChallengeAssignments, and(
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-            eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-            eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-            eq(gameplayRevisionChallengeAssignments.enabled, 1),
-          ))
+          .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
           .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
           .where(and(inArray(achievementChallenges.id, mapChallengeIds), inArray(achievementChallenges.status, ["active", "sunsetting"]), eq(maps.status, "active"), eq(gameplayRevisions.mapId, achievementChallenges.mapId), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
         : Promise.resolve([] as Array<{ challenge: typeof achievementChallenges.$inferSelect; map: typeof maps.$inferSelect; assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect; revision: typeof gameplayRevisions.$inferSelect }>),
@@ -4484,12 +4480,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const rows = await db.select({ challenge: achievementChallenges, map: maps, assignment: gameplayRevisionChallengeAssignments, revision: gameplayRevisions })
           .from(achievementChallenges)
           .innerJoin(maps, eq(achievementChallenges.mapId, maps.id))
-          .innerJoin(gameplayRevisionChallengeAssignments, and(
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_challenge"),
-            eq(gameplayRevisionChallengeAssignments.challengeId, achievementChallenges.id),
-            eq(gameplayRevisionChallengeAssignments.mapId, achievementChallenges.mapId),
-            eq(gameplayRevisionChallengeAssignments.enabled, 1),
-          ))
+          .innerJoin(gameplayRevisionChallengeAssignments, enabledMapChallengeAssignment())
           .innerJoin(gameplayRevisions, eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisions.id))
           .where(and(
             input.status ? eq(achievementChallenges.status, input.status === "retired" ? "inactive" : input.status) : undefined,
