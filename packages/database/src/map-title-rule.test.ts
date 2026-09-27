@@ -1248,6 +1248,8 @@ describe("manual title grant batches", () => {
     await expect(services.restoreAdminTitleGrant({ grantId: "grant.revoked" }, auth, "restore-active")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('EVIDENCE_REVOKED', '证据撤销称号', 'award', '测试', '条件', 'active', 'global', 'fixed', 'null', '2026.07.15')").run();
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.evidence-revoked', ?, 'EVIDENCE_REVOKED', 'revoked', 'automatic', 'submission.evidence', 'system:ocr', ?, 'admin', ?, '证据无效', 'evidence')").run(playerOne, now, now);
+    await expect(services.revokeAdminTitleGrant({ grantId: "grant.evidence-revoked" }, auth, "revoke-evidence-grant")).rejects.toThrow("TITLE_GRANT_NOT_ACTIVE");
+    expect(sqlite.prepare("SELECT status, revocation_type FROM player_title_grants WHERE id = 'grant.evidence-revoked'").get()).toEqual({ status: "revoked", revocation_type: "evidence" });
     await expect(services.restoreAdminTitleGrant({ grantId: "grant.evidence-revoked" }, auth, "restore-evidence-revoke")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
   });
 
@@ -1662,6 +1664,36 @@ describe("map title rule model – locked invariants", () => {
       await expect(services.createAdminTitleGrant({ contractVersion: "1", playerAccountId: "player.dominator", historicalTitleGrantId: "historical.dominator.target" } as never, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "dominator-source-conflict")).rejects.toThrow("HISTORICAL_TITLE_GRANT_CLAIMED");
       expect(sqlite.prepare("SELECT source_id FROM player_title_grants WHERE id = 'grant.dominator.source'").get()).toEqual({ source_id: "historical.dominator.source" });
     });
+
+    it("blocks a single historical claim when the player's same-scope Grant was administratively revoked", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.revoked.single");
+      seedTitle(sqlite, "DOMINATOR");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked.single', 'revoked-single-1', 'Revoked Player', 'revoked player', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.revoked.single', 'map', 'map.revoked.single', 'revision:map.revoked.single:initial', 'dominator', 'DOMINATOR', 'Revoked Player', 'test')").run();
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.revoked.single', 'player.revoked.single', 'DOMINATOR', 'map.revoked.single', 'revision:map.revoked.single:initial', 'dominator', 'revoked', 'manual', 'manual:old', 'admin', ?, 'admin', ?, 'review block', 'administrator')").run(now, now);
+
+      const services = createPlatformServices(database);
+      await expect(services.createAdminTitleGrant({ contractVersion: "1", playerAccountId: "player.revoked.single", historicalTitleGrantId: "historical.revoked.single" } as never, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "revoked-single-claim")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.revoked.single' AND status = 'active'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.revoked.single'").get()).toEqual({ count: 0 });
+    });
+
+    it("blocks bulk historical claims when a same-scope Grant was administratively revoked", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.revoked.bulk");
+      seedTitle(sqlite, "DOMINATOR");
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked.bulk', 'revoked-bulk-1', 'Bulk Revoked Player', 'bulk revoked player', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.revoked.bulk', 'map', 'map.revoked.bulk', 'revision:map.revoked.bulk:initial', 'dominator', 'DOMINATOR', 'Bulk Revoked Player', 'test')").run();
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.revoked.bulk', 'player.revoked.bulk', 'DOMINATOR', 'map.revoked.bulk', 'revision:map.revoked.bulk:initial', 'dominator', 'revoked', 'automatic', 'submission:old', 'admin', ?, 'admin', ?, 'review block', 'administrator')").run(now, now);
+
+      const services = createPlatformServices(database);
+      await expect(services.createAdminTitleGrantBulk({ contractVersion: "1", holderName: "Bulk Revoked Player", playerAccountId: "player.revoked.bulk" } as never, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "revoked-bulk-claim")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.revoked.bulk' AND status = 'active'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.revoked.bulk'").get()).toEqual({ count: 0 });
+    });
   });
 
   // ─── Invariant: Stable IDs ────────────────────────────────────────────────
@@ -1914,6 +1946,51 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi' AND completion_id IS NOT NULL").get()).toEqual({ count: 3 });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.1' AND title_key = 'RETIRED'").get()).toEqual({ count: 0 });
       expect(sqlite.prepare("SELECT outcome_type, COUNT(*) AS count FROM submission_outcomes WHERE submission_id = 'submission.multi' GROUP BY outcome_type ORDER BY outcome_type").all()).toEqual([{ outcome_type: "challenge", count: 3 }, { outcome_type: "title_grant", count: 3 }]);
+    });
+
+    it("routes legacy single-selection reviews through the Completion chain", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedTitle(sqlite, "HERO");
+      seedTitle(sqlite, "LOWER");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'LOWER')").run();
+      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, starts_at, ends_at, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?, ?, ?)").run(now - 100, now + 100, now, now);
+      sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, rule_version, status, manual, public_condition, condition_operator, conditions_json, condition, starts_at, ends_at, created_at, updated_at) VALUES ('legacy:title_challenge:title.hero::', 'title_challenge', 'title.hero', 'HERO', 'legacy', 'active', 0, 1, 'and', ?, '完成英雄挑战', ?, ?, ?, ?), ('challenge.lower', 'title_challenge', 'title.lower', 'LOWER', 'legacy', 'active', 0, 0, 'and', '[]', '低级条件', NULL, NULL, ?, ?)").run(JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey: "HERO" }] }), now - 100, now + 100, now, now, now, now);
+      sqlite.prepare("INSERT INTO challenge_satisfies (challenge_id, satisfied_challenge_id, created_at) VALUES ('legacy:title_challenge:title.hero::', 'challenge.lower', ?)").run(now);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.legacy.review', 'legacy-review-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.legacy.review', 'identity.legacy.review', 'player.legacy.review', 'qq', 'group.legacy.review', 'member.legacy.review', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.legacy.review', 'binding.legacy.review', 'ocr_review_required', 'title_achievement', 'title.hero', '成就挑战', 'Tester', 'portal', 'portal', 'legacy.review', ?, ?)").run(now, now);
+
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      const result = await services.reviewSubmission({ submissionId: "submission.legacy.review", decision: "approved" }, auth, "legacy-review-approve");
+
+      expect(result).toMatchObject({ decision: "approved", titleKey: "HERO", alreadyOwned: false });
+      expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy.review'").get()).toMatchObject({ status: "approved", grant_id: expect.any(String) });
+      expect(sqlite.prepare("SELECT title_key, c.source_type FROM player_title_grants g JOIN challenge_completions c ON c.id = g.completion_id WHERE g.source_id = 'submission.legacy.review' AND g.status = 'active' AND c.status = 'active' ORDER BY title_key").all()).toEqual([
+        { title_key: "HERO", source_type: "submission" },
+        { title_key: "LOWER", source_type: "challenge_satisfies" },
+      ]);
+    });
+
+    it("blocks legacy single-selection reviews after an administrative revoke", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedTitle(sqlite, "HERO");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'HERO'").run();
+      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, starts_at, ends_at, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?, ?, ?)").run(now - 100, now + 100, now, now);
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.legacy.revoked', 'legacy-revoked-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.legacy.revoked', 'identity.legacy.revoked', 'player.legacy.revoked', 'qq', 'group.legacy.revoked', 'member.legacy.revoked', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.legacy.revoked', 'binding.legacy.revoked', 'ocr_review_required', 'title_achievement', 'title.hero', '成就挑战', 'Tester', 'portal', 'portal', 'legacy.revoked', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.legacy.revoked', 'player.legacy.revoked', 'HERO', 'revoked', 'manual', 'manual:old', 'admin', ?, 'admin', ?, 'review block', 'administrator')").run(now, now);
+
+      const services = createPlatformServices(database);
+      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      await expect(services.reviewSubmission({ submissionId: "submission.legacy.revoked", decision: "approved" }, auth, "legacy-review-revoked")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+
+      expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy.revoked'").get()).toEqual({ status: "ocr_review_required", grant_id: null });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.legacy.revoked'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.legacy.revoked' AND status = 'active'").get()).toEqual({ count: 0 });
     });
 
     it("writes confirmed OCR field annotations with submission review", async () => {
