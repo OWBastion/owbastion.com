@@ -123,7 +123,7 @@ async function grant() {
     grantOpen.value = false;
     emit("granted");
   } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法发放称号，请稍后重试。").description;
+    errorMessage.value = portalErrorDetails(error, "无法授予称号，请稍后重试。").description;
   } finally {
     saving.value = false;
   }
@@ -226,7 +226,7 @@ onMounted(() => { void loadOptions(); });
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`当前 ${activeGrantCount} 项`" color="neutral" variant="subtle" /><UButton label="编辑佩戴选择" size="sm" :color="recoveryRequired ? 'warning' : 'neutral'" @click="openRecovery" /><UButton label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`当前 ${activeGrantCount} 项`" color="neutral" variant="subtle" /><UButton label="编辑佩戴选择" size="sm" :color="recoveryRequired ? 'warning' : 'neutral'" @click="openRecovery" /><UButton label="手动授予" size="sm" @click="grantOpen = true" /></div></div>
     <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="该玩家需要选择佩戴称号" description="迁移保留了全部称号，但没有初始化佩戴选择。可在这里选择最多 10 个，不会改变称号授予记录。" />
     <p v-if="errorMessage && !grantOpen && !revokeTarget && !restoreTarget" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
@@ -256,10 +256,11 @@ onMounted(() => { void loadOptions(); });
         </div>
       </template>
     </AdminDataTable>
-    <AdminResponsiveDialog v-model:open="grantOpen" title="直接发放称号" size="md" :dismissible="!saving">
+    <AdminResponsiveDialog v-model:open="grantOpen" title="手动授予称号" size="md" :dismissible="!saving">
       <template #body>
         <form id="manual-title-grant" class="grant-form" @submit.prevent="grant">
           <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
+          <p class="recovery-note">系统会通过对应的手动挑战记录完成，再授予称号。</p>
           <div class="grant-section">
             <div class="grant-section__heading"><strong>全局称号</strong></div>
             <UInputMenu v-model="selectedGlobalValues" multiple :items="globalTitleItems" placeholder="选择全局称号" :loading="loadingOptions" :disabled="loadingOptions || saving" />
@@ -275,7 +276,7 @@ onMounted(() => { void loadOptions(); });
           <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
         </form>
       </template>
-      <template #footer><UButton type="submit" form="manual-title-grant" label="确认发放" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /></template>
+      <template #footer><UButton type="submit" form="manual-title-grant" label="确认授予" :loading="saving" :disabled="loadingOptions || saving || !selectedTitleCount" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="grantOpen = false" /></template>
     </AdminResponsiveDialog>
     <AdminResponsiveDialog v-model:open="recoveryOpen" title="修复佩戴称号" size="md" :dismissible="!recovering">
       <template #body>

@@ -26,14 +26,14 @@ describe("admin grants page", () => {
       },
     });
     await flushPromises();
+    expect(wrapper.text()).toContain("每个玩家与称号组合都会通过对应的手动挑战记录完成，再授予称号。");
     const checkboxes = wrapper.findAll('input[type="checkbox"]');
     await checkboxes[0]!.setValue(true);
     await checkboxes[2]!.setValue(true);
     expect(wrapper.get('button[aria-label="取消选择 玩家一#1001"]').exists()).toBe(true);
-    await wrapper.findAll("button").filter((button) => button.text() === "确认发放")[0]!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "检查授予计划")!.trigger("click");
     await flushPromises();
-    const confirmButtons = wrapper.findAll("button").filter((button) => button.text() === "确认发放");
-    await confirmButtons.at(-1)!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "确认授予")!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/title-grants/manual/batch", expect.objectContaining({ method: "POST", body: { contractVersion: "1", playerAccountIds: ["player-1"], targets: [{ titleKey: "GLOBAL" }] } }));
     expect(toastAdd).toHaveBeenCalledWith({ title: "已处理 1 个称号授予", color: "success" });

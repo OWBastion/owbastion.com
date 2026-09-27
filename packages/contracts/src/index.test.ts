@@ -178,6 +178,8 @@ describe("v1 platform contracts", () => {
         { ...base, challengeId: "map.busan.hell", difficulty: "地狱", challenge: { family: "map", name: "釜山 地狱", mapName: "釜山", difficulty: "地狱" } },
         { ...base, submissionId: "00000000-0000-4000-8000-000000000004", mapName: "成就挑战", challenge: { family: "achievement", titleName: "钢门", category: "传奇系列", condition: "完成挑战", evidenceRule: "完整截图" } },
       ],
+      recentCompletions: [],
+      progression: { activeVerifiedRunCount: 0, recentVerifiedRuns: [] },
       titleGrants: [],
     }).success).toBe(true);
   });

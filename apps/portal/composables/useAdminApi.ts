@@ -12,6 +12,22 @@ export type AdminPlayer = {
 
 export type AdminPlayerDetail = AdminPlayer & {
   bindings: Array<{ bindingId: string; provider: "qq"; groupOpenId: string; memberOpenId: string; createdAt: number }>;
+  recentCompletions: Array<{
+    completionId: string;
+    challengeId: string;
+    titleKey: string;
+    titleName: string;
+    mapName: string | null;
+    gameplayRevisionId: string | null;
+    gameVersion: string | null;
+    status: "active" | "invalidated";
+    sourceType: string;
+    completedAt: number;
+  }>;
+  progression: {
+    activeVerifiedRunCount: number;
+    recentVerifiedRuns: Array<{ runId: string; mapName: string; gameplayRevisionId: string; gameVersion: string; difficulty: AdminVerifiedRunDifficulty; awardedXp: number; acceptedAt: number }>;
+  };
   recentSubmissions: Array<{
     submissionId: string;
     status: string;
