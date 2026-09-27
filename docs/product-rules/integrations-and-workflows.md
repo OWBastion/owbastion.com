@@ -94,14 +94,15 @@ channel flows:
   map-only `PIONEER`/`CONQUEROR`/`DOMINATOR` reward slots, and historical title
   holder snapshots without linking source names to platform accounts;
 - maintainers can explicitly migrate one historical holder snapshot or all of
-  its unclaimed title records to a player account as auditable title grants,
-  and can revoke an individual grant with a recorded reason; historical holder
-  names are never matched or claimed automatically;
-- maintainers can directly create a `manual` title Grant for an existing
-  player and catalog title for leak correction, appeals, or special rewards.
-  Global titles have no map context; map titles require a configured map title
-  rule, challenge, or reward association. Retired catalog titles remain eligible when
-  explicitly selected by a maintainer. The dedicated
+  its unclaimed title records to a player account as auditable title ownership,
+  and can revoke an individual Grant with a recorded reason; historical holder
+  names are never matched or claimed automatically. Historical and manual
+  issuance records the Challenge Completion that supports each Grant;
+- manual single and batch issuance creates or reuses the Title's manual
+  Challenge, then records an independent Completion and linked Grant for each
+  player. Global Titles have no map context; map Titles require a configured
+  map title rule, Challenge, or reward association. Retired Titles remain
+  eligible only through explicit maintainer issuance. The dedicated
   `/v1/admin/title-grants/manual/batch` route applies the same validation and
   resolution rules to a bounded Cartesian product of players and title targets;
   it is distinct from historical migration `/bulk`, and its active Grants are
@@ -154,33 +155,20 @@ channel flows:
   create a pending spot check without blocking the automatic result; a
   maintainer can confirm the sample or revoke evidence-derived outcomes, with
   the affected player and Agents projections then reflecting the revoked state.
-- maintainers can create and list achievement challenges and immediately update
-  title-challenge rules, including their Portal display category override and
-  optional map scope. A map-scoped title challenge uses one unique title key;
-  an empty map allowlist means all active maps, while a populated allowlist
-  restricts submissions and map-scoped grants to those maps;
-- the public and administrator map challenge directories project standard map
-  titles from `map_title_rules` once per applicable active map. Each instance
-  keeps its stable `map.<map>.<kind>` compatibility ID and exposes its source
-  rule ID, title key, display kind, and explicit slot semantics; it is not an
-  independently editable challenge record. Legacy map-completion rows are
-  deduplicated against `map_title_rule_compat` and assigned to an explicit
-  gameplay revision. Retained CLASSIC rows are compatibility projections for
-  their historical revision, not direct projections outside the revision
-  assignment model;
-- maintainers set a challenge to `sunsetting`, then manually confirm retirement;
-  sunsetting challenges
-  remain available for submission.
-- maintainers may create a future title challenge without release metadata;
-  `scheduled` challenges accept optional start and end timestamps. A missing
-  start time never opens the challenge automatically (but an end time still
-  expires it), a missing end time leaves it open-ended after its start, and a
-  missing game version keeps it out of the public projection and submission
-  flow until an administrator adds the version.
-  Active, sunsetting, and retired challenges require a game version; an already
-  public challenge cannot clear its release metadata.
-  Scheduled challenges remain visible as `未开放` when their release metadata is
-  complete and stop accepting new submissions after an end time without a cron job.
+- the current title-challenge and map-title-rule admin routes and directories
+  remain a bounded compatibility adapter while their records are converged on
+  canonical Challenges. Legacy map rows keep their stable compatibility IDs
+  and explicit Gameplay Revision assignments during that transition;
+- canonical Challenges use `draft`, `active`, and `archived`; configured
+  start/end timestamps determine when an active Challenge is completable, and
+  public-condition visibility is separate from evaluation. Legacy schedule,
+  release, and enablement fields are adapter inputs or projections, not
+  additional Challenge lifecycle states;
+- every new qualification outcome is recorded as a Challenge Completion before
+  its Grant. A Player who already owns the Title is skipped across its normal
+  acquisition Challenges in the same qualification scope. Explicit `satisfies`
+  links may record lower Challenge Completions and Grants when the Player does
+  not already own those Titles;
 - the Portal can publicly browse the active map catalog and map challenge
   directory; player authentication remains required for submissions, titles,
   and player-specific data.
@@ -369,36 +357,34 @@ remain reuse outcomes and do not become high-priority conflict records.
 
 ## Achievement catalog management
 
-The administrator achievement surface displays the complete title catalog,
-including global and map-scoped titles, as well as existing platform
-challenges. It does not create challenge records for titles that have no public
-condition. Title challenges may update
-their conditions, evidence rules, submission mode, and optional Portal display
-category. A title challenge may also be `scheduled` with optional start and end
-timestamps; the platform derives its public availability from the current time,
-requires a known game version for every non-scheduled lifecycle state and for
-public projection and submission, and rejects
-upload-session creation outside the applicable window. Catalog-only
-titles use the same administrator editor; saving a non-developer catalog title
-creates its challenge record with the edited rules and selected lifecycle
-status. Developer-retained catalog titles are a separate case: they are
-reserved for developer use and are not player challenges. When no
-display-category override is set, the Portal uses the category from the
-platform-owned title metadata. Map
-challenges retain their platform-owned map, difficulty, display name, and introduced
-version; administrators may keep them enabled, mark them as sunsetting, retire
-them, or reopen them.
+The administrator achievement surface displays the complete Title catalog,
+including global and map-scoped Titles, alongside platform Challenges. A Title
+has `draft`, `active`, or `retired` lifecycle and an independent public
+visibility setting. Visibility controls public presentation; it does not change
+whether a Challenge can produce a Completion. A Title is ordinarily obtainable
+when it has at least one currently completable Challenge. Retiring a Title
+stops ordinary acquisition while preserving existing Completion and Grant facts.
+A maintainer may still explicitly issue a retired Title through its manual
+Challenge.
 
-Sunsetting retains player visibility and new upload sessions while displaying
-the planned release version. Retiring a challenge prevents new upload sessions
-while preserving submissions that already exist. Those submissions continue
-through OCR and review under the ordinary submission lifecycle. Reopening
-clears the retirement version. Historical challenge and submission records may
-retain `map_variant = classic` as compatibility evidence. Current challenge
+Each Challenge awards exactly one Title and has `draft`, `active`, or `archived`
+lifecycle, optional start/end timestamps, and an independent condition
+visibility flag. Public-condition visibility controls whether the condition is
+shown; it does not gate evaluation. Conditions use top-level AND/OR over their
+configured facts. Material qualification changes create a new Challenge and
+archive the prior one; copy and other presentation-only changes may update the
+existing Challenge. The current legacy authoring and public-projection routes
+still expose their schedule/release fields while records are adapted into the
+canonical Challenge → Completion → Grant chain.
+
+Manual issuance, including bounded batch issuance and historical migration,
+records a manual or migration Completion before linking the resulting Grant.
+Administrator changes require maintainer authorization, an idempotency key,
+and an audit record. Historical challenge and submission records may retain
+`map_variant = classic` as compatibility evidence. Current challenge
 applicability comes from the explicit revision assignment and is snapshotted as
 `gameplayRevisionId`; the legacy variant value does not act as a second map
-identity. Administrator changes require maintainer authorization, an
-idempotency key, and an audit record.
+identity.
 
 ### Map title rule model
 

@@ -97,7 +97,7 @@ const id = (value: string) => createHash("sha256").update(value).digest("hex").s
 
 export const renderCatalogImportSql = (snapshot: TitleCatalogSnapshot, hash: string, importedAt: number) => {
   const lines: string[] = [];
-  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(titleIcon(title))}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(titleColor(title))}, ${sql(snapshot.gameVersion)}) ON CONFLICT(key) DO UPDATE SET label = excluded.label, icon = excluded.icon, category = excluded.category, condition = excluded.condition, availability = excluded.availability, scope = excluded.scope, display_kind = excluded.display_kind, color_json = excluded.color_json, game_version = excluded.game_version;`);
+  for (const title of snapshot.titles) lines.push(`INSERT INTO title_catalog (key, label, icon, category, condition, lifecycle, scope, display_kind, color_json, game_version) VALUES (${sql(title.key)}, ${sql(title.label)}, ${sql(titleIcon(title))}, ${sql(title.category)}, ${sql(title.condition)}, ${sql(title.availability)}, ${sql(title.scope)}, ${sql(title.displayKind)}, ${sql(titleColor(title))}, ${sql(snapshot.gameVersion)}) ON CONFLICT(key) DO UPDATE SET label = excluded.label, icon = excluded.icon, category = excluded.category, condition = excluded.condition, lifecycle = excluded.lifecycle, scope = excluded.scope, display_kind = excluded.display_kind, color_json = excluded.color_json, game_version = excluded.game_version;`);
   for (const map of snapshot.maps) lines.push(`INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (${sql(map.mapId)}, ${sql(map.mapName)}, ${sql(map.gameVersion)}, ${sql(map.status)}, ${sql(snapshot.gameVersion)}, ${importedAt}, ${importedAt}) ON CONFLICT(id) DO UPDATE SET name = excluded.name, game_version = excluded.game_version, status = excluded.status, updated_at = excluded.updated_at;`);
   for (const map of snapshot.maps) for (const reward of map.rewards) {
     lines.push(`INSERT INTO map_title_rewards (map_id, slot, title_key, pioneer_prefixes_json) VALUES (${sql(map.mapId)}, ${sql(reward.slot)}, ${sql(reward.titleKey)}, ${sql(JSON.stringify(reward.slot === "pioneer" ? map.pioneerPrefixes : []))}) ON CONFLICT(map_id, slot) DO UPDATE SET title_key = excluded.title_key, pioneer_prefixes_json = excluded.pioneer_prefixes_json;`);
@@ -124,7 +124,7 @@ export const renderCatalogSchemaMigration = () => [
   "  label TEXT NOT NULL,",
   "  category TEXT NOT NULL,",
   "  condition TEXT NOT NULL,",
-  "  availability TEXT NOT NULL CHECK (availability IN ('active', 'retired')),",
+  "  lifecycle TEXT NOT NULL DEFAULT 'active' CHECK (lifecycle IN ('draft', 'active', 'retired')),",
   "  scope TEXT NOT NULL CHECK (scope IN ('global', 'map')),",
   "  display_kind TEXT NOT NULL CHECK (display_kind IN ('fixed', 'map_pioneer', 'map_name_suffix')),",
   "  color_json TEXT NOT NULL DEFAULT 'null',",
@@ -151,7 +151,7 @@ export const renderCatalogSchemaMigration = () => [
   "  UNIQUE (scope, map_id, slot, title_key, holder_name)",
   ");",
   "",
-  "CREATE INDEX title_catalog_scope_idx ON title_catalog(scope, availability);",
+  "CREATE INDEX title_catalog_scope_idx ON title_catalog(scope, lifecycle);",
   "CREATE INDEX map_title_rewards_map_idx ON map_title_rewards(map_id, slot);",
   "CREATE INDEX historical_title_grants_map_idx ON historical_title_grants(map_id, title_key);",
   "",

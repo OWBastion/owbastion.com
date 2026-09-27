@@ -11,10 +11,10 @@ const createD1 = () => {
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
     CREATE TABLE portal_sessions (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
-    CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, availability TEXT NOT NULL, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
+    CREATE TABLE title_catalog (key TEXT PRIMARY KEY, label TEXT NOT NULL, icon TEXT NOT NULL, icon_url TEXT, icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, availability TEXT NOT NULL, lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT, game_version TEXT NOT NULL);
     CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL);
     CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL);
-    CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT);
+    CREATE TABLE player_title_grants (id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT, completion_id TEXT, revocation_type TEXT);
     CREATE TABLE player_equipped_titles (grant_id TEXT PRIMARY KEY, player_account_id TEXT NOT NULL, equipped_at INTEGER NOT NULL);
     CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -34,14 +34,14 @@ describe("equipped title selection", () => {
     const grantIds = Array.from({ length: 11 }, (_, index) => `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`);
     for (const [index, grantId] of grantIds.entries()) {
       const key = `TITLE_${index}`;
-      sqlite.prepare("INSERT INTO title_catalog VALUES (?, ?, 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run(key, key);
-      sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.one', ?, NULL, NULL, NULL, 'active', 'manual', ?, 'admin', ?, NULL, NULL, NULL)").run(grantId, key, `source.${index}`, now);
+      sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, ?, 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run(key, key);
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason) VALUES (?, 'player.one', ?, NULL, NULL, NULL, 'active', 'manual', ?, 'admin', ?, NULL, NULL, NULL)").run(grantId, key, `source.${index}`, now);
     }
     const retiredGrantId = "20000000-0000-4000-8000-000000000001";
-    sqlite.prepare("INSERT INTO title_catalog VALUES ('TITLE_RETIRED', '历史称号', 'award', NULL, NULL, '历史', '历史条件', 'retired', 'global', 'fixed', NULL, 'test')").run();
-    sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.one', 'TITLE_RETIRED', NULL, NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?, NULL, NULL, NULL)").run(retiredGrantId, now);
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, availability, lifecycle, scope, display_kind, color_json, game_version) VALUES ('TITLE_RETIRED', '历史称号', 'award', NULL, NULL, '历史', '历史条件', 'retired', 'retired', 'global', 'fixed', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason) VALUES (?, 'player.one', 'TITLE_RETIRED', NULL, NULL, NULL, 'active', 'historical', 'source.retired', 'admin', ?, NULL, NULL, NULL)").run(retiredGrantId, now);
     const otherGrant = "10000000-0000-4000-8000-000000000001";
-    sqlite.prepare("INSERT INTO player_title_grants VALUES (?, 'player.other', 'TITLE_0', NULL, NULL, NULL, 'active', 'manual', 'other', 'admin', ?, NULL, NULL, NULL)").run(otherGrant, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason) VALUES (?, 'player.other', 'TITLE_0', NULL, NULL, NULL, 'active', 'manual', 'other', 'admin', ?, NULL, NULL, NULL)").run(otherGrant, now);
     const services = createPlatformServices(database);
     await expect(services.listCurrentPlayerTitles({ sessionToken: "token.player.zero" })).resolves.toEqual({ items: [], allTitles: false });
     await expect(services.replaceAdminPlayerEquippedTitles({ playerAccountId: "player.zero", grantIds: [] }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }, "admin-empty")).resolves.toMatchObject({ grantIds: [] });
@@ -74,7 +74,7 @@ describe("equipped title selection", () => {
     const now = Date.now();
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.all', '9999', 'Developer', 'developer', 0, 'active', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_entitlements VALUES ('player.all', 1)").run();
-    sqlite.prepare("INSERT INTO title_catalog VALUES ('TITLE_NEW', '新称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('TITLE_NEW', '新称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
     const response = await createPlatformServices(database).listAgentPlayerTitleGrants({ page: 1, pageSize: 20 });
     expect(response.items).toEqual([{ playerId: "9999", playerName: "Developer", titleKeys: [], allTitles: true }]);
   });
@@ -87,10 +87,10 @@ describe("equipped title selection", () => {
     sqlite.prepare("INSERT INTO portal_sessions VALUES ('session.map', 'player.map', ?, ?)").run(hash("token.map"), now + 60_000);
     sqlite.prepare("INSERT INTO maps VALUES ('map.test', '测试地图')").run();
     sqlite.prepare("INSERT INTO gameplay_revisions VALUES ('revision:map.test:default', 'map.test', 'default')").run();
-    sqlite.prepare("INSERT INTO title_catalog VALUES ('GLOBAL_MAP_TEST', '全局测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
-    sqlite.prepare("INSERT INTO title_catalog VALUES ('MAP_TEST', '地图测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'map', 'map_name_suffix', NULL, 'test')").run();
-    sqlite.prepare("INSERT INTO player_title_grants VALUES ('global-map-test', 'player.map', 'GLOBAL_MAP_TEST', NULL, NULL, NULL, 'active', 'manual', 'source.global', 'admin', ?, NULL, NULL, NULL)").run(now);
-    sqlite.prepare("INSERT INTO player_title_grants VALUES ('map-test', 'player.map', 'MAP_TEST', 'map.test', 'revision:map.test:default', 'conqueror', 'active', 'manual', 'source.map', 'admin', ?, NULL, NULL, NULL)").run(now);
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_MAP_TEST', '全局测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'global', 'fixed', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, icon_url, icon_object_key, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('MAP_TEST', '地图测试称号', 'award', NULL, NULL, '测试', '条件', 'active', 'map', 'map_name_suffix', NULL, 'test')").run();
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason) VALUES ('global-map-test', 'player.map', 'GLOBAL_MAP_TEST', NULL, NULL, NULL, 'active', 'manual', 'source.global', 'admin', ?, NULL, NULL, NULL)").run(now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason) VALUES ('map-test', 'player.map', 'MAP_TEST', 'map.test', 'revision:map.test:default', 'conqueror', 'active', 'manual', 'source.map', 'admin', ?, NULL, NULL, NULL)").run(now);
     sqlite.prepare("INSERT INTO player_equipped_titles VALUES ('map-test', 'player.map', ?)").run(now);
     const services = createPlatformServices(database);
 

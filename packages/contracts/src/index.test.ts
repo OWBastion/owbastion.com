@@ -12,7 +12,7 @@ describe("v1 platform contracts", () => {
   it("accepts unreleased stable title definitions in the Agents build projection", () => {
     expect(agentTitleListResponseSchema.safeParse({
       contractVersion: "1",
-      items: [{ titleKey: "FUTURE_TITLE", label: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: null }],
+      items: [{ titleKey: "FUTURE_TITLE", label: "未来称号", icon: "trophy", category: "未来系列", condition: "完成挑战", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: null }],
       page: 1,
       pageSize: 20,
       total: 1,

@@ -592,6 +592,8 @@ export const titleSchema = z.object({
   iconUrl: z.string().url().max(2048).nullable().optional(),
   category: z.string().trim().min(1).max(128),
   condition: z.string().trim().min(1).max(1024),
+  lifecycle: z.enum(["draft", "active", "retired"]),
+  publicVisibility: z.boolean().optional(),
   availability: z.enum(["active", "retired"]),
   scope: z.enum(["global", "map"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
@@ -671,6 +673,7 @@ export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAc
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
 export const adminTitleGrantBulkResponseSchema = z.object({ contractVersion, grantedCount: z.number().int().nonnegative(), skippedClaimedCount: z.number().int().nonnegative().default(0) });
 export const adminTitleGrantRevokeRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
+export const adminTitleGrantRestoreRequestSchema = z.object({ contractVersion, reason: z.string().trim().max(256).optional() });
 export const adminManualTitleGrantTargetSchema = z.object({ titleKey: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).strict();
 export const adminManualTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().trim().uuid(), titleKey: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional(), reason: z.string().trim().min(1).max(512).optional() }).strict();
 export const adminManualTitleGrantResponseSchema = z.object({ contractVersion, grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapId: externalId.nullable(), slot: z.enum(["pioneer", "conqueror", "dominator"]).nullable(), alreadyOwned: z.boolean() });
@@ -707,11 +710,13 @@ const adminCatalogTitleSchema = z.object({
   iconUrl: z.string().url().max(2048).nullable().optional(),
   category: z.string().trim().min(1).max(128),
   condition: z.string().trim().min(1).max(1024),
+  lifecycle: z.enum(["draft", "active", "retired"]),
+  publicVisibility: z.boolean(),
   availability: z.enum(["active", "retired"]),
   scope: z.enum(["global", "map"]),
   displayKind: z.enum(["fixed", "map_pioneer", "map_name_suffix"]),
   color: titleColorSchema.nullable().optional(),
-  status: z.enum(["active", "retired"]),
+  status: z.enum(["draft", "active", "retired"]),
   gameVersion: z.string().trim().min(1).max(64).nullable(),
   hasChallenge: z.boolean(),
 });
@@ -877,7 +882,9 @@ export const adminAchievementCreateRequestSchema = z.object({
 });
 export const adminCatalogTitleUpdateRequestSchema = z.object({
   contractVersion,
-  status: titleChallengeStatus,
+  status: titleChallengeStatus.optional(),
+  lifecycle: z.enum(["draft", "active", "retired"]).optional(),
+  publicVisibility: z.boolean().optional(),
   label: z.string().trim().min(1).max(256).optional(),
   icon: achievementIcon.optional(),
   category: z.string().trim().min(1).max(128).optional(),
@@ -1520,7 +1527,7 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(adminPlayerRecentSubmissionSchema).max(10),
-  titleGrants: z.array(ownedTitleSchema.extend({ sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
+  titleGrants: z.array(ownedTitleSchema.extend({ status: z.enum(["active", "revoked"]), revocationType: z.enum(["administrator", "evidence", "revision_reset"]).nullable(), sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
 });
 
 export const currentPlayerResponseSchema = z.object({
@@ -1703,6 +1710,7 @@ export type AdminTitleGrantHolderDetailResponse = z.infer<typeof adminTitleGrant
 export type AdminTitleGrantRequest = z.infer<typeof adminTitleGrantRequestSchema>;
 export type AdminTitleGrantBulkRequest = z.infer<typeof adminTitleGrantBulkRequestSchema>;
 export type AdminTitleGrantBulkResponse = z.infer<typeof adminTitleGrantBulkResponseSchema>;
+export type AdminTitleGrantRestoreRequest = z.infer<typeof adminTitleGrantRestoreRequestSchema>;
 export type AdminManualTitleGrantRequest = z.infer<typeof adminManualTitleGrantRequestSchema>;
 export type AdminManualTitleGrantResponse = z.infer<typeof adminManualTitleGrantResponseSchema>;
 export type AdminManualTitleGrantTarget = z.infer<typeof adminManualTitleGrantTargetSchema>;

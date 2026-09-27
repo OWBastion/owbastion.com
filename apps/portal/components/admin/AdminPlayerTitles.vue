@@ -11,7 +11,7 @@ type TitleMenuItem = { label: string; value: string };
 type GrantRow = AdminPlayerDetail["titleGrants"][number] & { sourceLabel: string; mapLabel: string };
 
 const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDetail["titleGrants"]; loading?: boolean }>();
-const emit = defineEmits<{ granted: []; revoked: []; recovered: [] }>();
+const emit = defineEmits<{ granted: []; revoked: []; restored: []; recovered: [] }>();
 const api = useAdminApi();
 const toast = useToast();
 const maps = shallowRef<Array<{ mapId: string; mapName: string }>>([]);
@@ -26,6 +26,9 @@ const errorMessage = shallowRef("");
 const revokeTarget = shallowRef<AdminPlayerDetail["titleGrants"][number] | null>(null);
 const revokeReason = shallowRef("");
 const revoking = shallowRef(false);
+const restoreTarget = shallowRef<AdminPlayerDetail["titleGrants"][number] | null>(null);
+const restoreReason = shallowRef("");
+const restoring = shallowRef(false);
 const recoveryOpen = shallowRef(false);
 const recoveryGrantIds = ref<string[]>([]);
 const recovering = shallowRef(false);
@@ -44,6 +47,7 @@ const activeTab = shallowRef<"global" | "map">("global");
 const globalGrants = computed(() => props.titleGrants.filter((g) => g.scope === "global"));
 const mapGrants = computed(() => props.titleGrants.filter((g) => g.scope === "map"));
 const activeGrants = computed(() => activeTab.value === "global" ? globalGrants.value : mapGrants.value);
+const activeGrantCount = computed(() => props.titleGrants.filter((grant) => grant.status === "active").length);
 const sorting = shallowRef<SortingState>([{ id: "grantedAt", desc: true }]);
 const grantRows = computed<GrantRow[]>(() => activeGrants.value.map((grant) => ({
   ...grant,
@@ -54,6 +58,7 @@ const grantColumns = computed<TableColumn<GrantRow>[]>(() => [
   { accessorKey: "label", header: "称号" },
   ...(activeTab.value === "map" ? [{ accessorKey: "mapLabel", header: "地图 · 称号槽位" }] : []),
   { accessorKey: "sourceLabel", header: "来源" },
+  { accessorKey: "status", header: "状态" },
   { accessorKey: "grantedAt", header: "授予时间" },
   { id: "actions", header: "操作", enableHiding: false },
 ]);
@@ -61,11 +66,16 @@ const grantMobileColumns = computed(() => [
   { id: "label", priority: "primary" as const, order: 0 },
   ...(activeTab.value === "map" ? [{ id: "mapLabel", priority: "primary" as const, order: 1 }] : []),
   { id: "sourceLabel", priority: "detail" as const, order: 2 },
-  { id: "grantedAt", priority: "detail" as const, order: 3 },
+  { id: "status", priority: "detail" as const, order: 3 },
+  { id: "grantedAt", priority: "detail" as const, order: 4 },
 ]);
 const revokeDescription = computed(() => {
   if (!revokeTarget.value) return undefined;
   return `${revokeTarget.value.label}${revokeTarget.value.mapName ? ` · ${revokeTarget.value.mapName}` : ""}`;
+});
+const restoreDescription = computed(() => {
+  if (!restoreTarget.value) return undefined;
+  return `${restoreTarget.value.label}${restoreTarget.value.mapName ? ` · ${restoreTarget.value.mapName}` : ""}`;
 });
 const equipableGrants = computed(() => props.titleGrants.filter((grant) => grant.scope === "global" && grant.equipable !== false));
 const recoveryRequired = computed(() => equipableGrants.value.length > 10 && equipableGrants.value.every((grant) => !grant.equipped));
@@ -130,6 +140,17 @@ function closeRevoke(force = false) {
   revokeReason.value = "";
 }
 
+function requestRestore(grant: AdminPlayerDetail["titleGrants"][number]) {
+  restoreReason.value = "";
+  restoreTarget.value = grant;
+}
+
+function closeRestore(force = false) {
+  if (restoring.value && !force) return;
+  restoreTarget.value = null;
+  restoreReason.value = "";
+}
+
 async function revoke() {
   const target = revokeTarget.value;
   if (!target) return;
@@ -149,6 +170,28 @@ async function revoke() {
     errorMessage.value = portalErrorDetails(error, "无法回收称号，请稍后重试。").description;
   } finally {
     revoking.value = false;
+  }
+}
+
+async function restore() {
+  const target = restoreTarget.value;
+  if (!target) return;
+  restoring.value = true;
+  errorMessage.value = "";
+  try {
+    const reasonValue = restoreReason.value.trim();
+    await api(`/v1/title-grants/${encodeURIComponent(target.grantId)}/restore`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createRequestId() },
+      body: { contractVersion: "1", ...(reasonValue ? { reason: reasonValue } : {}) },
+    });
+    toast.add({ title: `已恢复${target.label}`, color: "success" });
+    closeRestore(true);
+    emit("restored");
+  } catch (error) {
+    errorMessage.value = portalErrorDetails(error, "无法恢复称号，请稍后重试。").description;
+  } finally {
+    restoring.value = false;
   }
 }
 
@@ -183,9 +226,9 @@ onMounted(() => { void loadOptions(); });
 
 <template>
   <section class="player-titles" aria-labelledby="player-titles-title">
-    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`${activeGrants.length} 项`" color="neutral" variant="subtle" /><UButton label="编辑佩戴选择" size="sm" :color="recoveryRequired ? 'warning' : 'neutral'" @click="openRecovery" /><UButton label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
+    <div class="section-heading"><div><h3 id="player-titles-title">称号</h3></div><div class="section-heading__actions"><UBadge :label="`当前 ${activeGrantCount} 项`" color="neutral" variant="subtle" /><UButton label="编辑佩戴选择" size="sm" :color="recoveryRequired ? 'warning' : 'neutral'" @click="openRecovery" /><UButton label="直接发放" size="sm" @click="grantOpen = true" /></div></div>
     <UAlert v-if="recoveryRequired" color="warning" variant="subtle" title="该玩家需要选择佩戴称号" description="迁移保留了全部称号，但没有初始化佩戴选择。可在这里选择最多 10 个，不会改变称号授予记录。" />
-    <p v-if="errorMessage && !grantOpen && !revokeTarget" class="title-error" role="alert">{{ errorMessage }}</p>
+    <p v-if="errorMessage && !grantOpen && !revokeTarget && !restoreTarget" class="title-error" role="alert">{{ errorMessage }}</p>
     <nav class="grants-tabs" aria-label="称号分类">
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'global' }" :aria-pressed="activeTab === 'global'" @click="activeTab = 'global'">全局称号<span class="grants-tab__count">{{ globalGrants.length }}</span></button>
       <button class="grants-tab" :class="{ 'grants-tab--active': activeTab === 'map' }" :aria-pressed="activeTab === 'map'" @click="activeTab = 'map'">地图称号<span class="grants-tab__count">{{ mapGrants.length }}</span></button>
@@ -204,10 +247,12 @@ onMounted(() => { void loadOptions(); });
     >
       <template #label-cell="{ row }"><strong>{{ row.original.label }}<span v-if="row.original.equipped" class="equipped-mark"> · 已佩戴</span></strong><small>{{ row.original.category }}</small></template>
       <template #sourceLabel-cell="{ row }"><span>{{ row.original.sourceLabel }}</span></template>
+      <template #status-cell="{ row }"><UBadge :label="row.original.status === 'active' ? '当前' : '已回收'" :color="row.original.status === 'active' ? 'success' : 'neutral'" variant="subtle" /></template>
       <template #grantedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.grantedAt) }}</span></template>
       <template #actions-cell="{ row }">
         <div class="table-actions">
-          <UButton label="回收" color="error" variant="outline" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(row.original)" />
+          <UButton v-if="row.original.status === 'active'" label="回收" color="error" variant="outline" size="sm" :disabled="props.loading || revoking" @click="requestRevoke(row.original)" />
+          <UButton v-else-if="row.original.revocationType === 'administrator'" label="恢复" color="primary" variant="outline" size="sm" :disabled="props.loading || restoring" @click="requestRestore(row.original)" />
         </div>
       </template>
     </AdminDataTable>
@@ -258,6 +303,16 @@ onMounted(() => { void loadOptions(); });
         </form>
       </template>
       <template #footer><UButton label="确认回收" color="error" variant="soft" type="submit" form="revoke-player-title" :loading="revoking" /><UButton label="取消" color="neutral" variant="outline" :disabled="revoking" @click="closeRevoke()" /></template>
+    </AdminResponsiveDialog>
+    <AdminResponsiveDialog :open="restoreTarget !== null" title="恢复玩家称号" :description="restoreDescription" size="sm" :dismissible="!restoring" @update:open="(open) => { if (!open) closeRestore(); }">
+      <template #body>
+        <form id="restore-player-title" class="revoke-form" @submit.prevent="restore">
+          <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
+          <p class="revoke-note">恢复会重新启用原称号所有权与资格记录；如果同一地图和 Gameplay Revision 已有当前称号，恢复会被拒绝。</p>
+          <UFormField label="恢复原因"><UTextarea v-model="restoreReason" maxlength="256" placeholder="可选" :disabled="restoring" /></UFormField>
+        </form>
+      </template>
+      <template #footer><UButton label="确认恢复" type="submit" form="restore-player-title" :loading="restoring" /><UButton label="取消" color="neutral" variant="outline" :disabled="restoring" @click="closeRestore()" /></template>
     </AdminResponsiveDialog>
   </section>
 </template>

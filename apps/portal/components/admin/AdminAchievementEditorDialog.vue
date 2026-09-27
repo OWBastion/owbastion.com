@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AdminAchievement, AdminMap, CatalogTitle, MapAchievement, TitleAchievement } from "./admin-achievement-types";
-import { DEFAULT_EVIDENCE_RULE, isCatalog, isChallengeTitle, isDeveloperOnly, isMap, isTitle } from "./admin-achievement-types";
+import { DEFAULT_EVIDENCE_RULE, isCatalog, isChallengeTitle, isMap, isTitle } from "./admin-achievement-types";
 
 const props = defineProps<{
   open: boolean;
@@ -14,6 +14,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:open": [open: boolean];
   "update:iconFile": [file: File | null];
+  "update-catalog-lifecycle": [lifecycle: CatalogTitle["lifecycle"]];
+  "update-public-visibility": [publicVisibility: boolean];
   save: [];
   cancel: [];
   "upload-icon": [];
@@ -28,18 +30,10 @@ const title = computed(() => props.item && isCatalog(props.item) ? "编辑称号
 const description = computed(() => props.item ? (isTitle(props.item) ? props.item.titleName : props.item.name) : undefined);
 const submitLabel = computed(() => props.item && isCatalog(props.item) ? "保存目录" : "保存规则");
 
-const catalogStatusItems = (item: CatalogTitle) => isDeveloperOnly(item)
-  ? [{ label: "开发保留", value: "active" }, { label: "已下线", value: "retired" }]
-  : [{ label: "未开放", value: "scheduled" }, { label: "已开放", value: "active" }, { label: "即将结束", value: "sunsetting" }, { label: "已下线", value: "retired" }];
-
 const statusItems = computed(() => {
   const item = props.item;
   if (!item) return [];
-  if (isCatalog(item)) {
-    return isDeveloperOnly(item)
-      ? catalogStatusItems(item)
-      : [{ label: "已开放", value: "active" }, { label: "已下线", value: "retired" }];
-  }
+  if (isCatalog(item)) return [];
   if (isMap(item)) return [{ label: "已开放", value: "active" }, { label: "即将结束", value: "sunsetting" }, { label: "已下线", value: "retired" }];
   return [{ label: "未开放", value: "scheduled" }, { label: "已开放", value: "active" }, { label: "即将结束", value: "sunsetting" }, { label: "已下线", value: "retired" }];
 });
@@ -77,6 +71,12 @@ function setMapVariant(value: "classic" | undefined) {
 function setCatalogColor(value: string) {
   if (!props.item || !isCatalog(props.item)) return;
   props.item.color = value === "none" ? null : { kind: "palette", name: value as "orange" | "red" | "purple" | "gold" | "blue" };
+}
+function setCatalogLifecycle(value: string) {
+  if (value === "draft" || value === "active" || value === "retired") emit("update-catalog-lifecycle", value);
+}
+function setPublicVisibility(value: boolean | "indeterminate") {
+  if (typeof value === "boolean") emit("update-public-visibility", value);
 }
 function setIconUrl(value: string) {
   if (props.item && isTitle(props.item)) props.item.iconUrl = value || null;
@@ -121,6 +121,10 @@ function onIconFile(value: File | null | undefined) {
           <UFormField class="editor-field" label="颜色">
             <USelect class="editor-control" :model-value="catalogColorValue(asCatalog(item)!.color)" :items="[{ label: '未设置', value: 'none' }, { label: '橙色', value: 'orange' }, { label: '红色', value: 'red' }, { label: '紫色', value: 'purple' }, { label: '金色', value: 'gold' }, { label: '蓝色', value: 'blue' }]" :disabled="saving" @update:model-value="setCatalogColor" />
           </UFormField>
+          <UFormField class="editor-field" label="生命周期">
+            <USelect class="editor-control" :model-value="asCatalog(item)!.lifecycle" :items="[{ label: '草稿', value: 'draft' }, { label: '已启用', value: 'active' }, { label: '已退休', value: 'retired' }]" :disabled="saving" @update:model-value="setCatalogLifecycle" />
+          </UFormField>
+          <UCheckbox :model-value="asCatalog(item)!.publicVisibility" label="公开显示" :disabled="saving" @update:model-value="setPublicVisibility" />
         </template>
 
         <UFormField v-if="asMap(item)" class="editor-field" label="挑战名称" required>
@@ -142,7 +146,7 @@ function onIconFile(value: File | null | undefined) {
           </UFormField>
         </template>
 
-        <UFormField class="editor-field" label="状态">
+        <UFormField v-if="!asCatalog(item)" class="editor-field" label="状态">
           <USelect class="editor-control" v-model="item.status" :disabled="saving" :items="statusItems" :ui="{ base: 'w-full' }" />
         </UFormField>
 
