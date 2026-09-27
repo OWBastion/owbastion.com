@@ -123,6 +123,13 @@ export const createDatasetServices = ({
     return members.map((member) => ({ member, annotation: byId.get(member.annotationId) }));
   };
 
+  const loadFinalizedSnapshot = async (version: number) => {
+    const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, version)).get();
+    if (!snapshot) throw new Error("DATASET_NOT_FOUND");
+    if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
+    return snapshot;
+  };
+
   const annotationFields = (annotationId: string, annotation: typeof reviewedAnnotations.$inferSelect | undefined) => ({
     annotationId,
     fieldKey: annotation?.fieldKey as AdminDatasetDetailResponse["members"][number]["fieldKey"],
@@ -250,9 +257,7 @@ export const createDatasetServices = ({
 
     // Keep the OCRKit view private and limit it to finalized snapshot facts.
     async getOcrkitDataset(input): Promise<OcrkitDatasetResponse> {
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
+      const snapshot = await loadFinalizedSnapshot(input.version);
       const members = await loadSnapshotMembers(snapshot.id);
       return {
         contractVersion: "1",
@@ -266,9 +271,7 @@ export const createDatasetServices = ({
 
     async getOcrkitDatasetEvidence(input): Promise<{ body: ArrayBuffer; contentType: string }> {
       if (!evidenceBucket) throw new Error("EVIDENCE_UNAVAILABLE");
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
+      const snapshot = await loadFinalizedSnapshot(input.version);
       const member = await db.select().from(datasetSnapshotAnnotations)
         .where(and(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id), eq(datasetSnapshotAnnotations.annotationId, input.annotationId))).get();
       if (!member?.evidenceObjectKey) throw new Error("EVIDENCE_NOT_FOUND");
