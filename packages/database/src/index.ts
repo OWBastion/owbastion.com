@@ -165,38 +165,29 @@ export const titleChallengeIsSubmittable = (status: string, startsAt: number | n
 };
 export const pioneerExceptionHasValidWindow = (startsAt: number | null, endsAt: number | null) => startsAt !== null && endsAt !== null && endsAt > startsAt;
 export const pioneerExceptionIsSubmittable = (enabled: number, startsAt: number | null, endsAt: number | null, timestamp: number) => enabled === 1 && pioneerExceptionHasValidWindow(startsAt, endsAt) && timestamp >= startsAt! && timestamp < endsAt!;
-const randomToken = (bytes = 32) => {
-  const value = new Uint8Array(bytes);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-const randomCode = () => {
-  const value = new Uint8Array(6);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
-};
-const randomInviteCode = () => {
-  const value = new Uint8Array(12);
-  crypto.getRandomValues(value);
-  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
-};
-
-const hashRequest = async (value: unknown) => {
-  const encoded = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
-
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
+const sha256 = (value: BufferSource) => crypto.subtle.digest("SHA-256", value);
+const digestHex = async (value: BufferSource) => bytesToHex(new Uint8Array(await sha256(value)));
+const randomToken = (bytes = 32) => {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
+};
+
+const randomCode = (length: number) => {
+  const value = new Uint8Array(length);
+  crypto.getRandomValues(value);
+  return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
+};
+
+const hashRequest = (value: unknown) => digestHex(new TextEncoder().encode(JSON.stringify(value)));
+
+
 const hexToBytes = (value: string) => {
   if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
   return Uint8Array.from(value.match(/.{2}/g)!, (pair) => Number.parseInt(pair, 16));
 };
 const bindingInviteCodeKey = async (secret?: string) => {
   if (!secret) throw new Error("BINDING_INVITE_CODE_ENCRYPTION_NOT_CONFIGURED");
-  const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  const raw = await sha256(new TextEncoder().encode(secret));
   return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 };
 const encryptBindingInviteCode = async (code: string, secret?: string) => {
@@ -297,11 +288,6 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
   color: titleColor(row.colorJson),
   gameVersion: row.gameVersion?.trim() || null,
 });
-
-const digestHex = async (value: ArrayBuffer) => {
-  const digest = await crypto.subtle.digest("SHA-256", value);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 
 type EventImportRow = Omit<AdminRandomEventCreateRequest, "contractVersion">;
 const eventImportHeaders = ["事件名称", "事件效果", "事件类别", "稀有度级别", "类别概率", "内置冷却", "持续时间（秒）", "权重", "组内总权重", "组内个数", "单次失败率(Q)", "保底触发率", "最终出现概率", "全局出现概率", "版本", "效果类型", "事件状态"];
@@ -7050,7 +7036,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const tokenHash = await hashRequest(attemptToken);
       const maxCodeAttempts = 5;
       for (let attemptIndex = 0; attemptIndex < maxCodeAttempts; attemptIndex += 1) {
-        const code = randomCode();
+        const code = randomCode(6);
         try {
           await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash, codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
           return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
@@ -7303,7 +7289,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const historicalIds = input.historicalTitleGrantIds ?? [];
       const historicalRows = historicalIds.length ? await db.select({ id: historicalTitleGrants.id, grantId: playerTitleGrants.id }).from(historicalTitleGrants).leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))).where(inArray(historicalTitleGrants.id, historicalIds)) : [];
       if (historicalRows.length !== historicalIds.length || historicalRows.some((row) => row.grantId)) throw new Error("HISTORICAL_TITLE_GRANT_NOT_AVAILABLE");
-      const timestamp = now(); const code = randomInviteCode(); const inviteId = crypto.randomUUID();
+      const timestamp = now(); const code = randomCode(12); const inviteId = crypto.randomUUID();
       const response = { contractVersion: "1" as const, inviteId, code, playerName: input.playerName, playerId: input.playerId, expiresAt: timestamp + inviteTtlMs, historicalMigration: { status: historicalIds.length ? "authorized" as const : "not_requested" as const, requestedCount: historicalIds.length, completedCount: 0, conflictCount: 0, retryCount: 0 } };
       await db.batch([
         db.insert(bindingInvites).values({ id: inviteId, codeHash: await hashRequest(code), codeCiphertext: await encryptBindingInviteCode(code, bindingInviteCodeEncryptionKey), playerName: input.playerName, normalizedPlayerName: normalizePlayerName(input.playerName), playerId: input.playerId, createdBy: auth.subject, createdAt: timestamp, expiresAt: response.expiresAt }),
@@ -7320,7 +7306,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const timestamp = now();
       const codes = new Set<string>();
-      while (codes.size < input.invitations.length) codes.add(randomInviteCode());
+      while (codes.size < input.invitations.length) codes.add(randomCode(12));
       const prepared = await Promise.all(input.invitations.map(async (invitation, index) => {
         const code = [...codes][index]!;
         const inviteId = crypto.randomUUID();
@@ -7439,7 +7425,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await pruneExpiredBindingClaims(timestamp);
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
       if (pending) throw new Error("INVITE_INVALID");
-      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
+      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode(6);
       const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
         await db.batch([insertStmt]);

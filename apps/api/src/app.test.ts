@@ -1797,6 +1797,34 @@ describe("API", () => {
     expect((await complete.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
   });
 
+  it("allows Portal preflights across its route families", async () => {
+    const paths = [
+      "/v1/auth/qq/login-attempt",
+      "/v1/public/binding-invites/redeem",
+      "/v1/admin/reviews",
+      "/v1/me",
+      "/v1/me/mastery",
+      "/v1/player/submissions/00000000-0000-0000-0000-000000000004/manual-review",
+      "/v1/__local/accounts",
+      "/v1/uploads/00000000-0000-0000-0000-000000000004",
+    ];
+
+    for (const path of paths) {
+      const response = await app.request(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          origin: "https://owbastion.com",
+          "access-control-request-method": "PUT",
+          "access-control-request-headers": "content-type",
+        },
+      }, env);
+      expect(response.status).toBe(204);
+      expect(response.headers.get("access-control-allow-origin")).toBe("https://owbastion.com");
+      expect(response.headers.get("access-control-allow-methods")).toContain("PUT");
+      expect(response.headers.get("access-control-allow-headers")).toContain("content-type");
+    }
+  });
+
   it("returns a conflict while another player upload completion is enqueueing", async () => {
     const completionApp = createApp({
       authenticate: async () => null,
