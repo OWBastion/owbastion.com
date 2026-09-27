@@ -2,14 +2,17 @@
 set -euo pipefail
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-database="$(mktemp "${TMPDIR:-/tmp}/owbastion-qq-login-code-hardening.XXXXXX")"
-trap 'rm -f "$database"' EXIT
+tmp_dir="${TMPDIR:-$root_dir/node_modules/.cache}"
+mkdir -p "$tmp_dir"
+database="$(mktemp "$tmp_dir/owbastion-qq-login-code-hardening.XXXXXX")"
+collision_error="$database.collision-error"
+trap 'rm -f "$database" "$collision_error"' EXIT
 
 apply_base_migrations() {
   rm -f "$database"
   while IFS= read -r migration; do
     sqlite3 "$database" < "$migration"
-  done < <(find "$root_dir/migrations" -type f -name '*.sql' ! -name '0089_qq_login_attempt_code_hardening.sql' -print | sort)
+  done < <(find "$root_dir/migrations" -type f -name '*.sql' ! -name '0089_qq_login_attempt_code_hardening.sql' ! -name '0090_auth_row_retention_indexes.sql' -print | sort)
 }
 
 apply_base_migrations
@@ -20,6 +23,21 @@ sqlite3 "$database" "INSERT INTO qq_login_attempts (id, token_hash, code_hash, s
   ('already-verified', 'token-verified', 'verified-code', 'verified', 4000, 400);"
 
 sqlite3 "$database" < "$root_dir/migrations/0089_qq_login_attempt_code_hardening.sql"
+sqlite3 "$database" < "$root_dir/migrations/0090_auth_row_retention_indexes.sql"
+
+binding_expiry_plan="$(sqlite3 "$database" "EXPLAIN QUERY PLAN SELECT id FROM binding_claims WHERE status = 'pending_confirmation' AND expires_at <= 1000;")"
+if [[ "$binding_expiry_plan" != *"USING INDEX binding_claims_expiry_idx"* ]]; then
+  echo "Expected binding claim pruning to use binding_claims_expiry_idx, got:" >&2
+  echo "$binding_expiry_plan" >&2
+  exit 1
+fi
+
+session_expiry_plan="$(sqlite3 "$database" "EXPLAIN QUERY PLAN SELECT id FROM portal_sessions WHERE expires_at <= 1000;")"
+if [[ "$session_expiry_plan" != *"USING INDEX portal_sessions_expiry_idx"* ]]; then
+  echo "Expected portal session pruning to use portal_sessions_expiry_idx, got:" >&2
+  echo "$session_expiry_plan" >&2
+  exit 1
+fi
 
 statuses="$(sqlite3 "$database" "SELECT id || ':' || status FROM qq_login_attempts ORDER BY id;")"
 expected=$'already-verified:verified\nnew-pending:pending\nold-pending:expired\nunrelated-pending:pending'
@@ -38,16 +56,15 @@ if [[ "$old_row" != "token-old:shared-code:1000:100" ]]; then
 fi
 
 # The partial unique index rejects a second live pending attempt for a code still in use.
-if sqlite3 "$database" "INSERT INTO qq_login_attempts (id, token_hash, code_hash, status, expires_at, created_at) VALUES ('collide', 'token-collide', 'shared-code', 'pending', 5000, 500);" 2>/tmp/qq-collide-error; then
+if sqlite3 "$database" "INSERT INTO qq_login_attempts (id, token_hash, code_hash, status, expires_at, created_at) VALUES ('collide', 'token-collide', 'shared-code', 'pending', 5000, 500);" 2>"$collision_error"; then
   echo "Expected a UNIQUE constraint violation when a second pending attempt reuses a live code" >&2
   exit 1
 fi
-if ! grep -q "UNIQUE constraint failed: qq_login_attempts.code_hash" /tmp/qq-collide-error; then
+if ! grep -q "UNIQUE constraint failed: qq_login_attempts.code_hash" "$collision_error"; then
   echo "Expected the partial unique index to reject the colliding insert:" >&2
-  cat /tmp/qq-collide-error >&2
+  cat "$collision_error" >&2
   exit 1
 fi
-rm -f /tmp/qq-collide-error
 
 # Once the live attempt for a code is no longer pending, the code can be reused.
 sqlite3 "$database" "UPDATE qq_login_attempts SET status = 'verified' WHERE id = 'new-pending';"

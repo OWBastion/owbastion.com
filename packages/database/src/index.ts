@@ -398,16 +398,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       `).bind(timestamp, timestamp),
     ]);
   };
-  // Anonymous callers can create qq_login_attempts rows without authentication (#245), so retention cannot wait
-  // on an authenticated maintenance path or on the outbox repair-trigger decision in #244, which is still open
-  // (see docs/dev-rules/database-migrations-and-seeds.md and issue #244). Pruning runs lazily on the QQ login
-  // creation hot path instead, scoped to this table only: binding_claims and passkey_challenges/portal_sessions
-  // retention are separate flows with their own ownership (binding-invite flow; existing
-  // pruneExpiredPasskeyChallenges above) and are intentionally left untouched here. This first flips any
-  // pending row past its own expiry to the terminal 'expired' status it would already reach on poll/verify,
-  // then deletes rows that have been terminal for a full retention window so a client polling right at expiry
-  // still observes "expired" rather than "not found".
   const expiredAuthRowRetentionMs = 10 * 60 * 1000;
+  const pruneExpiredPortalSessions = async (timestamp: number) => {
+    await database.prepare("DELETE FROM portal_sessions WHERE expires_at <= ?").bind(timestamp).run();
+  };
+  const pruneExpiredBindingClaims = async (timestamp: number) => {
+    const staleBefore = timestamp - expiredAuthRowRetentionMs;
+    await database.batch([
+      database.prepare("UPDATE binding_claims SET status = 'expired' WHERE status = 'pending_confirmation' AND expires_at <= ?").bind(timestamp),
+      database.prepare("DELETE FROM binding_claims WHERE status = 'expired' AND expires_at <= ?").bind(staleBefore),
+    ]);
+  };
+  // Anonymous callers can create qq_login_attempts rows without authentication (#245), so this table's retention
+  // runs on its own creation path rather than waiting for an authenticated maintenance path or a cron decision.
+  // Pending confirmation claims are pruned from redeemBindingInvite, and expired Portal sessions when a new
+  // session is issued; approved and pending-review claims remain as business and migration provenance.
   const pruneExpiredAuthRows = async (timestamp: number) => {
     const staleBefore = timestamp - expiredAuthRowRetentionMs;
     await database.batch([
@@ -6677,6 +6682,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!account) return { contractVersion: "1" as const, status: "expired" as const };
       const sessionToken = randomToken();
       const timestamp = now();
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: crypto.randomUUID(), playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
       await db.update(qqLoginAttempts).set({ sessionTokenHash: await hashRequest(sessionToken), sessionIssuedAt: timestamp }).where(eq(qqLoginAttempts.id, attempt.id));
       return { contractVersion: "1" as const, status: "verified" as const, environment: attempt.environment as "production" | "test", sessionToken };
@@ -6831,6 +6837,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const credentialRowId = crypto.randomUUID();
       const sessionToken = randomToken();
       const sessionId = crypto.randomUUID();
+      await pruneExpiredPortalSessions(timestamp);
       const results = await runPasskeyRegistrationBatch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'recovery' AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_recovery_grants WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ?)").bind(timestamp, consumedBy, challenge.id, account.id, timestamp, grant.id, account.id, timestamp),
         database.prepare("UPDATE passkey_recovery_grants SET used_at = ? WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(timestamp, grant.id, account.id, timestamp, challenge.id, consumedBy),
@@ -6862,6 +6869,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const tokenHash = await hashRequest(sessionToken);
       const consumedBy = randomToken(16);
       const sessionId = crypto.randomUUID();
+      await pruneExpiredPortalSessions(timestamp);
       const results = await database.batch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'login' AND used_at IS NULL AND expires_at > ?").bind(timestamp, consumedBy, challenge.id, timestamp),
         database.prepare("UPDATE passkey_credentials SET counter = ?, last_used_at = ? WHERE id = ? AND counter = ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(verified.newCounter, timestamp, stored.id, stored.counter, challenge.id, consumedBy),
@@ -6886,6 +6894,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       const sessionToken = randomToken();
       const sessionTokenHash = await hashRequest(sessionToken);
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: crypto.randomUUID(), playerAccountId: account.id, tokenHash: sessionTokenHash, expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
       return { sessionToken };
     },
@@ -7028,21 +7037,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async redeemBindingInvite(input) {
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code))).get();
       if (!invite || invite.expiresAt <= now() || invite.redeemedAt || invite.revokedAt) throw new Error("INVITE_INVALID");
+      const timestamp = now();
+      await pruneExpiredBindingClaims(timestamp);
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
-      if (pending) {
-        if (pending.expiresAt > now()) throw new Error("INVITE_INVALID");
-      }
-      const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
+      if (pending) throw new Error("INVITE_INVALID");
+      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
       const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
-        if (pending) {
-          await db.batch([
-            db.update(bindingClaims).set({ status: "expired" }).where(and(eq(bindingClaims.id, pending.id), eq(bindingClaims.status, "pending_confirmation"))),
-            insertStmt,
-          ]);
-        } else {
-          await db.batch([insertStmt]);
-        }
+        await db.batch([insertStmt]);
       } catch {
         throw new Error("INVITE_INVALID");
       }
@@ -7074,6 +7076,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
       const sessionToken = await hashRequest({ purpose: "binding-claim-session", claimToken: input.claimToken });
       const sessionId = `binding-claim:${claim.id}`;
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: sessionId, playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), passkeyChallengeId: null, expiresAt: timestamp + sessionTtlMs, createdAt: timestamp }).onConflictDoNothing();
       const existing = await db.select().from(portalSessions).where(eq(portalSessions.id, sessionId)).get();
       if (!existing || existing.playerAccountId !== account.id || existing.tokenHash !== await hashRequest(sessionToken)) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
