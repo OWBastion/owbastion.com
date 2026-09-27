@@ -108,7 +108,8 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
-const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
+const pageResult = <T>(items: T[], page: number, pageSize: number, total: number) => ({ contractVersion: "1" as const, items, page, pageSize, total, hasMore: page * pageSize < total });
+const paginate = <T>(items: T[], page: number, pageSize: number) => pageResult(items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, items.length);
 const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K, include?: (item: T) => boolean) => {
   const groups = new globalThis.Map<K, T[]>();
   for (const item of items) {
@@ -3908,7 +3909,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const query = input.query?.toLocaleLowerCase();
       const available = events.filter((event) => !suspendedVersions.has(event.gameVersion));
       const filtered = query ? available.filter((event) => [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : available;
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentEvent(input) {
       const event = await this.getRandomEvent({ eventId: input.eventId, status: input.status });
@@ -3920,7 +3921,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const query = input.query?.toLocaleLowerCase();
       const mechanic = input.mechanic?.toLocaleLowerCase();
       const filtered = maps.filter((map) => (!query || map.mapName.toLocaleLowerCase().includes(query)) && (!mechanic || map.mechanics.some((value) => value.toLocaleLowerCase() === mechanic)));
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentMap(input) {
       return (await loadAgentMapProjectionsFast({ mapId: input.mapId }))[0] ?? null;
@@ -3938,7 +3939,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           && (!input.status || challenge.status === input.status)
           && (!input.mapId || (challenge.family === "map" ? challenge.mapId === input.mapId : challenge.scope !== "map" || !challenge.mapIds?.length || challenge.mapIds.includes(input.mapId)));
       });
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async getAgentAchievement(input) {
       const row = await db.select({ challenge: titleChallenges, title: titleCatalog })
@@ -3976,7 +3977,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const titles = globalTitles.concat(mapTitles);
       const query = input.query?.toLocaleLowerCase();
       const filtered = titles.filter((title) => (!query || [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))) && (!input.category || title.category === input.category) && (!input.scope || title.scope === input.scope) && (!input.mapId || title.scope === "global" || title.mapId === input.mapId));
-      return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
+      return paginate(filtered, input.page, input.pageSize);
     },
     async listAgentPlayerTitleGrants(input: AgentPlayerTitleGrantQuery) {
       const rows = await db.select({ playerId: playerAccounts.playerId, playerName: playerAccounts.playerName, titleKey: playerTitleGrants.titleKey, equipped: playerEquippedTitles.grantId, allTitles: playerTitleEntitlements.allTitles })
@@ -3993,7 +3994,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (row.equipped && row.titleKey && !current.allTitles && !current.titleKeys.includes(row.titleKey)) current.titleKeys.push(row.titleKey);
         grouped.set(row.playerId, current);
       }
-      return { contractVersion: "1" as const, ...paginate([...grouped.values()], input.page, input.pageSize) };
+      return paginate([...grouped.values()], input.page, input.pageSize);
     },
     async listAgentMapTitleHolders(input: AgentMapTitleHolderQuery) {
       const map = await this.getAgentMap({ mapId: input.mapId });
@@ -4007,7 +4008,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         .innerJoin(titleCatalog, and(eq(playerTitleGrants.titleKey, titleCatalog.key), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), eq(titleCatalog.scope, "map"), isNotNull(titleCatalog.gameVersion)))
         .where(and(eq(playerTitleGrants.status, "active"), eq(playerTitleGrants.mapId, input.mapId), inArray(playerTitleGrants.gameplayRevisionId, projectableRevisionIds)))
         .orderBy(playerTitleGrants.gameplayRevisionId, playerTitleGrants.slot, playerAccounts.playerId, playerTitleGrants.titleKey);
-      return { contractVersion: "1" as const, ...paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize) };
+      return paginate(rows.map((row) => ({ mapId: row.mapId!, gameplayRevisionId: row.gameplayRevisionId!, titleKey: row.titleKey, slot: row.slot as "pioneer" | "conqueror" | "dominator" | null, slotSemantics: row.slot ? "named" as const : "none" as const, playerId: row.playerId, playerName: row.playerName })), input.page, input.pageSize);
     },
     async getAgentTitle(input) {
       const title = await db.select().from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
@@ -4084,7 +4085,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
       if (!input.kind || input.kind === "achievement") results.push(...achievements.filter((challenge): challenge is Extract<Challenge, { family: "achievement" }> => challenge.family === "achievement" && [challenge.titleName, challenge.category, challenge.condition, challenge.evidenceRule].some((value) => value.toLocaleLowerCase().includes(query))).map((challenge) => ({ kind: "achievement" as const, id: challenge.challengeId, name: challenge.titleName, summary: challenge.condition })));
       if (!input.kind || input.kind === "title") results.push(...titles.filter((title) => [title.label, title.category, title.condition].some((value) => value.toLocaleLowerCase().includes(query))).map((title) => ({ kind: "title" as const, id: title.titleKey, name: title.label, summary: title.condition })));
-      return { contractVersion: "1" as const, ...paginate(results, input.page, input.pageSize) };
+      return paginate(results, input.page, input.pageSize);
     },
     async listRandomEvents(input) {
       const filters = [input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined, input.category ? eq(randomEvents.category, input.category) : undefined, input.rarity ? eq(randomEvents.rarity, input.rarity) : undefined, input.query ? like(randomEvents.name, `%${input.query}%`) : undefined].filter(Boolean) as any[];
