@@ -398,6 +398,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       `).bind(timestamp, timestamp),
     ]);
   };
+  // Anonymous callers can create qq_login_attempts rows without authentication (#245), so retention cannot wait
+  // on an authenticated maintenance path or on the outbox repair-trigger decision in #244, which is still open
+  // (see docs/dev-rules/database-migrations-and-seeds.md and issue #244). Pruning runs lazily on the QQ login
+  // creation hot path instead, scoped to this table only: binding_claims and passkey_challenges/portal_sessions
+  // retention are separate flows with their own ownership (binding-invite flow; existing
+  // pruneExpiredPasskeyChallenges above) and are intentionally left untouched here. This first flips any
+  // pending row past its own expiry to the terminal 'expired' status it would already reach on poll/verify,
+  // then deletes rows that have been terminal for a full retention window so a client polling right at expiry
+  // still observes "expired" rather than "not found".
+  const expiredAuthRowRetentionMs = 10 * 60 * 1000;
+  const pruneExpiredAuthRows = async (timestamp: number) => {
+    const staleBefore = timestamp - expiredAuthRowRetentionMs;
+    await database.batch([
+      database.prepare("UPDATE qq_login_attempts SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?").bind(timestamp),
+      database.prepare("DELETE FROM qq_login_attempts WHERE status != 'pending' AND expires_at <= ?").bind(staleBefore),
+    ]);
+  };
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
     historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
@@ -6624,11 +6641,24 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async createQqLoginAttempt(input: QqLoginAttemptRequest) {
       const timestamp = now();
+      await pruneExpiredAuthRows(timestamp);
       const attemptId = crypto.randomUUID();
       const attemptToken = randomToken();
-      const code = randomCode();
-      await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash: await hashRequest(attemptToken), codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
-      return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
+      const tokenHash = await hashRequest(attemptToken);
+      const maxCodeAttempts = 5;
+      for (let attemptIndex = 0; attemptIndex < maxCodeAttempts; attemptIndex += 1) {
+        const code = randomCode();
+        try {
+          await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash, codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
+          return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
+        } catch (error) {
+          const cause = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+          const message = cause instanceof Error ? cause.message : "";
+          // A live pending attempt already holds this code_hash (qq_login_attempts_pending_code_idx); retry with a fresh code.
+          if (!message.includes("UNIQUE constraint failed: qq_login_attempts.code_hash") || attemptIndex === maxCodeAttempts - 1) throw error;
+        }
+      }
+      throw new Error("LOGIN_CODE_UNAVAILABLE");
     },
 
     async getQqLoginStatus(input) {
@@ -6655,11 +6685,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async verifyQqLogin(input: QqLoginVerifyRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyQqLogin"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.login.verify", idempotencyKey, input);
       if (replay) return replay;
-      const attempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, await hashRequest(input.code)), eq(qqLoginAttempts.status, "pending"))).get();
-      if (!attempt) throw new Error("LOGIN_CODE_INVALID");
-      if (attempt.expiresAt <= now()) {
-        await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, attempt.id));
-        throw new Error("LOGIN_CODE_EXPIRED");
+      const timestamp = now();
+      const codeHash = await hashRequest(input.code);
+      // qq_login_attempts_pending_code_idx guarantees at most one pending row per code_hash, so this can only ever
+      // match the single live attempt for that code, never an older abandoned-but-pending row sharing the same code.
+      const attempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"), gt(qqLoginAttempts.expiresAt, timestamp))).get();
+      if (!attempt) {
+        const staleAttempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"))).get();
+        if (staleAttempt) {
+          await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, staleAttempt.id));
+          throw new Error("LOGIN_CODE_EXPIRED");
+        }
+        throw new Error("LOGIN_CODE_INVALID");
       }
       const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"), eq(qqGroupAccess.verifyEnabled, 1))).get();
       if (!group) throw new Error("LOGIN_GROUP_NOT_ALLOWED");

@@ -773,7 +773,9 @@ export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
   verifiedAt: integer("verified_at"),
-});
+}, (table) => ({
+  pendingCode: uniqueIndex("qq_login_attempts_pending_code_idx").on(table.codeHash).where(sql`status = 'pending'`),
+}));
 
 export const portalSessions = sqliteTable("portal_sessions", {
   id: text("id").primaryKey(),

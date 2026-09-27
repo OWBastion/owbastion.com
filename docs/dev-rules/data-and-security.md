@@ -95,7 +95,11 @@ Passkey challenges, session tokens, recovery tokens, QQ login codes, QQ login at
 member OpenIDs are private. The database stores hashes of session and recovery
 tokens and of the short-lived QQ attempt token and code. QQ login attempts expire
 after two minutes and a verified attempt issues the same direct Player Account
-session as Passkey login. Passkey challenges expire after five minutes and can be consumed only
+session as Passkey login. At most one live pending QQ login attempt may hold a
+given code at a time; a colliding creation retries with a new code, and
+verification only ever matches a live (pending, unexpired) attempt for its code.
+Expired QQ login attempts are pruned after a short retention window on the
+login-attempt creation path rather than by a scheduled job. Passkey challenges expire after five minutes and can be consumed only
 once. Authentication and registration require user verification; registration
 requires a discoverable credential. The Worker checks the exact Portal Origin
 and derives the WebAuthn RP ID from its hostname before it asks the auth package
