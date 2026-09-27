@@ -2696,6 +2696,9 @@ describe("maintainer Challenge confirmation during submission review", () => {
     status: (sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(submissionId) as { status: string }).status,
   });
 
+  const databaseContents = (sqlite: DatabaseSync) => Object.fromEntries((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as Array<{ name: string }>)
+    .map(({ name }) => [name, sqlite.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all()]));
+
   const seedIncompleteMapEvidence = (sqlite: DatabaseSync) => {
     seedMap(sqlite, "map.paris");
     seedTitle(sqlite, "PIONEER");
@@ -2728,13 +2731,13 @@ describe("maintainer Challenge confirmation during submission review", () => {
     installSchema(sqlite);
     seedIncompleteMapEvidence(sqlite);
     const services = createPlatformServices(database);
+    const beforePreview = databaseContents(sqlite);
 
     const unconfirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
     const pioneer = unconfirmed.candidates.find((candidate) => candidate.titleName === "称号 PIONEER");
     expect(pioneer).toMatchObject({ family: "map", evidence: "needs_confirmation", missingFields: ["challenge_completed"], selectedBy: null });
     expect(unconfirmed).toMatchObject({ evidenceOutcome: "review", titles: [], completions: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
     expect(JSON.stringify(unconfirmed)).not.toContain("achievement_evidence");
-    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved" }, auth, "confirm.without")).rejects.toThrow("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
     const confirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [pioneer!.challengeId] }, auth);
     expect(confirmed.candidates.find((candidate) => candidate.challengeId === pioneer!.challengeId)).toMatchObject({ selectedBy: "reviewer" });
@@ -2745,6 +2748,9 @@ describe("maintainer Challenge confirmation during submission review", () => {
       completions: [{ challengeId: pioneer!.challengeId, titleKey: "PIONEER", basis: "reviewer" }],
     });
     expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 0, completions: 0, grants: 0, status: "ocr_review_required" });
+    // Preview is read-only: canonical Challenges it plans are materialized only by the approval.
+    expect(databaseContents(sqlite)).toEqual(beforePreview);
+    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved" }, auth, "confirm.without")).rejects.toThrow("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
     const result = await services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved", confirmedChallengeIds: [pioneer!.challengeId] }, auth, "confirm.with");
     expect(result).toMatchObject({ decision: "approved", titleKey: "PIONEER", alreadyOwned: false });
@@ -2771,6 +2777,30 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ review: { decision: "approved", reason: null } });
     const reapprovalAudit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'submission.review' AND entity_id = 'submission.confirm' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string };
     expect(JSON.parse(reapprovalAudit.payload_json)).toMatchObject({ decision: "approved", retainedGrants: [{ grantId, titleKey: "PIONEER" }] });
+  });
+
+  it("keeps the preview read-only when approval would replace a legacy canonical Challenge", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, rule_version, map_id, gameplay_revision_id, status, manual, public_condition, condition_operator, conditions_json, condition, starts_at, ends_at, created_at, updated_at) VALUES ('challenge.legacy-pioneer', 'map_title_rule', 'map.paris.pioneer', 'PIONEER', 'legacy', 'map.paris', 'revision:map.paris:initial', 'active', 0, 1, 'and', ?, '旧条件', NULL, NULL, ?, ?)")
+      .run(JSON.stringify({ operator: "and", conditions: [{ type: "map", mapId: "map.paris" }, { type: "completed" }] }), now, now);
+    const services = createPlatformServices(database);
+    const beforePreview = databaseContents(sqlite);
+
+    const unconfirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
+    const pioneer = unconfirmed.candidates.find((candidate) => candidate.titleName === "称号 PIONEER");
+    expect(pioneer?.challengeId).not.toBe("challenge.legacy-pioneer");
+    const confirmed = await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [pioneer!.challengeId] }, auth);
+    expect(confirmed).toMatchObject({ approvable: true, blockingCode: null, completions: [{ challengeId: pioneer!.challengeId, titleKey: "PIONEER", basis: "reviewer" }] });
+    expect(databaseContents(sqlite)).toEqual(beforePreview);
+
+    await services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved", confirmedChallengeIds: [pioneer!.challengeId] }, auth, "confirm.legacy");
+    expect(sqlite.prepare("SELECT id, status FROM challenges ORDER BY id").all()).toEqual([
+      { id: "challenge.legacy-pioneer", status: "archived" },
+      { id: pioneer!.challengeId, status: "active" },
+    ].sort((left, right) => left.id.localeCompare(right.id)));
+    expect(sqlite.prepare("SELECT challenge_id FROM challenge_completions WHERE source_id = 'submission.confirm'").get()).toEqual({ challenge_id: pioneer!.challengeId });
   });
 
   it("orders the review queue by longest wait when asked", async () => {

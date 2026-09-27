@@ -2830,14 +2830,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return titleChallenge ? snapshotTitleChallenge(titleChallenge.challenge, titleChallenge.title, null) : null;
   };
 
-  const canonicalChallengeIdForGrant = async (input: {
+  type CanonicalChallengeInput = {
     snapshot?: MapTitleRuleSnapshot | null;
     legacyChallengeId: string;
     titleKey: string;
     mapId: string | null;
     gameplayRevisionId: string | null;
     timestamp: number;
-  }) => {
+  };
+  type CanonicalChallengeRow = typeof challenges.$inferSelect;
+  // The canonical Challenge a reward resolves to, plus the writes needed to make it exist.
+  type CanonicalChallengePlan = { row: CanonicalChallengeRow; archiveLegacyId: string | null; insert: boolean };
+
+  const planCanonicalChallenge = async (input: CanonicalChallengeInput): Promise<CanonicalChallengePlan> => {
     let ruleId = input.snapshot?.ruleId ?? "";
     let family: "title_challenge" | "map_challenge" | "map_title_rule";
     let sourceId: string;
@@ -2922,44 +2927,86 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       input.mapId ? eq(challenges.mapId, input.mapId) : isNull(challenges.mapId),
       input.gameplayRevisionId ? eq(challenges.gameplayRevisionId, input.gameplayRevisionId) : isNull(challenges.gameplayRevisionId),
     );
-    const exact = await db.select({ id: challenges.id }).from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
-    if (exact) return exact.id;
+    const exact = await db.select().from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
+    if (exact) return { row: exact, archiveLegacyId: null, insert: false };
     const legacy = await db.select().from(challenges).where(and(scope, eq(challenges.ruleVersion, "legacy"))).get();
-    if (legacy && legacy.conditionsJson === conditionsJson && legacy.condition === condition && legacy.startsAt === startsAt && legacy.endsAt === endsAt) return legacy.id;
-    if (legacy) await db.update(challenges).set({ status: "archived", updatedAt: input.timestamp }).where(eq(challenges.id, legacy.id));
-    const canonicalId = `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`;
-    await db.insert(challenges).values({
-      id: canonicalId,
-      sourceFamily: family,
-      sourceId,
-      titleKey: input.titleKey,
-      ruleVersion,
-      mapId: input.mapId,
-      gameplayRevisionId: input.gameplayRevisionId,
-      status: "active",
-      manual: 0,
-      publicCondition: 1,
-      conditionOperator: "and",
-      conditionsJson,
-      condition,
-      startsAt,
-      endsAt,
-      createdAt: input.timestamp,
-      updatedAt: input.timestamp,
-    }).onConflictDoNothing();
-    const canonical = await db.select({ id: challenges.id }).from(challenges).where(and(scope, eq(challenges.ruleVersion, ruleVersion))).get();
+    if (legacy && legacy.conditionsJson === conditionsJson && legacy.condition === condition && legacy.startsAt === startsAt && legacy.endsAt === endsAt) return { row: legacy, archiveLegacyId: null, insert: false };
+    return {
+      row: {
+        id: `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`,
+        sourceFamily: family,
+        sourceId,
+        titleKey: input.titleKey,
+        ruleVersion,
+        mapId: input.mapId,
+        gameplayRevisionId: input.gameplayRevisionId,
+        status: "active",
+        manual: 0,
+        publicCondition: 1,
+        conditionOperator: "and",
+        conditionsJson,
+        condition,
+        startsAt,
+        endsAt,
+        createdAt: input.timestamp,
+        updatedAt: input.timestamp,
+      },
+      archiveLegacyId: legacy?.id ?? null,
+      insert: true,
+    };
+  };
+
+  const materializeCanonicalChallenge = async (plan: CanonicalChallengePlan) => {
+    if (!plan.insert) return plan.row.id;
+    const { row } = plan;
+    if (plan.archiveLegacyId) await db.update(challenges).set({ status: "archived", updatedAt: row.updatedAt }).where(eq(challenges.id, plan.archiveLegacyId));
+    await db.insert(challenges).values(row).onConflictDoNothing();
+    const canonical = await db.select({ id: challenges.id }).from(challenges).where(and(
+      eq(challenges.sourceFamily, row.sourceFamily),
+      eq(challenges.sourceId, row.sourceId),
+      eq(challenges.titleKey, row.titleKey),
+      row.mapId ? eq(challenges.mapId, row.mapId) : isNull(challenges.mapId),
+      row.gameplayRevisionId ? eq(challenges.gameplayRevisionId, row.gameplayRevisionId) : isNull(challenges.gameplayRevisionId),
+      eq(challenges.ruleVersion, row.ruleVersion),
+    )).get();
     if (!canonical) throw new Error("CHALLENGE_NOT_FOUND");
     return canonical.id;
   };
 
-  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number) => {
+  const canonicalChallengeIdForGrant = async (input: CanonicalChallengeInput) => materializeCanonicalChallenge(await planCanonicalChallenge(input));
+
+  // Write paths materialize canonical Challenges as they resolve them. Read-only
+  // planning (approval preview) keeps planned rows and archivals in memory instead.
+  type CanonicalChallengeOverlay = { rows: globalThis.Map<string, CanonicalChallengeRow>; archived: Set<string> };
+  type CanonicalChallengeResolver = { resolve: (input: CanonicalChallengeInput) => Promise<string>; overlay: CanonicalChallengeOverlay | null };
+  const materializingCanonicalChallenges: CanonicalChallengeResolver = { resolve: canonicalChallengeIdForGrant, overlay: null };
+  const planningCanonicalChallenges = (): CanonicalChallengeResolver => {
+    const overlay: CanonicalChallengeOverlay = { rows: new globalThis.Map(), archived: new Set() };
+    return {
+      overlay,
+      resolve: async (input) => {
+        const plan = await planCanonicalChallenge(input);
+        if (plan.insert) {
+          overlay.rows.set(plan.row.id, plan.row);
+          if (plan.archiveLegacyId) overlay.archived.add(plan.archiveLegacyId);
+        }
+        return plan.row.id;
+      },
+    };
+  };
+  const loadCanonicalChallenge = async (challengeId: string, overlay: CanonicalChallengeOverlay | null) => {
+    const row = overlay?.rows.get(challengeId) ?? await db.select().from(challenges).where(eq(challenges.id, challengeId)).get();
+    return row && overlay?.archived.has(row.id) ? { ...row, status: "archived" } : row;
+  };
+
+  const prepareCanonicalAutoMatchChallenges = async (items: Challenge[], eligibilityAt: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const resolved: CanonicalOcrChallenge[] = [];
     const snapshots = new Map<string, MapTitleRuleSnapshot>();
     for (const challenge of items) {
       if (!challenge.titleKey) continue;
       const snapshot = await automaticSnapshot(challenge, eligibilityAt);
       if (!snapshot?.titleKey) continue;
-      const canonicalChallengeId = await canonicalChallengeIdForGrant({
+      const canonicalChallengeId = await canonicalChallenges.resolve({
         snapshot,
         legacyChallengeId: challenge.challengeId,
         titleKey: snapshot.titleKey,
@@ -2967,7 +3014,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         gameplayRevisionId: snapshot.gameplayRevisionId,
         timestamp: eligibilityAt,
       });
-      const canonical = await db.select({ conditionsJson: challenges.conditionsJson }).from(challenges).where(eq(challenges.id, canonicalChallengeId)).get();
+      const canonical = await loadCanonicalChallenge(canonicalChallengeId, canonicalChallenges.overlay);
       if (!canonical) continue;
       const conditions = parseCanonicalChallengeConditions(canonical.conditionsJson);
       resolved.push({ challenge, canonicalChallengeId, conditions });
@@ -2993,7 +3040,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return { candidates: resolved, snapshots, titleNamesByKey, mapIdsByName };
   };
 
-  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
+  const preparePlayerAutoMatchChallenges = async (row: typeof submissions.$inferSelect, response: OcrResponse, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const [items, gameplayRevisionId] = await Promise.all([
       fetchPlayerAutoMatchChallenges(row.playerAccountId, row.createdAt),
       resolveAutoMatchGameplayRevisionId(row, response),
@@ -3001,6 +3048,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return prepareCanonicalAutoMatchChallenges(
       items.filter((challenge) => challenge.family !== "map" || challenge.gameplayRevisionId === gameplayRevisionId),
       row.createdAt,
+      canonicalChallenges,
     );
   };
 
@@ -3029,8 +3077,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     challengeId: string;
     slot: string | null;
     eligibilityAt: number;
+    overlay?: CanonicalChallengeOverlay | null;
   }): Promise<ChallengeCompletionAward[]> => {
-    const root = await db.select().from(challenges).where(eq(challenges.id, input.challengeId)).get();
+    const overlay = input.overlay ?? null;
+    const root = await loadCanonicalChallenge(input.challengeId, overlay);
     if (!root) throw new Error("CHALLENGE_NOT_FOUND");
     const result: ChallengeCompletionAward[] = [];
     const seen = new Set<string>();
@@ -3096,7 +3146,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const satisfied = await db.select({ satisfiedChallengeId: challengeSatisfies.satisfiedChallengeId }).from(challengeSatisfies).where(eq(challengeSatisfies.challengeId, challenge.id));
         for (const relationRow of satisfied) {
           if (seen.has(relationRow.satisfiedChallengeId)) continue;
-          const target = await db.select().from(challenges).where(eq(challenges.id, relationRow.satisfiedChallengeId)).get();
+          const target = await loadCanonicalChallenge(relationRow.satisfiedChallengeId, overlay);
           if (target) pending.push({ challenge: target, root: false });
         }
       }
@@ -3119,14 +3169,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     .where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), eq(playerTitleGrants.sourceId, submissionId), eq(playerTitleGrants.status, "active")))
     .orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id);
 
-  const planReviewedEvidence = async (row: typeof submissions.$inferSelect, fieldCorrections: AdminSubmissionReviewRequest["fieldCorrections"], confirmedChallengeIds: readonly string[] = []) => {
+  const planReviewedEvidence = async (row: typeof submissions.$inferSelect, fieldCorrections: AdminSubmissionReviewRequest["fieldCorrections"], confirmedChallengeIds: readonly string[] = [], canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const latestOcr = await db.select({ responseJson: ocrResults.responseJson }).from(ocrResults)
       .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
     let rawResponse: OcrResponse | null = null;
     try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
     if (!rawResponse) throw new Error("SUBMISSION_NOT_REVIEWABLE");
     const correctedResponse = applySubmissionFieldCorrections(rawResponse, fieldCorrections);
-    const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
+    const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse, canonicalChallenges);
     const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
     const candidatesById = new globalThis.Map(decision.candidates.map((candidate) => [candidate.canonicalChallengeId, candidate]));
     const ineligibleConfirmations = confirmedChallengeIds.filter((challengeId) => !candidatesById.has(challengeId));
@@ -3154,7 +3204,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   // Resolves the Completion -> Grant chain that approving the selections would write,
   // without writing it. Throws the same business errors approval must surface.
-  const planApprovalRewards = async (row: typeof submissions.$inferSelect, selectedRows: readonly ReviewEvidenceSelection[], timestamp: number) => {
+  const planApprovalRewards = async (row: typeof submissions.$inferSelect, selectedRows: readonly ReviewEvidenceSelection[], timestamp: number, canonicalChallenges: CanonicalChallengeResolver = materializingCanonicalChallenges) => {
     const rewards: ReviewReward[] = [];
     for (const selection of selectedRows) {
       let reward: ReviewReward | null = null;
@@ -3187,7 +3237,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     for (const reward of rewards) {
       completionRoots.push({
         reward,
-        canonicalChallengeId: await canonicalChallengeIdForGrant({ snapshot: reward.snapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp }),
+        canonicalChallengeId: await canonicalChallenges.resolve({ snapshot: reward.snapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp }),
       });
     }
     const uniqueRewards = [...new Map(completionRoots.map((root) => [titleGrantScopeKey(root.reward), root])).values()];
@@ -3202,7 +3252,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     for (const root of completionRoots) {
       const grantResult = grantResultsByScope.get(titleGrantScopeKey(root.reward));
       if (!grantResult || grantResult.alreadyOwned) continue;
-      const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: root.canonicalChallengeId, slot: root.reward.slot, eligibilityAt: row.createdAt });
+      const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: root.canonicalChallengeId, slot: root.reward.slot, eligibilityAt: row.createdAt, overlay: canonicalChallenges.overlay });
       if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
       if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
       for (const award of chain) addChallengeCompletionAward(completionAwards, award);
@@ -5792,7 +5842,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async previewSubmissionReview(input, _auth): Promise<AdminSubmissionReviewPreviewResponse> {
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const evidence = await planReviewedEvidence(row, input.fieldCorrections, input.confirmedChallengeIds);
+      const canonicalChallenges = planningCanonicalChallenges();
+      const evidence = await planReviewedEvidence(row, input.fieldCorrections, input.confirmedChallengeIds, canonicalChallenges);
       const selectionBasis = new globalThis.Map(evidence.selections.map((selection) => [selection.canonicalChallengeId, selection.basis]));
       const lowConfidence = new Set(evidence.decision.lowConfidence.map((candidate) => candidate.canonicalChallengeId));
       const evidenceFields = new Set<AdminSubmissionReviewCandidate["requiredFields"][number]>(["map_name", "difficulty", "challenge_completed", "map_variant", "achievement_titles"]);
@@ -5822,7 +5873,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       let blockingCode: string | null = evidence.ineligibleConfirmations.length ? "CHALLENGE_CONFIRMATION_INELIGIBLE" : null;
       let rewards: Awaited<ReturnType<typeof planApprovalRewards>> | null = null;
       if (!blockingCode && evidence.selections.length) {
-        try { rewards = await planApprovalRewards(row, evidence.selections, now()); }
+        try { rewards = await planApprovalRewards(row, evidence.selections, now(), canonicalChallenges); }
         catch (error) {
           const code = error instanceof Error ? error.message : "";
           if (!["CHALLENGE_REWARD_NOT_CONFIGURED", "GAMEPLAY_REVISION_NOT_FOUND", "SUBMISSION_REVISION_MISMATCH", "CHALLENGE_NOT_FOUND", "CHALLENGE_NOT_COMPLETABLE", "TITLE_GRANT_ADMINISTRATIVELY_REVOKED", "TITLE_NOT_FOUND"].includes(code)) throw error;

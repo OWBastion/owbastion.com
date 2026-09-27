@@ -286,7 +286,9 @@ Completion -> Grant chain, including lifecycle, `satisfies`, and revocation
 rules, and the review audit and Submission outcome record the confirmation
 basis. Before approving, the maintainer sees a read-only preview of the
 Completions, Titles, and Verified Run evidence that approval would produce for
-the current corrections and confirmations. Challenge
+the current corrections and confirmations. The preview writes nothing: canonical
+Challenge records that approval would create or replace are planned in memory
+and materialized only by the approval itself. Challenge
 eligibility for an already-created submission is evaluated at
 `submissions.created_at`, not at OCR, queue, or review time. Thus a Pioneer
 submission created in its half-open window remains processable after `endsAt`,
