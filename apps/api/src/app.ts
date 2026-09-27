@@ -2088,7 +2088,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections, confirmedChallengeIds: parsed.data.confirmedChallengeIds }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (code === "SUBMISSION_NOT_FOUND" || submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code)); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
+    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (code === "SUBMISSION_NOT_FOUND" || submissionReviewErrorCodes.includes(code)) return errorResponse(c, 422, code, submissionReviewErrorMessage(code)); if (code === "SUBMISSION_ALREADY_REVIEWED") return errorResponse(c, 409, code, "The submission already has a review decision"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {

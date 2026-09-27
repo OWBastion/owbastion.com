@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
-import { reviewBlockingMessage, verifiedRunPreviewLabel } from "~/utils/submissionReview";
+import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -21,10 +21,10 @@ const props = defineProps<{
   previewCurrent?: boolean;
 }>();
 const emit = defineEmits<{
-  review: [decision: ReviewDecision];
+  review: [decision: ReviewDecision, reason?: string];
   "review-input": [value: AdminSubmissionReviewInput];
   "retry-preview": [];
-  "spot-check": [decision: SpotCheckDecision];
+  "spot-check": [decision: SpotCheckDecision, reason?: string];
   "evidence-error": [];
   "open-direct-annotation": [];
   "retry-ocr": [];
@@ -45,6 +45,39 @@ const approvalHint = computed(() => {
   if (!props.preview) return "";
   return reviewBlockingMessage(props.preview.blockingCode);
 });
+const ocrPending = computed(() => props.submission.status === "ocr_pending" || props.submission.ocrStatus === "pending");
+const reviewRecord = computed(() => props.submission.review ?? null);
+
+type ConfirmTarget = { kind: "review"; decision: Exclude<ReviewDecision, "approved"> } | { kind: "spot-check"; decision: "revoked" };
+const confirmTarget = shallowRef<ConfirmTarget | null>(null);
+const confirmReason = shallowRef("");
+const confirmCopy = computed(() => {
+  const target = confirmTarget.value;
+  if (!target) return null;
+  if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 Verified Run 也会失效。", reasonLabel: "撤销原因（可选，仅内部记录）", confirmLabel: "确认撤销" };
+  if (target.decision === "rejected") return { title: "驳回提交", description: "玩家会看到“未通过”，本次提交不会产生称号或 Verified Run。", reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认驳回" };
+  return { title: "要求重新提交", description: "玩家会看到“需重新提交”，并可以上传新的截图。", reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认要求重新提交" };
+});
+
+function openConfirm(target: ConfirmTarget) {
+  if (actionsLoading.value) return;
+  confirmReason.value = "";
+  confirmTarget.value = target;
+}
+
+function submitConfirm() {
+  const target = confirmTarget.value;
+  if (!target || actionsLoading.value) return;
+  const reason = confirmReason.value.trim() || undefined;
+  confirmTarget.value = null;
+  if (target.kind === "spot-check") {
+    pendingSpotCheck.value = target.decision;
+    emit("spot-check", target.decision, reason);
+  } else {
+    pendingDecision.value = target.decision;
+    emit("review", target.decision, reason);
+  }
+}
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
 
@@ -58,11 +91,10 @@ watch(
   },
 );
 
-function emitReview(decision: ReviewDecision) {
-  if (actionsLoading.value) return;
-  if (decision === "approved" && approvalBlocked.value) return;
-  pendingDecision.value = decision;
-  emit("review", decision);
+function approve() {
+  if (actionsLoading.value || approvalBlocked.value) return;
+  pendingDecision.value = "approved";
+  emit("review", "approved");
 }
 
 function updateFieldCorrections(value: Array<{ fieldKey: string; reviewedValue: string }>) {
@@ -79,10 +111,10 @@ function decisionLoading(decision: ReviewDecision) {
   return Boolean(props.actionLoading && pendingDecision.value === decision);
 }
 
-function emitSpotCheck(decision: SpotCheckDecision) {
+function confirmSpotCheck() {
   if (actionsLoading.value) return;
-  pendingSpotCheck.value = decision;
-  emit("spot-check", decision);
+  pendingSpotCheck.value = "confirmed";
+  emit("spot-check", "confirmed");
 }
 
 function spotCheckLoading(decision: SpotCheckDecision) {
@@ -122,7 +154,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="review-detail" aria-live="polite" aria-label="审核详情">
+  <section class="review-detail" aria-label="审核详情">
     <!-- 1. Context: who / status / when -->
     <header class="detail-meta-bar">
       <p class="detail-meta">
@@ -180,8 +212,9 @@ onBeforeUnmount(() => {
           <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
           <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
         </template>
+        <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
         <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以重新发送 OCRKit 请求，或要求重新提交。</p>
-        <p v-if="approvalHint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
+        <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
         <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
       </section>
 
@@ -190,14 +223,20 @@ onBeforeUnmount(() => {
         aria-label="审核操作"
         :aria-busy="actionLoading || undefined"
       >
-        <div class="actions action-row" role="group" aria-label="审核决定">
+        <div v-if="reviewRecord" class="review-record">
+          <p><strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
+          <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
+          <p class="review-record__note">每个提交只保留一次审核决定。</p>
+        </div>
+        <div v-else class="actions action-row" role="group" aria-label="审核决定">
           <UButton
             type="button"
             icon="i-lucide-check"
             label="通过"
+            :aria-describedby="approvalHint ? 'approval-hint' : undefined"
             :loading="decisionLoading('approved')"
             :disabled="actionsLoading || approvalBlocked"
-            @click="emitReview('approved')"
+            @click="approve"
           />
           <UButton
             type="button"
@@ -206,7 +245,7 @@ onBeforeUnmount(() => {
             variant="outline"
             :loading="decisionLoading('resubmission_required')"
             :disabled="actionsLoading"
-            @click="emitReview('resubmission_required')"
+            @click="openConfirm({ kind: 'review', decision: 'resubmission_required' })"
           />
           <UButton
             type="button"
@@ -215,7 +254,7 @@ onBeforeUnmount(() => {
             variant="soft"
             :loading="decisionLoading('rejected')"
             :disabled="actionsLoading"
-            @click="emitReview('rejected')"
+            @click="openConfirm({ kind: 'review', decision: 'rejected' })"
           />
         </div>
 
@@ -232,7 +271,7 @@ onBeforeUnmount(() => {
               variant="outline"
               :loading="spotCheckLoading('confirmed')"
               :disabled="actionsLoading"
-              @click="emitSpotCheck('confirmed')"
+              @click="confirmSpotCheck"
             />
             <UButton
               type="button"
@@ -241,7 +280,7 @@ onBeforeUnmount(() => {
               variant="soft"
               :loading="spotCheckLoading('revoked')"
               :disabled="actionsLoading"
-              @click="emitSpotCheck('revoked')"
+              @click="openConfirm({ kind: 'spot-check', decision: 'revoked' })"
             />
           </div>
         </div>
@@ -251,11 +290,11 @@ onBeforeUnmount(() => {
           <UButton
             type="button"
             icon="i-lucide-refresh-cw"
-            label="重新发送 OCRKit 请求"
+            :label="ocrPending ? '识别中…' : '重新发送 OCRKit 请求'"
             color="neutral"
             variant="ghost"
-            :loading="ocrRetryLoading"
-            :disabled="actionsLoading"
+            :loading="ocrRetryLoading || ocrPending"
+            :disabled="actionsLoading || ocrPending"
             @click="emit('retry-ocr')"
           />
           <UButton
@@ -293,6 +332,18 @@ onBeforeUnmount(() => {
       </details>
       </div>
     </div>
+
+    <AdminResponsiveDialog :open="confirmTarget !== null" :title="confirmCopy?.title ?? ''" :description="confirmCopy?.description" size="sm" @update:open="(open) => { if (!open) confirmTarget = null; }">
+      <template #body>
+        <form id="review-confirm-form" @submit.prevent="submitConfirm">
+          <UFormField :label="confirmCopy?.reasonLabel"><UTextarea v-model="confirmReason" maxlength="512" autoresize class="w-full" /></UFormField>
+        </form>
+      </template>
+      <template #footer>
+        <UButton type="submit" form="review-confirm-form" :label="confirmCopy?.confirmLabel" :color="confirmTarget?.kind === 'review' && confirmTarget.decision === 'resubmission_required' ? 'primary' : 'error'" variant="soft" />
+        <UButton type="button" label="取消" color="neutral" variant="outline" @click="confirmTarget = null" />
+      </template>
+    </AdminResponsiveDialog>
   </section>
 </template>
 
@@ -437,6 +488,22 @@ onBeforeUnmount(() => {
   color: var(--danger);
   font-size: var(--type-caption-size);
   overflow-wrap: anywhere;
+}
+.review-record {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--text);
+  font-size: var(--type-label-sm-size);
+  line-height: 1.45;
+}
+.review-record p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.review-record__reason,
+.review-record__note {
+  color: var(--muted);
+  font-size: var(--type-caption-size);
 }
 .spot-check-panel {
   display: grid;

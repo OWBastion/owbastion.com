@@ -13,7 +13,7 @@ const router = useRouter();
 const api = useAdminApi();
 const submissions = ref<AdminSubmission[]>([]);
 const errorMessage = ref("");
-const page = ref(1);
+const queuePath = useAdminReviewQueuePath();
 const total = ref(0);
 type OcrField = { confidence?: unknown };
 type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown }; fields?: Record<string, OcrField> };
@@ -28,8 +28,20 @@ function parseReviewStatus(value: unknown): ReviewStatus {
   return "queue";
 }
 const reviewStatus = shallowRef<ReviewStatus>(parseReviewStatus(route.query.status));
-const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).map(([value, label]) => ({ label, value }))];
-const spotCheckFilter = shallowRef<"all" | "pending" | "confirmed" | "revoked">("all");
+// Player-facing projections (processing / needs_review / completed) are not stored submission statuses.
+const playerProjectionStatuses = new Set(["processing", "needs_review", "completed"]);
+const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value)).map(([value, label]) => ({ label, value }))];
+type SpotCheckFilter = "all" | "pending" | "confirmed" | "revoked";
+function parseSpotCheck(value: unknown): SpotCheckFilter {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === "pending" || raw === "confirmed" || raw === "revoked" ? raw : "all";
+}
+function parsePage(value: unknown) {
+  const raw = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(raw) && raw > 1 ? raw : 1;
+}
+const page = ref(parsePage(route.query.page));
+const spotCheckFilter = shallowRef<SpotCheckFilter>(parseSpotCheck(route.query.spotCheck));
 const spotCheckOptions = [{ label: "全部抽检", value: "all" }, { label: "待抽检", value: "pending" }, { label: "已确认", value: "confirmed" }, { label: "已撤销", value: "revoked" }];
 const spotCheckLabel = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "待抽检" : submission.spotCheck?.status === "confirmed" ? "已确认" : submission.spotCheck?.status === "revoked" ? "已撤销" : "—";
 const spotCheckTone = (submission: AdminSubmission) => submission.spotCheck?.status === "pending" ? "warning" : "default";
@@ -81,17 +93,28 @@ const { loading } = useAdminAsyncData("submission-review-list", async () => {
     onData: (response) => { submissions.value = response.items; total.value = response.total; },
     onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; },
   });
-watch([reviewStatus, spotCheckFilter], () => {
-  page.value = 1;
+// Spot checks sample automatically approved submissions, which the default queue statuses never include.
+watch(spotCheckFilter, (value) => { if (value !== "all" && reviewStatus.value === "queue") reviewStatus.value = "all"; }, { flush: "sync" });
+watch([reviewStatus, spotCheckFilter], () => { page.value = 1; }, { flush: "sync" });
+watch([reviewStatus, spotCheckFilter, page], () => {
   const query = { ...route.query };
   if (reviewStatus.value === "queue") delete query.status;
   else query.status = reviewStatus.value;
+  if (spotCheckFilter.value === "all") delete query.spotCheck;
+  else query.spotCheck = spotCheckFilter.value;
+  if (page.value === 1) delete query.page;
+  else query.page = String(page.value);
   if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
-}, { flush: "sync" });
-watch(() => route.query.status, (value) => {
-  const next = parseReviewStatus(value === undefined ? "queue" : value);
-  if (next !== reviewStatus.value) reviewStatus.value = next;
 });
+watch(() => route.query, (query) => {
+  const nextStatus = parseReviewStatus(query.status === undefined ? "queue" : query.status);
+  const nextSpotCheck = parseSpotCheck(query.spotCheck);
+  const nextPage = parsePage(query.page);
+  if (nextStatus !== reviewStatus.value) reviewStatus.value = nextStatus;
+  if (nextSpotCheck !== spotCheckFilter.value) spotCheckFilter.value = nextSpotCheck;
+  if (nextPage !== page.value) page.value = nextPage;
+});
+watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: true });
 </script>
 
 <template>

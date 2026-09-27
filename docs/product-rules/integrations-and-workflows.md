@@ -298,6 +298,20 @@ linked to the exact OCR result and preserving the original OCR value,
 model/layout versions, reviewer, time, and submission evidence provenance.
 Incomplete visual knowledge creates no annotation. Raw OCR evidence remains
 unchanged, and annotation creation does not decide business matches or grants.
+
+A Submission holds at most one review decision (`submission_reviews` is unique
+per Submission), whether recorded automatically by OCR or by a maintainer. The
+maintainer detail shows that recorded decision (automatic or maintainer, time,
+optional note) in place of the decision controls, and a further decision is
+refused with `SUBMISSION_ALREADY_REVIEWED` without writing. Rejections,
+resubmission requests, and spot-check revocations ask for confirmation first;
+their note stays optional. A rejection or resubmission note is the reason the
+player sees, while a spot-check revocation note is only kept in the audit.
+
+Player-facing Submission detail describes an `ocr_review_required` record as a
+submitted request only when the player asked for manual handling; automatic
+routes to maintainer review (ambiguity, low confidence, Verified Run conflicts)
+carry no player-visible reason beyond the waiting state.
 This path does not mutate finalized dataset snapshots or trigger training.
 
 Dataset drafts include every eligible accepted annotation by default. During

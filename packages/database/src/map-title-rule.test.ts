@@ -2754,6 +2754,12 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(JSON.parse(outcome.details_json)).toMatchObject({ basis: "reviewer" });
     const audit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'submission.review' AND entity_id = 'submission.confirm'").get() as { payload_json: string };
     expect(JSON.parse(audit.payload_json)).toMatchObject({ evidenceMatchedChallengeIds: [], reviewerConfirmedChallengeIds: [pioneer!.challengeId] });
+
+    // submission_reviews holds one decision per Submission; a second decision is a conflict, not a server error.
+    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ review: { decision: "approved", automatic: false, reason: null } });
+    expect(await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [pioneer!.challengeId] }, auth)).toMatchObject({ approvable: false, blockingCode: "SUBMISSION_ALREADY_REVIEWED" });
+    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "rejected", reason: "重复" }, auth, "confirm.again")).rejects.toThrow("SUBMISSION_ALREADY_REVIEWED");
+    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 1, completions: 1, grants: 1, status: "approved" });
   });
 
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
@@ -3318,7 +3324,11 @@ describe("submission mastery outcomes", () => {
       .run("mastery-player-session", "attempt.player.one", "group.player.one", "member.player.one", "test", await requestHash(sessionToken), now + 60_000, now);
     const playerConflict = await publicServices.getPlayerSubmission({ submissionId: "submission.conflict" }, sessionToken);
     expect(playerConflict.verifiedRunOutcome).toBeUndefined();
-    expect(playerConflict.reason).toBe("已提交处理申请，请稍后查看结果。");
+    expect(playerConflict.reason).toBeUndefined();
+    // Only a player's own request is described to them as a submitted request.
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required', ocr_fail_count = 1 WHERE id = 'submission.exact'").run();
+    await publicServices.requestManualReview({ submissionId: "submission.exact" }, sessionToken);
+    expect((await publicServices.getPlayerSubmission({ submissionId: "submission.exact" }, sessionToken)).reason).toBe("已提交处理申请，请稍后查看结果。");
     const player = await publicServices.getCurrentPlayer({ sessionToken });
     const currentConflict = player?.recentSubmissions.find((submission) => submission.submissionId === "submission.conflict");
     expect(currentConflict?.status).toBe("needs_review");

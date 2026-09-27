@@ -3,7 +3,7 @@ import type { VerifiedRunSubmissionOutcome } from "~/composables/usePortalApi";
 import { verifiedRunOutcomePresentation } from "~/utils/mastery";
 
 defineProps<{
-  submissions: Array<{ submissionId: string; mapName: string; status: string; updatedAt: number; verifiedRunOutcome?: VerifiedRunSubmissionOutcome }>;
+  submissions: Array<{ submissionId: string; mapName: string; status: string; resubmissionRequired?: boolean; updatedAt: number; verifiedRunOutcome?: VerifiedRunSubmissionOutcome }>;
 }>();
 
 const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
@@ -13,7 +13,7 @@ const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dat
   <div v-if="submissions.length" class="submission-list">
     <NuxtLink v-for="submission in submissions" :key="submission.submissionId" :to="`/submissions/${submission.submissionId}`" class="submission-row interactive-card pressable-soft">
       <div><strong>{{ submission.mapName }}</strong><span>{{ formatTime(submission.updatedAt) }}<template v-if="verifiedRunOutcomePresentation(submission.verifiedRunOutcome)"> · {{ verifiedRunOutcomePresentation(submission.verifiedRunOutcome)?.inline }}</template></span></div>
-      <SubmissionStatusBadge :status="submission.status" />
+      <SubmissionStatusBadge :status="submission.status" :resubmission-required="submission.resubmissionRequired" />
     </NuxtLink>
   </div>
   <UEmpty v-else title="暂无提交记录" description="提交完成截图，开始记录你的地图精通进度。" variant="naked">

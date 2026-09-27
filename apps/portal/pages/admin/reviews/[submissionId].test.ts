@@ -1,7 +1,8 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
+import { useAdminReviewQueuePath } from "~/composables/useAdminReviewQueuePath";
 import ReviewDetailPage from "./[submissionId].vue";
 
 type PreviewBody = { confirmedChallengeIds?: string[]; fieldCorrections?: Array<{ fieldKey: string; reviewedValue: string }> };
@@ -20,7 +21,17 @@ const reviewPreview = (body: PreviewBody = {}) => {
 };
 const settlePreview = async () => { await new Promise((resolve) => setTimeout(resolve, 350)); await flushPromises(); };
 
+const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+let ocrResultReady = false;
+const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
+  if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "approved", automatic: true, reason: null, reviewedAt: 1 } });
+  if (path === "/v1/submissions/submission-6") {
+    return Promise.resolve(!ocrResultReady
+      ? { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_pending", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: null, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: null }
+      : { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 2, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} }, review: null });
+  }
+  if (path === "/v1/submissions/submission-6/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-6", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
   if (path === "/v1/submissions/submission-1/review/preview" && options?.method === "POST") return Promise.resolve(reviewPreview(options.body as PreviewBody));
   if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
   if (path === "/v1/submissions/submission-4") return Promise.resolve({ submissionId: "submission-4", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} } });
@@ -34,12 +45,21 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
 mockNuxtImport("useToast", () => () => ({ add: vi.fn() }));
-mockNuxtImport("navigateTo", () => vi.fn(() => Promise.resolve()));
+mockNuxtImport("navigateTo", () => navigate);
 mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
+
+// Pages left mounted keep reacting to the shared test route and would own later tests' async-data handlers.
+const mountedPages: Array<{ unmount: () => void }> = [];
+const mountPage = async (options: Parameters<typeof mountSuspended<typeof ReviewDetailPage>>[1]) => {
+  const wrapper = await mountSuspended(ReviewDetailPage, options);
+  mountedPages.push(wrapper);
+  return wrapper;
+};
+afterEach(() => { for (const wrapper of mountedPages.splice(0)) wrapper.unmount(); });
 
 describe("admin review detail page", () => {
   it("shows evidence, challenge, OCR data, and review actions", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     expect(wrapper.text()).toContain("守望先锋");
     expect(wrapper.text()).toContain("地图挑战");
@@ -61,7 +81,7 @@ describe("admin review detail page", () => {
   });
 
   it("submits a review and navigates back to the queue", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
     await flushPromises();
@@ -69,7 +89,7 @@ describe("admin review detail page", () => {
   });
 
   it("keeps review actions available after the submission is already decided", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-2" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-2" });
     await flushPromises();
     expect(wrapper.text()).toContain("已通过");
     expect(wrapper.text()).toContain("通过");
@@ -78,7 +98,7 @@ describe("admin review detail page", () => {
   });
 
   it("can resend the OCRKit request", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"))!.trigger("click");
     await flushPromises();
@@ -86,7 +106,7 @@ describe("admin review detail page", () => {
   });
 
   it("opens direct annotation locally without changing the route", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("直接标注"))?.trigger("click");
     await flushPromises();
@@ -94,7 +114,7 @@ describe("admin review detail page", () => {
   });
 
   it("shows live Challenge results instead of stale stored match reasons", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     expect(wrapper.text()).toContain("Challenge 判定");
     expect(wrapper.text()).toContain("帕拉伊苏 传奇");
@@ -110,7 +130,7 @@ describe("admin review detail page", () => {
 
   it("confirms a displayed Challenge, previews the outcome, and approves with the confirmation", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     const pioneer = wrapper.findAll(".match-candidate").find((item) => item.text().includes("帕拉伊苏 开拓者"))!;
     await pioneer.get('[role="checkbox"]').trigger("click");
@@ -128,7 +148,7 @@ describe("admin review detail page", () => {
 
   it("searches and adds an eligible Challenge that OCR did not propose", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.get('input[aria-label="搜索 Challenge"]').setValue("英雄");
     await wrapper.get('button[aria-label="添加 称号 HERO"]').trigger("click");
@@ -140,7 +160,7 @@ describe("admin review detail page", () => {
 
   it("sends corrected fields to the preview and approval", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-1" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll(".field-review__row")[0]!.get('[role="checkbox"]').trigger("click");
     await wrapper.get('input[aria-label="截图中的地图完整值"]').setValue("花村");
@@ -155,7 +175,7 @@ describe("admin review detail page", () => {
   });
 
   it("does not allow approval when the preview has no outcome", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-4" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-4" });
     await flushPromises();
     expect(wrapper.text()).toContain("当前没有可产生的结果");
     const approve = wrapper.findAll("button").find((button) => button.text().includes("通过"))!;
@@ -166,10 +186,52 @@ describe("admin review detail page", () => {
   });
 
   it("can resolve a pending automatic-decision spot check", async () => {
-    const wrapper = await mountSuspended(ReviewDetailPage, { route: "/admin/reviews/submission-3" });
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-3" });
     await flushPromises();
     await wrapper.findAll("button").find((button) => button.text().includes("确认抽检"))!.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-3/spot-check", expect.objectContaining({ method: "POST" }));
   });
+
+  it("asks before rejecting, sends the optional player note, and returns to the queue the maintainer came from", async () => {
+    useAdminReviewQueuePath().value = "/admin/reviews?status=all&page=2";
+    adminApi.mockClear();
+    navigate.mockClear();
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-1", global: { stubs: dialogStub } });
+    await flushPromises();
+    await wrapper.findAll(".actions button").find((button) => button.text().includes("驳回"))!.trigger("click");
+    await flushPromises();
+    expect(adminApi).not.toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.anything());
+    const dialog = wrapper.get('[role="dialog"][aria-label="驳回提交"]');
+    expect(dialog.text()).toContain("给玩家的说明（可选）");
+    await dialog.get("textarea").setValue("  截图被裁剪，看不到通关标记  ");
+    await dialog.get("form").trigger("submit");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/review", expect.objectContaining({ method: "POST", body: { contractVersion: "1", decision: "rejected", reason: "截图被裁剪，看不到通关标记" } }));
+    expect(navigate).toHaveBeenCalledWith("/admin/reviews?status=all&page=2");
+  });
+
+  it("shows the recorded decision instead of decision buttons once a submission has been reviewed", async () => {
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-5" });
+    await flushPromises();
+    expect(wrapper.text()).toContain("自动判定通过");
+    expect(wrapper.find('[role="group"][aria-label="审核决定"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain("重新发送 OCRKit 请求");
+  });
+
+  it("waits for a pending OCR request and refreshes when the result arrives", async () => {
+    ocrResultReady = false;
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-6" });
+    await flushPromises();
+    expect(wrapper.text()).toContain("正在重新识别截图");
+    const retry = wrapper.findAll("button").find((button) => button.text().includes("识别中…"))!;
+    expect(retry.attributes("disabled")).toBeDefined();
+    ocrResultReady = true;
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+    await flushPromises();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("正在重新识别截图");
+    expect(wrapper.text()).toContain("重新发送 OCRKit 请求");
+  }, 10_000);
 });
