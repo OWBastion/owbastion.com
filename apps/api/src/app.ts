@@ -1008,11 +1008,23 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  app.get("/v1/public/achievement-icons/:titleKey/:version", async (c) => {
+    allowPortal(c);
+    const icon = await dependencies.services(c.env).getPublicTitleIcon({ titleKey: c.req.param("titleKey"), version: c.req.param("version") });
+    if (!icon) return errorResponse(c, 404, "ICON_NOT_FOUND", "The achievement icon does not exist");
+    c.header("Cache-Control", "public, max-age=31536000, immutable");
+    if (icon.etag) c.header("ETag", icon.etag);
+    return c.body(icon.body, 200, { "Content-Type": icon.contentType });
+  });
+
+  // Legacy/unversioned URLs (issued before per-upload versioning, or held by clients that only
+  // ever saw the stable path) keep resolving to the current icon, but with a short TTL rather
+  // than `immutable`: the bytes behind this exact URL can change on the next upload.
   app.get("/v1/public/achievement-icons/:titleKey", async (c) => {
     allowPortal(c);
     const icon = await dependencies.services(c.env).getPublicTitleIcon({ titleKey: c.req.param("titleKey") });
     if (!icon) return errorResponse(c, 404, "ICON_NOT_FOUND", "The achievement icon does not exist");
-    c.header("Cache-Control", "public, max-age=31536000, immutable");
+    c.header("Cache-Control", "public, max-age=300");
     if (icon.etag) c.header("ETag", icon.etag);
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
   });
