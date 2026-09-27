@@ -1,7 +1,7 @@
 import type {
   QqBindingRequest,
   QqBindingResponse,
-  AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimStatusResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
+  AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimStatusResponse, BindingClaimSessionResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
   SubmissionRequest,
   SubmissionResponse,
   SubmissionStatusResponse,
@@ -13,7 +13,6 @@ import type {
   QqLoginVerifyRequest,
   PasskeyLoginOptionsResponse,
   PasskeyLoginVerifyRequest,
-  PasskeyRegistrationOptionsRequest,
   PasskeyRegistrationVerifyRequest,
   PasskeyPublicRegistrationOptionsRequest,
   PasskeyPublicRegistrationVerifyRequest,
@@ -261,6 +260,7 @@ export type PlatformServices = {
   revokeAdminBindingInvite(input: { inviteId: string } & AdminBindingInviteRevokeRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   redeemBindingInvite(input: BindingInviteRedeemRequest): Promise<BindingInviteRedeemResponse>;
   getBindingClaimStatus(input: { claimId: string; claimToken: string }): Promise<BindingClaimStatusResponse>;
+  exchangeBindingClaimSession(input: { claimId: string; claimToken: string }): Promise<BindingClaimSessionResponse & { sessionToken: string }>;
   verifyBindingClaim(input: QqBindingClaimVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
   listAdminBindingClaims(auth: AuthContext): Promise<AdminBindingClaimListResponse>;
   decideAdminBindingClaim(input: { claimId: string } & AdminBindingClaimDecisionRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
@@ -310,8 +310,6 @@ export type PlatformServices = {
   verifyQqLogin(input: QqLoginVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
   createPasskeyLoginOptions(input: { rpId: string }): Promise<PasskeyLoginOptionsResponse>;
   completePasskeyLogin(input: PasskeyLoginVerifyRequest & { origin: string; rpId: string }): Promise<{ sessionToken: string }>;
-  createPasskeyInvitationOptions(input: PasskeyRegistrationOptionsRequest & { rpId: string }): Promise<{ contractVersion: "1"; challengeId: string; options: Record<string, unknown>; playerName: string; playerId: string }>;
-  completePasskeyInvitationRegistration(input: PasskeyRegistrationVerifyRequest & { origin: string; rpId: string }): Promise<{ sessionToken: string }>;
   createCurrentPlayerPasskeyRegistrationOptions(input: { sessionToken: string; name: string; rpId: string }): Promise<{ contractVersion: "1"; challengeId: string; options: Record<string, unknown> }>;
   completeCurrentPlayerPasskeyRegistration(input: PasskeyRegistrationVerifyRequest & { sessionToken: string; origin: string; rpId: string }): Promise<void>;
   listCurrentPlayerPasskeys(input: { sessionToken: string }): Promise<PasskeyCredentialListResponse | null>;

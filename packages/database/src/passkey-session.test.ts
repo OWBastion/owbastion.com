@@ -87,7 +87,9 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE binding_invites (
     id TEXT PRIMARY KEY NOT NULL, code_hash TEXT NOT NULL, code_ciphertext TEXT, player_name TEXT NOT NULL,
     normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL,
-    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER, revoked_at INTEGER, revoked_by TEXT
+    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER,
+    legacy_passkey_player_account_id TEXT, legacy_passkey_challenge_id TEXT,
+    revoked_at INTEGER, revoked_by TEXT
   );
   CREATE TABLE binding_invite_historical_title_grants (
     id TEXT PRIMARY KEY NOT NULL, invite_id TEXT NOT NULL, historical_title_grant_id TEXT NOT NULL,
@@ -228,33 +230,6 @@ describe("Passkey session and ownership boundaries", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 0 });
   });
 
-  it("registers an invited Player Account with a direct Passkey session", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.one', ?, 'Player', 'player', '1001', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-ONE"), timestamp, timestamp + 60_000);
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "invite-one", rpId: "owbastion.com" });
-
-    const result = await services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    });
-
-    expect(sqlite.prepare("SELECT player_id, player_name FROM player_accounts").get()).toEqual({ player_id: "1001", player_name: "Player" });
-    const account = sqlite.prepare("SELECT id FROM player_accounts").get() as { id: string };
-    expect(sqlite.prepare("SELECT player_account_id, name FROM passkey_credentials").get()).toEqual({ player_account_id: account.id, name: "phone" });
-    expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.one'").get()).toEqual({ redeemed_at: expect.any(Number) });
-    expect((await resolvePortalSession(database, result.sessionToken))?.player.playerId).toBe("1001");
-    await expect(services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    })).rejects.toThrow("PASSKEY_CHALLENGE_INVALID");
-  });
-
   it("allows only one concurrent completion of a one-time recovery grant", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
@@ -312,31 +287,6 @@ describe("Passkey session and ownership boundaries", () => {
     await services.createAdminPasskeyRecovery({ playerAccountId: "account.one", identityVerified: true }, maintainer, "recovery.unused");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.one'").get()).toEqual({ count: 1 });
     expect((await resolvePortalSession(database, "session-token.old"))?.player.id).toBe("account.one");
-  });
-
-  it("maps a credential already registered elsewhere to a verification failure and keeps the invitation usable", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    addAccount(sqlite, "account.one", "1001");
-    sqlite.prepare(`
-      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
-      VALUES ('credential.row.one', 'account.one', 'registration.one', 'cHVi', 0, '[]', 'device', 1)
-    `).run();
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.two', ?, 'Other', 'other', '2002', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-TWO"), timestamp, timestamp + 60_000);
-    verifyRegistration.mockResolvedValue({ credentialId: "registration.one", publicKey: "cHVi", counter: 0, transports: [] });
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "invite-two", rpId: "owbastion.com" });
-
-    await expect(services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    })).rejects.toThrow("PASSKEY_REGISTRATION_INVALID");
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_accounts WHERE player_id = '2002'").get()).toEqual({ count: 0 });
-    expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.two'").get()).toEqual({ redeemed_at: null });
   });
 
   it("issues a direct Player Account session for a verified QQ login attempt and only once", async () => {

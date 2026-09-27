@@ -22,11 +22,13 @@ No private screenshot is committed to the repository.
 ## Platform trust boundaries
 
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
-channel:write plus channel:read. Binding and submission writes require an
-idempotency key and record an audit event. QQ verification may attach a channel
-binding only to an existing active Player Account and cannot create an account.
-A verified QQ login attempt authenticates only the Player Account of the active
-binding for that QQ member. Administrative
+channel:write plus channel:read. Binding and verification writes require an
+idempotency key and record an audit event. A verified QQ claim may create a
+Player Account only when it carries an active, unused administrator invitation
+for that BattleTag; account creation and the initial binding are committed
+together. Rebinding existing accounts continues through the invitation and
+maintainer-review rules. A verified QQ login attempt authenticates only the
+Player Account of the active binding for that QQ member. Administrative
 requests require an authenticated platform session whose player account has
 `is_admin` enabled; the Worker validates this independently of Portal UI
 visibility. Administrator status changes and binding removals are idempotent
@@ -97,19 +99,22 @@ session as Passkey login. Passkey challenges expire after five minutes and can b
 once. Authentication and registration require user verification; registration
 requires a discoverable credential. The Worker checks the exact Portal Origin
 and derives the WebAuthn RP ID from its hostname before it asks the auth package
-to verify a response. Invitation codes are hashed for verification and
-encrypted at rest for maintainer re-copy, are single-use, target one BattleTag,
-and expire after seven days. A maintainer can revoke only an unused,
-unexpired invitation; the reason is retained in the audit record and
-revocation takes effect immediately. Invitation confirmation codes expire
-after two minutes. A first invitation creates its Player Account only after
-valid Passkey registration. A later QQ confirmation attaches the optional
-channel or sends a conflict to maintainer review. Portal sessions expire after
-30 days and are stored against the Player Account, independent of QQ binding
-state. Existing active QQ sessions are backfilled to direct Player Account
-sessions during the cutover. Maintainer recovery grants expire after 30 minutes,
-are single-use, replace the account's Passkeys, revoke its Portal sessions, and
-preserve all business records on that Player Account.
+to verify a response. Invitation codes are hashed for verification and encrypted at rest for
+maintainer re-copy, are single-use, target one BattleTag, and expire after
+seven days. A maintainer can revoke only an unused, unexpired invitation; the
+reason is retained in the audit record and revocation takes effect immediately.
+Invitation confirmation codes expire after two minutes. The platform creates a
+first Player Account only after QQBot verifies the invited claim in an enabled
+group, then commits the account, QQ binding, and claim approval together. The
+claim browser exchanges the approved claim for a Portal session. Passkey
+registration requires an authenticated Player Account and is not part of the
+invitation flow. An approved claim can bootstrap that session for five minutes
+after its decision; retries in this window recover a response lost in transit.
+Portal sessions expire after 30 days and are stored against the Player Account.
+Existing active QQ sessions were backfilled to direct
+Player Account sessions during the cutover. Maintainer recovery grants expire
+after 30 minutes, are single-use, replace the account's Passkeys, revoke its
+Portal sessions, and preserve all business records on that Player Account.
 
 GET /v1/me returns only the authenticated player's name, numeric player ID,
 and up to five recent player-facing submissions. The separate

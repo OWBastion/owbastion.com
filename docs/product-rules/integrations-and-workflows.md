@@ -32,14 +32,16 @@ cookies, stable QQ identifiers, request bodies, or signed URLs.
 
 ## Platform workflow contract
 
-The platform contract covers Player Account authentication and optional QQ
-channel flows:
+The platform contract covers invitation-based account creation, QQ binding,
+and Player Account authentication:
 
-- an administrator invitation admits one BattleTag when the player registers
-  a discoverable Passkey; QQ identity is optional, and Passkey is the primary Portal
-  login;
+- an administrator invitation admits one BattleTag when the player confirms a
+  QQ binding claim from an enabled group; the platform creates the Player
+  Account and first QQ binding atomically from that verified claim;
+- Passkey is a Portal login method registered from an authenticated Player
+  Account; it is not part of invitation redemption or first registration;
 - authenticated QQBot confirms invitation-bound channel claims from a stable
-  QQ member OpenID; it never creates or merges Player Accounts directly;
+  QQ member OpenID; QQBot never creates or merges Player Accounts directly;
 - authenticated QQBot binding and verification calls use stable QQ group/member
   metadata; QQBot does not create current Portal screenshot submissions;
 - channel writes require an idempotency key; equal retries replay the original
@@ -57,8 +59,9 @@ channel flows:
   reads D1 for every request, and excludes evidence, OCR output, player or QQ
   identity, match code, Verified Run ID, review metadata, grants, and internal
   conflict or risk signals;
-- the Portal authenticates a discoverable Passkey with user verification, then
-  displays the same Player Account's profile and up to five recent submissions;
+- the Portal authenticates a discoverable Passkey with user verification, or
+  an active QQ binding through a one-time group code, then displays the same
+  Player Account's profile and up to five recent submissions;
   players can add and remove credentials in personal settings, and may
   remove their last Passkey only while an active QQ binding remains as a login
   fallback;
@@ -594,13 +597,16 @@ makes the invitation unusable immediately.
 An administrator may explicitly attach currently unclaimed historical title
 record IDs to an invitation. The Portal uses a searchable holder selection for
 discovery, but the selected platform-owned record IDs are the authorization;
-BattleTag or holder-name equality never authorizes migration. After a binding
-claim becomes approved, the platform creates or reuses the normal historical
-`player_title_grants` without a second administrator action for a clean first
-binding. Each item records created, reused, conflict, or retry-required state;
-conflicts never reassign an existing grant, and a recoverable migration failure
-does not roll back the binding or session. Existing invitations without an
-authorization remain unchanged.
+BattleTag or holder-name equality never authorizes migration. After a QQ
+binding claim is approved, the platform creates or reuses the normal historical
+`player_title_grants` without a second administrator action. Each item records
+created, reused, conflict, or retry-required state; conflicts never reassign an
+existing grant, and a recoverable migration failure does not roll back account
+creation, binding, or session issuance. Retry requires the invited Player
+Account to have an active QQ binding. The legacy Passkey-first invitations
+created by the deployed invitation flow are retried only against their recorded
+Player Account after that account has an active QQ binding. Existing invitations
+without an authorization remain unchanged.
 
 Map-only titles are scoped to the map that supplied their reward slot. The
 platform does not expose them as global titles, and it preserves Bastion's

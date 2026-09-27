@@ -138,8 +138,7 @@ const services: PlatformServices = {
   } : null,
   createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
   completePasskeyLogin: async () => ({ sessionToken: "passkey-session-token" }),
-  createPasskeyInvitationOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000012", options: { challenge: "challenge" }, playerName: "Player", playerId: "1234" }),
-  completePasskeyInvitationRegistration: async () => ({ sessionToken: "invitation-session-token" }),
+  exchangeBindingClaimSession: async () => ({ contractVersion: "1" as const, status: "authenticated" as const, sessionToken: "claim-session-token" }),
   createCurrentPlayerPasskeyRegistrationOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000013", options: { challenge: "challenge" } }),
   completeCurrentPlayerPasskeyRegistration: async () => {},
   listCurrentPlayerPasskeys: async () => ({ contractVersion: "1", items: [], qqBound: false }),
@@ -693,10 +692,11 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ claimId: "00000000-0000-0000-0000-000000000008", code: "ABC234", playerName: "Player", playerId: "1234" });
   });
 
-  it("does not exchange a QQ channel claim for a Portal session", async () => {
+  it("exchanges an approved QQ claim for a Portal session", async () => {
     const response = await app.request("https://owbastion.com/v1/public/binding-claims/00000000-0000-0000-0000-000000000008/session", { method: "POST", headers: { "x-claim-token": "a".repeat(64) } }, env);
-    expect(response.status).toBe(404);
-    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ contractVersion: "1", status: "authenticated" });
+    expect(response.headers.get("set-cookie")).toContain("owb_session");
   });
 
   it("limits invitation creation and claim decisions to maintainers", async () => {

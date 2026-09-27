@@ -7,7 +7,6 @@ import {
   qqLoginVerifyRequestSchema,
   passkeyLoginOptionsRequestSchema,
   passkeyLoginVerifyRequestSchema,
-  passkeyRegistrationOptionsRequestSchema,
   passkeyRegistrationVerifyRequestSchema,
   passkeyAuthenticatedRegistrationOptionsRequestSchema,
   passkeyPublicRegistrationOptionsRequestSchema,
@@ -294,8 +293,6 @@ export const createApp = (dependencies: AppDependencies) => {
   const passkeyError = (c: any, error: unknown) => {
     const code = error instanceof Error ? error.message : "PASSKEY_VERIFICATION_FAILED";
     if (["PASSKEY_CHALLENGE_INVALID", "PASSKEY_CHALLENGE_REPLAYED", "PASSKEY_CREDENTIAL_INVALID", "PASSKEY_REGISTRATION_INVALID", "PASSKEY_AUTHENTICATION_INVALID", "PASSKEY_RECOVERY_INVALID"].includes(code)) return errorResponse(c, 422, "PASSKEY_VERIFICATION_FAILED", "The passkey response cannot be verified");
-    if (code === "INVITE_INVALID") return errorResponse(c, 422, code, "The invitation cannot be used");
-    if (code === "PLAYER_ACCOUNT_EXISTS") return errorResponse(c, 409, code, "A player account already exists for this BattleTag");
     if (code === "PASSKEY_LAST_CREDENTIAL") return errorResponse(c, 409, code, "Keep at least one passkey on this account");
     if (code === "PASSKEY_NOT_FOUND") return errorResponse(c, 404, code, "The passkey does not exist");
     if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player account does not exist");
@@ -370,12 +367,11 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/auth/qq/login-attempt/:attemptId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/passkeys/login/options", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/passkeys/login/verify", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/public/passkeys/invitations/options", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/public/passkeys/invitations/verify", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/passkeys/recovery/options", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/passkeys/recovery/verify", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-invites/redeem", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/binding-claims/:claimId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/public/binding-claims/:claimId/session", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/auth/logout", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/me/passkeys", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -489,6 +485,23 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
       if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
+      throw error;
+    }
+  });
+
+  app.post("/v1/public/binding-claims/:claimId/session", async (c) => {
+    allowPortal(c);
+    const claimId = c.req.param("claimId");
+    const claimToken = c.req.header("x-claim-token");
+    if (!/^[0-9a-f-]{36}$/.test(claimId) || !claimToken) return errorResponse(c, 422, "INVALID_CLAIM", "The binding claim is invalid");
+    try {
+      const result = await dependencies.services(c.env).exchangeBindingClaimSession({ claimId, claimToken });
+      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
+      return c.json({ contractVersion: "1" as const, status: result.status });
+    } catch (error) {
+      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_FOUND") return errorResponse(c, 404, "BINDING_CLAIM_NOT_FOUND", "The binding claim does not exist");
+      if (error instanceof Error && error.message === "BINDING_CLAIM_FORBIDDEN") return errorResponse(c, 403, "BINDING_CLAIM_FORBIDDEN", "The binding claim token is invalid");
+      if (error instanceof Error && error.message === "BINDING_CLAIM_NOT_COMPLETE") return errorResponse(c, 409, "BINDING_CLAIM_NOT_COMPLETE", "The binding claim is not complete");
       throw error;
     }
   });
@@ -611,29 +624,6 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const result = await dependencies.services(c.env).completePasskeyLogin({ ...parsed.data, ...origin });
-      c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
-      return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
-    } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
-  });
-
-  app.post("/v1/public/passkeys/invitations/options", async (c) => {
-    allowPortal(c);
-    const origin = passkeyOrigin(c);
-    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
-    const parsed = passkeyRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPasskeyInvitationOptions({ ...parsed.data, rpId: origin.rpId }), 201); }
-    catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
-  });
-
-  app.post("/v1/public/passkeys/invitations/verify", async (c) => {
-    allowPortal(c);
-    const origin = passkeyOrigin(c);
-    if (!origin) return errorResponse(c, 403, "ORIGIN_NOT_ALLOWED", "The request origin is not allowed");
-    const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      const result = await dependencies.services(c.env).completePasskeyInvitationRegistration({ ...parsed.data, ...origin });
       c.header("Set-Cookie", sessionCookie(c.req.raw, result.sessionToken, 2592000));
       return c.json({ contractVersion: "1" as const, status: "authenticated" as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
