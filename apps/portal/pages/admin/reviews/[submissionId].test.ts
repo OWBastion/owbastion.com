@@ -25,7 +25,8 @@ const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 let ocrResultReady = false;
 const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
-  if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "approved", automatic: true, reason: null, reviewedAt: 1 } });
+  if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "resubmission_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "resubmission_required", automatic: false, reason: null, reviewedAt: 1 }, activeTitleGrants: [{ grantId: "grant-5", titleKey: "OVERWATCH", titleName: "守望先锋" }], verifiedRunOutcome: { status: "created", verifiedRunId: null, awardedXp: 0, reason: null, conflictFields: [] } });
+  if (path === "/v1/submissions/submission-7") return Promise.resolve({ submissionId: "submission-7", mapName: "釜山", difficulty: "", playerName: "他又", status: "rejected", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: 2, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "rejected", automatic: false, reason: null, reviewedAt: 1 } });
   if (path === "/v1/submissions/submission-6") {
     return Promise.resolve(!ocrResultReady
       ? { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_pending", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: null, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: null }
@@ -211,13 +212,23 @@ describe("admin review detail page", () => {
     expect(navigate).toHaveBeenCalledWith("/admin/reviews?status=all&page=2");
   });
 
-  it("shows the last decision and still lets the maintainer decide again, warning that granted Titles stay", async () => {
+  it("shows the last decision and still lets the maintainer decide again, warning about what the Submission already produced", async () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-5", global: { stubs: dialogStub } });
     await flushPromises();
-    expect(wrapper.text()).toContain("上次审核：自动判定通过");
+    expect(wrapper.text()).toContain("上次审核：维护者要求重新提交");
     await wrapper.findAll('[role="group"][aria-label="审核决定"] button').find((button) => button.text().includes("驳回"))!.trigger("click");
     await flushPromises();
-    expect(wrapper.get('[role="dialog"][aria-label="驳回提交"]').text()).toContain("已发放的称号和已记录的 Verified Run 不会因此撤销");
+    const dialog = wrapper.get('[role="dialog"][aria-label="驳回提交"]').text();
+    expect(dialog).toContain("此操作不会撤销已发放的称号（守望先锋）和已记录的 Verified Run");
+    expect(dialog).not.toContain("不会产生称号");
+  });
+
+  it("offers an OCR retry when a decision overtook the previous request", async () => {
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-7" });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain("正在重新识别截图");
+    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"));
+    expect(retry?.attributes("disabled")).toBeUndefined();
   });
 
   it("waits for a pending OCR request and refreshes when the result arrives", async () => {

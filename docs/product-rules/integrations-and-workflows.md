@@ -300,6 +300,7 @@ linked to the exact OCR result and preserving the original OCR value,
 model/layout versions, reviewer, time, and submission evidence provenance.
 Incomplete visual knowledge creates no annotation. Raw OCR evidence remains
 unchanged, and annotation creation does not decide business matches or grants.
+This path does not mutate finalized dataset snapshots or trigger training.
 
 Each review decision, automatic or by a maintainer, is kept as its own
 `submission_reviews` record; the latest one is the Submission's current
@@ -308,18 +309,19 @@ maintainer, time, optional note) and keeps the decision controls, so a
 maintainer may decide again. A later decision changes only the Submission's
 status and reason: Submission status and Title state are separate, so it never
 revokes Titles or Verified Runs the Submission already produced; removing a
-Title goes through Grant revocation or a spot-check revocation. Re-approving a
-Submission whose Titles are already granted from it is accepted on those
-retained Grants, reported as already owned. Rejections,
-resubmission requests, and spot-check revocations ask for confirmation first;
-their note stays optional. A rejection or resubmission note is the reason the
+Title goes through Grant revocation or a spot-check revocation. Maintainer
+submission views carry the Submission's active Grants (from automatic or
+maintainer approval), and the confirmation for a later rejection or
+resubmission request names the Titles and Verified Run that stay. Re-approving
+without a new outcome is accepted on those retained Grants, reported as already
+owned. Rejections, resubmission requests, and spot-check revocations ask for
+confirmation first; their note stays optional. A rejection or resubmission note is the reason the
 player sees, while a spot-check revocation note is only kept in the audit.
 
 Player-facing Submission detail describes an `ocr_review_required` record as a
 submitted request only when the player asked for manual handling; automatic
 routes to maintainer review (ambiguity, low confidence, Verified Run conflicts)
 carry no player-visible reason beyond the waiting state.
-This path does not mutate finalized dataset snapshots or trigger training.
 
 Dataset drafts include every eligible accepted annotation by default. During
 draft creation, maintainers may explicitly exclude anomalous candidates; each

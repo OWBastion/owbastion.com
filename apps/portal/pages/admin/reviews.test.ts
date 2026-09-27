@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
-import { useRouter } from "#imports";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ref, useRouter } from "#imports";
 import ReviewsPage from "./reviews/index.vue";
 
 const awaitingConfirmation = { submissionId: "submission-awaiting", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "awaiting_player_confirmation", challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocr: null };
@@ -14,11 +14,25 @@ const adminApi = vi.fn((path: string) => {
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
+
+const selectStub = { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' };
+// Pages left mounted keep reacting to the shared test route, so each test unmounts its page.
+const mounted: Array<{ unmount: () => void }> = [];
+async function mountPage(options: Parameters<typeof mountSuspended>[1] = { global: { stubs: { USelect: selectStub } } }) {
+  const wrapper = await mountSuspended(ReviewsPage, options);
+  mounted.push(wrapper);
+  return wrapper;
+}
+afterEach(async () => {
+  while (mounted.length) mounted.pop()!.unmount();
+  await useRouter().replace({ query: {} });
+});
 
 describe("admin reviews page", () => {
   it("links each submission to its standalone detail page", async () => {
     adminApi.mockClear();
-    const wrapper = await mountSuspended(ReviewsPage, { global: { stubs: { USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select aria-label="筛选提交状态" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' } } } });
+    const wrapper = await mountPage({ global: { stubs: { USelect: { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select aria-label="筛选提交状态" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' } } } });
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=20&status=ready_for_review,ocr_review_required&order=oldest");
     expect(wrapper.text()).toContain("成就挑战：守望先锋");
@@ -39,8 +53,7 @@ describe("admin reviews page", () => {
   it("finds pending spot checks, which live outside the default queue, and keeps the filters in the URL", async () => {
     adminApi.mockClear();
     const replace = vi.spyOn(useRouter(), "replace");
-    const selectStub = { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' };
-    const wrapper = await mountSuspended(ReviewsPage, { global: { stubs: { USelect: selectStub } } });
+    const wrapper = await mountPage();
     await flushPromises();
     const statusLabels = wrapper.get('select[aria-label="筛选提交状态"]').findAll("option").map((option) => option.text());
     expect(statusLabels).not.toContain("处理中");
@@ -57,8 +70,7 @@ describe("admin reviews page", () => {
   it("works the queue oldest first and lets the maintainer switch to latest activity", async () => {
     adminApi.mockClear();
     const replace = vi.spyOn(useRouter(), "replace");
-    const selectStub = { props: ["modelValue", "items"], emits: ["update:modelValue"], template: '<select :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="item in items" :key="item.value" :value="item.value">{{ item.label }}</option></select>' };
-    const wrapper = await mountSuspended(ReviewsPage, { global: { stubs: { USelect: selectStub } } });
+    const wrapper = await mountPage();
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions?page=1&pageSize=20&status=ready_for_review,ocr_review_required&order=oldest");
     await wrapper.get('select[aria-label="队列顺序"]').setValue("newest");
@@ -66,5 +78,12 @@ describe("admin reviews page", () => {
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions?page=1&pageSize=20&status=ready_for_review,ocr_review_required&order=newest");
     expect(replace).toHaveBeenLastCalledWith(expect.objectContaining({ query: { order: "newest" } }));
     replace.mockRestore();
+  });
+
+  it("opens a pending spot-check link outside the default queue statuses", async () => {
+    adminApi.mockClear();
+    await mountPage({ route: "/admin/reviews?spotCheck=pending", global: { stubs: { USelect: selectStub } } });
+    await flushPromises();
+    expect(adminApi.mock.calls.map(([path]) => path)).toEqual(["/v1/submissions?page=1&pageSize=20&spotCheck=pending&order=newest"]);
   });
 });

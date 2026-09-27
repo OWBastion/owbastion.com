@@ -27,7 +27,6 @@ function parseReviewStatus(value: unknown): ReviewStatus {
   if (typeof raw === "string" && raw in submissionStatusText) return raw as ReviewStatus;
   return "queue";
 }
-const reviewStatus = shallowRef<ReviewStatus>(parseReviewStatus(route.query.status));
 // Player-facing projections (processing / needs_review / completed) are not stored submission statuses.
 const playerProjectionStatuses = new Set(["processing", "needs_review", "completed"]);
 const reviewStatusOptions = [{ label: "待核对", value: "queue" }, { label: "全部状态", value: "all" }, ...Object.entries(submissionStatusText).filter(([value]) => !playerProjectionStatuses.has(value)).map(([value, label]) => ({ label, value }))];
@@ -48,6 +47,9 @@ function parseOrder(value: unknown): ReviewOrder | null {
 const page = ref(parsePage(route.query.page));
 const orderOverride = shallowRef<ReviewOrder | null>(parseOrder(route.query.order));
 const spotCheckFilter = shallowRef<SpotCheckFilter>(parseSpotCheck(route.query.spotCheck));
+// Spot checks sample automatically approved submissions, which the default queue statuses never include.
+const statusForSpotCheck = (status: ReviewStatus, spotCheck: SpotCheckFilter): ReviewStatus => spotCheck !== "all" && status === "queue" ? "all" : status;
+const reviewStatus = shallowRef<ReviewStatus>(statusForSpotCheck(parseReviewStatus(route.query.status), spotCheckFilter.value));
 // Items waiting for a decision are worked oldest first; browsing other statuses defaults to the latest activity.
 const defaultOrder = computed<ReviewOrder>(() => reviewStatus.value === "queue" ? "oldest" : "newest");
 const reviewOrder = computed<ReviewOrder>({
@@ -107,8 +109,7 @@ const { loading } = useAdminAsyncData("submission-review-list", async () => {
     onData: (response) => { submissions.value = response.items; total.value = response.total; },
     onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; },
   });
-// Spot checks sample automatically approved submissions, which the default queue statuses never include.
-watch(spotCheckFilter, (value) => { if (value !== "all" && reviewStatus.value === "queue") reviewStatus.value = "all"; }, { flush: "sync" });
+watch(spotCheckFilter, (value) => { reviewStatus.value = statusForSpotCheck(reviewStatus.value, value); }, { flush: "sync" });
 watch([reviewStatus, spotCheckFilter, reviewOrder], () => { page.value = 1; }, { flush: "sync" });
 watch([reviewStatus, spotCheckFilter, orderOverride, page], () => {
   const query = { ...route.query };

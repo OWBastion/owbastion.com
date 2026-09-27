@@ -45,7 +45,8 @@ const approvalHint = computed(() => {
   if (!props.preview) return "";
   return reviewBlockingMessage(props.preview.blockingCode);
 });
-const ocrPending = computed(() => props.submission.status === "ocr_pending" || props.submission.ocrStatus === "pending");
+// A decision taken while OCR runs moves the Submission on and leaves its OCR row pending for good.
+const ocrPending = computed(() => props.submission.status === "ocr_pending");
 const reviewRecord = computed(() => props.submission.review ?? null);
 
 type ConfirmTarget = { kind: "review"; decision: Exclude<ReviewDecision, "approved"> } | { kind: "spot-check"; decision: "revoked" };
@@ -55,8 +56,11 @@ const confirmCopy = computed(() => {
   const target = confirmTarget.value;
   if (!target) return null;
   if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 Verified Run 也会失效。", reasonLabel: "撤销原因（可选，仅内部记录）", confirmLabel: "确认撤销" };
-  // A later decision changes only the Submission; Titles it already granted are managed separately.
-  const retained = reviewRecord.value?.decision === "approved" ? "已发放的称号和已记录的 Verified Run 不会因此撤销；撤销称号请在玩家称号中处理。" : "";
+  // A later decision changes only the Submission; Titles and Verified Runs it already produced are managed separately.
+  const retainedTitles = props.submission.activeTitleGrants?.map(({ titleName }) => titleName) ?? [];
+  const retainedRun = props.submission.verifiedRunOutcome?.status === "created" || props.submission.verifiedRunOutcome?.status === "reused";
+  const retainedItems = [...(retainedTitles.length ? [`已发放的称号（${retainedTitles.join("、")}）`] : []), ...(retainedRun ? ["已记录的 Verified Run"] : [])];
+  const retained = retainedItems.length ? `此操作不会撤销${retainedItems.join("和")}${retainedTitles.length ? "；撤销称号请在玩家称号中处理" : ""}。` : "";
   if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或 Verified Run。"}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认驳回" };
   return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认要求重新提交" };
 });

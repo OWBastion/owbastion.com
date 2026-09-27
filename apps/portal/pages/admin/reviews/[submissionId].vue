@@ -53,7 +53,7 @@ const adminData = useAdminAsyncData("submission-review-detail", () => api<AdminS
 const loading = adminData.loading;
 async function load() { errorMessage.value = ""; refreshError.value = ""; evidenceError.value = false; await adminData.refresh(); }
 
-const ocrPending = computed(() => submission.value?.status === "ocr_pending" || submission.value?.ocrStatus === "pending");
+const ocrPending = computed(() => submission.value?.status === "ocr_pending");
 const ocrPollIntervalMs = 3000;
 const ocrPollLimitMs = 120_000;
 let ocrPollTimer: ReturnType<typeof setInterval> | null = null;
