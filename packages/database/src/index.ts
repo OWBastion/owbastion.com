@@ -4687,11 +4687,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async revokeAdminTitleGrant(input, auth, idempotencyKey) {
-      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, "admin.title.revoke", idempotencyKey, input); if (replay) return;
+      const operation = "admin.title.revoke";
+      const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input); if (replay) return;
       const grant = await db.select().from(playerTitleGrants).where(eq(playerTitleGrants.id, input.grantId)).get(); if (!grant) throw new Error("TITLE_GRANT_NOT_FOUND");
       if (grant.status !== "active") throw new Error("TITLE_GRANT_NOT_ACTIVE");
-      await db.update(playerTitleGrants).set({ status: "revoked", revocationType: "administrator", revokedBy: auth.subject, revokedAt: now(), revokeReason: input.reason ?? null }).where(eq(playerTitleGrants.id, grant.id));
-      await recordIdempotency(db, auth.subject, "admin.title.revoke", idempotencyKey, input, {}); await recordAudit(db, auth, "admin.title.revoke", "player_title_grant", grant.id, { reason: input.reason ?? null });
+      const timestamp = now();
+      await database.batch([
+        database.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'administrator', revoked_by = ?, revoked_at = ?, revoke_reason = ? WHERE id = ? AND status = 'active'").bind(auth.subject, timestamp, input.reason ?? null, grant.id),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, await hashRequest(input), JSON.stringify({}), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, ?, 'player_title_grant', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, grant.id, JSON.stringify({ reason: input.reason ?? null }), timestamp),
+      ]);
+      const concurrentReplay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input);
+      if (concurrentReplay) return;
+      throw new Error("TITLE_GRANT_NOT_ACTIVE");
     },
 
     async restoreAdminTitleGrant(input, auth, idempotencyKey) {
