@@ -15,6 +15,7 @@ import { standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
+import { createDatasetServices } from "./dataset-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 
