@@ -167,6 +167,7 @@ const toPublicHistoricalMigration = (summary: ReturnType<typeof summarizeHistori
   restoredCount: summary.completedCount,
 });
 const bindingClaimTtlMs = 10 * 60 * 1000;
+const bindingClaimSessionBootstrapTtlMs = 5 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const loginTtlMs = 2 * 60 * 1000;
@@ -6830,7 +6831,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
       if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
       const timestamp = now();
-      if (claim.status !== "approved" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      if (claim.status !== "approved" || !claim.memberOpenId || !claim.groupOpenId || claim.decidedAt === null || claim.decidedAt + bindingClaimSessionBootstrapTtlMs <= timestamp) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
       const account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId), eq(playerAccounts.status, "active"))).get();
       if (!account) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
       const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, claim.groupOpenId), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).get();

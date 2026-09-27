@@ -108,8 +108,10 @@ first Player Account only after QQBot verifies the invited claim in an enabled
 group, then commits the account, QQ binding, and claim approval together. The
 claim browser exchanges the approved claim for a Portal session. Passkey
 registration requires an authenticated Player Account and is not part of the
-invitation flow. Portal sessions expire after 30 days and are stored against
-the Player Account. Existing active QQ sessions were backfilled to direct
+invitation flow. An approved claim can bootstrap that session for five minutes
+after its decision; retries in this window recover a response lost in transit.
+Portal sessions expire after 30 days and are stored against the Player Account.
+Existing active QQ sessions were backfilled to direct
 Player Account sessions during the cutover. Maintainer recovery grants expire
 after 30 minutes, are single-use, replace the account's Passkeys, revoke its
 Portal sessions, and preserve all business records on that Player Account.

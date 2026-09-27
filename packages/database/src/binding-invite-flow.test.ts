@@ -234,6 +234,11 @@ describe("invitation binding flow", () => {
     expect(await resolvePortalSession(database, sessionOne.sessionToken)).toMatchObject({ player: { playerId: "1234" } });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 1 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM qq_sessions").get()).toEqual({ count: 0 });
+
+    sqlite.prepare("DELETE FROM portal_sessions").run();
+    sqlite.prepare("UPDATE binding_claims SET decided_at = ? WHERE id = ?").run(now - 5 * 60 * 1000 - 1, claim.claimId);
+    await expect(services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken })).rejects.toThrow("BINDING_CLAIM_NOT_COMPLETE");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 0 });
   });
 
   it("creates the Player Account only after an invited QQ identity is verified", async () => {
@@ -261,7 +266,7 @@ describe("invitation binding flow", () => {
     const claimToken = "a".repeat(64);
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at, redeemed_at) VALUES ('invite.1', ?, 'Player', 'player', '1234', 'admin', ?, ?, ?)").run(hashRequest("INVITE123456"), now, now + 60_000, now);
-    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, member_open_id, group_open_id, expires_at, created_at) VALUES ('claim.1', 'invite.1', ?, 'code', 'Player', 'player', '1234', 'approved', 'member.1', 'group.expected', ?, ?)").run(hashRequest(claimToken), now + 60_000, now);
+    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, member_open_id, group_open_id, expires_at, created_at, decided_at) VALUES ('claim.1', 'invite.1', ?, 'code', 'Player', 'player', '1234', 'approved', 'member.1', 'group.expected', ?, ?, ?)").run(hashRequest(claimToken), now + 60_000, now, now);
     const services = createPlatformServices(database);
 
     await expect(services.exchangeBindingClaimSession({ claimId: "claim.1", claimToken })).rejects.toThrow("BINDING_CLAIM_NOT_COMPLETE");
@@ -393,5 +398,11 @@ describe("invitation binding flow", () => {
 
     expect(sqlite.prepare("SELECT status FROM binding_claims").get()).toEqual({ status: "pending_review" });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM bindings WHERE status = 'active'").get()).toEqual({ count: 1 });
+
+    sqlite.prepare("UPDATE binding_claims SET expires_at = ? WHERE id = ?").run(now - 1, claim.claimId);
+    const admin = { actorType: "user" as const, subject: "admin.1", roles: ["admin"] as const, provider: "test" };
+    await services.decideAdminBindingClaim({ claimId: claim.claimId, contractVersion: "1", decision: "approved" }, admin, "decision.1");
+    const session = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
+    expect(await resolvePortalSession(database, session.sessionToken)).toMatchObject({ player: { playerId: "1234" } });
   });
 });
