@@ -1,4 +1,4 @@
-import { computed, onMounted, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, onMounted, toValue, watch, type MaybeRefOrGetter } from "vue";
 
 type AdminAsyncDataOptions<T> = {
   cacheKey?: MaybeRefOrGetter<string>;
@@ -38,12 +38,27 @@ export function useAdminAsyncData<T>(
       getCachedData: noCachedAsyncData,
     },
   );
-  onMounted(() => { void asyncData.refresh(); });
+
+  const refresh = async () => {
+    const requestCacheKey = cacheKey.value;
+    try {
+      await asyncData.refresh();
+    } catch (error) {
+      if (cacheKey.value === requestCacheKey) options.onError?.(error);
+    }
+  };
+  onMounted(() => { void refresh(); });
+  watch(cacheKey, (nextCacheKey) => {
+    const cached = cache.value[nextCacheKey];
+    if (cached !== undefined) options.onData?.(cached);
+  }, { flush: "sync" });
+
   const cached = cache.value[cacheKey.value];
   if (cached !== undefined) options.onData?.(cached);
 
   return {
     ...asyncData,
+    refresh,
     loading: computed(() => cache.value[cacheKey.value] === undefined && asyncData.pending.value),
   };
 }
