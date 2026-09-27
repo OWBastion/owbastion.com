@@ -4,7 +4,7 @@ import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
-useSeoMeta({ title: "批量发放称号 · 躲避堡垒 3" });
+useSeoMeta({ title: "批量授予称号 · 躲避堡垒 3" });
 
 type Player = { playerAccountId: string; playerId: string; playerName: string; status: "active" | "banned" };
 type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string };
@@ -146,7 +146,7 @@ async function grant() {
     selectedTitleValues.value = [];
     reason.value = "";
   } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法批量发放称号，请检查选择后重试。").description;
+    errorMessage.value = portalErrorDetails(error, "无法批量授予称号，请检查选择后重试。").description;
   } finally {
     saving.value = false;
   }
@@ -161,12 +161,13 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
 </script>
 
 <template>
-  <AdminWorkspace title="批量发放称号" :count="requestedCount ? `${requestedCount} 个授予` : '未选择'">
+  <AdminWorkspace title="批量授予称号" :count="requestedCount ? `${requestedCount} 个授予` : '未选择'">
     <template #messages>
       <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
       <UAlert v-if="result" color="success" variant="subtle" :title="`批次已完成：${result.createdCount} 个新授予，${result.alreadyOwnedCount} 个已拥有`" :description="`共处理 ${result.requestedCount} 个授予单元。`" />
     </template>
-    <section class="grant-workspace" aria-label="批量发放称号工作区">
+    <p class="grant-workflow-note">每个玩家与称号组合都会通过对应的手动挑战记录完成，再授予称号。</p>
+    <section class="grant-workspace" aria-label="批量授予称号工作区">
       <div class="grant-panel surface-card">
         <div class="panel-heading"><h2>选择玩家</h2><span>{{ selectedPlayers.length }} 人</span></div>
         <UInput v-model="playerQuery" aria-label="搜索玩家" placeholder="搜索战网 ID" :disabled="saving" :loading="searchingPlayers" />
@@ -198,9 +199,9 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
       <p class="grant-count" aria-live="polite">{{ selectedPlayers.length }} 玩家 × {{ selectedTitles.length }} 称号 = <strong>{{ requestedCount }} 个授予</strong></p>
       <UAlert v-if="tooLarge" color="warning" variant="subtle" title="批次超过上限" description="一次最多处理 500 个授予单元，请减少玩家或称号选择。" />
       <UFormField label="发放原因"><UTextarea v-model="reason" maxlength="512" placeholder="漏发、申诉纠正或特殊人工奖励" :disabled="saving" /></UFormField>
-      <UButton block label="确认发放" :disabled="!canConfirm" @click="openConfirm" />
+      <UButton block label="检查授予计划" :disabled="!canConfirm" @click="openConfirm" />
     </section>
-    <AdminResponsiveDialog v-model:open="confirmOpen" title="确认批量发放" size="sm" :dismissible="!saving">
+    <AdminResponsiveDialog v-model:open="confirmOpen" title="确认批量授予" size="sm" :dismissible="!saving">
       <template #body>
         <div class="confirm-body">
           <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
@@ -208,13 +209,14 @@ onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
           <div class="confirm-list"><strong>玩家</strong><span>{{ selectedPlayerList.map((player) => `${player.playerName}#${player.playerId}`).join("、") }}</span><strong>称号</strong><span>{{ selectedTitles.map(titleDescription).join("、") }}</span></div>
         </div>
       </template>
-      <template #footer><UButton label="确认发放" :loading="saving" @click="grant" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /></template>
+      <template #footer><UButton label="确认授予" :loading="saving" @click="grant" /><UButton label="取消" color="neutral" variant="outline" :disabled="saving" @click="closeConfirm()" /></template>
     </AdminResponsiveDialog>
   </AdminWorkspace>
 </template>
 
 <style scoped>
 .grant-workspace { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(var(--space-4), 2.4vw, var(--space-6)); }
+.grant-workflow-note { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
 .grant-panel, .grant-summary { display: grid; gap: var(--space-4); padding: clamp(var(--space-4), 2.5vw, var(--space-6)); }
 .grant-summary { gap: var(--space-4); }
 .panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }

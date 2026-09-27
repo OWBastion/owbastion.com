@@ -1516,9 +1516,39 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
   challenge: adminSubmissionChallengeSchema.nullable().optional(),
 });
 
+export const adminPlayerRecentCompletionSchema = z.object({
+  completionId: z.string().trim().min(1).max(256),
+  challengeId: externalId,
+  titleKey: externalId,
+  titleName: z.string().trim().min(1).max(256),
+  mapName: z.string().trim().min(1).max(256).nullable(),
+  gameplayRevisionId: externalId.nullable(),
+  gameVersion: z.string().trim().min(1).max(64).nullable(),
+  status: z.enum(["active", "invalidated"]),
+  sourceType: z.string().trim().min(1).max(64),
+  completedAt: z.number().int(),
+}).strict();
+
+export const adminPlayerRecentVerifiedRunSchema = z.object({
+  runId: z.string().uuid(),
+  mapName: z.string().trim().min(1).max(256),
+  gameplayRevisionId: externalId,
+  gameVersion: z.string().trim().min(1).max(64),
+  difficulty: verifiedRunDifficultySchema,
+  awardedXp: z.number().int().nonnegative(),
+  acceptedAt: z.number().int().positive(),
+}).strict();
+
+export const adminPlayerProgressionSchema = z.object({
+  activeVerifiedRunCount: z.number().int().nonnegative(),
+  recentVerifiedRuns: z.array(adminPlayerRecentVerifiedRunSchema).max(5),
+}).strict();
+
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(adminPlayerRecentSubmissionSchema).max(10),
+  recentCompletions: z.array(adminPlayerRecentCompletionSchema).max(10),
+  progression: adminPlayerProgressionSchema,
   titleGrants: z.array(ownedTitleSchema.extend({ status: z.enum(["active", "revoked"]), revocationType: z.enum(["administrator", "evidence"]).nullable(), sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
 });
 

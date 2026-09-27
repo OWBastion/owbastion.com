@@ -72,7 +72,7 @@ const adminNavigationItems = computed(() => {
       defaultOpen: toolsActive,
       children: [
         { label: "通关记录", description: "Verified Run 查询与冲突处理", icon: "i-lucide-trophy", to: "/admin/verified-runs", active: adminPathActive("/admin/verified-runs") },
-        { label: "称号授予", description: "历史授权维护", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
+        { label: "手动授予", description: "批量通过手动挑战授予称号", icon: "i-lucide-send", to: "/admin/grants", active: adminPathActive("/admin/grants") },
         { label: "称号迁移", description: "历史数据关联与修复", icon: "i-lucide-history", to: "/admin/titles", active: adminPathActive("/admin/titles") },
       ],
     },

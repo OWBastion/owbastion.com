@@ -34,7 +34,8 @@ describe("AdminPlayerTitles", () => {
     });
     await flushPromises();
     expect(wrapper.text()).toContain("全局称号");
-    await wrapper.findAll("button").find((button) => button.text() === "直接发放")!.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "手动授予")!.trigger("click");
+    expect(wrapper.text()).toContain("系统会通过对应的手动挑战记录完成，再授予称号。");
     expect(wrapper.text()).not.toContain("（可选）");
     expect(wrapper.text()).toContain("地图称号");
     expect(wrapper.findAll("label").some((label) => label.text().includes("旧地图称号（不再发放）"))).toBe(true);

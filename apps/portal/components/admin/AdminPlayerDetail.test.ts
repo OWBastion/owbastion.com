@@ -13,6 +13,8 @@ const player: AdminPlayerDetailData = {
   createdAt: 0,
   updatedAt: 1700000000000,
   bindings: [{ bindingId: "binding-1", provider: "qq", groupOpenId: "group-1", memberOpenId: "member-1", createdAt: 0 }],
+  recentCompletions: [{ completionId: "completion-1", challengeId: "challenge-1", titleKey: "TITLE_1", titleName: "测试称号", mapName: "花村", gameplayRevisionId: "revision-1", gameVersion: "2026.07.15", status: "active", sourceType: "manual", completedAt: 1700000000000 }],
+  progression: { activeVerifiedRunCount: 2, recentVerifiedRuns: [{ runId: "run-1", mapName: "花村", gameplayRevisionId: "revision-1", gameVersion: "2026.07.15", difficulty: "困难", awardedXp: 120, acceptedAt: 1700000000000 }] },
   recentSubmissions: [{ submissionId: "submission-1", mapName: "花村", challenge: null, status: "needs_review", createdAt: 0, updatedAt: 0 }],
   titleGrants: [],
 };
@@ -36,6 +38,12 @@ describe("AdminPlayerDetail", () => {
 
     expect(wrapper.text()).toContain("测试玩家#1001");
     expect(wrapper.text()).toContain("最近提交");
+    expect(wrapper.text()).toContain("最近挑战完成");
+    expect(wrapper.text()).toContain("测试称号");
+    expect(wrapper.text()).toContain("管理员授予");
+    expect(wrapper.text()).toContain("通关进度");
+    expect(wrapper.text()).toContain("2 次已核验通关");
+    expect(wrapper.text()).toContain("花村 · 困难");
     expect(wrapper.text()).toContain("称号");
   });
 

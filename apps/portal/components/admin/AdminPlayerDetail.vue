@@ -10,6 +10,8 @@ const battleTag = computed(() => `${props.player.playerName}#${props.player.play
 const initials = computed(() => props.player.playerName.slice(0, 2));
 const statusLabel = computed(() => props.player.status === "active" ? "正常" : "已封禁");
 const submissionStatusLabel = (status: string) => submissionStatusText[status] ?? status;
+const completionSourceLabel = (source: string) => ({ manual: "管理员授予", submission: "截图审核", challenge_satisfies: "关联挑战", migration: "历史迁移" })[source] ?? source;
+const completionStatusLabel = (status: string) => status === "active" ? "已完成" : "已失效";
 const submissionSummary = (submission: AdminPlayerDetail["recentSubmissions"][number]) => {
   const challenge = submission.challenge;
   if (!challenge) return { title: submission.mapName, meta: "" };
@@ -20,6 +22,8 @@ const submissionSummary = (submission: AdminPlayerDetail["recentSubmissions"][nu
 const sections = [
   { id: "overview", label: "概览" },
   { id: "titles", label: "称号" },
+  { id: "completions", label: "挑战完成" },
+  { id: "progression", label: "通关进度" },
   { id: "submissions", label: "最近提交" },
 ] as const;
 
@@ -188,6 +192,41 @@ onBeforeUnmount(() => {
           @restored="emit('grantCompleted')"
           @recovered="emit('grantCompleted')"
         />
+
+        <section id="completions" class="detail-card" aria-labelledby="completions-title">
+          <div class="detail-card__heading">
+            <h3 id="completions-title">最近挑战完成</h3>
+            <span class="table-meta">{{ props.player.recentCompletions.length }} 项</span>
+          </div>
+          <ul v-if="props.player.recentCompletions.length" class="player-activity-list">
+            <li v-for="completion in props.player.recentCompletions" :key="completion.completionId" class="player-activity-row">
+              <div class="player-activity-row__main">
+                <strong>{{ completion.titleName }}</strong>
+                <small>{{ [completion.mapName, completion.gameVersion, completionSourceLabel(completion.sourceType)].filter(Boolean).join(' · ') }}</small>
+              </div>
+              <StatusBadge :label="completionStatusLabel(completion.status)" :tone="completion.status === 'active' ? 'success' : 'default'" />
+              <time :datetime="new Date(completion.completedAt).toISOString()">{{ formatTime(completion.completedAt) }}</time>
+            </li>
+          </ul>
+          <UEmpty v-else title="暂无挑战完成记录" variant="naked" />
+        </section>
+
+        <section id="progression" class="detail-card" aria-labelledby="progression-title">
+          <div class="detail-card__heading">
+            <h3 id="progression-title">通关进度</h3>
+            <span class="table-meta">{{ props.player.progression.activeVerifiedRunCount }} 次已核验通关</span>
+          </div>
+          <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list">
+            <li v-for="run in props.player.progression.recentVerifiedRuns" :key="run.runId" class="player-activity-row">
+              <div class="player-activity-row__main">
+                <strong>{{ run.mapName }} · {{ run.difficulty }}</strong>
+                <small>{{ run.gameVersion }} · {{ run.awardedXp }} XP</small>
+              </div>
+              <time :datetime="new Date(run.acceptedAt).toISOString()">{{ formatTime(run.acceptedAt) }}</time>
+            </li>
+          </ul>
+          <UEmpty v-else title="暂无已核验通关" description="完成的截图经核验后会显示在这里。" variant="naked" />
+        </section>
       </div>
 
       <aside id="submissions" class="detail-card detail-card--activity" aria-labelledby="submissions-title">
@@ -511,6 +550,14 @@ onBeforeUnmount(() => {
   gap: var(--space-1);
   margin: 0;
 }
+
+.player-activity-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.player-activity-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.player-activity-row:last-child { border-bottom: 0; }
+.player-activity-row__main { display: grid; min-width: 0; gap: var(--space-1); }
+.player-activity-row__main strong, .player-activity-row__main small { overflow-wrap: anywhere; }
+.player-activity-row__main small, .player-activity-row time { color: var(--quiet); font-size: var(--type-caption-size); }
+@container (max-width: 28rem) { .player-activity-row { grid-template-columns: minmax(0, 1fr) auto; } .player-activity-row time { grid-column: 1 / -1; } }
 
 .submission-row {
   display: flex;

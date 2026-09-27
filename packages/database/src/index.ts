@@ -1,6 +1,7 @@
 import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
+import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, annotationProposalPriority, deriveOcrFeedbackDecision, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
@@ -6039,6 +6040,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const playerBindings = await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).orderBy(desc(bindings.createdAt));
       const recentSubmissions = await db.select().from(submissions).where(eq(submissions.playerAccountId, account.id)).orderBy(desc(submissions.createdAt)).limit(10);
       const recentSubmissionDetails = recentSubmissions.length ? await resolveAdminSubmissionDetails(recentSubmissions) : null;
+      const completionChallengeMap = alias(maps, "admin_player_completion_challenge_map");
+      const completionRevisionMap = alias(maps, "admin_player_completion_revision_map");
+      const [recentCompletionRows, activeVerifiedRunCountRows, recentVerifiedRunRows] = await Promise.all([
+        db.select({ completion: challengeCompletions, challenge: challenges, title: titleCatalog, challengeMapName: completionChallengeMap.name, revisionMapName: completionRevisionMap.name, gameVersion: gameplayRevisions.gameVersion })
+          .from(challengeCompletions)
+          .innerJoin(challenges, eq(challenges.id, challengeCompletions.challengeId))
+          .innerJoin(titleCatalog, eq(titleCatalog.key, challenges.titleKey))
+          .leftJoin(gameplayRevisions, eq(gameplayRevisions.id, challengeCompletions.gameplayRevisionId))
+          .leftJoin(completionChallengeMap, eq(completionChallengeMap.id, challenges.mapId))
+          .leftJoin(completionRevisionMap, eq(completionRevisionMap.id, gameplayRevisions.mapId))
+          .where(eq(challengeCompletions.playerAccountId, account.id))
+          .orderBy(desc(challengeCompletions.completedAt), desc(challengeCompletions.id))
+          .limit(10),
+        db.select({ total: count() }).from(verifiedRuns)
+          .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
+          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
+        db.select({ run: verifiedRuns, mapName: maps.name, gameVersion: gameplayRevisions.gameVersion })
+          .from(verifiedRuns)
+          .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
+          .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
+          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
+          .orderBy(desc(verifiedRuns.acceptedAt), desc(verifiedRuns.id))
+          .limit(5),
+      ]);
       const titleGrants = await db.select({ grant: playerTitleGrants, title: titleCatalog, mapName: maps.name, equipped: playerEquippedTitles.grantId, revisionMapId: gameplayRevisions.mapId, revisionLifecycle: gameplayRevisions.lifecycle })
         .from(playerTitleGrants).innerJoin(titleCatalog, eq(playerTitleGrants.titleKey, titleCatalog.key)).leftJoin(playerEquippedTitles, eq(playerEquippedTitles.grantId, playerTitleGrants.id)).leftJoin(maps, eq(playerTitleGrants.mapId, maps.id)).leftJoin(gameplayRevisions, eq(playerTitleGrants.gameplayRevisionId, gameplayRevisions.id))
         .where(and(eq(playerTitleGrants.playerAccountId, account.id), or(eq(playerTitleGrants.status, "active"), and(eq(playerTitleGrants.status, "revoked"), eq(playerTitleGrants.revocationType, "administrator"))))).orderBy(desc(playerTitleGrants.grantedAt));
@@ -6071,6 +6096,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           );
           return { grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: Boolean(equipped) && equipable, equipable };
         }),
+        recentCompletions: recentCompletionRows.map(({ completion, challenge, title, challengeMapName, revisionMapName, gameVersion }) => ({
+          completionId: completion.id,
+          challengeId: challenge.id,
+          titleKey: title.key,
+          titleName: title.label,
+          mapName: challengeMapName ?? revisionMapName ?? null,
+          gameplayRevisionId: completion.gameplayRevisionId,
+          gameVersion: gameVersion ?? null,
+          status: completion.status as "active" | "invalidated",
+          sourceType: completion.sourceType,
+          completedAt: completion.completedAt,
+        })),
+        progression: {
+          activeVerifiedRunCount: Number(activeVerifiedRunCountRows[0]?.total ?? 0),
+          recentVerifiedRuns: recentVerifiedRunRows.map(({ run, mapName, gameVersion }) => ({
+            runId: run.id,
+            mapName,
+            gameplayRevisionId: run.gameplayRevisionId,
+            gameVersion,
+            difficulty: run.difficulty as VerifiedRunDifficulty,
+            awardedXp: run.awardedXp,
+            acceptedAt: run.acceptedAt,
+          })),
+        },
       };
     },
 
