@@ -55,21 +55,8 @@ const challengeEvidenceValueExists = (response: OcrResponse, field: string) => {
   }
 };
 
-export const assessChallengeOcrQuality = (
-  conditions: CanonicalChallengeConditions | null,
-  response: OcrResponse,
-  humanConfirmed = false,
-): OcrQualityGate => {
-  const requiredFields = conditions ? [...new Set(conditions.conditions.map(({ type }) => ({
-    achievement_title: "achievement_titles",
-    map: "map_name",
-    completed: "challenge_completed",
-    difficulty_at_least: "difficulty",
-    map_variant: "map_variant",
-  }[type])))].sort() : [];
+export const assessSubmissionOcrResponseQuality = (response: OcrResponse, humanConfirmed = false): OcrQualityGate => {
   const reasons: string[] = [];
-  if (!conditions) reasons.push("unsupported_challenge_conditions");
-
   if (!humanConfirmed) {
     if (response.schema_version !== submissionOcrQualityPolicy.schemaVersion) reasons.push("unsupported_schema_version");
     if (response.ok !== true) reasons.push("unsuccessful_response");
@@ -78,6 +65,29 @@ export const assessChallengeOcrQuality = (
     if (response.layout_version && response.quality?.layout_version && response.layout_version !== response.quality.layout_version) reasons.push("conflicting_layout_version");
     if (response.quality?.cropped === true) reasons.push("cropped_input");
   }
+  return { accepted: reasons.length === 0, requiredFields: [], reasons };
+};
+
+export const assessChallengeOcrQuality = (
+  conditions: CanonicalChallengeConditions | null,
+  response: OcrResponse,
+  humanConfirmed = false,
+  conditionIndexes?: readonly number[],
+): OcrQualityGate => {
+  const selectedConditions = conditions
+    ? conditionIndexes
+      ? conditionIndexes.flatMap((index) => conditions.conditions[index] ? [conditions.conditions[index]!] : [])
+      : conditions.conditions
+    : [];
+  const requiredFields = conditions ? [...new Set(selectedConditions.map(({ type }) => ({
+    achievement_title: "achievement_titles",
+    map: "map_name",
+    completed: "challenge_completed",
+    difficulty_at_least: "difficulty",
+    map_variant: "map_variant",
+  }[type])))].sort() : [];
+  const reasons = [...assessSubmissionOcrResponseQuality(response, humanConfirmed).reasons];
+  if (!conditions) reasons.push("unsupported_challenge_conditions");
 
   for (const fieldName of requiredFields) {
     if (!challengeEvidenceValueExists(response, fieldName)) {

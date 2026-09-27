@@ -61,6 +61,49 @@ describe("canonical OCR Challenge matching", () => {
     expect(result.exact).toHaveLength(2);
   });
 
+  it("uses only a satisfied OR Condition branch for its quality gate", () => {
+    const achievement: Challenge = {
+      challengeId: "title.conqueror", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "CONQUEROR", titleName: "征服者", icon: "legacy", category: "挑战", condition: "完成挑战", evidenceRule: "勾选",
+      gameVersion: "1", status: "active", submissionMode: "manual",
+    };
+    const { achievement_titles: _field, ...fields } = response.fields;
+    const { achievement_titles: _value, ...data } = response.data;
+    const result = matchOcrAgainstChallenges([
+      candidate(achievement, { operator: "or", conditions: [
+        { type: "map", mapId: "map.samoa" },
+        { type: "achievement_title", titleKey: "CONQUEROR" },
+      ] }),
+    ], { ...response, fields, data }, mapIdsByName, new Map([ ["CONQUEROR", "征服者"] ]));
+
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact[0]?.quality.requiredFields).toEqual(["map_name"]);
+  });
+
+  it("does not let a non-matching Challenge with absent evidence block a separate match", () => {
+    const achievement: Challenge = {
+      challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "FLAWLESS", titleName: "无伤", icon: "legacy", category: "挑战", condition: "全成就完成", evidenceRule: "成就列表",
+      gameVersion: "1", status: "active", submissionMode: "manual",
+    };
+    const { achievement_titles: _field, ...fields } = response.fields;
+    const { achievement_titles: _value, ...data } = response.data;
+    const result = matchOcrAgainstChallenges([
+      candidate(mapChallenge("map.samoa.conqueror"), mapConditions("传奇")),
+      candidate(achievement, { operator: "and", conditions: [{ type: "achievement_title", titleKey: "FLAWLESS" }] }),
+    ], { ...response, fields, data }, mapIdsByName, new Map([ ["FLAWLESS", "无伤"] ]));
+
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
+    expect(result.lowConfidence).toEqual([]);
+  });
+
+  it("routes an unsupported OCR response to review even when no Challenge is a candidate", () => {
+    const result = matchOcrAgainstChallenges([], { ...response, layout_version: "future-layout" }, mapIdsByName, new Map());
+
+    expect(result.outcome).toBe("review");
+  });
+
   it("routes unsupported layouts and weak fields to human review", () => {
     const lowConfidence = { ...response, fields: { ...response.fields, map_name: { status: "ok", confidence: 0.4 } } };
     expect(matchOcrAgainstChallenges([candidate(mapChallenge("challenge"), mapConditions("传奇"))], lowConfidence, mapIdsByName, new Map()).outcome).toBe("review");
