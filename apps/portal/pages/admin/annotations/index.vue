@@ -14,7 +14,6 @@ const toast = useToast();
 const activeTab = ref<'proposals' | 'reviewed'>('proposals');
 const proposals = ref<AdminAnnotationProposal[]>([]);
 const reviewed = ref<AdminReviewedAnnotation[]>([]);
-const loading = ref(true);
 const errorMessage = ref('');
 const page = ref(1);
 const total = ref(0);
@@ -74,23 +73,30 @@ const query = computed(() => {
 });
 
 async function load() {
-  loading.value = true;
   errorMessage.value = '';
-  try {
-    if (activeTab.value === 'proposals') {
-      const response = await api<{ items: AdminAnnotationProposal[]; total: number }>('/v1/annotations/proposals?' + query.value);
-      proposals.value = response.items;
-      total.value = response.total;
-    } else {
-      const response = await api<{ items: AdminReviewedAnnotation[]; total: number }>('/v1/annotations/reviewed?' + query.value);
-      reviewed.value = response.items;
-      total.value = response.total;
-    }
-    if (page.value > 1 && !total.value) { page.value = 1; await load(); return; }
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, '无法读取标注数据，请确认当前账号有管理员权限。').description;
-  } finally { loading.value = false; }
+  await adminData.refresh();
 }
+
+const adminData = useAdminAsyncData('annotations', async () => {
+  if (activeTab.value === 'proposals') {
+    const response = await api<{ items: AdminAnnotationProposal[]; total: number }>('/v1/annotations/proposals?' + query.value);
+    if (page.value > 1 && !response.total) page.value = 1;
+    return { kind: 'proposals' as const, ...response };
+  }
+  const response = await api<{ items: AdminReviewedAnnotation[]; total: number }>('/v1/annotations/reviewed?' + query.value);
+  if (page.value > 1 && !response.total) page.value = 1;
+  return { kind: 'reviewed' as const, ...response };
+}, {
+  cacheKey: computed(() => `${activeTab.value}:${query.value}`),
+  onStart: () => { errorMessage.value = ''; },
+  onData: (response) => {
+    total.value = response.total;
+    if (response.kind === 'proposals') proposals.value = response.items;
+    else reviewed.value = response.items;
+  },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, '无法读取标注数据，请确认当前账号有管理员权限。').description; },
+});
+const loading = adminData.loading;
 
 async function openProposal(proposalId: string) {
   detailOpen.value = true;
@@ -158,8 +164,7 @@ async function onDirectCreated() {
   await load();
 }
 
-watch([activeTab, proposalState, fieldKey, kind, promptOrigin, reviewedState], () => { page.value = 1; void load(); });
-onMounted(() => { void load(); });
+watch([activeTab, proposalState, fieldKey, kind, promptOrigin, reviewedState], () => { page.value = 1; }, { flush: 'sync' });
 </script>
 
 <template>
@@ -192,7 +197,7 @@ onMounted(() => { void load(); });
         <template #playerSubmittedAt-cell='{ row }'><span>{{ formatTime(row.original.playerSubmittedAt) }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openProposal(row.original.proposalId)' /></div></template>
       </AdminDataTable>
-      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' />
     </section>
 
     <section v-else aria-label='已审标注列表'>
@@ -208,7 +213,7 @@ onMounted(() => { void load(); });
         <template #reviewState-cell='{ row }'><StatusBadge :label='stateLabel(row.original.reviewState)' :tone='row.original.reviewState === "accepted" ? "success" : "default"' /></template>
         <template #reviewedAt-cell='{ row }'><span>{{ formatTime(row.original.reviewedAt) }}</span><span class='table-meta'>{{ row.original.reviewedBy }}</span></template>
       </AdminDataTable>
-      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' @update:page='load' />
+      <UPagination v-if='total > 20' v-model:page='page' :total='total' :items-per-page='20' class='pagination' />
     </section>
 
     <AdminResponsiveDialog v-model:open='detailOpen' title='标注提案' description='审定后不会影响截图审核结果。' size='lg' @update:open='(open) => { if (!open) closeProposal(); }'>

@@ -23,10 +23,7 @@ const reason = shallowRef("");
 const playerPage = shallowRef(1);
 const playerTotal = shallowRef(0);
 const playerPageSize = 20;
-const playerRequest = shallowRef(0);
-const loadingPlayers = shallowRef(true);
-const searchingPlayers = shallowRef(false);
-const loadingTitles = shallowRef(true);
+const settledPlayerQuery = shallowRef("");
 const saving = shallowRef(false);
 const confirmOpen = shallowRef(false);
 const errorMessage = shallowRef("");
@@ -76,31 +73,15 @@ function resetResult() {
   errorMessage.value = "";
 }
 
-async function loadPlayers() {
-  const request = playerRequest.value + 1;
-  playerRequest.value = request;
-  const initial = players.value.length === 0 && playerTotal.value === 0;
-  if (initial) loadingPlayers.value = true;
-  else searchingPlayers.value = true;
-  try {
-    const response = await api<{ items: Player[]; total: number }>(`/v1/player-accounts?query=${encodeURIComponent(playerQuery.value.trim())}&status=active&page=${playerPage.value}&pageSize=${playerPageSize}`);
-    if (request !== playerRequest.value) return;
-    players.value = response.items;
-    playerTotal.value = response.total;
-  } catch (error) {
-    if (request !== playerRequest.value) return;
-    errorMessage.value = portalErrorDetails(error, "无法读取玩家目录，请稍后重试。").description;
-  } finally {
-    if (request === playerRequest.value) {
-      loadingPlayers.value = false;
-      searchingPlayers.value = false;
-    }
-  }
-}
-
-async function loadTitles() {
-  loadingTitles.value = true;
-  try {
+const playerData = useAdminAsyncData("manual-grants-players", () => api<{ items: Player[]; total: number }>(`/v1/player-accounts?query=${encodeURIComponent(settledPlayerQuery.value.trim())}&status=active&page=${playerPage.value}&pageSize=${playerPageSize}`), {
+  cacheKey: computed(() => `${settledPlayerQuery.value}:${playerPage.value}`),
+  onStart: () => { errorMessage.value = ""; },
+  onData: (response) => { players.value = response.items; playerTotal.value = response.total; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取玩家目录，请稍后重试。").description; },
+});
+const loadingPlayers = playerData.loading;
+const searchingPlayers = computed(() => playerData.pending.value && !loadingPlayers.value);
+const titleData = useAdminAsyncData("manual-grants-titles", async () => {
     const mapsResponse = await api<{ items: Array<{ mapId: string; mapName: string }> }>("/v1/maps");
     const responses = await Promise.all([
       api<{ items: Title[] }>("/v1/titles"),
@@ -108,13 +89,13 @@ async function loadTitles() {
     ]);
     const mapNames = new Map(mapsResponse.items.map((map) => [map.mapId, map.mapName]));
     const options = responses.flatMap((response) => response.items).map((title) => ({ ...title, mapName: title.mapId ? mapNames.get(title.mapId) : undefined, value: `${title.titleKey}:${title.mapId ?? ""}` }));
-    titles.value = [...new Map(options.map((title) => [title.value, title])).values()].sort(compareTitles);
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取称号目录，请稍后重试。").description;
-  } finally {
-    loadingTitles.value = false;
-  }
-}
+    return [...new Map(options.map((title) => [title.value, title])).values()].sort(compareTitles);
+  }, {
+    onStart: () => { errorMessage.value = ""; },
+    onData: (response) => { titles.value = response; },
+    onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取称号目录，请稍后重试。").description; },
+  });
+const loadingTitles = titleData.loading;
 
 function openConfirm() {
   resetResult();
@@ -153,11 +134,9 @@ async function grant() {
 }
 
 watchDebounced(playerQuery, () => {
-  if (playerPage.value === 1) void loadPlayers();
-  else playerPage.value = 1;
+  playerPage.value = 1;
+  settledPlayerQuery.value = playerQuery.value;
 }, { debounce: 250 });
-watch(playerPage, () => { void loadPlayers(); });
-onMounted(() => { void Promise.all([loadPlayers(), loadTitles()]); });
 </script>
 
 <template>

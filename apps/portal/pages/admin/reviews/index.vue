@@ -12,7 +12,6 @@ const route = useRoute();
 const router = useRouter();
 const api = useAdminApi();
 const submissions = ref<AdminSubmission[]>([]);
-const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
@@ -70,35 +69,29 @@ const columns: TableColumn<AdminSubmission>[] = [
   { accessorKey: "updatedAt", header: "最近更新" },
   { id: "actions", header: "", enableHiding: false },
 ];
-async function load() {
-  loading.value = true; errorMessage.value = "";
-  try {
+const { loading } = useAdminAsyncData("submission-review-list", async () => {
     const statusQuery = reviewStatus.value === "all" ? "" : reviewStatus.value === "queue" ? `&status=${queueStatuses}` : `&status=${encodeURIComponent(reviewStatus.value)}`;
     const spotCheckQuery = spotCheckFilter.value === "all" ? "" : `&spotCheck=${spotCheckFilter.value}`;
     const response = await api<{ items: AdminSubmission[]; total: number }>(`/v1/submissions?page=${page.value}&pageSize=20${statusQuery}${spotCheckQuery}`);
-    submissions.value = response.items;
-    total.value = response.total;
-    if (page.value > 1 && !submissions.value.length && total.value) {
-      page.value--;
-      await load();
-    }
-  }
-  catch (error) { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; }
-  finally { loading.value = false; }
-}
+    if (page.value > 1 && !response.items.length && response.total) page.value -= 1;
+    return response;
+  }, {
+    cacheKey: computed(() => `${page.value}:${reviewStatus.value}:${spotCheckFilter.value}`),
+    onStart: () => { errorMessage.value = ""; },
+    onData: (response) => { submissions.value = response.items; total.value = response.total; },
+    onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取待核对截图，请确认当前账号有管理员权限。").description; },
+  });
 watch([reviewStatus, spotCheckFilter], () => {
   page.value = 1;
   const query = { ...route.query };
   if (reviewStatus.value === "queue") delete query.status;
   else query.status = reviewStatus.value;
   if (JSON.stringify(query) !== JSON.stringify(route.query)) void router.replace({ path: route.path, query }).catch(() => {});
-  void load();
-});
+}, { flush: "sync" });
 watch(() => route.query.status, (value) => {
   const next = parseReviewStatus(value === undefined ? "queue" : value);
   if (next !== reviewStatus.value) reviewStatus.value = next;
 });
-onMounted(() => { void load(); });
 </script>
 
 <template>
@@ -115,7 +108,7 @@ onMounted(() => { void load(); });
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>
-    </AdminDataTable><UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" /></section>
+    </AdminDataTable><UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" /></section>
   </AdminWorkspace>
 </template>
 

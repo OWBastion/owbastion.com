@@ -1,6 +1,6 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import TitleMigrationPage from "./titles.vue";
 
 const holders = [
@@ -68,6 +68,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
 });
 
 const toastAdd = vi.fn();
+const mountedWrappers: VueWrapper[] = [];
 mockNuxtImport("useToast", () => () => ({ add: toastAdd }));
 mockNuxtImport("useAdminApi", () => () => adminApi);
 
@@ -95,8 +96,13 @@ async function mountPage(): Promise<VueWrapper> {
     },
   });
   await flushPromises();
+  mountedWrappers.push(wrapper);
   return wrapper;
 }
+
+afterEach(() => {
+  for (const wrapper of mountedWrappers.splice(0)) wrapper.unmount();
+});
 
 describe("title migration page", () => {
   it("selects a holder without opening the dialog", async () => {

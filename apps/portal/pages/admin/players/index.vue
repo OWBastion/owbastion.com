@@ -9,7 +9,6 @@ const api = useAdminApi();
 const players = ref<AdminPlayer[]>([]);
 const query = ref("");
 const status = ref<"all" | "active" | "banned">("all");
-const loading = ref(true);
 const errorMessage = ref("");
 const page = ref(1);
 const total = ref(0);
@@ -36,20 +35,15 @@ const columns = [
   { id: "actions", header: "", enableHiding: false },
 ];
 
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  try {
-    const response = await api<{ items: AdminPlayer[]; total: number }>(`/v1/player-accounts?query=${encodeURIComponent(query.value)}&page=${page.value}&pageSize=20${status.value === "all" ? "" : `&status=${status.value}`}`);
-    players.value = response.items;
-    total.value = response.total;
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取玩家帐号，请确认当前账号有管理员权限。").description;
-  } finally { loading.value = false; }
-}
+const playerQuery = computed(() => `query=${encodeURIComponent(query.value)}&page=${page.value}&pageSize=20${status.value === "all" ? "" : `&status=${status.value}`}`);
+const { loading } = useAdminAsyncData("players", () => api<{ items: AdminPlayer[]; total: number }>(`/v1/player-accounts?${playerQuery.value}`), {
+  cacheKey: playerQuery,
+  onStart: () => { errorMessage.value = ""; },
+  onData: (response) => { players.value = response.items; total.value = response.total; },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取玩家帐号，请确认当前账号有管理员权限。").description; },
+});
 
-watch([query, status], () => { page.value = 1; void load(); });
-onMounted(() => { void load(); });
+watch([query, status], () => { page.value = 1; }, { flush: "sync" });
 </script>
 
 <template>
@@ -66,7 +60,7 @@ onMounted(() => { void load(); });
         <template #updatedAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.updatedAt) }}</span></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/players/${row.original.playerAccountId}`" label="查看详情" size="sm" color="neutral" variant="outline" /></div></template>
       </AdminDataTable>
-      <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" @update:page="load" />
+      <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" />
     </section>
   </AdminWorkspace>
 </template>

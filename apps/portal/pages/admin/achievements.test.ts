@@ -1,7 +1,7 @@
 import { mountSuspended, mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, type VueWrapper } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { reactive } from "vue";
+import { reactive, ref } from "vue";
 import AchievementAdminPage from "./achievements.vue";
 import AdminDateTimePicker from "../../components/admin/AdminDateTimePicker.vue";
 
@@ -31,6 +31,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: Record
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
+mockNuxtImport("useCurrentPlayer", () => () => ({ player: ref({ player: { isAdmin: true } }), status: ref("authenticated"), refresh: vi.fn() }));
 const route = reactive({ path: "/admin/achievements", query: {} as Record<string, string> });
 const routeReplace = vi.fn(async ({ path, query }: { path: string; query: Record<string, string> }) => {
   route.path = path;
@@ -298,7 +299,7 @@ describe("achievement admin page", () => {
     await (document.body.querySelector('[role="dialog"] form') as HTMLFormElement).dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/titles/INTERNAL", expect.objectContaining({ method: "PUT", body: expect.objectContaining({ contractVersion: "1", status: "retired", lifecycle: "retired", publicVisibility: true, label: "内部称号", icon: "wrench", category: "开发保留" }) }));
-    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBe(1);
+    expect(adminApi.mock.calls.filter(([path]) => path === "/v1/achievements").length).toBeGreaterThan(1);
     expect(wrapper.text()).toContain("已退休");
   });
 });

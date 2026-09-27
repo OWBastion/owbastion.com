@@ -69,22 +69,17 @@ export type AdminMapRevisionUpdateInput = {
 export function useAdminMapEditor(mapId: string) {
   const api = useAdminApi();
   const editor = shallowRef<AdminMapEditor | null>(null);
-  const loading = shallowRef(false);
   const saving = shallowRef(false);
   const error = shallowRef("");
 
-  const load = async () => {
-    loading.value = true;
-    error.value = "";
-    try {
-      editor.value = await api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`);
-    } catch (cause) {
-      error.value = portalErrorDetails(cause, "无法读取地图版本修订编辑器，请稍后重试。").description;
-      throw cause;
-    } finally {
-      loading.value = false;
-    }
-  };
+  const adminData = useAdminAsyncData("map-editor", () => api<AdminMapEditor>(`/v1/maps/${encodeURIComponent(mapId)}/editor`), {
+    cacheKey: mapId,
+    onStart: () => { error.value = ""; },
+    onData: (response) => { editor.value = response; },
+    onError: (cause) => { error.value = portalErrorDetails(cause, "无法读取地图版本修订编辑器，请稍后重试。").description; },
+  });
+  const loading = adminData.loading;
+  const load = async () => { error.value = ""; await adminData.refresh(); };
 
   const saveMetadata = async (input: { gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
     saving.value = true;
@@ -94,7 +89,7 @@ export function useAdminMapEditor(mapId: string) {
         headers: { "Idempotency-Key": createRequestId() },
         body: { contractVersion: "1", ...input },
       });
-      if (editor.value) editor.value = { ...editor.value, map };
+      await load();
       return map;
     } finally {
       saving.value = false;
@@ -109,10 +104,7 @@ export function useAdminMapEditor(mapId: string) {
         headers: { "Idempotency-Key": createRequestId() },
         body: input,
       });
-      if (editor.value) {
-        const revisions = editor.value.revisions.map((item) => item.revisionId === revision.revisionId ? revision : item);
-        editor.value = { ...editor.value, revisions };
-      }
+      await load();
       return revision;
     } finally {
       saving.value = false;
@@ -148,7 +140,7 @@ export function useAdminMapEditor(mapId: string) {
         headers: { "Idempotency-Key": createRequestId() },
         body: { contractVersion: "1", ...input },
       });
-      if (editor.value) editor.value = { ...editor.value, revisions: [...editor.value.revisions, revision] };
+      await load();
       return revision;
     } finally {
       saving.value = false;

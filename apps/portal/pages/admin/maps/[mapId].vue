@@ -68,14 +68,6 @@ watch(revisions, (items) => {
   selectedRevisionId.value = items.find((revision) => revision.lifecycle === "default")?.revisionId ?? items[0]?.revisionId ?? "";
 }, { immediate: true });
 
-async function load() {
-  try {
-    await api.load();
-  } catch {
-    // The composable retains the user-facing load error.
-  }
-}
-
 async function saveMetadata() {
   if (metadataSaving.value) return;
   metadataSaving.value = true;
@@ -157,7 +149,6 @@ function auditPayload(auditItem: (typeof audit.value)[number]) {
   return "地图属性变更";
 }
 
-onMounted(() => void load());
 useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
 </script>
 

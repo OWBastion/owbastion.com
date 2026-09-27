@@ -17,7 +17,6 @@ const challenges = shallowRef<MapChallenge[]>([]);
 const query = shallowRef("");
 const globalFilter = shallowRef("");
 const ratingFilter = shallowRef<"all" | Exclude<Rating, null>>("all");
-const loading = shallowRef(true);
 const errorMessage = shallowRef("");
 
 const ratings = ["T0", "T1", "T2", "T3", "T4", "T5"] as const;
@@ -45,25 +44,19 @@ const mapRows = computed<MapRow[]>(() => maps.value
     challengeCount: challenges.value.filter((challenge) => challenge.mapId === map.mapId).length,
   })));
 
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  try {
+const { loading } = useAdminAsyncData("maps", async () => {
     const [mapResponse, challengeResponse] = await Promise.all([
       api<{ items: Map[] }>("/v1/maps"),
       api<{ items: MapChallenge[] }>("/v1/achievements?type=map"),
     ]);
-    maps.value = mapResponse.items;
-    challenges.value = challengeResponse.items;
-  } catch (cause) {
-    errorMessage.value = portalErrorDetails(cause, "无法读取地图目录，请稍后重试。").description;
-  } finally {
-    loading.value = false;
-  }
-}
+    return { maps: mapResponse.items, challenges: challengeResponse.items };
+  }, {
+    onStart: () => { errorMessage.value = ""; },
+    onData: (response) => { maps.value = response.maps; challenges.value = response.challenges; },
+    onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取地图目录，请稍后重试。").description; },
+  });
 
 watch(query, (value) => { globalFilter.value = value; });
-onMounted(() => void load());
 </script>
 
 <template>

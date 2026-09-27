@@ -12,6 +12,10 @@ export default defineNuxtConfig({
   nitro: {
     storage: { cache: { driver: "memory" } },
   },
+  routeRules: {
+    "/admin": { ssr: false },
+    "/admin/**": { ssr: false },
+  },
   content: {
     experimental: {
       sqliteConnector: "native",

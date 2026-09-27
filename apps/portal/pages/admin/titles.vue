@@ -18,12 +18,13 @@ type BulkPreviewGrant = { grantId: string; label: string; mapName?: string };
 const toast = useToast();
 const api = useAdminApi();
 const query = shallowRef("");
+const settledQuery = shallowRef("");
 const holders = shallowRef<HolderSummary[]>([]);
 const selectedPlayerId = shallowRef("");
 const selectedPlayer = shallowRef<Player | null>(null);
 const playerOptions = shallowRef<Player[]>([]);
 const playerQuery = shallowRef("");
-const playerLoading = shallowRef(false);
+const settledPlayerQuery = shallowRef("");
 const playerError = shallowRef("");
 const playerPage = shallowRef(1);
 const playerPageSize = 20;
@@ -40,13 +41,50 @@ const grantPage = shallowRef(1);
 const grantPageSize = 50;
 const errorMessage = shallowRef("");
 const detailError = shallowRef("");
-const loading = shallowRef(false);
 const detailLoading = shallowRef(false);
 const saving = shallowRef(false);
 const bulkOpen = shallowRef(false);
 const bulkPreview = shallowRef<BulkPreviewGrant[]>([]);
 const bulkAffectedCount = shallowRef(0);
 const bulkLoading = shallowRef(false);
+
+const holderData = useAdminAsyncData("title-migration-holders", () => api<HolderListResponse>(`/v1/title-grants?query=${encodeURIComponent(settledQuery.value)}&filter=${filter.value}&page=${page.value}&pageSize=${pageSize}`), {
+  cacheKey: computed(() => `${settledQuery.value}:${filter.value}:${page.value}`),
+  onStart: () => { errorMessage.value = ""; },
+  onData: (response) => {
+    holders.value = response.holders;
+    total.value = response.total;
+    if (!response.holders.some((holder) => holder.holderName === selectedHolderName.value)) {
+      selectedHolderName.value = response.holders[0]?.holderName ?? "";
+      grantPage.value = 1;
+      if (!selectedHolderName.value) selectedHolder.value = null;
+    }
+  },
+  onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取历史称号，请稍后重试。").description; },
+});
+const loading = holderData.loading;
+const playerData = useAdminAsyncData("title-migration-players", async () => {
+  const response = await api<{ items: Player[]; total: number; hasMore: boolean; page: number; pageSize: number }>(
+    `/v1/player-accounts?query=${encodeURIComponent(settledPlayerQuery.value.trim())}&page=${playerPage.value}&pageSize=${playerPageSize}`,
+  );
+  const items = playerPage.value > 1
+    ? [...playerOptions.value, ...response.items.filter((player) => !playerOptions.value.some((existing) => existing.playerAccountId === player.playerAccountId))]
+    : response.items;
+  return { ...response, items };
+}, {
+  cacheKey: computed(() => `${settledPlayerQuery.value}:${playerPage.value}`),
+  onStart: () => { playerError.value = ""; },
+  onData: (response) => {
+    playerOptions.value = selectedPlayer.value && !response.items.some((player) => player.playerAccountId === selectedPlayer.value!.playerAccountId)
+      ? [selectedPlayer.value, ...response.items]
+      : response.items;
+    playerPage.value = response.page;
+    playerHasMore.value = response.hasMore;
+    playerTotal.value = response.total;
+  },
+  onError: (error) => { playerError.value = portalErrorDetails(error, "无法读取玩家帐号，请稍后重试。").description; },
+});
+const playerLoading = playerData.loading;
 
 const pendingGrantsPreview = computed(() => bulkPreview.value.slice(0, 8));
 const pendingGrantsOverflow = computed(() => Math.max(0, bulkAffectedCount.value - pendingGrantsPreview.value.length));
@@ -56,28 +94,9 @@ const panelOpen = computed({
 });
 
 async function loadHolders(options: { resetSelection?: boolean } = {}) {
-  loading.value = true;
   errorMessage.value = "";
-  const previousHolderName = options.resetSelection ? "" : selectedHolderName.value;
-  try {
-    const response = await api<HolderListResponse>(`/v1/title-grants?query=${encodeURIComponent(query.value)}&filter=${filter.value}&page=${page.value}&pageSize=${pageSize}`);
-    holders.value = response.holders;
-    total.value = response.total;
-    const retained = previousHolderName ? response.holders.find((holder) => holder.holderName === previousHolderName) : null;
-    if (retained) {
-      selectedHolderName.value = retained.holderName;
-      await loadHolderDetail(retained.holderName, grantPage.value);
-    } else if (response.holders[0]) {
-      await selectHolder(response.holders[0]);
-    } else {
-      selectedHolderName.value = "";
-      selectedHolder.value = null;
-    }
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取历史称号，请稍后重试。").description;
-  } finally {
-    loading.value = false;
-  }
+  if (options.resetSelection) selectedHolderName.value = "";
+  await holderData.refresh();
 }
 
 async function loadHolderDetail(holderName: string, nextGrantPage = grantPage.value) {
@@ -107,42 +126,21 @@ async function loadHolderDetail(holderName: string, nextGrantPage = grantPage.va
 async function selectHolder(holder: { holderName: string }) {
   selectedHolderName.value = holder.holderName;
   grantPage.value = 1;
-  await loadHolderDetail(holder.holderName, 1);
 }
 
-async function loadPlayers(options: { search?: string; page?: number; append?: boolean } = {}) {
-  const search = options.search ?? playerQuery.value;
-  const nextPage = options.page ?? 1;
-  const append = options.append === true;
-  playerLoading.value = true;
-  playerError.value = "";
-  try {
-    const response = await api<{ items: Player[]; total: number; hasMore: boolean; page: number; pageSize: number }>(
-      `/v1/player-accounts?query=${encodeURIComponent(search.trim())}&page=${nextPage}&pageSize=${playerPageSize}`,
-    );
-    playerPage.value = response.page;
-    playerHasMore.value = response.hasMore;
-    playerTotal.value = response.total;
-    const merged = append
-      ? [...playerOptions.value, ...response.items.filter((player) => !playerOptions.value.some((existing) => existing.playerAccountId === player.playerAccountId))]
-      : response.items;
-    playerOptions.value = selectedPlayer.value && !merged.some((player) => player.playerAccountId === selectedPlayer.value!.playerAccountId)
-      ? [selectedPlayer.value, ...merged]
-      : merged;
-  } catch (error) {
-    playerError.value = portalErrorDetails(error, "无法读取玩家帐号，请稍后重试。").description;
-    if (!append) playerOptions.value = selectedPlayer.value ? [selectedPlayer.value] : [];
-    playerHasMore.value = false;
-  } finally {
-    playerLoading.value = false;
-  }
-}
+watch([selectedHolderName, grantPage], ([holderName, nextPage]) => {
+  if (holderName) void loadHolderDetail(holderName, nextPage);
+}, { immediate: true });
 
-const debouncedLoadHolders = useDebounceFn(() => { page.value = 1; void loadHolders({ resetSelection: true }); }, 300);
+const debouncedLoadHolders = useDebounceFn(() => {
+  settledQuery.value = query.value;
+  page.value = 1;
+  selectedHolderName.value = "";
+}, 300);
 const debouncedLoadPlayers = useDebounceFn((value: string) => {
   playerPage.value = 1;
   playerHasMore.value = false;
-  void loadPlayers({ search: value, page: 1, append: false });
+  settledPlayerQuery.value = value;
 }, 300);
 
 function handleSearchInput(value: string) {
@@ -153,18 +151,17 @@ function handleSearchInput(value: string) {
 function updateFilter(value: "all" | "pending" | "completed") {
   filter.value = value;
   page.value = 1;
-  void loadHolders({ resetSelection: true });
+  selectedHolderName.value = "";
 }
 
 function updatePage(value: number) {
   page.value = value;
-  void loadHolders({ resetSelection: true });
+  selectedHolderName.value = "";
 }
 
 function updateGrantPage(value: number) {
   if (!selectedHolderName.value) return;
   grantPage.value = value;
-  void loadHolderDetail(selectedHolderName.value, value);
 }
 
 function updateSelectedPlayerId(value: string) {
@@ -179,7 +176,7 @@ function handlePlayerSearch(value: string) {
 
 function loadMorePlayers() {
   if (playerLoading.value || !playerHasMore.value) return;
-  void loadPlayers({ page: playerPage.value + 1, append: true });
+  playerPage.value += 1;
 }
 
 async function openBulk() {
@@ -216,6 +213,7 @@ function closeBulk() {
 
 async function reconcileAfterWrite() {
   await loadHolders();
+  if (selectedHolderName.value) await loadHolderDetail(selectedHolderName.value, grantPage.value);
 }
 
 async function grant(row: { grantId: string }) {
@@ -287,10 +285,6 @@ async function grantAll() {
   }
 }
 
-onMounted(() => {
-  void loadHolders({ resetSelection: true });
-  void loadPlayers({ search: "", page: 1, append: false });
-});
 </script>
 
 <template>

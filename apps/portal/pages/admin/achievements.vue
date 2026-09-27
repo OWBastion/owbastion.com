@@ -42,7 +42,6 @@ const planningId = ref<string | null>(null);
 const retirementVersions = reactive<Record<string, string>>({});
 const endTarget = ref<AdminAchievement | null>(null);
 const endTrigger = ref<HTMLElement | null>(null);
-const loading = ref(true);
 const savingId = ref<string | null>(null);
 const iconFile = shallowRef<File | null>(null);
 const iconUploading = shallowRef(false);
@@ -196,22 +195,37 @@ const catalogColumns: TableColumn<CatalogTitle>[] = [
   { accessorKey: "status", header: "状态", meta: { class: { th: "catalog-col-status", td: "catalog-col-status" } } },
   { id: "actions", header: "操作", enableHiding: false, meta: { class: { th: "catalog-col-actions", td: "catalog-col-actions" } } },
 ];
-async function load() {
-  loading.value = true;
-  errorMessage.value = "";
-  try {
+const adminData = useAdminAsyncData("achievements", async () => {
     const [response, mapResponse] = await Promise.all([
       api<{ items: AdminAchievement[] }>("/v1/achievements"),
       api<{ items: AdminMap[] }>("/v1/maps"),
     ]);
-    items.value = response.items;
-    maps.value = mapResponse.items;
-    for (const item of items.value) if (isChallengeTitle(item) || isMap(item)) retirementVersions[itemIdentity(item)] ??= item.retiredVersion ?? "";
-    if (editingId.value && !items.value.some((item) => itemIdentity(item) === editingId.value)) editingId.value = null;
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取成就目录，请稍后重试。").description;
-  } finally {
-    loading.value = false;
+    return { items: response.items, maps: mapResponse.items };
+  }, {
+    onStart: () => { errorMessage.value = ""; },
+    onData: ({ items: nextItems, maps: nextMaps }) => {
+      items.value = nextItems;
+      maps.value = nextMaps;
+      for (const item of nextItems) if (isChallengeTitle(item) || isMap(item)) retirementVersions[itemIdentity(item)] ??= item.retiredVersion ?? "";
+      if (editingId.value && !nextItems.some((item) => itemIdentity(item) === editingId.value)) editingId.value = null;
+    },
+    onError: (error) => { errorMessage.value = portalErrorDetails(error, "无法读取成就目录，请稍后重试。").description; },
+  });
+const loading = adminData.loading;
+
+async function load() {
+  errorMessage.value = "";
+  await adminData.refresh();
+}
+
+async function openCreate() {
+  if (!maps.value.length) await load();
+  createOpen.value = true;
+}
+
+async function loadMapOptions() {
+  if (!maps.value.length) {
+    try { await load(); } catch { /* the editor can still save an unchanged scope */ }
   }
 }
 
@@ -235,22 +249,6 @@ function titleUpdate(item: TitleAchievement, status: AchievementStatus = item.st
   };
 }
 
-async function openCreate() {
-  errorMessage.value = "";
-  try {
-    const response = await api<{ items: AdminMap[] }>("/v1/maps");
-    maps.value = response.items;
-    createOpen.value = true;
-  } catch (error) {
-    errorMessage.value = portalErrorDetails(error, "无法读取地图目录，请稍后重试。").description;
-  }
-}
-
-async function loadMapOptions() {
-  if (maps.value.length) return;
-  try { maps.value = (await api<{ items: AdminMap[] }>("/v1/maps")).items; } catch { /* the editor can still save an unchanged scope */ }
-}
-
 async function createAchievement(payload: Record<string, unknown>, iconFile: File | null) {
   creating.value = true;
   errorMessage.value = "";
@@ -267,6 +265,7 @@ async function createAchievement(payload: Record<string, unknown>, iconFile: Fil
         iconUploadError = portalErrorDetails(error, "成就已创建，但图标上传失败，请稍后在编辑中重试。").description;
       }
     }
+    await load();
     toast.add({ title: "成就挑战已创建", color: "success" });
     createOpen.value = false;
     if (iconUploadError) errorMessage.value = iconUploadError;
@@ -313,7 +312,6 @@ async function saveCatalogTitle(item: CatalogTitle, lifecycle: CatalogTitle["lif
       },
     });
     toast.add({ title: lifecycle === "active" ? "称号已启用" : lifecycle === "draft" ? "称号已设为草稿" : "称号已退休", color: "success" });
-    // A-04 — update the catalog row in place instead of reloading the whole page.
     const updated = items.value.find((candidate): candidate is CatalogTitle => candidate.challengeId === item.challengeId && candidate.family === "title_catalog");
     if (updated) {
       updated.status = lifecycle;
@@ -331,6 +329,7 @@ async function saveCatalogTitle(item: CatalogTitle, lifecycle: CatalogTitle["lif
       }
       flashRow(updated.challengeId);
     }
+    await load();
     return true;
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法保存称号状态，请稍后重试。").description;
@@ -350,6 +349,7 @@ async function save(item: AdminAchievement, body: Record<string, unknown>, messa
       body: { contractVersion: "1", ...body },
     });
     items.value = items.value.map((candidate) => itemIdentity(candidate) === itemIdentity(updated) ? updated : candidate);
+    await load();
     toast.add({ title: message, color: "success" });
     return true;
   } catch (error) {
@@ -436,6 +436,7 @@ async function uploadIcon() {
     const response = await api<{ iconUrl: string }>(`/v1/titles/${encodeURIComponent(item.titleKey)}/icon`, { method: "POST", body });
     item.iconUrl = response.iconUrl;
     iconFile.value = null;
+    await load();
     toast.add({ title: "成就图标已上传", color: "success" });
   } catch (error) {
     errorMessage.value = portalErrorDetails(error, "无法上传成就图标，请稍后重试。").description;
@@ -461,8 +462,6 @@ async function endChallenge() {
   }
   if (await save(item, updatePayload(item, "retired"), "挑战已下线")) closeEnd();
 }
-
-onMounted(() => void load());
 
 </script>
 
