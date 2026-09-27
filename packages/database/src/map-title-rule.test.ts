@@ -1253,6 +1253,27 @@ describe("manual title grant batches", () => {
     await expect(services.restoreAdminTitleGrant({ grantId: "grant.evidence-revoked" }, auth, "restore-evidence-revoke")).rejects.toThrow("TITLE_GRANT_NOT_ADMINISTRATIVELY_REVOKED");
   });
 
+  it("does not overwrite evidence revocation that wins after the active-grant read", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedTitle(sqlite, "REVOKE_RACE");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.revoke.race', 'revoke-race', 'Revoke Race', 'revoke race', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.revoke.race', 'player.revoke.race', 'REVOKE_RACE', 'active', 'automatic', 'submission.race', 'system:ocr', ?)").run(now);
+    const originalBatch = database.batch.bind(database);
+    database.batch = async (statements) => {
+      sqlite.prepare("UPDATE player_title_grants SET status = 'revoked', revocation_type = 'evidence', revoked_by = 'system:ocr', revoked_at = ?, revoke_reason = '证据失效' WHERE id = 'grant.revoke.race' AND status = 'active'").run(now + 1);
+      return originalBatch(statements);
+    };
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+
+    await expect(services.revokeAdminTitleGrant({ grantId: "grant.revoke.race" }, auth, "revoke-race")).rejects.toThrow("TITLE_GRANT_NOT_ACTIVE");
+
+    expect(sqlite.prepare("SELECT status, revocation_type, revoked_by, revoke_reason FROM player_title_grants WHERE id = 'grant.revoke.race'").get()).toEqual({ status: "revoked", revocation_type: "evidence", revoked_by: "system:ocr", revoke_reason: "证据失效" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE id = 'admin:admin.title.revoke:revoke-race'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.title.revoke' AND entity_id = 'grant.revoke.race'").get()).toEqual({ count: 0 });
+  });
+
   it("allows an explicit manual grant for a retired title through its manual Challenge", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
