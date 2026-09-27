@@ -2982,49 +2982,46 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   type CanonicalChallengeRow = typeof challenges.$inferSelect;
   // The canonical Challenge a reward resolves to, plus the writes needed to make it exist.
   type CanonicalChallengePlan = { row: CanonicalChallengeRow; archiveLegacyId: string | null; insert: boolean };
+  type CanonicalChallengeSource = { family: "title_challenge" | "map_challenge" | "map_title_rule"; sourceId: string; ruleId: string };
+
+  const sourceForRuleId = async (input: CanonicalChallengeInput, ruleId: string): Promise<CanonicalChallengeSource> => {
+    if (ruleId.startsWith("title-challenge:")) return {
+      family: "title_challenge",
+      sourceId: input.snapshot?.challengeId ?? ruleId.slice("title-challenge:".length),
+      ruleId,
+    };
+    if (ruleId.startsWith("challenge:")) return {
+      family: "map_challenge",
+      sourceId: input.snapshot?.challengeId ?? ruleId.slice("challenge:".length),
+      ruleId,
+    };
+    const compat = input.mapId
+      ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId }).from(mapTitleRuleCompat)
+        .where(and(eq(mapTitleRuleCompat.ruleId, ruleId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
+      : null;
+    return { family: "map_title_rule", sourceId: compat?.legacyChallengeId ?? ruleId, ruleId };
+  };
+
+  const sourceForLegacyId = async (input: CanonicalChallengeInput): Promise<CanonicalChallengeSource> => {
+    const titleChallenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.id, input.legacyChallengeId)).get();
+    if (titleChallenge) return { family: "title_challenge", sourceId: titleChallenge.id, ruleId: "" };
+    const mapChallenge = await db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(eq(achievementChallenges.id, input.legacyChallengeId)).get();
+    if (mapChallenge) return { family: "map_challenge", sourceId: mapChallenge.id, ruleId: "" };
+    const compat = input.mapId
+      ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat)
+        .where(and(eq(mapTitleRuleCompat.legacyChallengeId, input.legacyChallengeId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
+      : null;
+    if (compat) return { family: "map_title_rule", sourceId: compat.legacyChallengeId, ruleId: compat.ruleId };
+    const rule = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.id, input.legacyChallengeId)).get();
+    if (!rule) throw new Error("CHALLENGE_NOT_FOUND");
+    return { family: "map_title_rule", sourceId: rule.id, ruleId: rule.id };
+  };
 
   const planCanonicalChallenge = async (input: CanonicalChallengeInput): Promise<CanonicalChallengePlan> => {
-    let ruleId = input.snapshot?.ruleId ?? "";
-    let family: "title_challenge" | "map_challenge" | "map_title_rule";
-    let sourceId: string;
-    if (ruleId.startsWith("title-challenge:")) {
-      family = "title_challenge";
-      sourceId = input.snapshot?.challengeId ?? ruleId.slice("title-challenge:".length);
-    } else if (ruleId.startsWith("challenge:")) {
-      family = "map_challenge";
-      sourceId = input.snapshot?.challengeId ?? ruleId.slice("challenge:".length);
-    } else if (ruleId) {
-      family = "map_title_rule";
-      const compat = input.mapId
-        ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId }).from(mapTitleRuleCompat)
-          .where(and(eq(mapTitleRuleCompat.ruleId, ruleId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
-        : null;
-      sourceId = compat?.legacyChallengeId ?? ruleId;
-    } else {
-      const titleChallenge = await db.select({ id: titleChallenges.id }).from(titleChallenges).where(eq(titleChallenges.id, input.legacyChallengeId)).get();
-      const mapChallenge = await db.select({ id: achievementChallenges.id }).from(achievementChallenges).where(eq(achievementChallenges.id, input.legacyChallengeId)).get();
-      const compat = input.mapId
-        ? await db.select({ legacyChallengeId: mapTitleRuleCompat.legacyChallengeId, ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat)
-          .where(and(eq(mapTitleRuleCompat.legacyChallengeId, input.legacyChallengeId), eq(mapTitleRuleCompat.mapId, input.mapId))).get()
-        : null;
-      if (titleChallenge) {
-        family = "title_challenge";
-        sourceId = titleChallenge.id;
-      } else if (mapChallenge) {
-        family = "map_challenge";
-        sourceId = mapChallenge.id;
-      } else if (compat) {
-        family = "map_title_rule";
-        sourceId = compat.legacyChallengeId;
-        ruleId = compat.ruleId;
-      } else {
-        const rule = await db.select({ id: mapTitleRules.id }).from(mapTitleRules).where(eq(mapTitleRules.id, input.legacyChallengeId)).get();
-        if (!rule) throw new Error("CHALLENGE_NOT_FOUND");
-        family = "map_title_rule";
-        sourceId = rule.id;
-        ruleId = rule.id;
-      }
-    }
+    const source = input.snapshot?.ruleId
+      ? await sourceForRuleId(input, input.snapshot.ruleId)
+      : await sourceForLegacyId(input);
+    const { family, sourceId, ruleId } = source;
     const title = await db.select({ key: titleCatalog.key }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
     if (!title) throw new Error("TITLE_NOT_FOUND");
     const conditions: Array<Record<string, string>> = [];
