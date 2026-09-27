@@ -8,6 +8,7 @@ const phaseLabels = { hash: "读取截图", session: "开始上传", upload: "�
 export function useSubmissionUpload() {
   const api = usePortalApi();
   const loading = ref(false);
+  const phaseLabel = ref("");
   const error = ref("");
   // Keeps a started upload session so a retry resumes at the failed step instead of creating a second submission.
   let pending: { key: string; uploadId: string; expiresAt: number; uploaded: boolean } | null = null;
@@ -38,21 +39,25 @@ export function useSubmissionUpload() {
     loading.value = true;
     error.value = "";
     let phase: keyof typeof phaseLabels = "hash";
+    phaseLabel.value = phaseLabels[phase];
     try {
       const sha256 = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
       const key = [sha256, file.type].join("|");
       if (pending && (pending.key !== key || pending.expiresAt - Date.now() < 30_000)) pending = null;
       if (!pending) {
         phase = "session";
+        phaseLabel.value = phaseLabels[phase];
         const session = await api<{ uploadId: string; expiresAt: number }>("/v1/player/uploads/session", { method: "POST", body: { contractVersion: "1", contentType: file.type, byteSize: file.size, sha256 } });
         pending = { key, uploadId: session.uploadId, expiresAt: session.expiresAt, uploaded: false };
       }
       if (!pending.uploaded) {
         phase = "upload";
+        phaseLabel.value = phaseLabels[phase];
         await uploadEvidence(pending.uploadId, file);
         pending.uploaded = true;
       }
       phase = "complete";
+      phaseLabel.value = phaseLabels[phase];
       const result = await api<{ submissionId: string; status: string }>(`/v1/player/uploads/${pending.uploadId}/complete`, { method: "POST", body: { contractVersion: "1", uploadId: pending.uploadId } });
       pending = null;
       return result;
@@ -66,8 +71,8 @@ export function useSubmissionUpload() {
       error.value = [`${details.description}${details.code ? ` 错误码：${details.code}` : code !== "NETWORK_ERROR" ? ` 错误码：${code}` : ""}`, hint].filter(Boolean).join(" ");
       if (phase === "upload") recordPortalError(cause, { operation: "submission-upload", phase, requestId: details.requestId });
       throw cause;
-    } finally { loading.value = false; }
+    } finally { loading.value = false; phaseLabel.value = ""; }
   };
 
-  return { loading, error, submit };
+  return { loading, phaseLabel, error, submit };
 }
