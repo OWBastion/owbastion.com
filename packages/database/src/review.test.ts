@@ -68,6 +68,23 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE gameplay_revisions (
+    id TEXT PRIMARY KEY NOT NULL,
+    map_id TEXT NOT NULL REFERENCES maps(id),
+    lifecycle TEXT NOT NULL,
+    legacy_map_variant TEXT,
+    copied_from_revision_id TEXT,
+    reset_reason TEXT,
+    game_version TEXT NOT NULL,
+    spatial_config_json TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX gameplay_revisions_one_default_idx ON gameplay_revisions(map_id) WHERE lifecycle = 'default';
+  CREATE TRIGGER reviews_test_default_revision AFTER INSERT ON maps BEGIN
+    INSERT INTO gameplay_revisions (id, map_id, lifecycle, game_version, created_at, updated_at)
+    VALUES ('revision:' || NEW.id || ':initial', NEW.id, CASE WHEN NEW.status = 'active' THEN 'default' ELSE 'historical' END, NEW.game_version, NEW.created_at, NEW.updated_at);
+  END;
   CREATE TABLE random_events (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
@@ -90,6 +107,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     target_type TEXT NOT NULL CHECK (target_type IN ('event', 'map')),
     target_id TEXT NOT NULL,
+    gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment TEXT,
     comment_status TEXT NOT NULL DEFAULT 'visible',
@@ -100,9 +118,12 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     withdrawn_at INTEGER,
     invalidated_at INTEGER,
     invalidated_by TEXT,
-    invalidation_reason TEXT,
-    UNIQUE (player_account_id, target_type, target_id)
+    invalidation_reason TEXT
   );
+  CREATE UNIQUE INDEX reviews_player_event_idx ON reviews(player_account_id, target_id) WHERE target_type = 'event';
+  CREATE UNIQUE INDEX reviews_player_legacy_map_idx ON reviews(player_account_id, target_id) WHERE target_type = 'map' AND gameplay_revision_id IS NULL;
+  CREATE UNIQUE INDEX reviews_player_map_revision_idx ON reviews(player_account_id, target_id, gameplay_revision_id) WHERE target_type = 'map' AND gameplay_revision_id IS NOT NULL;
+  CREATE INDEX reviews_target_status_idx ON reviews(target_type, target_id, gameplay_revision_id, status);
   CREATE TABLE idempotency_keys (
     id TEXT PRIMARY KEY NOT NULL,
     actor_id TEXT NOT NULL,
@@ -130,6 +151,7 @@ const playerReviewView = (review: Awaited<ReturnType<ReturnType<typeof createPla
   reviewId: review.reviewId,
   targetType: review.targetType,
   targetId: review.targetId,
+  gameplayRevisionId: review.gameplayRevisionId,
   rating: review.rating,
   comment: review.comment,
   anonymous: review.anonymous,
@@ -148,12 +170,45 @@ describe("review persistence and domain rules", () => {
     `);
     const services = createPlatformServices(database);
 
-    await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "很稳", anonymous: true }, auth("1"), "map-1");
-    await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 3 }, auth("2"), "map-2");
+    await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 5, comment: "很稳", anonymous: true }, auth("1"), "map-1");
+    await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 3 }, auth("2"), "map-2");
     await services.upsertReview({ targetType: "event", targetId: "event.test", rating: 4 }, auth("1"), "event-1");
 
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true });
     await expect(services.getReviewSummary({ targetType: "event", targetId: "event.test" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 1 });
+  });
+
+  it("keeps legacy map reviews unscoped while isolating each Revision and stable Event reviews", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec(`
+      INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account-1', '1', 'One', 'one', 1, 1), ('account-2', '2', 'Two', 'two', 1, 1);
+      INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
+      INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES ('event.test', 'Test event', 'test', 'common', 'Test', '1', 'implemented', 1, 1);
+      INSERT INTO gameplay_revisions (id, map_id, lifecycle, game_version, created_at, updated_at) VALUES ('revision:map.test:previous', 'map.test', 'historical', '0', 1, 1);
+      INSERT INTO reviews (id, player_account_id, target_type, target_id, rating, comment, created_at, updated_at) VALUES ('review.legacy', 'account-1', 'map', 'map.test', 1, 'unscoped legacy', 1, 1);
+      INSERT INTO reviews (id, player_account_id, target_type, target_id, gameplay_revision_id, rating, comment, created_at, updated_at) VALUES
+        ('review.current', 'account-1', 'map', 'map.test', 'revision:map.test:initial', 5, 'current revision', 2, 2),
+        ('review.previous', 'account-2', 'map', 'map.test', 'revision:map.test:previous', 3, 'previous revision', 3, 3),
+        ('review.event', 'account-1', 'event', 'event.test', NULL, 4, 'stable event', 4, 4);
+    `);
+    const services = createPlatformServices(database);
+
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ gameplayRevisionId: "revision:map.test:initial", averageRating: 5, reviewCount: 1 });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:previous" })).resolves.toMatchObject({ gameplayRevisionId: "revision:map.test:previous", averageRating: 3, reviewCount: 1 });
+    await expect(services.getReviewSummaries({ targetType: "map", targets: [
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" },
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:previous" },
+    ] })).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", averageRating: 5, reviewCount: 1 }),
+      expect.objectContaining({ targetId: "map.test", gameplayRevisionId: "revision:map.test:previous", averageRating: 3, reviewCount: 1 }),
+    ]));
+    await expect(services.getReviewSummary({ targetType: "event", targetId: "event.test" })).resolves.toMatchObject({ gameplayRevisionId: null, averageRating: 4, reviewCount: 1 });
+    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 })).resolves.toMatchObject({ gameplayRevisionId: "revision:map.test:initial", total: 1, items: [{ comment: "current revision" }] });
+    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, auth("1"))).resolves.toMatchObject({ reviewId: "review.current", gameplayRevisionId: "revision:map.test:initial" });
+    await expect(services.getPlayerReview({ targetType: "event", targetId: "event.test" }, auth("1"))).resolves.toMatchObject({ reviewId: "review.event", gameplayRevisionId: null });
+    await expect(services.listAdminReviews({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 }, auth("admin"))).resolves.toMatchObject({ items: expect.arrayContaining([expect.objectContaining({ reviewId: "review.legacy", gameplayRevisionId: null })]) });
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM reviews WHERE id = 'review.legacy'").get()).toEqual({ gameplay_revision_id: null });
   });
 
   it("batches public summaries and filters public comments without exposing private identity", async () => {
@@ -164,24 +219,24 @@ describe("review persistence and domain rules", () => {
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1), ('map.empty', 'Empty map', '1', 'active', '1', 1, 1);
     `);
     const services = createPlatformServices(database);
-    const named = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "公开评论" }, auth("1"), "public-1");
-    await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 3, comment: "匿名评论", anonymous: true }, auth("2"), "public-2");
+    const named = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 5, comment: "公开评论" }, auth("1"), "public-1");
+    await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 3, comment: "匿名评论", anonymous: true }, auth("2"), "public-2");
 
     resetCount();
-    await expect(services.getReviewSummaries({ targetType: "map", targetIds: ["map.test", "map.empty"] })).resolves.toEqual([
-      { targetType: "map", targetId: "map.test", averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true },
-      { targetType: "map", targetId: "map.empty", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true },
+    await expect(services.getReviewSummaries({ targetType: "map", targets: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, { targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial" }] })).resolves.toEqual([
+      { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", averageRating: 4, reviewCount: 2, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 0, 5: 1 }, sampleInsufficient: true },
+      { targetType: "map", targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true },
     ]);
     const smallBatchCount = getCount();
     expect(smallBatchCount).toBeLessThanOrEqual(3);
     for (let index = 0; index < 40; index += 1) sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, '1', 'active', '1', 1, 1)").run(`map.batch.${index}`, `Batch map ${index}`);
     resetCount();
-    await services.getReviewSummaries({ targetType: "map", targetIds: ["map.test", "map.empty", ...Array.from({ length: 40 }, (_, index) => `map.batch.${index}`)] });
+    await services.getReviewSummaries({ targetType: "map", targets: ["map.test", "map.empty", ...Array.from({ length: 40 }, (_, index) => `map.batch.${index}`)].map((targetId) => ({ targetId, gameplayRevisionId: `revision:${targetId}:initial` })) });
     expect(getCount()).toBeLessThanOrEqual(smallBatchCount + 1);
 
     resetCount();
-    const comments = await services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 });
-    expect(comments).toMatchObject({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20, total: 2, hasMore: false });
+    const comments = await services.listPublicReviewComments({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 });
+    expect(comments).toMatchObject({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20, total: 2, hasMore: false });
     expect(comments.items).toEqual(expect.arrayContaining([
       { rating: 3, comment: "匿名评论", author: null, createdAt: expect.any(Number) },
       { rating: 5, comment: "公开评论", author: { displayName: "One" }, createdAt: expect.any(Number) },
@@ -189,17 +244,17 @@ describe("review persistence and domain rules", () => {
     expect(getCount()).toBeLessThanOrEqual(3);
 
     await services.hideReviewComment({ reviewId: named.reviewId, reason: "检查" }, auth("admin"), "hide-public");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 2, averageRating: 4 });
-    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: null, comment: "匿名评论" }] });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ reviewCount: 2, averageRating: 4 });
+    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: null, comment: "匿名评论" }] });
 
-    const anonymous = await services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("2"));
+    const anonymous = await services.getPlayerReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, auth("2"));
     await services.withdrawReview({ reviewId: anonymous!.reviewId }, auth("2"), "withdraw-public");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
     await services.invalidateReview({ reviewId: named.reviewId, reason: "无效" }, auth("admin"), "invalidate-public");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
     await services.restoreReview({ reviewId: named.reviewId }, auth("admin"), "restore-public");
     await services.restoreReviewComment({ reviewId: named.reviewId }, auth("admin"), "restore-comment-public");
-    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: { displayName: "One" }, comment: "公开评论" }] });
+    await expect(services.listPublicReviewComments({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 20 })).resolves.toMatchObject({ total: 1, items: [{ author: { displayName: "One" }, comment: "公开评论" }] });
   });
 
   it("updates one row, replays idempotently, and preserves the hidden-comment boundary", async () => {
@@ -210,20 +265,20 @@ describe("review persistence and domain rules", () => {
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
     `);
     const services = createPlatformServices(database);
-    const first = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 4, comment: "原评论" }, auth("1"), "same-key");
-    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("2"))).resolves.toBeNull();
-    const replay = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 4, comment: "原评论" }, auth("1"), "same-key");
+    const first = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "原评论" }, auth("1"), "same-key");
+    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, auth("2"))).resolves.toBeNull();
+    const replay = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "原评论" }, auth("1"), "same-key");
     expect(replay).toEqual(first);
-    const updated = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "新评论" }, auth("1"), "update-key");
+    const updated = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 5, comment: "新评论" }, auth("1"), "update-key");
     expect(updated.reviewId).toBe(first.reviewId);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviews").get()).toEqual({ count: 1 });
 
     const hidden = await services.hideReviewComment({ reviewId: first.reviewId, reason: "需要核对" }, auth("admin"), "hide-key");
     expect(hidden.commentStatus).toBe("hidden");
-    await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 3, comment: "更新后的评论" }, auth("1"), "update-hidden");
-    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("1"))).resolves.toMatchObject({ rating: 3, commentStatus: "hidden" });
+    await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 3, comment: "更新后的评论" }, auth("1"), "update-hidden");
+    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, auth("1"))).resolves.toMatchObject({ rating: 3, commentStatus: "hidden" });
     await services.restoreReviewComment({ reviewId: first.reviewId }, auth("admin"), "restore-comment");
-    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test" }, auth("1"))).resolves.toMatchObject({ commentStatus: "visible" });
+    await expect(services.getPlayerReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, auth("1"))).resolves.toMatchObject({ commentStatus: "visible" });
   });
 
   it("withdraws and restores the same auditable record, while invalidation removes it from aggregates", async () => {
@@ -234,15 +289,15 @@ describe("review persistence and domain rules", () => {
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
     `);
     const services = createPlatformServices(database);
-    const review = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "可追溯" }, auth("1"), "create");
+    const review = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 5, comment: "可追溯" }, auth("1"), "create");
     await services.withdrawReview({ reviewId: review.reviewId }, auth("1"), "withdraw");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ averageRating: null, reviewCount: 0 });
-    const restored = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 4, comment: "重新提交" }, auth("1"), "recreate");
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ averageRating: null, reviewCount: 0 });
+    const restored = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "重新提交" }, auth("1"), "recreate");
     expect(restored.reviewId).toBe(review.reviewId);
     await services.invalidateReview({ reviewId: review.reviewId, reason: "无效内容" }, auth("admin"), "invalidate");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ averageRating: null, reviewCount: 0, ratingDistribution: { 4: 0 } });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ averageRating: null, reviewCount: 0, ratingDistribution: { 4: 0 } });
     await services.restoreReview({ reviewId: review.reviewId }, auth("admin"), "restore");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 1 });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ averageRating: 4, reviewCount: 1 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_type = 'review'").get()).toEqual({ count: 5 });
   });
 
@@ -255,19 +310,19 @@ describe("review persistence and domain rules", () => {
       INSERT INTO random_events (id, name, category, rarity, description, game_version, release_status, created_at, updated_at) VALUES ('event.dev', 'Dev event', 'test', 'common', 'Test', '1', 'development', 1, 1), ('event.removed', 'Removed event', 'test', 'common', 'Test', '1', 'removed', 1, 1);
     `);
     const services = createPlatformServices(database);
-    await expect(services.upsertReview({ targetType: "map", targetId: "missing", rating: 4 }, auth("1"), "missing")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");
-    await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", rating: 4 }, auth("1"), "retired")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
+    await expect(services.upsertReview({ targetType: "map", targetId: "missing", gameplayRevisionId: "revision:missing:initial", rating: 4 }, auth("1"), "missing")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");
+    await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", gameplayRevisionId: "revision:map.retired:initial", rating: 4 }, auth("1"), "retired")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     await expect(services.upsertReview({ targetType: "event", targetId: "event.dev", rating: 4 }, auth("1"), "dev")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     await expect(services.upsertReview({ targetType: "event", targetId: "event.removed", rating: 4 }, auth("1"), "removed")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
-    await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", rating: 6 as 1 }, auth("1"), "rating")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
+    await expect(services.upsertReview({ targetType: "map", targetId: "map.retired", gameplayRevisionId: "revision:map.retired:initial", rating: 6 as 1 }, auth("1"), "rating")).rejects.toThrow("REVIEW_TARGET_NOT_RATEABLE");
     const longComment = "x".repeat(501);
-    await expect(services.upsertReview({ targetType: "map", targetId: "missing", rating: 4, comment: longComment }, auth("1"), "long")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");
+    await expect(services.upsertReview({ targetType: "map", targetId: "missing", gameplayRevisionId: "revision:missing:initial", rating: 4, comment: longComment }, auth("1"), "long")).rejects.toThrow("REVIEW_TARGET_NOT_FOUND");
 
     sqlite.exec("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.active', 'Active map', '1', 'active', '1', 1, 1);");
-    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", rating: 6 as 1 }, auth("1"), "invalid-rating")).rejects.toThrow("REVIEW_RATING_INVALID");
-    await services.upsertReview({ targetType: "map", targetId: "map.active", rating: 4 }, auth("1"), "conflict");
-    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", rating: 5 }, auth("1"), "conflict")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
-    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", rating: 4, comment: longComment }, auth("1"), "long-valid-target")).rejects.toThrow("REVIEW_COMMENT_TOO_LONG");
+    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 6 as 1 }, auth("1"), "invalid-rating")).rejects.toThrow("REVIEW_RATING_INVALID");
+    await services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 4 }, auth("1"), "conflict");
+    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 5 }, auth("1"), "conflict")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    await expect(services.upsertReview({ targetType: "map", targetId: "map.active", gameplayRevisionId: "revision:map.active:initial", rating: 4, comment: longComment }, auth("1"), "long-valid-target")).rejects.toThrow("REVIEW_COMMENT_TOO_LONG");
   });
 
   it("lists maintainer review identity and audit context without changing aggregate boundaries", async () => {
@@ -278,7 +333,7 @@ describe("review persistence and domain rules", () => {
       INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.test', 'Test map', '1', 'active', '1', 1, 1);
     `);
     const services = createPlatformServices(database);
-    const review = await services.upsertReview({ targetType: "map", targetId: "map.test", rating: 5, comment: "可追溯", anonymous: true }, auth("1"), "create-admin-view");
+    const review = await services.upsertReview({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 5, comment: "可追溯", anonymous: true }, auth("1"), "create-admin-view");
 
     const list = await services.listAdminReviews({ targetType: "map", targetId: "map.test", status: "active", commentStatus: "visible", rating: 5, page: 1, pageSize: 20 }, auth("admin"));
     expect(list).toMatchObject({ total: 1, items: [{ reviewId: review.reviewId, targetName: "Test map", playerId: "1", playerName: "One", anonymous: true }] });
@@ -287,10 +342,10 @@ describe("review persistence and domain rules", () => {
     expect(detail.audit).toEqual(expect.arrayContaining([{ operation: "review.create", actorType: "user", actorId: "1", reason: null, createdAt: expect.any(Number) }]));
 
     await services.hideReviewComment({ reviewId: review.reviewId, reason: "检查内容" }, auth("admin"), "hide-admin-view");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ reviewCount: 1, averageRating: 5 });
     await expect(services.listAdminReviews({ commentStatus: "hidden", page: 1, pageSize: 20 }, auth("admin"))).resolves.toMatchObject({ total: 1, items: [{ commentStatus: "hidden" }] });
     await services.invalidateReview({ reviewId: review.reviewId }, auth("admin"), "invalidate-admin-view");
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE entity_type = 'review' AND operation = 'review.invalidate'").get()).toEqual({ count: 1 });
   });
 
@@ -312,16 +367,16 @@ describe("review persistence and domain rules", () => {
     const maintainer = auth("maintainer");
     const targets = [
       { targetType: "event" as const, targetId: "event.integration", player, createKey: "integration-event-create", updateKey: "integration-event-update", initialRating: 5 as const, updatedRating: 4 as const, anonymous: false },
-      { targetType: "map" as const, targetId: "map.integration", player: mapPlayer, createKey: "integration-map-create", updateKey: "integration-map-recreate", initialRating: 3 as const, updatedRating: 2 as const, anonymous: true },
+      { targetType: "map" as const, targetId: "map.integration", gameplayRevisionId: "revision:map.integration:initial", player: mapPlayer, createKey: "integration-map-create", updateKey: "integration-map-recreate", initialRating: 3 as const, updatedRating: 2 as const, anonymous: true },
     ];
 
     const created = await Promise.all(targets.map((target) => services.upsertReview({ ...target, rating: target.initialRating, comment: `${target.targetType} initial`, anonymous: target.anonymous }, target.player, target.createKey)));
     expect(created[0]!.reviewId).not.toBe(created[1]!.reviewId);
     expect(await services.upsertReview({ ...targets[0]!, rating: 5, comment: "event initial", anonymous: false }, player, targets[0]!.createKey)).toEqual(created[0]);
 
-    const initialPublic = await Promise.all(targets.map(async ({ targetType, targetId }) => ({
-      summary: await services.getReviewSummary({ targetType, targetId }),
-      comments: await services.listPublicReviewComments({ targetType, targetId, page: 1, pageSize: 20 }),
+    const initialPublic = await Promise.all(targets.map(async (target) => ({
+      summary: await services.getReviewSummary(target),
+      comments: await services.listPublicReviewComments({ ...target, page: 1, pageSize: 20 }),
     })));
     for (const [index, target] of targets.entries()) {
       publicReviewSummaryResponseSchema.parse({ contractVersion: "1", summary: initialPublic[index]!.summary });
@@ -336,8 +391,8 @@ describe("review persistence and domain rules", () => {
     const mapWithdrawn = await services.withdrawReview({ reviewId: created[1]!.reviewId }, mapPlayer, "integration-map-withdraw");
     expect(mapWithdrawn.status).toBe("withdrawn");
     expect(await services.withdrawReview({ reviewId: created[1]!.reviewId }, mapPlayer, "integration-map-withdraw")).toEqual(mapWithdrawn);
-    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.integration" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
-    const mapRecreated = await services.upsertReview({ targetType: "map", targetId: "map.integration", rating: 2, comment: "map restored", anonymous: true }, mapPlayer, targets[1]!.updateKey);
+    await expect(services.getReviewSummary({ targetType: "map", targetId: "map.integration", gameplayRevisionId: "revision:map.integration:initial" })).resolves.toMatchObject({ reviewCount: 0, averageRating: null });
+    const mapRecreated = await services.upsertReview({ targetType: "map", targetId: "map.integration", gameplayRevisionId: "revision:map.integration:initial", rating: 2, comment: "map restored", anonymous: true }, mapPlayer, targets[1]!.updateKey);
     expect(mapRecreated.reviewId).toBe(created[1]!.reviewId);
 
     const activePlayerReview = await services.getPlayerReview({ targetType: "event", targetId: "event.integration" }, player);

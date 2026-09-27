@@ -62,7 +62,7 @@ onMounted(() => { hydrated.value = true; });
           <div v-if="map.mechanics?.length" class="mechanics-row"><span>特殊机制</span><div class="mechanics"><UBadge v-for="mechanic in map.mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div></div>
         </section>
         <MapMasteryProfile :map-name="map.mapName" :authenticated="authenticated" :profile="masteryProfile" :loading="masteryLoading" :error="masteryError" :history="masteryHistory" :history-loading="masteryHistoryLoading" :history-error="masteryHistoryError" @retry="emit('retry-mastery')" @history-page="emit('history-page', $event)" @retry-history="emit('retry-history')" />
-        <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :authenticated="authenticated" @review-changed="emit('review-changed')" />
+        <PlayerReviewPanel v-if="map" target-type="map" :target-id="map.mapId" :gameplay-revision-id="map.defaultGameplayRevisionId ?? null" :authenticated="authenticated" @review-changed="emit('review-changed')" />
       </div>
     </div>
   </DefineDetailContent>

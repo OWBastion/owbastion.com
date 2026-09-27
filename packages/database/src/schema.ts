@@ -641,6 +641,7 @@ export const reviews = sqliteTable("reviews", {
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),
   targetType: text("target_type").notNull(),
   targetId: text("target_id").notNull(),
+  gameplayRevisionId: text("gameplay_revision_id").references(() => gameplayRevisions.id),
   rating: integer("rating").notNull(),
   comment: text("comment"),
   commentStatus: text("comment_status").notNull().default("visible"),
@@ -653,8 +654,10 @@ export const reviews = sqliteTable("reviews", {
   invalidatedBy: text("invalidated_by"),
   invalidationReason: text("invalidation_reason"),
 }, (table) => ({
-  playerTargetIdx: uniqueIndex("reviews_player_target_idx").on(table.playerAccountId, table.targetType, table.targetId),
-  targetStatusIdx: index("reviews_target_status_idx").on(table.targetType, table.targetId, table.status),
+  playerEventIdx: uniqueIndex("reviews_player_event_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'event'`),
+  playerLegacyMapIdx: uniqueIndex("reviews_player_legacy_map_idx").on(table.playerAccountId, table.targetId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NULL`),
+  playerMapRevisionIdx: uniqueIndex("reviews_player_map_revision_idx").on(table.playerAccountId, table.targetId, table.gameplayRevisionId).where(sql`${table.targetType} = 'map' AND ${table.gameplayRevisionId} IS NOT NULL`),
+  targetStatusIdx: index("reviews_target_status_idx").on(table.targetType, table.targetId, table.gameplayRevisionId, table.status),
 }));
 
 export const attachments = sqliteTable("attachments", {

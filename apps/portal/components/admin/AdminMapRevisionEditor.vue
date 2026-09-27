@@ -15,11 +15,16 @@ const props = withDefaults(defineProps<{
   challengeCatalog: AdminMapEditorChallengeOption[];
   saving?: boolean;
 }>(), { saving: false, replacedDefaultRevision: null });
-const emit = defineEmits<{ save: [input: AdminMapRevisionUpdateInput] }>();
+const emit = defineEmits<{
+  save: [input: AdminMapRevisionUpdateInput];
+  promote: [replacedDefaultLifecycle: AdminMapRevisionReplacementLifecycle | null];
+}>();
 
 const lifecycleLabels: Record<AdminMapRevisionLifecycle, string> = { preparing: "准备中", default: "默认", selectable: "可选", historical: "历史" };
 const familyLabels: Record<AdminMapRevisionChallengeFamily, string> = { map_challenge: "地图挑战", map_title_rule: "地图称号规则", title_challenge: "称号挑战" };
-const lifecycleItems = (Object.entries(lifecycleLabels) as Array<[AdminMapRevisionLifecycle, string]>).map(([value, label]) => ({ value, label }));
+const lifecycleItems = computed(() => (Object.entries(lifecycleLabels) as Array<[AdminMapRevisionLifecycle, string]>)
+  .filter(([value]) => props.revision.lifecycle === "default" ? value === "default" : value !== "default")
+  .map(([value, label]) => ({ value, label })));
 const mapVariantItems = [{ value: null, label: "正式版" }, { value: "classic", label: "经典版" }];
 const replacementLifecycleItems = [{ value: "selectable", label: "保留为可选版本" }, { value: "historical", label: "归档为历史版本" }];
 
@@ -51,7 +56,7 @@ const sync = (revision: AdminMapEditorRevision) => {
 };
 watch(() => props.revision.revisionId, () => sync(props.revision), { immediate: true });
 
-const isReplacingDefault = computed(() => lifecycle.value === "default" && props.replacedDefaultRevision !== null);
+const canPromote = computed(() => ["preparing", "selectable"].includes(props.revision.lifecycle));
 
 const isAssigned = (option: AdminMapEditorChallengeOption) => assignments.value[assignmentKey(option.challengeFamily, option.challengeId)]?.enabled === true;
 const toggleAssignment = (option: AdminMapEditorChallengeOption, enabled: boolean) => {
@@ -80,7 +85,6 @@ function save() {
   emit("save", {
     contractVersion: "1",
     lifecycle: lifecycle.value,
-    replacedDefaultLifecycle: isReplacingDefault.value ? replacedDefaultLifecycle.value : null,
     gameVersion: gameVersion.value.trim(),
     mapVariant: mapVariant.value,
     spatialConfig: spatialConfig.value,
@@ -108,9 +112,6 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
         </UFormField>
         <UFormField label="地图变体" hint="默认版本修订必须使用正式版。">
           <USelect v-model="mapVariant" :items="mapVariantItems" :disabled="saving" />
-        </UFormField>
-        <UFormField v-if="isReplacingDefault" label="原默认版本处理" :hint="`将 ${replacedDefaultRevision?.revisionId} 改为以下状态。`">
-          <USelect v-model="replacedDefaultLifecycle" :items="replacementLifecycleItems" :disabled="saving" />
         </UFormField>
       </div>
 
@@ -142,8 +143,25 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
       </details>
 
       <div class="revision-editor__actions glass elevation-1 scroll-edge-sticky">
-        <p class="editor-note">保存不会复制或修改玩家进度。</p>
-        <UButton type="submit" class="pressable" label="保存版本修订" :loading="saving" :disabled="saving" />
+        <div class="editor-note">
+          <p>保存不会复制或修改玩家进度。切换默认 Revision 必须执行单独的晋升操作。</p>
+          <p v-if="canPromote">晋升后新 Revision 将成为当前资格、精通度和地图评价范围；原默认 Revision 的历史挑战、完成、称号、运行记录和证据会保留。</p>
+        </div>
+        <div class="editor-actions">
+          <UButton type="submit" class="pressable" label="保存版本修订" :loading="saving" :disabled="saving" />
+          <UFormField v-if="canPromote && replacedDefaultRevision" label="原默认 Revision 处理">
+            <USelect v-model="replacedDefaultLifecycle" :items="replacementLifecycleItems" :disabled="saving" />
+          </UFormField>
+          <UButton
+            v-if="canPromote"
+            type="button"
+            color="primary"
+            label="确认晋升为默认 Revision"
+            :loading="saving"
+            :disabled="saving"
+            @click="emit('promote', replacedDefaultRevision ? replacedDefaultLifecycle : null)"
+          />
+        </div>
       </div>
     </form>
   </section>
@@ -190,6 +208,8 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   font-size: var(--type-caption-size);
   line-height: 1.5;
 }
+.editor-note p { margin: 0; }
+.editor-note p + p { margin-top: 0.4rem; }
 .assignment-fieldset {
   display: grid;
   gap: 0.5625rem;
@@ -218,11 +238,13 @@ const optionLabel = (option: AdminMapEditorChallengeOption) => `${option.label} 
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
 }
+.editor-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 0.75rem; }
 @container (max-width: 23.99rem) {
   .revision-editor__actions {
     align-items: stretch;
     flex-direction: column;
   }
   .revision-editor__actions :deep(button) { width: 100%; min-height: 2.75rem; }
+  .editor-actions { flex-direction: column; align-items: stretch; }
 }
 </style>

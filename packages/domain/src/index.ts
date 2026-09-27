@@ -49,7 +49,7 @@ import type {
   Title,
   OwnedTitle, HistoricalTitleGrant, AdminTitleGrantListResponse, AdminTitleGrantHolderDetailResponse, AdminHistoricalTitleHolderFilter, AdminTitleGrantRequest, AdminTitleGrantBulkRequest, AdminTitleGrantBulkResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse,
   AdminChallenge, AdminChallengeListResponse, AdminChallengeUpdateRequest, AdminAchievementCreateRequest, AdminMapMetadataUpdateRequest,
-  AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest,
+  AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapRevisionPromotionRequest,
   AdminCatalogTitleUpdateRequest,
   AdminMapTitleRule, AdminMapTitleRuleListResponse, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleInheritanceResponse, AdminMapTitleRuleExceptionUpsertRequest,
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
@@ -100,11 +100,14 @@ export type ReviewTargetType = (typeof reviewTargetTypes)[number];
 export type ReviewRating = 1 | 2 | 3 | 4 | 5;
 export type ReviewStatus = "active" | "withdrawn" | "invalidated";
 export type ReviewCommentStatus = "visible" | "hidden";
-export type ReviewTarget = { targetType: ReviewTargetType; targetId: string };
+export type ReviewTarget = { targetType: "event"; targetId: string } | { targetType: "map"; targetId: string; gameplayRevisionId: string };
 export type ReviewUpsertInput = ReviewTarget & { rating: ReviewRating; comment?: string | null; anonymous?: boolean };
-export type ReviewRecord = ReviewTarget & {
+export type ReviewRecord = {
   reviewId: string;
   playerAccountId: string;
+  targetType: ReviewTargetType;
+  targetId: string;
+  gameplayRevisionId: string | null;
   rating: ReviewRating;
   comment: string | null;
   commentStatus: ReviewCommentStatus;
@@ -117,13 +120,16 @@ export type ReviewRecord = ReviewTarget & {
   invalidatedBy: string | null;
   invalidationReason: string | null;
 };
-export type ReviewSummary = ReviewTarget & {
+export type ReviewSummary = {
+  targetType: ReviewTargetType;
+  targetId: string;
+  gameplayRevisionId: string | null;
   averageRating: number | null;
   reviewCount: number;
   ratingDistribution: Record<ReviewRating, number>;
   sampleInsufficient: boolean;
 };
-export type ReviewSummaryBatchInput = { targetType: ReviewTargetType; targetIds: string[] };
+export type ReviewSummaryBatchInput = { targetType: "event"; targetIds: string[] } | { targetType: "map"; targets: Array<{ targetId: string; gameplayRevisionId: string }> };
 export type PublicReviewComment = {
   rating: ReviewRating;
   comment: string;
@@ -131,7 +137,10 @@ export type PublicReviewComment = {
   createdAt: number;
 };
 export type PublicReviewCommentQuery = ReviewTarget & { page: number; pageSize: number };
-export type PublicReviewCommentPage = ReviewTarget & {
+export type PublicReviewCommentPage = {
+  targetType: ReviewTargetType;
+  targetId: string;
+  gameplayRevisionId: string | null;
   items: PublicReviewComment[];
   page: number;
   pageSize: number;
@@ -207,6 +216,7 @@ export type PlatformServices = {
   getAdminMapEditor(input: { mapId: string }, auth: AuthContext): Promise<AdminMapEditorResponse>;
   createAdminMapRevision(input: AdminMapRevisionCreateRequest & { mapId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapRevision>;
   updateAdminMapRevision(input: AdminMapRevisionUpdateRequest & { mapId: string; revisionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapRevision>;
+  promoteAdminMapRevision(input: AdminMapRevisionPromotionRequest & { mapId: string; revisionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminMapRevision>;
   listChallenges(input?: { family?: "map" | "achievement" }): Promise<Challenge[]>;
   listTitles(input: { mapId?: string }): Promise<Title[]>;
   uploadAdminTitleIcon(input: { titleKey: string; body: ArrayBuffer; contentType: string }, auth: AuthContext): Promise<{ iconUrl: string }>;

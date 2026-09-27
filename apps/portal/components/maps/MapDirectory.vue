@@ -27,7 +27,7 @@ const selectedMasteryProfile = computed(() => selectedMap.value
   : null);
 const selectedMasteryHistoryLoading = computed(() => selectedMap.value?.mapId === props.masteryHistoryMapId && props.masteryHistoryLoading);
 const selectedMasteryHistoryError = computed(() => selectedMap.value?.mapId === props.masteryHistoryMapId ? props.masteryHistoryError : "");
-const reviewSummaries = useReviewSummaries("map", () => props.maps.map((map) => map.mapId));
+const reviewSummaries = useReviewSummaries("map", () => props.maps.map((map) => map.mapId), () => props.maps.map((map) => map.defaultGameplayRevisionId ?? null));
 const reviewLoading = computed(() => reviewSummaries.loading.value);
 const reviewError = computed(() => reviewSummaries.error.value);
 const refreshReviewSummaries = () => reviewSummaries.refresh();
@@ -88,7 +88,7 @@ const requestHistoryPage = (page: number) => {
 
 <template>
   <section class="map-directory" aria-label="地图列表">
-    <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :authenticated="props.authenticated" :review-summary="reviewSummaries.summaryFor(map.mapId)" :review-loading="reviewLoading" :review-error="reviewError" :mastery-profile="props.masteryProfiles.find((profile) => profile.mapId === map.mapId) ?? null" :mastery-loading="props.masteryLoading" :mastery-error="props.masteryError" @select="openMap(map)" /></div>
+    <div v-if="props.maps.length" class="map-grid"><MapCard v-for="map in props.maps" :key="map.mapId" :map="map" :challenges="props.challenges" :authenticated="props.authenticated" :review-summary="reviewSummaries.summaryFor(map.mapId, map.defaultGameplayRevisionId)" :review-loading="reviewLoading" :review-error="reviewError" :mastery-profile="props.masteryProfiles.find((profile) => profile.mapId === map.mapId) ?? null" :mastery-loading="props.masteryLoading" :mastery-error="props.masteryError" @select="openMap(map)" /></div>
     <UEmpty v-else title="暂无地图" variant="naked" />
     <MapDetailModal v-model:open="modalOpen" :map="selectedMap" :challenges="props.challenges" :authenticated="props.authenticated" :mastery-profile="selectedMasteryProfile" :mastery-loading="props.masteryLoading" :mastery-error="props.masteryError" :mastery-history="selectedMasteryHistory" :mastery-history-loading="selectedMasteryHistoryLoading" :mastery-history-error="selectedMasteryHistoryError" @review-changed="refreshReviewSummaries" @retry-mastery="emit('retry-mastery')" @history-page="requestHistoryPage" @retry-history="requestHistoryPage(selectedMasteryHistory?.page ?? 1)" />
   </section>

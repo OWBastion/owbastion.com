@@ -37,9 +37,16 @@ const createD1 = () => {
   const database = {
     prepare(sql: string) { preparedStatementCount += 1; return wrapStatement(sql); },
     async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const results = [];
-      for (const statement of statements) results.push(await statement.all());
-      return results;
+      sqlite.exec("BEGIN IMMEDIATE");
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.all());
+        sqlite.exec("COMMIT");
+        return results;
+      } catch (error) {
+        sqlite.exec("ROLLBACK");
+        throw error;
+      }
     },
     async exec(sql: string) {
       sqlite.exec(sql);
@@ -860,16 +867,11 @@ describe("Agents map projection readiness", () => {
       challengeAssignments: [],
     }, auth, "prepare-legacy-composite");
     expect(preparing.lifecycle).toBe("preparing");
-    await expect(services.updateAdminMapRevision({
+    await expect(services.promoteAdminMapRevision({
       contractVersion: "1",
       mapId: "map.legacy-composite",
       revisionId: preparing.revisionId,
-      lifecycle: "default",
       replacedDefaultLifecycle: "selectable",
-      gameVersion: "2026.09.24",
-      mapVariant: null,
-      spatialConfig: legacyComposite,
-      challengeAssignments: [],
     }, auth, "promote-legacy-composite")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
   });
 
@@ -948,7 +950,12 @@ describe("Agents map projection readiness", () => {
       spatialConfig: { composition: { selectionCount: 2 }, stages: expect.any(Array) },
     });
 
-    await updateRevision(defaultRevision.revisionId, "default", "activate-composite-default");
+    await services.promoteAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.composite-rollout",
+      revisionId: defaultRevision.revisionId,
+      replacedDefaultLifecycle: "selectable",
+    }, auth, "activate-composite-default");
     const defaultProjection = (await services.getAgentMap({ mapId: "map.composite-rollout" }))!;
     expect(defaultProjection.gameplayRevisions).toHaveLength(3);
     expect(defaultProjection.gameplayRevisions[0]).toMatchObject({
@@ -1088,7 +1095,7 @@ describe("Admin map revision editor", () => {
     ]));
   });
 
-  it("copies only revision configuration, supports the reset lifecycle, and keeps progress scoped to R1", async () => {
+  it("promotes explicitly, preserves R1 history, and independently qualifies R2", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.editor");
@@ -1104,7 +1111,13 @@ describe("Admin map revision editor", () => {
     seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.editor:initial", mapId: "map.editor", challengeFamily: "map_title_rule", challengeId: "rule.conqueror.editor", slot: "conqueror" });
     seedMapTitleChallenge(sqlite, "title.editor", "PIONEER", "map.editor");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.editor', '1001', 'Editor Player', 'editor player', ?, ?)").run(now, now);
-    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.editor.r1', 'player.editor', 'PIONEER', 'map.editor', 'revision:map.editor:initial', 'pioneer', 'active', 'submission', 'submission.editor.r1', 'admin', ?)").run(now);
+    sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, rule_version, map_id, gameplay_revision_id, status, manual, public_condition, condition_operator, conditions_json, condition, created_at, updated_at) VALUES ('challenge.editor.r1', 'title_challenge', 'title.editor', 'PIONEER', 'legacy', 'map.editor', 'revision:map.editor:initial', 'active', 0, 1, 'and', ?, '完成经典版地图', ?, ?)").run(JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey: "PIONEER" }, { type: "map", mapId: "map.editor" }] }), now, now);
+    sqlite.prepare("INSERT INTO submissions (id, player_account_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.editor.r1', 'player.editor', 'approved', 'map_title_achievement', 'title.editor', 'map.editor', 'revision:map.editor:initial', '地图 map.editor', 'portal', 'portal', 'message.editor.r1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) VALUES ('completion.editor.r1', 'player.editor', 'challenge.editor.r1', 'revision:map.editor:initial', 'active', 'submission', 'submission.editor.r1', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) VALUES ('grant.editor.r1', 'player.editor', 'PIONEER', 'map.editor', 'revision:map.editor:initial', 'pioneer', 'active', 'submission', 'submission.editor.r1', 'admin', ?, 'completion.editor.r1')").run(now);
+    sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('evidence.editor.r1', 'submission.editor.r1', 'portal', 'external.editor.r1', 'image/png', 1, 'hash.editor.r1', 'evidence/editor-r1.png', 'stored', ?)").run(now);
+    sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES ('run.editor.r1', 'player.editor', 'submission.editor.r1', 'map.editor', 'revision:map.editor:initial', NULL, 'hell', '2026.08.12', 'run-code.editor.r1', 1200, 0, 0, '{}', 'submission.review', ?, 'active', 'v1', '{}', 0, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES ('audit.editor.r1', 'correlation.editor.r1', 'user', 'admin', 'submission.review', 'submission', 'submission.editor.r1', '{\"decision\":\"approved\"}', ?)").run(now);
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const editorBefore = await services.getAdminMapEditor({ mapId: "map.editor" }, auth);
@@ -1126,22 +1139,30 @@ describe("Admin map revision editor", () => {
     expect(r2.challengeAssignments).not.toEqual(expect.arrayContaining([expect.objectContaining({ challengeFamily: "map_title_rule" })]));
     expect(r2.challengeAssignments).not.toEqual(expect.arrayContaining([expect.objectContaining({ challengeFamily: "title_challenge" })]));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE gameplay_revision_id = ?").get(r2.revisionId)).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE gameplay_revision_id = ?").get(r2.revisionId)).toEqual({ count: 0 });
 
-    const updateInput = (revision: typeof r1Before, lifecycle: "default" | "selectable") => ({
+    const updateInput = (revision: typeof r1Before, lifecycle: "preparing" | "selectable" | "default") => ({
       contractVersion: "1" as const,
       mapId: "map.editor",
       revisionId: revision.revisionId,
       lifecycle,
-      replacedDefaultLifecycle: null,
       gameVersion: revision.gameVersion,
       mapVariant: null,
       spatialConfig: revision.spatialConfig,
       challengeAssignments: revision.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment),
     });
+    await expect(services.updateAdminMapRevision(updateInput(r1Before, "selectable"), auth, "editor-ordinary-demotion"))
+      .rejects.toThrow("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
+    await expect(services.updateAdminMapRevision(updateInput(r2, "default"), auth, "editor-ordinary-promotion"))
+      .rejects.toThrow("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
     const { alternateStages: _existingAlternateStages, ...stageSpatialConfig } = r2.spatialConfig!;
-    const r2Default = await services.updateAdminMapRevision({
-      ...updateInput(r2, "default"),
-      replacedDefaultLifecycle: "selectable",
+    const r2Prepared = await services.updateAdminMapRevision({
+      ...updateInput(r2, "preparing"),
+      challengeAssignments: [
+        ...r2.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _revisionId, mapId: _mapId, ...assignment }) => assignment),
+        { challengeFamily: "title_challenge", challengeId: "title.editor", enabled: true, condition: null, evidenceRule: null, submissionMode: null, slot: null },
+      ],
       spatialConfig: {
         ...r2.spatialConfig!,
         alternateStages: [
@@ -1150,7 +1171,12 @@ describe("Admin map revision editor", () => {
         ],
       },
     }, auth, "editor-update-r2");
+    const promoteInput = { contractVersion: "1" as const, mapId: "map.editor", revisionId: r2.revisionId, replacedDefaultLifecycle: "selectable" as const };
+    const r2Default = await services.promoteAdminMapRevision(promoteInput, auth, "editor-promote-r2");
     expect(r2Default.isDefault).toBe(true);
+    expect(r2Default.challengeAssignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeFamily: "map_title_rule", challengeId: "rule.conqueror.editor", enabled: true }),
+    ]));
     expect(r2Default.gameVersion).toBe("2026.08.13");
     expect(r2Default.spatialConfig?.alternateStages.map((stage) => stage.stageId)).toEqual(["alpha", "zeta"]);
     expect(JSON.parse((sqlite.prepare("SELECT spatial_config_json FROM gameplay_revisions WHERE id = ?").get(r2.revisionId) as { spatial_config_json: string }).spatial_config_json).alternateStages.map((stage: { stageId: string }) => stage.stageId)).toEqual(["alpha", "zeta"]);
@@ -1159,17 +1185,163 @@ describe("Admin map revision editor", () => {
       [r2.revisionId, "default"],
     ]));
     await expect(services.listChallenges({ family: "map", mapId: "map.editor" })).resolves.toContainEqual(expect.objectContaining({
+      challengeId: "title.editor",
+      titleKey: "PIONEER",
+      gameplayRevisionId: r2.revisionId,
+    }));
+    await expect(services.listChallenges({ family: "map", mapId: "map.editor" })).resolves.toContainEqual(expect.objectContaining({
       challengeId: "map.editor.conqueror",
       titleKey: "CONQUEROR",
       gameplayRevisionId: r2.revisionId,
+      mapTitleRule: expect.objectContaining({ ruleId: "rule.conqueror.editor" }),
     }));
     expect(sqlite.prepare("SELECT gameplay_revision_id FROM player_title_grants WHERE map_id = 'map.editor' ORDER BY gameplay_revision_id").all()).toEqual([{ gameplay_revision_id: "revision:map.editor:initial" }]);
-    const audit = sqlite.prepare("SELECT operation, entity_id, json_extract(payload_json, '$.progressCopied') AS progress_copied, json_extract(payload_json, '$.resetReason') AS reset_reason, json_extract(payload_json, '$.gameVersion') AS game_version, json_extract(payload_json, '$.replacedByRevisionId') AS replaced_by_revision_id, json_extract(payload_json, '$.replacedDefaultLifecycle') AS replaced_default_lifecycle FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.update')").all();
+    const replayAuditCount = sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.map.revision.promote'").get();
+    await expect(services.promoteAdminMapRevision(promoteInput, auth, "editor-promote-r2")).resolves.toEqual(r2Default);
+    await expect(services.promoteAdminMapRevision({ ...promoteInput, replacedDefaultLifecycle: null }, auth, "editor-promote-r2-again"))
+      .resolves.toMatchObject({ revisionId: r2.revisionId, lifecycle: "default" });
+    await expect(services.promoteAdminMapRevision({ ...promoteInput, replacedDefaultLifecycle: "historical" }, auth, "editor-promote-r2"))
+      .rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.map.revision.promote'").get()).toEqual(replayAuditCount);
+
+    const r2Snapshot = JSON.stringify({
+      challengeId: "title.editor",
+      challengeType: "map_title_achievement",
+      ruleId: "title-challenge:title.editor",
+      ruleRevision: now,
+      mapId: "map.editor",
+      gameplayRevisionId: r2.revisionId,
+      titleKey: "PIONEER",
+      mapVariant: null,
+      slot: null,
+      displayKind: "map_name_suffix",
+      condition: "完成经典版地图",
+      evidenceRule: "上传截图",
+      submissionMode: "manual",
+      defaultScope: "map",
+      exceptionId: null,
+      startsAt: null,
+      endsAt: null,
+    });
+    sqlite.prepare("INSERT INTO submissions (id, player_account_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.editor.r2', 'player.editor', 'ready_for_review', 'map_title_achievement', 'title.editor', 'map.editor', ?, '地图 map.editor', ?, 'portal', 'portal', 'message.editor.r2', ?, ?)").run(r2.revisionId, r2Snapshot, now + 1, now + 1);
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.editor.r2', 'submission.editor.r2', 1, 'review_required', ?, ?)").run(JSON.stringify({
+      schema_version: "1",
+      ok: true,
+      model_version: "test",
+      layout_version: "1280x720-v6",
+      fields: {
+        map_name: { status: "ok", confidence: 0.99 },
+        achievement_titles: { status: "ok", confidence: 0.99 },
+      },
+      data: { map_name: "地图 map.editor", difficulty: "普通", challenge_completed: true, achievement_titles: ["称号 PIONEER"], achievement_panel_text: "称号 PIONEER" },
+    }), now + 1);
+    const r2Review = await services.reviewSubmission({ submissionId: "submission.editor.r2", decision: "approved" }, auth, "review-editor-r2");
+    expect(r2Review).toMatchObject({ decision: "approved", titleKey: "PIONEER", alreadyOwned: false });
+    const revisionChallenges = sqlite.prepare("SELECT id, gameplay_revision_id, status FROM challenges WHERE source_family = 'title_challenge' AND source_id = 'title.editor' ORDER BY gameplay_revision_id").all();
+    expect(revisionChallenges).toHaveLength(2);
+    expect(revisionChallenges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "challenge.editor.r1", gameplay_revision_id: "revision:map.editor:initial", status: "active" }),
+      expect.objectContaining({ gameplay_revision_id: r2.revisionId, status: "active" }),
+    ]));
+    expect(sqlite.prepare("SELECT id, gameplay_revision_id, status FROM challenge_completions WHERE player_account_id = 'player.editor' AND challenge_id IN (SELECT id FROM challenges WHERE source_family = 'title_challenge' AND source_id = 'title.editor') ORDER BY gameplay_revision_id").all()).toEqual(expect.arrayContaining([
+      { id: "completion.editor.r1", gameplay_revision_id: "revision:map.editor:initial", status: "active" },
+      expect.objectContaining({ gameplay_revision_id: r2.revisionId, status: "active" }),
+    ]));
+    expect(sqlite.prepare("SELECT id, gameplay_revision_id, status, revocation_type FROM player_title_grants WHERE player_account_id = 'player.editor' AND title_key = 'PIONEER' ORDER BY gameplay_revision_id").all()).toEqual(expect.arrayContaining([
+      { id: "grant.editor.r1", gameplay_revision_id: "revision:map.editor:initial", status: "active", revocation_type: null },
+      expect.objectContaining({ id: r2Review.grantId, gameplay_revision_id: r2.revisionId, status: "active", revocation_type: null }),
+    ]));
+
+    expect(sqlite.prepare("SELECT id, target_map_id, gameplay_revision_id, status FROM submissions WHERE id = 'submission.editor.r1'").get()).toEqual({ id: "submission.editor.r1", target_map_id: "map.editor", gameplay_revision_id: "revision:map.editor:initial", status: "approved" });
+    expect(sqlite.prepare("SELECT id, gameplay_revision_id, status FROM mastery_runs WHERE id = 'run.editor.r1'").get()).toEqual({ id: "run.editor.r1", gameplay_revision_id: "revision:map.editor:initial", status: "active" });
+    expect(sqlite.prepare("SELECT id, submission_id, object_key FROM attachments WHERE id = 'evidence.editor.r1'").get()).toEqual({ id: "evidence.editor.r1", submission_id: "submission.editor.r1", object_key: "evidence/editor-r1.png" });
+    expect(sqlite.prepare("SELECT id, operation, entity_id FROM audit_events WHERE id = 'audit.editor.r1'").get()).toEqual({ id: "audit.editor.r1", operation: "submission.review", entity_id: "submission.editor.r1" });
+    expect(sqlite.prepare("SELECT lifecycle FROM gameplay_revisions WHERE id = 'revision:map.editor:initial'").get()).toEqual({ lifecycle: "selectable" });
+    expect(r2Prepared.resetReason).toBeNull();
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE gameplay_revision_id = ? AND revocation_type = 'revision_reset'").get(r2.revisionId)).toEqual({ count: 0 });
+
+    const audit = sqlite.prepare("SELECT operation, entity_id, json_extract(payload_json, '$.progressCopied') AS progress_copied, json_extract(payload_json, '$.resetReason') AS reset_reason, json_extract(payload_json, '$.gameVersion') AS game_version, json_extract(payload_json, '$.replacedByRevisionId') AS replaced_by_revision_id, json_extract(payload_json, '$.replacedDefaultLifecycle') AS replaced_default_lifecycle FROM audit_events WHERE operation IN ('admin.map.revision.create', 'admin.map.revision.promote')").all();
     expect(audit).toEqual(expect.arrayContaining([
       { operation: "admin.map.revision.create", entity_id: r2.revisionId, progress_copied: 0, reset_reason: null, game_version: "2026.08.13", replaced_by_revision_id: null, replaced_default_lifecycle: null },
-      { operation: "admin.map.revision.update", entity_id: r1Before.revisionId, progress_copied: 0, reset_reason: null, game_version: null, replaced_by_revision_id: r2.revisionId, replaced_default_lifecycle: null },
-      { operation: "admin.map.revision.update", entity_id: r2.revisionId, progress_copied: 0, reset_reason: null, game_version: "2026.08.13", replaced_by_revision_id: null, replaced_default_lifecycle: "selectable" },
+      { operation: "admin.map.revision.promote", entity_id: r1Before.revisionId, progress_copied: 0, reset_reason: null, game_version: null, replaced_by_revision_id: r2.revisionId, replaced_default_lifecycle: null },
+      { operation: "admin.map.revision.promote", entity_id: r2.revisionId, progress_copied: 0, reset_reason: null, game_version: null, replaced_by_revision_id: null, replaced_default_lifecycle: "selectable" },
     ]));
+  });
+
+  it("rolls back both lifecycle changes, idempotency, and audit when promotion fails", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.promotion-atomic");
+    seedAgentSpatialConfig(sqlite, "revision:map.promotion-atomic:initial");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.promotion-atomic', 'atomic', 'Atomic', 'atomic', ?, ?)").run(now, now);
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ATOMIC_TITLE', 'Atomic title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const editor = await services.getAdminMapEditor({ mapId: "map.promotion-atomic" }, auth);
+    const revision = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.promotion-atomic",
+      sourceRevisionId: "revision:map.promotion-atomic:initial",
+      gameVersion: "2026.08.13",
+      mapVariant: null,
+      copyConfiguration: true,
+    }, auth, "atomic-create-r2");
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.atomic.r1', 'player.promotion-atomic', 'GLOBAL_ATOMIC_TITLE', 'map.promotion-atomic', 'revision:map.promotion-atomic:initial', 'active', 'manual', 'atomic.r1', 'admin', ?), ('grant.atomic.r2', 'player.promotion-atomic', 'GLOBAL_ATOMIC_TITLE', 'map.promotion-atomic', ?, 'active', 'manual', 'atomic.r2', 'admin', ?)").run(now, revision.revisionId, now);
+    sqlite.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES ('grant.atomic.r1', 'player.promotion-atomic', ?)").run(now);
+    const promote = { contractVersion: "1" as const, mapId: "map.promotion-atomic", revisionId: revision.revisionId, replacedDefaultLifecycle: "historical" as const };
+    sqlite.exec("CREATE TRIGGER promotion_audit_failure BEFORE INSERT ON audit_events WHEN NEW.operation = 'admin.map.revision.promote' BEGIN SELECT RAISE(ABORT, 'simulated audit failure'); END");
+
+    await expect(services.promoteAdminMapRevision(promote, auth, "atomic-promote-r2")).rejects.toThrow("simulated audit failure");
+    expect(sqlite.prepare("SELECT id, lifecycle FROM gameplay_revisions WHERE map_id = 'map.promotion-atomic'").all()).toEqual(expect.arrayContaining([
+      { id: "revision:map.promotion-atomic:initial", lifecycle: "default" },
+      { id: revision.revisionId, lifecycle: "preparing" },
+    ]));
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE operation = 'admin.map.revision.promote'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.map.revision.promote'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT grant_id FROM player_equipped_titles WHERE player_account_id = 'player.promotion-atomic'").get()).toEqual({ grant_id: "grant.atomic.r1" });
+
+    sqlite.exec("DROP TRIGGER promotion_audit_failure");
+    await expect(services.promoteAdminMapRevision(promote, auth, "atomic-promote-r2")).resolves.toMatchObject({ revisionId: revision.revisionId, lifecycle: "default" });
+    expect(sqlite.prepare("SELECT lifecycle FROM gameplay_revisions WHERE id = ?").get(editor.revisions[0]!.revisionId)).toEqual({ lifecycle: "historical" });
+    expect(sqlite.prepare("SELECT grant_id FROM player_equipped_titles WHERE player_account_id = 'player.promotion-atomic'").get()).toEqual({ grant_id: "grant.atomic.r2" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.map.revision.promote'").get()).toEqual({ count: 2 });
+  });
+
+  it("rebinds or clears equipped preferences atomically with revision applicability", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.equipped-reset");
+    seedAgentSpatialConfig(sqlite, "revision:map.equipped-reset:initial");
+    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.rebound', 'rebound', 'Rebound', 'rebound', ?, ?), ('player.cleared', 'cleared', 'Cleared', 'cleared', ?, ?)").run(now, now, now, now);
+    sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RESET_TITLE', 'Reset title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const revision = await services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.equipped-reset",
+      sourceRevisionId: "revision:map.equipped-reset:initial",
+      gameVersion: "2026.08.13",
+      mapVariant: null,
+      copyConfiguration: true,
+    }, auth, "equipped-reset-create-r2");
+    sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.rebound.r1', 'player.rebound', 'GLOBAL_RESET_TITLE', 'map.equipped-reset', 'revision:map.equipped-reset:initial', 'active', 'manual', 'rebound.r1', 'admin', ?), ('grant.rebound.r2', 'player.rebound', 'GLOBAL_RESET_TITLE', 'map.equipped-reset', ?, 'active', 'manual', 'rebound.r2', 'admin', ?), ('grant.cleared.r1', 'player.cleared', 'GLOBAL_RESET_TITLE', 'map.equipped-reset', 'revision:map.equipped-reset:initial', 'active', 'manual', 'cleared.r1', 'admin', ?)").run(now, revision.revisionId, now, now);
+    sqlite.prepare("INSERT INTO player_equipped_titles (grant_id, player_account_id, equipped_at) VALUES ('grant.rebound.r1', 'player.rebound', ?), ('grant.cleared.r1', 'player.cleared', ?)").run(now, now);
+
+    await services.promoteAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.equipped-reset",
+      revisionId: revision.revisionId,
+      replacedDefaultLifecycle: "historical",
+    }, auth, "equipped-reset-promote-r2");
+
+    expect(sqlite.prepare("SELECT grant_id, player_account_id FROM player_equipped_titles ORDER BY player_account_id").all()).toEqual([
+      { grant_id: "grant.rebound.r2", player_account_id: "player.rebound" },
+    ]);
+    expect(sqlite.prepare("SELECT id, status FROM player_title_grants ORDER BY id").all()).toEqual([
+      { id: "grant.cleared.r1", status: "active" },
+      { id: "grant.rebound.r1", status: "active" },
+      { id: "grant.rebound.r2", status: "active" },
+    ]);
   });
 
   it("rejects invalid spatial data and challenge references before writing a revision", async () => {
@@ -1181,7 +1353,10 @@ describe("Admin map revision editor", () => {
     const revision = (await services.getAdminMapEditor({ mapId: "map.editor.invalid" }, auth)).revisions[0]!;
     await expect(services.updateAdminMapRevision({
       contractVersion: "1", mapId: "map.editor.invalid", revisionId: revision.revisionId, lifecycle: "selectable", gameVersion: revision.gameVersion, mapVariant: null, spatialConfig: null, challengeAssignments: [],
-    }, auth, "invalid-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
+    }, auth, "ordinary-default-transition")).rejects.toThrow("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
+    await expect(services.promoteAdminMapRevision({
+      contractVersion: "1", mapId: "map.editor.invalid", revisionId: revision.revisionId, replacedDefaultLifecycle: null,
+    }, auth, "invalid-default-spatial")).rejects.toThrow("INVALID_SPATIAL_CONFIG");
     const impossibleComposition = compositeSpatialConfig();
     await expect(services.createAdminMapRevision({
       contractVersion: "1", mapId: "map.editor.invalid", mapVariant: null, copyConfiguration: false,

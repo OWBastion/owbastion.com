@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -124,21 +124,24 @@ describe("v1 platform contracts", () => {
   });
 
   it("keeps player review contracts limited to current-review fields", () => {
-    const review = { reviewId: "00000000-0000-4000-8000-000000000003", targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 };
+    const review = { reviewId: "00000000-0000-4000-8000-000000000003", targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 };
     expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 4, comment: "很好", anonymous: true }).success).toBe(true);
     expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 6 }).success).toBe(false);
     expect(playerReviewUpsertRequestSchema.safeParse({ contractVersion: "1", rating: 4, comment: "中".repeat(501) }).success).toBe(false);
     expect(playerReviewUpsertResponseSchema.safeParse({ contractVersion: "1", review }).success).toBe(true);
+    expect(playerReviewUpsertResponseSchema.safeParse({ contractVersion: "1", review: { ...review, targetType: "event", targetId: "event.test", gameplayRevisionId: null } }).success).toBe(true);
     expect(playerReviewResponseSchema.safeParse({ contractVersion: "1", review: null }).success).toBe(true);
     expect(playerReviewWithdrawRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
     expect(playerReviewWithdrawResponseSchema.safeParse({ contractVersion: "1", review: null }).success).toBe(true);
   });
 
   it("keeps public review contracts privacy-safe and bounded", () => {
-    const summary = { targetType: "map", targetId: "map.test", averageRating: 4.25, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 }, sampleInsufficient: false };
+    const summary = { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", averageRating: 4.25, reviewCount: 4, ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 2 }, sampleInsufficient: false };
     expect(publicReviewSummaryResponseSchema.safeParse({ contractVersion: "1", summary }).success).toBe(true);
-    expect(publicReviewCommentPageSchema.safeParse({ contractVersion: "1", targetType: "map", targetId: "map.test", items: [{ rating: 5, comment: "很好", author: null, createdAt: 1 }, { rating: 4, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], page: 1, pageSize: 20, total: 2, hasMore: false }).success).toBe(true);
-    expect(publicReviewCommentPageSchema.safeParse({ contractVersion: "1", targetType: "map", targetId: "map.test", items: [{ rating: 5, comment: "很好", author: { displayName: "公开玩家", playerId: "1234" }, createdAt: 1 }], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(false);
+    expect(publicReviewSummaryResponseSchema.safeParse({ contractVersion: "1", summary: { ...summary, targetType: "event", targetId: "event.test", gameplayRevisionId: null } }).success).toBe(true);
+    expect(publicReviewSummaryResponseSchema.safeParse({ contractVersion: "1", summary: { ...summary, gameplayRevisionId: null } }).success).toBe(false);
+    expect(publicReviewCommentPageSchema.safeParse({ contractVersion: "1", targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", items: [{ rating: 5, comment: "很好", author: null, createdAt: 1 }, { rating: 4, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], page: 1, pageSize: 20, total: 2, hasMore: false }).success).toBe(true);
+    expect(publicReviewCommentPageSchema.safeParse({ contractVersion: "1", targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", items: [{ rating: 5, comment: "很好", author: { displayName: "公开玩家", playerId: "1234" }, createdAt: 1 }], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(false);
   });
 
   it("accepts player OCR summaries without raw recognition output", () => {
@@ -327,9 +330,11 @@ describe("v1 platform contracts", () => {
     expect(adminMapRevisionCreateRequestSchema.parse({ ...input, resetReason: "  " }).resetReason).toBeNull();
     expect(adminMapRevisionCreateRequestSchema.safeParse({ ...input, gameVersion: "2099.01.01" }).success).toBe(true);
 
-    const update = { contractVersion: "1" as const, lifecycle: "preparing" as const, replacedDefaultLifecycle: null, gameVersion: "2099.01.01", mapVariant: null, spatialConfig: null, challengeAssignments: [] };
+    const update = { contractVersion: "1" as const, lifecycle: "preparing" as const, gameVersion: "2099.01.01", mapVariant: null, spatialConfig: null, challengeAssignments: [] };
     expect(adminMapRevisionUpdateRequestSchema.safeParse(update).success).toBe(true);
     expect(adminMapRevisionUpdateRequestSchema.safeParse({ ...update, gameVersion: "  " }).success).toBe(false);
+    expect(adminMapRevisionPromotionRequestSchema.safeParse({ contractVersion: "1", replacedDefaultLifecycle: "selectable" }).success).toBe(true);
+    expect(adminMapRevisionPromotionRequestSchema.safeParse({ contractVersion: "1", replacedDefaultLifecycle: null, lifecycle: "default" }).success).toBe(false);
   });
 
   it("requires a non-empty optional reason for manual title grants", () => {

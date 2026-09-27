@@ -7,6 +7,7 @@ export type ReviewRating = 1 | 2 | 3 | 4 | 5;
 export type ReviewSummary = {
   targetType: ReviewTargetType;
   targetId: string;
+  gameplayRevisionId: string | null;
   averageRating: number | null;
   reviewCount: number;
   ratingDistribution: Record<ReviewRating, number>;
@@ -24,6 +25,7 @@ export type PlayerReview = {
   reviewId: string;
   targetType: ReviewTargetType;
   targetId: string;
+  gameplayRevisionId: string | null;
   rating: ReviewRating;
   comment: string | null;
   anonymous: boolean;
@@ -36,6 +38,7 @@ type CommentsResponse = {
   contractVersion: "1";
   targetType: ReviewTargetType;
   targetId: string;
+  gameplayRevisionId: string | null;
   items: PublicReviewComment[];
   page: number;
   pageSize: number;
@@ -60,6 +63,7 @@ export function usePlayerReview(
   targetType: MaybeRefOrGetter<ReviewTargetType>,
   targetId: MaybeRefOrGetter<string>,
   authenticated: MaybeRefOrGetter<boolean>,
+  gameplayRevisionId: MaybeRefOrGetter<string | null> = null,
 ) {
   const api = usePortalApi();
   const summary = shallowRef<ReviewSummary | null>(null);
@@ -79,7 +83,7 @@ export function usePlayerReview(
   const draftAnonymous = shallowRef(false);
   let requestSequence = 0;
 
-  const targetKey = computed(() => toValue(targetType) + ":" + toValue(targetId));
+  const targetKey = computed(() => toValue(targetType) + ":" + toValue(targetId) + ":" + (toValue(targetType) === "map" ? toValue(gameplayRevisionId) ?? "" : ""));
 
   const syncDraft = (review: PlayerReview | null) => {
     currentReview.value = review;
@@ -92,20 +96,31 @@ export function usePlayerReview(
     const sequence = ++requestSequence;
     const type = toValue(targetType);
     const id = toValue(targetId);
+    const revisionId = type === "map" ? toValue(gameplayRevisionId) : null;
     const isAuthenticated = toValue(authenticated);
     loading.value = true;
     error.value = "";
     success.value = "";
     if (!preserveDraft) syncDraft(null);
+    if (type === "map" && !revisionId) {
+      summary.value = null;
+      comments.value = [];
+      total.value = 0;
+      hasMore.value = false;
+      loading.value = false;
+      unavailable.value = false;
+      return;
+    }
 
     const encodedType = encodeURIComponent(type);
     const encodedId = encodeURIComponent(id);
+    const revisionQuery = revisionId ? "?gameplayRevisionId=" + encodeURIComponent(revisionId) : "";
     const requests = await Promise.allSettled([
-      api<SummaryResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/summary"),
-      api<CommentsResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/comments?page=" + requestedPage + "&pageSize=" + pageSize),
-      ...(isAuthenticated ? [api<PlayerReviewResponse>("/v1/me/reviews/" + encodedType + "/" + encodedId)] : []),
+      api<SummaryResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/summary" + revisionQuery),
+      api<CommentsResponse>("/v1/public/reviews/" + encodedType + "/" + encodedId + "/comments?page=" + requestedPage + "&pageSize=" + pageSize + (revisionId ? "&gameplayRevisionId=" + encodeURIComponent(revisionId) : "")),
+      ...(isAuthenticated ? [api<PlayerReviewResponse>("/v1/me/reviews/" + encodedType + "/" + encodedId + revisionQuery)] : []),
     ]);
-    if (sequence !== requestSequence || targetKey.value !== type + ":" + id) return;
+    if (sequence !== requestSequence || targetKey.value !== type + ":" + id + ":" + (revisionId ?? "")) return;
 
     const failed = requests.find((result) => result.status === "rejected");
     const notFound = failed?.status === "rejected" && portalErrorDetails(failed.reason).statusCode === 404;
@@ -140,19 +155,22 @@ export function usePlayerReview(
     success.value = "";
     const type = toValue(targetType);
     const id = toValue(targetId);
+    const revisionId = type === "map" ? toValue(gameplayRevisionId) : null;
+    if (type === "map" && !revisionId) return false;
+    const revisionQuery = revisionId ? "?gameplayRevisionId=" + encodeURIComponent(revisionId) : "";
     try {
-      const response = await api<PlayerReviewResponse>("/v1/me/reviews/" + encodeURIComponent(type) + "/" + encodeURIComponent(id), {
+      const response = await api<PlayerReviewResponse>("/v1/me/reviews/" + encodeURIComponent(type) + "/" + encodeURIComponent(id) + revisionQuery, {
         method: "PUT",
         headers: { "Idempotency-Key": createRequestId() },
         body: { contractVersion: "1", rating: draftRating.value, comment: comment || null, anonymous: draftAnonymous.value },
       });
-      if (targetKey.value !== type + ":" + id) return false;
+      if (targetKey.value !== type + ":" + id + ":" + (revisionId ?? "")) return false;
       syncDraft(response.review);
       await load(1);
       success.value = "评价已保存。";
       return true;
     } catch (cause) {
-      if (targetKey.value === type + ":" + id) {
+      if (targetKey.value === type + ":" + id + ":" + (revisionId ?? "")) {
         unavailable.value = portalErrorDetails(cause).statusCode === 404;
         error.value = reviewErrorMessage(cause, "评价保存失败，请稍后重试。");
       }
@@ -169,19 +187,20 @@ export function usePlayerReview(
     success.value = "";
     const type = toValue(targetType);
     const id = toValue(targetId);
+    const revisionId = type === "map" ? toValue(gameplayRevisionId) : null;
     try {
       await api("/v1/me/reviews/" + encodeURIComponent(currentReview.value.reviewId) + "/withdraw", {
         method: "POST",
         headers: { "Idempotency-Key": createRequestId() },
         body: { contractVersion: "1" },
       });
-      if (targetKey.value !== type + ":" + id) return false;
+      if (targetKey.value !== type + ":" + id + ":" + (revisionId ?? "")) return false;
       syncDraft(null);
       await load(1);
       success.value = "评价已撤回。";
       return true;
     } catch (cause) {
-      if (targetKey.value === type + ":" + id) {
+      if (targetKey.value === type + ":" + id + ":" + (revisionId ?? "")) {
         unavailable.value = portalErrorDetails(cause).statusCode === 404;
         error.value = reviewErrorMessage(cause, "评价撤回失败，请稍后重试。");
       }
@@ -196,7 +215,7 @@ export function usePlayerReview(
     return load(nextPage, true);
   };
 
-  watch([() => toValue(targetType), () => toValue(targetId), () => toValue(authenticated)], () => {
+  watch([() => toValue(targetType), () => toValue(targetId), () => toValue(authenticated), () => toValue(gameplayRevisionId)], () => {
     page.value = 1;
     summary.value = null;
     comments.value = [];

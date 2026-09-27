@@ -721,6 +721,15 @@ creates independent new progression without rewriting old facts. The default
 revision query can read the selected or historical revision's own profile and
 bounded run history.
 
+Map reviews are stored and queried against the exact Gameplay Revision ID.
+Single-target reads, writes, comments, and summaries require that ID; batched
+map summaries pair each map ID with its Revision ID. Existing reviews recorded
+before revision attribution remain retained with a NULL Revision ID, are not
+backfilled by inference, and are excluded from every Revision-specific public
+aggregate. Maintainer review records continue to expose those unscoped rows for
+audit. Event reviews remain bound to the stable Event and return a NULL Revision
+ID.
+
 The Agents projection is stricter than the retained revision model: a map is
 build-projectable only when exactly one enabled default revision has valid
 spatial data and every enabled assignment resolves to a current public map

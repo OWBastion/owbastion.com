@@ -29,7 +29,7 @@ import {
   adminCatalogTitleUpdateRequestSchema,
   adminMapTitleRuleCreateRequestSchema, adminMapTitleRuleUpdateRequestSchema, adminMapTitleRuleExceptionUpsertRequestSchema,
   adminMapMetadataUpdateRequestSchema,
-  adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema,
+  adminMapRevisionCreateRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapRevisionPromotionRequestSchema,
   adminRandomEventCreateRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventImportRequestSchema, adminRandomEventVersionAvailabilityRequestSchema,
   reviewTargetSchema, reviewTargetTypeSchema, playerReviewUpsertRequestSchema, playerReviewWithdrawRequestSchema,
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
@@ -459,6 +459,7 @@ export const createApp = (dependencies: AppDependencies) => {
     reviewId: review.reviewId,
     targetType: review.targetType,
     targetId: review.targetId,
+    gameplayRevisionId: review.gameplayRevisionId,
     rating: review.rating,
     comment: review.comment,
     anonymous: review.anonymous,
@@ -466,7 +467,10 @@ export const createApp = (dependencies: AppDependencies) => {
     updatedAt: review.updatedAt,
   });
 
-  const parseReviewTarget = (c: any) => reviewTargetSchema.safeParse({ targetType: c.req.param("targetType"), targetId: c.req.param("targetId") });
+  const parseReviewTarget = (c: any) => {
+    const base = { targetType: c.req.param("targetType"), targetId: c.req.param("targetId") };
+    return reviewTargetSchema.safeParse(base.targetType === "map" ? { ...base, gameplayRevisionId: c.req.query("gameplayRevisionId") } : base);
+  };
 
   app.post("/v1/public/binding-invites/redeem", async (c) => {
     allowPortal(c);
@@ -959,11 +963,24 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "private, no-store");
     const targetType = reviewTargetTypeSchema.safeParse(c.req.query("targetType"));
     const targetIds = (c.req.query("targetIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
-    if (!targetType.success || !targetIds.length || targetIds.length > 100 || new Set(targetIds).size !== targetIds.length || targetIds.some((targetId: string) => !reviewTargetSchema.safeParse({ targetType: targetType.data, targetId }).success)) {
+    const gameplayRevisionIds = (c.req.query("gameplayRevisionIds") ?? "").split(",").map((value: string) => value.trim()).filter(Boolean);
+    const uniqueTargets = targetType.success && targetType.data === "map"
+      ? new Set(targetIds.map((targetId: string, index: number) => JSON.stringify([targetId, gameplayRevisionIds[index]]))).size === targetIds.length
+      : new Set(targetIds).size === targetIds.length;
+    const validIds = targetIds.length > 0 && targetIds.length <= 100 && uniqueTargets;
+    const targets = targetType.success && targetType.data === "map" && gameplayRevisionIds.length === targetIds.length
+      ? targetIds.map((targetId: string, index: number) => ({ targetType: "map", targetId, gameplayRevisionId: gameplayRevisionIds[index] }))
+      : [];
+    const targetsValid = targetType.success && (targetType.data === "map"
+      ? targets.length === targetIds.length && targets.every((target) => reviewTargetSchema.safeParse(target).success)
+      : targetIds.every((targetId: string) => reviewTargetSchema.safeParse({ targetType: "event", targetId }).success));
+    if (!targetType.success || !validIds || !targetsValid || targetType.data === "event" && gameplayRevisionIds.length > 0) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review summary targets are invalid");
     }
     try {
-      const items = await logServiceOperation(c, "review_public_summary_batch", () => dependencies.services(c.env).getReviewSummaries({ targetType: targetType.data, targetIds }));
+      const items = await logServiceOperation(c, "review_public_summary_batch", () => dependencies.services(c.env).getReviewSummaries(
+        targetType.data === "map" ? { targetType: "map", targets: targets.map(({ targetId, gameplayRevisionId }) => ({ targetId, gameplayRevisionId: gameplayRevisionId! })) } : { targetType: "event", targetIds },
+      ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
     } catch (error) {
       if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
@@ -1393,8 +1410,35 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) {
       const code = error instanceof Error ? error.message : "MAP_REVISION_UPDATE_FAILED";
       if (code === "REVISION_NOT_FOUND") return errorResponse(c, 404, code, "The map revision does not exist");
-      if (["INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "DEFAULT_REVISION_REPLACEMENT_NOT_FOUND", "DEFAULT_REVISION_REPLACEMENT_INVALID", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
-      if (["DEFAULT_REVISION_REPLACEMENT_REQUIRED", "LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
+      if (code === "REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION") return errorResponse(c, 409, code, "Changing the default Revision requires the explicit promotion operation");
+      if (["INVALID_REVISION_TRANSITION", "DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "INVALID_REVISION_ASSIGNMENT", "DUPLICATE_REVISION_ASSIGNMENT", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The revision configuration is invalid");
+      if (["LEGACY_VARIANT_CONFLICT", "IDEMPOTENCY_CONFLICT"].includes(code)) return errorResponse(c, 409, code, "The revision conflicts with an existing record");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/maps/:mapId/revisions/:revisionId/promote", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminMapRevisionPromotionRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The promotion request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).promoteAdminMapRevision({
+        ...parsed.data,
+        mapId: c.req.param("mapId"),
+        revisionId: c.req.param("revisionId"),
+      }, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "REVISION_PROMOTION_FAILED";
+      if (code === "MAP_NOT_FOUND") return errorResponse(c, 404, code, "The map does not exist");
+      if (code === "REVISION_NOT_FOUND") return errorResponse(c, 404, code, "The Revision does not exist");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      if (code === "REVISION_NOT_PROMOTABLE") return errorResponse(c, 409, code, "The Revision is not available for promotion");
+      if (code === "DEFAULT_REVISION_REPLACEMENT_REQUIRED") return errorResponse(c, 422, code, "Choose how the previous default Revision should remain available");
+      if (code === "DEFAULT_REVISION_REPLACEMENT_NOT_FOUND") return errorResponse(c, 422, code, "There is no current default Revision to replace");
+      if (["DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT", "INVALID_SPATIAL_CONFIG", "REVISION_CHALLENGE_NOT_FOUND", "REVISION_CHALLENGE_NOT_ACTIVE", "REVISION_CHALLENGE_NOT_ASSIGNABLE"].includes(code)) return errorResponse(c, 422, code, "The Revision is not ready for promotion");
       throw error;
     }
   });
@@ -1643,7 +1687,8 @@ export const createApp = (dependencies: AppDependencies) => {
     const allowedStatuses = ["active", "withdrawn", "invalidated"] as const;
     const allowedCommentStatuses = ["visible", "hidden"] as const;
     const targetId = c.req.query("targetId")?.trim() || undefined;
-    if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || (targetId && !reviewTargetSchema.shape.targetId.safeParse(targetId).success)) {
+    const targetIdValid = targetId ? reviewTargetSchema.safeParse({ targetType: "event", targetId }).success : true;
+    if (!page || !pageSize || (targetTypeValue && !targetType?.success) || (status && !allowedStatuses.includes(status as typeof allowedStatuses[number])) || (commentStatus && !allowedCommentStatuses.includes(commentStatus as typeof allowedCommentStatuses[number])) || (rating !== undefined && (!Number.isInteger(rating) || rating < 1 || rating > 5)) || (from !== undefined && (!Number.isInteger(from) || from < 0)) || (to !== undefined && (!Number.isInteger(to) || to < 0)) || (from !== undefined && to !== undefined && from > to) || !targetIdValid) {
       return errorResponse(c, 422, "INVALID_REQUEST", "The review query is invalid");
     }
     return c.json(await dependencies.services(c.env).listAdminReviews({ page, pageSize, ...(targetType?.success ? { targetType: targetType.data } : {}), ...(targetId ? { targetId } : {}), ...(status ? { status: status as typeof allowedStatuses[number] } : {}), ...(commentStatus ? { commentStatus: commentStatus as typeof allowedCommentStatuses[number] } : {}), ...(rating !== undefined ? { rating: rating as 1 | 2 | 3 | 4 | 5 } : {}), ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}) }, access.auth!));

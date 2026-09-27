@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
+import { playerReviewResponseSchema, publicReviewSummaryResponseSchema } from "@owbastion/contracts";
 import { createApp, type RuntimeEnv } from "./app";
 import { withPublicCache } from "./public-cache";
 
@@ -40,6 +41,7 @@ const services: PlatformServices = {
   getAdminMapEditor: async () => { throw new Error("MAP_NOT_FOUND"); },
   createAdminMapRevision: async () => { throw new Error("MAP_NOT_FOUND"); },
   updateAdminMapRevision: async () => { throw new Error("REVISION_NOT_FOUND"); },
+  promoteAdminMapRevision: async () => { throw new Error("REVISION_NOT_FOUND"); },
   listChallenges: async () => [],
   listTitles: async () => [],
   uploadAdminTitleIcon: async () => ({ iconUrl: "https://api.example.com/v1/public/achievement-icons/TEST" }),
@@ -121,7 +123,7 @@ const services: PlatformServices = {
   getAdminReview: async () => { throw new Error("REVIEW_NOT_FOUND"); },
   getReviewSummary: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   getReviewSummaries: async () => [],
-  listPublicReviewComments: async ({ targetType, targetId, page, pageSize }) => ({ targetType, targetId, items: [], page, pageSize, total: 0, hasMore: false }),
+  listPublicReviewComments: async (input) => ({ targetType: input.targetType, targetId: input.targetId, gameplayRevisionId: input.targetType === "map" ? input.gameplayRevisionId : null, items: [], page: input.page, pageSize: input.pageSize, total: 0, hasMore: false }),
   getPlayerReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   upsertReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
   withdrawReview: async () => { throw new Error("REVIEW_NOT_IMPLEMENTED"); },
@@ -957,6 +959,7 @@ describe("API", () => {
       playerAccountId: "11111111-1111-4111-8111-111111111111",
       targetType: "map" as const,
       targetId: "map.test",
+      gameplayRevisionId: "revision:map.test:initial",
       rating: 4 as const,
       comment: "很好",
       commentStatus: "visible" as const,
@@ -979,29 +982,32 @@ describe("API", () => {
       }),
     });
 
-    expect((await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", {}, env)).status).toBe(401);
-    const read = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
+    expect((await reviewApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", {}, env)).status).toBe(401);
+    const read = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(read.status).toBe(200);
     const readBody = await read.json() as Record<string, unknown>;
-    expect(readBody).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
+    expect(readBody).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
+    playerReviewResponseSchema.parse(readBody);
     expect(JSON.stringify(readBody)).not.toContain("playerAccountId");
     expect(JSON.stringify(readBody)).not.toMatch(/commentStatus|invalidatedBy|invalidationReason|status/);
 
-    const missingKey = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", rating: 4 }) }, env);
+    const missingKey = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", rating: 4 }) }, env);
     expect(missingKey.status).toBe(422);
-    const write = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", rating: 4, comment: "很好", anonymous: true }) }, env);
+    const unscopedWrite = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-unscoped" }, body: JSON.stringify({ contractVersion: "1", rating: 4 }) }, env);
+    expect(unscopedWrite.status).toBe(422);
+    const write = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", rating: 4, comment: "很好", anonymous: true }) }, env);
     expect(write.status).toBe(200);
-    expect(await write.json()).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
+    expect(await write.json()).toEqual({ contractVersion: "1", review: { reviewId: review.reviewId, targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "很好", anonymous: true, createdAt: 1, updatedAt: 2 } });
     const withdraw = await reviewApp.request(`http://localhost/v1/me/reviews/${review.reviewId}/withdraw`, { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-withdraw-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect(withdraw.status).toBe(200);
     expect(await withdraw.json()).toEqual({ contractVersion: "1", review: null });
-    const afterWithdraw = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test", { headers: { cookie: "owb_session=session-token" } }, env);
+    const afterWithdraw = await reviewApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(await afterWithdraw.json()).toEqual({ contractVersion: "1", review: null });
     expect(calls).toEqual([
-      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test" } },
-      { operation: "upsert", subject: "1234", target: { targetType: "map", targetId: "map.test", rating: 4, comment: "很好", anonymous: true }, key: "review-1" },
+      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" } },
+      { operation: "upsert", subject: "1234", target: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", rating: 4, comment: "很好", anonymous: true }, key: "review-1" },
       { operation: "withdraw", subject: "1234", target: { reviewId: review.reviewId }, key: "review-withdraw-1" },
-      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test" } },
+      { operation: "read", subject: "1234", target: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" } },
     ]);
   });
 
@@ -1017,7 +1023,7 @@ describe("API", () => {
     expect((await closed.json() as { error: { code: string } }).error.code).toBe("REVIEW_TARGET_NOT_RATEABLE");
 
     const conflictApp = createApp({ authenticate: auth, services: () => ({ ...services, upsertReview: async () => { throw new Error("IDEMPOTENCY_CONFLICT"); } }) });
-    const conflict = await conflictApp.request("http://localhost/v1/me/reviews/map/map.test", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-5" }, body: JSON.stringify({ contractVersion: "1", rating: 3 }) }, env);
+    const conflict = await conflictApp.request("http://localhost/v1/me/reviews/map/map.test?gameplayRevisionId=revision%3Amap.test%3Ainitial", { method: "PUT", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "review-5" }, body: JSON.stringify({ contractVersion: "1", rating: 3 }) }, env);
     expect(conflict.status).toBe(409);
     expect((await conflict.json() as { error: { code: string } }).error.code).toBe("IDEMPOTENCY_CONFLICT");
 
@@ -1205,7 +1211,7 @@ describe("API", () => {
 
   it("limits review identity and moderation operations to maintainers", async () => {
     const reviewId = "00000000-0000-4000-8000-000000000003";
-    const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", targetName: "测试地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", rating: 4 as const, comment: "很好", anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
+    const adminReview = { reviewId, targetType: "map" as const, targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", targetName: "测试地图", playerAccountId: "11111111-1111-4111-8111-111111111111", playerId: "1234", playerName: "Player", rating: 4 as const, comment: "很好", anonymous: true, commentStatus: "visible" as const, status: "active" as const, createdAt: 1, updatedAt: 2, withdrawnAt: null, invalidatedAt: null, invalidatedBy: null, invalidationReason: null };
     const detail = { contractVersion: "1" as const, review: adminReview, audit: [{ operation: "review.create", actorType: "user", actorId: "1234", reason: null, createdAt: 1 }] };
     const calls: Array<{ operation: string; input: unknown; key: string }> = [];
     const reviewApp = createApp({
@@ -1337,40 +1343,60 @@ describe("API", () => {
         ...services,
         getReviewSummary: async (input) => {
           calls.push({ operation: "summary", input });
-          return { targetType: input.targetType, targetId: input.targetId, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true };
+          return { targetType: input.targetType, targetId: input.targetId, gameplayRevisionId: input.targetType === "map" ? input.gameplayRevisionId : null, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true };
         },
         getReviewSummaries: async (input) => {
           calls.push({ operation: "batch", input });
-          return input.targetIds.map((targetId) => ({ targetType: input.targetType, targetId, averageRating: 4, reviewCount: 3, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2 }, sampleInsufficient: false }));
+          return input.targetType === "map"
+            ? input.targets.map(({ targetId, gameplayRevisionId }) => ({ targetType: "map" as const, targetId, gameplayRevisionId, averageRating: 4, reviewCount: 3, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2 }, sampleInsufficient: false }))
+            : input.targetIds.map((targetId) => ({ targetType: "event" as const, targetId, gameplayRevisionId: null, averageRating: 4, reviewCount: 3, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2 }, sampleInsufficient: false }));
         },
         listPublicReviewComments: async (input) => {
           calls.push({ operation: "comments", input });
-          return { ...input, items: [{ rating: 5 as const, comment: "很好", author: null, createdAt: 3 }, { rating: 4 as const, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], total: 2, hasMore: false };
+          return { ...input, gameplayRevisionId: input.targetType === "map" ? input.gameplayRevisionId : null, items: [{ rating: 5 as const, comment: "很好", author: null, createdAt: 3 }, { rating: 4 as const, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], total: 2, hasMore: false };
         },
       }),
     });
 
-    const summary = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/summary", {}, env);
+    const summary = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/summary?gameplayRevisionId=revision%3Amap.test%3Ainitial", {}, env);
     expect(summary.status).toBe(200);
     expect(summary.headers.get("cache-control")).toBe("private, no-store");
-    expect(await summary.json()).toEqual({ contractVersion: "1", summary: { targetType: "map", targetId: "map.test", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } });
+    expect(await summary.json()).toEqual({ contractVersion: "1", summary: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } });
 
-    const batch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.empty", {}, env);
+    const eventSummary = await publicApp.request("http://localhost/v1/public/reviews/event/event.test/summary", {}, env);
+    expect(eventSummary.status).toBe(200);
+    const eventSummaryBody = await eventSummary.json();
+    expect(eventSummaryBody).toMatchObject({ summary: { targetType: "event", targetId: "event.test", gameplayRevisionId: null } });
+    publicReviewSummaryResponseSchema.parse(eventSummaryBody);
+
+    const unscopedBatch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.empty", {}, env);
+    expect(unscopedBatch.status).toBe(422);
+    const batch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.empty&gameplayRevisionIds=revision%3Amap.test%3Ainitial%2Crevision%3Amap.empty%3Ainitial", {}, env);
     expect(batch.status).toBe(200);
-    expect(await batch.json()).toMatchObject({ contractVersion: "1", targetType: "map", items: [{ targetId: "map.test", reviewCount: 3 }, { targetId: "map.empty", reviewCount: 3 }] });
+    expect(await batch.json()).toMatchObject({ contractVersion: "1", targetType: "map", items: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", reviewCount: 3 }, { targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial", reviewCount: 3 }] });
+    const mapRevisionsBatch = await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.test&gameplayRevisionIds=revision%3Amap.test%3Ar1%2Crevision%3Amap.test%3Ar2", {}, env);
+    expect(mapRevisionsBatch.status).toBe(200);
+    expect(calls.at(-1)).toEqual({ operation: "batch", input: { targetType: "map", targets: [
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:r1" },
+      { targetId: "map.test", gameplayRevisionId: "revision:map.test:r2" },
+    ] } });
+    expect((await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=map&targetIds=map.test%2Cmap.test&gameplayRevisionIds=revision%3Amap.test%3Ar1%2Crevision%3Amap.test%3Ar1", {}, env)).status).toBe(422);
+    expect((await publicApp.request("http://localhost/v1/public/reviews/summaries?targetType=event&targetIds=event.test%2Cevent.test", {}, env)).status).toBe(422);
 
-    const comments = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?page=1&pageSize=2", {}, env);
+    const comments = await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?gameplayRevisionId=revision%3Amap.test%3Ainitial&page=1&pageSize=2", {}, env);
     expect(comments.status).toBe(200);
     const commentBody = await comments.json() as Record<string, unknown>;
-    expect(commentBody).toEqual({ contractVersion: "1", targetType: "map", targetId: "map.test", items: [{ rating: 5, comment: "很好", author: null, createdAt: 3 }, { rating: 4, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], page: 1, pageSize: 2, total: 2, hasMore: false });
+    expect(commentBody).toEqual({ contractVersion: "1", targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", items: [{ rating: 5, comment: "很好", author: null, createdAt: 3 }, { rating: 4, comment: "稳定", author: { displayName: "公开玩家" }, createdAt: 2 }], page: 1, pageSize: 2, total: 2, hasMore: false });
     expect(JSON.stringify(commentBody)).not.toMatch(/playerAccountId|playerId|qq|audit|moderation|session|reviewId/);
 
-    expect((await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?page=0", {}, env)).status).toBe(422);
+    expect((await publicApp.request("http://localhost/v1/public/reviews/map/map.test/comments?page=0&gameplayRevisionId=revision%3Amap.test%3Ainitial", {}, env)).status).toBe(422);
     expect((await publicApp.request("http://localhost/v1/public/reviews/not-a-target/map.test/summary", {}, env)).status).toBe(422);
     expect(calls).toEqual([
-      { operation: "summary", input: { targetType: "map", targetId: "map.test" } },
-      { operation: "batch", input: { targetType: "map", targetIds: ["map.test", "map.empty"] } },
-      { operation: "comments", input: { targetType: "map", targetId: "map.test", page: 1, pageSize: 2 } },
+      { operation: "summary", input: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" } },
+      { operation: "summary", input: { targetType: "event", targetId: "event.test" } },
+      { operation: "batch", input: { targetType: "map", targets: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:initial" }, { targetId: "map.empty", gameplayRevisionId: "revision:map.empty:initial" }] } },
+      { operation: "batch", input: { targetType: "map", targets: [{ targetId: "map.test", gameplayRevisionId: "revision:map.test:r1" }, { targetId: "map.test", gameplayRevisionId: "revision:map.test:r2" }] } },
+      { operation: "comments", input: { targetType: "map", targetId: "map.test", gameplayRevisionId: "revision:map.test:initial", page: 1, pageSize: 2 } },
     ]);
   });
 
@@ -1666,7 +1692,12 @@ describe("API", () => {
         createAdminMapRevision: async (input) => { revisionRequests.push({ operation: "create", input }); return editorRevision; },
         updateAdminMapRevision: async (input) => {
           revisionRequests.push({ operation: "update", input });
+          if (input.lifecycle === "default") throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
           return { ...editorRevision, lifecycle: input.lifecycle, spatialConfig: input.spatialConfig };
+        },
+        promoteAdminMapRevision: async (input) => {
+          revisionRequests.push({ operation: "promote", input });
+          return { ...editorRevision, lifecycle: "default", isDefault: true };
         },
       }),
     });
@@ -1685,16 +1716,30 @@ describe("API", () => {
     const savedRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "map-revision-update-1" }, body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.12", mapVariant: null, spatialConfig: null, challengeAssignments: [] }) }, env);
     expect(savedRevision.status).toBe(200);
     expect(revisionRequests[3]).toMatchObject({ operation: "update", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", lifecycle: "selectable", gameVersion: "2026.08.12" } });
+    const directPromotion = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", {
+      method: "PUT",
+      headers: { "content-type": "application/json", "idempotency-key": "map-revision-direct-promotion" },
+      body: JSON.stringify({ contractVersion: "1", lifecycle: "default", gameVersion: "2026.08.13", mapVariant: null, spatialConfig: null, challengeAssignments: [] }),
+    }, env);
+    expect(directPromotion.status).toBe(409);
     const compositeRevision = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework", {
       method: "PUT",
       headers: { "content-type": "application/json", "idempotency-key": "map-revision-composite-enabled" },
-      body: JSON.stringify({ contractVersion: "1", lifecycle: "default", replacedDefaultLifecycle: "selectable", gameVersion: "2026.08.13", mapVariant: null, spatialConfig: compositeSpatialConfig, challengeAssignments: [] }),
+      body: JSON.stringify({ contractVersion: "1", lifecycle: "selectable", gameVersion: "2026.08.13", mapVariant: null, spatialConfig: compositeSpatialConfig, challengeAssignments: [] }),
     }, env);
     expect(compositeRevision.status).toBe(200);
     expect(await compositeRevision.json()).toMatchObject({
-      lifecycle: "default",
+      lifecycle: "selectable",
       spatialConfig: { composition: { selectionCount: 2 }, stages: [{ stageId: "alpha" }, { stageId: "beta" }] },
     });
+    const promotion = await editorApp.request("http://localhost/v1/admin/maps/map.samoa/revisions/revision:map.samoa:rework/promote", {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "map-revision-promote-1" },
+      body: JSON.stringify({ contractVersion: "1", replacedDefaultLifecycle: "selectable" }),
+    }, env);
+    expect(promotion.status).toBe(200);
+    expect(await promotion.json()).toMatchObject({ lifecycle: "default", isDefault: true });
+    expect(revisionRequests.find((request) => request.operation === "promote")).toMatchObject({ operation: "promote", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", replacedDefaultLifecycle: "selectable" } });
 
     const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
     const maps = await playerCatalogApp.request("http://localhost/v1/maps", { headers: { cookie: "owb_session=session-token" } }, env);
