@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import {
   qqBindingRequestSchema,
   submissionRequestSchema,
-  qqBindingClaimVerifyRequestSchema,
   qqLoginAttemptRequestSchema,
   qqLoginVerifyRequestSchema,
   passkeyLoginOptionsRequestSchema,
@@ -172,20 +171,17 @@ const publicCacheKey = (request: Request, query: Record<string, string> = {}) =>
 
 const hasNoQuery = (request: Request) => new URL(request.url).searchParams.size === 0;
 
-const hasOnlyPaginationQuery = (request: Request) => {
-  const params = new URL(request.url).searchParams;
+const hasOnlyUniqueQueryNames = (params: URLSearchParams, allowedNames: readonly string[]) => {
   const names = new Set<string>();
   params.forEach((_value, name) => names.add(name));
-  if ([...names].some((name) => name !== "page" && name !== "pageSize")) return false;
-  return params.getAll("page").length <= 1 && params.getAll("pageSize").length <= 1;
+  return [...names].every((name) => allowedNames.includes(name) && params.getAll(name).length === 1);
 };
+
+const hasOnlyPaginationQuery = (request: Request) => hasOnlyUniqueQueryNames(new URL(request.url).searchParams, ["page", "pageSize"]);
 
 const playerMasteryQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
-  const names = new Set<string>();
-  params.forEach((_value, name) => names.add(name));
-  if ([...names].some((name) => !["mapId", "gameplayRevisionId", "page", "pageSize"].includes(name))) return null;
-  if (["mapId", "gameplayRevisionId", "page", "pageSize"].some((name) => params.getAll(name).length > 1)) return null;
+  if (!hasOnlyUniqueQueryNames(params, ["mapId", "gameplayRevisionId", "page", "pageSize"])) return null;
   const mapId = params.get("mapId");
   const gameplayRevisionId = params.get("gameplayRevisionId");
   const page = Number(params.get("page") ?? "1");
@@ -199,9 +195,7 @@ const playerMasteryQuery = (request: Request) => {
 const adminVerifiedRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
   const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "unresolvedConflictsOnly", "acceptanceSource", "matchCode", "from", "to", "page", "pageSize"];
-  const names = new Set<string>();
-  params.forEach((_value, name) => names.add(name));
-  if ([...names].some((name) => !allowed.includes(name)) || allowed.some((name) => params.getAll(name).length > 1)) return null;
+  if (!hasOnlyUniqueQueryNames(params, allowed)) return null;
   const page = Number(params.get("page") ?? "1");
   const pageSize = Number(params.get("pageSize") ?? "20");
   const playerAccountId = params.get("playerAccountId")?.trim() || undefined;
@@ -366,8 +360,7 @@ export const createApp = (dependencies: AppDependencies) => {
     setPublicCatalogCache(c, !includePlayerIds && cacheable && publicCacheEnabled(c));
     c.header("Vary", "Authorization");
   };
-  const publicAgentPlayerTitleGrants = (response: Awaited<ReturnType<PlatformServices["listAgentPlayerTitleGrants"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
-  const publicAgentMapTitleHolders = (response: Awaited<ReturnType<PlatformServices["listAgentMapTitleHolders"]>>, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
+  const hideAgentPlayerIds = <T extends { items: Array<{ playerId: string }> }>(response: T, includePlayerIds: boolean) => includePlayerIds ? response : { ...response, items: response.items.map(({ playerId: _playerId, ...item }) => item) };
 
   app.get("/health", (c) => {
     c.header("Cache-Control", "private, no-store");
@@ -432,6 +425,20 @@ export const createApp = (dependencies: AppDependencies) => {
       throw error;
     }
   };
+
+  const moderateAdminReview = (
+    c: any,
+    schema: { safeParse(value: unknown): { success: true; data: { action: string; reason?: string } } | { success: false } },
+    action: (input: { action: string; reason?: string; reviewId: string }, auth: AuthContext, key: string) => Promise<unknown>,
+    errors: Record<string, { status: 404 | 409 | 422 | 503; message: string }>,
+  ) => adminMutation(c, {
+    schema,
+    before: () => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(c.req.param("reviewId"))
+      ? undefined
+      : errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid"),
+    action: (input, auth, key) => action({ ...input, reviewId: c.req.param("reviewId") }, auth, key),
+    errors,
+  });
 
   const requirePortalPlayer = async (c: any) => {
     allowPortal(c);
@@ -1182,13 +1189,13 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   app.get("/v1/agents/player-title-grants", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid"); setAgentsCache(c, includePlayerIds, true);
-    return c.json(publicAgentPlayerTitleGrants(await logServiceOperation(c, "agents_list_player_title_grants", () => dependencies.services(c.env).listAgentPlayerTitleGrants(page)), includePlayerIds));
+    return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_player_title_grants", () => dependencies.services(c.env).listAgentPlayerTitleGrants(page)), includePlayerIds));
   });
   app.get("/v1/agents/map-title-holders", async (c) => {
     const includePlayerIds = allowAgents(c); const page = agentPage(c); const mapId = c.req.query("mapId")?.trim(); if (!page || !mapId) return errorResponse(c, 422, "INVALID_REQUEST", "The mapId and pagination parameters are required"); setAgentsCache(c, includePlayerIds, true);
     if (!(await dependencies.services(c.env).getAgentMap({ mapId }))) return errorResponse(c, 404, "MAP_NOT_FOUND", "The map does not exist");
     try {
-      return c.json(publicAgentMapTitleHolders(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
+      return c.json(hideAgentPlayerIds(await logServiceOperation(c, "agents_list_map_title_holders", () => dependencies.services(c.env).listAgentMapTitleHolders({ ...page, mapId })), includePlayerIds));
     } catch (error) {
       const code = error instanceof Error ? error.message : "AGENT_MAP_TITLE_PROJECTION_FAILED";
       if (code === "AGENT_MAP_TITLE_PROJECTION_UNAVAILABLE") {
@@ -1700,50 +1707,34 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) { if (error instanceof Error && error.message === "REVIEW_NOT_FOUND") return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist"); if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, "REVIEW_TARGET_NOT_FOUND", "The review target does not exist"); throw error; }
   });
 
-  app.post("/v1/admin/reviews/:reviewId/comment", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const reviewId = c.req.param("reviewId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminReviewCommentModerationRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
-      if (parsed.data.action === "hide") await dependencies.services(c.env).hideReviewComment(input, access.auth!, idempotencyKey);
-      else await dependencies.services(c.env).restoreReviewComment(input, access.auth!, idempotencyKey);
-      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "REVIEW_COMMENT_MODERATION_FAILED";
-      if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
-      if (code === "REVIEW_COMMENT_NOT_FOUND") return errorResponse(c, 422, code, "The review has no comment");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
+  app.post("/v1/admin/reviews/:reviewId/comment", (c) => moderateAdminReview(
+    c,
+    adminReviewCommentModerationRequestSchema,
+    async ({ action, reason, reviewId }, auth, key) => {
+      const input = reason === undefined ? { reviewId } : { reviewId, reason };
+      const services = dependencies.services(c.env);
+      if (action === "hide") await services.hideReviewComment(input, auth, key);
+      else await services.restoreReviewComment(input, auth, key);
+      return services.getAdminReview({ reviewId }, auth);
+    },
+    {
+      ...errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
+      ...errorGroup(422, "The review has no comment", "REVIEW_COMMENT_NOT_FOUND"),
+    },
+  ));
 
-  app.post("/v1/admin/reviews/:reviewId/state", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const reviewId = c.req.param("reviewId");
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reviewId)) return errorResponse(c, 422, "INVALID_REVIEW_ID", "The review ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminReviewStateModerationRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      const input = parsed.data.reason === undefined ? { reviewId } : { reviewId, reason: parsed.data.reason };
-      if (parsed.data.action === "invalidate") await dependencies.services(c.env).invalidateReview(input, access.auth!, idempotencyKey);
-      else await dependencies.services(c.env).restoreReview(input, access.auth!, idempotencyKey);
-      return c.json(await dependencies.services(c.env).getAdminReview({ reviewId }, access.auth!));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "REVIEW_STATE_MODERATION_FAILED";
-      if (code === "REVIEW_NOT_FOUND") return errorResponse(c, 404, code, "The review does not exist");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
+  app.post("/v1/admin/reviews/:reviewId/state", (c) => moderateAdminReview(
+    c,
+    adminReviewStateModerationRequestSchema,
+    async ({ action, reason, reviewId }, auth, key) => {
+      const input = reason === undefined ? { reviewId } : { reviewId, reason };
+      const services = dependencies.services(c.env);
+      if (action === "invalidate") await services.invalidateReview(input, auth, key);
+      else await services.restoreReview(input, auth, key);
+      return services.getAdminReview({ reviewId }, auth);
+    },
+    errorGroup(404, "The review does not exist", "REVIEW_NOT_FOUND"),
+  ));
 
   app.get("/v1/admin/verified-runs", async (c) => {
     const access = await requireMaintainer(c);

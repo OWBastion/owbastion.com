@@ -21,7 +21,6 @@ import {
   isMap,
   isTitle,
   itemIdentity,
-  itemName,
 } from "~/components/admin/admin-achievement-types";
 import { mapVariantLabel } from "~/utils/map-variant";
 
