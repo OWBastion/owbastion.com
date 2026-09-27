@@ -1,4 +1,4 @@
-import type { AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 
 export const reviewEvidenceFieldLabels: Record<AdminSubmissionReviewCandidate["requiredFields"][number], string> = {
   map_name: "地图",
@@ -51,3 +51,11 @@ export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPrevie
   : verifiedRun.status === "eligible"
     ? "将按识别结果记录 Verified Run"
     : null;
+
+const reviewDecisionText: Record<NonNullable<AdminSubmission["review"]>["decision"], string> = {
+  approved: "通过",
+  rejected: "驳回",
+  resubmission_required: "要求重新提交",
+};
+
+export const reviewRecordLabel = (review: NonNullable<AdminSubmission["review"]>) => `${review.automatic ? "自动判定" : "维护者"}${reviewDecisionText[review.decision] ?? review.decision}`;

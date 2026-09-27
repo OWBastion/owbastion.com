@@ -30,7 +30,7 @@ const stepStates = computed<StepState[]>(() => {
 const stepDetails = computed(() => steps.map((step, index) => {
   const state = stepStates.value[index];
   if (step.key === "ocr" && state === "current" && props.status === "processing") return "平台正在处理截图";
-  if (step.key === "ocr" && state === "failed") return "未通过";
+  if (step.key === "ocr" && state === "failed") return "请重新提交截图";
   if (step.key === "review" && state === "current" && props.status === "needs_review") return "等待核对";
   if (step.key === "review" && state === "failed") return "未通过";
   if (state === "complete") return "已完成";
@@ -47,7 +47,8 @@ const stateLabel: Record<StepState, string> = {
 const stepIcon = (step: ProgressStep, state: StepState) => state === "complete" ? "i-lucide-check" : state === "failed" ? "i-lucide-x" : step.icon;
 const progressItems = computed(() => steps.map((step, index) => {
   const state = stepStates.value[index] ?? "upcoming";
-  return { ...step, state, detail: stepDetails.value[index] ?? step.detail, stateLabel: stateLabel[state], icon: stepIcon(step, state) };
+  const label = state === "failed" && props.resubmissionRequired ? "需重新提交" : stateLabel[state];
+  return { ...step, state, detail: stepDetails.value[index] ?? step.detail, stateLabel: label, icon: stepIcon(step, state) };
 }));
 </script>
 
@@ -56,7 +57,7 @@ const progressItems = computed(() => steps.map((step, index) => {
     <template #header><div class="card-heading"><h2 id="submission-progress-title">提交进度</h2></div></template>
     <ol class="progress-list">
       <li v-for="step in progressItems" :key="step.key" class="progress-item" :class="`progress-item--${step.state}`">
-        <div class="progress-marker" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>
+        <div class="progress-marker" role="img" :aria-label="`${step.title}：${step.stateLabel}`"><UIcon :name="step.icon" aria-hidden="true" /></div>
         <div class="progress-copy"><div class="progress-title"><strong>{{ step.title }}</strong><span>{{ step.stateLabel }}</span></div><p>{{ step.detail }}</p></div>
       </li>
     </ol>

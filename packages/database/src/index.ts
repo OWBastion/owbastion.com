@@ -371,6 +371,8 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
   return objectKey;
 };
 
+const playerManualReviewReason = "玩家申请人工处理";
+
 export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
   const runPasskeyRegistrationBatch = async (statements: D1PreparedStatement[]) => {
@@ -2310,7 +2312,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
     const snapshotTitleKeys = [...new Set(snapshots.map(({ snapshot }) => snapshot.titleKey))];
     const playerAccountIds = [...new Set(submissionRows.map((row) => row.playerAccountId))];
-    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes] = await Promise.all([
+    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes, reviewRows, grantRows] = await Promise.all([
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
@@ -2318,6 +2320,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       submissionIds.length ? db.select().from(submissionSpotChecks).where(inArray(submissionSpotChecks.submissionId, submissionIds)) : [],
       playerAccountIds.length ? db.select({ id: playerAccounts.id }).from(playerAccounts).where(inArray(playerAccounts.id, playerAccountIds)) : [],
       loadVerifiedRunSubmissionOutcomes(submissionIds),
+      submissionIds.length ? db.select().from(submissionReviews).where(inArray(submissionReviews.submissionId, submissionIds)).orderBy(submissionReviews.createdAt, sql`rowid`) : [],
+      submissionIds.length ? db.select({ submissionId: playerTitleGrants.sourceId, grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label }).from(playerTitleGrants).innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey)).where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), inArray(playerTitleGrants.sourceId, submissionIds), eq(playerTitleGrants.status, "active"))).orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id) : [],
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
@@ -2332,8 +2336,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (title) challenges.set(challengeId, { family: "achievement", titleName: title.label, category: title.category, condition: snapshot.condition, evidenceRule: snapshot.evidenceRule, ...(snapshot.mapVariant ? { mapVariant: snapshot.mapVariant } : {}) });
     }
     for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
-    return { challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
+    const activeTitleGrants = new Map<string, Array<{ grantId: string; titleKey: string; titleName: string }>>();
+    for (const { submissionId, ...grant } of grantRows) activeTitleGrants.set(submissionId, [...(activeTitleGrants.get(submissionId) ?? []), grant]);
+    return { activeTitleGrants, challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), latestReviews: new Map(reviewRows.map((review) => [review.submissionId, review])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
   };
+
+  const adminSubmissionReview = (review: typeof submissionReviews.$inferSelect | undefined) => review
+    ? { decision: review.decision as "approved" | "rejected" | "resubmission_required", automatic: review.reviewer.startsWith("system:"), reason: review.reason, reviewedAt: review.createdAt }
+    : null;
 
   const asAdminSubmission = (row: typeof submissions.$inferSelect, details: Awaited<ReturnType<typeof resolveAdminSubmissionDetails>>) => {
     const ocr = details.latestOcr.get(row.id);
@@ -2362,6 +2372,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       reason: row.reviewReason,
       evidenceUrl: null,
       spotCheck: details.spotChecks.get(row.id) ? { status: details.spotChecks.get(row.id)!.status as "pending" | "confirmed" | "revoked", sampledAt: details.spotChecks.get(row.id)!.sampledAt, resolvedAt: details.spotChecks.get(row.id)!.resolvedAt, reviewer: details.spotChecks.get(row.id)!.reviewer, reason: details.spotChecks.get(row.id)!.reason } : null,
+      review: adminSubmissionReview(details.latestReviews.get(row.id)),
+      activeTitleGrants: details.activeTitleGrants.get(row.id) ?? [],
       ...(details.verifiedRunOutcomes.get(row.id) ? { verifiedRunOutcome: details.verifiedRunOutcomes.get(row.id)! } : {}),
     };
   };
@@ -3098,6 +3110,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   // Re-evaluates the latest OCR evidence with the maintainer's field corrections and
   // resolves which eligible Challenges approval would complete: every canonical
   // Conditions match plus explicit maintainer confirmations from the same eligible set.
+  // Titles this Submission already granted stay with the player across later review decisions,
+  // so re-approving it can rely on them instead of requiring new rewards.
+  const loadRetainedSubmissionGrants = (submissionId: string) => db
+    .select({ grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label, mapId: playerTitleGrants.mapId })
+    .from(playerTitleGrants)
+    .innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey))
+    .where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), eq(playerTitleGrants.sourceId, submissionId), eq(playerTitleGrants.status, "active")))
+    .orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id);
+
   const planReviewedEvidence = async (row: typeof submissions.$inferSelect, fieldCorrections: AdminSubmissionReviewRequest["fieldCorrections"], confirmedChallengeIds: readonly string[] = []) => {
     const latestOcr = await db.select({ responseJson: ocrResults.responseJson }).from(ocrResults)
       .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
@@ -5224,7 +5245,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       const condition = conditions.length ? and(...conditions) : undefined;
       const [rows, [{ total }]] = await Promise.all([
-        db.select().from(submissions).where(condition).orderBy(desc(submissions.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
+        db.select().from(submissions).where(condition).orderBy(...(input.order === "oldest" ? [asc(submissions.updatedAt), asc(submissions.id)] : [desc(submissions.updatedAt), desc(submissions.id)])).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
         db.select({ total: count() }).from(submissions).where(condition),
       ]);
       const visibleRows = rows.slice(0, input.pageSize);
@@ -5329,7 +5350,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         mapName: submission.mapName,
         challengeId: submission.challengeId ?? undefined,
         difficulty: submission.difficulty ?? undefined,
-        reason: submission.status === "ocr_review_required" ? "已提交处理申请，请稍后查看结果。" : submission.reviewReason ?? undefined,
+        reason: submission.status === "ocr_review_required" ? submission.reviewReason === playerManualReviewReason ? "已提交处理申请，请稍后查看结果。" : undefined : submission.reviewReason ?? undefined,
         createdAt: submission.createdAt,
         updatedAt: submission.updatedAt,
         evidenceUrl: publicEvidenceUrl(attachment?.objectKey),
@@ -5764,7 +5785,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (submission.status === "ocr_review_required") return;
       if (submission.status !== "resubmission_required" || submission.ocrFailCount < ocrManualReviewThreshold) throw new Error("MANUAL_REVIEW_NOT_ELIGIBLE");
       const timestamp = now();
-      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: "玩家申请人工处理" }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
+      await db.update(submissions).set({ status: "ocr_review_required", updatedAt: timestamp, reviewReason: playerManualReviewReason }).where(and(eq(submissions.id, submission.id), eq(submissions.status, "resubmission_required")));
       await db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: "user", actorId: submission.id, operation: "submission.manual_review_requested", entityType: "submission", entityId: submission.id, payloadJson: JSON.stringify({ ocrFailCount: submission.ocrFailCount }), createdAt: timestamp });
     },
 
@@ -5838,7 +5859,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         : runEvidence.outcome === "eligible"
           ? { status: "eligible" as const, reason: null }
           : { status: "ineligible" as const, reason: runEvidence.reason };
-      if (!blockingCode && !evidence.selections.length && verifiedRun.status === "ineligible") blockingCode = "SUBMISSION_OUTCOME_NOT_CONFIGURED";
+      if (!blockingCode && !evidence.selections.length) {
+        const retainedGrants = await loadRetainedSubmissionGrants(row.id);
+        if (retainedGrants.length) {
+          const retainedMapIds = [...new Set(retainedGrants.flatMap((grant) => grant.mapId ? [grant.mapId] : []))];
+          const retainedMapRows = retainedMapIds.length ? await db.select({ id: maps.id, name: maps.name }).from(maps).where(inArray(maps.id, retainedMapIds)) : [];
+          const retainedMapNames = new globalThis.Map(retainedMapRows.map(({ id, name }) => [id, name]));
+          titles.push(...retainedGrants.map((grant) => ({ titleKey: grant.titleKey, titleName: grant.titleName, mapName: grant.mapId ? retainedMapNames.get(grant.mapId) ?? null : null, alreadyOwned: true })));
+        } else if (verifiedRun.status === "ineligible") blockingCode = "SUBMISSION_OUTCOME_NOT_CONFIGURED";
+      }
       return {
         contractVersion: "1",
         submissionId: row.id,
@@ -5863,6 +5892,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       let reviewedMatchOutcome: string | null = null;
       let reviewedChallengeIds: string[] = [];
       let reviewerConfirmedChallengeIds: string[] = [];
+      let retainedGrants: Awaited<ReturnType<typeof loadRetainedSubmissionGrants>> = [];
       const approvalTimestamp = now();
       if (input.decision === "approved") {
         const evidence = await planReviewedEvidence(row, input.fieldCorrections, input.confirmedChallengeIds);
@@ -5874,7 +5904,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (selectedRows.length) approvalRewards = await planApprovalRewards(row, selectedRows, approvalTimestamp);
         verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
         const verifiedRunAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
-        if (!selectedRows.length && !verifiedRunAccepted) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+        if (!selectedRows.length) {
+          retainedGrants = await loadRetainedSubmissionGrants(row.id);
+          if (!retainedGrants.length && !verifiedRunAccepted) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+        }
       }
       if (input.decision === "approved" && approvalRewards) {
         const { rewards, grantResults, completionAwardRows, completionGrantsByScope, directGrantsByScope } = approvalRewards;
@@ -5964,7 +5997,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       if (reward?.mapId && !reward.gameplayRevisionId) throw new Error("GAMEPLAY_REVISION_NOT_FOUND");
       if (reward?.gameplayRevisionId && row.gameplayRevisionId && reward.gameplayRevisionId !== row.gameplayRevisionId) throw new Error("SUBMISSION_REVISION_MISMATCH");
-      if (input.decision === "approved" && !reward && !(verifiedRunOutcome && ["created", "reused"].includes(verifiedRunOutcome.status))) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+      if (input.decision === "approved" && !reward && !retainedGrants.length && !(verifiedRunOutcome && ["created", "reused"].includes(verifiedRunOutcome.status))) throw new Error("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
       const timestamp = now();
       const reviewId = crypto.randomUUID();
@@ -5989,9 +6022,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
       const requestHash = await hashRequest(input);
       const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const response: AdminSubmissionReviewResponse = reward
         ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
+        : input.decision === "approved" && retainedGrants.length
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
         : input.decision === "approved"
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
@@ -6051,8 +6086,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       } else {
         statements.push(
           database.prepare(
-            "UPDATE submissions SET status = ?, review_reason = ?, grant_id = NULL, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
-          ).bind(input.decision, input.reason ?? null, timestamp, row.id, reviewId)
+            "UPDATE submissions SET status = ?, review_reason = ?, grant_id = CASE WHEN ? = 'approved' THEN (SELECT g.id FROM player_title_grants g WHERE g.source_type IN ('automatic', 'submission') AND g.source_id = submissions.id AND g.status = 'active' ORDER BY g.granted_at, g.id LIMIT 1) ELSE NULL END, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
+          ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId)
         );
       }
       statements.push(
@@ -6205,7 +6240,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const requestId = input.requestId ?? crypto.randomUUID();
       await database.batch([
         database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, error_code, created_at) VALUES (?, ?, ?, ?, 'error', ?, ?)").bind(crypto.randomUUID(), row.id, requestId, input.attempt, input.errorCode, now()),
-        database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("OCR 识别失败，请重新提交截图", now(), row.id),
+        database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("截图暂时无法处理，请重新提交截图。", now(), row.id),
       ]);
       logOcrEvent("job_failure_recorded", { attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
     },

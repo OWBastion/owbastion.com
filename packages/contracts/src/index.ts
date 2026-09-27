@@ -958,6 +958,8 @@ export const adminSubmissionSchema = z.object({
   reason: z.string().nullable().optional(),
   evidenceUrl: z.string().url().nullable(),
   spotCheck: z.object({ status: z.enum(["pending", "confirmed", "revoked"]), sampledAt: z.number().int(), resolvedAt: z.number().int().nullable(), reviewer: z.string().nullable(), reason: z.string().nullable() }).nullable().optional(),
+  review: z.object({ decision: z.enum(["approved", "rejected", "resubmission_required"]), automatic: z.boolean(), reason: z.string().nullable(), reviewedAt: z.number().int() }).nullable().optional(),
+  activeTitleGrants: z.array(z.object({ grantId: z.string().min(1), titleKey: z.string(), titleName: z.string() })).optional(),
   verifiedRunOutcome: adminVerifiedRunSubmissionOutcomeSchema.optional(),
 });
 

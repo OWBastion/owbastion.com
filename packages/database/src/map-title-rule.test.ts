@@ -402,7 +402,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       reviewer TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-    CREATE UNIQUE INDEX submission_reviews_submission_id_idx ON submission_reviews (submission_id);
+    CREATE INDEX submission_reviews_submission_created_idx ON submission_reviews (submission_id, created_at);
     CREATE TABLE idempotency_keys (
       id TEXT PRIMARY KEY NOT NULL,
       actor_id TEXT NOT NULL,
@@ -2754,6 +2754,36 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(JSON.parse(outcome.details_json)).toMatchObject({ basis: "reviewer" });
     const audit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'submission.review' AND entity_id = 'submission.confirm'").get() as { payload_json: string };
     expect(JSON.parse(audit.payload_json)).toMatchObject({ evidenceMatchedChallengeIds: [], reviewerConfirmedChallengeIds: [pioneer!.challengeId] });
+
+    // A maintainer may decide again: the latest review is current, and the Submission decision never revokes Titles already granted.
+    await services.reviewSubmission({ submissionId: "submission.confirm", decision: "rejected", reason: "截图裁剪" }, auth, "confirm.reject");
+    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 2, completions: 1, grants: 1, status: "rejected" });
+    expect(sqlite.prepare("SELECT status FROM player_title_grants WHERE source_id = 'submission.confirm'").get()).toEqual({ status: "active" });
+    const grantId = (sqlite.prepare("SELECT id FROM player_title_grants WHERE source_id = 'submission.confirm'").get() as { id: string }).id;
+    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ status: "rejected", review: { decision: "rejected", automatic: false, reason: "截图裁剪" }, activeTitleGrants: [{ grantId, titleKey: "PIONEER", titleName: "称号 PIONEER" }] });
+
+    // The Title is still held, so the Challenge is no longer confirmable; re-approval rests on what this Submission already granted.
+    const reapproval = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
+    expect(reapproval).toMatchObject({ approvable: true, blockingCode: null, titles: [{ titleKey: "PIONEER", mapName: "地图 map.paris", alreadyOwned: true }] });
+    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved" }, auth, "confirm.reapprove")).resolves.toMatchObject({ decision: "approved", grantId, titleKey: "PIONEER", alreadyOwned: true });
+    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 3, completions: 1, grants: 1, status: "approved" });
+    expect(sqlite.prepare("SELECT grant_id FROM submissions WHERE id = 'submission.confirm'").get()).toEqual({ grant_id: grantId });
+    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ review: { decision: "approved", reason: null } });
+    const reapprovalAudit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'submission.review' AND entity_id = 'submission.confirm' ORDER BY rowid DESC LIMIT 1").get() as { payload_json: string };
+    expect(JSON.parse(reapprovalAudit.payload_json)).toMatchObject({ decision: "approved", retainedGrants: [{ grantId, titleKey: "PIONEER" }] });
+  });
+
+  it("orders the review queue by longest wait when asked", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    seedAchievementEvidence(sqlite, ["SECOND"]);
+    sqlite.prepare("UPDATE submissions SET updated_at = ? WHERE id = 'submission.add'").run(now - 60_000);
+    const services = createPlatformServices(database);
+    const list = (order?: "oldest" | "newest") => services.listAdminSubmissions({ statuses: ["ocr_review_required"], page: 1, pageSize: 20, ...(order ? { order } : {}) }, auth);
+    expect((await list("oldest")).items.map((item) => item.submissionId)).toEqual(["submission.add", "submission.confirm"]);
+    expect((await list("newest")).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
+    expect((await list()).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
   });
 
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
@@ -3033,6 +3063,17 @@ describe("submission mastery outcomes", () => {
         { outcome_type: "verified_run", status: "created" },
       ]);
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.one' AND title_key = 'CONQUEROR' AND status = 'active'").get()).toEqual({ count: 1 });
+
+      // Rejecting and re-approving a Submission that produced both a Title and a Verified Run reports the retained Title too.
+      const combinedGrant = sqlite.prepare("SELECT id FROM player_title_grants WHERE source_id = ?").get(combined.submissionId) as { id: string };
+      await services.reviewSubmission({ submissionId: combined.submissionId, decision: "rejected" }, maintainer, "combined.reject");
+      expect(await services.getAdminSubmission({ submissionId: combined.submissionId }, maintainer)).toMatchObject({ status: "rejected", activeTitleGrants: [{ grantId: combinedGrant.id, titleKey: "CONQUEROR" }], verifiedRunOutcome: { status: "created" } });
+      expect(await services.previewSubmissionReview({ submissionId: combined.submissionId }, maintainer)).toMatchObject({ approvable: true, blockingCode: null, verifiedRun: { status: "recorded" }, titles: [{ titleKey: "CONQUEROR", alreadyOwned: true }] });
+      await expect(services.reviewSubmission({ submissionId: combined.submissionId, decision: "approved" }, maintainer, "combined.reapprove")).resolves.toMatchObject({
+        decision: "approved", grantId: combinedGrant.id, titleKey: "CONQUEROR", alreadyOwned: true, grants: [{ grantId: combinedGrant.id, alreadyOwned: true }], verifiedRunOutcome: { status: "created" },
+      });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = ?").get(combined.submissionId)).toEqual({ count: 1 });
+      expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = ?").get(combined.submissionId)).toEqual({ status: "approved", grant_id: combinedGrant.id });
 
       expect(storedObjects.size).toBe(6);
       expect([...storedObjects.keys()].every((key) => key.startsWith("uploads/submissions/"))).toBe(true);
@@ -3318,7 +3359,11 @@ describe("submission mastery outcomes", () => {
       .run("mastery-player-session", "attempt.player.one", "group.player.one", "member.player.one", "test", await requestHash(sessionToken), now + 60_000, now);
     const playerConflict = await publicServices.getPlayerSubmission({ submissionId: "submission.conflict" }, sessionToken);
     expect(playerConflict.verifiedRunOutcome).toBeUndefined();
-    expect(playerConflict.reason).toBe("已提交处理申请，请稍后查看结果。");
+    expect(playerConflict.reason).toBeUndefined();
+    // Only a player's own request is described to them as a submitted request.
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required', ocr_fail_count = 1 WHERE id = 'submission.exact'").run();
+    await publicServices.requestManualReview({ submissionId: "submission.exact" }, sessionToken);
+    expect((await publicServices.getPlayerSubmission({ submissionId: "submission.exact" }, sessionToken)).reason).toBe("已提交处理申请，请稍后查看结果。");
     const player = await publicServices.getCurrentPlayer({ sessionToken });
     const currentConflict = player?.recentSubmissions.find((submission) => submission.submissionId === "submission.conflict");
     expect(currentConflict?.status).toBe("needs_review");
@@ -3442,5 +3487,8 @@ describe("submission mastery outcomes", () => {
       { transition: "invalidated", count: 1 },
       { transition: "restored", count: 1 },
     ]);
+    // The retry re-decides the already-reviewed Submission instead of leaving it waiting for OCR.
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.lifecycle'").get()).toEqual({ status: "approved" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.lifecycle'").get()).toEqual({ count: 2 });
   });
 });

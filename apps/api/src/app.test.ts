@@ -1969,6 +1969,9 @@ describe("API", () => {
     expect(dashboard.status).toBe(200);
     expect(requests[2]).toEqual({ statuses: ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required"], page: 1, pageSize: 5 });
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
+    expect((await adminApp.request("http://localhost/v1/admin/submissions?status=ready_for_review&order=oldest&page=1&pageSize=20", {}, env)).status).toBe(200);
+    expect(requests[3]).toEqual({ statuses: ["ready_for_review"], order: "oldest", page: 1, pageSize: 20 });
+    expect((await adminApp.request("http://localhost/v1/admin/submissions?order=random", {}, env)).status).toBe(422);
   });
 
   it("keeps local development login disabled unless explicitly enabled", async () => {
