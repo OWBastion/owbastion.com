@@ -769,6 +769,30 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       )).get();
   };
 
+  const resolveAssignedGameplayRevision = async (input: {
+    mapId: string;
+    mapVariant: "classic" | null;
+    challengeFamily: "map_challenge" | "map_title_rule" | "title_challenge";
+    challengeId: string;
+    gameplayRevisionId?: string | null;
+  }) => {
+    const revision = await selectGameplayRevision({
+      mapId: input.mapId,
+      mapVariant: input.mapVariant,
+      gameplayRevisionId: input.gameplayRevisionId,
+      allowHistorical: Boolean(input.gameplayRevisionId),
+    });
+    if (!revision) return null;
+    const assignment = await db.select().from(gameplayRevisionChallengeAssignments).where(and(
+      eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, revision.id),
+      eq(gameplayRevisionChallengeAssignments.mapId, input.mapId),
+      eq(gameplayRevisionChallengeAssignments.challengeFamily, input.challengeFamily),
+      eq(gameplayRevisionChallengeAssignments.challengeId, input.challengeId),
+      eq(gameplayRevisionChallengeAssignments.enabled, 1),
+    )).get();
+    return assignment ? { revision, assignment } : null;
+  };
+
   // Resolve a rule only when it is assigned to the selected gameplay revision.
   const resolveMapTitleProjection = async (
     ruleId: string,
@@ -788,18 +812,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") return null;
 
     const mapVariant = (rule.mapVariant as "classic" | null) ?? null;
-    const revision = await selectGameplayRevision({ mapId, mapVariant, gameplayRevisionId, allowHistorical: Boolean(gameplayRevisionId) });
-    if (!revision) return null;
-    const assignment = await db.select().from(gameplayRevisionChallengeAssignments).where(and(
-      eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, revision.id),
-      eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-      eq(gameplayRevisionChallengeAssignments.challengeFamily, "map_title_rule"),
-      eq(gameplayRevisionChallengeAssignments.challengeId, rule.id),
-    )).get();
+    const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "map_title_rule", challengeId: rule.id, gameplayRevisionId });
+    if (!resolved) return null;
+    const { revision, assignment } = resolved;
     const exception = await db.select().from(mapTitleRuleExceptions)
       .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
       .get();
-    if (!assignment || assignment.enabled === 0) return null;
     if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt)) return null;
     const activeException = exception?.enabled === 1 ? exception : null;
     return {
@@ -976,15 +994,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         endsAt: null,
       };
     }
-    const revision = await selectGameplayRevision({ mapId, mapVariant, gameplayRevisionId, allowHistorical: Boolean(gameplayRevisionId) });
-    if (!revision) return null;
-    const assignment = await db.select().from(gameplayRevisionChallengeAssignments).where(and(
-      eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, revision.id),
-      eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-      eq(gameplayRevisionChallengeAssignments.challengeFamily, "title_challenge"),
-      eq(gameplayRevisionChallengeAssignments.challengeId, challenge.id),
-    )).get();
-    if (!assignment || assignment.enabled === 0) return null;
+    const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "title_challenge", challengeId: challenge.id, gameplayRevisionId });
+    if (!resolved) return null;
+    const { revision, assignment } = resolved;
     return {
       challengeId: challenge.id,
       challengeType: "map_title_achievement",
