@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Map } from "~/types/challenge";
-import type { AdminMapRevisionUpdateInput } from "~/composables/useAdminMapEditor";
+import type { AdminMapRevisionReplacementLifecycle, AdminMapRevisionUpdateInput } from "~/composables/useAdminMapEditor";
 import { useAdminMapEditor } from "~/composables/useAdminMapEditor";
 import { formatCurrentGameVersion } from "~/utils/game-version";
 import { portalErrorDetails } from "~/utils/portal-error";
@@ -107,6 +107,17 @@ async function saveRevision(input: AdminMapRevisionUpdateInput) {
   }
 }
 
+async function promoteRevision(replacedDefaultLifecycle: AdminMapRevisionReplacementLifecycle | null) {
+  if (!selectedRevision.value) return;
+  actionError.value = "";
+  try {
+    await api.promoteRevision(selectedRevision.value.revisionId, replacedDefaultLifecycle);
+    toast.add({ title: "新 Revision 已设为默认", color: "success" });
+  } catch (cause) {
+    actionError.value = portalErrorDetails(cause, "无法晋升 Revision，请检查其配置和挑战分配。").description;
+  }
+}
+
 function openReset() {
   resetSourceId.value = selectedRevision.value?.revisionId ?? revisions.value.find((revision) => revision.lifecycle === "default")?.revisionId ?? null;
   resetReason.value = "";
@@ -180,6 +191,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
           :challenge-catalog="api.editor.value?.challengeCatalog ?? []"
           :saving="api.saving.value"
           @save="saveRevision"
+          @promote="promoteRevision"
         />
       </div>
     </div>

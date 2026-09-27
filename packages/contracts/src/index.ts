@@ -451,17 +451,22 @@ export const adminRandomEventVersionListResponseSchema = z.object({ contractVers
 export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
-export const reviewTargetSchema = z.object({ targetType: reviewTargetTypeSchema, targetId: externalId }).strict();
+export const reviewTargetSchema = z.discriminatedUnion("targetType", [
+  z.object({ targetType: z.literal("event"), targetId: externalId }).strict(),
+  z.object({ targetType: z.literal("map"), targetId: externalId, gameplayRevisionId: externalId }).strict(),
+]);
 const reviewComment = z.string().trim().refine((value) => Array.from(value).length <= 500, "The review comment is too long");
 const reviewRatingDistributionSchema = z.object({ 1: z.number().int().nonnegative(), 2: z.number().int().nonnegative(), 3: z.number().int().nonnegative(), 4: z.number().int().nonnegative(), 5: z.number().int().nonnegative() }).strict();
-export const publicReviewSummarySchema = z.object({
-  targetType: reviewTargetTypeSchema,
-  targetId: externalId,
+const publicReviewSummaryFields = {
   averageRating: z.number().min(1).max(5).nullable(),
   reviewCount: z.number().int().nonnegative(),
   ratingDistribution: reviewRatingDistributionSchema,
   sampleInsufficient: z.boolean(),
-}).strict();
+};
+export const publicReviewSummarySchema = z.discriminatedUnion("targetType", [
+  z.object({ targetType: z.literal("event"), targetId: externalId, gameplayRevisionId: z.null(), ...publicReviewSummaryFields }).strict(),
+  z.object({ targetType: z.literal("map"), targetId: externalId, gameplayRevisionId: externalId, ...publicReviewSummaryFields }).strict(),
+]);
 export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
 export const publicReviewCommentSchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -473,6 +478,7 @@ export const publicReviewCommentPageSchema = z.object({
   contractVersion,
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
+  gameplayRevisionId: externalId.nullable(),
   items: z.array(publicReviewCommentSchema).max(50),
   page: z.number().int().positive(),
   pageSize: z.number().int().positive().max(50),
@@ -483,6 +489,7 @@ export const playerReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
+  gameplayRevisionId: externalId.nullable(),
   rating: z.number().int().min(1).max(5),
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
@@ -506,6 +513,7 @@ export const adminReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
+  gameplayRevisionId: externalId.nullable(),
   targetName: z.string().trim().min(1).max(256),
   playerAccountId: z.string().uuid(),
   playerId,
@@ -572,11 +580,14 @@ export const adminMapRevisionCreateRequestSchema = z.object({
 export const adminMapRevisionUpdateRequestSchema = z.object({
   contractVersion,
   lifecycle: adminMapRevisionLifecycle,
-  replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable().optional(),
   gameVersion: z.string().trim().min(1).max(64),
   mapVariant: z.literal("classic").nullable(),
   spatialConfig: agentSpatialConfigSchema.nullable(),
   challengeAssignments: z.array(adminMapRevisionChallengeAssignmentInputSchema).max(256),
+}).strict();
+export const adminMapRevisionPromotionRequestSchema = z.object({
+  contractVersion,
+  replacedDefaultLifecycle: z.enum(["selectable", "historical"]).nullable(),
 }).strict();
 
 const titleColorSchema = z.union([
@@ -1508,7 +1519,7 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
 export const adminPlayerDetailSchema = adminPlayerSummarySchema.extend({
   bindings: z.array(adminBindingSchema),
   recentSubmissions: z.array(adminPlayerRecentSubmissionSchema).max(10),
-  titleGrants: z.array(ownedTitleSchema.extend({ status: z.enum(["active", "revoked"]), revocationType: z.enum(["administrator", "evidence", "revision_reset"]).nullable(), sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
+  titleGrants: z.array(ownedTitleSchema.extend({ status: z.enum(["active", "revoked"]), revocationType: z.enum(["administrator", "evidence"]).nullable(), sourceType: z.enum(["historical", "submission", "manual", "automatic"]), grantedBy: z.string(), equipped: z.boolean(), equipable: z.boolean() })),
 });
 
 export const currentPlayerResponseSchema = z.object({
@@ -1669,6 +1680,7 @@ export type AdminMapMetadataUpdateRequest = z.infer<typeof adminMapMetadataUpdat
 export type AdminMapRevisionChallengeAssignment = z.infer<typeof adminMapRevisionChallengeAssignmentSchema>;
 export type AdminMapRevisionCreateRequest = z.infer<typeof adminMapRevisionCreateRequestSchema>;
 export type AdminMapRevisionUpdateRequest = z.infer<typeof adminMapRevisionUpdateRequestSchema>;
+export type AdminMapRevisionPromotionRequest = z.infer<typeof adminMapRevisionPromotionRequestSchema>;
 export type AdminMapEditorChallengeOption = z.infer<typeof adminMapEditorChallengeOptionSchema>;
 export type AdminMapRevision = z.infer<typeof adminMapRevisionSchema>;
 export type AdminMapEditorAudit = z.infer<typeof adminMapEditorAuditSchema>;

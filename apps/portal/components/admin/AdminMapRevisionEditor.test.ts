@@ -19,7 +19,7 @@ const revision = {
 };
 
 describe("AdminMapRevisionEditor", () => {
-  it("allows the administrator to edit the game version and atomically selects the displaced default lifecycle", async () => {
+  it("keeps editing separate from the explicit promotion decision", async () => {
     const wrapper = await mountSuspended(AdminMapRevisionEditor, {
       props: {
         revision,
@@ -53,7 +53,7 @@ describe("AdminMapRevisionEditor", () => {
           UTextarea: { props: ["modelValue"], emits: ["update:modelValue"], template: "<textarea :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
           AdminSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: "<div />" },
           UCheckbox: { props: ["label", "modelValue"], emits: ["update:modelValue"], template: "<label><input type=\"checkbox\" :checked=\"modelValue\" @change=\"$emit('update:modelValue', $event.target.checked)\" />{{ label }}</label>" },
-          UButton: { props: ["disabled"], template: "<button :disabled=\"disabled\"><slot /></button>" },
+          UButton: { props: ["disabled", "label"], emits: ["click"], template: "<button :disabled=\"disabled\" @click=\"$emit('click')\">{{ label }}<slot /></button>" },
         },
       },
     });
@@ -72,15 +72,14 @@ describe("AdminMapRevisionEditor", () => {
     await versionInput.setValue("2026.08.13");
     await wrapper.findAll('input[type="checkbox"]')[1]!.setValue(true);
 
-    await wrapper.findAll("select")[0]!.setValue("default");
+    expect(Array.from((wrapper.findAll("select")[0]!.element as HTMLSelectElement).options).map((option) => option.value)).not.toContain("default");
     await wrapper.findAll("select")[2]!.setValue("historical");
     await wrapper.get("form").trigger("submit");
 
     expect(wrapper.emitted("save")).toEqual([[
       {
         contractVersion: "1",
-        lifecycle: "default",
-        replacedDefaultLifecycle: "historical",
+        lifecycle: "preparing",
         gameVersion: "2026.08.13",
         mapVariant: null,
         spatialConfig: null,
@@ -95,5 +94,7 @@ describe("AdminMapRevisionEditor", () => {
         }],
       },
     ]]);
+    await wrapper.findAll("button").find((button) => button.text().includes("确认晋升为默认 Revision"))!.trigger("click");
+    expect(wrapper.emitted("promote")).toEqual([["historical"]]);
   });
 });

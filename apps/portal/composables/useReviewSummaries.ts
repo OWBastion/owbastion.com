@@ -9,7 +9,11 @@ type ReviewSummaryBatchResponse = {
 
 const batchSize = 100;
 
-export function useReviewSummaries(targetType: ReviewTargetType, targetIds: MaybeRefOrGetter<string[]>) {
+export function useReviewSummaries(
+  targetType: ReviewTargetType,
+  targetIds: MaybeRefOrGetter<string[]>,
+  gameplayRevisionIds?: MaybeRefOrGetter<Array<string | null>>,
+) {
   const api = usePortalApi();
   const summaries = shallowRef<Record<string, ReviewSummary>>({});
   const loading = shallowRef(false);
@@ -18,8 +22,15 @@ export function useReviewSummaries(targetType: ReviewTargetType, targetIds: Mayb
 
   const refresh = async () => {
     const sequence = ++requestSequence;
-    const ids = [...new Set(toValue(targetIds).filter(Boolean))];
-    if (!ids.length) {
+    const ids = toValue(targetIds).filter(Boolean);
+    const revisionIds = targetType === "map" ? toValue(gameplayRevisionIds ?? []) : [];
+    const targets = targetType === "event"
+      ? [...new Set(ids)].map((targetId) => ({ targetId, gameplayRevisionId: null }))
+      : [...new Map(ids.map((targetId, index) => {
+        const gameplayRevisionId = revisionIds[index];
+        return gameplayRevisionId ? [targetId + ":" + gameplayRevisionId, { targetId, gameplayRevisionId }] as const : null;
+      }).filter((entry): entry is readonly [string, { targetId: string; gameplayRevisionId: string }] => entry !== null)).values()];
+    if (!targets.length) {
       summaries.value = {};
       error.value = "";
       loading.value = false;
@@ -28,17 +39,19 @@ export function useReviewSummaries(targetType: ReviewTargetType, targetIds: Mayb
 
     loading.value = true;
     error.value = "";
-    const batches = Array.from({ length: Math.ceil(ids.length / batchSize) }, (_, index) => ids.slice(index * batchSize, (index + 1) * batchSize));
-    const results = await Promise.allSettled(batches.map((batch) => api<ReviewSummaryBatchResponse>(
-      "/v1/public/reviews/summaries?targetType=" + encodeURIComponent(targetType) + "&targetIds=" + encodeURIComponent(batch.join(",")),
-    )));
+    const batches = Array.from({ length: Math.ceil(targets.length / batchSize) }, (_, index) => targets.slice(index * batchSize, (index + 1) * batchSize));
+    const results = await Promise.allSettled(batches.map((batch) => {
+      const query = new URLSearchParams({ targetType, targetIds: batch.map((target) => target.targetId).join(",") });
+      if (targetType === "map") query.set("gameplayRevisionIds", batch.map((target) => target.gameplayRevisionId ?? "").join(","));
+      return api<ReviewSummaryBatchResponse>("/v1/public/reviews/summaries?" + query.toString());
+    }));
     if (sequence !== requestSequence) return;
 
     const failed = results.find((result) => result.status === "rejected");
     const nextSummaries: Record<string, ReviewSummary> = {};
     for (const result of results) {
       if (result.status === "fulfilled") {
-        for (const summary of result.value.items) nextSummaries[summary.targetId] = summary;
+        for (const summary of result.value.items) nextSummaries[summary.targetType === "map" ? summary.targetId + ":" + summary.gameplayRevisionId : summary.targetId] = summary;
       }
     }
     summaries.value = nextSummaries;
@@ -46,9 +59,9 @@ export function useReviewSummaries(targetType: ReviewTargetType, targetIds: Mayb
     loading.value = false;
   };
 
-  const summaryFor = (targetId: string) => summaries.value[targetId] ?? null;
+  const summaryFor = (targetId: string, gameplayRevisionId?: string | null) => summaries.value[targetType === "map" ? targetId + ":" + (gameplayRevisionId ?? "") : targetId] ?? null;
 
-  watch(() => toValue(targetIds), () => { void refresh(); }, { immediate: true, deep: true });
+  watch([() => toValue(targetIds), () => toValue(gameplayRevisionIds ?? [])], () => { void refresh(); }, { immediate: true, deep: true });
 
   return { summaries, loading, error, refresh, summaryFor };
 }

@@ -5,12 +5,14 @@ import PlayerReviewPanel from "./PlayerReviewPanel.vue";
 
 const api = vi.fn();
 mockNuxtImport("usePortalApi", () => () => api);
+const gameplayRevisionId = "revision:map.samoa:initial";
 
 const summary = {
   contractVersion: "1" as const,
   summary: {
     targetType: "map" as const,
     targetId: "map.samoa",
+    gameplayRevisionId,
     averageRating: 4.2,
     reviewCount: 3,
     ratingDistribution: { 1: 0, 2: 0, 3: 1, 4: 1, 5: 1 },
@@ -21,6 +23,7 @@ const comments = {
   contractVersion: "1" as const,
   targetType: "map" as const,
   targetId: "map.samoa",
+  gameplayRevisionId,
   items: [{ rating: 5 as const, comment: "节奏很好", author: { displayName: "玩家一号" }, createdAt: 1_754_000_000_000 }],
   page: 1,
   pageSize: 5,
@@ -31,6 +34,7 @@ const playerReview = {
   reviewId: "4c1f9c1c-6f63-4f4a-9cb0-1af3dbb44579",
   targetType: "map" as const,
   targetId: "map.samoa",
+  gameplayRevisionId,
   rating: 4 as const,
   comment: "初始评价",
   anonymous: true,
@@ -52,7 +56,7 @@ const setupApi = (authenticated: boolean, overrides: Record<string, unknown> = {
       if (value instanceof Error) throw value;
       return value;
     }
-    if (path.endsWith("/summary")) return summary;
+    if (path.includes("/summary")) return summary;
     if (path.includes("/comments?")) return comments;
     if (path.includes("/me/reviews/") && !path.includes("/withdraw")) return { contractVersion: "1", review: authenticated ? playerReview : null };
     if (options?.method === "PUT") return { contractVersion: "1", review: { ...playerReview, rating: 5, comment: "已修改", anonymous: true } };
@@ -66,10 +70,10 @@ describe("PlayerReviewPanel", () => {
     let resolveSummary: (value: typeof summary) => void = () => {};
     let resolveComments: (value: typeof comments) => void = () => {};
     api.mockImplementation((path: string) => {
-      if (path.endsWith("/summary")) return new Promise<typeof summary>((resolve) => { resolveSummary = resolve; });
+      if (path.includes("/summary")) return new Promise<typeof summary>((resolve) => { resolveSummary = resolve; });
       return new Promise<typeof comments>((resolve) => { resolveComments = resolve; });
     });
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: false }, global });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: false }, global });
     await wrapper.vm.$nextTick();
 
     expect(wrapper.get('[role="status"]').text()).toContain("读取中…");
@@ -81,7 +85,7 @@ describe("PlayerReviewPanel", () => {
 
   it("shows public results and a login path to guests", async () => {
     setupApi(false);
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: false }, global });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: false }, global });
     await flushPromises();
 
     expect(wrapper.text()).toContain("4.2");
@@ -94,11 +98,11 @@ describe("PlayerReviewPanel", () => {
 
   it("loads an empty state and anonymous editor for authenticated players", async () => {
     setupApi(true, {
-      "/v1/public/reviews/map/map.samoa/summary": { ...summary, summary: { ...summary.summary, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } },
-      "/v1/public/reviews/map/map.samoa/comments?page=1&pageSize=5": { ...comments, items: [], total: 0 },
-      "/v1/me/reviews/map/map.samoa": { contractVersion: "1", review: null },
+      "/v1/public/reviews/map/map.samoa/summary?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { ...summary, summary: { ...summary.summary, averageRating: null, reviewCount: 0, ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, sampleInsufficient: true } },
+      "/v1/public/reviews/map/map.samoa/comments?page=1&pageSize=5&gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { ...comments, items: [], total: 0 },
+      "/v1/me/reviews/map/map.samoa?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": { contractVersion: "1", review: null },
     });
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: true }, global });
     await flushPromises();
 
     expect(wrapper.text()).toContain("暂无评分");
@@ -110,7 +114,7 @@ describe("PlayerReviewPanel", () => {
 
   it("preserves the editor flow for edit and anonymous save without duplicate writes", async () => {
     setupApi(true);
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: true }, global });
     await flushPromises();
 
     await wrapper.get('button[aria-label="5 星"]').trigger("click");
@@ -119,7 +123,7 @@ describe("PlayerReviewPanel", () => {
     await Promise.all([form.trigger("submit"), form.trigger("submit")]);
     await flushPromises();
 
-    const writes = api.mock.calls.filter(([path, options]) => path.includes("/v1/me/reviews/map/map.samoa") && options?.method === "PUT");
+    const writes = api.mock.calls.filter(([path, options]) => path.includes("/v1/me/reviews/map/map.samoa?gameplayRevisionId=") && options?.method === "PUT");
     expect(writes).toHaveLength(1);
     expect(writes[0]?.[1]).toMatchObject({ headers: { "Idempotency-Key": expect.any(String) }, body: { rating: 5, comment: "已修改", anonymous: true } });
     expect(wrapper.text()).toContain("评价已保存");
@@ -127,7 +131,7 @@ describe("PlayerReviewPanel", () => {
 
   it("supports withdrawing an existing review", async () => {
     setupApi(true);
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: true }, global });
     await flushPromises();
 
     await wrapper.findAll("button").find((button) => button.text().includes("撤回评价"))!.trigger("click");
@@ -152,8 +156,8 @@ describe("PlayerReviewPanel", () => {
   });
 
   it("shows a retryable error without losing the current editor", async () => {
-    setupApi(true, { "/v1/public/reviews/map/map.samoa/summary": Object.assign(new Error("unavailable"), { statusCode: 503 }) });
-    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", authenticated: true }, global });
+    setupApi(true, { "/v1/public/reviews/map/map.samoa/summary?gameplayRevisionId=revision%3Amap.samoa%3Ainitial": Object.assign(new Error("unavailable"), { statusCode: 503 }) });
+    const wrapper = await mountSuspended(PlayerReviewPanel, { props: { targetType: "map", targetId: "map.samoa", gameplayRevisionId, authenticated: true }, global });
     await flushPromises();
 
     expect(wrapper.get('textarea[placeholder="分享你的实际体验"]').exists()).toBe(true);

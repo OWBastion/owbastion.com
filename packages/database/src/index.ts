@@ -292,6 +292,7 @@ const asReviewRecord = (row: typeof reviews.$inferSelect): ReviewRecord => ({
   playerAccountId: row.playerAccountId,
   targetType: row.targetType as ReviewTargetType,
   targetId: row.targetId,
+  gameplayRevisionId: row.gameplayRevisionId,
   rating: asReviewRating(row.rating),
   comment: row.comment,
   commentStatus: row.commentStatus as ReviewRecord["commentStatus"],
@@ -423,11 +424,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   const findReviewAccount = async (subject: string) => db.select().from(playerAccounts).where(or(eq(playerAccounts.id, subject), eq(playerAccounts.playerId, subject))).get();
   const findReviewTarget = async (input: ReviewTarget) => input.targetType === "event"
     ? await db.select().from(randomEvents).where(eq(randomEvents.id, input.targetId)).get()
-    : await db.select().from(maps).where(eq(maps.id, input.targetId)).get();
+    : await db.select({ map: maps, revision: gameplayRevisions }).from(maps)
+      .innerJoin(gameplayRevisions, and(eq(gameplayRevisions.mapId, maps.id), eq(gameplayRevisions.id, input.gameplayRevisionId)))
+      .where(eq(maps.id, input.targetId)).get();
   type AdminReviewRow = {
     review_id: string;
     target_type: string;
     target_id: string;
+    gameplay_revision_id: string | null;
     target_name: string | null;
     player_account_id: string;
     player_id: string;
@@ -450,6 +454,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       reviewId: row.review_id,
       targetType: row.target_type as AdminReview["targetType"],
       targetId: row.target_id,
+      gameplayRevisionId: row.gameplay_revision_id,
       targetName: row.target_name,
       playerAccountId: row.player_account_id,
       playerId: row.player_id,
@@ -472,7 +477,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     INNER JOIN player_accounts p ON p.id = r.player_account_id
     WHERE 1 = 1`;
   const adminReviewSelect = `
-    SELECT r.id AS review_id, r.target_type, r.target_id,
+    SELECT r.id AS review_id, r.target_type, r.target_id, r.gameplay_revision_id,
       CASE WHEN r.target_type = 'event' THEN (SELECT name FROM random_events WHERE id = r.target_id)
            ELSE (SELECT name FROM maps WHERE id = r.target_id) END AS target_name,
       r.player_account_id, p.player_id, p.player_name, r.rating, r.comment,
@@ -3061,55 +3066,71 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const getReviewSummaries = async (input: ReviewSummaryBatchInput): Promise<ReviewSummary[]> => {
-    const targetIds = [...new Set(input.targetIds)];
-    if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
-    const targetRows = input.targetType === "event"
-      ? await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds))
-      : await db.select({ id: maps.id }).from(maps).where(inArray(maps.id, targetIds));
-    if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
-    const placeholders = targetIds.map(() => "?").join(", ");
-    const aggregateResult = await database.prepare(`
-      SELECT
-        target_id,
-        COUNT(*) AS review_count,
-        AVG(rating) AS average_rating,
-        SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
-        SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
-        SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
-        SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
-        SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
-      FROM reviews
-      WHERE target_type = ? AND target_id IN (${placeholders}) AND status = 'active'
-      GROUP BY target_id
-    `).bind(input.targetType, ...targetIds).all<{
-      target_id: string;
-      review_count: number;
-      average_rating: number | null;
-      rating_1: number | null;
-      rating_2: number | null;
-      rating_3: number | null;
-      rating_4: number | null;
-      rating_5: number | null;
-    }>();
-    const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
-    return targetIds.map((targetId) => {
-      const aggregate = aggregates.get(targetId);
+    type AggregateRow = { target_id: string; gameplay_revision_id: string | null; review_count: number; average_rating: number | null; rating_1: number | null; rating_2: number | null; rating_3: number | null; rating_4: number | null; rating_5: number | null };
+    const toSummary = (target: { targetId: string; gameplayRevisionId: string | null }, aggregate: AggregateRow | undefined): ReviewSummary => {
       const reviewCount = Number(aggregate?.review_count ?? 0);
       return {
         targetType: input.targetType,
-        targetId,
+        targetId: target.targetId,
+        gameplayRevisionId: target.gameplayRevisionId,
         averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
         reviewCount,
-        ratingDistribution: {
-          1: Number(aggregate?.rating_1 ?? 0),
-          2: Number(aggregate?.rating_2 ?? 0),
-          3: Number(aggregate?.rating_3 ?? 0),
-          4: Number(aggregate?.rating_4 ?? 0),
-          5: Number(aggregate?.rating_5 ?? 0),
-        },
+        ratingDistribution: { 1: Number(aggregate?.rating_1 ?? 0), 2: Number(aggregate?.rating_2 ?? 0), 3: Number(aggregate?.rating_3 ?? 0), 4: Number(aggregate?.rating_4 ?? 0), 5: Number(aggregate?.rating_5 ?? 0) },
         sampleInsufficient: reviewCount < reviewSampleThreshold,
       };
-    });
+    };
+    if (input.targetType === "event") {
+      const targetIds = [...new Set(input.targetIds)];
+      if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
+      const targetRows = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds));
+      if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
+      const placeholders = targetIds.map(() => "?").join(", ");
+      const aggregateResult = await database.prepare(`
+        SELECT target_id, NULL AS gameplay_revision_id, COUNT(*) AS review_count, AVG(rating) AS average_rating,
+          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+        FROM reviews
+        WHERE target_type = 'event' AND target_id IN (${placeholders}) AND status = 'active'
+        GROUP BY target_id
+      `).bind(...targetIds).all<AggregateRow>();
+      const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
+      return targetIds.map((targetId) => toSummary({ targetId, gameplayRevisionId: null }, aggregates.get(targetId)));
+    }
+
+    const targets = [...new Map(input.targets.map((target) => [`${target.targetId}:${target.gameplayRevisionId}`, target])).values()];
+    if (!targets.length || targets.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
+    const serializedTargets = JSON.stringify(targets);
+    const targetCount = await database.prepare(`
+      SELECT COUNT(*) AS count FROM json_each(?)
+      WHERE EXISTS (
+        SELECT 1 FROM gameplay_revisions revision
+        WHERE revision.id = json_extract(json_each.value, '$.gameplayRevisionId')
+          AND revision.map_id = json_extract(json_each.value, '$.targetId')
+      )
+    `).bind(serializedTargets).first<{ count: number }>();
+    if (Number(targetCount?.count ?? 0) !== targets.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
+    const aggregateResult = await database.prepare(`
+      WITH requested AS (
+        SELECT json_extract(value, '$.targetId') AS target_id,
+               json_extract(value, '$.gameplayRevisionId') AS gameplay_revision_id
+        FROM json_each(?)
+      )
+      SELECT review.target_id, review.gameplay_revision_id, COUNT(*) AS review_count, AVG(review.rating) AS average_rating,
+        SUM(CASE WHEN review.rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+        SUM(CASE WHEN review.rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+        SUM(CASE WHEN review.rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+        SUM(CASE WHEN review.rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+        SUM(CASE WHEN review.rating = 5 THEN 1 ELSE 0 END) AS rating_5
+      FROM reviews AS review
+      INNER JOIN requested ON requested.target_id = review.target_id AND requested.gameplay_revision_id = review.gameplay_revision_id
+      WHERE review.target_type = 'map' AND review.status = 'active'
+      GROUP BY review.target_id, review.gameplay_revision_id
+    `).bind(serializedTargets).all<AggregateRow>();
+    const aggregates = new Map(aggregateResult.results.map((row) => [`${row.target_id}:${row.gameplay_revision_id}`, row]));
+    return targets.map((target) => toSummary(target, aggregates.get(`${target.targetId}:${target.gameplayRevisionId}`)));
   };
 
   const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
@@ -3652,27 +3673,21 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return replay;
       const current = await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.id, input.revisionId), eq(gameplayRevisions.mapId, input.mapId))).get();
       if (!current) throw new Error("REVISION_NOT_FOUND");
+      if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
       await validateRevisionAssignments(input.mapId, input.challengeAssignments);
 
-      const otherDefault = input.lifecycle === "default"
-        ? await db.select().from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.lifecycle, "default"), ne(gameplayRevisions.id, input.revisionId))).get() ?? null
-        : null;
-      if (otherDefault && !input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_REQUIRED");
-      if (!otherDefault && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_NOT_FOUND");
-      if (input.lifecycle !== "default" && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_INVALID");
       if (input.mapVariant === "classic") {
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
         if (otherClassic) throw new Error("LEGACY_VARIANT_CONFLICT");
       }
 
-      const becomesDefaultMapRevision = input.lifecycle === "default" && input.mapVariant !== "classic";
       const becomesClassicMapRevision = input.lifecycle === "selectable" && input.mapVariant === "classic";
-      const activeMap = becomesDefaultMapRevision || becomesClassicMapRevision
+      const activeMap = becomesClassicMapRevision
         ? await db.select({ id: maps.id }).from(maps).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get()
         : null;
-      const defaultMapTitleRules = activeMap && (becomesDefaultMapRevision || becomesClassicMapRevision)
+      const defaultMapTitleRules = activeMap
         ? await db.select().from(mapTitleRules).where(and(
           eq(mapTitleRules.defaultScope, "all_active"),
           inArray(mapTitleRules.status, ["active", "sunsetting"]),
@@ -3682,9 +3697,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
       const timestamp = now();
       const statements = [
-        ...(otherDefault ? [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
-          input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
-        )] : []),
         database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, legacy_map_variant = ?, game_version = ?, spatial_config_json = ?, updated_at = ? WHERE id = ? AND map_id = ?").bind(
           input.lifecycle, input.mapVariant, input.gameVersion, spatialConfig ? JSON.stringify(spatialConfig) : null, timestamp, input.revisionId, input.mapId,
         ),
@@ -3703,22 +3715,78 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       await database.batch(statements);
       const response = await loadAdminMapRevision(input.revisionId);
       await recordIdempotency(db, auth.subject, "admin.map.revision.update", idempotencyKey, input, response);
-      if (otherDefault) await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", otherDefault.id, {
-        previousLifecycle: otherDefault.lifecycle,
-        lifecycle: input.replacedDefaultLifecycle,
-        replacedByRevisionId: input.revisionId,
-        progressCopied: false,
-      });
       await recordAudit(db, auth, "admin.map.revision.update", "gameplay_revision", input.revisionId, {
         previousLifecycle: current.lifecycle,
         lifecycle: input.lifecycle,
         gameVersion: input.gameVersion,
-        replacedDefaultRevisionId: otherDefault?.id ?? null,
-        replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null,
         assignmentCount: input.challengeAssignments.length,
         spatialConfigUpdated: true,
         progressCopied: false,
       });
+      return response;
+    },
+
+    async promoteAdminMapRevision(input, auth, idempotencyKey) {
+      const operation = "admin.map.revision.promote";
+      const replay = await replayOrConflict<AdminMapRevision>(db, auth.subject, operation, idempotencyKey, input);
+      if (replay) return replay;
+      const current = await db.select().from(gameplayRevisions).where(and(
+        eq(gameplayRevisions.id, input.revisionId),
+        eq(gameplayRevisions.mapId, input.mapId),
+      )).get();
+      if (!current) throw new Error("REVISION_NOT_FOUND");
+      if (!["preparing", "selectable", "default"].includes(current.lifecycle)) throw new Error("REVISION_NOT_PROMOTABLE");
+      if (current.legacyMapVariant !== null) throw new Error("DEFAULT_REVISION_CANNOT_USE_CLASSIC_VARIANT");
+      const map = await db.select().from(maps).where(and(eq(maps.id, input.mapId), eq(maps.status, "active"))).get();
+      if (!map) throw new Error("MAP_NOT_FOUND");
+      const spatialConfig = current.spatialConfigJson ? parseSpatialConfig(JSON.parse(current.spatialConfigJson)) : null;
+      assertRevisionConfiguration("default", null, spatialConfig);
+      const assignmentRows = await db.select().from(gameplayRevisionChallengeAssignments)
+        .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
+      const assignments = assignmentRows.map((assignment) => ({
+        challengeFamily: assignment.challengeFamily as AdminMapRevisionUpdateRequest["challengeAssignments"][number]["challengeFamily"],
+        challengeId: assignment.challengeId,
+        enabled: assignment.enabled === 1,
+        condition: assignment.condition,
+        evidenceRule: assignment.evidenceRule,
+        submissionMode: assignment.submissionMode as AdminMapRevisionUpdateRequest["challengeAssignments"][number]["submissionMode"],
+        slot: assignment.slot as AdminMapRevisionUpdateRequest["challengeAssignments"][number]["slot"],
+      }));
+      await validateRevisionAssignments(input.mapId, assignments);
+      const otherDefault = current.lifecycle === "default" ? null : await db.select().from(gameplayRevisions).where(and(
+        eq(gameplayRevisions.mapId, input.mapId),
+        eq(gameplayRevisions.lifecycle, "default"),
+      )).get() ?? null;
+      if (current.lifecycle !== "default" && otherDefault && !input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_REQUIRED");
+      if (current.lifecycle !== "default" && !otherDefault && input.replacedDefaultLifecycle) throw new Error("DEFAULT_REVISION_REPLACEMENT_NOT_FOUND");
+      const timestamp = now();
+      const response = asAdminMapRevision(
+        { ...current, lifecycle: "default", updatedAt: timestamp },
+        assignmentRows,
+      );
+      const requestHash = await hashRequest(input);
+      const statements = [
+        ...(otherDefault ? [database.prepare("UPDATE gameplay_revisions SET lifecycle = ?, updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle = 'default'").bind(
+          input.replacedDefaultLifecycle, timestamp, otherDefault.id, input.mapId,
+        )] : []),
+        ...(current.lifecycle === "default" ? [] : [database.prepare("UPDATE gameplay_revisions SET lifecycle = 'default', updated_at = ? WHERE id = ? AND map_id = ? AND lifecycle IN ('preparing', 'selectable')").bind(timestamp, input.revisionId, input.mapId)]),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(
+          `${auth.subject}:${operation}:${idempotencyKey}`, auth.subject, operation, requestHash, JSON.stringify(response), timestamp,
+        ),
+        ...(current.lifecycle === "default" ? [] : [
+          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'gameplay_revision', ?, ?, ?)").bind(
+            crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, input.revisionId,
+            JSON.stringify({ previousLifecycle: current.lifecycle, lifecycle: "default", replacedDefaultRevisionId: otherDefault?.id ?? null, replacedDefaultLifecycle: input.replacedDefaultLifecycle ?? null, progressCopied: false }),
+            timestamp,
+          ),
+          ...(otherDefault ? [database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'gameplay_revision', ?, ?, ?)").bind(
+            crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, operation, otherDefault.id,
+            JSON.stringify({ previousLifecycle: "default", lifecycle: input.replacedDefaultLifecycle, replacedByRevisionId: input.revisionId, progressCopied: false }),
+            timestamp,
+          )] : []),
+        ]),
+      ];
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
       return response;
     },
 
@@ -5906,7 +5974,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: submission.createdAt,
           updatedAt: submission.updatedAt,
         })),
-        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | "revision_reset" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: grant.status === "active" && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: grant.status === "active" && title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
+        titleGrants: titleGrants.map(({ grant, title, mapName, equipped }) => ({ grantId: grant.id, titleKey: title.key, label: title.label, icon: title.icon as never, iconUrl: title.iconUrl, category: title.category, condition: title.condition, scope: grant.mapId ? "map" as const : "global" as const, mapName: mapName ?? undefined, slot: grant.slot as "pioneer" | "conqueror" | "dominator" | undefined, grantedAt: grant.grantedAt, status: grant.status as "active" | "revoked", revocationType: grant.revocationType as "administrator" | "evidence" | null, sourceType: grant.sourceType as "historical" | "submission" | "manual" | "automatic", grantedBy: grant.grantedBy, equipped: grant.status === "active" && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null && Boolean(equipped), equipable: grant.status === "active" && title.gameVersion !== null && title.scope === "global" && grant.mapId === null && grant.gameplayRevisionId === null })),
       };
     },
 
@@ -6785,7 +6853,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async getReviewSummary(input: ReviewTarget): Promise<ReviewSummary> {
-      const summaries = await getReviewSummaries({ targetType: input.targetType, targetIds: [input.targetId] });
+      const summaries = input.targetType === "event"
+        ? await getReviewSummaries({ targetType: "event", targetIds: [input.targetId] })
+        : await getReviewSummaries({ targetType: "map", targets: [{ targetId: input.targetId, gameplayRevisionId: input.gameplayRevisionId }] });
       return summaries[0]!;
     },
 
@@ -6808,12 +6878,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         INNER JOIN player_accounts p ON p.id = r.player_account_id
         WHERE r.target_type = ?
           AND r.target_id = ?
+          AND r.gameplay_revision_id IS ?
           AND r.status = 'active'
           AND r.comment_status = 'visible'
           AND r.comment IS NOT NULL
         ORDER BY r.created_at DESC, r.id DESC
         LIMIT ? OFFSET ?
-      `).bind(input.targetType, input.targetId, pageSize, (page - 1) * pageSize).all<{
+      `).bind(input.targetType, input.targetId, input.targetType === "map" ? input.gameplayRevisionId : null, pageSize, (page - 1) * pageSize).all<{
         rating: number;
         comment: string;
         anonymous: number;
@@ -6825,6 +6896,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return {
         targetType: input.targetType,
         targetId: input.targetId,
+        gameplayRevisionId: input.targetType === "map" ? input.gameplayRevisionId : null,
         items: result.results.map((row) => ({
           rating: asReviewRating(row.rating),
           comment: row.comment,
@@ -6842,7 +6914,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const account = await findReviewAccount(auth.subject);
       if (!account) throw new Error("PLAYER_NOT_FOUND");
       if (!await findReviewTarget(input)) throw new Error("REVIEW_TARGET_NOT_FOUND");
-      const row = await db.select().from(reviews).where(and(eq(reviews.playerAccountId, account.id), eq(reviews.targetType, input.targetType), eq(reviews.targetId, input.targetId))).get();
+      const row = await db.select().from(reviews).where(and(
+        eq(reviews.playerAccountId, account.id),
+        eq(reviews.targetType, input.targetType),
+        eq(reviews.targetId, input.targetId),
+        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
+      )).get();
       return row ? asReviewRecord(row) : null;
     },
 
@@ -6856,36 +6933,40 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const target = await findReviewTarget(input);
       if (!target) throw new Error("REVIEW_TARGET_NOT_FOUND");
       const canAccept = input.targetType === "event"
-        ? (target as typeof randomEvents.$inferSelect).releaseStatus === "implemented" && (target as typeof randomEvents.$inferSelect).archivedAt === null
-        : (target as typeof maps.$inferSelect).status === "active";
+        ? "archivedAt" in target && target.releaseStatus === "implemented" && target.archivedAt === null
+        : "map" in target && target.map.status === "active" && target.revision.lifecycle === "default";
       if (!canAccept) throw new Error("REVIEW_TARGET_NOT_RATEABLE");
       const rating = asReviewRating(input.rating);
       const comment = normalizeReviewComment(input.comment);
-      const existing = await db.select().from(reviews).where(and(eq(reviews.playerAccountId, account.id), eq(reviews.targetType, input.targetType), eq(reviews.targetId, input.targetId))).get();
+      const existing = await db.select().from(reviews).where(and(
+        eq(reviews.playerAccountId, account.id),
+        eq(reviews.targetType, input.targetType),
+        eq(reviews.targetId, input.targetId),
+        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
+      )).get();
       if (existing?.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
       const timestamp = now();
       const reviewId = existing?.id ?? crypto.randomUUID();
-      await db.insert(reviews).values({
-        id: reviewId,
-        playerAccountId: account.id,
-        targetType: input.targetType,
-        targetId: input.targetId,
-        rating,
-        comment,
-        commentStatus: existing?.commentStatus ?? "visible",
-        anonymous: input.anonymous ? 1 : 0,
-        status: "active",
-        createdAt: existing?.createdAt ?? timestamp,
-        updatedAt: timestamp,
-        withdrawnAt: null,
-        invalidatedAt: null,
-        invalidatedBy: null,
-        invalidationReason: null,
-      }).onConflictDoUpdate({
-        target: [reviews.playerAccountId, reviews.targetType, reviews.targetId],
-        set: { rating, comment, anonymous: input.anonymous ? 1 : 0, status: "active", updatedAt: timestamp, withdrawnAt: null },
-      });
-      const row = await db.select().from(reviews).where(eq(reviews.id, reviewId)).get();
+      await database.prepare(`
+        INSERT INTO reviews (
+          id, player_account_id, target_type, target_id, gameplay_revision_id, rating, comment,
+          comment_status, anonymous, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+        ON CONFLICT DO UPDATE SET rating = excluded.rating, comment = excluded.comment,
+          anonymous = excluded.anonymous, status = 'active', updated_at = excluded.updated_at,
+          withdrawn_at = NULL
+      `).bind(
+        reviewId, account.id, input.targetType, input.targetId,
+        input.targetType === "map" ? input.gameplayRevisionId : null,
+        rating, comment, existing?.commentStatus ?? "visible", input.anonymous ? 1 : 0,
+        existing?.createdAt ?? timestamp, timestamp,
+      ).run();
+      const row = await db.select().from(reviews).where(and(
+        eq(reviews.playerAccountId, account.id),
+        eq(reviews.targetType, input.targetType),
+        eq(reviews.targetId, input.targetId),
+        input.targetType === "map" ? eq(reviews.gameplayRevisionId, input.gameplayRevisionId) : isNull(reviews.gameplayRevisionId),
+      )).get();
       if (!row || row.status === "invalidated") throw new Error("REVIEW_INVALIDATED");
       const response = asReviewRecord(row);
       await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, response);

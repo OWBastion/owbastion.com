@@ -60,7 +60,6 @@ export type AdminMapRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssi
 export type AdminMapRevisionUpdateInput = {
   contractVersion: "1";
   lifecycle: AdminMapRevisionLifecycle;
-  replacedDefaultLifecycle?: AdminMapRevisionReplacementLifecycle | null;
   gameVersion: string;
   mapVariant: "classic" | null;
   spatialConfig: Record<string, unknown> | null;
@@ -111,21 +110,24 @@ export function useAdminMapEditor(mapId: string) {
         body: input,
       });
       if (editor.value) {
-        const revisions = editor.value.revisions.map((item) => {
-          if (item.revisionId === revision.revisionId) return revision;
-          if (input.replacedDefaultLifecycle && item.lifecycle === "default") {
-            return {
-              ...item,
-              lifecycle: input.replacedDefaultLifecycle,
-              isDefault: false,
-              isSelectable: input.replacedDefaultLifecycle === "selectable",
-              updatedAt: revision.updatedAt,
-            };
-          }
-          return item;
-        });
+        const revisions = editor.value.revisions.map((item) => item.revisionId === revision.revisionId ? revision : item);
         editor.value = { ...editor.value, revisions };
       }
+      return revision;
+    } finally {
+      saving.value = false;
+    }
+  };
+
+  const promoteRevision = async (revisionId: string, replacedDefaultLifecycle: AdminMapRevisionReplacementLifecycle | null) => {
+    saving.value = true;
+    try {
+      const revision = await api<AdminMapEditorRevision>(`/v1/maps/${encodeURIComponent(mapId)}/revisions/${encodeURIComponent(revisionId)}/promote`, {
+        method: "POST",
+        headers: { "Idempotency-Key": createRequestId() },
+        body: { contractVersion: "1", replacedDefaultLifecycle },
+      });
+      await load();
       return revision;
     } finally {
       saving.value = false;
@@ -153,5 +155,5 @@ export function useAdminMapEditor(mapId: string) {
     }
   };
 
-  return { editor, loading, saving, error, load, saveMetadata, saveRevision, createRevision };
+  return { editor, loading, saving, error, load, saveMetadata, saveRevision, promoteRevision, createRevision };
 }

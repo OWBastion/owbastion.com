@@ -7,12 +7,13 @@ const props = defineProps<{
   targetType: ReviewTargetType;
   targetId: string;
   authenticated: boolean;
+  gameplayRevisionId?: string | null;
 }>();
 
 const emit = defineEmits<{ "review-changed": [] }>();
 
 const route = useRoute();
-const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated);
+const review = usePlayerReview(() => props.targetType, () => props.targetId, () => props.authenticated, () => props.gameplayRevisionId ?? null);
 const loginPath = computed(() => "/login?returnTo=" + encodeURIComponent(route.fullPath));
 const titleId = computed(() => "review-title-" + props.targetId.replace(/[^a-zA-Z0-9_-]/g, "-"));
 const summary = computed(() => review.summary.value);
