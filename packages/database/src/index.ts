@@ -6032,6 +6032,19 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       const safePage = Math.max(1, input.page);
       const safePageSize = Math.min(50, Math.max(1, input.pageSize));
       const query = input.query?.trim() ? `%${input.query.trim()}%` : undefined;
+      const historicalGrantStats = async () => {
+        const [row] = await db.select({
+          pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
+          unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
+          migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
+        }).from(historicalTitleGrants)
+          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)));
+        return {
+          pendingHolderCount: Number(row?.pendingHolderCount ?? 0),
+          unclaimedGrantCount: Number(row?.unclaimedGrantCount ?? 0),
+          migratedGrantCount: Number(row?.migratedGrantCount ?? 0),
+        };
+      };
 
       let matchingHolderNames: string[] | null = null;
       if (query) {
@@ -6041,12 +6054,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .where(or(like(historicalTitleGrants.holderName, query), like(titleCatalog.label, query)));
         matchingHolderNames = matched.map((row) => row.holderName);
         if (!matchingHolderNames.length) {
-          const [statsRow] = await db.select({
-            pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
-            unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
-            migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
-          }).from(historicalTitleGrants)
-            .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey)));
           return {
             contractVersion: "1" as const,
             holders: [],
@@ -6055,11 +6062,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
             total: 0,
             hasMore: false,
             filter,
-            stats: {
-              pendingHolderCount: Number(statsRow?.pendingHolderCount ?? 0),
-              unclaimedGrantCount: Number(statsRow?.unclaimedGrantCount ?? 0),
-              migratedGrantCount: Number(statsRow?.migratedGrantCount ?? 0),
-            },
+            stats: await historicalGrantStats(),
           };
         }
       }
@@ -6084,7 +6087,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         .having(havingClause)
         .as("historical_holder_summary");
 
-      const [[{ total }], pageRows, [statsRow]] = await Promise.all([
+      const [[{ total }], pageRows, stats] = await Promise.all([
         db.select({ total: count() }).from(aggregated),
         db.select({
           holderName: aggregated.holderName,
@@ -6094,12 +6097,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           .orderBy(asc(aggregated.holderName))
           .limit(safePageSize)
           .offset((safePage - 1) * safePageSize),
-        db.select({
-          pendingHolderCount: sql<number>`count(distinct case when ${playerTitleGrants.id} is null then ${historicalTitleGrants.holderName} end)`,
-          unclaimedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is null then 1 else 0 end)`,
-          migratedGrantCount: sql<number>`sum(case when ${playerTitleGrants.id} is not null then 1 else 0 end)`,
-        }).from(historicalTitleGrants)
-          .leftJoin(playerTitleGrants, and(eq(playerTitleGrants.sourceType, "historical"), eq(playerTitleGrants.sourceId, historicalTitleGrants.id), eq(playerTitleGrants.titleKey, historicalTitleGrants.titleKey))),
+        historicalGrantStats(),
       ]);
 
       return {
@@ -6119,11 +6117,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         total: Number(total),
         hasMore: safePage * safePageSize < Number(total),
         filter,
-        stats: {
-          pendingHolderCount: Number(statsRow?.pendingHolderCount ?? 0),
-          unclaimedGrantCount: Number(statsRow?.unclaimedGrantCount ?? 0),
-          migratedGrantCount: Number(statsRow?.migratedGrantCount ?? 0),
-        },
+        stats,
       };
     },
 
