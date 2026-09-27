@@ -211,12 +211,13 @@ describe("admin review detail page", () => {
     expect(navigate).toHaveBeenCalledWith("/admin/reviews?status=all&page=2");
   });
 
-  it("shows the recorded decision instead of decision buttons once a submission has been reviewed", async () => {
-    const wrapper = await mountPage({ route: "/admin/reviews/submission-5" });
+  it("shows the last decision and still lets the maintainer decide again, warning that granted Titles stay", async () => {
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-5", global: { stubs: dialogStub } });
     await flushPromises();
-    expect(wrapper.text()).toContain("自动判定通过");
-    expect(wrapper.find('[role="group"][aria-label="审核决定"]').exists()).toBe(false);
-    expect(wrapper.text()).toContain("重新发送 OCRKit 请求");
+    expect(wrapper.text()).toContain("上次审核：自动判定通过");
+    await wrapper.findAll('[role="group"][aria-label="审核决定"] button').find((button) => button.text().includes("驳回"))!.trigger("click");
+    await flushPromises();
+    expect(wrapper.get('[role="dialog"][aria-label="驳回提交"]').text()).toContain("已发放的称号和已记录的 Verified Run 不会因此撤销");
   });
 
   it("waits for a pending OCR request and refreshes when the result arrives", async () => {

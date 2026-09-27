@@ -55,8 +55,10 @@ const confirmCopy = computed(() => {
   const target = confirmTarget.value;
   if (!target) return null;
   if (target.kind === "spot-check") return { title: "撤销自动获得的称号", description: "撤销后玩家将失去本次自动判定获得的称号，由该提交产生的 Verified Run 也会失效。", reasonLabel: "撤销原因（可选，仅内部记录）", confirmLabel: "确认撤销" };
-  if (target.decision === "rejected") return { title: "驳回提交", description: "玩家会看到“未通过”，本次提交不会产生称号或 Verified Run。", reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认驳回" };
-  return { title: "要求重新提交", description: "玩家会看到“需重新提交”，并可以上传新的截图。", reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认要求重新提交" };
+  // A later decision changes only the Submission; Titles it already granted are managed separately.
+  const retained = reviewRecord.value?.decision === "approved" ? "已发放的称号和已记录的 Verified Run 不会因此撤销；撤销称号请在玩家称号中处理。" : "";
+  if (target.decision === "rejected") return { title: "驳回提交", description: `玩家会看到“未通过”。${retained || "本次提交不会产生称号或 Verified Run。"}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认驳回" };
+  return { title: "要求重新提交", description: `玩家会看到“需重新提交”，并可以上传新的截图。${retained}`, reasonLabel: "给玩家的说明（可选）", confirmLabel: "确认要求重新提交" };
 });
 
 function openConfirm(target: ConfirmTarget) {
@@ -224,11 +226,10 @@ onBeforeUnmount(() => {
         :aria-busy="actionLoading || undefined"
       >
         <div v-if="reviewRecord" class="review-record">
-          <p><strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
+          <p>上次审核：<strong>{{ reviewRecordLabel(reviewRecord) }}</strong> · <time :datetime="new Date(reviewRecord.reviewedAt).toISOString()">{{ formatTime(reviewRecord.reviewedAt) }}</time></p>
           <p v-if="reviewRecord.reason" class="review-record__reason">说明：{{ reviewRecord.reason }}</p>
-          <p class="review-record__note">每个提交只保留一次审核决定。</p>
         </div>
-        <div v-else class="actions action-row" role="group" aria-label="审核决定">
+        <div class="actions action-row" role="group" aria-label="审核决定">
           <UButton
             type="button"
             icon="i-lucide-check"
@@ -500,8 +501,7 @@ onBeforeUnmount(() => {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.review-record__reason,
-.review-record__note {
+.review-record__reason {
   color: var(--muted);
   font-size: var(--type-caption-size);
 }

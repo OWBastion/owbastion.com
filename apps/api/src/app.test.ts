@@ -1880,13 +1880,6 @@ describe("API", () => {
     expect((await response.json() as { error: { code: string } }).error.code).toBe("CHALLENGE_CONFIRMATION_INELIGIBLE");
   });
 
-  it("reports a second review decision as a conflict", async () => {
-    const reviewApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, reviewSubmission: async () => { throw new Error("SUBMISSION_ALREADY_REVIEWED"); } }) });
-    const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-twice-1" }, body: JSON.stringify({ contractVersion: "1", decision: "rejected" }) }, env);
-    expect(response.status).toBe(409);
-    expect((await response.json() as { error: { code: string } }).error.code).toBe("SUBMISSION_ALREADY_REVIEWED");
-  });
-
   it("requires maintainer access for review previews", async () => {
     const response = await app.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect([401, 403]).toContain(response.status);
@@ -1976,6 +1969,9 @@ describe("API", () => {
     expect(dashboard.status).toBe(200);
     expect(requests[2]).toEqual({ statuses: ["received", "evidence_pending", "evidence_stored", "upload_pending", "ocr_pending", "ready_for_review", "ocr_review_required"], page: 1, pageSize: 5 });
     expect((await adminApp.request("http://localhost/v1/admin/submissions?status=unknown", {}, env)).status).toBe(422);
+    expect((await adminApp.request("http://localhost/v1/admin/submissions?status=ready_for_review&order=oldest&page=1&pageSize=20", {}, env)).status).toBe(200);
+    expect(requests[3]).toEqual({ statuses: ["ready_for_review"], order: "oldest", page: 1, pageSize: 20 });
+    expect((await adminApp.request("http://localhost/v1/admin/submissions?order=random", {}, env)).status).toBe(422);
   });
 
   it("keeps local development login disabled unless explicitly enabled", async () => {

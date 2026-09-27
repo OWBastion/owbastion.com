@@ -537,7 +537,7 @@ export const submissionReviews = sqliteTable("submission_reviews", {
   reviewer: text("reviewer").notNull(),
   createdAt: integer("created_at").notNull(),
 }, (table) => ({
-  submissionIdIdx: uniqueIndex("submission_reviews_submission_id_idx").on(table.submissionId),
+  submissionCreatedIdx: index("submission_reviews_submission_created_idx").on(table.submissionId, table.createdAt),
 }));
 
 export const submissionSpotChecks = sqliteTable("submission_spot_checks", {

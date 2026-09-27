@@ -124,8 +124,7 @@ async function review(decision: "approved" | "rejected" | "resubmission_required
   } catch (error) {
     const details = portalErrorDetails(error, "审核提交失败，请查看服务端日志。");
     reviewError.value = knownReviewBlockingMessage(details.code) ?? (details.code ? `审核提交失败（${details.code}）：${details.description}` : details.description);
-    if (details.code === "SUBMISSION_ALREADY_REVIEWED") void load();
-    else if (decision === "approved") void loadPreview();
+    if (decision === "approved") void loadPreview();
   } finally { actionLoading.value = false; }
 }
 

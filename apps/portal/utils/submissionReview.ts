@@ -40,7 +40,6 @@ const blockingMessages: Record<string, string> = {
   CHALLENGE_NOT_FOUND: "所选 Challenge 的配置不存在。",
   TITLE_NOT_FOUND: "所选 Challenge 的称号不存在。",
   SUBMISSION_NOT_REVIEWABLE: "该提交没有可核对的识别结果。可以重新发送 OCRKit 请求，或要求重新提交。",
-  SUBMISSION_ALREADY_REVIEWED: "该提交已有审核决定，不能再次审核。刷新后可查看当前结果。",
   SUBMISSION_CORRECTION_INVALID: "有字段值无法识别：通关标记填写“已完成”或“未完成”，地图版本填写“经典”或“标准”。",
 };
 

@@ -402,7 +402,7 @@ const installSchema = (sqlite: DatabaseSync) => {
       reviewer TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
-    CREATE UNIQUE INDEX submission_reviews_submission_id_idx ON submission_reviews (submission_id);
+    CREATE INDEX submission_reviews_submission_created_idx ON submission_reviews (submission_id, created_at);
     CREATE TABLE idempotency_keys (
       id TEXT PRIMARY KEY NOT NULL,
       actor_id TEXT NOT NULL,
@@ -2755,11 +2755,33 @@ describe("maintainer Challenge confirmation during submission review", () => {
     const audit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'submission.review' AND entity_id = 'submission.confirm'").get() as { payload_json: string };
     expect(JSON.parse(audit.payload_json)).toMatchObject({ evidenceMatchedChallengeIds: [], reviewerConfirmedChallengeIds: [pioneer!.challengeId] });
 
-    // submission_reviews holds one decision per Submission; a second decision is a conflict, not a server error.
-    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ review: { decision: "approved", automatic: false, reason: null } });
-    expect(await services.previewSubmissionReview({ submissionId: "submission.confirm", confirmedChallengeIds: [pioneer!.challengeId] }, auth)).toMatchObject({ approvable: false, blockingCode: "SUBMISSION_ALREADY_REVIEWED" });
-    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "rejected", reason: "重复" }, auth, "confirm.again")).rejects.toThrow("SUBMISSION_ALREADY_REVIEWED");
-    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 1, completions: 1, grants: 1, status: "approved" });
+    // A maintainer may decide again: the latest review is current, and the Submission decision never revokes Titles already granted.
+    await services.reviewSubmission({ submissionId: "submission.confirm", decision: "rejected", reason: "截图裁剪" }, auth, "confirm.reject");
+    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 2, completions: 1, grants: 1, status: "rejected" });
+    expect(sqlite.prepare("SELECT status FROM player_title_grants WHERE source_id = 'submission.confirm'").get()).toEqual({ status: "active" });
+    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ status: "rejected", review: { decision: "rejected", automatic: false, reason: "截图裁剪" } });
+
+    // The Title is still held, so the Challenge is no longer confirmable; re-approval rests on what this Submission already granted.
+    const reapproval = await services.previewSubmissionReview({ submissionId: "submission.confirm" }, auth);
+    expect(reapproval).toMatchObject({ approvable: true, blockingCode: null, titles: [{ titleKey: "PIONEER", mapName: "地图 map.paris", alreadyOwned: true }] });
+    const grantId = (sqlite.prepare("SELECT id FROM player_title_grants WHERE source_id = 'submission.confirm'").get() as { id: string }).id;
+    await expect(services.reviewSubmission({ submissionId: "submission.confirm", decision: "approved" }, auth, "confirm.reapprove")).resolves.toMatchObject({ decision: "approved", grantId, titleKey: "PIONEER", alreadyOwned: true });
+    expect(writeCounts(sqlite, "submission.confirm")).toEqual({ reviews: 3, completions: 1, grants: 1, status: "approved" });
+    expect(sqlite.prepare("SELECT grant_id FROM submissions WHERE id = 'submission.confirm'").get()).toEqual({ grant_id: grantId });
+    expect(await services.getAdminSubmission({ submissionId: "submission.confirm" }, auth)).toMatchObject({ review: { decision: "approved", reason: null } });
+  });
+
+  it("orders the review queue by longest wait when asked", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedIncompleteMapEvidence(sqlite);
+    seedAchievementEvidence(sqlite, ["SECOND"]);
+    sqlite.prepare("UPDATE submissions SET updated_at = ? WHERE id = 'submission.add'").run(now - 60_000);
+    const services = createPlatformServices(database);
+    const list = (order?: "oldest" | "newest") => services.listAdminSubmissions({ statuses: ["ocr_review_required"], page: 1, pageSize: 20, ...(order ? { order } : {}) }, auth);
+    expect((await list("oldest")).items.map((item) => item.submissionId)).toEqual(["submission.add", "submission.confirm"]);
+    expect((await list("newest")).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
+    expect((await list()).items.map((item) => item.submissionId)).toEqual(["submission.confirm", "submission.add"]);
   });
 
   it("adds an eligible Challenge that OCR did not propose and recomputes corrected evidence with the same matcher", async () => {
@@ -3452,5 +3474,8 @@ describe("submission mastery outcomes", () => {
       { transition: "invalidated", count: 1 },
       { transition: "restored", count: 1 },
     ]);
+    // The retry re-decides the already-reviewed Submission instead of leaving it waiting for OCR.
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.lifecycle'").get()).toEqual({ status: "approved" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.lifecycle'").get()).toEqual({ count: 2 });
   });
 });
