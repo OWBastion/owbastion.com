@@ -66,159 +66,43 @@ const isVector = (value: unknown): value is Vector =>
 const isVectorList = (value: unknown): value is Vector[] =>
   Array.isArray(value) && value.every(isVector);
 
+const pointItems = (value: unknown, id: string, name: string, icon: string): PointItem[] =>
+  isVectorList(value) ? value.map((position, index) => ({ id: `${id}-${index}`, name, index, position, icon })) : [];
+
+const vectorItem = (value: unknown, id: string, name: string, icon: string): PointItem[] =>
+  isVector(value) ? [{ id, name, position: value, icon }] : [];
+
+const pointSection = (id: string, title: string, icon: string, items: PointItem[], extraMeta?: string): PointSection[] =>
+  items.length || extraMeta ? [{ id, title, count: items.length, icon, items, extraMeta }] : [];
+
 const pointSections = computed<PointSection[]>(() => {
   const config = parsedConfig.value;
   if (!config) return [];
 
-  const sections: PointSection[] = [];
+  const control = config.control && typeof config.control === "object" ? config.control as Record<string, unknown> : null;
+  const controlItems = control ? [
+    ...pointItems(control.centerPositions, "ctrl-center", "占领中心点", "i-lucide-crosshair"),
+    ...pointItems(control.jumpPositions, "ctrl-jump", "占领跳跃点", "i-lucide-chevrons-up"),
+    ...pointItems(control.respawnPositions, "ctrl-respawn", "占领重生点", "i-lucide-rotate-ccw"),
+  ] : [];
+  const extraMeta = control && control.respawnAxis != null
+    ? `重生轴：${String(control.respawnAxis).toUpperCase()} 轴 · 阈值：${String(control.respawnAxisThreshold ?? "—")}`
+    : undefined;
 
-  // 1. 核心必需点位
-  const essentialItems: PointItem[] = [];
-  if (isVectorList(config.bastionPositions)) {
-    config.bastionPositions.forEach((pos, idx) => {
-      essentialItems.push({
-        id: `bastion-${idx}`,
-        name: "Bastion 出生点",
-        index: idx,
-        position: pos,
-        icon: "i-lucide-navigation",
-      });
-    });
-  }
-  if (isVector(config.resetPosition)) {
-    essentialItems.push({
-      id: "reset",
-      name: "重置点",
-      position: config.resetPosition,
-      icon: "i-lucide-rotate-ccw",
-    });
-  }
-  if (isVector(config.endPosition)) {
-    essentialItems.push({
-      id: "end",
-      name: "终点",
-      position: config.endPosition,
-      icon: "i-lucide-flag",
-    });
-  }
-  if (isVector(config.thirdPersonPosition)) {
-    essentialItems.push({
-      id: "thirdPerson",
-      name: "第三人称点",
-      position: config.thirdPersonPosition,
-      icon: "i-lucide-eye",
-    });
-  }
-  if (isVector(config.creditsPosition)) {
-    essentialItems.push({
-      id: "credits",
-      name: "结算点",
-      position: config.creditsPosition,
-      icon: "i-lucide-award",
-    });
-  }
-
-  if (essentialItems.length > 0) {
-    sections.push({
-      id: "essential",
-      title: "核心点位",
-      count: essentialItems.length,
-      icon: "i-lucide-navigation",
-      items: essentialItems,
-    });
-  }
-
-  // 2. 传送与跳板点位
-  const mechanicItems: PointItem[] = [];
-  if (isVectorList(config.portalPositions) && config.portalPositions.length > 0) {
-    config.portalPositions.forEach((pos, idx) => {
-      mechanicItems.push({
-        id: `portal-${idx}`,
-        name: "传送点",
-        index: idx,
-        position: pos,
-        icon: "i-lucide-door-open",
-      });
-    });
-  }
-  if (isVectorList(config.springboardPositions) && config.springboardPositions.length > 0) {
-    config.springboardPositions.forEach((pos, idx) => {
-      mechanicItems.push({
-        id: `springboard-${idx}`,
-        name: "跳板点",
-        index: idx,
-        position: pos,
-        icon: "i-lucide-chevrons-up",
-      });
-    });
-  }
-
-  if (mechanicItems.length > 0) {
-    sections.push({
-      id: "mechanic",
-      title: "传送与跳板",
-      count: mechanicItems.length,
-      icon: "i-lucide-door-open",
-      items: mechanicItems,
-    });
-  }
-
-  // 3. 占领机制点位
-  if (config.control && typeof config.control === "object") {
-    const ctrl = config.control as Record<string, unknown>;
-    const ctrlItems: PointItem[] = [];
-    if (isVectorList(ctrl.centerPositions)) {
-      ctrl.centerPositions.forEach((pos, idx) => {
-        ctrlItems.push({
-          id: `ctrl-center-${idx}`,
-          name: "占领中心点",
-          index: idx,
-          position: pos,
-          icon: "i-lucide-crosshair",
-        });
-      });
-    }
-    if (isVectorList(ctrl.jumpPositions)) {
-      ctrl.jumpPositions.forEach((pos, idx) => {
-        ctrlItems.push({
-          id: `ctrl-jump-${idx}`,
-          name: "占领跳跃点",
-          index: idx,
-          position: pos,
-          icon: "i-lucide-chevrons-up",
-        });
-      });
-    }
-    if (isVectorList(ctrl.respawnPositions)) {
-      ctrl.respawnPositions.forEach((pos, idx) => {
-        ctrlItems.push({
-          id: `ctrl-respawn-${idx}`,
-          name: "占领重生点",
-          index: idx,
-          position: pos,
-          icon: "i-lucide-rotate-ccw",
-        });
-      });
-    }
-
-    let extraMeta: string | undefined;
-    if (ctrl.respawnAxis !== undefined && ctrl.respawnAxis !== null) {
-      extraMeta = `重生轴：${String(ctrl.respawnAxis).toUpperCase()} 轴 · 阈值：${String(ctrl.respawnAxisThreshold ?? "—")}`;
-    }
-
-    if (ctrlItems.length > 0 || extraMeta) {
-      sections.push({
-        id: "control",
-        title: "占领机制",
-        count: ctrlItems.length,
-        icon: "i-lucide-crosshair",
-        items: ctrlItems,
-        extraMeta,
-      });
-    }
-  }
-
-  return sections;
+  return [
+    ...pointSection("essential", "核心点位", "i-lucide-navigation", [
+      ...pointItems(config.bastionPositions, "bastion", "Bastion 出生点", "i-lucide-navigation"),
+      ...vectorItem(config.resetPosition, "reset", "重置点", "i-lucide-rotate-ccw"),
+      ...vectorItem(config.endPosition, "end", "终点", "i-lucide-flag"),
+      ...vectorItem(config.thirdPersonPosition, "thirdPerson", "第三人称点", "i-lucide-eye"),
+      ...vectorItem(config.creditsPosition, "credits", "结算点", "i-lucide-award"),
+    ]),
+    ...pointSection("mechanic", "传送与跳板", "i-lucide-door-open", [
+      ...pointItems(config.portalPositions, "portal", "传送点", "i-lucide-door-open"),
+      ...pointItems(config.springboardPositions, "springboard", "跳板点", "i-lucide-chevrons-up"),
+    ]),
+    ...pointSection("control", "占领机制", "i-lucide-crosshair", controlItems, extraMeta),
+  ];
 });
 
 const sync = () => {
