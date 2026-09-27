@@ -145,13 +145,13 @@ const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
 type HistoricalMigrationItem = { status: string };
-const summarizeHistoricalMigration = (rows: HistoricalMigrationItem[], invite: { revokedAt: number | null; expiresAt: number }, claimStatus: string | undefined, timestamp: number, passkeyRegistrationCompleted = false) => {
+const summarizeHistoricalMigration = (rows: HistoricalMigrationItem[], invite: { revokedAt: number | null; expiresAt: number }, claimStatus: string | undefined, timestamp: number, completedLegacyRedemption = false) => {
   const completedCount = rows.filter((row) => row.status === "created" || row.status === "reused").length;
   const conflictCount = rows.filter((row) => row.status === "conflict").length;
   const retryCount = rows.filter((row) => row.status === "retry_required").length;
   let status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled" = "not_requested";
   if (rows.length > 0) {
-    const cancelled = Boolean(invite.revokedAt) || (!passkeyRegistrationCompleted && claimStatus !== "approved" && (invite.expiresAt <= timestamp || ["rejected", "expired"].includes(claimStatus ?? "")));
+    const cancelled = Boolean(invite.revokedAt) || (!completedLegacyRedemption && claimStatus !== "approved" && (invite.expiresAt <= timestamp || ["rejected", "expired"].includes(claimStatus ?? "")));
     if (cancelled) status = "cancelled";
     else if (retryCount > 0) status = "retry_required";
     else if (completedCount === rows.length) status = "completed";
@@ -578,14 +578,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return response;
   };
 
-  const performAuthorizedHistoricalTitleMigration = async (input: { inviteId: string; playerAccountId: string; claimId: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" | "passkey_registration"; passkeyRegistration?: boolean }) => {
+  const performAuthorizedHistoricalTitleMigration = async (input: { inviteId: string; playerAccountId: string; claimId?: string; grantSource?: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
     const [invite, claim, items] = await Promise.all([
       db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get(),
-      input.passkeyRegistration ? Promise.resolve(null) : db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get(),
+      input.claimId ? db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get() : Promise.resolve(null),
       db.select().from(bindingInviteHistoricalTitleGrants).where(eq(bindingInviteHistoricalTitleGrants.inviteId, input.inviteId)),
     ]);
-    if (!invite || (!input.passkeyRegistration && (!claim || claim.status !== "approved")) || invite.revokedAt || !items.length) return;
-    const grantSource = input.passkeyRegistration ? `passkey:${input.claimId}` : `binding:${input.claimId}`;
+    if (!invite || (input.claimId && claim?.status !== "approved") || (!input.claimId && !input.grantSource) || invite.revokedAt || !items.length) return;
+    const grantSource = input.grantSource ?? `binding:${input.claimId}`;
 
     type MigrationLookupRow = {
       itemId: string;
@@ -734,7 +734,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       operations.push({
         statements,
-        audit: { entityId: grantId, payload: { inviteId: input.inviteId, ...(input.passkeyRegistration ? { passkeyRegistrationId: input.claimId } : { claimId: input.claimId }), historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } },
+        audit: { entityId: grantId, payload: { inviteId: input.inviteId, ...(input.claimId ? { claimId: input.claimId } : { grantSource }), historicalTitleGrantId: historical.id, playerAccountId: input.playerAccountId, authorizedBy: item.authorizedBy, outcome, mode: input.mode, ...(inherited ? { previousSourceId: activeIdentity.sourceId, reconciled: true } : {}) } },
       });
     }
     if (!operations.length) return;
@@ -758,13 +758,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     await flushBatch();
   };
 
-  const migrateAuthorizedHistoricalTitles = async (input: { inviteId: string; playerAccountId: string; claimId: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" | "passkey_registration"; passkeyRegistration?: boolean }) => {
+  const migrateAuthorizedHistoricalTitles = async (input: { inviteId: string; playerAccountId: string; claimId?: string; grantSource?: string; auth: AuthContext; mode: "automatic" | "reviewed" | "retry" }) => {
     try {
       await performAuthorizedHistoricalTitleMigration(input);
     } catch {
       try {
         await db.update(bindingInviteHistoricalTitleGrants).set({ status: "retry_required", lastError: "HISTORICAL_TITLE_MIGRATION_FAILED", processedAt: now() }).where(and(eq(bindingInviteHistoricalTitleGrants.inviteId, input.inviteId), inArray(bindingInviteHistoricalTitleGrants.status, ["authorized", "retry_required"])));
-        await recordAudit(db, input.auth, "binding_invite.historical_migration.failed", "binding_invite", input.inviteId, { ...(input.passkeyRegistration ? { passkeyRegistrationId: input.claimId } : { claimId: input.claimId }), playerAccountId: input.playerAccountId, mode: input.mode });
+        await recordAudit(db, input.auth, "binding_invite.historical_migration.failed", "binding_invite", input.inviteId, { ...(input.claimId ? { claimId: input.claimId } : { grantSource: input.grantSource }), playerAccountId: input.playerAccountId, mode: input.mode });
       } catch {
         // Binding activation remains successful even if migration recovery state cannot be written.
       }
@@ -6484,49 +6484,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, challengeId, options: { ...options } };
     },
 
-    async createPasskeyInvitationOptions(input) {
-      const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code.trim().toUpperCase()))).get();
-      const timestamp = now();
-      if (!invite || invite.expiresAt <= timestamp || invite.redeemedAt || invite.revokedAt) throw new Error("INVITE_INVALID");
-      const existingAccount = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, invite.normalizedPlayerName), eq(playerAccounts.playerId, invite.playerId))).get();
-      if (existingAccount) throw new Error("PLAYER_ACCOUNT_EXISTS");
-      const accountId = crypto.randomUUID();
-      const options = await createPasskeyRegistrationOptions({ rpId: input.rpId, accountId, userName: `${invite.playerName}#${invite.playerId}`, displayName: invite.playerName });
-      const challengeId = crypto.randomUUID();
-      await pruneExpiredPasskeyChallenges(timestamp);
-      await db.insert(passkeyChallenges).values({ id: challengeId, purpose: "invitation", challenge: options.challenge, playerAccountId: accountId, inviteId: invite.id, recoveryGrantId: null, expiresAt: timestamp + passkeyChallengeTtlMs, usedAt: null, consumedBy: null, createdAt: timestamp });
-      return { contractVersion: "1" as const, challengeId, options: { ...options }, playerName: invite.playerName, playerId: invite.playerId };
-    },
-
-    async completePasskeyInvitationRegistration(input) {
-      const timestamp = now();
-      const challenge = await db.select().from(passkeyChallenges).where(and(eq(passkeyChallenges.id, input.challengeId), eq(passkeyChallenges.purpose, "invitation"), isNull(passkeyChallenges.usedAt), gt(passkeyChallenges.expiresAt, timestamp))).get();
-      if (!challenge?.playerAccountId || !challenge.inviteId) throw new Error("PASSKEY_CHALLENGE_INVALID");
-      const invite = await db.select().from(bindingInvites).where(and(eq(bindingInvites.id, challenge.inviteId), isNull(bindingInvites.redeemedAt), isNull(bindingInvites.revokedAt), gt(bindingInvites.expiresAt, timestamp))).get();
-      if (!invite) throw new Error("INVITE_INVALID");
-      const accountExists = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, challenge.playerAccountId)).get();
-      const battleTagExists = await db.select({ id: playerAccounts.id }).from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, invite.normalizedPlayerName), eq(playerAccounts.playerId, invite.playerId))).get();
-      if (accountExists || battleTagExists) throw new Error("PLAYER_ACCOUNT_EXISTS");
-      const registered = await verifyPasskeyRegistration({ credential: input.credential, challenge: challenge.challenge, origin: input.origin, rpId: input.rpId });
-      const consumedBy = randomToken(16);
-      const sessionToken = randomToken();
-      const accountId = challenge.playerAccountId;
-      const sessionId = crypto.randomUUID();
-      const credentialRowId = crypto.randomUUID();
-      const idempotencyId = crypto.randomUUID();
-      const results = await runPasskeyRegistrationBatch([
-        database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'invitation' AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM binding_invites WHERE id = ? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > ?)").bind(timestamp, consumedBy, challenge.id, accountId, timestamp, invite.id, timestamp),
-        database.prepare("UPDATE binding_invites SET redeemed_at = ?, passkey_registration_player_account_id = ?, passkey_registration_challenge_id = ? WHERE id = ? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND player_account_id = ? AND consumed_by = ?)").bind(timestamp, accountId, challenge.id, invite.id, timestamp, challenge.id, accountId, consumedBy),
-        database.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) SELECT ?, ?, ?, ?, 0, 'active', ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM binding_invites WHERE id = ? AND redeemed_at = ?)").bind(accountId, invite.playerId, invite.playerName, invite.normalizedPlayerName, timestamp, timestamp, challenge.id, consumedBy, invite.id, timestamp),
-        database.prepare("INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at, last_used_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, NULL WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM player_accounts WHERE id = ? AND status = 'active')").bind(credentialRowId, accountId, registered.credentialId, registered.publicKey, registered.counter, JSON.stringify(registered.transports), input.name, timestamp, challenge.id, consumedBy, accountId),
-        database.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, passkey_challenge_id, expires_at, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM player_accounts WHERE id = ? AND status = 'active')").bind(sessionId, accountId, await hashRequest(sessionToken), challenge.id, timestamp + sessionTtlMs, timestamp, challenge.id, consumedBy, accountId),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, 'user', ?, 'passkey.invitation.register', 'player_account', ?, ?, ? WHERE EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?) AND EXISTS (SELECT 1 FROM player_accounts WHERE id = ?)").bind(idempotencyId, crypto.randomUUID(), accountId, accountId, JSON.stringify({ inviteId: invite.id, passkeyName: input.name }), timestamp, challenge.id, consumedBy, accountId),
-      ]);
-      if (results[0]?.meta.changes !== 1 || results[1]?.meta.changes !== 1 || results[2]?.meta.changes !== 1 || results[3]?.meta.changes !== 1 || results[4]?.meta.changes !== 1) throw new Error("PASSKEY_CHALLENGE_REPLAYED");
-      await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: accountId, claimId: challenge.id, auth: { actorType: "user", subject: accountId, roles: [], provider: "passkey" }, mode: "passkey_registration", passkeyRegistration: true });
-      return { sessionToken };
-    },
-
     async createCurrentPlayerPasskeyRegistrationOptions(input) {
       const current = await getCurrentPortalPlayer(input.sessionToken);
       if (!current || current.player.status !== "active") throw new Error("UNAUTHENTICATED");
@@ -6760,7 +6717,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             createdAt: invite.createdAt,
             expiresAt: invite.expiresAt,
             ...(invite.redeemedAt ? { redeemedAt: invite.redeemedAt } : {}),
-            historicalMigration: summarizeHistoricalMigration(migrationRows.filter((row) => row.inviteId === invite.id), invite, claim?.status, timestamp, Boolean(invite.passkeyRegistrationPlayerAccountId || (invite.redeemedAt && !claim))),
+            historicalMigration: summarizeHistoricalMigration(migrationRows.filter((row) => row.inviteId === invite.id), invite, claim?.status, timestamp, Boolean(invite.redeemedAt && !claim)),
           };
         }),
       };
@@ -6771,26 +6728,32 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<Record<string, never>>(db, auth.subject, operation, idempotencyKey, input);
       if (replay) return;
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.id, input.inviteId)).get();
-      if (invite && !invite.revokedAt) {
-        const legacyPasskeyChallenge = invite.passkeyRegistrationPlayerAccountId && invite.passkeyRegistrationChallengeId
-          ? null
-          : await db.select().from(passkeyChallenges).where(and(eq(passkeyChallenges.inviteId, invite.id), eq(passkeyChallenges.purpose, "invitation"), isNotNull(passkeyChallenges.usedAt), isNotNull(passkeyChallenges.playerAccountId))).orderBy(desc(passkeyChallenges.usedAt)).get();
-        const playerAccountId = invite.passkeyRegistrationPlayerAccountId ?? legacyPasskeyChallenge?.playerAccountId;
-        const passkeyRegistrationId = invite.passkeyRegistrationChallengeId ?? legacyPasskeyChallenge?.id;
-        if (playerAccountId && passkeyRegistrationId) {
-          await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId, claimId: passkeyRegistrationId, auth, mode: "retry", passkeyRegistration: true });
-          await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
-          await recordAudit(db, auth, operation, "binding_invite", invite.id, { passkeyRegistrationId, playerAccountId });
-          return;
-        }
+      const claims = await db.select().from(bindingClaims).where(eq(bindingClaims.inviteId, input.inviteId)).orderBy(desc(bindingClaims.createdAt));
+      const claim = claims.find((item) => item.status === "approved");
+      if (!invite || invite.revokedAt) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+      const invitedAccount = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, invite.normalizedPlayerName), eq(playerAccounts.playerId, invite.playerId), eq(playerAccounts.status, "active"))).get();
+      if (claim) {
+        if (!claim.memberOpenId || !claim.groupOpenId || !invitedAccount) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+        const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, claim.groupOpenId), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.playerAccountId, invitedAccount.id), eq(bindings.status, "active"))).get();
+        if (!binding) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+        await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: invitedAccount.id, claimId: claim.id, auth, mode: "retry" });
+        await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
+        await recordAudit(db, auth, operation, "binding_invite", invite.id, { claimId: claim.id, playerAccountId: invitedAccount.id });
+        return;
       }
-      const claim = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, input.inviteId), eq(bindingClaims.status, "approved"))).orderBy(desc(bindingClaims.decidedAt)).get();
-      if (!invite || !claim?.memberOpenId || invite.revokedAt) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
-      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.status, "active"))).get();
-      if (!binding) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
-      await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: binding.playerAccountId, claimId: claim.id, auth, mode: "retry" });
+      const legacyRedemption = claims.length === 0 && invite.redeemedAt
+        ? invite.legacyPasskeyPlayerAccountId
+          ? await db.select().from(playerAccounts).where(and(eq(playerAccounts.id, invite.legacyPasskeyPlayerAccountId), eq(playerAccounts.playerId, invite.playerId), eq(playerAccounts.status, "active"))).get()
+          : invitedAccount
+        : null;
+      const activeBinding = legacyRedemption
+        ? await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.playerAccountId, legacyRedemption.id), eq(bindings.status, "active"))).get()
+        : null;
+      if (!legacyRedemption || !activeBinding) throw new Error("HISTORICAL_MIGRATION_NOT_READY");
+      const grantSource = `binding:${activeBinding.id}`;
+      await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: legacyRedemption.id, grantSource, auth, mode: "retry" });
       await recordIdempotency(db, auth.subject, operation, idempotencyKey, input, {});
-      await recordAudit(db, auth, operation, "binding_invite", invite.id, { claimId: claim.id, playerAccountId: binding.playerAccountId });
+      await recordAudit(db, auth, operation, "binding_invite", invite.id, { playerAccountId: legacyRedemption.id, bindingId: activeBinding.id, grantSource, ...(invite.legacyPasskeyChallengeId ? { legacyPasskeyChallengeId: invite.legacyPasskeyChallengeId } : {}) });
     },
 
     async getAdminBindingInviteCode(input, auth) {
@@ -6862,6 +6825,27 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return { contractVersion: "1" as const, status: claim.status as "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired", expiresAt: claim.expiresAt, historicalMigration: claim.status === "rejected" || claim.status === "expired" ? { ...migration, status: "cancelled" as const } : migration };
     },
 
+    async exchangeBindingClaimSession(input) {
+      const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.id, input.claimId)).get();
+      if (!claim) throw new Error("BINDING_CLAIM_NOT_FOUND");
+      if (claim.tokenHash !== await hashRequest(input.claimToken)) throw new Error("BINDING_CLAIM_FORBIDDEN");
+      const timestamp = now();
+      if (claim.status !== "approved" || !claim.memberOpenId || !claim.groupOpenId) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId), eq(playerAccounts.status, "active"))).get();
+      if (!account) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const binding = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.groupOpenId, claim.groupOpenId), eq(bindings.memberOpenId, claim.memberOpenId), eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).get();
+      if (!binding) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      const sessionToken = await hashRequest({ purpose: "binding-claim-session", claimToken: input.claimToken });
+      const sessionId = `binding-claim:${claim.id}`;
+      await db.insert(portalSessions).values({ id: sessionId, playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), passkeyChallengeId: null, expiresAt: timestamp + sessionTtlMs, createdAt: timestamp }).onConflictDoNothing();
+      const existing = await db.select().from(portalSessions).where(eq(portalSessions.id, sessionId)).get();
+      if (!existing || existing.playerAccountId !== account.id || existing.tokenHash !== await hashRequest(sessionToken)) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
+      if (existing.expiresAt <= timestamp) {
+        await db.update(portalSessions).set({ expiresAt: timestamp + sessionTtlMs }).where(eq(portalSessions.id, sessionId));
+      }
+      return { contractVersion: "1" as const, status: "authenticated" as const, sessionToken };
+    },
+
     async verifyBindingClaim(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyBindingClaim"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.binding_claim.verify", idempotencyKey, input); if (replay) return replay;
       const claim = await db.select().from(bindingClaims).where(eq(bindingClaims.codeHash, await hashRequest(input.code))).get();
@@ -6904,24 +6888,26 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       });
 
       const account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
-      if (!account) throw new Error("PASSKEY_REGISTRATION_REQUIRED");
-      if (account.status !== "active") throw new Error("PLAYER_BANNED");
-      const targetBinding = await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).get();
+      if (account && account.status !== "active") throw new Error("PLAYER_BANNED");
+      const targetBinding = account ? await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active"))).get() : null;
       const memberBindings = await db.select().from(bindings).where(and(eq(bindings.provider, "qq"), eq(bindings.memberOpenId, input.memberOpenId), eq(bindings.status, "active")));
       const cleanFirstBinding = !targetBinding && memberBindings.length === 0;
 
       if (cleanFirstBinding) {
+        const playerAccount = account ?? { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
         const identityId = crypto.randomUUID();
         const bindingId = crypto.randomUUID();
-        await db.batch([
+        const statements: [any, ...any[]] = [
           db.update(bindingClaims).set({ status: "approved", memberOpenId: input.memberOpenId, groupOpenId: input.groupOpenId, messageId: input.messageId, verifiedAt: timestamp, decidedAt: timestamp, decidedBy: auth.subject }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_confirmation"))),
           db.update(bindingInvites).set({ redeemedAt: timestamp }).where(and(eq(bindingInvites.id, invite.id), isNull(bindingInvites.redeemedAt))),
           db.insert(identities).values({ id: identityId, createdAt: timestamp, updatedAt: timestamp }),
-          db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: account.id, provider: "qq", groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, status: "active", createdAt: timestamp }),
+          db.insert(bindings).values({ id: bindingId, identityId, playerAccountId: playerAccount.id, provider: "qq", groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, status: "active", createdAt: timestamp }),
           idempotencyStatement,
-          db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.binding_claim.auto_activate", entityType: "binding_claim", entityId: claim.id, payloadJson: JSON.stringify({ inviteId: invite.id, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, operationType: "initial_binding", bindingId }), createdAt: timestamp }),
-        ] as [any, ...any[]]);
-        await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: account.id, claimId: claim.id, auth, mode: "automatic" });
+          db.insert(auditEvents).values({ id: crypto.randomUUID(), correlationId: crypto.randomUUID(), actorType: auth.actorType, actorId: auth.subject, operation: "qq.binding_claim.auto_activate", entityType: "binding_claim", entityId: claim.id, payloadJson: JSON.stringify({ inviteId: invite.id, playerAccountId: playerAccount.id, groupOpenId: input.groupOpenId, memberOpenId: input.memberOpenId, operationType: "initial_binding", bindingId }), createdAt: timestamp }),
+        ];
+        if (!account) statements.unshift(db.insert(playerAccounts).values(playerAccount));
+        await db.batch(statements);
+        await migrateAuthorizedHistoricalTitles({ inviteId: invite.id, playerAccountId: playerAccount.id, claimId: claim.id, auth, mode: "automatic" });
         return verifiedResponse;
       }
 
@@ -7039,13 +7025,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           auditStatement,
         ]);
       } else {
-        let account = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
-        if (!account) throw new Error("PASSKEY_REGISTRATION_REQUIRED");
+        const existingAccount = await db.select().from(playerAccounts).where(and(eq(playerAccounts.normalizedPlayerName, claim.normalizedPlayerName), eq(playerAccounts.playerId, claim.playerId))).get();
+        if (existingAccount && existingAccount.status !== "active") throw new Error("PLAYER_BANNED");
+        const account = existingAccount ?? { id: crypto.randomUUID(), playerId: claim.playerId, playerName: claim.playerName, normalizedPlayerName: claim.normalizedPlayerName, isAdmin: 0, status: "active" as const, bannedAt: null, bannedBy: null, banReason: null, createdAt: timestamp, updatedAt: timestamp };
         const old = await db.select().from(bindings).where(and(eq(bindings.status, "active"), or(eq(bindings.playerAccountId, account.id), eq(bindings.memberOpenId, claim.memberOpenId))));
         const identityId = crypto.randomUUID();
         const bindingId = crypto.randomUUID();
 
         const statements: any[] = [
+          ...(!existingAccount ? [db.insert(playerAccounts).values(account)] : []),
           db.update(bindingClaims).set({ status: "approved", decidedAt: timestamp, decidedBy: auth.subject, decisionReason: input.reason ?? null }).where(and(eq(bindingClaims.id, claim.id), eq(bindingClaims.status, "pending_review"))),
         ];
 

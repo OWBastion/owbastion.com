@@ -560,10 +560,15 @@ The accepted onboarding direction is:
 
 ~~~text
 administrator invitation
--> Player Account creation / trusted binding
--> BattleTag binding
--> Passkey registration
+-> verified QQ binding for the invited BattleTag
+-> Player Account creation
+-> QQ login or authenticated Passkey registration for future login
 ~~~
+
+The invitation is completed by verifying the player's QQ identity in an enabled
+group. The platform creates the account and binding together from that verified
+claim. Passkey is an account authentication method; it is not an invitation or
+first-registration requirement.
 
 A Player may register multiple Passkeys.
 

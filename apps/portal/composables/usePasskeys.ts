@@ -1,7 +1,7 @@
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { portalErrorDetails } from "~/utils/portal-error";
 
-type OptionsResponse = { contractVersion: "1"; challengeId: string; options: Record<string, unknown>; playerName?: string; playerId?: string };
+type OptionsResponse = { contractVersion: "1"; challengeId: string; options: Record<string, unknown> };
 
 export function usePasskeys() {
   const api = usePortalApi();
@@ -28,24 +28,6 @@ export function usePasskeys() {
     } catch (error) {
       errorMessage.value = registrationError(error);
       errorCode.value = portalErrorDetails(error).code ?? "";
-    } finally { busy.value = false; }
-  }
-
-  async function registerInvitation(code: string, name: string) {
-    if (busy.value) return null;
-    busy.value = true;
-    errorMessage.value = "";
-    errorCode.value = "";
-    try {
-      const options = await api<OptionsResponse>("/v1/public/passkeys/invitations/options", { method: "POST", body: { contractVersion: "1", code } });
-      const credential = await startRegistration({ optionsJSON: options.options as unknown as Parameters<typeof startRegistration>[0]["optionsJSON"] });
-      await api("/v1/public/passkeys/invitations/verify", { method: "POST", body: { contractVersion: "1", challengeId: options.challengeId, credential, name } });
-      await navigateTo({ path: "/login/complete", query: { returnTo: "/me" } });
-      return { playerName: options.playerName ?? "", playerId: options.playerId ?? "" };
-    } catch (error) {
-      errorMessage.value = registrationError(error);
-      errorCode.value = portalErrorDetails(error).code ?? "";
-      return null;
     } finally { busy.value = false; }
   }
 
@@ -84,5 +66,5 @@ export function usePasskeys() {
     } finally { busy.value = false; }
   }
 
-  return { busy, errorMessage, errorCode, login, registerInvitation, registerCurrentPlayer, registerRecovery };
+  return { busy, errorMessage, errorCode, login, registerCurrentPlayer, registerRecovery };
 }

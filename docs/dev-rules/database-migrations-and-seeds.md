@@ -50,6 +50,10 @@ HAVING COUNT(*) > 1;
 不受影响。若错误权益是提交的主权益，迁移会保留原截图并将提交置为
 `resubmission_required`，管理员可重新请求 OCR；所有修复都会写入审计事件。
 
+`0087_legacy_passkey_invite_retry_anchor.sql` 为已部署的 Passkey-first 邀请流程
+回填已确认邀请所对应的 Player Account 和已消费 Passkey challenge。后续称号迁移重试
+只使用这个账号锚点，并要求该账号先有有效 QQ 绑定；它不再创建或注册 Passkey。
+
 在任何远程 migration 前后，先执行只读 reconciliation（结果只有计数，不含玩家
 姓名或标识）：
 

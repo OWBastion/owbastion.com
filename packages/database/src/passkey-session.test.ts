@@ -21,11 +21,10 @@ vi.mock("@owbastion/auth", async (importOriginal) => {
 const { createPlatformServices } = await import("./index");
 const { hashRequest, resolvePortalSession } = await import("./portal-session");
 
-const createD1 = (failBatchNumbers: number[] = []) => {
+const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
   let batchTail = Promise.resolve();
-  let batchNumber = 0;
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
     const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
@@ -53,8 +52,6 @@ const createD1 = (failBatchNumbers: number[] = []) => {
   const database = {
     prepare(sql: string) { return wrapStatement(sql); },
     async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      batchNumber += 1;
-      if (failBatchNumbers.includes(batchNumber)) throw new Error("D1_TRANSIENT_FAILURE");
       const previous = batchTail;
       let release: () => void = () => undefined;
       batchTail = new Promise<void>((resolve) => { release = resolve; });
@@ -91,40 +88,13 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, code_hash TEXT NOT NULL, code_ciphertext TEXT, player_name TEXT NOT NULL,
     normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER,
-    passkey_registration_player_account_id TEXT, passkey_registration_challenge_id TEXT, revoked_at INTEGER, revoked_by TEXT
-  );
-  CREATE TABLE binding_claims (
-    id TEXT PRIMARY KEY NOT NULL, invite_id TEXT NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL,
-    player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, status TEXT NOT NULL,
-    member_open_id TEXT, group_open_id TEXT, message_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
-    verified_at INTEGER, decided_at INTEGER, decided_by TEXT, decision_reason TEXT
+    legacy_passkey_player_account_id TEXT, legacy_passkey_challenge_id TEXT,
+    revoked_at INTEGER, revoked_by TEXT
   );
   CREATE TABLE binding_invite_historical_title_grants (
     id TEXT PRIMARY KEY NOT NULL, invite_id TEXT NOT NULL, historical_title_grant_id TEXT NOT NULL,
     authorized_by TEXT NOT NULL, status TEXT NOT NULL, player_title_grant_id TEXT, last_error TEXT,
     created_at INTEGER NOT NULL, processed_at INTEGER
-  );
-  CREATE TABLE historical_title_grants (
-    id TEXT PRIMARY KEY NOT NULL, scope TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT,
-    title_key TEXT NOT NULL, holder_name TEXT NOT NULL, source_version TEXT NOT NULL
-  );
-  CREATE TABLE player_title_grants (
-    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, title_key TEXT NOT NULL, map_id TEXT,
-    gameplay_revision_id TEXT, slot TEXT, status TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL,
-    granted_by TEXT NOT NULL, granted_at INTEGER NOT NULL, revoked_by TEXT, revoked_at INTEGER, revoke_reason TEXT,
-    completion_id TEXT, revocation_type TEXT
-  );
-  CREATE TABLE challenges (
-    id TEXT PRIMARY KEY NOT NULL, source_family TEXT NOT NULL, source_id TEXT NOT NULL, title_key TEXT NOT NULL,
-    rule_version TEXT NOT NULL DEFAULT 'legacy', map_id TEXT, gameplay_revision_id TEXT, status TEXT NOT NULL,
-    manual INTEGER NOT NULL DEFAULT 0, public_condition INTEGER NOT NULL DEFAULT 1, condition_operator TEXT NOT NULL DEFAULT 'and',
-    conditions_json TEXT NOT NULL DEFAULT '[]', condition TEXT NOT NULL, starts_at INTEGER, ends_at INTEGER,
-    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE challenge_completions (
-    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, challenge_id TEXT NOT NULL,
-    gameplay_revision_id TEXT, status TEXT NOT NULL DEFAULT 'active', source_type TEXT NOT NULL, source_id TEXT NOT NULL,
-    completed_at INTEGER NOT NULL, invalidated_by TEXT, invalidated_at INTEGER, invalidation_reason TEXT, created_at INTEGER NOT NULL
   );
   CREATE TABLE passkey_credentials (
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -260,143 +230,6 @@ describe("Passkey session and ownership boundaries", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 0 });
   });
 
-  it("registers an invited Player Account with a direct Passkey session", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.one', ?, 'Player', 'player', '1001', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-ONE"), timestamp, timestamp + 60_000);
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "invite-one", rpId: "owbastion.com" });
-
-    const result = await services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    });
-
-    expect(sqlite.prepare("SELECT player_id, player_name FROM player_accounts").get()).toEqual({ player_id: "1001", player_name: "Player" });
-    const account = sqlite.prepare("SELECT id FROM player_accounts").get() as { id: string };
-    expect(sqlite.prepare("SELECT player_account_id, name FROM passkey_credentials").get()).toEqual({ player_account_id: account.id, name: "phone" });
-    expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.one'").get()).toEqual({ redeemed_at: expect.any(Number) });
-    expect((await resolvePortalSession(database, result.sessionToken))?.player.playerId).toBe("1001");
-    await expect(services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    })).rejects.toThrow("PASSKEY_CHALLENGE_INVALID");
-  });
-
-  it("retries an invited Passkey title migration without a QQ claim after the challenge is pruned", async () => {
-    const { database, sqlite } = createD1([3]);
-    installSchema(sqlite);
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.retry', ?, 'Player', 'player', '1001', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-RETRY"), timestamp, timestamp + 60_000);
-    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('historical.retry', 'global', 'LEGACY_TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO binding_invite_historical_title_grants (id, invite_id, historical_title_grant_id, authorized_by, status, created_at) VALUES ('authorization.retry', 'invite.retry', 'historical.retry', 'admin', 'authorized', ?)").run(timestamp);
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "INVITE-RETRY", rpId: "owbastion.com" });
-    await services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.retry" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    });
-
-    const inviteRegistration = sqlite.prepare("SELECT passkey_registration_player_account_id, passkey_registration_challenge_id FROM binding_invites WHERE id = 'invite.retry'").get() as { passkey_registration_player_account_id: string; passkey_registration_challenge_id: string };
-    expect(inviteRegistration.passkey_registration_player_account_id).toBeTruthy();
-    expect(inviteRegistration.passkey_registration_challenge_id).toBe(options.challengeId);
-    expect(sqlite.prepare("SELECT status FROM binding_invite_historical_title_grants WHERE id = 'authorization.retry'").get()).toEqual({ status: "retry_required" });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM binding_claims").get()).toEqual({ count: 0 });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM bindings WHERE provider = 'qq'").get()).toEqual({ count: 0 });
-
-    sqlite.prepare("UPDATE binding_invites SET expires_at = ? WHERE id = 'invite.retry'").run(timestamp - 1);
-    sqlite.prepare("DELETE FROM portal_sessions").run();
-    sqlite.prepare("DELETE FROM passkey_challenges WHERE id = ?").run(options.challengeId);
-    await expect(services.listAdminBindingInvites()).resolves.toMatchObject({
-      items: [{ inviteId: "invite.retry", historicalMigration: { status: "retry_required", retryCount: 1 } }],
-    });
-    await services.retryHistoricalTitleMigration(
-      { inviteId: "invite.retry" },
-      { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" },
-      "retry.passkey",
-    );
-
-    const accountId = inviteRegistration.passkey_registration_player_account_id;
-    expect(sqlite.prepare("SELECT player_account_id, granted_by FROM player_title_grants WHERE source_type = 'historical' AND source_id = 'historical.retry'").get()).toEqual({
-      player_account_id: accountId,
-      granted_by: `passkey:${options.challengeId}`,
-    });
-    expect(sqlite.prepare("SELECT status FROM binding_invite_historical_title_grants WHERE id = 'authorization.retry'").get()).toEqual({ status: "created" });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM bindings WHERE provider = 'qq'").get()).toEqual({ count: 0 });
-  });
-
-  it("processes a large Passkey title migration in recoverable batches", async () => {
-    const { database, sqlite } = createD1([4]);
-    installSchema(sqlite);
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.large', ?, 'Player', 'player', '1001', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-LARGE"), timestamp, timestamp + 60_000);
-    const titleGrantIds = Array.from({ length: 83 }, (_, index) => `historical.${index}`);
-    const insertHistorical = sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES (?, 'global', ?, 'Player', 'test')");
-    const insertAuthorization = sqlite.prepare("INSERT INTO binding_invite_historical_title_grants (id, invite_id, historical_title_grant_id, authorized_by, status, created_at) VALUES (?, 'invite.large', ?, 'admin', 'authorized', ?)");
-    titleGrantIds.forEach((id, index) => {
-      const titleKey = `TITLE_${index}`;
-      insertHistorical.run(id, titleKey);
-      insertAuthorization.run(`authorization.${index}`, id, timestamp);
-    });
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "INVITE-LARGE", rpId: "owbastion.com" });
-    await services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.large" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    });
-
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM binding_invite_historical_title_grants WHERE status = 'created'").get()).toEqual({ count: 16 });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM binding_invite_historical_title_grants WHERE status = 'retry_required'").get()).toEqual({ count: 67 });
-
-    sqlite.prepare("UPDATE binding_invites SET expires_at = ? WHERE id = 'invite.large'").run(timestamp - 1);
-    sqlite.prepare("DELETE FROM portal_sessions").run();
-    sqlite.prepare("DELETE FROM passkey_challenges WHERE id = ?").run(options.challengeId);
-    await services.retryHistoricalTitleMigration(
-      { inviteId: "invite.large" },
-      { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" },
-      "retry.large-passkey",
-    );
-
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM binding_invite_historical_title_grants WHERE status = 'created'").get()).toEqual({ count: 83 });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_type = 'historical'").get()).toEqual({ count: 83 });
-  });
-
-  it("can retry a legacy Passkey invitation while its consumed challenge remains", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at, redeemed_at)
-      VALUES ('invite.legacy', 'hash', 'Player', 'player', '1002', 'admin', ?, ?, ?)
-    `).run(timestamp, timestamp - 1, timestamp);
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('account.legacy', '1002', 'Player', 'player', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO passkey_challenges (id, purpose, challenge, player_account_id, invite_id, expires_at, used_at, consumed_by, created_at) VALUES ('challenge.legacy', 'invitation', 'challenge', 'account.legacy', 'invite.legacy', ?, ?, 'consumed', ?)").run(timestamp - 1, timestamp, timestamp);
-    sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('historical.legacy', 'global', 'LEGACY_TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO binding_invite_historical_title_grants (id, invite_id, historical_title_grant_id, authorized_by, status, created_at) VALUES ('authorization.legacy', 'invite.legacy', 'historical.legacy', 'admin', 'retry_required', ?)").run(timestamp);
-    const services = createPlatformServices(database);
-
-    await services.retryHistoricalTitleMigration(
-      { inviteId: "invite.legacy" },
-      { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" },
-      "retry.legacy",
-    );
-
-    expect(sqlite.prepare("SELECT player_account_id, granted_by FROM player_title_grants WHERE source_id = 'historical.legacy'").get()).toEqual({
-      player_account_id: "account.legacy",
-      granted_by: "passkey:challenge.legacy",
-    });
-  });
-
   it("allows only one concurrent completion of a one-time recovery grant", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
@@ -454,31 +287,6 @@ describe("Passkey session and ownership boundaries", () => {
     await services.createAdminPasskeyRecovery({ playerAccountId: "account.one", identityVerified: true }, maintainer, "recovery.unused");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.one'").get()).toEqual({ count: 1 });
     expect((await resolvePortalSession(database, "session-token.old"))?.player.id).toBe("account.one");
-  });
-
-  it("maps a credential already registered elsewhere to a verification failure and keeps the invitation usable", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    addAccount(sqlite, "account.one", "1001");
-    sqlite.prepare(`
-      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
-      VALUES ('credential.row.one', 'account.one', 'registration.one', 'cHVi', 0, '[]', 'device', 1)
-    `).run();
-    const timestamp = Date.now();
-    sqlite.prepare(`
-      INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at)
-      VALUES ('invite.two', ?, 'Other', 'other', '2002', 'admin', ?, ?)
-    `).run(await hashRequest("INVITE-TWO"), timestamp, timestamp + 60_000);
-    verifyRegistration.mockResolvedValue({ credentialId: "registration.one", publicKey: "cHVi", counter: 0, transports: [] });
-    const services = createPlatformServices(database);
-    const options = await services.createPasskeyInvitationOptions({ code: "invite-two", rpId: "owbastion.com" });
-
-    await expect(services.completePasskeyInvitationRegistration({
-      contractVersion: "1", challengeId: options.challengeId, credential: { id: "registration.one" }, name: "phone",
-      origin: "https://owbastion.com", rpId: "owbastion.com",
-    })).rejects.toThrow("PASSKEY_REGISTRATION_INVALID");
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_accounts WHERE player_id = '2002'").get()).toEqual({ count: 0 });
-    expect(sqlite.prepare("SELECT redeemed_at FROM binding_invites WHERE id = 'invite.two'").get()).toEqual({ redeemed_at: null });
   });
 
   it("issues a direct Player Account session for a verified QQ login attempt and only once", async () => {
