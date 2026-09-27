@@ -1590,6 +1590,71 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT json_extract(match_json, '$.candidates') AS candidates FROM ocr_results WHERE submission_id = 'submission.auto.repeat'").get()).toEqual({ candidates: "[]" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
     });
+
+    it("preserves each matched challenge completion while granting a shared title once", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.shared-title");
+      seedTitle(sqlite, "SHARED_TITLE");
+      const challengeIds = ["challenge.shared.first", "challenge.shared.second"];
+      const insertChallenge = sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES (?, 'map.shared-title', 'difficulty_completion', ?, '传奇', '完成通关', '上传截图', 'automatic', 'SHARED_TITLE', '2026.07.15', 'active', '2026.07.15', ?, ?)");
+      for (const [index, challengeId] of challengeIds.entries()) {
+        insertChallenge.run(challengeId, `挑战 ${index + 1}`, now, now);
+        seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.shared-title:initial", mapId: "map.shared-title", challengeFamily: "map_challenge", challengeId, slot: "shared" });
+      }
+      const seedPlayerSubmission = (playerId: string, bindingId: string, submissionId: string, status: string) => {
+        sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, 'Tester', 'tester', 0, 'active', ?, ?)").run(playerId, playerId, now, now);
+        sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES (?, ?, ?, 'qq', ?, ?, 'active', ?)").run(bindingId, `identity.${playerId}`, playerId, `group.${playerId}`, `member.${playerId}`, now);
+        sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, ?, ?, 'unknown', '成就挑战', 'Tester', 'portal', 'portal', ?, ?, ?)").run(submissionId, bindingId, status, `message.${submissionId}`, now, now);
+      };
+      seedPlayerSubmission("player.shared.auto", "binding.shared.auto", "submission.shared.auto", "ocr_pending");
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.shared.auto', 'submission.shared.auto', 'portal', 'external.shared.auto', 'image/png', 1, 'hash', 'evidence/shared-auto.png', 'stored', ?)").run(now);
+      seedPlayerSubmission("player.shared.review", "binding.shared.review", "submission.shared.review", "ocr_review_required");
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v6",
+        fields: {
+          challenge_completed: { status: "ok", confidence: 0.99 },
+          viewer_player: { status: "ok", confidence: 0.99 },
+          map_name: { status: "ok", confidence: 0.99 },
+          difficulty: { status: "ok", confidence: 0.99 },
+        },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.shared-title", difficulty: "传奇" },
+      };
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.shared.review', 'submission.shared.review', 1, 'review_required', ?, '{}', ?)").run(JSON.stringify(ocrResponse), now);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+        await services.processOcrJob({ submissionId: "submission.shared.auto", objectKey: "evidence/shared-auto.png", attempt: 1, requestId: "request.shared.auto" });
+        const reviewed = await services.reviewSubmission(
+          { submissionId: "submission.shared.review", decision: "approved" },
+          { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
+          "shared-title-review",
+        );
+        expect(reviewed.grants).toHaveLength(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      expect(sqlite.prepare("SELECT s.id AS submission_id, c.source_id AS challenge_id FROM challenge_completions completion JOIN challenges c ON c.id = completion.challenge_id JOIN submissions s ON s.id = completion.source_id WHERE completion.source_id IN ('submission.shared.auto', 'submission.shared.review') AND completion.status = 'active' ORDER BY s.id, c.source_id").all()).toEqual([
+        { submission_id: "submission.shared.auto", challenge_id: challengeIds[0] },
+        { submission_id: "submission.shared.auto", challenge_id: challengeIds[1] },
+        { submission_id: "submission.shared.review", challenge_id: challengeIds[0] },
+        { submission_id: "submission.shared.review", challenge_id: challengeIds[1] },
+      ]);
+      expect(sqlite.prepare("SELECT player_account_id, source_type, title_key, COUNT(*) AS count FROM player_title_grants WHERE source_id IN ('submission.shared.auto', 'submission.shared.review') AND status = 'active' GROUP BY player_account_id, source_type, title_key ORDER BY player_account_id").all()).toEqual([
+        { player_account_id: "player.shared.auto", source_type: "automatic", title_key: "SHARED_TITLE", count: 1 },
+        { player_account_id: "player.shared.review", source_type: "submission", title_key: "SHARED_TITLE", count: 1 },
+      ]);
+      expect(sqlite.prepare("SELECT json_extract(payload_json, '$.submissionId') AS submission_id, operation, COUNT(*) AS count FROM audit_events WHERE operation IN ('challenge.completion.submission', 'submission.automatic_grant', 'submission.grant') AND json_extract(payload_json, '$.submissionId') IN ('submission.shared.auto', 'submission.shared.review') GROUP BY submission_id, operation ORDER BY submission_id, operation").all()).toEqual([
+        { submission_id: "submission.shared.auto", operation: "challenge.completion.submission", count: 2 },
+        { submission_id: "submission.shared.auto", operation: "submission.automatic_grant", count: 1 },
+        { submission_id: "submission.shared.review", operation: "challenge.completion.submission", count: 2 },
+        { submission_id: "submission.shared.review", operation: "submission.grant", count: 1 },
+      ]);
+    });
   });
 
   describe("historical title migration", () => {
