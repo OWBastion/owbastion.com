@@ -6225,11 +6225,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
       const requestHash = await hashRequest(input);
       const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
+      const responseDetails = {
+        ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}),
+      };
       const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
       const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...responseDetails }
         : input.decision === "approved" && retainedGrants.length
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...responseDetails }
         : input.decision === "approved"
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome! }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
