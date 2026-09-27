@@ -3008,7 +3008,19 @@ describe("submission mastery outcomes", () => {
     sqlite.prepare("INSERT INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) VALUES (?, ?, ?, ?, 'active', 'manual', ?, ?, ?)")
       .run("completion.admin-context", playerAccountId, "challenge.admin-context", revisionId, "manual:admin-context", now, now);
     sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, NULL, '困难', '2026.07.15', '1234-5678-9012', 600, 1, 0, '{}', 'submission_automatic', ?, 'active', 'v2', '{}', 120, ?)")
-      .run("run.admin-context", playerAccountId, "submission.admin-context", mapId, revisionId, now, now);
+      .run("run.admin-context", playerAccountId, "submission.admin-context", mapId, revisionId, now + 3, now);
+    sqlite.prepare("UPDATE gameplay_revisions SET lifecycle = 'historical' WHERE id = ?").run(revisionId);
+    const currentRevisionId = `revision:${mapId}:rework`;
+    sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, 'default', NULL, ?, 'revision reset', '2026.08.10', ?, ?)")
+      .run(currentRevisionId, mapId, revisionId, now, now);
+    const selectableRevisionId = seedSelectableGameplayRevision(sqlite, mapId, "selectable");
+    const insertRun = (runId: string, submissionId: string, runRevisionId: string, acceptedAt: number, matchCode: string) => {
+      seedMasterySubmission(sqlite, submissionId, "binding.admin-context", "Context Player", false);
+      sqlite.prepare("INSERT INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, NULL, '困难', '2026.08.10', ?, 600, 1, 0, '{}', 'submission_automatic', ?, 'active', 'v2', '{}', 120, ?)")
+        .run(runId, playerAccountId, submissionId, mapId, runRevisionId, matchCode, acceptedAt, now);
+    };
+    insertRun("run.admin-context.default", "submission.admin-context.default", currentRevisionId, now + 2, "2345-6789-1234");
+    insertRun("run.admin-context.selectable", "submission.admin-context.selectable", selectableRevisionId, now + 1, "3456-7891-2345");
 
     const detail = await createPlatformServices(database).getAdminPlayer({ playerAccountId }, {} as never);
 
@@ -3024,16 +3036,20 @@ describe("submission mastery outcomes", () => {
       sourceType: "manual",
     })]);
     expect(detail.progression).toEqual({
-      activeVerifiedRunCount: 1,
-      recentVerifiedRuns: [expect.objectContaining({
-        runId: "run.admin-context",
+      activeVerifiedRunCount: 2,
+      recentVerifiedRuns: expect.arrayContaining([expect.objectContaining({
+        runId: "run.admin-context.default",
         mapName: `地图 ${mapId}`,
-        gameplayRevisionId: revisionId,
-        gameVersion: "2026.07.15",
+        gameplayRevisionId: currentRevisionId,
+        gameVersion: "2026.08.10",
         difficulty: "困难",
         awardedXp: 120,
-      })],
+      })]),
     });
+    expect(detail.progression.recentVerifiedRuns.map(({ runId }) => runId)).toEqual([
+      "run.admin-context.default",
+      "run.admin-context.selectable",
+    ]);
     expect(JSON.stringify(detail.progression)).not.toContain("1234-5678-9012");
   });
 

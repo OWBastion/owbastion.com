@@ -6053,12 +6053,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           .where(eq(challengeCompletions.playerAccountId, account.id))
           .orderBy(desc(challengeCompletions.completedAt), desc(challengeCompletions.id))
           .limit(10),
-        db.select({ total: count() }).from(verifiedRuns).where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"))),
+        db.select({ total: count() }).from(verifiedRuns)
+          .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
+          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"]))),
         db.select({ run: verifiedRuns, mapName: maps.name, gameVersion: gameplayRevisions.gameVersion })
           .from(verifiedRuns)
           .innerJoin(maps, eq(maps.id, verifiedRuns.mapId))
           .innerJoin(gameplayRevisions, eq(gameplayRevisions.id, verifiedRuns.gameplayRevisionId))
-          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active")))
+          .where(and(eq(verifiedRuns.playerAccountId, account.id), eq(verifiedRuns.status, "active"), inArray(gameplayRevisions.lifecycle, ["default", "selectable"])))
           .orderBy(desc(verifiedRuns.acceptedAt), desc(verifiedRuns.id))
           .limit(5),
       ]);
