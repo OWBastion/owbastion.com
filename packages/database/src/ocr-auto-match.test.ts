@@ -1,130 +1,131 @@
 import { describe, expect, it } from "vitest";
-import { matchOcrAgainstChallenges } from "./ocr-auto-match";
+import type { Challenge } from "@owbastion/contracts";
+import { parseCanonicalChallengeConditions } from "@owbastion/domain";
+import { matchOcrAgainstChallenges, type CanonicalOcrChallenge } from "./ocr-auto-match";
 
 const response = {
   schema_version: "1",
   ok: true,
+  layout_version: "1280x720-v6",
   fields: {
     challenge_completed: { status: "ok", confidence: 0.98 },
     viewer_player: { status: "ok", confidence: 0.98 },
     map_name: { status: "ok", confidence: 0.98 },
     difficulty: { status: "ok", confidence: 0.98 },
+    map_variant: { status: "ok", confidence: 0.98 },
     achievement_titles: { status: "ok", confidence: 0.98 },
   },
-  data: { map_name: "萨摩亚", difficulty: "传奇", viewer_player: "Player#1234", challenge_completed: true, achievement_titles: ["征服者"] },
+  data: { map_name: "萨摩亚", difficulty: "传奇", viewer_player: "Different#1234", challenge_completed: true, achievement_titles: ["征服者"] },
 } as const;
 
-const mapChallenge = (id: string, name = "萨摩亚") => ({
-  challengeId: id, family: "map" as const, gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion" as const, kind: "difficulty_completion" as const,
-  name: "传奇通关", mapId: "map.samoa", mapName: name, difficulty: "传奇", gameVersion: "1", status: "active" as const,
-  submissionMode: "manual" as const, titleKey: "CONQUEROR",
+const mapChallenge = (id: string, difficulty = "传奇", mapName = "萨摩亚"): Challenge => ({
+  challengeId: id, family: "map", gameplayRevisionId: "revision:map.samoa:initial", type: "map_completion", kind: "difficulty_completion",
+  name: `${difficulty}通关`, mapId: "map.samoa", mapName, difficulty, gameVersion: "1", status: "active", submissionMode: "manual", titleKey: id.toUpperCase(),
 });
 
-describe("matchOcrAgainstChallenges", () => {
-  it("returns one automatic candidate when the map evidence is unique and confident", () => {
-    const result = matchOcrAgainstChallenges([mapChallenge("map.samoa.conqueror")], response, "Player#1234");
-    expect(result.outcome).toBe("automatic");
-    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
-  });
+const candidate = (challenge: Challenge, conditions: unknown, canonicalChallengeId = `canonical:${challenge.challengeId}`): CanonicalOcrChallenge => ({
+  challenge,
+  canonicalChallengeId,
+  conditions: parseCanonicalChallengeConditions(conditions),
+});
 
-  it("uses the highest recognized difficulty for automatic matching while retaining covered lower challenges", () => {
+const mapConditions = (difficulty: string) => ({ operator: "and", conditions: [
+  { type: "map", mapId: "map.samoa" },
+  { type: "completed" },
+  { type: "difficulty_at_least", difficulty },
+] });
+
+const mapIdsByName = new Map([["萨摩亚", "map.samoa"]]);
+
+describe("canonical OCR Challenge matching", () => {
+  it("evaluates all matching Challenge Conditions, including higher difficulties only through at-least semantics", () => {
     const result = matchOcrAgainstChallenges([
-      mapChallenge("map.samoa.conqueror"),
-      { ...mapChallenge("map.samoa.dominator"), name: "地狱通关", difficulty: "地狱", titleKey: "DOMINATOR" },
-    ], { ...response, data: { ...response.data, difficulty: "地狱" } }, "Player#1234");
+      candidate(mapChallenge("map.samoa.conqueror", "传奇"), mapConditions("传奇")),
+      candidate(mapChallenge("map.samoa.dominator", "地狱"), mapConditions("地狱")),
+    ], { ...response, data: { ...response.data, difficulty: "地狱" } }, mapIdsByName, new Map());
     expect(result.outcome).toBe("automatic");
-    expect(result.exact.map(({ targetDifficulty }) => targetDifficulty)).toEqual(["传奇", "地狱"]);
-    expect(result.automaticCandidates.map(({ targetDifficulty }) => targetDifficulty)).toEqual(["地狱"]);
+    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror", "map.samoa.dominator"]);
   });
 
-  it("matches a classic map challenge without generic achievement evidence", () => {
-    const classicResponse = {
-      ...response,
-      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 }, achievement_titles: { status: "ok", confidence: 0.98 } },
-      data: { ...response.data, difficulty: "地狱", map_variant: "classic", achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" },
+  it("evaluates multiple Challenge families in one evidence set", () => {
+    const achievement: Challenge = {
+      challengeId: "title.conqueror", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "CONQUEROR", titleName: "征服者", icon: "legacy", category: "挑战", condition: "完成挑战", evidenceRule: "勾选",
+      gameVersion: "1", status: "active", submissionMode: "manual",
     };
-    const mapTitleChallenge = { ...mapChallenge("map.samoa.dominator"), kind: "map_title_achievement" as const, name: "主宰", difficulty: "地狱", titleKey: "DOMINATOR", mapVariant: "classic" as const, mapTitleRule: { ruleId: "rule.dominator", kind: "dominator", displayKind: "map_name_suffix" as const, slot: "dominator" as const, dynamic: true as const } };
-    const globalTitleChallenge = {
-      challengeId: "title.conqueror", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const,
-      titleKey: "CONQUEROR", titleName: "征服者", category: "挑战", condition: "完成挑战", evidenceRule: "左侧成就面板显示称号和勾选", gameVersion: "1",
-      status: "active" as const, submissionMode: "manual" as const,
-    };
-    const result = matchOcrAgainstChallenges([mapTitleChallenge, globalTitleChallenge], classicResponse, "Player#1234");
-    expect(result.outcome).toBe("automatic");
-    expect(result.exact[0]).toMatchObject({ targetDifficulty: "地狱", titleName: "主宰", match: { variant: true, achievement: true }, quality: { accepted: true } });
-  });
-
-  it("only evaluates map challenges for the map recognized in the screenshot", () => {
     const result = matchOcrAgainstChallenges([
-      mapChallenge("map.samoa.conqueror"),
-      mapChallenge("map.hanamura.conqueror", "花村"),
-    ], response, "Player#1234");
-    expect(result.candidates.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
-  });
-
-  it("routes equal candidates to review instead of guessing", () => {
-    const result = matchOcrAgainstChallenges([mapChallenge("one"), mapChallenge("two")], response, "Player#1234");
-    expect(result.outcome).toBe("review");
+      candidate(mapChallenge("map.samoa.conqueror"), mapConditions("传奇")),
+      candidate(achievement, { operator: "and", conditions: [{ type: "achievement_title", titleKey: "CONQUEROR" }] }),
+    ], response, mapIdsByName, new Map([["CONQUEROR", "征服者"]]));
+    expect(result.outcome).toBe("automatic");
     expect(result.exact).toHaveLength(2);
   });
 
-  it("routes low confidence evidence to review", () => {
+  it("uses only a satisfied OR Condition branch for its quality gate", () => {
+    const achievement: Challenge = {
+      challengeId: "title.conqueror", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "CONQUEROR", titleName: "征服者", icon: "legacy", category: "挑战", condition: "完成挑战", evidenceRule: "勾选",
+      gameVersion: "1", status: "active", submissionMode: "manual",
+    };
+    const { achievement_titles: _field, ...fields } = response.fields;
+    const { achievement_titles: _value, ...data } = response.data;
+    const result = matchOcrAgainstChallenges([
+      candidate(achievement, { operator: "or", conditions: [
+        { type: "map", mapId: "map.samoa" },
+        { type: "achievement_title", titleKey: "CONQUEROR" },
+      ] }),
+    ], { ...response, fields, data }, mapIdsByName, new Map([ ["CONQUEROR", "征服者"] ]));
+
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact[0]?.quality.requiredFields).toEqual(["map_name"]);
+  });
+
+  it("does not let a non-matching Challenge with absent evidence block a separate match", () => {
+    const achievement: Challenge = {
+      challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement",
+      titleKey: "FLAWLESS", titleName: "无伤", icon: "legacy", category: "挑战", condition: "全成就完成", evidenceRule: "成就列表",
+      gameVersion: "1", status: "active", submissionMode: "manual",
+    };
+    const { achievement_titles: _field, ...fields } = response.fields;
+    const { achievement_titles: _value, ...data } = response.data;
+    const result = matchOcrAgainstChallenges([
+      candidate(mapChallenge("map.samoa.conqueror"), mapConditions("传奇")),
+      candidate(achievement, { operator: "and", conditions: [{ type: "achievement_title", titleKey: "FLAWLESS" }] }),
+    ], { ...response, fields, data }, mapIdsByName, new Map([ ["FLAWLESS", "无伤"] ]));
+
+    expect(result.outcome).toBe("automatic");
+    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.conqueror"]);
+    expect(result.lowConfidence).toEqual([]);
+  });
+
+  it("routes an unsupported OCR response to review even when no Challenge is a candidate", () => {
+    const result = matchOcrAgainstChallenges([], { ...response, layout_version: "future-layout" }, mapIdsByName, new Map());
+
+    expect(result.outcome).toBe("review");
+  });
+
+  it("routes unsupported layouts and weak fields to human review", () => {
     const lowConfidence = { ...response, fields: { ...response.fields, map_name: { status: "ok", confidence: 0.4 } } };
-    const result = matchOcrAgainstChallenges([mapChallenge("map.samoa.conqueror")], lowConfidence, "Player#1234");
-    expect(result.outcome).toBe("review");
-    expect(result.lowConfidence).toHaveLength(1);
+    expect(matchOcrAgainstChallenges([candidate(mapChallenge("challenge"), mapConditions("传奇"))], lowConfidence, mapIdsByName, new Map()).outcome).toBe("review");
+    expect(matchOcrAgainstChallenges([candidate(mapChallenge("challenge"), mapConditions("传奇"))], { ...response, layout_version: "future-layout" }, mapIdsByName, new Map()).outcome).toBe("review");
   });
 
-  it("does not silently auto-grant a candidate without a reward mapping", () => {
-    const { titleKey: _titleKey, ...unmapped } = mapChallenge("unmapped");
-    expect(matchOcrAgainstChallenges([unmapped], response, "Player#1234").outcome).toBe("review");
-  });
-
-  it("does not treat a statistics panel as checked achievement evidence", () => {
-    const titleChallenge = {
-      challengeId: "title.conqueror", family: "achievement" as const, type: "title_achievement" as const, kind: "title_achievement" as const,
-      titleKey: "CONQUEROR", titleName: "征服者", category: "挑战", condition: "完成挑战", evidenceRule: "左侧成就面板显示称号和勾选", gameVersion: "1",
-      status: "active" as const, submissionMode: "manual" as const,
-    };
-    const statisticsPanel = { ...response, data: { ...response.data, achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" } };
-    const result = matchOcrAgainstChallenges([titleChallenge], statisticsPanel, "Player#1234");
-    expect(result.exact).toHaveLength(0);
-    expect(result.outcome).toBe("review");
-  });
-
-  it("matches a classic map completion without checked achievement evidence", () => {
-    const classicResponse = {
-      ...response,
-      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 }, achievement_titles: { status: "ok", confidence: 0.98 } },
-      data: { ...response.data, map_variant: "classic", achievement_titles: [], achievement_panel_text: "下一个英雄 挑战完成 总计阵亡/跳过 16/0" },
-    };
-    const classicChallenge = { ...mapChallenge("map.samoa.classic"), kind: "classic_completion" as const, name: "经典版通关" };
-    const result = matchOcrAgainstChallenges([classicChallenge], classicResponse, "Player#1234");
+  it("lets explicit human review confirm complete facts from an unsupported layout", () => {
+    const result = matchOcrAgainstChallenges(
+      [candidate(mapChallenge("challenge"), mapConditions("传奇"))],
+      { ...response, layout_version: "future-layout", fields: {} },
+      mapIdsByName,
+      new Map(),
+      true,
+    );
     expect(result.outcome).toBe("automatic");
-    expect(result.exact[0]).toMatchObject({ titleName: null, requiredMapVariant: "classic", match: { achievement: true } });
+    expect(result.exact).toHaveLength(1);
   });
 
-  it("selects the classic challenge when formal and classic variants share a map reward", () => {
-    const classicResponse = {
-      ...response,
-      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 } },
-      data: { ...response.data, map_variant: "classic" },
-    };
-    const formalChallenge = mapChallenge("map.samoa.formal");
-    const classicChallenge = { ...mapChallenge("map.samoa.classic"), kind: "classic_completion" as const, name: "经典版通关" };
-    const result = matchOcrAgainstChallenges([formalChallenge, classicChallenge], classicResponse, "Player#1234");
-    expect(result.outcome).toBe("automatic");
-    expect(result.exact.map(({ challenge }) => challenge.challengeId)).toEqual(["map.samoa.classic"]);
-  });
-
-  it("does not grant a formal challenge from classic OCR evidence", () => {
-    const classicResponse = {
-      ...response,
-      fields: { ...response.fields, map_variant: { status: "ok", confidence: 0.98 } },
-      data: { ...response.data, map_variant: "classic" },
-    };
-    const result = matchOcrAgainstChallenges([mapChallenge("map.samoa.formal")], classicResponse, "Player#1234");
-    expect(result.exact).toHaveLength(0);
-    expect(result.outcome).toBe("resubmit");
+  it("fails closed on unknown canonical Condition types", () => {
+    const unsupported = candidate(mapChallenge("challenge"), { operator: "and", conditions: [{ type: "script", expression: "true" }] });
+    const result = matchOcrAgainstChallenges([unsupported], response, mapIdsByName, new Map());
+    expect(result.outcome).toBe("review");
+    expect(result.candidates[0]?.evaluation.supported).toBe(false);
   });
 });

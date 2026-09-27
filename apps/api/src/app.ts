@@ -17,7 +17,6 @@ import {
   qqGroupRegistrationRequestSchema,
   adminPlayerStatusRequestSchema,
   adminPlayerIdentityRequestSchema,
-  adminSubmissionChallengeRequestSchema,
   adminSubmissionReviewRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
   adminTitleGrantRequestSchema,
@@ -36,7 +35,6 @@ import {
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
   adminVerifiedRunStateRequestSchema, adminVerifiedRunConflictResolutionRequestSchema, adminVerifiedRunCorrectionRequestSchema,
   playerUploadSessionRequestSchema,
-  playerSubmissionChallengeRequestSchema,
   playerOcrFeedbackRequestSchema,
   adminAnnotationDecisionRequestSchema,
   adminAnnotationDirectCreateRequestSchema,
@@ -1204,19 +1202,6 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
   });
 
-  app.post("/v1/player/submissions/:submissionId/challenge", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    const parsed = playerSubmissionChallengeRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).confirmPlayerSubmissionChallenge({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!)); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "SUBMISSION_CHALLENGE_FAILED";
-      if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED", "SUBMISSION_NOT_CONFIRMABLE"].includes(code)) return errorResponse(c, 422, code, "The submission challenge cannot be confirmed");
-      throw error;
-    }
-  });
-
   app.post("/v1/player/submissions/:submissionId/manual-review", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
@@ -2038,13 +2023,6 @@ export const createApp = (dependencies: AppDependencies) => {
     catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
   });
 
-  app.get("/v1/admin/submissions/:submissionId/challenges", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).listAdminSubmissionChallenges({ submissionId: c.req.param("submissionId") }, access.auth!)); }
-    catch (error) { if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist"); throw error; }
-  });
-
   app.post("/v1/admin/submissions/:submissionId/review", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -2053,24 +2031,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = adminSubmissionReviewRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).reviewSubmission({ submissionId: c.req.param("submissionId"), decision: parsed.data.decision, reason: parsed.data.reason, fieldCorrections: parsed.data.fieldCorrections }, access.auth!, idempotencyKey)); }
-    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
-  });
-
-  app.post("/v1/admin/submissions/:submissionId/challenge", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminSubmissionChallengeRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).selectAdminSubmissionChallenge({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey)); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "CHALLENGE_SELECTION_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED", "CHALLENGE_AUTOMATIC", "CHALLENGE_NOT_SELECTABLE", "SUBMISSION_NOT_SELECTABLE", "MAP_REQUIRED", "MAP_NOT_IN_CHALLENGE", "MAP_NOT_ACTIVE", "GLOBAL_CHALLENGE_CANNOT_HAVE_MAP"].includes(code)) return errorResponse(c, 422, code, "The challenge cannot be selected for this submission");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
+    catch (error) { const code = error instanceof Error ? error.message : "REVIEW_FAILED"; if (["SUBMISSION_NOT_FOUND", "SUBMISSION_NOT_REVIEWABLE", "CHALLENGE_REWARD_NOT_CONFIGURED", "SUBMISSION_OUTCOME_NOT_CONFIGURED", "SUBMISSION_CORRECTION_INVALID", "CHALLENGE_CONDITIONS_UNSUPPORTED"].includes(code)) return errorResponse(c, 422, code, code === "CHALLENGE_REWARD_NOT_CONFIGURED" ? "The challenge has no configured title reward" : "The submission cannot be reviewed"); if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request"); throw error; }
   });
 
   app.post("/v1/admin/submissions/:submissionId/ocr/retry", async (c) => {

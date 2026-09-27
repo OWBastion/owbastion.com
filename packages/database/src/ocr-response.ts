@@ -1,6 +1,9 @@
+import type { CanonicalChallengeConditions } from "@owbastion/domain";
+
 export type OcrFieldEvidence = {
   confidence?: number;
   status?: string;
+  value?: unknown;
 };
 
 export type OcrResponse = {
@@ -10,7 +13,7 @@ export type OcrResponse = {
   model_version?: string;
   layout_version?: string;
   warnings?: unknown;
-  quality?: { warnings?: unknown };
+  quality?: { warnings?: unknown; layout_version?: string; cropped?: boolean };
   fields?: Record<string, OcrFieldEvidence>;
   data?: {
     map_name?: string | null;
@@ -34,39 +37,70 @@ export type OcrQualityGate = {
   reasons: string[];
 };
 
-const minOcrConfidence = 0.85;
+export const submissionOcrQualityPolicy = {
+  schemaVersion: "1",
+  supportedLayoutVersions: ["1280x720-v6", "1280x800-v1"],
+  minimumFieldConfidence: 0.85,
+} as const;
 
-export const assessOcrQuality = (challengeType: string, response: OcrResponse, requiredMapVariant?: string | null, requireAchievementEvidence = false): OcrQualityGate => {
-  const requiredFields = challengeType === "title_achievement" || challengeType === "unknown"
-    ? ["challenge_completed", "viewer_player"]
-    : challengeType === "map_title_achievement"
-      ? ["challenge_completed", "viewer_player", "map_name"]
-    : ["challenge_completed", "viewer_player", "map_name", "difficulty"];
+const challengeEvidenceValueExists = (response: OcrResponse, field: string) => {
+  const data = response.data ?? {};
+  switch (field) {
+    case "map_name": return typeof data.map_name === "string" && Boolean(data.map_name.trim());
+    case "difficulty": return typeof data.difficulty === "string" && Boolean(data.difficulty.trim());
+    case "challenge_completed": return typeof data.challenge_completed === "boolean";
+    case "map_variant": return typeof data.map_variant === "string" && Boolean(data.map_variant.trim());
+    case "achievement_titles": return Boolean(data.achievement_titles?.length || data.achievement_panel_text?.trim());
+    default: return false;
+  }
+};
+
+export const assessSubmissionOcrResponseQuality = (response: OcrResponse, humanConfirmed = false): OcrQualityGate => {
   const reasons: string[] = [];
-  if (requiredMapVariant) requiredFields.push("map_variant");
-  if (response.schema_version !== "1") reasons.push("unsupported_schema_version");
-  if (response.ok !== true) reasons.push("unsuccessful_response");
+  if (!humanConfirmed) {
+    if (response.schema_version !== submissionOcrQualityPolicy.schemaVersion) reasons.push("unsupported_schema_version");
+    if (response.ok !== true) reasons.push("unsuccessful_response");
+    const layoutVersion = response.layout_version ?? response.quality?.layout_version;
+    if (!layoutVersion || !submissionOcrQualityPolicy.supportedLayoutVersions.includes(layoutVersion as typeof submissionOcrQualityPolicy.supportedLayoutVersions[number])) reasons.push("unsupported_layout_version");
+    if (response.layout_version && response.quality?.layout_version && response.layout_version !== response.quality.layout_version) reasons.push("conflicting_layout_version");
+    if (response.quality?.cropped === true) reasons.push("cropped_input");
+  }
+  return { accepted: reasons.length === 0, requiredFields: [], reasons };
+};
 
-  for (const name of requiredFields) {
-    if (name === "map_variant") {
-      if (response.data?.map_variant !== requiredMapVariant) reasons.push(`map_variant:expected_${requiredMapVariant}`);
-      const field = response.fields?.[name];
-      if (!field) reasons.push("map_variant:missing_evidence");
-      else if (field.status !== "ok") reasons.push(`map_variant:${field.status ?? "missing_status"}`);
-      else if (typeof field.confidence !== "number" || field.confidence < minOcrConfidence) reasons.push("map_variant:low_confidence");
+export const assessChallengeOcrQuality = (
+  conditions: CanonicalChallengeConditions | null,
+  response: OcrResponse,
+  humanConfirmed = false,
+  conditionIndexes?: readonly number[],
+): OcrQualityGate => {
+  const selectedConditions = conditions
+    ? conditionIndexes
+      ? conditionIndexes.flatMap((index) => conditions.conditions[index] ? [conditions.conditions[index]!] : [])
+      : conditions.conditions
+    : [];
+  const requiredFields = conditions ? [...new Set(selectedConditions.map(({ type }) => ({
+    achievement_title: "achievement_titles",
+    map: "map_name",
+    completed: "challenge_completed",
+    difficulty_at_least: "difficulty",
+    map_variant: "map_variant",
+  }[type])))].sort() : [];
+  const reasons = [...assessSubmissionOcrResponseQuality(response, humanConfirmed).reasons];
+  if (!conditions) reasons.push("unsupported_challenge_conditions");
+
+  for (const fieldName of requiredFields) {
+    if (!challengeEvidenceValueExists(response, fieldName)) {
+      reasons.push(`${fieldName}:missing_value`);
       continue;
     }
-    const field = response.fields?.[name];
-    if (!field) reasons.push(`${name}:missing_evidence`);
-    else if (field.status !== "ok") reasons.push(`${name}:${field.status ?? "missing_status"}`);
-    else if (typeof field.confidence !== "number" || field.confidence < minOcrConfidence) reasons.push(`${name}:low_confidence`);
-  }
-
-  if (requireAchievementEvidence) {
-    const evidenceField = response.fields?.achievement_titles ?? response.fields?.achievement_panel_text;
-    if (!evidenceField) reasons.push("achievement_evidence:missing_evidence");
-    else if (evidenceField.status !== "ok") reasons.push(`achievement_evidence:${evidenceField.status ?? "missing_status"}`);
-    else if (typeof evidenceField.confidence !== "number" || evidenceField.confidence < minOcrConfidence) reasons.push("achievement_evidence:low_confidence");
+    if (humanConfirmed) continue;
+    const field = fieldName === "achievement_titles"
+      ? response.fields?.achievement_titles ?? response.fields?.achievement_panel_text
+      : response.fields?.[fieldName];
+    if (!field) reasons.push(`${fieldName}:missing_evidence`);
+    else if (field.status !== "ok") reasons.push(`${fieldName}:${field.status ?? "missing_status"}`);
+    else if (typeof field.confidence !== "number" || field.confidence < submissionOcrQualityPolicy.minimumFieldConfidence) reasons.push(`${fieldName}:low_confidence`);
   }
 
   return { accepted: reasons.length === 0, requiredFields, reasons };

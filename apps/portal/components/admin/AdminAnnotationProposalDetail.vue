@@ -3,7 +3,7 @@ import type { AdminAnnotationProposalDetail } from "~/composables/useAdminApi";
 
 defineProps<{ detail: AdminAnnotationProposalDetail }>();
 const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
-const fieldLabel = (key: string) => ({ map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", achievement_titles: "成就" })[key] ?? key;
+const fieldLabel = (key: string) => ({ map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", map_variant: "地图版本", achievement_titles: "成就" })[key] ?? key;
 const feedbackTypeLabel = (type: string) => type === "confirmed" ? "确认" : type === "corrected" ? "修正" : "被动报告";
 const originLabel = (origin: string | null) => origin ? ({ uncertainty: "不确定", conflict: "冲突", grouped: "分组核对", calibration: "校准抽查", passive: "被动报告" })[origin] ?? origin : "—";
 const priorityLabel = (category: string) => ({ correction: "玩家修正", calibration_failure: "校准失败", uncertain: "不确定字段", repeat: "重复模式", confirmation: "例行确认" })[category] ?? category;

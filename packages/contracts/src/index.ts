@@ -906,15 +906,10 @@ export const adminCatalogTitleUpdateRequestSchema = z.object({
 
 export const playerUploadSessionRequestSchema = z.object({
   contractVersion,
-  challengeId: externalId.optional(),
-  mapId: externalId.optional(),
-  gameplayRevisionId: externalId.optional(),
   contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
   byteSize: z.number().int().positive().max(10 * 1024 * 1024),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
-});
-
-export const playerSubmissionChallengeRequestSchema = z.object({ contractVersion, challengeId: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional() });
+}).strict();
 
 export const playerUploadSessionResponseSchema = z.object({
   contractVersion,
@@ -931,16 +926,12 @@ export const adminSubmissionChallengeSchema = z.union([
   z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), kind: z.enum(["difficulty_completion", "pioneer", "classic_completion", "map_title_achievement"]).optional(), mapVariant: z.literal("classic").optional() }),
   z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
 ]);
-export const adminSubmissionChallengeSelectionSchema = z.object({ challengeId: externalId, mapId: externalId.optional(), gameplayRevisionId: externalId.optional() });
-const adminSubmissionChallengeSelectionViewSchema = adminSubmissionChallengeSelectionSchema.extend({ challenge: adminSubmissionChallengeSchema.nullable() });
-
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
   challengeId: externalId,
   gameplayRevisionId: externalId.nullable().optional(),
   challenge: adminSubmissionChallengeSchema.nullable().optional(),
-  challengeSelections: z.array(adminSubmissionChallengeSelectionViewSchema).optional(),
   mapName: z.string(),
   difficulty: z.string(),
   playerAccountId: z.string().uuid(),
@@ -960,19 +951,12 @@ export const adminSubmissionSchema = z.object({
 });
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
-export const adminSubmissionChallengeOptionSchema = z.object({
-  challengeId: externalId,
-  mapId: externalId.optional(),
-  gameplayRevisionId: externalId.optional(),
-  challenge: adminSubmissionChallengeSchema,
-}).strict();
-export const adminSubmissionChallengeListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionChallengeOptionSchema).max(256) }).strict();
 export const adminSubmissionReviewRequestSchema = z.object({
   contractVersion,
   decision: z.enum(["approved", "rejected", "resubmission_required"]),
   reason: z.string().trim().max(512).optional(),
   fieldCorrections: z.array(z.object({
-    fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"]),
+    fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]),
     reviewedValue: z.string().trim().min(1).max(2048),
   }).strict()).max(5).superRefine((corrections, ctx) => {
     if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });
@@ -983,10 +967,6 @@ export const adminSubmissionReviewResponseSchema = z.object({
 }).or(z.object({
   contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
 })).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional() }));
-export const adminSubmissionChallengeRequestSchema = z.object({ contractVersion, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1).max(32).optional(), challengeId: externalId.optional(), mapId: externalId.optional(), gameplayRevisionId: externalId.optional() }).superRefine((value, ctx) => {
-  if (!value.selections?.length && !value.challengeId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["selections"], message: "At least one challenge selection is required" });
-});
-export const adminSubmissionChallengeResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ready_for_review"), challengeId: externalId, selections: z.array(adminSubmissionChallengeSelectionSchema).min(1) });
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
@@ -1208,7 +1188,8 @@ export const submissionResponseSchema = z.object({
 export const submissionStatusResponseSchema = z.object({
   contractVersion,
   submissionId: z.string().uuid(),
-  status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
+  status: z.enum(["processing", "needs_review", "completed", "rejected"]),
+  resubmissionRequired: z.boolean().optional(),
   mapName: z.string(),
   challengeId: z.string().optional(),
   difficulty: z.string().optional(),
@@ -1226,7 +1207,7 @@ export const playerSubmissionOcrSummarySchema = z.object({
   achievementTitles: z.array(z.string()).optional(),
 }).strict();
 
-export const ocrFeedbackFieldKeySchema = z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"]);
+export const ocrFeedbackFieldKeySchema = z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]);
 export const ocrFeedbackModeSchema = z.enum(["none", "targeted", "grouped"]);
 export const ocrFeedbackPromptOriginSchema = z.enum(["uncertainty", "conflict", "grouped", "calibration"]);
 export const ocrFeedbackActionSchema = z.enum(["confirmed", "corrected"]);
@@ -1635,6 +1616,7 @@ export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityReque
 export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
+export type PlayerSubmissionStatus = SubmissionStatusResponse["status"];
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
 export type PlayerOcrFeedbackRequest = z.infer<typeof playerOcrFeedbackRequestSchema>;
 export type PlayerOcrFeedbackResponse = z.infer<typeof playerOcrFeedbackResponseSchema>;
@@ -1656,7 +1638,6 @@ export type AdminDatasetCandidateListResponse = z.infer<typeof adminDatasetCandi
 export type AdminDatasetFinalizeResponse = z.infer<typeof adminDatasetFinalizeResponseSchema>;
 export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailResponseSchema>;
 export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
-export type PlayerSubmissionChallengeRequest = z.infer<typeof playerSubmissionChallengeRequestSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
@@ -1731,12 +1712,8 @@ export type PlayerUploadSessionRequest = z.infer<typeof playerUploadSessionReque
 export type PlayerUploadSessionResponse = z.infer<typeof playerUploadSessionResponseSchema>;
 export type AdminSubmission = z.infer<typeof adminSubmissionSchema>;
 export type AdminSubmissionListResponse = z.infer<typeof adminSubmissionListResponseSchema>;
-export type AdminSubmissionChallengeOption = z.infer<typeof adminSubmissionChallengeOptionSchema>;
-export type AdminSubmissionChallengeListResponse = z.infer<typeof adminSubmissionChallengeListResponseSchema>;
 export type AdminSubmissionReviewRequest = z.infer<typeof adminSubmissionReviewRequestSchema>;
 export type AdminSubmissionReviewResponse = z.infer<typeof adminSubmissionReviewResponseSchema>;
-export type AdminSubmissionChallengeRequest = z.infer<typeof adminSubmissionChallengeRequestSchema>;
-export type AdminSubmissionChallengeResponse = z.infer<typeof adminSubmissionChallengeResponseSchema>;
 export type AdminSubmissionOcrRetryResponse = z.infer<typeof adminSubmissionOcrRetryResponseSchema>;
 export type AdminSubmissionSpotCheckRequest = z.infer<typeof adminSubmissionSpotCheckRequestSchema>;
 export type AdminSubmissionSpotCheckResponse = z.infer<typeof adminSubmissionSpotCheckResponseSchema>;

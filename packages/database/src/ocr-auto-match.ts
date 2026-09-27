@@ -1,16 +1,16 @@
 import type { Challenge } from "@owbastion/contracts";
-import { difficultyRank, matchOcrResult, type OcrMatch } from "./ocr-match";
-import { assessOcrQuality, type OcrQualityGate, type OcrResponse } from "./ocr-response";
+import type { CanonicalChallengeConditions, ChallengeConditionEvaluation } from "@owbastion/domain";
+import { evaluateCanonicalChallengeConditions } from "@owbastion/domain";
+import { assessChallengeOcrQuality, assessSubmissionOcrResponseQuality, type OcrQualityGate, type OcrResponse } from "./ocr-response";
 
-export type AutoMatchCandidate = {
+export type CanonicalOcrChallenge = {
   challenge: Challenge;
-  challengeType: "difficulty_completion" | "title_achievement" | "map_title_achievement";
-  targetMapName: string;
-  targetDifficulty: string | null;
-  targetPlayerName: string;
-  titleName: string | null;
-  requiredMapVariant: "classic" | null;
-  match: OcrMatch;
+  canonicalChallengeId: string;
+  conditions: CanonicalChallengeConditions | null;
+};
+
+export type AutoMatchCandidate = CanonicalOcrChallenge & {
+  evaluation: ChallengeConditionEvaluation;
   quality: OcrQualityGate;
   grantable: boolean;
 };
@@ -18,124 +18,70 @@ export type AutoMatchCandidate = {
 export type AutoMatchDecision = {
   candidates: AutoMatchCandidate[];
   exact: AutoMatchCandidate[];
-  automaticCandidates: AutoMatchCandidate[];
   lowConfidence: AutoMatchCandidate[];
   outcome: "automatic" | "review" | "resubmit";
 };
 
-const isMapTitleChallenge = (challenge: Challenge) => challenge.family === "map" && challenge.kind === "map_title_achievement";
+const normalizeMapName = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
 
-const candidateType = (challenge: Challenge): AutoMatchCandidate["challengeType"] => {
-  if (challenge.family === "achievement") return "title_achievement";
-  return isMapTitleChallenge(challenge) ? "map_title_achievement" : "difficulty_completion";
-};
-
-const candidateTitleName = (challenge: Challenge) => {
-  if (challenge.family === "achievement") return challenge.titleName;
-  return isMapTitleChallenge(challenge) ? challenge.name : null;
-};
-
-export const challengeTargetDifficulty = (challenge: Challenge) => {
-  if (challenge.family !== "map") return null;
-  if (challenge.difficulty) return challenge.difficulty;
-  switch (challenge.mapTitleRule?.kind) {
-    case "pioneer":
-    case "dominator":
-      return "地狱";
-    case "conqueror":
-      return "传奇";
-    default:
-      return null;
-  }
-};
-
-const normalized = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
-
-const isReliableMapEvidence = (response: OcrResponse) => {
-  const field = response.fields?.map_name;
-  return Boolean(response.data?.map_name?.trim()) && field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= 0.85;
-};
-
-const evaluateCandidate = (challenge: Challenge, response: OcrResponse, playerName: string): AutoMatchCandidate => {
-  const challengeType = candidateType(challenge);
-  const targetMapName = challenge.family === "map" ? challenge.mapName : "成就挑战";
-  const targetDifficulty = challengeTargetDifficulty(challenge);
-  const requiredMapVariant = challenge.mapVariant ?? (challenge.family === "map" && challenge.kind === "classic_completion" ? "classic" : null);
-  const titleName = candidateTitleName(challenge);
-  const requiresAchievementEvidence = challenge.family === "achievement";
-  const qualityChallengeType = challengeType === "map_title_achievement" && targetDifficulty ? "difficulty_completion" : challengeType;
-  const quality = assessOcrQuality(qualityChallengeType, response, requiredMapVariant, requiresAchievementEvidence);
+export const matchOcrAgainstChallenges = (
+  challenges: CanonicalOcrChallenge[],
+  response: OcrResponse,
+  mapIdsByName: ReadonlyMap<string, string>,
+  titleNamesByKey: ReadonlyMap<string, string>,
+  humanConfirmed = false,
+): AutoMatchDecision => {
   const data = response.data ?? {};
-  const { skipped, ...match } = matchOcrResult({
-    challengeType,
-    targetMapName,
-    targetDifficulty,
-    targetPlayerName: playerName,
-    mapName: data.map_name,
+  const evaluationInput = {
+    mapId: mapIdsByName.get(normalizeMapName(data.map_name)) ?? null,
     difficulty: data.difficulty,
-    challengeCompleted: data.challenge_completed,
-    player: data.viewer_player,
+    completed: data.challenge_completed,
     mapVariant: data.map_variant,
-    requiredMapVariant,
-    titleName,
     achievementTitles: data.achievement_titles,
     achievementPanelText: data.achievement_panel_text,
-  });
-  const matchWithEvidence = requiresAchievementEvidence && titleName && !match.achievement
-    ? { ...match, achievement: false }
-    : match;
-  const qualityWithEvidence = requiresAchievementEvidence && titleName && !match.achievement
-    ? { ...quality, accepted: false, reasons: [...quality.reasons, "achievement_evidence:title_not_checked"] }
-    : quality;
-  return {
-    challenge,
-    challengeType,
-    targetMapName,
-    targetDifficulty,
-    targetPlayerName: playerName,
-    titleName,
-    requiredMapVariant,
-    match: { ...matchWithEvidence, skipped },
-    quality: qualityWithEvidence,
-    grantable: Boolean(challenge.titleKey),
   };
-};
-
-export const matchOcrAgainstChallenges = (challenges: Challenge[], response: OcrResponse, playerName: string): AutoMatchDecision => {
-  const publicManualChallenges = challenges.filter((challenge) =>
-    (challenge.status === "active" || challenge.status === "sunsetting") && challenge.submissionMode !== "automatic",
-  );
-  const currentMapName = response.data?.map_name?.trim() ?? "";
-  const mapChallenges = publicManualChallenges.filter((challenge) => challenge.family === "map");
-  const candidates = publicManualChallenges
-    .filter((challenge) => challenge.family !== "map" || Boolean(currentMapName) && normalized(challenge.mapName) === normalized(currentMapName))
-    .map((challenge) => evaluateCandidate(challenge, response, playerName));
-  const exact = candidates.filter((candidate) => Object.values(candidate.match).filter((value) => typeof value === "boolean").every(Boolean));
-  const difficultyCandidates = exact.filter((candidate) => candidate.challenge.family === "map" && candidate.targetDifficulty);
-  const highestDifficultyRank = Math.max(...difficultyCandidates.map((candidate) => difficultyRank(candidate.targetDifficulty)), -1);
-  const automaticCandidates = exact.filter((candidate) => candidate.challenge.family !== "map" || !candidate.targetDifficulty || difficultyRank(candidate.targetDifficulty) === highestDifficultyRank);
-  const lowConfidence = exact.filter((candidate) => !candidate.quality.accepted);
-  const grantableExact = automaticCandidates.filter((candidate) => candidate.grantable && candidate.quality.accepted);
-  const exactMapCandidates = exact.filter((candidate) => candidate.challenge.family === "map");
-  const exactAchievementCandidates = exact.filter((candidate) => candidate.challenge.family === "achievement");
-  const mapGrantKeys = new Set(exactMapCandidates.map((candidate) => `${candidate.challenge.titleKey ?? ""}:${candidate.challenge.family === "map" ? candidate.challenge.mapId : ""}`));
-  const mapOnlyAutomatic = exactMapCandidates.length > 0
-    && exactAchievementCandidates.length === 0
-    && mapGrantKeys.size === exactMapCandidates.length
-    && exactMapCandidates.every((candidate) => candidate.grantable && candidate.quality.accepted)
-    && automaticCandidates.length > 0
-    && automaticCandidates.every((candidate) => candidate.challenge.family === "map" && candidate.grantable && candidate.quality.accepted);
-  const titleOnlyAutomatic = exactMapCandidates.length === 0
-    && exactAchievementCandidates.length === 1
-    && exactAchievementCandidates[0].grantable
-    && exactAchievementCandidates[0].quality.accepted;
-  const matchedFamilies = new Set(exact.map((candidate) => candidate.challenge.family));
-  const qualityReviewCandidates = candidates.filter((candidate) => !candidate.quality.accepted && (matchedFamilies.size === 0 || matchedFamilies.has(candidate.challenge.family)));
-  const mapEvidenceUnresolved = mapChallenges.length > 0 && (!currentMapName || !isReliableMapEvidence(response));
-  const outcome = (mapOnlyAutomatic || titleOnlyAutomatic) && grantableExact.length > 0 && !mapEvidenceUnresolved
-    ? "automatic"
-    : exact.length > 0 || qualityReviewCandidates.length > 0 || mapEvidenceUnresolved
-      ? "review"
+  const candidates = challenges.map((candidate) => {
+    const evaluation = evaluateCanonicalChallengeConditions(candidate.conditions, evaluationInput, titleNamesByKey);
+    const conditionMatches = candidate.conditions?.conditions.map((condition) => evaluateCanonicalChallengeConditions(
+      { operator: "and", conditions: [condition] },
+      evaluationInput,
+      titleNamesByKey,
+    ).matched) ?? [];
+    const conditionQualities = candidate.conditions?.conditions.map((_, index) => assessChallengeOcrQuality(
+      candidate.conditions,
+      response,
+      humanConfirmed,
+      [index],
+    )) ?? [];
+    const conditionHasEvidence = conditionQualities.map((quality) => quality.requiredFields.length > 0
+      && !quality.reasons.some((reason) => quality.requiredFields.some((field) => reason === `${field}:missing_value`)));
+    const matchingIndexes = conditionMatches.flatMap((matched, index) => matched ? [index] : []);
+    const reliableMatchingIndexes = matchingIndexes.filter((index) => conditionQualities[index]?.accepted);
+    const uncertainIndexes = conditionQualities.flatMap((quality, index) => !quality.accepted && conditionHasEvidence[index] ? [index] : []);
+    const qualityIndexes = candidate.conditions?.operator === "or"
+      ? reliableMatchingIndexes.length
+        ? reliableMatchingIndexes
+        : matchingIndexes.length
+          ? matchingIndexes
+          : uncertainIndexes.length
+            ? uncertainIndexes
+            : candidate.conditions.conditions.map((_, index) => index)
+      : candidate.conditions?.conditions.map((_, index) => index);
+    const quality = assessChallengeOcrQuality(candidate.conditions, response, humanConfirmed, qualityIndexes);
+    const knownAndMismatch = candidate.conditions?.operator === "and"
+      && conditionMatches.some((matched, index) => !matched && conditionQualities[index]?.accepted);
+    const plausible = !evaluation.supported
+      || (candidate.conditions?.operator === "or"
+        ? matchingIndexes.length > 0 || uncertainIndexes.length > 0
+        : !knownAndMismatch && (conditionMatches.some(Boolean) || conditionHasEvidence.some(Boolean)));
+    return { ...candidate, evaluation, quality, plausible, grantable: Boolean(candidate.challenge.titleKey) };
+  });
+  const exact = candidates.filter((candidate) => candidate.evaluation.supported && candidate.evaluation.matched);
+  const lowConfidence = candidates.filter((candidate) => !candidate.quality.accepted && candidate.plausible);
+  const outcome = !assessSubmissionOcrResponseQuality(response, humanConfirmed).accepted || lowConfidence.length > 0
+    ? "review"
+    : exact.length > 0
+      ? "automatic"
       : "resubmit";
-  return { candidates, exact, automaticCandidates, lowConfidence, outcome };
+  return { candidates, exact, lowConfidence, outcome };
 };

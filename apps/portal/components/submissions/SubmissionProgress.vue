@@ -2,7 +2,7 @@
 type StepState = "complete" | "current" | "upcoming" | "failed";
 type ProgressStep = { key: string; title: string; icon: string; detail: string };
 
-const props = defineProps<{ status: string; updatedAt: number }>();
+const props = defineProps<{ status: string; updatedAt: number; resubmissionRequired?: boolean }>();
 
 const steps: ProgressStep[] = [
   { key: "submitted", title: "已提交", icon: "i-lucide-check", detail: "截图已提交" },
@@ -13,24 +13,15 @@ const steps: ProgressStep[] = [
 
 const stepStates = computed<StepState[]>(() => {
   switch (props.status) {
-    case "received":
-    case "evidence_pending":
-    case "evidence_stored":
-    case "upload_pending":
-      return ["current", "upcoming", "upcoming", "upcoming"];
-    case "ocr_pending":
+    case "processing":
       return ["complete", "current", "upcoming", "upcoming"];
-    case "awaiting_player_confirmation":
-      return ["complete", "current", "upcoming", "upcoming"];
-    case "ready_for_review":
-    case "ocr_review_required":
+    case "needs_review":
       return ["complete", "complete", "current", "upcoming"];
-    case "approved":
+    case "completed":
       return ["complete", "complete", "complete", "complete"];
     case "rejected":
+      if (props.resubmissionRequired) return ["complete", "failed", "upcoming", "upcoming"];
       return ["complete", "complete", "failed", "upcoming"];
-    case "resubmission_required":
-      return ["complete", "failed", "upcoming", "upcoming"];
     default:
       return ["current", "upcoming", "upcoming", "upcoming"];
   }
@@ -38,9 +29,9 @@ const stepStates = computed<StepState[]>(() => {
 
 const stepDetails = computed(() => steps.map((step, index) => {
   const state = stepStates.value[index];
-  if (step.key === "ocr" && state === "current" && props.status === "awaiting_player_confirmation") return "等待确认挑战";
+  if (step.key === "ocr" && state === "current" && props.status === "processing") return "平台正在处理截图";
   if (step.key === "ocr" && state === "failed") return "未通过";
-  if (step.key === "review" && state === "current" && props.status === "ocr_review_required") return "等待处理";
+  if (step.key === "review" && state === "current" && props.status === "needs_review") return "等待核对";
   if (step.key === "review" && state === "failed") return "未通过";
   if (state === "complete") return "已完成";
   return step.detail;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Map, MapChallenge } from "../../composables/useSubmissionUpload";
+import type { Map, MapChallenge } from "~/types/challenge";
 import type { ReviewSummary } from "~/composables/usePlayerReview";
 import type { PlayerMasteryMapProfile } from "~/composables/usePortalApi";
 import ReviewSummaryBadge from "~/components/reviews/ReviewSummaryBadge.vue";

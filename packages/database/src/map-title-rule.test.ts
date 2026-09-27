@@ -701,7 +701,7 @@ const installSchema = (sqlite: DatabaseSync) => {
 const now = Date.now();
 const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibilityV1({
   minimumGameVersion: "99.0101.1",
-  supportedOcrLayoutVersions: ["test-layout-v1"],
+  supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v6"],
 });
 
 describe("Agents map gameplay projection", () => {
@@ -1489,38 +1489,6 @@ const uploadHash = async (body: ArrayBuffer) => {
 
 describe("map title rule model – locked invariants", () => {
   describe("post-OCR player confirmation", () => {
-    it("confirms a rule-projected map title and preserves its snapshot", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
-      seedTitle(sqlite, "CONQUEROR");
-      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
-      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
-      const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
-      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
-
-      const sessionToken = "player-session";
-      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', 'active', ?)").run(now);
-      sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES ('session.1', 'attempt.1', 'group.1', 'member.1', 'production', ?, ?, ?)").run(await requestHash(sessionToken), now + 60_000, now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.1', 'binding.1', 'awaiting_player_confirmation', 'unknown', NULL, NULL, '成就挑战', 'Tester', 'portal', 'portal', 'upload.1', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.1', 'submission.1', 1, 'matched', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, fields: { challenge_completed: { status: "ok", confidence: 0.99 }, viewer_player: { status: "ok", confidence: 0.99 }, map_name: { status: "ok", confidence: 0.99 } }, data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", achievement_titles: ["称号 CONQUEROR"] } }), now);
-
-      const services = createPlatformServices(database);
-      const result = await services.confirmPlayerSubmissionChallenge(
-        { submissionId: "submission.1", challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId } as never,
-        sessionToken,
-      );
-
-      expect(result.status).toBe("ready_for_review");
-      const submission = sqlite.prepare("SELECT challenge_type, challenge_id, target_map_id, gameplay_revision_id, rule_snapshot_json FROM submissions WHERE id = 'submission.1'").get() as { challenge_type: string; challenge_id: string; target_map_id: string; gameplay_revision_id: string; rule_snapshot_json: string };
-      expect(submission.challenge_type).toBe("map_title_achievement");
-      expect(submission.challenge_id).toBe("map.paris.conqueror");
-      expect(submission.target_map_id).toBe("map.paris");
-      expect(submission.gameplay_revision_id).toBe(reworkRevisionId);
-      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId, titleKey: "CONQUEROR", slot: "conqueror" });
-    });
-
     it("repairs a legacy classic submission before manual OCR retry", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
@@ -1535,6 +1503,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
+        layout_version: "1280x720-v6",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1580,6 +1549,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
+        layout_version: "1280x720-v6",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1619,6 +1589,71 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.auto.repeat'").get()).toEqual({ status: "resubmission_required", grant_id: null });
       expect(sqlite.prepare("SELECT json_extract(match_json, '$.candidates') AS candidates FROM ocr_results WHERE submission_id = 'submission.auto.repeat'").get()).toEqual({ candidates: "[]" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE player_account_id = 'player.auto' AND status = 'active'").get()).toEqual({ count: 2 });
+    });
+
+    it("preserves each matched challenge completion while granting a shared title once", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.shared-title");
+      seedTitle(sqlite, "SHARED_TITLE");
+      const challengeIds = ["challenge.shared.first", "challenge.shared.second"];
+      const insertChallenge = sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES (?, 'map.shared-title', 'difficulty_completion', ?, '传奇', '完成通关', '上传截图', 'automatic', 'SHARED_TITLE', '2026.07.15', 'active', '2026.07.15', ?, ?)");
+      for (const [index, challengeId] of challengeIds.entries()) {
+        insertChallenge.run(challengeId, `挑战 ${index + 1}`, now, now);
+        seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.shared-title:initial", mapId: "map.shared-title", challengeFamily: "map_challenge", challengeId, slot: "shared" });
+      }
+      const seedPlayerSubmission = (playerId: string, bindingId: string, submissionId: string, status: string) => {
+        sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES (?, ?, 'Tester', 'tester', 0, 'active', ?, ?)").run(playerId, playerId, now, now);
+        sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES (?, ?, ?, 'qq', ?, ?, 'active', ?)").run(bindingId, `identity.${playerId}`, playerId, `group.${playerId}`, `member.${playerId}`, now);
+        sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES (?, ?, ?, 'unknown', '成就挑战', 'Tester', 'portal', 'portal', ?, ?, ?)").run(submissionId, bindingId, status, `message.${submissionId}`, now, now);
+      };
+      seedPlayerSubmission("player.shared.auto", "binding.shared.auto", "submission.shared.auto", "ocr_pending");
+      sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.shared.auto', 'submission.shared.auto', 'portal', 'external.shared.auto', 'image/png', 1, 'hash', 'evidence/shared-auto.png', 'stored', ?)").run(now);
+      seedPlayerSubmission("player.shared.review", "binding.shared.review", "submission.shared.review", "ocr_review_required");
+
+      const ocrResponse = {
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v6",
+        fields: {
+          challenge_completed: { status: "ok", confidence: 0.99 },
+          viewer_player: { status: "ok", confidence: 0.99 },
+          map_name: { status: "ok", confidence: 0.99 },
+          difficulty: { status: "ok", confidence: 0.99 },
+        },
+        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.shared-title", difficulty: "传奇" },
+      };
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.shared.review', 'submission.shared.review', 1, 'review_required', ?, '{}', ?)").run(JSON.stringify(ocrResponse), now);
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
+      try {
+        const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+        await services.processOcrJob({ submissionId: "submission.shared.auto", objectKey: "evidence/shared-auto.png", attempt: 1, requestId: "request.shared.auto" });
+        const reviewed = await services.reviewSubmission(
+          { submissionId: "submission.shared.review", decision: "approved" },
+          { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
+          "shared-title-review",
+        );
+        expect(reviewed.grants).toHaveLength(1);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+
+      expect(sqlite.prepare("SELECT s.id AS submission_id, c.source_id AS challenge_id FROM challenge_completions completion JOIN challenges c ON c.id = completion.challenge_id JOIN submissions s ON s.id = completion.source_id WHERE completion.source_id IN ('submission.shared.auto', 'submission.shared.review') AND completion.status = 'active' ORDER BY s.id, c.source_id").all()).toEqual([
+        { submission_id: "submission.shared.auto", challenge_id: challengeIds[0] },
+        { submission_id: "submission.shared.auto", challenge_id: challengeIds[1] },
+        { submission_id: "submission.shared.review", challenge_id: challengeIds[0] },
+        { submission_id: "submission.shared.review", challenge_id: challengeIds[1] },
+      ]);
+      expect(sqlite.prepare("SELECT player_account_id, source_type, title_key, COUNT(*) AS count FROM player_title_grants WHERE source_id IN ('submission.shared.auto', 'submission.shared.review') AND status = 'active' GROUP BY player_account_id, source_type, title_key ORDER BY player_account_id").all()).toEqual([
+        { player_account_id: "player.shared.auto", source_type: "automatic", title_key: "SHARED_TITLE", count: 1 },
+        { player_account_id: "player.shared.review", source_type: "submission", title_key: "SHARED_TITLE", count: 1 },
+      ]);
+      expect(sqlite.prepare("SELECT json_extract(payload_json, '$.submissionId') AS submission_id, operation, COUNT(*) AS count FROM audit_events WHERE operation IN ('challenge.completion.submission', 'submission.automatic_grant', 'submission.grant') AND json_extract(payload_json, '$.submissionId') IN ('submission.shared.auto', 'submission.shared.review') GROUP BY submission_id, operation ORDER BY submission_id, operation").all()).toEqual([
+        { submission_id: "submission.shared.auto", operation: "challenge.completion.submission", count: 2 },
+        { submission_id: "submission.shared.auto", operation: "submission.automatic_grant", count: 1 },
+        { submission_id: "submission.shared.review", operation: "challenge.completion.submission", count: 2 },
+        { submission_id: "submission.shared.review", operation: "submission.grant", count: 1 },
+      ]);
     });
   });
 
@@ -1842,131 +1877,39 @@ describe("map title rule model – locked invariants", () => {
       ]));
     });
 
-    it("lets a maintainer select a projected challenge for an ambiguous submission", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
-      seedMap(sqlite, "map.hanamura");
-      seedTitle(sqlite, "CONQUEROR");
-      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
-      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.ambiguous', 'binding.1', 'ocr_review_required', 'unknown', '地图 map.paris', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.ambiguous', 'submission.ambiguous', 1, 'review_required', ?, ?, ?)").run(JSON.stringify({ data: { map_name: "地图 map.paris", difficulty: "地狱" } }), JSON.stringify({ candidates: [{ challengeId: "map.paris.conqueror", mapId: "map.paris", challengeType: "map_title_achievement", targetMapName: "地图 map.paris", targetDifficulty: "传奇", titleName: "称号 CONQUEROR", match: { achievement: true } }] }), now);
-      const services = createPlatformServices(database);
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.paris.conqueror", mapId: "map.paris" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-lower-difficulty")).resolves.toMatchObject({ status: "ready_for_review" });
-      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.ambiguous'").run(JSON.stringify({ candidates: [{ challengeId: "map.hanamura.conqueror", challengeType: "map_title_achievement", targetMapName: "花村", titleName: "称号 CONQUEROR", match: { achievement: true } }] }));
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.hanamura.conqueror", mapId: "map.hanamura" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-missing-map-id")).rejects.toThrow("MAP_NOT_IN_CHALLENGE");
-      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.ambiguous'").run(JSON.stringify({ candidates: [{ challengeId: "map.paris.conqueror", mapId: "map.paris", challengeType: "map_title_achievement", targetMapName: "地图 map.paris", targetDifficulty: null, titleName: "称号 CONQUEROR", match: { achievement: true } }] }));
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.hanamura.conqueror", mapId: "map.hanamura" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-cross-map")).rejects.toThrow("MAP_NOT_IN_CHALLENGE");
-      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.ambiguous", challengeId: "map.paris.conqueror", mapId: "map.paris" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select.1");
-
-      expect(result).toMatchObject({ submissionId: "submission.ambiguous", status: "ready_for_review", challengeId: "map.paris.conqueror" });
-      const submission = sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, rule_snapshot_json FROM submissions WHERE id = 'submission.ambiguous'").get() as { status: string; challenge_type: string; challenge_id: string; target_map_id: string; rule_snapshot_json: string };
-      expect(submission).toMatchObject({ status: "ready_for_review", challenge_type: "map_title_achievement", challenge_id: "map.paris.conqueror", target_map_id: "map.paris" });
-      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ ruleId: "rule.conqueror", titleKey: "CONQUEROR", mapId: "map.paris" });
-      expect(sqlite.prepare("SELECT operation FROM audit_events WHERE entity_id = 'submission.ambiguous'").get()).toMatchObject({ operation: "submission.challenge.select" });
-    });
-
-    it("requires and persists the selected gameplay revision for duplicate map candidates", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
-      seedTitle(sqlite, "CONQUEROR");
-      seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
-      seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
-      const reworkRevisionId = seedSelectableGameplayRevision(sqlite, "map.paris");
-      seedRevisionAssignment(sqlite, { gameplayRevisionId: reworkRevisionId, mapId: "map.paris", challengeFamily: "map_title_rule", challengeId: "rule.conqueror" });
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.revision-choice', 'binding.1', 'ocr_review_required', 'unknown', '地图 map.paris', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
-      const candidate = (gameplayRevisionId: string) => ({ challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId, challengeType: "map_title_achievement", targetMapName: "地图 map.paris", targetDifficulty: "传奇", titleName: "称号 CONQUEROR", match: { achievement: true } });
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.revision-choice', 'submission.revision-choice', 1, 'review_required', ?, ?, ?)").run(
-        JSON.stringify({ data: { map_name: "地图 map.paris", difficulty: "传奇" } }),
-        JSON.stringify({ candidates: [candidate("revision:map.paris:initial"), candidate(reworkRevisionId)] }),
-        now,
-      );
-      const services = createPlatformServices(database);
-      const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.revision-choice", challengeId: "map.paris.conqueror", mapId: "map.paris" }, auth, "challenge-select-revision-missing")).rejects.toThrow("GAMEPLAY_REVISION_REQUIRED");
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.revision-choice", challengeId: "map.paris.conqueror", mapId: "map.paris", gameplayRevisionId: reworkRevisionId }, auth, "challenge-select-revision-rework")).resolves.toMatchObject({ status: "ready_for_review", challengeId: "map.paris.conqueror" });
-
-      const submission = sqlite.prepare("SELECT gameplay_revision_id, rule_snapshot_json FROM submissions WHERE id = 'submission.revision-choice'").get() as { gameplay_revision_id: string; rule_snapshot_json: string };
-      expect(submission.gameplay_revision_id).toBe(reworkRevisionId);
-      expect(JSON.parse(submission.rule_snapshot_json)).toMatchObject({ gameplayRevisionId: reworkRevisionId });
-    });
-
-    it("lets a maintainer select a global achievement despite OCR match state", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedTitle(sqlite, "HERO");
-      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'HERO'").run();
-      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.achievement', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.1', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, match_json, created_at) VALUES ('ocr.achievement', 'submission.achievement', 1, 'review_required', ?, ?)").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }), now);
-      const services = createPlatformServices(database);
-      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: false } }] }));
-      const negativeMatch = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-negative-match");
-      expect(negativeMatch).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
-
-      sqlite.prepare("UPDATE ocr_results SET match_json = ? WHERE id = 'ocr.achievement'").run(JSON.stringify({ candidates: [] }));
-      const result = await services.selectAdminSubmissionChallenge({ submissionId: "submission.achievement", challengeId: "title.hero" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "challenge-select-no-candidate");
-
-      expect(result).toMatchObject({ submissionId: "submission.achievement", status: "ready_for_review", challengeId: "title.hero" });
-      expect(sqlite.prepare("SELECT status, challenge_type, challenge_id, target_map_id, map_name FROM submissions WHERE id = 'submission.achievement'").get()).toMatchObject({ status: "ready_for_review", challenge_type: "title_achievement", challenge_id: "title.hero", target_map_id: null, map_name: "成就挑战" });
-    });
-
-    it("selects and reviews multiple completed achievement candidates", async () => {
+    it("reruns canonical matching from reviewed OCR corrections and records annotations", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedTitle(sqlite, "HERO");
       seedTitle(sqlite, "SECOND");
-      seedTitle(sqlite, "LOWER");
-      seedTitle(sqlite, "RETIRED");
-      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'SECOND', 'LOWER', 'RETIRED')").run();
-      sqlite.prepare("UPDATE title_catalog SET public_visibility = 0 WHERE key = 'LOWER'").run();
-      sqlite.prepare("UPDATE title_catalog SET lifecycle = 'retired' WHERE key = 'RETIRED'").run();
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key IN ('HERO', 'SECOND')").run();
       const insertChallenge = (id: string, key: string) => sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES (?, ?, '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?)").run(id, key, now, now);
       insertChallenge("title.hero", "HERO");
       insertChallenge("title.second", "SECOND");
-      insertChallenge("title.lower", "LOWER");
-      insertChallenge("title.retired", "RETIRED");
-      const insertCanonicalTitleChallenge = (id: string, titleKey: string, publicCondition: number) => sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, status, public_condition, conditions_json, condition, created_at, updated_at) VALUES (?, 'title_challenge', ?, ?, 'active', ?, ?, '完成英雄挑战', ?, ?)").run(`legacy:title_challenge:${id}::`, id, titleKey, publicCondition, JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey }] }), now, now);
-      insertCanonicalTitleChallenge("title.hero", "HERO", 1);
-      insertCanonicalTitleChallenge("title.lower", "LOWER", 0);
-      insertCanonicalTitleChallenge("title.retired", "RETIRED", 1);
-      sqlite.prepare("INSERT INTO challenge_satisfies (challenge_id, satisfied_challenge_id, created_at) VALUES ('legacy:title_challenge:title.hero::', 'legacy:title_challenge:title.lower::', ?), ('legacy:title_challenge:title.hero::', 'legacy:title_challenge:title.retired::', ?) ").run(now, now);
-      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.1', 'member.1', ?)").run(now);
-      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.multi', 'binding.1', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.multi', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.multi', 'submission.multi', 1, 'review_required', ?, ?, ?)").run(
-        JSON.stringify({ data: {} }),
-        JSON.stringify({ candidates: [
-          { challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } },
-          { challengeId: "title.second", challengeType: "title_achievement", titleName: "称号 SECOND", match: { achievement: true } },
-        ] }),
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.mixed', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.mixed', 'identity.mixed', 'player.mixed', 'qq', 'group.mixed', 'member.mixed', ?)").run(now);
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.mixed', 'binding.mixed', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.mixed', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.mixed', 'submission.mixed', 1, 'review_required', ?, ?, ?)").run(
+        JSON.stringify({ schema_version: "1", ok: true, model_version: "ocr-v3", layout_version: "layout-v7", data: { map_name: "海滨城", achievement_titles: ["HERO", "SECOND", "THIRD"] } }),
+        JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }),
         now,
       );
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
-      const selection = await services.selectAdminSubmissionChallenge({ submissionId: "submission.multi", selections: [{ challengeId: "title.hero" }, { challengeId: "title.second" }] }, auth, "challenge-select.multi");
-      expect(selection.selections).toEqual([{ challengeId: "title.hero" }, { challengeId: "title.second" }]);
-      expect(sqlite.prepare("SELECT challenge_id FROM submission_challenge_selections WHERE submission_id = ? ORDER BY position").all("submission.multi")).toEqual([{ challenge_id: "title.hero" }, { challenge_id: "title.second" }]);
-
-      const result = await services.reviewSubmission({ submissionId: "submission.multi", decision: "approved" } as never, auth, "review.multi");
-      expect(result).toMatchObject({ decision: "approved", grants: [{ titleKey: "HERO" }, { titleKey: "SECOND" }] });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi'").get()).toEqual({ count: 3 });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_type = 'submission' AND source_id = 'submission.multi' AND status = 'active'").get()).toEqual({ count: 2 });
-      expect(sqlite.prepare("SELECT title_key, source_type FROM challenge_completions JOIN challenges ON challenges.id = challenge_completions.challenge_id WHERE challenge_completions.source_id = 'submission.multi' ORDER BY title_key").all()).toEqual([
-        { title_key: "HERO", source_type: "submission" },
-        { title_key: "LOWER", source_type: "challenge_satisfies" },
-        { title_key: "SECOND", source_type: "submission" },
+      const priorAnnotation = await services.createAdminReviewedAnnotation({ contractVersion: "1", submissionId: "submission.mixed", ocrResultId: "ocr.mixed", fieldKey: "map_name", reviewedValue: "瓦坎达" }, auth, "annotation.prior");
+      const reviewInput = { submissionId: "submission.mixed", decision: "approved" as const, fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "国王大道" }, { fieldKey: "achievement_titles" as const, reviewedValue: "称号 HERO、称号 SECOND、THIRD" }] };
+      const result = await services.reviewSubmission(reviewInput, auth, "review.mixed");
+      expect(result).toMatchObject({ decision: "approved", grants: [{ titleKey: "HERO" }, { titleKey: "SECOND" }], reviewedAnnotationIds: [expect.any(String), expect.any(String)] });
+      expect(sqlite.prepare("SELECT field_key, original_ocr_value, model_version, layout_version, reviewed_value, reviewed_by, review_state, supersedes_annotation_id FROM reviewed_annotations WHERE submission_id = 'submission.mixed' ORDER BY field_key, created_at").all()).toEqual([
+        { field_key: "achievement_titles", original_ocr_value: "HERO、SECOND、THIRD", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "称号 HERO、称号 SECOND、THIRD", reviewed_by: "admin", review_state: "accepted", supersedes_annotation_id: null },
+        { field_key: "map_name", original_ocr_value: "海滨城", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "瓦坎达", reviewed_by: "admin", review_state: "superseded", supersedes_annotation_id: null },
+        { field_key: "map_name", original_ocr_value: "海滨城", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "国王大道", reviewed_by: "admin", review_state: "accepted", supersedes_annotation_id: priorAnnotation.annotationId },
       ]);
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.multi' AND completion_id IS NOT NULL").get()).toEqual({ count: 3 });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE player_account_id = 'player.1' AND title_key = 'RETIRED'").get()).toEqual({ count: 0 });
-      expect(sqlite.prepare("SELECT outcome_type, COUNT(*) AS count FROM submission_outcomes WHERE submission_id = 'submission.multi' GROUP BY outcome_type ORDER BY outcome_type").all()).toEqual([{ outcome_type: "challenge", count: 3 }, { outcome_type: "title_grant", count: 3 }]);
+      expect(sqlite.prepare("SELECT response_json FROM ocr_results WHERE id = 'ocr.mixed'").get()).toMatchObject({ response_json: expect.stringContaining('"THIRD"') });
+      const replay = await services.reviewSubmission(reviewInput, auth, "review.mixed");
+      expect(replay).toEqual(result);
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviewed_annotations WHERE submission_id = 'submission.mixed'").get()).toEqual({ count: 3 });
     });
 
     it("routes legacy single-selection reviews through the Completion chain", async () => {
@@ -1981,6 +1924,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.legacy.review', 'legacy-review-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.legacy.review', 'identity.legacy.review', 'player.legacy.review', 'qq', 'group.legacy.review', 'member.legacy.review', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.legacy.review', 'binding.legacy.review', 'ocr_review_required', 'title_achievement', 'title.hero', '成就挑战', 'Tester', 'portal', 'portal', 'legacy.review', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.legacy.review', 'submission.legacy.review', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, model_version: "ocr-v3", layout_version: "layout-v7", data: { achievement_titles: ["称号 HERO"] } }), now);
 
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
@@ -1994,20 +1938,22 @@ describe("map title rule model – locked invariants", () => {
       ]);
     });
 
-    it("blocks legacy single-selection reviews after an administrative revoke", async () => {
+    it("keeps a legacy submission pending after an administrative revoke", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedTitle(sqlite, "HERO");
       sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'HERO'").run();
       sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, starts_at, ends_at, created_at, updated_at) VALUES ('title.hero', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?, ?, ?)").run(now - 100, now + 100, now, now);
+      sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, rule_version, status, manual, public_condition, condition_operator, conditions_json, condition, starts_at, ends_at, created_at, updated_at) VALUES ('legacy:title_challenge:title.hero::', 'title_challenge', 'title.hero', 'HERO', 'legacy', 'active', 0, 1, 'and', ?, '完成英雄挑战', ?, ?, ?, ?)").run(JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey: "HERO" }] }), now - 100, now + 100, now, now);
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.legacy.revoked', 'legacy-revoked-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.legacy.revoked', 'identity.legacy.revoked', 'player.legacy.revoked', 'qq', 'group.legacy.revoked', 'member.legacy.revoked', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.legacy.revoked', 'binding.legacy.revoked', 'ocr_review_required', 'title_achievement', 'title.hero', '成就挑战', 'Tester', 'portal', 'portal', 'legacy.revoked', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.legacy.revoked', 'submission.legacy.revoked', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, model_version: "ocr-v3", layout_version: "layout-v7", data: { achievement_titles: ["称号 HERO"] } }), now);
       sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at, revoked_by, revoked_at, revoke_reason, revocation_type) VALUES ('grant.legacy.revoked', 'player.legacy.revoked', 'HERO', 'revoked', 'manual', 'manual:old', 'admin', ?, 'admin', ?, 'review block', 'administrator')").run(now, now);
 
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-      await expect(services.reviewSubmission({ submissionId: "submission.legacy.revoked", decision: "approved" }, auth, "legacy-review-revoked")).rejects.toThrow("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
+      await expect(services.reviewSubmission({ submissionId: "submission.legacy.revoked", decision: "approved" }, auth, "legacy-review-revoked")).rejects.toThrow("SUBMISSION_OUTCOME_NOT_CONFIGURED");
 
       expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy.revoked'").get()).toEqual({ status: "ocr_review_required", grant_id: null });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.legacy.revoked'").get()).toEqual({ count: 0 });
@@ -2034,17 +1980,12 @@ describe("map title rule model – locked invariants", () => {
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
-      const options = await services.listAdminSubmissionChallenges({ submissionId: "submission.mixed" }, auth);
-      expect(options.items.map((item) => item.challengeId)).toEqual(["title.hero", "title.second"]);
-      const selection = await services.selectAdminSubmissionChallenge({ submissionId: "submission.mixed", selections: [{ challengeId: "title.hero" }, { challengeId: "title.second" }] }, auth, "challenge-select.mixed");
-      expect(selection.selections).toEqual([{ challengeId: "title.hero" }, { challengeId: "title.second" }]);
-
       const priorAnnotation = await services.createAdminReviewedAnnotation({ contractVersion: "1", submissionId: "submission.mixed", ocrResultId: "ocr.mixed", fieldKey: "map_name", reviewedValue: "瓦坎达" }, auth, "annotation.prior");
-      const reviewInput = { submissionId: "submission.mixed", decision: "approved" as const, fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "国王大道" }, { fieldKey: "achievement_titles" as const, reviewedValue: "HERO、SECOND、THIRD" }] };
+      const reviewInput = { submissionId: "submission.mixed", decision: "approved" as const, fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "国王大道" }, { fieldKey: "achievement_titles" as const, reviewedValue: "称号 HERO、称号 SECOND、THIRD" }] };
       const result = await services.reviewSubmission(reviewInput, auth, "review.mixed");
       expect(result).toMatchObject({ decision: "approved", grants: [{ titleKey: "HERO" }, { titleKey: "SECOND" }], reviewedAnnotationIds: [expect.any(String), expect.any(String)] });
       expect(sqlite.prepare("SELECT field_key, original_ocr_value, model_version, layout_version, reviewed_value, reviewed_by, review_state, supersedes_annotation_id FROM reviewed_annotations WHERE submission_id = 'submission.mixed' ORDER BY field_key, created_at").all()).toEqual([
-        { field_key: "achievement_titles", original_ocr_value: "HERO、SECOND、THIRD", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "HERO、SECOND、THIRD", reviewed_by: "admin", review_state: "accepted", supersedes_annotation_id: null },
+        { field_key: "achievement_titles", original_ocr_value: "HERO、SECOND、THIRD", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "称号 HERO、称号 SECOND、THIRD", reviewed_by: "admin", review_state: "accepted", supersedes_annotation_id: null },
         { field_key: "map_name", original_ocr_value: "海滨城", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "瓦坎达", reviewed_by: "admin", review_state: "superseded", supersedes_annotation_id: null },
         { field_key: "map_name", original_ocr_value: "海滨城", model_version: "ocr-v3", layout_version: "layout-v7", reviewed_value: "国王大道", reviewed_by: "admin", review_state: "accepted", supersedes_annotation_id: priorAnnotation.annotationId },
       ]);
@@ -2071,7 +2012,7 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT field_key, original_ocr_value, reviewed_value, review_state FROM reviewed_annotations WHERE submission_id = 'submission.reject'").get()).toEqual({ field_key: "map_name", original_ocr_value: "截图地图", reviewed_value: "国王大道", review_state: "accepted" });
     });
 
-    it("keeps an incomplete achievement-list confirmation out of reviewed annotations", async () => {
+    it("matches manually confirmed facts without treating them as corrected annotations", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedTitle(sqlite, "HERO");
@@ -2080,13 +2021,12 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.incomplete', '1002', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.incomplete', 'identity.incomplete', 'player.incomplete', 'qq', 'group.incomplete', 'member.incomplete', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.incomplete', 'binding.incomplete', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.incomplete', ?, ?)").run(now, now);
-      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.incomplete', 'submission.incomplete', 1, 'review_required', ?, ?, ?)").run(JSON.stringify({ data: { achievement_titles: ["HERO", "SECOND"] } }), JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }), now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.incomplete', 'submission.incomplete', 1, 'review_required', ?, ?, ?)").run(JSON.stringify({ data: { achievement_titles: ["称号 HERO", "SECOND"] } }), JSON.stringify({ candidates: [{ challengeId: "title.hero", challengeType: "title_achievement", titleName: "称号 HERO", match: { achievement: true } }] }), now);
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-      await services.selectAdminSubmissionChallenge({ submissionId: "submission.incomplete", challengeId: "title.hero" }, auth, "challenge-select.incomplete");
       await expect(services.reviewSubmission({ submissionId: "submission.incomplete", decision: "approved" }, auth, "review.incomplete")).resolves.toMatchObject({ decision: "approved" });
       expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviewed_annotations WHERE submission_id = 'submission.incomplete'").get()).toEqual({ count: 0 });
-      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.incomplete'").get()).toEqual({ count: 1 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.incomplete'").get()).toEqual({ count: 1 });
     });
 
     it("does not expose a legacy map-title row alongside its rule projection", async () => {
@@ -2311,6 +2251,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
+        layout_version: "1280x720-v6",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -2335,7 +2276,7 @@ describe("map title rule model – locked invariants", () => {
       expect(sqlite.prepare("SELECT title_key, map_id, slot FROM player_title_grants WHERE source_id = 'submission.pioneer.inside'").get()).toEqual({ title_key: "PIONEER", map_id: "map.paris", slot: "pioneer" });
     });
 
-    it("allows expired Pioneer selection and review for an in-window submission", async () => {
+    it("allows evidence review for an expired Pioneer rule when the submission is in-window", async () => {
       const { database, sqlite } = createD1();
       installSchema(sqlite);
       seedMap(sqlite, "map.paris");
@@ -2357,8 +2298,15 @@ describe("map title rule model – locked invariants", () => {
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
-      await expect(services.selectAdminSubmissionChallenge({ submissionId: "submission.pioneer.review", challengeId: "map.paris.pioneer", mapId: "map.paris" }, auth, "pioneer-review-select")).resolves.toMatchObject({ status: "ready_for_review" });
-      await expect(services.reviewSubmission({ submissionId: "submission.pioneer.review", decision: "approved" } as never, auth, "pioneer-review-approve")).resolves.toMatchObject({ decision: "approved", titleKey: "PIONEER" });
+      await expect(services.reviewSubmission({
+        submissionId: "submission.pioneer.review",
+        decision: "approved",
+        fieldCorrections: [
+          { fieldKey: "map_name", reviewedValue: "地图 map.paris" },
+          { fieldKey: "difficulty", reviewedValue: "地狱" },
+          { fieldKey: "challenge_completed", reviewedValue: "已完成" },
+        ],
+      }, auth, "pioneer-review-approve")).resolves.toMatchObject({ decision: "approved", titleKey: "PIONEER" });
       expect(sqlite.prepare("SELECT status, rule_snapshot_json FROM submissions WHERE id = 'submission.pioneer.review'").get()).toMatchObject({ status: "approved" });
       expect(sqlite.prepare("SELECT title_key, map_id, slot FROM player_title_grants WHERE source_id = 'submission.pioneer.review'").get()).toEqual({ title_key: "PIONEER", map_id: "map.paris", slot: "pioneer" });
     });
@@ -2490,6 +2438,17 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('p.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, status, created_at) VALUES ('b.1', 'id.1', 'p.1', 'qq', 'g.1', 'm.1', 'active', ?)").run(now);
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, target_map_id, gameplay_revision_id, map_name, rule_snapshot_json, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('sub.1', 'b.1', 'ready_for_review', 'map_completion', 'map.paris.conqueror', 'map.paris', 'revision:map.paris:initial', '地图 map.paris', ?, 'portal', 'portal', 'msg.1', ?, ?)").run(JSON.stringify(snapshot), now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.sub.1', 'sub.1', 1, 'review_required', ?, ?)").run(JSON.stringify({
+        schema_version: "1",
+        ok: true,
+        layout_version: "1280x720-v6",
+        fields: {
+          map_name: { status: "ok", confidence: 0.99 },
+          difficulty: { status: "ok", confidence: 0.99 },
+          challenge_completed: { status: "ok", confidence: 0.99 },
+        },
+        data: { map_name: "地图 map.paris", difficulty: "地狱", challenge_completed: true },
+      }), now);
 
       // Change the rule's title_key after submission was created.
       // The review must still use the snapshot's titleKey, not the live rule.
@@ -2500,7 +2459,7 @@ describe("map title rule model – locked invariants", () => {
       const services = createPlatformServices(database);
 
       const result = await services.reviewSubmission(
-        { submissionId: "sub.1", decision: "approved", idempotencyKey: "idem.1" } as never,
+        { submissionId: "sub.1", decision: "approved" },
         auth,
         "idem.1",
       );
@@ -2528,7 +2487,7 @@ const seedMasterySubmission = (sqlite: DatabaseSync, submissionId: string, bindi
   if (withAttachment) sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES (?, ?, 'portal', ?, 'image/png', 1, 'hash', ?, 'stored', ?)").run(`attachment.${submissionId}`, submissionId, `external.${submissionId}`, `evidence/${submissionId}.png`, now);
 };
 
-const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; matchCode?: string | null; durationSeconds?: number; layoutVersion?: string; version?: string; mapVariant?: "classic" | null } = {}) => {
+const masteryOcr = (overrides: { viewerPlayer?: string | null; difficulty?: string; matchCode?: string | null; durationSeconds?: number; layoutVersion?: string; version?: string; mapVariant?: "classic" | null } = {}) => {
   const matchCode = overrides.matchCode === undefined ? "1234-5678-9012" : overrides.matchCode;
   return {
     schema_version: "1",
@@ -2536,7 +2495,7 @@ const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; mat
     layout_version: overrides.layoutVersion ?? "test-layout-v1",
     fields: {
       challenge_completed: { status: "ok", confidence: 0.99 },
-      viewer_player: { status: "ok", confidence: 0.99 },
+      ...(overrides.viewerPlayer === null ? {} : { viewer_player: { status: "ok", confidence: 0.99 } }),
       map_name: { status: "ok", confidence: 0.99 },
       difficulty: { status: "ok", confidence: 0.99 },
       version: { status: "ok", confidence: 0.99 },
@@ -2548,7 +2507,7 @@ const masteryOcr = (overrides: { viewerPlayer?: string; difficulty?: string; mat
     },
     data: {
       challenge_completed: true,
-      viewer_player: overrides.viewerPlayer ?? "Tester#1234",
+      ...(overrides.viewerPlayer === null ? {} : { viewer_player: overrides.viewerPlayer ?? "Tester#1234" }),
       map_name: "地图 map.mastery",
       difficulty: overrides.difficulty ?? "困难",
       version: overrides.version ?? "99.0101.1",
@@ -2565,6 +2524,8 @@ describe("submission mastery outcomes", () => {
   it("keeps the version, layout, and run-code gate platform-owned", () => {
     expect(assessVerifiedRunOcrEvidence(masteryOcr())).toEqual({ outcome: "ineligible", reason: "mastery_rollout_disabled" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr(), localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible", matchCode: "1234-5678-9012", gameVersion: "99.0101.1" });
+    expect(assessVerifiedRunOcrEvidence(masteryOcr({ viewerPlayer: null }), localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible" });
+    expect(assessVerifiedRunOcrEvidence(masteryOcr({ viewerPlayer: "Misread#9999" }), localVerifiedRunEvidenceCompatibility)).toMatchObject({ outcome: "eligible" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ matchCode: null }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ layoutVersion: "test-layout-v0" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_layout" });
     expect(assessVerifiedRunOcrEvidence(masteryOcr({ version: "99.0100.9" }), localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unsupported_game_version" });
@@ -2596,7 +2557,7 @@ describe("submission mastery outcomes", () => {
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.first")).rejects.toThrow("queue unavailable");
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
 
-    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "ocr_pending" });
+    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
     expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId, requestId: "request.retry" })]);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 1 });
   });
@@ -2620,7 +2581,7 @@ describe("submission mastery outcomes", () => {
     await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
     sqlite.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ?").run(upload.uploadId);
 
-    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.repair")).resolves.toEqual({ submissionId: upload.submissionId, status: "ocr_pending" });
+    await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.repair")).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
     expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId })]);
   });
@@ -2681,7 +2642,7 @@ describe("submission mastery outcomes", () => {
       const body = new TextEncoder().encode(input.bytes).buffer as ArrayBuffer;
       const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, input.sessionToken);
       await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, input.sessionToken);
-      await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, input.sessionToken, input.requestId)).resolves.toEqual({ submissionId: upload.submissionId, status: "ocr_pending" });
+      await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, input.sessionToken, input.requestId)).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
       const job = queued.shift();
       if (!job) throw new Error("missing OCR queue job");
       ocrResponses.push(input.ocr);
@@ -2694,7 +2655,7 @@ describe("submission mastery outcomes", () => {
       expect(first.objectKey).toMatch(/^uploads\/submissions\/[^/]+\/[0-9a-f]{64}\.png$/);
       const exactReplay = await submit({ sessionToken: playerOneSession, bytes: "same-image", ocr: masteryOcr(), requestId: "request.exact" });
       const reencodedReplay = await submit({ sessionToken: playerOneSession, bytes: "changed-image", ocr: masteryOcr(), requestId: "request.reencoded" });
-      const otherPlayer = await submit({ sessionToken: playerTwoSession, bytes: "other-player-image", ocr: masteryOcr({ viewerPlayer: "Other#5678" }), requestId: "request.other" });
+      const otherPlayer = await submit({ sessionToken: playerTwoSession, bytes: "other-player-image", ocr: masteryOcr({ viewerPlayer: "Misread#9999" }), requestId: "request.other" });
       const conflict = await submit({ sessionToken: playerOneSession, bytes: "conflicting-image", ocr: masteryOcr({ difficulty: "传奇" }), requestId: "request.conflict" });
 
       expect(sqlite.prepare("SELECT submission_id, status, awarded_xp FROM submission_outcomes WHERE outcome_key = 'verified_run' ORDER BY submission_id").all()).toEqual([
@@ -2734,7 +2695,7 @@ describe("submission mastery outcomes", () => {
       seedTitle(sqlite, "CONQUEROR");
       sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.combined', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
       seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.combined" });
-      const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ matchCode: "2345-6789-1234", durationSeconds: 599 }), requestId: "request.combined" });
+      const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ matchCode: "2345-6789-1234", durationSeconds: 599, layoutVersion: "1280x720-v6" }), requestId: "request.combined" });
       expect(sqlite.prepare("SELECT outcome_type, status FROM submission_outcomes WHERE submission_id = ? ORDER BY outcome_type").all(combined.submissionId)).toEqual([
         { outcome_type: "challenge", status: "created" },
         { outcome_type: "title_grant", status: "created" },
@@ -2750,6 +2711,58 @@ describe("submission mastery outcomes", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("completes a Run-only Submission when an unrelated Challenge has no matching evidence", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedTitle(sqlite, "FLAWLESS");
+    sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'FLAWLESS'").run();
+    sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.flawless', 'FLAWLESS', '全成就完成', '成就列表', 'manual', '99.0101.1', 'active', '99.0101.1', 'global', ?, ?)").run(now, now);
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.run-only-review", "binding.one", "Tester");
+
+    const ocr = masteryOcr({ matchCode: "3456-7890-1234", layoutVersion: "1280x720-v6" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
+    try {
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+      await services.processOcrJob({ submissionId: "submission.run-only-review", objectKey: "evidence/submission.run-only-review.png", attempt: 1 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.run-only-review'").get()).toEqual({ status: "approved" });
+    expect(sqlite.prepare("SELECT outcome_type, status FROM submission_outcomes WHERE submission_id = 'submission.run-only-review'").all()).toEqual([{ outcome_type: "verified_run", status: "created" }]);
+    expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.run-only-review'").get()).toEqual({ status: "active" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.run-only-review'").get()).toEqual({ count: 0 });
+  });
+
+  it("matches map Challenges only on the exact Gameplay Revision identified by the evidence", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedTitle(sqlite, "CONQUEROR");
+    const otherRevisionId = seedSelectableGameplayRevision(sqlite, "map.mastery");
+    sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.revision-scoped', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.revision-scoped" });
+    seedRevisionAssignment(sqlite, { gameplayRevisionId: otherRevisionId, mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.revision-scoped" });
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.revision-scoped", "binding.one", "Tester");
+
+    const ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
+    try {
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+      await services.processOcrJob({ submissionId: "submission.revision-scoped", objectKey: "evidence/submission.revision-scoped.png", attempt: 1 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(sqlite.prepare("SELECT title_key, gameplay_revision_id FROM player_title_grants WHERE source_id = 'submission.revision-scoped'").all()).toEqual([
+      { title_key: "CONQUEROR", gameplay_revision_id: "revision:map.mastery:initial" },
+    ]);
+    expect(sqlite.prepare("SELECT gameplay_revision_id FROM submissions WHERE id = 'submission.revision-scoped'").get()).toEqual({ gameplay_revision_id: "revision:map.mastery:initial" });
   });
 
   it("keeps player-profile and maintainer-list reads bounded as mastery history grows", async () => {
@@ -2917,7 +2930,7 @@ describe("submission mastery outcomes", () => {
     expect(playerConflict.reason).toBe("已提交处理申请，请稍后查看结果。");
     const player = await publicServices.getCurrentPlayer({ sessionToken });
     const currentConflict = player?.recentSubmissions.find((submission) => submission.submissionId === "submission.conflict");
-    expect(currentConflict?.status).toBe("ocr_review_required");
+    expect(currentConflict?.status).toBe("needs_review");
     expect(currentConflict?.verifiedRunOutcome).toBeUndefined();
     expect(currentConflict?.reason).toBeUndefined();
 
@@ -2979,7 +2992,7 @@ describe("submission mastery outcomes", () => {
     seedMasterySubmission(sqlite, "submission.combined", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.legacy", "binding.one", "Tester");
 
-    let ocr = masteryOcr();
+    let ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
@@ -2996,7 +3009,7 @@ describe("submission mastery outcomes", () => {
       await services.revokeAdminTitleGrant({ grantId: combined.grant_id!, reason: "称号专项修复" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "title-only-revoke");
       expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.combined'").get()).toEqual({ status: "active" });
 
-      ocr = masteryOcr({ matchCode: null });
+      ocr = masteryOcr({ matchCode: null, layoutVersion: "1280x720-v6" });
       await services.processOcrJob({ submissionId: "submission.legacy", objectKey: "evidence/submission.legacy.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
@@ -3016,7 +3029,7 @@ describe("submission mastery outcomes", () => {
     const queued: unknown[] = [];
     const queue = { send: async (message: unknown) => { queued.push(message); } } as Queue;
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-    const ocr = masteryOcr();
+    const ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue, undefined, undefined, 1, 1, localVerifiedRunEvidenceCompatibility);

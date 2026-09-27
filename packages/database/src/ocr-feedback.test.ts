@@ -107,8 +107,8 @@ const sha256Hex = async (value: string) => {
 
 const highConfidenceOcr = {
   schema_version: "1", ok: true, model_version: "ocr-v1", layout_version: "layout-v2",
-  fields: { map_name: { confidence: 0.97, status: "ok" }, difficulty: { confidence: 0.95, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.98, status: "ok" }, achievement_titles: { confidence: 0.9, status: "ok" } },
-  data: { map_name: "萨摩亚", difficulty: "困难", viewer_player: "Player", challenge_completed: true, achievement_titles: ["征服者"] },
+  fields: { map_name: { confidence: 0.97, status: "ok" }, difficulty: { confidence: 0.95, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.98, status: "ok" }, map_variant: { confidence: 0.96, status: "ok" }, achievement_titles: { confidence: 0.9, status: "ok" } },
+  data: { map_name: "萨摩亚", difficulty: "困难", viewer_player: "Player", challenge_completed: true, map_variant: "classic", achievement_titles: ["征服者"] },
 };
 
 const uncertainDifficultyOcr = {
@@ -260,7 +260,7 @@ describe("player OCR feedback", () => {
     expect(serialized).not.toContain("0.9");
     // Only safe field keys are exposed.
     for (const item of detail.feedback?.fields ?? []) {
-      expect(["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"]).toContain(item.key);
+      expect(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]).toContain(item.key);
     }
   });
 

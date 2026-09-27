@@ -66,15 +66,12 @@ const services: PlatformServices = {
   upsertAdminMapTitleRuleException: async () => {},
   createPlayerUploadSession: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", uploadId: "00000000-0000-0000-0000-000000000004", uploadUrl: "http://localhost/upload", expiresAt: 1, maxBytes: 10 }),
   uploadEvidence: async () => {},
-  completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending" }),
-  confirmPlayerSubmissionChallenge: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2 }),
+  completePlayerUpload: async () => ({ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing" }),
   listAdminSubmissions: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 50, total: 0, hasMore: false }),
-  listAdminSubmissionChallenges: async () => ({ contractVersion: "1", items: [] }),
   getAdminSubmission: async () => { throw new Error("SUBMISSION_NOT_FOUND"); },
-  selectAdminSubmissionChallenge: async ({ submissionId, challengeId, selections }) => { const selected = selections ?? [{ challengeId: challengeId! }]; return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected[0].challengeId, selections: selected }; },
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, verifiedRunId: null }),
-  getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ready_for_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
+  getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "needs_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
   submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false }),
   listAdminAnnotationProposals: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
   getAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
@@ -106,7 +103,7 @@ const services: PlatformServices = {
   decideAdminBindingClaim: async () => {},
   retryHistoricalTitleMigration: async () => {},
   createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
-  getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
+  getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
   verifyQqLogin: async () => ({ contractVersion: "1", status: "verified", environment: "test" }),
@@ -135,7 +132,7 @@ const services: PlatformServices = {
   getCurrentPlayer: async ({ sessionToken }) => sessionToken === "session-token" ? {
     contractVersion: "1",
     player: { playerId: "1234", playerName: "Player", isAdmin: false },
-    recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
+    recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
   } : null,
   createPasskeyLoginOptions: async () => ({ contractVersion: "1", challengeId: "00000000-0000-4000-8000-000000000011", options: { challenge: "challenge" } }),
   completePasskeyLogin: async () => ({ sessionToken: "passkey-session-token" }),
@@ -806,7 +803,7 @@ describe("API", () => {
     const response = await app.request("http://localhost/v1/submissions/00000000-0000-0000-0000-000000000003");
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(await response.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 1, updatedAt: 1 });
+    expect(await response.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 1, updatedAt: 1 });
   });
 
   it("creates and polls a browser login attempt", async () => {
@@ -885,7 +882,7 @@ describe("API", () => {
     expect(await response.json()).toEqual({
       contractVersion: "1",
       player: { playerId: "1234", playerName: "Player", isAdmin: false },
-      recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "ocr_pending", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
+      recentSubmissions: [{ submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 2, updatedAt: 3 }],
     });
   });
 
@@ -1382,7 +1379,7 @@ describe("API", () => {
 
     const detail = await app.request("http://localhost/v1/me/submissions/00000000-0000-0000-0000-000000000003", { headers: { cookie: "owb_session=session-token" } }, env);
     expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ status: "ready_for_review", evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } });
+    expect(await detail.json()).toMatchObject({ status: "needs_review", evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } });
   });
 
   it("does not reveal another player's submission", async () => {
@@ -1736,32 +1733,17 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.flawless", family: "achievement", status: "sunsetting", retiredVersion: "26.0713.1", submissionMode: "manual" }] });
   });
 
-  it("rejects screenshot uploads for automatically granted titles", async () => {
-    const automaticApp = createApp({
-      authenticate: async () => null,
-      services: () => ({ ...services, createPlayerUploadSession: async () => { throw new Error("CHALLENGE_AUTOMATIC"); } }),
-    });
-    const response = await automaticApp.request("http://localhost/v1/player/uploads/session", {
+  it("rejects a challenge selector in player upload requests", async () => {
+    const createSession = vi.fn(async () => services.createPlayerUploadSession({ contractVersion: "1", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }, "session-token"));
+    const uploadApp = createApp({ authenticate: async () => null, services: () => ({ ...services, createPlayerUploadSession: createSession }) });
+    const response = await uploadApp.request("http://localhost/v1/player/uploads/session", {
       method: "POST",
       headers: { cookie: "owb_session=session-token", "content-type": "application/json" },
       body: JSON.stringify({ contractVersion: "1", challengeId: "title.SKY", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }),
     }, env);
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_AUTOMATIC", message: "该称号满足条件后自动获得，无需提交截图。" } });
-  });
-
-  it("rejects screenshot uploads for retired title challenges", async () => {
-    const retiredApp = createApp({
-      authenticate: async () => null,
-      services: () => ({ ...services, createPlayerUploadSession: async () => { throw new Error("CHALLENGE_NOT_FOUND"); } }),
-    });
-    const response = await retiredApp.request("http://localhost/v1/player/uploads/session", {
-      method: "POST",
-      headers: { cookie: "owb_session=session-token", "content-type": "application/json" },
-      body: JSON.stringify({ contractVersion: "1", challengeId: "title.CHALLENGER_LEGEND", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }),
-    }, env);
-    expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ error: { code: "CHALLENGE_NOT_FOUND" } });
+    expect(await response.json()).toMatchObject({ error: { code: "INVALID_REQUEST" } });
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   it("maps upload ownership failures to an invalid upload session", async () => {
@@ -1834,19 +1816,14 @@ describe("API", () => {
     expect(await response.json()).toMatchObject({ status: "ocr_pending" });
   });
 
-  it("lets maintainers select a submission challenge", async () => {
-    const selections: string[] = [];
-    const selectionApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, selectAdminSubmissionChallenge: async ({ submissionId, selections: selected }) => { selections.push(...selected!.map((selection) => `${submissionId}:${selection.challengeId}:${selection.gameplayRevisionId ?? ""}`)); return { contractVersion: "1", submissionId, status: "ready_for_review" as const, challengeId: selected![0].challengeId, selections: selected! }; } }) });
-    const response = await selectionApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", selections: [{ challengeId: "map.paraiso.hell", mapId: "map.paraiso", gameplayRevisionId: "revision:map.paraiso:rework" }, { challengeId: "title.hero" }] }) }, env);
-    expect(response.status).toBe(200);
-    expect(selections).toEqual(["00000000-0000-0000-0000-000000000000:map.paraiso.hell:revision:map.paraiso:rework", "00000000-0000-0000-0000-000000000000:title.hero:"]);
-  });
+  it("does not expose player or maintainer challenge selection routes", async () => {
+    const playerConfirm = await app.request("http://localhost/v1/player/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", challengeId: "title.hero" }) });
+    const adminOptions = await app.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenges");
+    const adminSelect = await app.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenge", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "challenge-select-1" }, body: JSON.stringify({ contractVersion: "1", challengeId: "title.hero" }) });
 
-  it("lists maintainer-only submission challenge options", async () => {
-    const listingApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, listAdminSubmissionChallenges: async () => ({ contractVersion: "1" as const, items: [{ challengeId: "title.hero", challenge: { family: "achievement" as const, titleName: "称号 HERO", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" } }] }) }) });
-    const response = await listingApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/challenges", {}, env);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.hero" }] });
+    expect(playerConfirm.status).toBe(404);
+    expect(adminOptions.status).toBe(404);
+    expect(adminSelect.status).toBe(404);
   });
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {

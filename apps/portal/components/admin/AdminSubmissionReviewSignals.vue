@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionChallengeOption } from "~/composables/useAdminApi";
+import type { AdminSubmission } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 
@@ -7,32 +7,18 @@ type OcrField = { value?: unknown; confidence?: unknown; status?: unknown };
 type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrField>; warnings?: unknown; model_version?: unknown; request_id?: unknown };
 type MatchCandidate = {
   challengeId?: string;
-  mapId?: string;
-  gameplayRevisionId?: string;
   challengeType?: string;
   targetMapName?: string;
   targetDifficulty?: string | null;
   titleName?: string | null;
-  requiredMapVariant?: "classic" | null;
-  match?: Record<string, unknown>;
+  matched?: boolean;
+  conditionsSupported?: boolean;
+  requiredFields?: string[];
   quality?: { accepted?: boolean; reasons?: string[] };
-  grantable?: boolean;
-  source?: "ocr" | "manual";
-  searchText?: string;
 };
 
-const props = defineProps<{
-  submission: AdminSubmission;
-  challengeOptions?: AdminSubmissionChallengeOption[];
-  challengeSelectionError?: string;
-  challengeSelectionLoading?: boolean;
-  /** Force a single-column stack (decision rail / narrow column). */
-  stacked?: boolean;
-}>();
-const emit = defineEmits<{
-  "select-challenge": [selection: { challengeId: string; mapId?: string; gameplayRevisionId?: string }[]];
-  "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }>];
-}>();
+const props = defineProps<{ submission: AdminSubmission; stacked?: boolean; disabled?: boolean }>();
+const emit = defineEmits<{ "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }> ] }>();
 
 const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
 const annotatableFields = [
@@ -40,31 +26,15 @@ const annotatableFields = [
   { key: "difficulty", label: "难度" },
   { key: "viewer_player", label: "玩家名称" },
   { key: "challenge_completed", label: "通关标记" },
+  { key: "map_variant", label: "地图版本" },
   { key: "achievement_titles", label: "完整成就列表" },
 ] as const;
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const matchPayload = computed(() => props.submission.match as { outcome?: string; candidates?: MatchCandidate[] } | undefined | null);
 const candidates = computed(() => matchPayload.value?.candidates ?? []);
-const normalized = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
-const normalizedDifficulty = (value: unknown) => {
-  const label = normalized(value);
-  return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
-};
-const recognizedMapName = computed(() => normalized(ocrPayload.value?.data?.map_name) || normalized(props.submission.mapName));
-const recognizedDifficulty = computed(() => normalizedDifficulty(ocrPayload.value?.data?.difficulty) || normalizedDifficulty(props.submission.difficulty));
-const isMapCandidate = (candidate: MatchCandidate) => candidate.challengeType !== "title_achievement";
-const visibleCandidates = computed(() => candidates.value.filter((candidate) => {
-  if (candidate.titleName && candidate.match?.achievement !== true) return false;
-  if (!isMapCandidate(candidate)) return true;
-  if (!candidate.mapId || !recognizedMapName.value || !candidate.targetMapName || normalized(candidate.targetMapName) !== recognizedMapName.value) return false;
-  if (candidate.targetDifficulty !== null && candidate.targetDifficulty !== undefined) return Boolean(recognizedDifficulty.value) && normalizedDifficulty(candidate.targetDifficulty) === recognizedDifficulty.value;
-  return true;
-}));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
-const manualSearchOpen = ref(false);
-const manualSearch = ref("");
 const correctionInputs = reactive<Record<string, string>>({});
 const confirmedFields = ref<string[]>([]);
 watch(() => ocrPayload.value?.data, (data) => {
@@ -79,7 +49,6 @@ watch(fieldCorrections, (value) => emit("field-corrections", value), { immediate
 const toggleFieldConfirmation = (fieldKey: string, checked: boolean) => {
   confirmedFields.value = checked ? [...new Set([...confirmedFields.value, fieldKey])] : confirmedFields.value.filter((key) => key !== fieldKey);
 };
-const selectedCandidateIds = ref<string[]>([]);
 
 const ocrValue = (value: unknown) => value === null || value === undefined ? "未识别" : value === true ? "已识别完成" : value === false ? "未识别完成" : String(value);
 const ocrDisplayValue = (name: string, value: unknown) => name === "map_variant" ? mapVariantLabel(value) : ocrValue(value);
@@ -94,101 +63,45 @@ const ocrFieldStatusLabel = (status: unknown) => {
   return "需核对";
 };
 const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
-const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "已自动判定" : outcome === "review" ? "转人工核对" : outcome === "resubmit" ? "需重新提交" : "已记录判定";
-const candidateResultLabel = (candidate: MatchCandidate) => {
-  const label = candidate.titleName || candidate.targetDifficulty && `${candidate.targetMapName} · ${candidate.targetDifficulty}` || candidate.targetMapName || candidate.challengeId || "候选挑战";
-  return isMapCandidate(candidate) ? `${label} · ${mapVariantLabel(candidate.requiredMapVariant)}` : label;
-};
+const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证据已自动判定" : outcome === "review" ? "证据需人工核对" : outcome === "resubmit" ? "未匹配挑战" : "等待证据判定";
+const candidateResultLabel = (candidate: MatchCandidate) => candidate.titleName || candidate.targetDifficulty && `${candidate.targetMapName} · ${candidate.targetDifficulty}` || candidate.targetMapName || candidate.challengeId || "挑战条件";
 const candidateScopeLabel = (candidate: MatchCandidate) => candidate.titleName ? candidate.challengeType === "map_title_achievement" ? "地图称号" : "成就挑战" : "地图挑战";
-const candidateKey = (candidate: MatchCandidate) => `${candidate.challengeId ?? ""}:${candidate.mapId ?? ""}:${candidate.gameplayRevisionId ?? ""}`;
-const manualCandidateOptions = computed<MatchCandidate[]>(() => {
-  const ocrKeys = new Set(visibleCandidates.value.map(candidateKey));
-  return (props.challengeOptions ?? []).filter((option) => !ocrKeys.has(`${option.challengeId}:${option.mapId ?? ""}:${option.gameplayRevisionId ?? ""}`)).map((option) => option.challenge.family === "map"
-    ? { challengeId: option.challengeId, mapId: option.mapId, gameplayRevisionId: option.gameplayRevisionId, challengeType: option.challenge.kind ?? "difficulty_completion", targetMapName: option.challenge.mapName, targetDifficulty: option.challenge.difficulty, ...(option.challenge.kind === "map_title_achievement" ? { titleName: option.challenge.name } : {}), requiredMapVariant: option.challenge.mapVariant ?? null, match: {}, quality: { accepted: true }, grantable: true, source: "manual", searchText: `${option.challenge.name} ${option.challenge.mapName} ${option.challenge.difficulty ?? ""}` }
-    : { challengeId: option.challengeId, challengeType: "title_achievement", titleName: option.challenge.titleName, match: {}, quality: { accepted: true }, grantable: true, source: "manual", searchText: `${option.challenge.titleName} ${option.challenge.category}` });
-});
-const manualCandidates = computed<MatchCandidate[]>(() => {
-  const query = manualSearch.value.trim().toLocaleLowerCase();
-  if (!manualSearchOpen.value && !selectedCandidateIds.value.length) return [];
-  return manualCandidateOptions.value.filter((candidate) => {
-    if (!query) return selectedCandidateIds.value.includes(candidateKey(candidate));
-    return candidate.searchText?.toLocaleLowerCase().includes(query) ?? false;
-  });
-});
-const selectedManualCandidates = computed(() => manualCandidateOptions.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
-const selectableCandidates = computed(() => {
-  const selectedKeys = new Set(selectedManualCandidates.value.map(candidateKey));
-  return [...visibleCandidates.value.map((candidate) => ({ ...candidate, source: "ocr" as const })), ...selectedManualCandidates.value, ...manualCandidates.value.filter((candidate) => !selectedKeys.has(candidateKey(candidate)))];
-});
-const allSelectableCandidates = computed(() => [...visibleCandidates.value, ...manualCandidateOptions.value]);
-watch([() => props.submission.challengeSelections, () => props.submission.challengeId, () => props.submission.gameplayRevisionId, allSelectableCandidates], ([challengeSelections, challengeId, gameplayRevisionId]) => {
-  const persistedKeys = (challengeSelections?.length ? challengeSelections : [{ challengeId, mapId: undefined, gameplayRevisionId }]).map((selection) => `${selection.challengeId ?? ""}:${selection.mapId ?? ""}:${selection.gameplayRevisionId ?? ""}`);
-  selectedCandidateIds.value = allSelectableCandidates.value.filter((candidate) => persistedKeys.includes(candidateKey(candidate))).map(candidateKey);
-}, { immediate: true });
-const candidateStatusLabel = (candidate: MatchCandidate) => {
-  if (candidate.source === "manual") return "待人工核对";
-  if (candidate.titleName && candidate.match?.achievement !== true) return "无勾选证据";
-  const booleanMatches = Object.entries(candidate.match ?? {}).filter(([, value]) => typeof value === "boolean").map(([, value]) => value);
-  if (candidate.quality?.accepted && booleanMatches.length > 0 && booleanMatches.every(Boolean)) return "匹配";
-  if (candidate.quality?.accepted) return "需核对";
-  return "低置信度";
-};
-const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidateStatusLabel(candidate) === "匹配" ? "success" : "warning";
-const selectedCandidates = computed(() => allSelectableCandidates.value.filter((candidate) => selectedCandidateIds.value.includes(candidateKey(candidate))));
-const isCurrentCandidate = (candidate: MatchCandidate) => selectedCandidateIds.value.includes(candidateKey(candidate));
-const selectCandidate = (candidate: MatchCandidate) => {
-  const key = candidateKey(candidate);
-  selectedCandidateIds.value = selectedCandidateIds.value.includes(key) ? selectedCandidateIds.value.filter((value) => value !== key) : [...selectedCandidateIds.value, key];
-};
-const saveSelectedCandidate = () => {
-  if (!selectedCandidates.value.length || props.challengeSelectionLoading) return;
-  emit("select-challenge", selectedCandidates.value.map((candidate) => ({ challengeId: candidate.challengeId!, ...(candidate.mapId ? { mapId: candidate.mapId } : {}), ...(candidate.gameplayRevisionId ? { gameplayRevisionId: candidate.gameplayRevisionId } : {}) })));
-};
+const candidateStatusLabel = (candidate: MatchCandidate) => !candidate.conditionsSupported ? "挑战条件暂不支持" : !candidate.quality?.accepted ? "证据需核对" : candidate.matched ? "满足条件" : "不满足条件";
+const candidateStatusTone = (candidate: MatchCandidate): "success" | "warning" => candidate.conditionsSupported && candidate.quality?.accepted && candidate.matched ? "success" : "warning";
 </script>
 
 <template>
   <div class="signals-grid" :class="{ 'signals-grid--stacked': stacked }" aria-label="自动判定与 OCR 证据">
-    <section v-if="matchPayload || challengeOptions?.length" class="signal-panel match-panel" aria-labelledby="auto-match-title">
+    <section v-if="matchPayload" class="signal-panel match-panel" aria-labelledby="auto-match-title">
       <header class="signal-panel__header">
         <div>
           <p class="signal-kicker">核对</p>
-          <h3 id="auto-match-title">自动判定</h3>
+          <h3 id="auto-match-title">Challenge Conditions 匹配</h3>
         </div>
-        <StatusBadge :label="matchPayload ? matchOutcomeLabel(matchPayload.outcome) : '待人工核对'" :tone="matchPayload?.outcome === 'automatic' ? 'success' : 'warning'" />
+        <StatusBadge :label="matchOutcomeLabel(matchPayload.outcome)" :tone="matchPayload.outcome === 'automatic' ? 'success' : 'warning'" />
       </header>
       <p v-if="submission.reason" class="signal-reason">{{ submission.reason }}</p>
-      <div v-if="selectableCandidates.length" class="match-candidates">
-        <button v-for="candidate in selectableCandidates" :key="candidateKey(candidate)" class="match-candidate pressable-soft" :class="{ 'match-candidate--selected': selectedCandidateIds.includes(candidateKey(candidate)) }" type="button" :aria-pressed="selectedCandidateIds.includes(candidateKey(candidate))" :disabled="challengeSelectionLoading" @click="selectCandidate(candidate)">
+      <p class="signal-note">候选结果由平台按提交时有效、且玩家尚未拥有的 Challenge Conditions 计算。通过审核后，平台会用核对后的证据重新计算全部匹配。</p>
+      <div v-if="candidates.length" class="match-candidates">
+        <article v-for="(candidate, index) in candidates" :key="`${candidate.challengeId ?? 'condition'}:${index}`" class="match-candidate">
           <div class="match-candidate__title">
             <strong>{{ candidateResultLabel(candidate) }}</strong>
             <span class="candidate-scope">{{ candidateScopeLabel(candidate) }}</span>
           </div>
-          <div class="match-candidate__meta"><StatusBadge :label="candidateStatusLabel(candidate)" :tone="candidateStatusTone(candidate)" /><span class="candidate-source">{{ candidate.source === "manual" ? "人工添加" : "OCR 建议" }}</span><span v-if="candidate.grantable" class="candidate-reward">可获得称号</span></div>
-          <span v-if="isCurrentCandidate(candidate)" class="candidate-current">当前挑战</span>
-        </button>
+          <div class="match-candidate__meta"><StatusBadge :label="candidateStatusLabel(candidate)" :tone="candidateStatusTone(candidate)" /></div>
+          <p v-if="candidate.quality?.reasons?.length" class="candidate-reasons">{{ candidate.quality.reasons.join("、") }}</p>
+          <p v-else-if="candidate.requiredFields?.length" class="candidate-reasons">依据：{{ candidate.requiredFields.join("、") }}</p>
+        </article>
       </div>
-      <p v-else class="signal-empty">暂无可选挑战</p>
-      <p v-if="selectableCandidates.length > 1" class="signal-note">可同时选择截图中已完成的多个挑战。</p>
-      <div v-if="challengeOptions?.length" class="manual-add">
-        <UButton class="pressable" type="button" :label="manualSearchOpen ? '收起手动添加' : '手动添加'" icon="i-lucide-search" color="neutral" variant="outline" :disabled="challengeSelectionLoading" @click="manualSearchOpen = !manualSearchOpen" />
-        <template v-if="manualSearchOpen">
-          <UInput v-model="manualSearch" icon="i-lucide-search" placeholder="搜索可验证的挑战或称号" aria-label="搜索可验证的挑战或称号" :disabled="challengeSelectionLoading" />
-          <p v-if="!manualSearch.trim()" class="signal-note">输入名称后，从按提交时间资格筛选的挑战中添加。</p>
-          <p v-else-if="!manualCandidates.length" class="signal-empty">没有符合条件的挑战。</p>
-        </template>
-      </div>
-      <div v-if="selectedCandidates.length" class="candidate-selection">
-        <UButton class="pressable" type="button" label="保存所选挑战" icon="i-lucide-check" color="primary" :loading="challengeSelectionLoading" :disabled="challengeSelectionLoading" @click="saveSelectedCandidate" />
-      </div>
-      <p v-if="challengeSelectionError" class="signal-error" role="alert">{{ challengeSelectionError }}</p>
+      <p v-else class="signal-empty">当前证据没有匹配到可授予称号的 Challenge。</p>
       <section class="field-review" aria-labelledby="field-review-title">
         <div>
           <h4 id="field-review-title">审核中确认识别字段</h4>
-          <p>勾选并确认完整可见值后，会随本次审核保存为审定标注；截图证据与 OCR 原始结果保持不变。称号发放按上方选择独立处理。</p>
+          <p>勾选并确认截图中的完整值后，会随本次审核保存为审定标注。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
         </div>
         <div v-for="field in annotatableFields" :key="field.key" class="field-review__row">
-          <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="challengeSelectionLoading" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />
-          <UInput v-if="confirmedFields.includes(field.key)" v-model="correctionInputs[field.key]" :aria-label="`截图中的${field.label}完整值`" :placeholder="field.key === 'achievement_titles' ? '多个成就以顿号分隔' : `输入截图中完整的${field.label}`" :disabled="challengeSelectionLoading" />
+          <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="disabled" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />
+          <UInput v-if="confirmedFields.includes(field.key)" v-model="correctionInputs[field.key]" :aria-label="`截图中的${field.label}完整值`" :placeholder="field.key === 'achievement_titles' ? '多个成就以顿号分隔' : `输入截图中完整的${field.label}`" :disabled="disabled" />
         </div>
       </section>
     </section>

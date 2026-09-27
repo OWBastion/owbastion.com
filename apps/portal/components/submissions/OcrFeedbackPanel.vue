@@ -39,7 +39,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => { compactQuery?.removeEventListener("change", updateCompact); });
 
-const fieldLabel = (key: string) => ({ map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", achievement_titles: "成就" })[key] ?? key;
+const fieldLabel = (key: string) => ({ map_name: "地图", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记", map_variant: "地图版本", achievement_titles: "成就" })[key] ?? key;
 const fieldValue = (value: string | null) => value === null ? "未识别" : value === "true" ? "已识别完成" : value === "false" ? "未识别完成" : value;
 const promptedField = (key: string) => props.feedback.promptFieldKeys.includes(key);
 

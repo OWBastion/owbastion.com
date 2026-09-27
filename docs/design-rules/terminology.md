@@ -107,22 +107,16 @@
 
 ## 提交状态
 
-Portal 各页面、状态徽章和管理后台统一使用以下文案。接口状态键保持英文。
-加载过程状态统一加省略号（`上传中…`、`保存中…`、`提交中…`）。
+玩家提交接口使用以下四种状态。`rejected` 可附 `resubmissionRequired`，此时详情页提示玩家重新提交。加载过程状态统一加省略号（`上传中…`、`保存中…`、`提交中…`）。
 
 | 状态键 | Portal 文案 |
 | --- | --- |
-| `upload_pending` | 上传中… |
-| `received` | 已收到 |
-| `evidence_pending` | 保存截图中 |
-| `evidence_stored` | 截图已保存 |
-| `ocr_pending` | 等待识别 |
-| `awaiting_player_confirmation` | 等待确认挑战 |
-| `ready_for_review` | 等待核对 |
-| `ocr_review_required` | 等待处理 |
-| `approved` | 已通过 |
+| `processing` | 处理中 |
+| `needs_review` | 等待核对 |
+| `completed` | 已完成 |
 | `rejected` | 未通过 |
-| `resubmission_required` | 需重新提交 |
+
+管理后台保留历史及处理中状态：`upload_pending`（上传中…）、`received`（已收到）、`evidence_pending`（保存截图中）、`evidence_stored`（截图已保存）、`ocr_pending`（等待识别）、`ready_for_review`（等待核对）、`ocr_review_required`（等待处理）、`approved`（已通过）和 `resubmission_required`（需重新提交）。
 
 ## OCR 识别状态
 
