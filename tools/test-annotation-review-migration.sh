@@ -50,6 +50,12 @@ fi
 # Supersession is the auditable correction path: the old row leaves the active state.
 sqlite3 -bail "$representative_database" "UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = 'annotation-1';"
 sqlite3 -bail "$representative_database" "INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES ('annotation-3', 'submission-1', 'ocr-1', NULL, 'difficulty', '困难', 'ocr-v1', 'layout-v2', '普通', '一般', NULL, NULL, NULL, 'accepted', 'maintainer-1', 4, NULL, 'annotation-1', 4);"
+sqlite3 -bail "$representative_database" <<'SQL'
+INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at)
+VALUES
+  ('z-parent', 'submission-1', 'ocr-1', NULL, 'map_name', '旧地图', 'ocr-v1', 'layout-v2', '旧地图', NULL, NULL, NULL, NULL, 'superseded', 'maintainer-1', 5, NULL, NULL, 5),
+  ('a-child', 'submission-1', 'ocr-1', NULL, 'map_name', '旧地图', 'ocr-v1', 'layout-v2', '新地图', NULL, NULL, NULL, NULL, 'accepted', 'maintainer-1', 5, NULL, 'z-parent', 5);
+SQL
 [[ "$(sqlite3 "$representative_database" "SELECT reviewed_value FROM reviewed_annotations WHERE id = 'annotation-1';")" == "一般" ]]
 # An empty reviewed transcription is rejected.
 if sqlite3 -bail "$representative_database" "INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, created_at) VALUES ('annotation-4', 'submission-1', 'ocr-1', NULL, 'map_name', '测试地图', 'ocr-v1', 'layout-v2', '   ', NULL, NULL, NULL, NULL, 'accepted', 'maintainer-1', 5, NULL, 5);" 2>/dev/null; then
@@ -57,8 +63,14 @@ if sqlite3 -bail "$representative_database" "INSERT INTO reviewed_annotations (i
   exit 1
 fi
 
-sqlite3 -bail "$representative_database" < "$root_dir/migrations/0087_ocr_map_variant_annotations.sql"
+sqlite3 -bail "$representative_database" <<SQL
+PRAGMA foreign_keys = ON;
+BEGIN;
+.read "$root_dir/migrations/0087_ocr_map_variant_annotations.sql"
+COMMIT;
+SQL
 [[ "$(sqlite3 "$representative_database" "SELECT field_key || ':' || reviewed_value FROM reviewed_annotations WHERE id = 'annotation-1';")" == "difficulty:一般" ]]
+[[ "$(sqlite3 "$representative_database" "SELECT supersedes_annotation_id || ':' || review_state FROM reviewed_annotations WHERE id = 'a-child';")" == "z-parent:accepted" ]]
 [[ "$(sqlite3 "$representative_database" "SELECT annotation_id FROM dataset_snapshot_annotations WHERE snapshot_id = 'snapshot-1';")" == "annotation-1" ]]
 sqlite3 -bail "$representative_database" <<'SQL'
 INSERT INTO ocr_feedback_proposals (id, submission_id, ocr_result_id, field_key, original_value, feedback_type, prompt_origin, proposed_value, model_version, layout_version, player_account_id, status, created_at, updated_at)
