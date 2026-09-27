@@ -4566,26 +4566,20 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           const existing = catalogTitles.get(title.key);
           catalogTitles.set(title.key, { title, hasChallenge: Boolean(existing?.hasChallenge || challenge) });
         }
-        items.push(...[...catalogTitles.values()].map(({ title, hasChallenge }): AdminChallenge => ({
-          challengeId: `title.${title.key}`,
-          family: "title_catalog",
-          type: "title_catalog",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: title.category,
-          condition: title.condition,
-          lifecycle: title.lifecycle as "draft" | "active" | "retired",
-          publicVisibility: title.publicVisibility === 1,
-          availability: title.lifecycle === "retired" ? "retired" : "active",
-          scope: title.scope as "global" | "map",
-          displayKind: title.displayKind as "fixed" | "map_pioneer" | "map_name_suffix",
-          color: titleColor(title.colorJson),
-          status: title.lifecycle as "draft" | "active" | "retired",
-          gameVersion: title.gameVersion,
-          hasChallenge,
-        })));
+        items.push(...[...catalogTitles.values()].map(({ title, hasChallenge }): AdminChallenge => {
+          const { label: titleName, ...titleFields } = toAgentTitle(title);
+          return {
+            ...titleFields,
+            challengeId: `title.${title.key}`,
+            family: "title_catalog",
+            type: "title_catalog",
+            titleName,
+            publicVisibility: title.publicVisibility === 1,
+            gameVersion: title.gameVersion,
+            status: title.lifecycle as "draft" | "active" | "retired",
+            hasChallenge,
+          };
+        }));
       }
       return { contractVersion: "1" as const, items };
     },
