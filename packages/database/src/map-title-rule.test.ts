@@ -538,6 +538,8 @@ const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL,
       redeemed_at INTEGER,
+      passkey_registration_player_account_id TEXT,
+      passkey_registration_challenge_id TEXT,
       revoked_at INTEGER,
       revoked_by TEXT
     );

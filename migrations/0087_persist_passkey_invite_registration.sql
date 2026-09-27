@@ -1,0 +1,2 @@
+ALTER TABLE binding_invites ADD COLUMN passkey_registration_player_account_id TEXT;
+ALTER TABLE binding_invites ADD COLUMN passkey_registration_challenge_id TEXT;

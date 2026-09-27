@@ -594,12 +594,16 @@ makes the invitation unusable immediately.
 An administrator may explicitly attach currently unclaimed historical title
 record IDs to an invitation. The Portal uses a searchable holder selection for
 discovery, but the selected platform-owned record IDs are the authorization;
-BattleTag or holder-name equality never authorizes migration. After a binding
-claim becomes approved, the platform creates or reuses the normal historical
-`player_title_grants` without a second administrator action for a clean first
-binding. Each item records created, reused, conflict, or retry-required state;
-conflicts never reassign an existing grant, and a recoverable migration failure
-does not roll back the binding or session. Existing invitations without an
+BattleTag or holder-name equality never authorizes migration. After a valid
+invited Passkey registration, or after a QQ binding claim becomes approved, the
+platform creates or reuses the normal historical `player_title_grants` without
+a second administrator action. A Passkey invitation creates the Player Account
+and does not require a QQ claim; a later QQ binding is optional. Each item
+records created, reused, conflict, or retry-required state; conflicts never
+reassign an existing grant, and a recoverable migration failure does not roll
+back registration, binding, or session. Retry uses the Player Account and
+Passkey registration recorded on the invitation, so it remains available after
+the temporary Passkey challenge expires. Existing invitations without an
 authorization remain unchanged.
 
 Map-only titles are scoped to the map that supplied their reward slot. The

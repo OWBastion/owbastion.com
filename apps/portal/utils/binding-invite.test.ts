@@ -16,6 +16,9 @@ describe("binding invitation links", () => {
   it("puts the one-time invitation code in the administrator link", () => {
     const text = bindingInviteCopyText("ABCDEFGHIJKL", "https://owbastion.com");
     expect(text).toContain("https://owbastion.com/bind?code=ABCDEFGHIJKL");
+    expect(text).toContain("创建账号并注册 Passkey");
+    expect(text).toContain("QQ 为可选渠道");
+    expect(text).not.toContain("QQ 验证");
     expect(text).not.toContain("playerName");
     expect(text).not.toContain("playerId");
   });

@@ -13,5 +13,5 @@ export const qqVerificationCommand = (code: string) => `/验证 ${code}`;
 export const bindingInviteCopyText = (code: string, origin: string) => {
   const link = new URL("/bind", origin);
   link.searchParams.set("code", code);
-  return `【躲避堡垒 3 · QQ 绑定】\n\n绑定链接：${link.toString()}\n\n打开链接后按提示完成 QQ 验证。邀请码 7 天有效，请勿转发。`;
+  return `【躲避堡垒 3 · 玩家账号邀请】\n\n注册链接：${link.toString()}\n\n打开链接后按提示创建账号并注册 Passkey。QQ 为可选渠道，可在注册后前往个人设置绑定。邀请码 7 天有效，请勿转发。`;
 };
