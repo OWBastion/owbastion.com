@@ -11,13 +11,15 @@ import { achievementChallengeMaps, achievementChallenges, attachments, auditEven
 import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
-import { standaloneOcrMode, type OcrResponse } from "./ocr-response";
+import { assessVerifiedRunOcrEvidence, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
 import { createQqGroupServices } from "./qq-group-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
+export { assessVerifiedRunOcrEvidence } from "./ocr-response";
+export type { VerifiedRunOcrEvidenceAssessment } from "./ocr-response";
 
 const now = () => Date.now();
 const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
@@ -28,91 +30,13 @@ const qqScreenshotResumeAfterMs = 60_000;
 const formatDayBuildVersion = (timestamp = now()) => { const date = new Date(timestamp).toISOString().slice(2, 10).split("-"); return `${date[0]}.${date[1]}${date[2]}.1`; };
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
-const normalizedOcrDifficulty = (value: unknown) => {
-  const label = normalizedOcrLabel(value);
-  return label.startsWith("地狱:") || label.startsWith("地狱：") ? "地狱" : label === "普通" ? "一般" : label;
-};
 
-const masteryRequiredOcrFields = ["challenge_completed", "map_name", "difficulty", "version", "run_code", "duration_seconds"] as const;
 const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {
   if (["upload_pending", "ocr_pending"].includes(status)) return "processing";
   if (["awaiting_player_confirmation", "ready_for_review", "ocr_review_required"].includes(status)) return "needs_review";
   if (status === "approved") return "completed";
   if (["rejected", "resubmission_required"].includes(status)) return "rejected";
   throw new Error("SUBMISSION_STATUS_INVALID");
-};
-export type VerifiedRunOcrEvidenceAssessment =
-  | {
-    outcome: "eligible";
-    mapName: string;
-    mapVariant: "classic" | null;
-    mode: string | null;
-    difficulty: VerifiedRunDifficulty;
-    gameVersion: string;
-    matchCode: string;
-    completionDurationSeconds: number;
-    deaths: number | null;
-    skips: number | null;
-  }
-  | { outcome: "ineligible"; reason: string };
-
-const hasReliableMasteryField = (response: OcrResponse, fieldName: string, compatibility: VerifiedRunEvidenceCompatibilityV1) => {
-  const field = response.fields?.[fieldName];
-  return field?.status === "ok" && typeof field.confidence === "number" && field.confidence >= compatibility.requiredConfidence;
-};
-
-const ineligibleMasteryEvidence = (reason: string): VerifiedRunOcrEvidenceAssessment => ({ outcome: "ineligible", reason });
-
-export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, humanConfirmed = false): VerifiedRunOcrEvidenceAssessment => {
-  if (!compatibility.minimumGameVersion || !compatibility.supportedOcrLayoutVersions.length) return ineligibleMasteryEvidence("mastery_rollout_disabled");
-  if (!humanConfirmed && response.schema_version !== "1") return ineligibleMasteryEvidence("unsupported_schema_version");
-  if (!humanConfirmed && response.ok !== true) return ineligibleMasteryEvidence("unsuccessful_response");
-  if (!humanConfirmed && !isVerifiedRunOcrLayoutSupported(response.layout_version, compatibility)) return ineligibleMasteryEvidence("unsupported_layout");
-  for (const fieldName of masteryRequiredOcrFields) {
-    if (!humanConfirmed && !hasReliableMasteryField(response, fieldName, compatibility)) return ineligibleMasteryEvidence(`unreliable_${fieldName}`);
-  }
-
-  const data = response.data ?? {};
-  if (data.challenge_completed !== true) return ineligibleMasteryEvidence("completion_not_confirmed");
-  const mapName = typeof data.map_name === "string" ? data.map_name.trim() : "";
-  if (!mapName) return ineligibleMasteryEvidence("missing_map");
-  const gameVersion = typeof data.version === "string" ? data.version.trim() : "";
-  if (gameVersion && !isWellFormedGameVersion(gameVersion)) return ineligibleMasteryEvidence("invalid_game_version");
-  if (!isVerifiedRunGameVersionSupported(gameVersion, compatibility)) return ineligibleMasteryEvidence("unsupported_game_version");
-  const difficulty = normalizedOcrDifficulty(data.difficulty);
-  if (!verifiedRunDifficulties.includes(difficulty as VerifiedRunDifficulty)) return ineligibleMasteryEvidence("invalid_difficulty");
-  const completionDurationSeconds = data.duration_seconds;
-  if (typeof completionDurationSeconds !== "number" || !Number.isInteger(completionDurationSeconds) || completionDurationSeconds <= 0) return ineligibleMasteryEvidence("invalid_completion_duration");
-  let matchCode: string;
-  try {
-    matchCode = normalizeMatchCode(typeof data.run_code === "string" ? data.run_code : "");
-  } catch {
-    return ineligibleMasteryEvidence("invalid_run_code");
-  }
-
-  const rawVariant = typeof data.map_variant === "string" ? data.map_variant.trim() : "";
-  if (rawVariant && rawVariant !== "classic") return ineligibleMasteryEvidence("invalid_map_variant");
-  if (rawVariant && !hasReliableMasteryField(response, "map_variant", compatibility)) return ineligibleMasteryEvidence("unreliable_map_variant");
-  const settlementValue = (value: number | null | undefined, fieldName: "deaths" | "skips") => {
-    if (value === null || value === undefined || !hasReliableMasteryField(response, fieldName, compatibility)) return null;
-    return Number.isInteger(value) && value >= 0 ? value : undefined;
-  };
-  const deaths = settlementValue(data.deaths, "deaths");
-  const skips = settlementValue(data.skips, "skips");
-  if (deaths === undefined || skips === undefined) return ineligibleMasteryEvidence("invalid_settlement_value");
-
-  return {
-    outcome: "eligible",
-    mapName,
-    mapVariant: rawVariant === "classic" ? "classic" : null,
-    mode: standaloneOcrMode(response),
-    difficulty: difficulty as VerifiedRunDifficulty,
-    gameVersion,
-    matchCode,
-    completionDurationSeconds,
-    deaths: deaths ?? null,
-    skips: skips ?? null,
-  };
 };
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
@@ -2768,7 +2692,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }
     const asText = (value: unknown) => typeof value === "string" && value.trim() ? value.trim() : null;
     const asCount = (value: unknown, positive = false) => typeof value === "number" && Number.isInteger(value) && (positive ? value > 0 : value >= 0) ? value : null;
-    const normalizedDifficulty = normalizedOcrDifficulty(data?.difficulty);
+    const normalizedDifficulty = normalizeOcrDifficulty(data?.difficulty);
     let matchCode: string | null = null;
     try { matchCode = normalizeMatchCode(asText(data?.run_code) ?? ""); } catch { matchCode = null; }
     return {
