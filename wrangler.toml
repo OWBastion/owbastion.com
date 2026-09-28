@@ -53,6 +53,12 @@ queue = "owbastion-qq-policy"
 queue = "owbastion-ocr"
 max_batch_size = 1
 max_retries = 3
+dead_letter_queue = "owbastion-ocr-dlq"
+
+[[queues.consumers]]
+queue = "owbastion-ocr-dlq"
+max_batch_size = 1
+max_retries = 5
 
 [[queues.consumers]]
 queue = "owbastion-qq-policy"

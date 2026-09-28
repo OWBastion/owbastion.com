@@ -1,13 +1,15 @@
+// @ts-expect-error Node file access is limited to this Vitest config-parity test; Worker runtime types intentionally exclude Node APIs.
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
-import worker from "./worker";
+import worker, { OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./worker";
 
 const createPlatformServices = vi.hoisted(() => vi.fn());
 
 vi.mock("@owbastion/database", () => ({ createPlatformServices }));
 
-const queueMessage = (attempts: number) => ({
-  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "test-request-1" },
+const queueMessage = (attempts: number, overrides: { manual?: boolean } = {}) => ({
+  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "test-request-1", ...overrides },
   attempts,
   ack: vi.fn(),
   retry: vi.fn(),
@@ -23,9 +25,34 @@ const policyMessage = (attempts: number) => ({
 describe("OCR Queue consumer", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("matches both Wrangler OCR retry budgets and dead-letter queue names", () => {
+    const readConsumer = (path: string, queue: string) => {
+      const source = readFileSync(new URL(path, import.meta.url), "utf8") as string;
+      const blocks = source.split("[[queues.consumers]]").slice(1);
+      const block = blocks.find((candidate: string) => candidate.match(/^\s*queue\s*=\s*"([^"]+)"/m)?.[1] === queue);
+      return {
+        maxRetries: Number(block?.match(/^\s*max_retries\s*=\s*(\d+)/m)?.[1]),
+        deadLetterQueue: block?.match(/^\s*dead_letter_queue\s*=\s*"([^"]+)"/m)?.[1],
+      };
+    };
+    const deployWorkflow = readFileSync(new URL("../../../.github/workflows/deploy-api.yml", import.meta.url), "utf8") as string;
+    const production = readConsumer("../../../wrangler.toml", "owbastion-ocr");
+    const local = readConsumer("../../../wrangler.local.toml", "owbastion-ocr-local");
+    const productionDeadLetter = readConsumer("../../../wrangler.toml", "owbastion-ocr-dlq");
+    const localDeadLetter = readConsumer("../../../wrangler.local.toml", "owbastion-ocr-local-dlq");
+
+    expect(production).toEqual({ maxRetries: OCR_QUEUE_MAX_RETRIES, deadLetterQueue: "owbastion-ocr-dlq" });
+    expect(local).toEqual({ maxRetries: OCR_QUEUE_MAX_RETRIES, deadLetterQueue: "owbastion-ocr-local-dlq" });
+    expect(productionDeadLetter.maxRetries).toBeGreaterThan(0);
+    expect(localDeadLetter.maxRetries).toBeGreaterThan(0);
+    expect(deployWorkflow).toMatch(/for queue in [^\n]*owbastion-ocr-dlq/);
+    expect(OCR_QUEUE_MAX_DELIVERIES).toBe(OCR_QUEUE_MAX_RETRIES + 1);
+  });
+
   it.each([
     [1, 5],
     [2, 10],
+    [3, 15],
   ])("retries Queue delivery attempt %s", async (attempt, delaySeconds) => {
     const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockRejectedValue(new Error("OCR_RETRYABLE"));
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed: vi.fn() });
@@ -69,15 +96,15 @@ describe("OCR Queue consumer", () => {
     expect(message.ack).toHaveBeenCalledOnce();
   });
 
-  it("records the final failure before acknowledging the third delivery", async () => {
+  it("records the final failure before acknowledging the last configured delivery", async () => {
     const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockRejectedValue(new Error("OCR_NETWORK"));
     const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockResolvedValue();
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
-    const message = queueMessage(3);
+    const message = queueMessage(OCR_QUEUE_MAX_DELIVERIES);
 
     await worker.queue({ messages: [message] } as never, {} as never);
 
-    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: 3, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
+    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
     expect(message.ack).toHaveBeenCalledOnce();
     expect(message.retry).not.toHaveBeenCalled();
   });
@@ -86,7 +113,7 @@ describe("OCR Queue consumer", () => {
     const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockRejectedValue(new Error("TypeError: OCR response field was not a string"));
     const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockResolvedValue();
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
-    const message = queueMessage(3);
+    const message = queueMessage(OCR_QUEUE_MAX_DELIVERIES);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await worker.queue({ messages: [message] } as never, {} as never);
@@ -95,19 +122,53 @@ describe("OCR Queue consumer", () => {
 
     expect(errorLogs.some((line) => line.includes('"event":"queue_job_failed"'))).toBe(true);
     expect(errorLogs.some((line) => line.includes("OCR response field was not a string"))).toBe(true);
+    expect(errorLogs.some((line) => line.includes('"submissionId":"submission-1"'))).toBe(true);
     expect(markOcrJobFailed).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "OCR_PROCESS_FAILED" }));
   });
 
-  it("does not acknowledge the final delivery when recording its failure fails", async () => {
+  it("sends the exhausted fourth delivery to the dead-letter queue when failure recording fails", async () => {
     const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>().mockRejectedValue(new Error("OCR_NETWORK"));
     const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockRejectedValue(new Error("D1 unavailable"));
     createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
-    const message = queueMessage(3);
+    const message = queueMessage(OCR_QUEUE_MAX_DELIVERIES);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await worker.queue({ messages: [message] } as never, {} as never);
+    const errorLogs = errorSpy.mock.calls.map(([line]) => String(line));
+    errorSpy.mockRestore();
 
     expect(message.ack).not.toHaveBeenCalled();
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 60 });
+    expect(errorLogs.some((line) => line.includes('"event":"queue_failure_record_failed"') && line.includes('"submissionId":"submission-1"'))).toBe(true);
+  });
+
+  it.each(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"])("records an exhausted OCR job from %s without calling OCRKit again", async (queue) => {
+    const processOcrJob = vi.fn<PlatformServices["processOcrJob"]>();
+    const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockResolvedValue();
+    createPlatformServices.mockReturnValue({ processOcrJob, markOcrJobFailed });
+    const message = queueMessage(1, { manual: false });
+
+    await worker.queue({ queue, messages: [message] } as never, {} as never);
+
+    expect(processOcrJob).not.toHaveBeenCalled();
+    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: false, requestId: "test-request-1" });
+    expect(message.ack).toHaveBeenCalledOnce();
+    expect(message.retry).not.toHaveBeenCalled();
+  });
+
+  it("retries dead-letter recovery with a submission-scoped failure log when D1 is unavailable", async () => {
+    const markOcrJobFailed = vi.fn<PlatformServices["markOcrJobFailed"]>().mockRejectedValue(new Error("D1 unavailable"));
+    createPlatformServices.mockReturnValue({ markOcrJobFailed });
+    const message = queueMessage(1);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await worker.queue({ queue: "owbastion-ocr-dlq", messages: [message] } as never, {} as never);
+    const errorLogs = errorSpy.mock.calls.map(([line]) => String(line));
+    errorSpy.mockRestore();
+
+    expect(message.ack).not.toHaveBeenCalled();
+    expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 60 });
+    expect(errorLogs.some((line) => line.includes('"event":"dead_letter_recovery_failed"') && line.includes('"submissionId":"submission-1"'))).toBe(true);
   });
 
   it("delivers a policy event and acknowledges it only after the platform records delivery", async () => {

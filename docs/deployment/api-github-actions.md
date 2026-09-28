@@ -21,6 +21,9 @@ deployment job:
   `https://evidence.owbastion.codes`;
 - Queue `owbastion-qq-policy` and dead-letter queue
   `owbastion-qq-policy-dlq` for QQ group-policy events;
+- Queue `owbastion-ocr` and dead-letter queue `owbastion-ocr-dlq` for
+  screenshot recognition jobs; exhausted OCR jobs are recorded as failed so
+  the Submission becomes actionable again;
 - the real D1 `database_id` written to `wrangler.toml`.
 
 For an existing deployment, remove the legacy WAF rule that requires a static

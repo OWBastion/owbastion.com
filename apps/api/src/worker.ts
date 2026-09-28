@@ -5,6 +5,10 @@ import { createApp, type RuntimeEnv } from "./app";
 
 type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
+// Keep this aligned with `max_retries` for the OCR consumers in wrangler.toml and wrangler.local.toml.
+export const OCR_QUEUE_MAX_RETRIES = 3;
+export const OCR_QUEUE_MAX_DELIVERIES = OCR_QUEUE_MAX_RETRIES + 1;
+const OCR_DEAD_LETTER_QUEUES = new Set(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"]);
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
 const ocrFeedbackCalibrationRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_FEEDBACK_CALIBRATION_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.02; };
@@ -30,6 +34,21 @@ export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
     const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    if (OCR_DEAD_LETTER_QUEUES.has(batch.queue)) {
+      for (const message of batch.messages) {
+        const body = message.body as OcrQueueMessage;
+        const requestId = body.requestId ?? crypto.randomUUID();
+        try {
+          await platform.markOcrJobFailed({ submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: body.manual, requestId });
+          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovered", submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId }));
+          message.ack();
+        } catch (error) {
+          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovery_failed", submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) }));
+          message.retry({ delaySeconds: 60 });
+        }
+      }
+      return;
+    }
     for (const message of batch.messages) {
       if (isQqPolicyMessage(message.body)) {
         try {
@@ -46,14 +65,15 @@ export default {
         continue;
       }
       const requestId = message.body.requestId ?? crypto.randomUUID();
+      const submissionId = message.body.submissionId;
       try { await platform.processOcrJob({ ...message.body, attempt: message.attempts, requestId }); message.ack(); }
       catch (error) {
         const errorMessage = error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256);
-        console.error(JSON.stringify({ layer: "ocr", event: "queue_job_failed", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage }));
-        if (message.attempts < 3) { console.warn(JSON.stringify({ layer: "ocr", event: "queue_job_retry", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, delaySeconds: Math.min(60, 5 * message.attempts), errorMessage })); message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
+        console.error(JSON.stringify({ layer: "ocr", event: "queue_job_failed", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage }));
+        if (message.attempts < OCR_QUEUE_MAX_DELIVERIES) { console.warn(JSON.stringify({ layer: "ocr", event: "queue_job_retry", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, delaySeconds: Math.min(60, 5 * message.attempts), errorMessage })); message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
         const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : "OCR_PROCESS_FAILED";
-        try { await platform.markOcrJobFailed({ submissionId: message.body.submissionId, attempt: message.attempts, errorCode, manual: message.body.manual, requestId }); message.ack(); }
-        catch (markError) { console.error(JSON.stringify({ layer: "ocr", event: "queue_failure_record_failed", attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: markError instanceof Error ? markError.name : "UnknownError", errorMessage: markError instanceof Error ? markError.message.slice(0, 256) : String(markError).slice(0, 256) })); message.retry({ delaySeconds: 60 }); }
+        try { await platform.markOcrJobFailed({ submissionId, attempt: message.attempts, errorCode, manual: message.body.manual, requestId }); message.ack(); }
+        catch (markError) { console.error(JSON.stringify({ layer: "ocr", event: "queue_failure_record_failed", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: markError instanceof Error ? markError.name : "UnknownError", errorMessage: markError instanceof Error ? markError.message.slice(0, 256) : String(markError).slice(0, 256) })); message.retry({ delaySeconds: 60 }); }
       }
     }
   },

@@ -810,6 +810,76 @@ describe("Agents map gameplay projection", () => {
   });
 });
 
+describe("OCR queue failure recovery", () => {
+  it("restores an actionable state and allows the same admin retry key to enqueue after queue send rejects", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.retry-fail", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = '请重试' WHERE id = 'submission.retry-fail'").run();
+
+    let failNextSend = true;
+    const queued: unknown[] = [];
+    const queue = { send: async (message: unknown) => { if (failNextSend) { failNextSend = false; throw new Error("queue unavailable"); } queued.push(message); } } as Queue;
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(services.requestAdminOcr({ submissionId: "submission.retry-fail" }, auth, "idem.retry-fail", "request.first")).rejects.toThrow("queue unavailable");
+    const failureLogs = logSpy.mock.calls.map(([line]) => String(line));
+    logSpy.mockRestore();
+
+    expect(failureLogs.some((line) => line.includes('"event":"job_enqueue_failed"') && line.includes('"submissionId":"submission.retry-fail"'))).toBe(true);
+    expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.retry-fail'").get()).toEqual({ status: "resubmission_required", review_reason: "请重试" });
+    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toBeUndefined();
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = 'submission.retry-fail'").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_SEND_FAILED" });
+    expect(queued).toEqual([]);
+    expect(sqlite.prepare("SELECT correlation_id FROM audit_events WHERE operation = 'submission.ocr.retry'").get()).toEqual({ correlation_id: "request.first" });
+
+    await expect(services.requestAdminOcr({ submissionId: "submission.retry-fail" }, auth, "idem.retry-fail", "request.retry")).resolves.toEqual({ contractVersion: "1", submissionId: "submission.retry-fail", status: "ocr_pending" });
+    expect(queued).toEqual([expect.objectContaining({ submissionId: "submission.retry-fail", manual: true, requestId: "request.retry" })]);
+    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toBeTruthy();
+  });
+
+  it("aborts a hanging OCRKit fetch at its timeout and reports a retryable OCR_NETWORK failure", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.hanging-ocrkit", "binding.one", "Tester");
+
+    const timeoutController = new AbortController();
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeoutController.signal);
+    let markFetchStarted!: () => void;
+    const fetchStarted = new Promise<void>((resolve) => { markFetchStarted = resolve; });
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      markFetchStarted();
+      init?.signal?.addEventListener("abort", () => reject(new Error("The operation was aborted")), { once: true });
+    }));
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
+      const job = services.processOcrJob({ submissionId: "submission.hanging-ocrkit", objectKey: "evidence/submission.hanging-ocrkit.png", attempt: 1 });
+      await fetchStarted;
+      expect(timeoutSpy).toHaveBeenCalledWith(20_000);
+      expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(timeoutController.signal);
+      timeoutController.abort();
+      await expect(job).rejects.toThrow("OCR_NETWORK");
+    } finally {
+      vi.unstubAllGlobals();
+      timeoutSpy.mockRestore();
+    }
+
+    const jobLogs = logSpy.mock.calls.map(([line]) => String(line));
+    logSpy.mockRestore();
+    expect(jobLogs.some((line) => line.includes('"event":"job_started"') && line.includes('"submissionId":"submission.hanging-ocrkit"'))).toBe(true);
+    expect(jobLogs.some((line) => line.includes('"event":"ocrkit_request_failed"') && line.includes('"submissionId":"submission.hanging-ocrkit"'))).toBe(true);
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.hanging-ocrkit'").get()).toEqual({ status: "ocr_pending" });
+  });
+});
+
 describe("Agents map projection readiness", () => {
   it("projects route-root composite stages in stable ID order", async () => {
     const { database, sqlite } = createD1();
@@ -2925,7 +2995,7 @@ describe("submission mastery outcomes", () => {
     expect(assessVerifiedRunOcrEvidence(weakRunCode, localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
   });
 
-  it("lets a player replay upload completion after the first attempt already changed server state", async () => {
+  it("restores the completed upload to an actionable state when queue send fails, then lets the player retry", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
@@ -2946,7 +3016,7 @@ describe("submission mastery outcomes", () => {
     await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.first")).rejects.toThrow("queue unavailable");
-    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "upload_pending" });
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
     expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId, requestId: "request.retry" })]);

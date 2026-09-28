@@ -142,6 +142,7 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   };
 };
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
+const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
 type HistoricalMigrationItem = { status: string };
@@ -5311,9 +5312,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (submission.status === "ocr_pending" && ocrQueue) {
         try {
           await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
-          logOcrEvent("job_enqueued", { attempt: 0, manual: false, requestId: requestId ?? null });
+          logOcrEvent("job_enqueued", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
         } catch (error) {
-          logOcrEvent("job_enqueue_failed", { attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+          logOcrEvent("job_enqueue_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+          await db.update(submissions).set({ status: "upload_pending", updatedAt: now() }).where(and(eq(submissions.id, session.submissionId), eq(submissions.status, "ocr_pending")));
           throw error;
         }
       }
@@ -5354,22 +5356,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       const pendingResultId = crypto.randomUUID();
       const response: AdminSubmissionOcrRetryResponse = { contractVersion: "1", submissionId: row.id, status: "ocr_pending" };
-      const requestHash = await hashRequest(input);
-      const idempotencyKeyId = `${auth.subject}:submission.ocr.retry:${idempotencyKey}`;
+      const correlationId = requestId ?? crypto.randomUUID();
       await database.batch([
         database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES (?, ?, 0, 'pending', ?)").bind(pendingResultId, row.id, timestamp),
         database.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = NULL, updated_at = ? WHERE id = ?").bind(timestamp, row.id),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.ocr.retry', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), correlationId, auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
       ]);
       try {
         await ocrQueue.send({ version: 1, submissionId: row.id, objectKey: attachment.objectKey, manual: true, ...(requestId ? { requestId } : {}) });
-        logOcrEvent("job_enqueued", { attempt: 0, manual: true, requestId: requestId ?? null });
+        logOcrEvent("job_enqueued", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null });
       } catch (error) {
-        logOcrEvent("job_enqueue_failed", { attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
-        await db.update(ocrResults).set({ status: "error", errorCode: "OCR_QUEUE_SEND_FAILED", createdAt: now() }).where(eq(ocrResults.id, pendingResultId));
+        logOcrEvent("job_enqueue_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
+        try {
+          await database.batch([
+            database.prepare("UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED', created_at = ? WHERE id = ?").bind(now(), pendingResultId),
+            database.prepare("UPDATE submissions SET status = ?, review_reason = ?, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind(row.status, row.reviewReason, now(), row.id),
+          ]);
+        } catch (recoveryError) {
+          logOcrEvent("job_enqueue_recovery_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(recoveryError) });
+        }
         throw error;
       }
+      await recordIdempotency(db, auth.subject, "submission.ocr.retry", idempotencyKey, input, response);
       return response;
     },
 
@@ -6204,7 +6212,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async processOcrJob(input) {
       const ocrRequestId = input.requestId ?? crypto.randomUUID();
-      const context = { attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
+      const context = { submissionId: input.submissionId, attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
       const startedAt = Date.now();
       logOcrEvent("job_started", context);
       if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken) {
@@ -6231,7 +6239,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       try {
         const formData = new FormData();
         formData.append("file", new Blob([evidenceBytes], { type: contentType }), "evidence");
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData });
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData, signal: AbortSignal.timeout(ocrkitRequestTimeoutMs) });
       } catch (error) {
         logOcrEvent("ocrkit_request_failed", { ...context, stage: "fetch", durationMs: Date.now() - startedAt, ...errorDetails(error) });
         throw new Error("OCR_NETWORK");
@@ -6326,7 +6334,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, error_code, created_at) VALUES (?, ?, ?, ?, 'error', ?, ?)").bind(crypto.randomUUID(), row.id, requestId, input.attempt, input.errorCode, now()),
         database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("截图暂时无法处理，请重新提交截图。", now(), row.id),
       ]);
-      logOcrEvent("job_failure_recorded", { attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
+      logOcrEvent("job_failure_recorded", { submissionId: row.id, attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
     },
 
     async listQqGroupAccess() {
