@@ -1,3 +1,4 @@
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
@@ -6,85 +7,7 @@ import { createPlatformServices } from "./index";
  * Minimal D1Database shim over node:sqlite for catalog query-budget tests.
  * Counts statement executions (all / first / run / raw / batch items).
  */
-const createCountingD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let statementCount = 0;
-
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) {
-        bound = params;
-        return statement;
-      },
-      async first<T>() {
-        statementCount += 1;
-        const row = sqlite.prepare(sql).get(...bound) as T | undefined;
-        return row ?? null;
-      },
-      async all<T>() {
-        statementCount += 1;
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        statementCount += 1;
-        const info = sqlite.prepare(sql).run(...bound);
-        return {
-          success: true,
-          meta: {
-            changes: Number(info.changes ?? 0),
-            duration: 0,
-            size_after: 0,
-            rows_read: 0,
-            rows_written: Number(info.changes ?? 0),
-            last_row_id: Number(info.lastInsertRowid ?? 0),
-            changed_db: true,
-          },
-        };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        statementCount += 1;
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-
-  const database = {
-    prepare(sql: string) {
-      return wrapStatement(sql);
-    },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const results = [];
-      for (const statement of statements) {
-        results.push(await statement.all());
-      }
-      return results;
-    },
-    async exec(sql: string) {
-      statementCount += 1;
-      sqlite.exec(sql);
-      return [{ results: [], success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false } }];
-    },
-    withSession() {
-      return database;
-    },
-  } as unknown as D1Database;
-
-  return {
-    database,
-    sqlite,
-    resetCount: () => {
-      statementCount = 0;
-    },
-    getCount: () => statementCount,
-  };
-};
-
+const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
     CREATE TABLE maps (

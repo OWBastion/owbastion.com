@@ -1,57 +1,10 @@
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
 
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let pendingBatch: Promise<void> = Promise.resolve();
-  const wrapStatement = (statementSql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(statementSql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(statementSql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        const info = sqlite.prepare(statementSql).run(...bound);
-        return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(statementSql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(statementSql: string) { return wrapStatement(statementSql); },
-    batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const apply = async () => {
-        sqlite.exec("BEGIN;");
-        try {
-          const results = [];
-          for (const statement of statements) results.push(await statement.run());
-          sqlite.exec("COMMIT;");
-          return results;
-        } catch (error) {
-          sqlite.exec("ROLLBACK;");
-          throw error;
-        }
-      };
-      const batch = pendingBatch.then(apply, apply);
-      pendingBatch = batch.then(() => undefined, () => undefined);
-      return batch;
-    },
-    async exec(statementSql: string) { sqlite.exec(statementSql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
+const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized", batchStatementMethod: "run" });
 
 const hashRequest = async (value: unknown) => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));

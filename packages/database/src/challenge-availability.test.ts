@@ -1,3 +1,4 @@
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import {
@@ -7,27 +8,7 @@ import {
   titleChallengeIsSubmittable,
 } from "./index";
 
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  const wrap = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async run() { const result = sqlite.prepare(sql).run(...bound); return { success: true, meta: { changes: Number(result.changes ?? 0) } }; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() { return { results: sqlite.prepare(sql).all(...bound) as T[], success: true, meta: {} }; },
-      async raw<T extends unknown[] = unknown[]>() { const statement = sqlite.prepare(sql); statement.setReturnArrays(true); return statement.all(...bound) as T[]; },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrap(sql); },
-    async batch(statements: Array<ReturnType<typeof wrap>>) { return Promise.all(statements.map((statement) => statement.run())); },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
+const createD1 = () => createTestD1({ batchStatementMethod: "run" });
 const installAchievementSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE maps (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL);
   CREATE TABLE gameplay_revisions (id TEXT PRIMARY KEY, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL, legacy_map_variant TEXT);
