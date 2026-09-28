@@ -156,6 +156,5 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 <style scoped>
 .review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
-.pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; width: 100%; } }
 </style>

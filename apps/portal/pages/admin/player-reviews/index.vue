@@ -153,7 +153,6 @@ watch([targetType, targetId, reviewStatus, commentStatus, rating], () => { page.
 .review-filters > :first-child { flex: 1 1 13rem; min-width: 10rem; }
 .review-filters > :not(:first-child) { flex: 0 1 10rem; min-width: 9rem; }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
-.pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
 .detail-loading { display: grid; gap: var(--space-3); }
 .moderation-confirmation { display: grid; gap: var(--space-3); margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
 .moderation-confirmation p { margin: 0; font-size: var(--type-body-sm-size); }
