@@ -3,7 +3,6 @@ import type { AdminReviewDetail } from "~/composables/useAdminApi";
 
 defineProps<{ detail: AdminReviewDetail }>();
 const emit = defineEmits<{ moderate: [action: "hide-comment" | "restore-comment" | "invalidate" | "restore"] }>();
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const targetTypeLabel = (value: "event" | "map") => value === "event" ? "随机事件" : "地图";
 const statusLabel = (value: AdminReviewDetail["review"]["status"]) => value === "active" ? "有效" : value === "withdrawn" ? "已撤回" : "已失效";
 const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"]) => value === "visible" ? "公开" : "已隐藏";

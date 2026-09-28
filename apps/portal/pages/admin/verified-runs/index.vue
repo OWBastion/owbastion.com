@@ -38,7 +38,6 @@ const pendingAction = shallowRef<PendingAction | null>(null);
 const reason = ref("");
 const saving = ref(false);
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const runStatusLabel = (value: AdminVerifiedRun["status"]) => value === "active" ? "有效" : "已作废";
 const acceptanceSourceLabel = (value: AdminVerifiedRun["acceptanceSource"]) => value === "submission_automatic" ? "自动通过" : "人工核对";
 const actionLabel = computed(() => {

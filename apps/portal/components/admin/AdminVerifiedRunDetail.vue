@@ -15,7 +15,6 @@ const emit = defineEmits<{
   conflict: [input: { submissionId: string; action: ConflictAction }];
 }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const NONE = "暂无记录";
 const deathsSkips = (deaths: number | null | undefined, skips: number | null | undefined) => deaths == null && skips == null ? NONE : `${deaths ?? NONE} / ${skips ?? NONE}`;
 const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)} 分 ${seconds % 60} 秒`;
