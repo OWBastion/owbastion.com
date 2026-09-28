@@ -4592,6 +4592,42 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
+  const persistSubmissionReview = async ({
+    row,
+    input,
+    auth,
+    reviewId,
+    timestamp,
+    idempotencyKeyId,
+    requestHash,
+    response,
+    reviewAudit,
+    statements,
+    trailingStatements = [],
+  }: {
+    row: typeof submissions.$inferSelect;
+    input: Parameters<PlatformServices["reviewSubmission"]>[0];
+    auth: AuthContext;
+    reviewId: string;
+    timestamp: number;
+    idempotencyKeyId: string;
+    requestHash: string;
+    response: AdminSubmissionReviewResponse;
+    reviewAudit: unknown;
+    statements: D1PreparedStatement[];
+    trailingStatements?: D1PreparedStatement[];
+  }) => {
+    await database.batch([
+      database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
+      ...statements,
+      database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId),
+      database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify(reviewAudit), timestamp, reviewId),
+      ...trailingStatements,
+    ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
+    if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+  };
+
   return {
     reconcileStaleOcrJobs,
     recordVerifiedRun,
@@ -7181,7 +7217,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
           const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
           const statements: D1PreparedStatement[] = [
-            database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
             ...(verifiedRunPlan?.statements ?? []),
             ...(verifiedRunOutcome ? [masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome)] : []),
           ];
@@ -7216,13 +7251,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
             }
           }
           const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
-          statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId));
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify(reviewAudit), timestamp, reviewId));
-          for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
-          for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
-          await database.batch(statements);
-          const keyRow = await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get();
-          if (!keyRow) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+          const trailingStatements: D1PreparedStatement[] = [];
+          for (const { reward, alreadyOwned, canonicalChallengeId } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', (SELECT id FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND status = 'active' AND source_type = 'submission' AND source_id = ?), ?, ?) ").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.playerAccountId, canonicalChallengeId, row.id, JSON.stringify({ submissionId: row.id, challengeId: canonicalChallengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId }), timestamp));
+          for (const { reward, grantId, alreadyOwned } of grantResults) if (!alreadyOwned) trailingStatements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.grant', 'player_title_grant', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, grantId, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: reward.snapshot?.mapVariant ?? submissionSnapshot?.mapVariant ?? null, ruleId: reward.snapshot?.ruleId ?? submissionSnapshot?.ruleId ?? null, ruleRevision: reward.snapshot?.ruleRevision ?? submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp));
+          await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
           return response;
         }
 
@@ -7247,13 +7279,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         statements.push(database.prepare(
           "UPDATE submissions SET status = ?, review_reason = ?, grant_id = CASE WHEN ? = 'approved' THEN (SELECT g.id FROM player_title_grants g WHERE g.source_type IN ('automatic', 'submission') AND g.source_id = submissions.id AND g.status = 'active' ORDER BY g.granted_at, g.id LIMIT 1) ELSE NULL END, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
         ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId));
-        await database.batch([
-          database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
-          ...statements,
-          database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId),
-          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.review', 'submission', submission_id, ?, ? FROM submission_reviews WHERE id = ?").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify(reviewAudit), timestamp, reviewId),
-        ] as [D1PreparedStatement, ...D1PreparedStatement[]]);
-        if (!(await db.select({ id: idempotencyKeys.id }).from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyKeyId)).get())) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+        const trailingStatements: D1PreparedStatement[] = [];
+        await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
         return response;
       } finally {
         if (reviewClaim) await db.update(ocrResults).set({ callbackClaimed: 0 }).where(eq(ocrResults.id, reviewClaim));
