@@ -132,6 +132,78 @@ describe("Agents map gameplay projection", () => {
   });
 });
 
+describe("Admin map revision assignment validation", () => {
+  it("preserves an unchanged expired Pioneer assignment when editing spatial config", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.expired-pioneer-edit");
+    seedTitle(sqlite, "PIONEER");
+    seedRule(sqlite, "rule.pioneer.expired-edit", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
+    seedException(sqlite, "exception.pioneer.expired-edit", "rule.pioneer.expired-edit", "map.expired-pioneer-edit", {
+      slot: "pioneer",
+      startsAt: now - 120_000,
+      endsAt: now - 60_000,
+    });
+    seedAgentSpatialConfig(sqlite, "revision:map.expired-pioneer-edit:initial");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    const editor = await services.getAdminMapEditor({ mapId: "map.expired-pioneer-edit" }, auth);
+    const revision = editor.revisions[0]!;
+    const pioneer = revision.challengeAssignments.find((assignment) => assignment.challengeId === "rule.pioneer.expired-edit")!;
+    const assignmentInput = {
+      challengeFamily: pioneer.challengeFamily,
+      challengeId: pioneer.challengeId,
+      enabled: pioneer.enabled,
+      condition: pioneer.condition,
+      evidenceRule: pioneer.evidenceRule,
+      submissionMode: pioneer.submissionMode,
+      slot: pioneer.slot,
+    };
+    const editedSpatialConfig: AgentSpatialConfig = {
+      bastionPositions: [[9, 8, 7]],
+      resetPosition: [4, 5, 6],
+      endPosition: [7, 8, 9],
+      thirdPersonPosition: [10, 11, 12],
+      creditsPosition: [13, 14, 15],
+      control: null,
+      portalPositions: [],
+      springboardPositions: [],
+      alternateStages: [],
+    };
+
+    expect(editor.challengeCatalog).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.expired-edit" }),
+    ]));
+
+    const updated = await services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.expired-pioneer-edit",
+      revisionId: revision.revisionId,
+      lifecycle: "default",
+      gameVersion: revision.gameVersion,
+      mapVariant: null,
+      spatialConfig: editedSpatialConfig,
+      challengeAssignments: [assignmentInput],
+    }, auth, "edit-expired-pioneer-spatial");
+    expect(updated.spatialConfig).toMatchObject({ bastionPositions: [[9, 8, 7]] });
+    expect(updated.challengeAssignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({ challengeId: "rule.pioneer.expired-edit", enabled: true }),
+    ]));
+    expect((await services.getAgentMap({ mapId: "map.expired-pioneer-edit" }))?.gameplayRevisions[0]?.challengeRefs).toEqual([]);
+
+    await expect(services.updateAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.expired-pioneer-edit",
+      revisionId: revision.revisionId,
+      lifecycle: "default",
+      gameVersion: revision.gameVersion,
+      mapVariant: null,
+      spatialConfig: editedSpatialConfig,
+      challengeAssignments: [{ ...assignmentInput, condition: "changed after expiry" }],
+    }, auth, "change-expired-pioneer-assignment")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+  });
+});
+
 describe("Agents map projection readiness", () => {
   it("projects route-root composite stages in stable ID order", async () => {
     const { database, sqlite } = createD1();
