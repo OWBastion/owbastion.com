@@ -45,6 +45,10 @@ jobs:
             command: pnpm run lint:styles
           - name: Portal UI tests
             command: pnpm run test:portal-ui --run
+          - name: Portal public catalog cache
+            command: >-
+              pnpm --filter @owbastion/portal exec nuxi prepare &&
+              pnpm exec vitest run apps/portal/server/utils/public-catalog.test.ts
           - name: Portal typecheck
             command: >-
               pnpm --filter @owbastion/portal exec nuxi prepare &&

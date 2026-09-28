@@ -3,69 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createVerifiedRunEvidenceCompatibilityV1, legacyGameplayRevisionId } from "@owbastion/domain";
 import { assessVerifiedRunOcrEvidence, createPlatformServices } from "./index";
+import { createD1, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
-/**
- * Minimal D1Database shim over node:sqlite, reused from catalog-query-budget.test.ts.
- */
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let preparedStatementCount = 0;
-
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        const info = sqlite.prepare(sql).run(...bound);
-        return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-
-  const database = {
-    prepare(sql: string) { preparedStatementCount += 1; return wrapStatement(sql); },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      sqlite.exec("BEGIN IMMEDIATE");
-      try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.all());
-        sqlite.exec("COMMIT");
-        return results;
-      } catch (error) {
-        sqlite.exec("ROLLBACK");
-        throw error;
-      }
-    },
-    async exec(sql: string) {
-      sqlite.exec(sql);
-      return [{ results: [], success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false } }];
-    },
-    withSession() { return database; },
-  } as unknown as D1Database;
-
-  return {
-    database,
-    sqlite,
-    preparedStatementCount: () => preparedStatementCount,
-    resetPreparedStatementCount: () => { preparedStatementCount = 0; },
-  };
-};
-
-const fakeEvidenceBucket = {
-  get: async () => ({ size: 1, httpMetadata: { contentType: "image/png" }, arrayBuffer: async () => new Uint8Array([1]).buffer }),
-} as unknown as R2Bucket;
+const now = Date.now();
+const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibilityV1({
+  minimumGameVersion: "99.0101.1",
+  supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v6"],
+});
 
 const synchronizeConcurrentBatches = (database: D1Database, callers: number): D1Database => {
   let arrivals = 0;
@@ -90,652 +34,6 @@ const synchronizeConcurrentBatches = (database: D1Database, callers: number): D1
   };
   return synchronized;
 };
-
-const installSchema = (sqlite: DatabaseSync) => {
-  sqlite.exec(`
-    CREATE TABLE maps (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE gameplay_revisions (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      lifecycle TEXT NOT NULL,
-      legacy_map_variant TEXT,
-      copied_from_revision_id TEXT,
-      reset_reason TEXT,
-      game_version TEXT NOT NULL,
-      spatial_config_json TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE gameplay_revision_challenge_assignments (
-      id TEXT PRIMARY KEY NOT NULL,
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      challenge_family TEXT NOT NULL,
-      challenge_id TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (gameplay_revision_id, challenge_family, challenge_id)
-    );
-    CREATE TABLE title_catalog (
-      key TEXT PRIMARY KEY NOT NULL,
-      label TEXT NOT NULL,
-      icon TEXT NOT NULL DEFAULT 'award',
-      icon_url TEXT,
-      icon_object_key TEXT,
-      category TEXT NOT NULL,
-      condition TEXT NOT NULL,
-      availability TEXT NOT NULL,
-      lifecycle TEXT NOT NULL DEFAULT 'active',
-      public_visibility INTEGER NOT NULL DEFAULT 1,
-      scope TEXT NOT NULL,
-      display_kind TEXT NOT NULL,
-      color_json TEXT NOT NULL DEFAULT 'null',
-      game_version TEXT NOT NULL
-    );
-    CREATE TABLE map_title_rules (
-      id TEXT PRIMARY KEY NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      kind TEXT NOT NULL,
-      condition TEXT NOT NULL,
-      evidence_rule TEXT NOT NULL,
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      display_kind TEXT NOT NULL,
-      slot TEXT,
-      map_variant TEXT,
-      default_scope TEXT NOT NULL DEFAULT 'all_active',
-      status TEXT NOT NULL DEFAULT 'active',
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX map_title_rules_kind_idx ON map_title_rules (kind);
-    CREATE UNIQUE INDEX map_title_rules_title_key_idx ON map_title_rules (title_key);
-    CREATE TABLE map_title_rule_exceptions (
-      id TEXT PRIMARY KEY NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX map_title_rule_exceptions_rule_map_idx
-      ON map_title_rule_exceptions (rule_id, map_id);
-    CREATE TABLE map_title_rule_compat (
-      legacy_challenge_id TEXT NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      is_standard_instance INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL,
-      PRIMARY KEY (legacy_challenge_id, map_id)
-    );
-    CREATE UNIQUE INDEX map_title_rule_compat_rule_map_idx
-      ON map_title_rule_compat (rule_id, map_id);
-    CREATE TABLE player_accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'active',
-      banned_at INTEGER,
-      banned_by TEXT,
-      ban_reason TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
-    CREATE TABLE player_title_grants (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      map_id TEXT REFERENCES maps(id),
-      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
-      slot TEXT,
-      status TEXT NOT NULL,
-      source_type TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      granted_by TEXT NOT NULL,
-      granted_at INTEGER NOT NULL,
-      revoked_by TEXT,
-      revoked_at INTEGER,
-      revoke_reason TEXT,
-      completion_id TEXT,
-      revocation_type TEXT
-    );
-    CREATE UNIQUE INDEX player_title_grants_source_idx
-      ON player_title_grants (source_type, source_id, title_key);
-    CREATE TABLE challenges (
-      id TEXT PRIMARY KEY NOT NULL,
-      source_family TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      rule_version TEXT NOT NULL DEFAULT 'legacy',
-      map_id TEXT,
-      gameplay_revision_id TEXT,
-      status TEXT NOT NULL,
-      manual INTEGER NOT NULL DEFAULT 0,
-      public_condition INTEGER NOT NULL DEFAULT 1,
-      condition_operator TEXT NOT NULL DEFAULT 'and',
-      conditions_json TEXT NOT NULL DEFAULT '[]',
-      condition TEXT NOT NULL,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX challenges_source_scope_idx ON challenges(source_family, source_id, rule_version, COALESCE(map_id, ''), COALESCE(gameplay_revision_id, ''));
-    CREATE UNIQUE INDEX challenges_manual_title_idx ON challenges(title_key) WHERE manual = 1 AND status = 'active';
-    CREATE TABLE challenge_completions (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-      challenge_id TEXT NOT NULL REFERENCES challenges(id),
-      gameplay_revision_id TEXT,
-      status TEXT NOT NULL DEFAULT 'active',
-      source_type TEXT NOT NULL,
-      source_id TEXT NOT NULL,
-      completed_at INTEGER NOT NULL,
-      invalidated_by TEXT,
-      invalidated_at INTEGER,
-      invalidation_reason TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX challenge_completions_player_challenge_idx ON challenge_completions(player_account_id, challenge_id, COALESCE(gameplay_revision_id, '')) WHERE status = 'active';
-    CREATE UNIQUE INDEX challenge_completions_source_idx ON challenge_completions(source_type, source_id, challenge_id);
-    CREATE TABLE challenge_satisfies (
-      challenge_id TEXT NOT NULL REFERENCES challenges(id),
-      satisfied_challenge_id TEXT NOT NULL REFERENCES challenges(id),
-      created_at INTEGER NOT NULL,
-      PRIMARY KEY (challenge_id, satisfied_challenge_id),
-      CHECK (challenge_id <> satisfied_challenge_id)
-    );
-    CREATE TABLE player_equipped_titles (
-      grant_id TEXT PRIMARY KEY REFERENCES player_title_grants(id),
-      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-      equipped_at INTEGER NOT NULL
-    );
-    CREATE TABLE achievement_challenges (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      name TEXT NOT NULL,
-      difficulty TEXT,
-      condition TEXT NOT NULL DEFAULT '',
-      evidence_rule TEXT NOT NULL DEFAULT '',
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      reward_title_key TEXT,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_title_rewards (
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      slot TEXT NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      pioneer_prefixes_json TEXT NOT NULL,
-      PRIMARY KEY (map_id, slot)
-    );
-    CREATE TABLE bindings (
-      id TEXT PRIMARY KEY NOT NULL,
-      identity_id TEXT NOT NULL,
-      player_account_id TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      group_open_id TEXT NOT NULL,
-      member_open_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      revoked_at INTEGER,
-      revoked_by TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE submissions (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT,
-      binding_id TEXT,
-      status TEXT NOT NULL,
-      challenge_type TEXT NOT NULL,
-      challenge_id TEXT,
-      target_map_id TEXT REFERENCES maps(id),
-      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
-      map_name TEXT NOT NULL,
-      difficulty TEXT,
-      player_name TEXT,
-      review_reason TEXT,
-      grant_id TEXT,
-      ocr_fail_count INTEGER NOT NULL DEFAULT 0,
-      rule_snapshot_json TEXT,
-      source_provider TEXT NOT NULL,
-      source_conversation_id TEXT NOT NULL,
-      source_message_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE submission_challenge_selections (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
-      challenge_type TEXT NOT NULL,
-      challenge_id TEXT NOT NULL,
-      target_map_id TEXT REFERENCES maps(id),
-      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
-      map_name TEXT NOT NULL,
-      difficulty TEXT,
-      rule_snapshot_json TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (submission_id, position)
-    );
-    CREATE TABLE mastery_runs (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL,
-      source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_variant TEXT,
-      difficulty TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      run_code TEXT NOT NULL,
-      completion_duration_seconds INTEGER NOT NULL,
-      deaths INTEGER,
-      skips INTEGER,
-      event_counters_json TEXT NOT NULL,
-      acceptance_source TEXT NOT NULL,
-      accepted_at INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      invalidated_at INTEGER,
-      invalidated_by TEXT,
-      invalidation_reason TEXT,
-      xp_rule_version TEXT NOT NULL,
-      xp_input_snapshot_json TEXT NOT NULL,
-      awarded_xp INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
-    CREATE TABLE mastery_run_lifecycle_events (
-      id TEXT PRIMARY KEY NOT NULL,
-      mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id),
-      transition TEXT NOT NULL,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      reason TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE mastery_run_conflict_resolutions (
-      id TEXT PRIMARY KEY NOT NULL,
-      mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id),
-      conflict_submission_id TEXT NOT NULL REFERENCES submissions(id),
-      action TEXT NOT NULL,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      reason TEXT,
-      resolved_at INTEGER NOT NULL,
-      UNIQUE (mastery_run_id, conflict_submission_id)
-    );
-    CREATE TABLE submission_outcomes (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL REFERENCES submissions(id),
-      outcome_key TEXT NOT NULL,
-      outcome_type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      entity_id TEXT,
-      awarded_xp INTEGER NOT NULL DEFAULT 0,
-      details_json TEXT NOT NULL DEFAULT '{}',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (submission_id, outcome_key)
-    );
-    CREATE TABLE submission_spot_checks (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL UNIQUE,
-      status TEXT NOT NULL,
-      policy_json TEXT NOT NULL,
-      sampled_at INTEGER NOT NULL,
-      resolved_at INTEGER,
-      reviewer TEXT,
-      reason TEXT
-    );
-    CREATE TABLE submission_reviews (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      decision TEXT NOT NULL,
-      reason TEXT,
-      reviewer TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE INDEX submission_reviews_submission_created_idx ON submission_reviews (submission_id, created_at);
-    CREATE TABLE idempotency_keys (
-      id TEXT PRIMARY KEY NOT NULL,
-      actor_id TEXT NOT NULL,
-      operation TEXT NOT NULL,
-      request_hash TEXT NOT NULL,
-      response_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE audit_events (
-      id TEXT PRIMARY KEY NOT NULL,
-      correlation_id TEXT NOT NULL,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT NOT NULL,
-      operation TEXT NOT NULL,
-      entity_type TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      payload_json TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE title_challenges (
-      id TEXT PRIMARY KEY NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      category_override TEXT,
-      condition TEXT NOT NULL,
-      evidence_rule TEXT NOT NULL,
-      submission_mode TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      scope TEXT NOT NULL DEFAULT 'global',
-      map_variant TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE achievement_challenge_maps (
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE,
-      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
-      PRIMARY KEY (challenge_id, map_id)
-    );
-    CREATE TABLE map_metadata (
-      map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id),
-      difficulty_rating TEXT,
-      mechanics_json TEXT NOT NULL DEFAULT '[]',
-      cover_url TEXT,
-      background_url TEXT,
-      updated_at INTEGER NOT NULL,
-      updated_by TEXT NOT NULL
-    );
-    CREATE TABLE random_events (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      rarity TEXT NOT NULL,
-      description TEXT NOT NULL,
-      duration_seconds INTEGER,
-      cooldown_seconds REAL,
-      weight REAL,
-      game_version TEXT NOT NULL,
-      effect_tags_json TEXT NOT NULL DEFAULT '[]',
-      release_status TEXT NOT NULL,
-      archived_at INTEGER,
-      archived_by TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE random_event_map_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
-    CREATE TABLE random_event_title_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
-    CREATE TABLE random_event_imports (
-      id TEXT PRIMARY KEY NOT NULL,
-      source_hash TEXT NOT NULL,
-      file_name TEXT NOT NULL,
-      row_count INTEGER NOT NULL,
-      imported_by TEXT NOT NULL,
-      imported_at INTEGER NOT NULL
-    );
-    CREATE TABLE effect_glossary_terms (
-      key TEXT PRIMARY KEY NOT NULL,
-      name_zh TEXT NOT NULL,
-      aliases_json TEXT NOT NULL DEFAULT '[]',
-      category TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      definition TEXT NOT NULL,
-      rules_json TEXT NOT NULL DEFAULT '[]',
-      source_version TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE historical_title_grants (
-      id TEXT PRIMARY KEY NOT NULL,
-      scope TEXT NOT NULL,
-      map_id TEXT REFERENCES maps(id),
-      gameplay_revision_id TEXT REFERENCES gameplay_revisions(id),
-      slot TEXT,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      holder_name TEXT NOT NULL,
-      source_version TEXT NOT NULL
-    );
-    CREATE UNIQUE INDEX historical_title_grants_holder_idx
-      ON historical_title_grants (scope, map_id, slot, title_key, holder_name);
-    CREATE TABLE catalog_imports (
-      id TEXT PRIMARY KEY NOT NULL,
-      source_version TEXT NOT NULL,
-      snapshot_hash TEXT NOT NULL,
-      status TEXT NOT NULL,
-      row_counts_json TEXT NOT NULL,
-      imported_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX catalog_imports_source_version_idx ON catalog_imports (source_version);
-    CREATE UNIQUE INDEX catalog_imports_snapshot_hash_idx ON catalog_imports (snapshot_hash);
-    CREATE TABLE identities (
-      id TEXT PRIMARY KEY NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE binding_invites (
-      id TEXT PRIMARY KEY NOT NULL,
-      code_hash TEXT NOT NULL,
-      code_ciphertext TEXT,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      player_id TEXT NOT NULL,
-      created_by TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
-      redeemed_at INTEGER,
-      legacy_passkey_player_account_id TEXT,
-      legacy_passkey_challenge_id TEXT,
-      revoked_at INTEGER,
-      revoked_by TEXT
-    );
-    CREATE UNIQUE INDEX binding_invites_code_idx ON binding_invites (code_hash);
-    CREATE TABLE binding_claims (
-      id TEXT PRIMARY KEY NOT NULL,
-      invite_id TEXT NOT NULL REFERENCES binding_invites(id),
-      token_hash TEXT NOT NULL,
-      code_hash TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      player_id TEXT NOT NULL,
-      status TEXT NOT NULL,
-      member_open_id TEXT,
-      group_open_id TEXT,
-      message_id TEXT,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL,
-      verified_at INTEGER,
-      decided_at INTEGER,
-      decided_by TEXT,
-      decision_reason TEXT
-    );
-    CREATE UNIQUE INDEX binding_claims_code_idx ON binding_claims (code_hash);
-    CREATE TABLE qq_group_access (
-      group_open_id TEXT PRIMARY KEY NOT NULL,
-      display_name TEXT NOT NULL DEFAULT '',
-      environment TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
-      bind_enabled INTEGER NOT NULL DEFAULT 0,
-      verify_enabled INTEGER NOT NULL DEFAULT 0,
-      lifecycle_occurred_at INTEGER NOT NULL DEFAULT 0,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE qq_group_policy_outbox (
-      id TEXT PRIMARY KEY NOT NULL,
-      request_id TEXT,
-      created_at INTEGER NOT NULL,
-      enqueued_at INTEGER,
-      delivered_at INTEGER
-    );
-    CREATE TABLE qq_login_attempts (
-      id TEXT PRIMARY KEY NOT NULL,
-      token_hash TEXT NOT NULL,
-      code_hash TEXT NOT NULL,
-      status TEXT NOT NULL,
-      purpose TEXT NOT NULL DEFAULT 'login',
-      player_account_id TEXT,
-      target_group_open_id TEXT,
-      group_open_id TEXT,
-      member_open_id TEXT,
-      environment TEXT,
-      message_id TEXT,
-      session_token_hash TEXT,
-      session_issued_at INTEGER,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL,
-      verified_at INTEGER
-    );
-    CREATE TABLE qq_sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      attempt_id TEXT NOT NULL,
-      group_open_id TEXT NOT NULL,
-      member_open_id TEXT NOT NULL,
-      environment TEXT NOT NULL,
-      token_hash TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE portal_sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-      token_hash TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TRIGGER submissions_player_account_legacy_backfill
-    AFTER INSERT ON submissions
-    WHEN NEW.player_account_id IS NULL AND NEW.binding_id IS NOT NULL
-    BEGIN
-      UPDATE submissions SET player_account_id = (SELECT player_account_id FROM bindings WHERE id = NEW.binding_id) WHERE id = NEW.id;
-    END;
-    CREATE TRIGGER qq_sessions_portal_session_backfill
-    AFTER INSERT ON qq_sessions
-    BEGIN
-      INSERT OR IGNORE INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at)
-      SELECT NEW.id, player_account_id, NEW.token_hash, NEW.expires_at, NEW.created_at
-      FROM bindings WHERE member_open_id = NEW.member_open_id AND status = 'active';
-    END;
-    CREATE TABLE upload_sessions (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      player_account_id TEXT NOT NULL,
-      content_type TEXT NOT NULL,
-      byte_size INTEGER NOT NULL,
-      sha256 TEXT NOT NULL,
-      object_key TEXT NOT NULL,
-      status TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE ocr_results (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      request_id TEXT,
-      attempt INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      response_json TEXT,
-      match_json TEXT,
-      error_code TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE attachments (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      external_attachment_id TEXT NOT NULL,
-      content_type TEXT NOT NULL,
-      byte_size INTEGER,
-      sha256 TEXT,
-      object_key TEXT,
-      upload_status TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-    CREATE TABLE ocr_feedback_proposals (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      ocr_result_id TEXT NOT NULL,
-      field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
-      original_value TEXT,
-      feedback_type TEXT NOT NULL CHECK (feedback_type IN ('confirmed', 'corrected', 'passive_report')),
-      prompt_origin TEXT CHECK (prompt_origin IN ('uncertainty', 'conflict', 'grouped', 'calibration', 'passive')),
-      proposed_value TEXT,
-      model_version TEXT,
-      layout_version TEXT,
-      player_account_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'withdrawn')),
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
-    );
-    CREATE TABLE reviewed_annotations (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      ocr_result_id TEXT NOT NULL,
-      proposal_id TEXT,
-      field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
-      original_ocr_value TEXT,
-      model_version TEXT,
-      layout_version TEXT,
-      reviewed_value TEXT NOT NULL CHECK (length(trim(reviewed_value)) > 0),
-      normalized_value TEXT,
-      player_account_id TEXT,
-      player_proposed_value TEXT,
-      prompt_origin TEXT,
-      review_state TEXT NOT NULL DEFAULT 'accepted' CHECK (review_state IN ('accepted', 'superseded')),
-      reviewed_by TEXT NOT NULL,
-      reviewed_at INTEGER NOT NULL,
-      note TEXT,
-      supersedes_annotation_id TEXT,
-      created_at INTEGER NOT NULL
-    );
-    CREATE UNIQUE INDEX reviewed_annotations_active_field_idx ON reviewed_annotations (submission_id, ocr_result_id, field_key) WHERE review_state = 'accepted';
-  `);
-};
-
-const now = Date.now();
-const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibilityV1({
-  minimumGameVersion: "99.0101.1",
-  supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v6"],
-});
 
 describe("Agents map gameplay projection", () => {
   it("projects enabled revisions with deterministic spatial and challenge references", async () => {
@@ -831,157 +129,6 @@ describe("Agents map gameplay projection", () => {
     await expect(services.listAgentMapTitleHolders({ mapId: "map.expired-pioneer", page: 1, pageSize: 20 })).resolves.toMatchObject({
       items: [expect.objectContaining({ titleKey: "PIONEER", gameplayRevisionId: "revision:map.expired-pioneer:initial" })],
     });
-  });
-});
-
-describe("OCR queue failure recovery", () => {
-  it("restores an actionable state and allows the same admin retry key to enqueue after queue send rejects", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
-    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.retry-fail", "binding.one", "Tester");
-    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = '请重试' WHERE id = 'submission.retry-fail'").run();
-
-    let failNextSend = true;
-    const queued: unknown[] = [];
-    const queue = { send: async (message: unknown) => { if (failNextSend) { failNextSend = false; throw new Error("queue unavailable"); } queued.push(message); } } as Queue;
-    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
-    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await expect(services.requestAdminOcr({ submissionId: "submission.retry-fail" }, auth, "idem.retry-fail", "request.first")).rejects.toThrow("queue unavailable");
-    const failureLogs = logSpy.mock.calls.map(([line]) => String(line));
-    logSpy.mockRestore();
-
-    expect(failureLogs.some((line) => line.includes('"event":"job_enqueue_failed"') && line.includes('"submissionId":"submission.retry-fail"'))).toBe(true);
-    expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.retry-fail'").get()).toEqual({ status: "resubmission_required", review_reason: "请重试" });
-    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toBeUndefined();
-    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = 'submission.retry-fail'").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_SEND_FAILED" });
-    expect(queued).toEqual([]);
-    expect(sqlite.prepare("SELECT correlation_id FROM audit_events WHERE operation = 'submission.ocr.retry'").get()).toEqual({ correlation_id: "request.first" });
-
-    await expect(services.requestAdminOcr({ submissionId: "submission.retry-fail" }, auth, "idem.retry-fail", "request.retry")).resolves.toEqual({ contractVersion: "1", submissionId: "submission.retry-fail", status: "ocr_pending" });
-    expect(queued).toEqual([expect.objectContaining({ submissionId: "submission.retry-fail", manual: true, requestId: "request.retry" })]);
-    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toBeTruthy();
-  });
-
-  it("aborts a hanging OCRKit fetch at its timeout and reports a retryable OCR_NETWORK failure", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
-    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.hanging-ocrkit", "binding.one", "Tester");
-
-    const timeoutController = new AbortController();
-    const timeoutSpy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeoutController.signal);
-    let markFetchStarted!: () => void;
-    const fetchStarted = new Promise<void>((resolve) => { markFetchStarted = resolve; });
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
-      markFetchStarted();
-      init?.signal?.addEventListener("abort", () => reject(new Error("The operation was aborted")), { once: true });
-    }));
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    vi.stubGlobal("fetch", fetchMock);
-    try {
-      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-      const job = services.processOcrJob({ submissionId: "submission.hanging-ocrkit", objectKey: "evidence/submission.hanging-ocrkit.png", attempt: 1 });
-      await fetchStarted;
-      expect(timeoutSpy).toHaveBeenCalledWith(20_000);
-      expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(timeoutController.signal);
-      timeoutController.abort();
-      await expect(job).rejects.toThrow("OCR_NETWORK");
-    } finally {
-      vi.unstubAllGlobals();
-      timeoutSpy.mockRestore();
-    }
-
-    const jobLogs = logSpy.mock.calls.map(([line]) => String(line));
-    logSpy.mockRestore();
-    expect(jobLogs.some((line) => line.includes('"event":"job_started"') && line.includes('"submissionId":"submission.hanging-ocrkit"'))).toBe(true);
-    expect(jobLogs.some((line) => line.includes('"event":"ocrkit_request_failed"') && line.includes('"submissionId":"submission.hanging-ocrkit"'))).toBe(true);
-    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.hanging-ocrkit'").get()).toEqual({ status: "ocr_pending" });
-  });
-
-  it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
-    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
-    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required' WHERE id = 'submission.concurrent-same-key'").run();
-
-    let releaseQueueSend!: () => void;
-    let markQueueSendStarted!: () => void;
-    const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
-    const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
-    const queue = { send: vi.fn(async () => { markQueueSendStarted(); await queueSendGate; }) } as unknown as Queue;
-    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
-    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-
-    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
-    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
-    await queueSendStarted;
-    await expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
-    expect(queue.send).toHaveBeenCalledOnce();
-
-    releaseQueueSend();
-    await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
-    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
-  });
-
-  it("prevents a losing simultaneous retry from undoing a successful enqueue", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
-    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.concurrent-send", "binding.one", "Tester");
-    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = '请重试', updated_at = 1000 WHERE id = 'submission.concurrent-send'").run();
-    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, error_code, created_at) VALUES ('ocr.concurrent-send-failed', 'submission.concurrent-send', 0, 'error', 'OCR_QUEUE_SEND_FAILED', 1000)").run();
-
-    const queue = { send: vi.fn(async () => {}) } as unknown as Queue;
-    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
-    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-
-    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-first", "request.first");
-    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-second", "request.second");
-    const outcomes = await Promise.allSettled([first, second]);
-    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
-    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
-    expect(rejected).toMatchObject({ status: "rejected", reason: new Error("OCR_RETRY_IN_PROGRESS") });
-    expect(queue.send).toHaveBeenCalledOnce();
-
-    expect(outcomes.find((outcome) => outcome.status === "fulfilled")).toMatchObject({ status: "fulfilled", value: { contractVersion: "1", submissionId: "submission.concurrent-send", status: "ocr_pending" } });
-    expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.concurrent-send'").get()).toEqual({ status: "ocr_pending", review_reason: null });
-    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = 'submission.concurrent-send' ORDER BY created_at").all()).toEqual([
-      { status: "error", error_code: "OCR_QUEUE_SEND_FAILED" },
-      { status: "pending", error_code: null },
-    ]);
-  });
-
-  it("moves stale OCR jobs to an actionable state after queue recovery deliveries are exhausted", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
-    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.stale-ocr", "binding.one", "Tester");
-    seedMasterySubmission(sqlite, "submission.fresh-ocr", "binding.one", "Tester");
-    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 1000 WHERE id = 'submission.stale-ocr'").run();
-    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 2000 WHERE id = 'submission.fresh-ocr'").run();
-    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-stale-result', 'submission.stale-ocr', 0, 'pending', 1000)").run();
-    sqlite.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES ('admin:submission.ocr.retry:idem.stale', 'admin', 'submission.ocr.retry', 'hash', 'ocr-retry-enqueueing:ocr-stale-result', 1000)").run();
-    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-fresh-result', 'submission.fresh-ocr', 0, 'pending', 2000)").run();
-    const services = createPlatformServices(database);
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await expect(services.reconcileStaleOcrJobs({ olderThan: 1500 })).resolves.toBe(1);
-
-    expect(sqlite.prepare("SELECT status, ocr_fail_count FROM submissions WHERE id = 'submission.stale-ocr'").get()).toEqual({ status: "resubmission_required", ocr_fail_count: 1 });
-    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE id = 'ocr-stale-result'").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_STALLED" });
-    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE id = 'admin:submission.ocr.retry:idem.stale'").get()).toBeUndefined();
-    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.fresh-ocr'").get()).toEqual({ status: "ocr_pending" });
-    expect(logSpy.mock.calls.map(([line]) => String(line)).some((line) => line.includes('"event":"stale_job_recovered"') && line.includes('"submissionId":"submission.stale-ocr"'))).toBe(true);
-    logSpy.mockRestore();
   });
 });
 
@@ -1647,14 +794,6 @@ describe("manual title grant batches", () => {
 });
 
 /** Seed helpers */
-const seedMap = (sqlite: DatabaseSync, id: string, status: "active" | "retired" = "active") => {
-  sqlite.prepare(
-    "INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES (?, ?, '2026.07.15', ?, '2026.07.15', ?, ?)",
-  ).run(id, `地图 ${id}`, status, now, now);
-  sqlite.prepare(
-    "INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL, NULL, '2026.07.15', ?, ?)",
-  ).run(`revision:${id}:initial`, id, status === "active" ? "default" : "historical", now, now);
-};
 
 const seedClassicGameplayRevision = (sqlite: DatabaseSync, mapId: string) => {
   sqlite.prepare(
@@ -1730,27 +869,7 @@ const sharedCompositeSpatialConfig = (): AgentSpatialConfig => ({
   ],
 });
 
-const seedRevisionAssignment = (sqlite: DatabaseSync, input: {
-  gameplayRevisionId: string;
-  mapId: string;
-  challengeFamily: "map_title_rule" | "map_challenge" | "title_challenge";
-  challengeId: string;
-  enabled?: number;
-  condition?: string | null;
-  evidenceRule?: string | null;
-  submissionMode?: string | null;
-  slot?: string | null;
-}) => {
-  sqlite.prepare(
-    "INSERT OR REPLACE INTO gameplay_revision_challenge_assignments (id, gameplay_revision_id, map_id, challenge_family, challenge_id, enabled, condition, evidence_rule, submission_mode, slot, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-  ).run(`assignment:${input.gameplayRevisionId}:${input.challengeFamily}:${input.challengeId}`, input.gameplayRevisionId, input.mapId, input.challengeFamily, input.challengeId, input.enabled ?? 1, input.condition ?? null, input.evidenceRule ?? null, input.submissionMode ?? null, input.slot ?? null, now, now);
-};
 
-const seedTitle = (sqlite: DatabaseSync, key: string) => {
-  sqlite.prepare(
-    "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, ?, 'trophy', '地图系列', '条件', 'active', 'map', 'map_name_suffix', 'null', '2026.07.15')",
-  ).run(key, `称号 ${key}`);
-};
 
 const seedRule = (
   sqlite: DatabaseSync,
@@ -2288,6 +1407,26 @@ describe("map title rule model – locked invariants", () => {
         { title_key: "HERO", source_type: "submission" },
         { title_key: "LOWER", source_type: "challenge_satisfies" },
       ]);
+    });
+
+    it("does not grant a stored legacy Challenge without matching evidence", async () => {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedTitle(sqlite, "HERO");
+      sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'HERO'").run();
+      sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, starts_at, ends_at, created_at, updated_at) VALUES ('title.legacy-no-evidence', 'HERO', '完成英雄挑战', '带勾称号', 'manual', '2026.07.15', 'active', '2026.07.15', 'global', ?, ?, ?, ?)").run(now - 100, now + 100, now, now);
+      sqlite.prepare("INSERT INTO challenges (id, source_family, source_id, title_key, rule_version, status, manual, public_condition, condition_operator, conditions_json, condition, starts_at, ends_at, created_at, updated_at) VALUES ('legacy:title_challenge:title.legacy-no-evidence::', 'title_challenge', 'title.legacy-no-evidence', 'HERO', 'legacy', 'active', 0, 1, 'and', ?, '完成英雄挑战', ?, ?, ?, ?)").run(JSON.stringify({ operator: "and", conditions: [{ type: "achievement_title", titleKey: "HERO" }] }), now - 100, now + 100, now, now);
+      seedMasteryPlayer(sqlite, "player.legacy-no-evidence", "binding.legacy-no-evidence", "Tester");
+      sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, challenge_id, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.legacy-no-evidence', 'binding.legacy-no-evidence', 'ocr_review_required', 'title_achievement', 'title.legacy-no-evidence', '成就挑战', 'Tester', 'portal', 'portal', 'legacy-no-evidence', ?, ?)").run(now, now);
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.legacy-no-evidence', 'submission.legacy-no-evidence', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, model_version: "ocr-v3", layout_version: "layout-v7", data: {} }), now);
+
+      const services = createPlatformServices(database);
+      const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      await expect(services.reviewSubmission({ submissionId: "submission.legacy-no-evidence", decision: "approved" }, maintainer, "legacy-no-evidence")).rejects.toThrow("SUBMISSION_OUTCOME_NOT_CONFIGURED");
+      expect(sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.legacy-no-evidence'").get()).toEqual({ status: "ocr_review_required", grant_id: null });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.legacy-no-evidence'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM challenge_completions WHERE source_id = 'submission.legacy-no-evidence'").get()).toEqual({ count: 0 });
+      expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.legacy-no-evidence'").get()).toEqual({ count: 0 });
     });
 
     it("keeps a legacy submission pending after an administrative revoke", async () => {
@@ -3315,6 +2454,211 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_title_grants WHERE source_id = 'submission.run-only-review'").get()).toEqual({ count: 0 });
   });
 
+  it("commits a corrected review Run and its Submission outcome atomically", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.review-atomic", "binding.review-atomic", "Review Atomic");
+    seedMasterySubmission(sqlite, "submission.review-atomic", "binding.review-atomic", "Review Atomic");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.review-atomic");
+    const ocr = masteryOcr();
+    ocr.data.map_name = "地图 unknown";
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.review-atomic', 'submission.review-atomic', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.review-atomic', 'submission.review-atomic', 'verified_run', 'verified_run', 'ineligible', NULL, 0, ?, ?, ?)").run(JSON.stringify({ reason: "submission_map_mismatch", conflictFields: [] }), now, now);
+    const sessionToken = "review-atomic-player-session";
+    const tokenDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(sessionToken)));
+    const tokenHash = Array.from(new Uint8Array(tokenDigest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.review-atomic', 'player.review-atomic', ?, ?, ?)").run(tokenHash, Date.now() + 60_000, now);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const input = {
+      submissionId: "submission.review-atomic",
+      decision: "approved" as const,
+      fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "地图 map.mastery" }],
+    };
+    const preview = await services.previewSubmissionReview(input, maintainer);
+    expect(preview).toMatchObject({ approvable: true, blockingCode: null, verifiedRun: { status: "eligible", reason: null } });
+
+    const originalBatch = database.batch.bind(database);
+    let failNextBatch = true;
+    database.batch = async (statements) => {
+      if (!failNextBatch) return originalBatch(statements);
+      failNextBatch = false;
+      return originalBatch([...statements, database.prepare("INSERT INTO missing_review_table (id) VALUES ('force rollback')")]);
+    };
+    await expect(services.reviewSubmission(input, maintainer, "review-atomic")).rejects.toThrow();
+    expect(sqlite.prepare("SELECT status, gameplay_revision_id FROM submissions WHERE id = 'submission.review-atomic'").get()).toEqual({ status: "ocr_review_required", gameplay_revision_id: null });
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.review-atomic' AND outcome_key = 'verified_run'").get()).toEqual({ status: "ineligible" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.review-atomic'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_run_lifecycle_events").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.review-atomic'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE id = 'admin:submission.review:review-atomic'").get()).toEqual({ count: 0 });
+
+    database.batch = originalBatch;
+    const approved = await services.reviewSubmission(input, maintainer, "review-atomic");
+    expect(approved).toMatchObject({ decision: "approved", verifiedRunOutcome: { status: "created", awardedXp: expect.any(Number) } });
+    await expect(services.reviewSubmission(input, maintainer, "review-atomic")).resolves.toEqual(approved);
+    expect(sqlite.prepare("SELECT status, gameplay_revision_id FROM submissions WHERE id = 'submission.review-atomic'").get()).toEqual({ status: "approved", gameplay_revision_id: "revision:map.mastery:initial" });
+    expect(sqlite.prepare("SELECT status, awarded_xp FROM submission_outcomes WHERE submission_id = 'submission.review-atomic' AND outcome_key = 'verified_run'").get()).toEqual({ status: "created", awarded_xp: approved.verifiedRunOutcome?.awardedXp });
+    expect(sqlite.prepare("SELECT status, acceptance_source FROM mastery_runs WHERE source_submission_id = 'submission.review-atomic'").get()).toEqual({ status: "active", acceptance_source: "submission_review" });
+    expect(sqlite.prepare("SELECT transition, actor_id FROM mastery_run_lifecycle_events WHERE mastery_run_id = (SELECT id FROM mastery_runs WHERE source_submission_id = 'submission.review-atomic')").all()).toEqual([{ transition: "accepted", actor_id: "submission_review" }]);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.review-atomic'").get()).toEqual({ count: 1 });
+    expect(await services.getAdminSubmission({ submissionId: input.submissionId }, maintainer)).toMatchObject({ verifiedRunOutcome: { status: "created", awardedXp: approved.verifiedRunOutcome?.awardedXp } });
+    expect(await services.getPlayerSubmission({ submissionId: input.submissionId }, sessionToken)).toMatchObject({ verifiedRunOutcome: { status: "created", awardedXp: approved.verifiedRunOutcome?.awardedXp } });
+    expect(await services.previewSubmissionReview(input, maintainer)).toMatchObject({ approvable: true, blockingCode: null, verifiedRun: { status: "recorded", reason: null } });
+  });
+
+  it("plans the same complete Verified Run checks that approval records", async () => {
+    const scenarios = [
+      { submissionId: "submission.preview-ambiguous", mapName: "地图 map.mastery", extraMap: true, expectedReason: "ambiguous_map", expectedOutcome: "ineligible" },
+      { submissionId: "submission.preview-mismatch", mapName: "地图 map.other", extraMap: false, expectedReason: "submission_map_mismatch", expectedOutcome: "ineligible" },
+      { submissionId: "submission.preview-conflict", mapName: "地图 map.mastery", extraMap: false, expectedReason: "conflicting_run_code_evidence", expectedOutcome: "conflict" },
+      { submissionId: "submission.preview-clean", mapName: "地图 map.mastery", extraMap: false, expectedReason: null, expectedOutcome: "created" },
+    ] as const;
+
+    for (const scenario of scenarios) {
+      const { database, sqlite } = createD1();
+      installSchema(sqlite);
+      seedMap(sqlite, "map.mastery");
+      if (scenario.extraMap) {
+        sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.mastery.duplicate', '地图 map.mastery', '2026.07.15', 'active', '2026.07.15', ?, ?)").run(now, now);
+      }
+      if (scenario.mapName === "地图 map.other") seedMap(sqlite, "map.other");
+      seedMasteryPlayer(sqlite, "player.preview", "binding.preview", "Preview Player");
+      seedMasterySubmission(sqlite, scenario.submissionId, "binding.preview", "Preview Player");
+      sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", scenario.submissionId);
+      const ocr = masteryOcr({ difficulty: scenario.expectedOutcome === "conflict" ? "传奇" : "困难" });
+      ocr.data.map_name = scenario.mapName;
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES (?, ?, 1, 'review_required', ?, ?)").run(`ocr.${scenario.submissionId}`, scenario.submissionId, JSON.stringify(ocr), now);
+      sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES (?, ?, 'verified_run', 'verified_run', 'ineligible', NULL, 0, '{}', ?, ?)").run(`outcome.${scenario.submissionId}`, scenario.submissionId, now, now);
+      const retainedTitleKey = `RETAINED_${scenario.submissionId.replaceAll(/[^a-zA-Z0-9]/g, "_").toUpperCase()}`;
+      seedTitle(sqlite, retainedTitleKey);
+      const retainedGrantId = `grant.${scenario.submissionId}`;
+      sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, status, source_type, source_id, granted_by, granted_at) VALUES (?, 'player.preview', ?, NULL, NULL, 'active', 'submission', ?, 'admin', ?)").run(retainedGrantId, retainedTitleKey, scenario.submissionId, now);
+      sqlite.prepare("UPDATE submissions SET grant_id = ? WHERE id = ?").run(retainedGrantId, scenario.submissionId);
+
+      const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+      if (scenario.expectedOutcome === "conflict") {
+        seedMasterySubmission(sqlite, `submission.existing-${scenario.submissionId}`, "binding.preview", "Preview Player");
+        await services.recordVerifiedRun({ playerAccountId: "player.preview", sourceSubmissionId: `submission.existing-${scenario.submissionId}`, mapId: "map.mastery", gameplayRevisionId: "revision:map.mastery:initial", mapVariant: null, difficulty: "困难", gameVersion: "99.0101.1", matchCode: "1234-5678-9012", completionDurationSeconds: 600, deaths: 1, skips: 0, eventCounters: {}, acceptanceSource: "submission_automatic" });
+      }
+      const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+      const preview = await services.previewSubmissionReview({ submissionId: scenario.submissionId }, maintainer);
+      expect(preview, scenario.submissionId).toMatchObject({
+        approvable: true,
+        blockingCode: null,
+        verifiedRun: scenario.expectedOutcome === "created"
+          ? { status: "eligible", reason: null }
+          : { status: "ineligible", reason: scenario.expectedReason },
+      });
+      const approval = await services.reviewSubmission({ submissionId: scenario.submissionId, decision: "approved" }, maintainer, `review.${scenario.submissionId}`);
+      const storedOutcome = sqlite.prepare("SELECT status, details_json FROM submission_outcomes WHERE submission_id = ? AND outcome_key = 'verified_run'").get(scenario.submissionId) as { status: string; details_json: string };
+      expect(storedOutcome.status, scenario.submissionId).toBe(scenario.expectedOutcome);
+      expect(JSON.parse(storedOutcome.details_json).reason, scenario.submissionId).toBe(scenario.expectedReason);
+      expect(approval.decision, scenario.submissionId).toBe("approved");
+      if (scenario.expectedOutcome === "created") expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = ?").get(scenario.submissionId)).toEqual({ count: 1 });
+      if (scenario.expectedOutcome !== "created") expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = ?").get(scenario.submissionId)).toEqual({ count: 0 });
+    }
+  });
+
+  it("rolls back review approval when a concurrent Run insert wins, then retries against that Run", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.review-race", "binding.review-race", "Review Race");
+    seedMasterySubmission(sqlite, "submission.review-race", "binding.review-race", "Review Race");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.review-race");
+    const ocr = masteryOcr();
+    ocr.data.map_name = "地图 unknown";
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.review-race', 'submission.review-race', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.review-race', 'submission.review-race', 'verified_run', 'verified_run', 'ineligible', NULL, 0, '{}', ?, ?)").run(now, now);
+
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const input = {
+      submissionId: "submission.review-race",
+      decision: "approved" as const,
+      fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "地图 map.mastery" }],
+    };
+    const originalBatch = database.batch.bind(database);
+    let concurrentRunId: string | null = null;
+    database.batch = async (statements) => {
+      database.batch = originalBatch;
+      const concurrentRun = await services.recordVerifiedRun({
+        playerAccountId: "player.review-race",
+        sourceSubmissionId: "submission.review-race",
+        mapId: "map.mastery",
+        gameplayRevisionId: "revision:map.mastery:initial",
+        mapVariant: null,
+        difficulty: "困难",
+        gameVersion: "99.0101.1",
+        matchCode: "1234-5678-9012",
+        completionDurationSeconds: 600,
+        deaths: 1,
+        skips: 0,
+        eventCounters: {},
+        acceptanceSource: "submission_automatic",
+        acceptedAt: now,
+      });
+      concurrentRunId = concurrentRun.run.runId;
+      return originalBatch(statements);
+    };
+
+    await expect(services.reviewSubmission(input, maintainer, "review-race")).rejects.toThrow();
+    database.batch = originalBatch;
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.review-race'").get()).toEqual({ status: "ocr_review_required" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.review-race'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.review-race' AND outcome_key = 'verified_run'").get()).toEqual({ status: "ineligible" });
+    expect(sqlite.prepare("SELECT id FROM mastery_runs WHERE source_submission_id = 'submission.review-race'").get()).toEqual({ id: concurrentRunId });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE id = 'admin:submission.review:review-race'").get()).toEqual({ count: 0 });
+
+    await expect(services.reviewSubmission(input, maintainer, "review-race")).resolves.toMatchObject({ decision: "approved", verifiedRunOutcome: { status: "created" } });
+    expect(sqlite.prepare("SELECT status, entity_id FROM submission_outcomes WHERE submission_id = 'submission.review-race' AND outcome_key = 'verified_run'").get()).toEqual({ status: "created", entity_id: concurrentRunId });
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.review-race'").get()).toEqual({ status: "approved" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.review-race'").get()).toEqual({ count: 1 });
+  });
+
+  it("does not show a stale recorded Run when corrected preview evidence conflicts", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.preview-stale", "binding.preview-stale", "Preview Stale");
+    seedMasterySubmission(sqlite, "submission.preview-stale", "binding.preview-stale", "Preview Stale");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.preview-stale");
+    const ocr = masteryOcr();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.preview-stale', 'submission.preview-stale', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const run = await services.recordVerifiedRun({
+      playerAccountId: "player.preview-stale",
+      sourceSubmissionId: "submission.preview-stale",
+      mapId: "map.mastery",
+      gameplayRevisionId: "revision:map.mastery:initial",
+      mapVariant: null,
+      difficulty: "困难",
+      gameVersion: "99.0101.1",
+      matchCode: "1234-5678-9012",
+      completionDurationSeconds: 600,
+      deaths: 1,
+      skips: 0,
+      eventCounters: {},
+      acceptanceSource: "submission_automatic",
+      acceptedAt: now,
+    });
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.preview-stale', 'submission.preview-stale', 'verified_run', 'verified_run', 'created', ?, ?, '{}', ?, ?)").run(run.run.runId, run.run.awardedXp, now, now);
+
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const preview = await services.previewSubmissionReview({
+      submissionId: "submission.preview-stale",
+      fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "传奇" }],
+    }, maintainer);
+
+    expect(preview).toMatchObject({
+      approvable: false,
+      blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED",
+      verifiedRun: { status: "ineligible", reason: "conflicting_run_code_evidence" },
+    });
+  });
+
   it("matches map Challenges only on the exact Gameplay Revision identified by the evidence", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
@@ -3695,5 +3039,88 @@ describe("submission mastery outcomes", () => {
     // The retry re-decides the already-reviewed Submission instead of leaving it waiting for OCR.
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.lifecycle'").get()).toEqual({ status: "approved" });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.lifecycle'").get()).toEqual({ count: 2 });
+  });
+});
+
+describe("OCR queue failure recovery", () => {
+  it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required' WHERE id = 'submission.concurrent-same-key'").run();
+
+    let releaseQueueSend!: () => void;
+    let markQueueSendStarted!: () => void;
+    const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
+    const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
+    const queue = { send: vi.fn(async () => { markQueueSendStarted(); await queueSendGate; }) } as unknown as Queue;
+    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
+    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
+    await queueSendStarted;
+    await expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
+    expect(queue.send).toHaveBeenCalledOnce();
+
+    releaseQueueSend();
+    await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
+    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
+  });
+
+  it("prevents a losing simultaneous retry from undoing a successful enqueue", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.concurrent-send", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = '请重试', updated_at = 1000 WHERE id = 'submission.concurrent-send'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, error_code, created_at) VALUES ('ocr.concurrent-send-failed', 'submission.concurrent-send', 0, 'error', 'OCR_QUEUE_SEND_FAILED', 1000)").run();
+
+    const queue = { send: vi.fn(async () => {}) } as unknown as Queue;
+    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-first", "request.first");
+    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-second", "request.second");
+    const outcomes = await Promise.allSettled([first, second]);
+    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(rejected).toMatchObject({ status: "rejected", reason: new Error("OCR_RETRY_IN_PROGRESS") });
+    expect(queue.send).toHaveBeenCalledOnce();
+
+    expect(outcomes.find((outcome) => outcome.status === "fulfilled")).toMatchObject({ status: "fulfilled", value: { contractVersion: "1", submissionId: "submission.concurrent-send", status: "ocr_pending" } });
+    expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.concurrent-send'").get()).toEqual({ status: "ocr_pending", review_reason: null });
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = 'submission.concurrent-send' ORDER BY created_at").all()).toEqual([
+      { status: "error", error_code: "OCR_QUEUE_SEND_FAILED" },
+      { status: "pending", error_code: null },
+    ]);
+  });
+
+  it("moves stale OCR jobs to an actionable state after queue recovery deliveries are exhausted", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.stale-ocr", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.fresh-ocr", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 1000 WHERE id = 'submission.stale-ocr'").run();
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 2000 WHERE id = 'submission.fresh-ocr'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-stale-result', 'submission.stale-ocr', 0, 'pending', 1000)").run();
+    sqlite.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES ('admin:submission.ocr.retry:idem.stale', 'admin', 'submission.ocr.retry', 'hash', 'ocr-retry-enqueueing:ocr-stale-result', 1000)").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-fresh-result', 'submission.fresh-ocr', 0, 'pending', 2000)").run();
+    const services = createPlatformServices(database);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(services.reconcileStaleOcrJobs({ olderThan: 1500 })).resolves.toBe(1);
+
+    expect(sqlite.prepare("SELECT status, ocr_fail_count FROM submissions WHERE id = 'submission.stale-ocr'").get()).toEqual({ status: "resubmission_required", ocr_fail_count: 1 });
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE id = 'ocr-stale-result'").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_STALLED" });
+    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE id = 'admin:submission.ocr.retry:idem.stale'").get()).toBeUndefined();
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.fresh-ocr'").get()).toEqual({ status: "ocr_pending" });
+    expect(logSpy.mock.calls.map(([line]) => String(line)).some((line) => line.includes('"event":"stale_job_recovered"') && line.includes('"submissionId":"submission.stale-ocr"'))).toBe(true);
+    logSpy.mockRestore();
   });
 });

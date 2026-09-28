@@ -29,7 +29,9 @@ export const getPublicCatalog = cachedFunction(
 
     return payload;
   },
-  { name: "public-catalog", maxAge: 300 },
+  // Nitro defaults to serving expired entries while refreshing them in the background.
+  // Disable SWR so reads past this TTL wait for a fresh upstream response.
+  { name: "public-catalog", maxAge: 300, swr: false },
 );
 
 export { catalogPaths };
