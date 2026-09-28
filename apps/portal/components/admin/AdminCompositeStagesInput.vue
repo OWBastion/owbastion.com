@@ -320,18 +320,6 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
   display: flex;
   align-items: center;
 }
-.field-hint {
-  margin: 0;
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-  color: var(--quiet);
-}
-.field-error {
-  margin: 0.375rem 0 0;
-  color: var(--danger);
-  font-size: var(--type-caption-size);
-  line-height: 1.4;
-}
 @container (max-width: 23.99rem) {
   .stage-editor__fields { grid-template-columns: minmax(0, 1fr); }
   .stage-editor__fields :deep(button) { justify-self: start; min-height: 2.75rem; }

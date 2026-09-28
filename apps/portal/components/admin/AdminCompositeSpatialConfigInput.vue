@@ -190,10 +190,4 @@ function updateRouteCoordinateValidity(valid: boolean) {
   align-items: start;
   gap: 0.75rem;
 }
-.field-error {
-  margin: 0.375rem 0 0;
-  color: var(--danger);
-  font-size: var(--type-caption-size);
-  line-height: 1.4;
-}
 </style>
