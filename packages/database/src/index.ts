@@ -1545,13 +1545,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     };
   };
 
-  const validateRevisionAssignments = async (mapId: string, assignments: AdminRevisionAssignmentInput[]) => {
+  const validateRevisionAssignments = async (
+    mapId: string,
+    assignments: AdminRevisionAssignmentInput[],
+    existingAssignments: Array<typeof gameplayRevisionChallengeAssignments.$inferSelect> = [],
+  ) => {
     const seen = new Set<string>();
+    const existingByIdentity = new globalThis.Map(existingAssignments.map((assignment) => [
+      `${assignment.challengeFamily}:${assignment.challengeId}`,
+      assignment,
+    ]));
     for (const assignment of assignments) {
       if (!revisionChallengeFamilies.has(assignment.challengeFamily)) throw new Error("INVALID_REVISION_ASSIGNMENT");
       const identity = `${assignment.challengeFamily}:${assignment.challengeId}`;
       if (seen.has(identity)) throw new Error("DUPLICATE_REVISION_ASSIGNMENT");
       seen.add(identity);
+      const existing = existingByIdentity.get(identity);
+      const preservesExistingAssignment = Boolean(existing
+        && existing.enabled === (assignment.enabled ? 1 : 0)
+        && nullableEditorText(existing.condition) === nullableEditorText(assignment.condition)
+        && nullableEditorText(existing.evidenceRule) === nullableEditorText(assignment.evidenceRule)
+        && existing.submissionMode === assignment.submissionMode
+        && existing.slot === assignment.slot);
       if (assignment.challengeFamily === "map_challenge") {
         const challenge = await db.select({ id: achievementChallenges.id, status: achievementChallenges.status }).from(achievementChallenges).where(and(eq(achievementChallenges.id, assignment.challengeId), eq(achievementChallenges.mapId, mapId))).get();
         if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
@@ -1562,7 +1577,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (assignment.enabled && !["active", "sunsetting"].includes(rule.status)) throw new Error("REVISION_CHALLENGE_NOT_ACTIVE");
         if (assignment.enabled && rule.kind.trim().toLocaleLowerCase() === "pioneer") {
           const exception = await db.select({ enabled: mapTitleRuleExceptions.enabled, startsAt: mapTitleRuleExceptions.startsAt, endsAt: mapTitleRuleExceptions.endsAt }).from(mapTitleRuleExceptions).where(and(eq(mapTitleRuleExceptions.ruleId, rule.id), eq(mapTitleRuleExceptions.mapId, mapId))).get();
-          if (rule.defaultScope !== "explicit" || exception?.enabled !== 1 || !pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) || exception.endsAt! <= now()) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+          if (!preservesExistingAssignment && (rule.defaultScope !== "explicit" || exception?.enabled !== 1 || !pioneerExceptionHasValidWindow(exception.startsAt, exception.endsAt) || exception.endsAt! <= now())) throw new Error("REVISION_CHALLENGE_NOT_ASSIGNABLE");
         }
       } else {
         const challenge = await db.select({ id: titleChallenges.id, status: titleChallenges.status }).from(titleChallenges)
@@ -4537,7 +4552,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
-      await validateRevisionAssignments(input.mapId, input.challengeAssignments);
+      const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
+        .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
+      await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments);
 
       if (input.mapVariant === "classic") {
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
