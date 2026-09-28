@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
+import type { AdminBindingInviteResponse } from "@owbastion/contracts";
 import { bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -7,7 +8,7 @@ import { createRequestId } from "~/utils/request-id";
 type Grant = { grantId: string; label: string; category: string; mapName?: string; holderName: string; status: "unclaimed" | "active" | "revoked" };
 type HolderSummary = { holderName: string; totalCount: number; unclaimedCount: number };
 type Holder = HolderSummary & { grants: Grant[] };
-type Invitation = { inviteId: string; code: string; playerName: string; playerId: string; expiresAt: number; historicalMigration: { requestedCount: number } };
+type Invitation = AdminBindingInviteResponse;
 
 const emit = defineEmits<{ created: [] }>();
 const api = useAdminApi();

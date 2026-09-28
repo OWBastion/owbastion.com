@@ -1,17 +1,10 @@
 <script setup lang="ts">
-import { bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
+import type { AdminBindingInviteBatchResponse } from "@owbastion/contracts";
+import { type ParsedBattleTag, bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
-type Invitation = {
-  inviteId: string;
-  code: string;
-  playerName: string;
-  playerId: string;
-  expiresAt: number;
-};
-
-type ParsedInvitation = Pick<Invitation, "playerName" | "playerId">;
+type Invitation = AdminBindingInviteBatchResponse["items"][number];
 
 const emit = defineEmits<{ created: [] }>();
 const api = useAdminApi();
@@ -22,7 +15,7 @@ const invitations = ref<Invitation[]>([]);
 const copiedInviteId = shallowRef<string | null>(null);
 
 const parsed = computed(() => {
-  const invitations: ParsedInvitation[] = [];
+  const invitations: ParsedBattleTag[] = [];
   const errors: string[] = [];
   const seen = new Set<string>();
 
@@ -62,7 +55,7 @@ async function createInvitations() {
   copiedInviteId.value = null;
 
   try {
-    const response = await api<{ items: Invitation[] }>("/v1/binding-invites/batch", {
+    const response = await api<AdminBindingInviteBatchResponse>("/v1/binding-invites/batch", {
       method: "POST",
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", invitations: parsed.value.invitations },
