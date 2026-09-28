@@ -627,14 +627,6 @@ async function endChallenge() {
 .achievement-table--catalog :deep(.catalog-col-status) { width: 10%; }
 .achievement-table--catalog :deep(.catalog-col-actions) { width: 10.5rem; min-width: 10.5rem; }
 
-.condition-cell {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--muted);
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
 .plan-popover { display: grid; gap: var(--space-3); }
 .plan-popover-card { width: min(280px, calc(100vw - 32px)); }
 .end-dialog p { margin: 0; color: var(--muted); font-size: .86rem; line-height: 1.55; }

@@ -287,16 +287,7 @@ watch(() => props.maps, () => { if (!selectedMapId.value && props.maps[0]) selec
 .section-heading .type-headline { margin: 0; }
 .section-toolbar { align-items: center; }
 .section-toolbar > :first-child { min-width: min(18rem, 100%); }
-.table-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
-
 .map-achievement-workspace :deep(table[data-slot="base"]) { min-width: 860px; }
-.map-achievement-workspace :deep(.table-actions [data-slot="base"]),
-.map-achievement-workspace :deep(.table-actions [data-slot="base"]:hover),
-.map-achievement-workspace :deep(.table-actions [data-slot="base"]:focus-visible),
-.map-achievement-workspace :deep(.table-actions [data-slot="base"]:active) {
-  transform: none !important;
-}
-.condition-cell { display: -webkit-box; overflow: hidden; color: var(--muted); line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .rule-editor, .exception-editor { display: grid; gap: var(--space-4); }
 .rule-editor { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--space-6); gap: var(--space-5); }
 .rule-editor__wide { grid-column: 1 / -1; }
