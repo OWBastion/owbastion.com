@@ -1,23 +1,19 @@
 import type {
   CurrentPlayerResponse as ContractCurrentPlayerResponse,
   CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
+  PlayerActivityDay as ContractPlayerActivityDay,
+  PlayerActivityResponse as ContractPlayerActivityResponse,
   Map,
   PlayerChallengeProgress as ContractPlayerChallengeProgress,
   PlayerChallengeProgressListResponse as ContractPlayerChallengeProgressListResponse,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
   PlayerSubmissionDetail,
-  PlayerSubmissionStatus,
   PlayerVerifiedRun as ContractPlayerVerifiedRun,
-  VerifiedRunDifficulty as ContractVerifiedRunDifficulty,
 } from "@owbastion/contracts";
 import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
 import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = PlayerSubmissionStatus;
-
 export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
-
-export type VerifiedRunDifficulty = ContractVerifiedRunDifficulty;
 
 export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 
@@ -31,9 +27,9 @@ export type PlayerChallengeProgressListResponse = ContractPlayerChallengeProgres
 
 export type CurrentPlayerMasteryResponse = ContractCurrentPlayerMasteryResponse;
 
-export type PlayerActivityDay = { date: string; runCount: number };
+export type PlayerActivityDay = ContractPlayerActivityDay;
 
-export type PlayerActivityResponse = { contractVersion: "1"; days: PlayerActivityDay[] };
+export type PlayerActivityResponse = ContractPlayerActivityResponse;
 
 export type CurrentPlayer = ContractCurrentPlayerResponse;
 
