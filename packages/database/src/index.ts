@@ -2380,6 +2380,61 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   // The canonical Challenge a reward resolves to, plus the writes needed to make it exist.
   type CanonicalChallengePlan = { row: CanonicalChallengeRow; archiveLegacyId: string | null; insert: boolean };
   type CanonicalChallengeSource = { family: "title_challenge" | "map_challenge" | "map_title_rule"; sourceId: string; ruleId: string };
+  const canonicalChallengeTerms = (
+    input: CanonicalChallengeInput,
+    family: CanonicalChallengeSource["family"],
+    rule?: Pick<typeof mapTitleRules.$inferSelect, "kind" | "condition"> | null,
+    mapChallenge?: Pick<typeof achievementChallenges.$inferSelect, "difficulty" | "type" | "condition"> | null,
+    titleChallenge?: Pick<typeof titleChallenges.$inferSelect, "condition" | "startsAt" | "endsAt"> | null,
+  ) => {
+    const conditions: Array<Record<string, string>> = [];
+    if (family === "title_challenge") {
+      conditions.push({ type: "achievement_title", titleKey: input.titleKey });
+      if (input.mapId) conditions.push({ type: "map", mapId: input.mapId });
+      if (input.snapshot?.mapVariant === "classic") conditions.push({ type: "map_variant", variant: "classic" });
+    } else if (input.mapId) {
+      conditions.push({ type: "map", mapId: input.mapId });
+      conditions.push({ type: "completed" });
+      const difficulty = rule?.kind.toLocaleLowerCase() === "conqueror" ? "传奇"
+        : ["dominator", "pioneer"].includes(rule?.kind.toLocaleLowerCase() ?? "") ? "地狱"
+          : mapChallenge?.difficulty ?? null;
+      if (difficulty) conditions.push({ type: "difficulty_at_least", difficulty });
+      if (input.snapshot?.mapVariant === "classic" || mapChallenge?.type === "classic_completion") conditions.push({ type: "map_variant", variant: "classic" });
+    }
+    const condition = input.snapshot?.condition ?? rule?.condition ?? mapChallenge?.condition ?? titleChallenge?.condition ?? "";
+    const startsAt = input.snapshot?.startsAt ?? titleChallenge?.startsAt ?? null;
+    const endsAt = input.snapshot?.endsAt ?? titleChallenge?.endsAt ?? null;
+    return { conditions, conditionsJson: JSON.stringify({ operator: "and", conditions }), condition, startsAt, endsAt };
+  };
+  const canonicalChallengeInsertPlan = (
+    input: CanonicalChallengeInput,
+    source: Pick<CanonicalChallengeSource, "family" | "sourceId">,
+    ruleVersion: string,
+    terms: ReturnType<typeof canonicalChallengeTerms>,
+    legacy?: CanonicalChallengeRow,
+  ): CanonicalChallengePlan => ({
+    row: {
+      id: `legacy:${source.family}:${source.sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`,
+      sourceFamily: source.family,
+      sourceId: source.sourceId,
+      titleKey: input.titleKey,
+      ruleVersion,
+      mapId: input.mapId,
+      gameplayRevisionId: input.gameplayRevisionId,
+      status: "active",
+      manual: 0,
+      publicCondition: 1,
+      conditionOperator: "and",
+      conditionsJson: terms.conditionsJson,
+      condition: terms.condition,
+      startsAt: terms.startsAt,
+      endsAt: terms.endsAt,
+      createdAt: input.timestamp,
+      updatedAt: input.timestamp,
+    },
+    archiveLegacyId: legacy?.id ?? null,
+    insert: true,
+  });
 
   const sourceForRuleId = async (input: CanonicalChallengeInput, ruleId: string): Promise<CanonicalChallengeSource> => {
     if (ruleId.startsWith("title-challenge:")) return {
@@ -2421,39 +2476,17 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const { family, sourceId, ruleId } = source;
     const title = await db.select({ key: titleCatalog.key }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
     if (!title) throw new Error("TITLE_NOT_FOUND");
-    const conditions: Array<Record<string, string>> = [];
-    if (family === "title_challenge") {
-      conditions.push({ type: "achievement_title", titleKey: input.titleKey });
-      if (input.mapId) conditions.push({ type: "map", mapId: input.mapId });
-      if (input.snapshot?.mapVariant === "classic") conditions.push({ type: "map_variant", variant: "classic" });
-    } else if (input.mapId) {
-      conditions.push({ type: "map", mapId: input.mapId });
-      conditions.push({ type: "completed" });
-      const rule = family === "map_title_rule"
-        ? await db.select({ kind: mapTitleRules.kind, condition: mapTitleRules.condition }).from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get()
-        : null;
-      const mapChallenge = family === "map_challenge"
-        ? await db.select({ difficulty: achievementChallenges.difficulty, type: achievementChallenges.type, condition: achievementChallenges.condition }).from(achievementChallenges).where(eq(achievementChallenges.id, sourceId)).get()
-        : null;
-      const difficulty = rule?.kind.toLocaleLowerCase() === "conqueror" ? "传奇"
-        : ["dominator", "pioneer"].includes(rule?.kind.toLocaleLowerCase() ?? "") ? "地狱"
-          : mapChallenge?.difficulty ?? null;
-      if (difficulty) conditions.push({ type: "difficulty_at_least", difficulty });
-      if (input.snapshot?.mapVariant === "classic" || mapChallenge?.type === "classic_completion") conditions.push({ type: "map_variant", variant: "classic" });
-    }
+    const rule = family === "map_title_rule"
+      ? await db.select({ kind: mapTitleRules.kind, condition: mapTitleRules.condition }).from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get()
+      : undefined;
+    const mapChallenge = family === "map_challenge"
+      ? await db.select({ difficulty: achievementChallenges.difficulty, type: achievementChallenges.type, condition: achievementChallenges.condition }).from(achievementChallenges).where(eq(achievementChallenges.id, sourceId)).get()
+      : undefined;
     const legacyTitleChallenge = family === "title_challenge"
       ? await db.select({ condition: titleChallenges.condition, startsAt: titleChallenges.startsAt, endsAt: titleChallenges.endsAt }).from(titleChallenges).where(eq(titleChallenges.id, sourceId)).get()
-      : null;
-    const legacyRule = family === "map_title_rule" && ruleId
-      ? await db.select({ condition: mapTitleRules.condition }).from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get()
-      : null;
-    const legacyMapChallenge = family === "map_challenge"
-      ? await db.select({ condition: achievementChallenges.condition }).from(achievementChallenges).where(eq(achievementChallenges.id, sourceId)).get()
-      : null;
-    const condition = input.snapshot?.condition ?? legacyRule?.condition ?? legacyMapChallenge?.condition ?? legacyTitleChallenge?.condition ?? "";
-    const startsAt = input.snapshot?.startsAt ?? legacyTitleChallenge?.startsAt ?? null;
-    const endsAt = input.snapshot?.endsAt ?? legacyTitleChallenge?.endsAt ?? null;
-    const conditionsJson = JSON.stringify({ operator: "and", conditions });
+      : undefined;
+    const terms = canonicalChallengeTerms(input, family, rule, mapChallenge, legacyTitleChallenge);
+    const { conditions, conditionsJson, condition, startsAt, endsAt } = terms;
     const ruleVersion = await hashRequest({ conditions, condition, startsAt, endsAt });
     const scope = and(
       eq(challenges.sourceFamily, family),
@@ -2466,29 +2499,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (exact) return { row: exact, archiveLegacyId: null, insert: false };
     const legacy = await db.select().from(challenges).where(and(scope, eq(challenges.ruleVersion, "legacy"))).get();
     if (legacy && legacy.conditionsJson === conditionsJson && legacy.condition === condition && legacy.startsAt === startsAt && legacy.endsAt === endsAt) return { row: legacy, archiveLegacyId: null, insert: false };
-    return {
-      row: {
-        id: `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`,
-        sourceFamily: family,
-        sourceId,
-        titleKey: input.titleKey,
-        ruleVersion,
-        mapId: input.mapId,
-        gameplayRevisionId: input.gameplayRevisionId,
-        status: "active",
-        manual: 0,
-        publicCondition: 1,
-        conditionOperator: "and",
-        conditionsJson,
-        condition,
-        startsAt,
-        endsAt,
-        createdAt: input.timestamp,
-        updatedAt: input.timestamp,
-      },
-      archiveLegacyId: legacy?.id ?? null,
-      insert: true,
-    };
+    return canonicalChallengeInsertPlan(input, source, ruleVersion, terms, legacy);
   };
 
   // Batched equivalent of `planCanonicalChallenge` for the auto-match candidate scan,
@@ -2555,30 +2566,15 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const rule = family === "map_title_rule" ? ruleById.get(ruleId) : null;
       const mapChallenge = family === "map_challenge" ? mapChallengeById.get(sourceId) : null;
       const legacyTitleChallenge = family === "title_challenge" ? titleChallengeById.get(sourceId) : null;
-      const conditions: Array<Record<string, string>> = [];
-      if (family === "title_challenge") {
-        conditions.push({ type: "achievement_title", titleKey: input.titleKey });
-        if (input.mapId) conditions.push({ type: "map", mapId: input.mapId });
-        if (input.snapshot?.mapVariant === "classic") conditions.push({ type: "map_variant", variant: "classic" });
-      } else if (input.mapId) {
-        conditions.push({ type: "map", mapId: input.mapId });
-        conditions.push({ type: "completed" });
-        const difficulty = rule?.kind.toLocaleLowerCase() === "conqueror" ? "传奇"
-          : ["dominator", "pioneer"].includes(rule?.kind.toLocaleLowerCase() ?? "") ? "地狱"
-            : mapChallenge?.difficulty ?? null;
-        if (difficulty) conditions.push({ type: "difficulty_at_least", difficulty });
-        if (input.snapshot?.mapVariant === "classic" || mapChallenge?.type === "classic_completion") conditions.push({ type: "map_variant", variant: "classic" });
-      }
-      const condition = input.snapshot?.condition ?? rule?.condition ?? mapChallenge?.condition ?? legacyTitleChallenge?.condition ?? "";
-      const startsAt = input.snapshot?.startsAt ?? legacyTitleChallenge?.startsAt ?? null;
-      const endsAt = input.snapshot?.endsAt ?? legacyTitleChallenge?.endsAt ?? null;
-      const conditionsJson = JSON.stringify({ operator: "and", conditions });
-      return hashRequest({ conditions, condition, startsAt, endsAt }).then((ruleVersion) => ({ conditionsJson, condition, startsAt, endsAt, ruleVersion }));
+      const terms = canonicalChallengeTerms(input, family, rule, mapChallenge, legacyTitleChallenge);
+      return hashRequest({ conditions: terms.conditions, condition: terms.condition, startsAt: terms.startsAt, endsAt: terms.endsAt })
+        .then((ruleVersion) => ({ terms, ruleVersion }));
     }));
 
     identified.forEach(({ index, input, family, sourceId }, i) => {
       if (!titleKeySet.has(input.titleKey)) throw new Error("TITLE_NOT_FOUND");
-      const { conditionsJson, condition, startsAt, endsAt, ruleVersion } = ruleVersions[i];
+      const { terms, ruleVersion } = ruleVersions[i];
+      const { conditionsJson, condition, startsAt, endsAt } = terms;
       const matches = challengeRows.filter((row) =>
         row.sourceFamily === family
         && row.sourceId === sourceId
@@ -2592,29 +2588,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         results[index] = { row: legacy, archiveLegacyId: null, insert: false };
         return;
       }
-      results[index] = {
-        row: {
-          id: `legacy:${family}:${sourceId}:${input.mapId ?? ""}:${input.gameplayRevisionId ?? ""}:${ruleVersion.slice(0, 16)}`,
-          sourceFamily: family,
-          sourceId,
-          titleKey: input.titleKey,
-          ruleVersion,
-          mapId: input.mapId,
-          gameplayRevisionId: input.gameplayRevisionId,
-          status: "active",
-          manual: 0,
-          publicCondition: 1,
-          conditionOperator: "and",
-          conditionsJson,
-          condition,
-          startsAt,
-          endsAt,
-          createdAt: input.timestamp,
-          updatedAt: input.timestamp,
-        },
-        archiveLegacyId: legacy?.id ?? null,
-        insert: true,
-      };
+      results[index] = canonicalChallengeInsertPlan(input, { family, sourceId }, ruleVersion, terms, legacy);
     });
 
     return results as CanonicalChallengePlan[];
