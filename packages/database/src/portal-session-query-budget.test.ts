@@ -1,3 +1,6 @@
+import {
+  playerAccountsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -11,19 +14,7 @@ import { resolvePortalSession } from "./portal-session";
 const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installSessionSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
-    CREATE TABLE player_accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'active',
-      banned_at INTEGER,
-      banned_by TEXT,
-      ban_reason TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${playerAccountsSchema}
     CREATE TABLE portal_sessions (
       id TEXT PRIMARY KEY NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),

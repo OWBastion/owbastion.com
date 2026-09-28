@@ -1,3 +1,9 @@
+import {
+  auditEventsRequiredIdSchema,
+  bindingsSchema,
+  idempotencyKeysRequiredIdSchema,
+  playerAccountsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
@@ -16,17 +22,8 @@ const codeForByte = (byte: number) => codeAlphabet[byte % codeAlphabet.length].r
  */
 const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "transactional", reportWriteChangesInAll: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (
-    id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT,
-    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE bindings (
-    id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL,
-    provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
-  );
+  ${playerAccountsSchema}
+  ${bindingsSchema}
   CREATE UNIQUE INDEX bindings_provider_member_idx ON bindings(provider, member_open_id);
   CREATE TABLE qq_group_access (
     group_open_id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
@@ -53,15 +50,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     token_hash TEXT NOT NULL UNIQUE, passkey_challenge_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
   );
-  CREATE TABLE idempotency_keys (
-    id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL,
-    request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 const qqAuth: AuthContext = { actorType: "service", subject: "qqbot", roles: ["channel:write"], provider: "test" };

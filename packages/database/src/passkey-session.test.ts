@@ -1,3 +1,8 @@
+import {
+  auditEventsRequiredIdSchema,
+  idempotencyKeysRequiredIdSchema,
+  playerAccountsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,12 +29,7 @@ const { hashRequest, resolvePortalSession } = await import("./portal-session");
 
 const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized", reportWriteChangesInAll: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (
-    id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT,
-    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
+  ${playerAccountsSchema}
   CREATE UNIQUE INDEX player_accounts_battletag_idx ON player_accounts(normalized_player_name, player_id);
   CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT, member_open_id TEXT, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
   CREATE TABLE binding_invites (
@@ -58,20 +58,13 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL
   );
-  CREATE TABLE idempotency_keys (
-    id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL,
-    request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
+  ${idempotencyKeysRequiredIdSchema}
   CREATE TABLE portal_sessions (
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     token_hash TEXT NOT NULL UNIQUE, passkey_challenge_id TEXT UNIQUE REFERENCES passkey_challenges(id),
     expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
   );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
+  ${auditEventsRequiredIdSchema}
 `);
 
 const addAccount = (sqlite: DatabaseSync, id: string, playerId: string, isAdmin = 0) => {
