@@ -2028,6 +2028,23 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     recentRuns: profile.recentRuns.map((run) => playerVerifiedRunView(run, gameplayRevisionLifecycle)),
   });
 
+  const prepareVerifiedRunTransitionStatements = (input: {
+    row: typeof verifiedRuns.$inferSelect;
+    actor: VerifiedRunActor;
+    nextStatus: "active" | "invalidated";
+    reason?: string;
+    timestamp?: number;
+  }) => {
+    const timestamp = input.timestamp ?? now();
+    const reason = input.reason?.trim() || null;
+    return [
+      database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(input.nextStatus, input.nextStatus === "invalidated" ? timestamp : null, input.nextStatus === "invalidated" ? input.actor.actorId : null, input.nextStatus === "invalidated" ? reason : null, input.row.id),
+      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), input.row.id, input.nextStatus === "invalidated" ? "invalidated" : "restored", input.actor.actorType, input.actor.actorId, reason, timestamp),
+      verifiedRunOutcomeStatusStatement({ run: input.row, status: input.nextStatus === "invalidated" ? "invalidated" : "created", timestamp }),
+      ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: input.row.sourceSubmissionId, actorId: input.actor.actorId, timestamp, reason, action: input.nextStatus === "invalidated" ? "invalidate" : "restore" }),
+    ];
+  };
+
   const transitionVerifiedRun = async (input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor, nextStatus: "active" | "invalidated"): Promise<VerifiedRun> => {
     const runId = input.verifiedRunId.trim();
     if (!runId) throw new Error("VERIFIED_RUN_NOT_FOUND");
@@ -2044,14 +2061,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       )).get();
       if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
     }
-    const timestamp = now();
-    const reason = input.reason?.trim() || null;
-    await database.batch([
-      database.prepare("UPDATE mastery_runs SET status = ?, invalidated_at = ?, invalidated_by = ?, invalidation_reason = ? WHERE id = ?").bind(nextStatus, nextStatus === "invalidated" ? timestamp : null, nextStatus === "invalidated" ? actor.actorId : null, nextStatus === "invalidated" ? reason : null, row.id),
-      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), row.id, nextStatus === "invalidated" ? "invalidated" : "restored", actor.actorType, actor.actorId, reason, timestamp),
-      verifiedRunOutcomeStatusStatement({ run: row, status: nextStatus === "invalidated" ? "invalidated" : "created", timestamp }),
-      ...challengeEvidenceLifecycleStatements({ sourceSubmissionId: row.sourceSubmissionId, actorId: actor.actorId, timestamp, reason, action: nextStatus === "invalidated" ? "invalidate" : "restore" }),
-    ]);
+    await database.batch(prepareVerifiedRunTransitionStatements({ row, actor, nextStatus, reason: input.reason }));
     return asVerifiedRun((await db.select().from(verifiedRuns).where(eq(verifiedRuns.id, row.id)).get())!);
   };
 
@@ -2223,55 +2233,140 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       )).get();
   };
 
-  const persistSubmissionGameplayRevision = async (submissionId: string, gameplayRevisionId: string) => {
-    await db.update(submissions).set({ gameplayRevisionId }).where(and(
-      eq(submissions.id, submissionId),
-      isNull(submissions.gameplayRevisionId),
-    ));
-    return db.select({ gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions).where(eq(submissions.id, submissionId)).get();
+  type VerifiedRunRecordPlan = {
+    result: RecordVerifiedRunResult;
+    statements: D1PreparedStatement[];
+    row: typeof verifiedRuns.$inferSelect | null;
+    candidate: ReturnType<typeof prepareVerifiedRun>;
   };
 
-  const resolveVerifiedRunSubmissionOutcome = async (
+  const planVerifiedRunRecord = async (input: VerifiedRunInput): Promise<VerifiedRunRecordPlan> => {
+    const candidate = prepareVerifiedRun(input);
+    const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
+      .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
+    if (!source) throw new Error("VERIFIED_RUN_SUBMISSION_NOT_FOUND");
+    if (source.playerAccountId !== candidate.playerAccountId) throw new Error("VERIFIED_RUN_SUBMISSION_PLAYER_MISMATCH");
+    if (source.gameplayRevisionId && source.gameplayRevisionId !== candidate.gameplayRevisionId) throw new Error("VERIFIED_RUN_SUBMISSION_REVISION_MISMATCH");
+    const [player, map, revision] = await Promise.all([
+      db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
+      db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
+      db.select({ id: gameplayRevisions.id, mapId: gameplayRevisions.mapId, legacyMapVariant: gameplayRevisions.legacyMapVariant }).from(gameplayRevisions).where(eq(gameplayRevisions.id, candidate.gameplayRevisionId)).get(),
+    ]);
+    if (!player) throw new Error("VERIFIED_RUN_PLAYER_NOT_FOUND");
+    if (!map) throw new Error("VERIFIED_RUN_MAP_NOT_FOUND");
+    if (!revision || revision.mapId !== candidate.mapId || (revision.legacyMapVariant ?? null) !== candidate.mapVariant) throw new Error("VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND");
+
+    const bySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+    const existing = bySource ?? await db.select().from(verifiedRuns).where(and(
+      eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
+      eq(verifiedRuns.matchCode, candidate.matchCode),
+    )).get();
+    if (existing) {
+      const run = asVerifiedRun(existing);
+      const conflictFields = masteryConflictFields(run, candidate);
+      return {
+        result: conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run },
+        statements: [],
+        row: existing,
+        candidate,
+      };
+    }
+
+    const award = calculateVerifiedRunXpV2({
+      difficulty: candidate.difficulty,
+      mapFactor: candidate.mapFactor,
+      deaths: candidate.deaths,
+      skips: candidate.skips,
+    });
+    const runId = crypto.randomUUID();
+    const run: VerifiedRun = {
+      runId,
+      playerAccountId: candidate.playerAccountId,
+      sourceSubmissionId: candidate.sourceSubmissionId,
+      mapId: candidate.mapId,
+      gameplayRevisionId: candidate.gameplayRevisionId,
+      mapVariant: candidate.mapVariant,
+      difficulty: candidate.difficulty,
+      gameVersion: candidate.gameVersion,
+      matchCode: candidate.matchCode,
+      completionDurationSeconds: candidate.completionDurationSeconds,
+      deaths: candidate.deaths,
+      skips: candidate.skips,
+      eventCounters: candidate.eventCounters,
+      acceptanceSource: candidate.acceptanceSource,
+      acceptedAt: candidate.acceptedAt,
+      status: "active",
+      invalidatedAt: null,
+      invalidatedBy: null,
+      invalidationReason: null,
+      xpRuleVersion: award.snapshot.ruleVersion,
+      xpInputSnapshot: award.snapshot,
+      awardedXp: award.awardedXp,
+    };
+    return {
+      result: { outcome: "created", run },
+      statements: [
+        database.prepare("INSERT OR IGNORE INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.gameplayRevisionId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.matchCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
+        database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'accepted', 'service', ?, NULL, ? WHERE EXISTS (SELECT 1 FROM mastery_runs WHERE id = ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt, runId),
+      ],
+      row: null,
+      candidate,
+    };
+  };
+
+  type VerifiedRunSubmissionPlan = {
+    outcome: VerifiedRunSubmissionOutcome;
+    statements: D1PreparedStatement[];
+    recorded: boolean;
+    recordInput?: VerifiedRunInput;
+  };
+
+  const planVerifiedRunSubmissionOutcome = async (
     row: typeof submissions.$inferSelect,
     response: OcrResponse,
     acceptanceSource: "submission_automatic" | "submission_review",
     humanConfirmed = false,
-  ): Promise<VerifiedRunSubmissionOutcome> => {
+  ): Promise<VerifiedRunSubmissionPlan> => {
+    const plan = (outcome: VerifiedRunSubmissionOutcome, statements: D1PreparedStatement[] = [], recorded = false, recordInput?: VerifiedRunInput): VerifiedRunSubmissionPlan => ({ outcome, statements, recorded, ...(recordInput ? { recordInput } : {}) });
     const existing = await loadVerifiedRunSubmissionOutcome(row.id);
     const evidence = assessVerifiedRunOcrEvidence(response, masteryEvidenceCompatibility, humanConfirmed);
     if (evidence.outcome === "ineligible") {
-      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
-      return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: evidence.reason, conflictFields: [] };
+      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) {
+        const outcome = existingMasteryOutcome(existing);
+        return plan(outcome, [], outcome.status === "created" || outcome.status === "reused");
+      }
+      return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: evidence.reason, conflictFields: [] });
     }
 
     const requiredMapVariant = await requiredMasteryMapVariant(row);
     if (requiredMapVariant === "classic" && evidence.mapVariant !== requiredMapVariant) {
-      return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "required_map_variant_mismatch", conflictFields: [] };
+      return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "required_map_variant_mismatch", conflictFields: [] });
     }
 
     const owner = await db.select({ playerAccountId: playerAccounts.id }).from(playerAccounts)
       .where(and(eq(playerAccounts.id, row.playerAccountId), eq(playerAccounts.status, "active"))).get();
     if (!owner) {
-      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) return existingMasteryOutcome(existing);
-      return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "player_not_active", conflictFields: [] };
+      if (existing && ["created", "reused", "invalidated"].includes(existing.status)) {
+        const outcome = existingMasteryOutcome(existing);
+        return plan(outcome, [], outcome.status === "created" || outcome.status === "reused");
+      }
+      return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "player_not_active", conflictFields: [] });
     }
     const matchingMaps = (await db.select().from(maps).where(eq(maps.status, "active")))
       .filter((map) => normalizedOcrLabel(map.name) === normalizedOcrLabel(evidence.mapName));
-    if (matchingMaps.length !== 1) return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: matchingMaps.length ? "ambiguous_map" : "canonical_map_not_found", conflictFields: [] };
-    if (row.targetMapId && row.targetMapId !== matchingMaps[0].id) return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_map_mismatch", conflictFields: [] };
+    if (matchingMaps.length !== 1) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: matchingMaps.length ? "ambiguous_map" : "canonical_map_not_found", conflictFields: [] });
+    if (row.targetMapId && row.targetMapId !== matchingMaps[0].id) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_map_mismatch", conflictFields: [] });
 
     const revision = await resolveMasteryGameplayRevision({
       mapId: matchingMaps[0].id,
       mapVariant: evidence.mapVariant,
       gameplayRevisionId: snapshotGameplayRevisionId(row),
     });
-    if (!revision) return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "gameplay_revision_not_found", conflictFields: [] };
-    if (!row.gameplayRevisionId) {
-      const persisted = await persistSubmissionGameplayRevision(row.id, revision.id);
-      if (persisted?.gameplayRevisionId !== revision.id) return { status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_revision_mismatch", conflictFields: [] };
-    }
+    if (!revision) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "gameplay_revision_not_found", conflictFields: [] });
+    const currentRevision = await db.select({ gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions).where(eq(submissions.id, row.id)).get();
+    if (currentRevision?.gameplayRevisionId && currentRevision.gameplayRevisionId !== revision.id) return plan({ status: "ineligible", verifiedRunId: null, awardedXp: 0, reason: "submission_revision_mismatch", conflictFields: [] });
 
-    const recorded = await recordVerifiedRun({
+    const recordInput: VerifiedRunInput = {
       playerAccountId: owner.playerAccountId,
       sourceSubmissionId: row.id,
       mapId: matchingMaps[0].id,
@@ -2285,27 +2380,59 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       skips: evidence.skips,
       eventCounters: {},
       acceptanceSource,
-    });
-    if (recorded.outcome === "conflict") {
-      return { status: "conflict", verifiedRunId: recorded.run.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.conflictFields };
+    };
+    const recorded = await planVerifiedRunRecord(recordInput);
+    const statements = [
+      ...(!currentRevision?.gameplayRevisionId ? [database.prepare("UPDATE submissions SET gameplay_revision_id = ? WHERE id = ? AND gameplay_revision_id IS NULL").bind(revision.id, row.id)] : []),
+      ...recorded.statements,
+    ];
+    if (recorded.result.outcome === "conflict") {
+      return plan({ status: "conflict", verifiedRunId: recorded.result.run.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.result.conflictFields }, statements);
     }
-    if (recorded.run.status === "invalidated") {
-      if (existing?.status === "invalidated" && recorded.run.sourceSubmissionId === row.id) {
-        const restored = await transitionVerifiedRun({ verifiedRunId: recorded.run.runId, reason: "OCR evidence revalidated" }, { actorType: "service", actorId: acceptanceSource }, "active");
-        return { status: "created", verifiedRunId: restored.runId, awardedXp: restored.awardedXp, reason: null, conflictFields: [] };
+    if (recorded.result.run.status === "invalidated") {
+      if (existing?.status === "invalidated" && recorded.result.run.sourceSubmissionId === row.id) {
+        const runRow = recorded.row;
+        if (!runRow) throw new Error("VERIFIED_RUN_NOT_FOUND");
+        const activeDuplicate = await db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(
+          eq(verifiedRuns.playerAccountId, runRow.playerAccountId),
+          eq(verifiedRuns.matchCode, runRow.matchCode),
+          eq(verifiedRuns.status, "active"),
+          ne(verifiedRuns.id, runRow.id),
+        )).get();
+        if (activeDuplicate) throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
+        return plan({ status: "created", verifiedRunId: recorded.result.run.runId, awardedXp: recorded.result.run.awardedXp, reason: null, conflictFields: [] }, [
+          ...statements,
+          ...prepareVerifiedRunTransitionStatements({ row: runRow, actor: { actorType: "service", actorId: acceptanceSource }, nextStatus: "active", reason: "OCR evidence revalidated" }),
+        ]);
       }
-      return { status: "invalidated", verifiedRunId: recorded.run.runId, awardedXp: 0, reason: existing?.reason ?? "mastery_run_invalidated", conflictFields: [] };
+      return plan({ status: "invalidated", verifiedRunId: recorded.result.run.runId, awardedXp: 0, reason: existing?.reason ?? "mastery_run_invalidated", conflictFields: [] }, statements);
     }
 
-    const sourceOwnsRun = recorded.run.sourceSubmissionId === row.id;
-    const status: VerifiedRunSubmissionOutcomeStatus = recorded.outcome === "created" || sourceOwnsRun ? "created" : "reused";
-    return {
+    const sourceOwnsRun = recorded.result.run.sourceSubmissionId === row.id;
+    const status: VerifiedRunSubmissionOutcomeStatus = recorded.result.outcome === "created" || sourceOwnsRun ? "created" : "reused";
+    return plan({
       status,
-      verifiedRunId: recorded.run.runId,
-      awardedXp: status === "created" ? recorded.run.awardedXp : 0,
+      verifiedRunId: recorded.result.run.runId,
+      awardedXp: status === "created" ? recorded.result.run.awardedXp : 0,
       reason: status === "reused" ? "same_player_run_code" : null,
       conflictFields: [],
-    };
+    }, statements, recorded.statements.length === 0, recordInput);
+  };
+
+  const resolveVerifiedRunSubmissionOutcome = async (
+    row: typeof submissions.$inferSelect,
+    response: OcrResponse,
+    acceptanceSource: "submission_automatic" | "submission_review",
+    humanConfirmed = false,
+  ): Promise<VerifiedRunSubmissionOutcome> => {
+    const planned = await planVerifiedRunSubmissionOutcome(row, response, acceptanceSource, humanConfirmed);
+    if (planned.statements.length) await database.batch(planned.statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    if (!planned.recordInput) return planned.outcome;
+    const recorded = await recordVerifiedRun(planned.recordInput);
+    if (recorded.outcome === "conflict") return { status: "conflict", verifiedRunId: recorded.run.runId, awardedXp: 0, reason: "conflicting_run_code_evidence", conflictFields: recorded.conflictFields };
+    if (recorded.run.status === "invalidated") return { status: "invalidated", verifiedRunId: recorded.run.runId, awardedXp: 0, reason: planned.outcome.reason ?? "mastery_run_invalidated", conflictFields: [] };
+    const status: VerifiedRunSubmissionOutcomeStatus = recorded.outcome === "created" || recorded.run.sourceSubmissionId === row.id ? "created" : "reused";
+    return { status, verifiedRunId: recorded.run.runId, awardedXp: status === "created" ? recorded.run.awardedXp : 0, reason: status === "reused" ? "same_player_run_code" : null, conflictFields: [] };
   };
 
   const resolveAutoMatchGameplayRevisionId = async (row: typeof submissions.$inferSelect, response: OcrResponse) => {
@@ -3506,58 +3633,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
-    const candidate = prepareVerifiedRun(input);
-    const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
-      .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
-    if (!source) throw new Error("VERIFIED_RUN_SUBMISSION_NOT_FOUND");
-    if (source.playerAccountId !== candidate.playerAccountId) throw new Error("VERIFIED_RUN_SUBMISSION_PLAYER_MISMATCH");
-    if (source.gameplayRevisionId && source.gameplayRevisionId !== candidate.gameplayRevisionId) throw new Error("VERIFIED_RUN_SUBMISSION_REVISION_MISMATCH");
-    const [player, map, revision] = await Promise.all([
-      db.select({ id: playerAccounts.id }).from(playerAccounts).where(eq(playerAccounts.id, candidate.playerAccountId)).get(),
-      db.select({ id: maps.id }).from(maps).where(eq(maps.id, candidate.mapId)).get(),
-      db.select({ id: gameplayRevisions.id, mapId: gameplayRevisions.mapId, legacyMapVariant: gameplayRevisions.legacyMapVariant }).from(gameplayRevisions).where(eq(gameplayRevisions.id, candidate.gameplayRevisionId)).get(),
-    ]);
-    if (!player) throw new Error("VERIFIED_RUN_PLAYER_NOT_FOUND");
-    if (!map) throw new Error("VERIFIED_RUN_MAP_NOT_FOUND");
-    if (!revision || revision.mapId !== candidate.mapId || (revision.legacyMapVariant ?? null) !== candidate.mapVariant) throw new Error("VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND");
-
-    const bySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
-    if (bySource) {
-      const run = asVerifiedRun(bySource);
-      const conflictFields = masteryConflictFields(run, candidate);
-      return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
-    }
-
-    const existingByMatchCode = await db.select().from(verifiedRuns).where(and(
-      eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
-      eq(verifiedRuns.matchCode, candidate.matchCode),
-    )).get();
-    if (existingByMatchCode) {
-      const run = asVerifiedRun(existingByMatchCode);
-      const conflictFields = masteryConflictFields(run, candidate);
-      return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
-    }
-
-    const award = calculateVerifiedRunXpV2({
-      difficulty: candidate.difficulty,
-      mapFactor: candidate.mapFactor,
-      deaths: candidate.deaths,
-      skips: candidate.skips,
-    });
-    const runId = crypto.randomUUID();
-    await database.batch([
-      database.prepare("INSERT OR IGNORE INTO mastery_runs (id, player_account_id, source_submission_id, map_id, gameplay_revision_id, map_variant, difficulty, game_version, run_code, completion_duration_seconds, deaths, skips, event_counters_json, acceptance_source, accepted_at, status, xp_rule_version, xp_input_snapshot_json, awarded_xp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)").bind(runId, candidate.playerAccountId, candidate.sourceSubmissionId, candidate.mapId, candidate.gameplayRevisionId, candidate.mapVariant, candidate.difficulty, candidate.gameVersion, candidate.matchCode, candidate.completionDurationSeconds, candidate.deaths, candidate.skips, JSON.stringify(candidate.eventCounters), candidate.acceptanceSource, candidate.acceptedAt, award.snapshot.ruleVersion, JSON.stringify(award.snapshot), award.awardedXp, candidate.acceptedAt),
-      database.prepare("INSERT INTO mastery_run_lifecycle_events (id, mastery_run_id, transition, actor_type, actor_id, reason, created_at) SELECT ?, ?, 'accepted', 'service', ?, NULL, ? WHERE EXISTS (SELECT 1 FROM mastery_runs WHERE id = ?)").bind(crypto.randomUUID(), runId, candidate.acceptanceSource, candidate.acceptedAt, runId),
-    ]);
-    const persistedBySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, candidate.sourceSubmissionId)).get();
+    const planned = await planVerifiedRunRecord(input);
+    if (!planned.statements.length) return planned.result;
+    await database.batch(planned.statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    const persistedBySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, planned.candidate.sourceSubmissionId)).get();
     const persisted = persistedBySource ?? await db.select().from(verifiedRuns).where(and(
-      eq(verifiedRuns.playerAccountId, candidate.playerAccountId),
-      eq(verifiedRuns.matchCode, candidate.matchCode),
+      eq(verifiedRuns.playerAccountId, planned.candidate.playerAccountId),
+      eq(verifiedRuns.matchCode, planned.candidate.matchCode),
     )).get();
     if (!persisted) throw new Error("VERIFIED_RUN_PERSIST_FAILED");
     const run = asVerifiedRun(persisted);
-    if (persisted.id === runId) return { outcome: "created", run };
-    const conflictFields = masteryConflictFields(run, candidate);
+    if (persisted.id === planned.result.run.runId) return { outcome: "created", run };
+    const conflictFields = masteryConflictFields(run, planned.candidate);
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
   };
 
@@ -5937,12 +6024,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ];
 
       const recordedRun = await loadVerifiedRunSubmissionOutcome(row.id);
-      const runEvidence = assessVerifiedRunOcrEvidence(evidence.correctedResponse, masteryEvidenceCompatibility, true);
-      const verifiedRun = recordedRun && (recordedRun.status === "created" || recordedRun.status === "reused")
+      const verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
+      const verifiedRunAccepted = verifiedRunPlan.outcome.status === "created" || verifiedRunPlan.outcome.status === "reused";
+      const verifiedRun = (recordedRun && (recordedRun.status === "created" || recordedRun.status === "reused")) || verifiedRunPlan.recorded
         ? { status: "recorded" as const, reason: null }
-        : runEvidence.outcome === "eligible"
+        : verifiedRunAccepted
           ? { status: "eligible" as const, reason: null }
-          : { status: "ineligible" as const, reason: runEvidence.reason };
+          : { status: "ineligible" as const, reason: verifiedRunPlan.outcome.reason };
       if (!blockingCode && !evidence.selections.length) {
         const retainedGrants = await loadRetainedSubmissionGrants(row.id);
         if (retainedGrants.length) {
@@ -5950,7 +6038,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           const retainedMapRows = retainedMapIds.length ? await db.select({ id: maps.id, name: maps.name }).from(maps).where(inArray(maps.id, retainedMapIds)) : [];
           const retainedMapNames = new globalThis.Map(retainedMapRows.map(({ id, name }) => [id, name]));
           titles.push(...retainedGrants.map((grant) => ({ titleKey: grant.titleKey, titleName: grant.titleName, mapName: grant.mapId ? retainedMapNames.get(grant.mapId) ?? null : null, alreadyOwned: true })));
-        } else if (verifiedRun.status === "ineligible") blockingCode = "SUBMISSION_OUTCOME_NOT_CONFIGURED";
+        } else if (!verifiedRunAccepted) blockingCode = "SUBMISSION_OUTCOME_NOT_CONFIGURED";
       }
       return {
         contractVersion: "1",
@@ -5971,6 +6059,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       let verifiedRunOutcome = await loadVerifiedRunSubmissionOutcome(row.id);
+      let verifiedRunPlan: VerifiedRunSubmissionPlan | null = null;
       let selectedRows: ReviewEvidenceSelection[] = [];
       let approvalRewards: Awaited<ReturnType<typeof planApprovalRewards>> | null = null;
       let reviewedMatchOutcome: string | null = null;
@@ -5986,7 +6075,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         reviewedChallengeIds = selectedRows.filter((selection) => selection.basis === "conditions").map((selection) => selection.canonicalChallengeId);
         reviewerConfirmedChallengeIds = selectedRows.filter((selection) => selection.basis === "reviewer").map((selection) => selection.canonicalChallengeId);
         if (selectedRows.length) approvalRewards = await planApprovalRewards(row, selectedRows, approvalTimestamp);
-        verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
+        verifiedRunPlan = await planVerifiedRunSubmissionOutcome(row, evidence.correctedResponse, "submission_review", true);
+        verifiedRunOutcome = verifiedRunPlan.outcome;
         const verifiedRunAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
         if (!selectedRows.length) {
           retainedGrants = await loadRetainedSubmissionGrants(row.id);
@@ -6005,7 +6095,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
         const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
         const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
-        const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? []), database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)];
+        const statements: D1PreparedStatement[] = [
+          ...(reviewedAnnotation?.statements ?? []),
+          database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
+          ...(verifiedRunPlan?.statements ?? []),
+          ...(verifiedRunOutcome ? [masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome)] : []),
+        ];
         for (const award of completionAwardRows) {
           statements.push(database.prepare("INSERT OR IGNORE INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) SELECT ?, s.player_account_id, ?, ?, 'active', ?, s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(crypto.randomUUID(), award.challengeId, award.gameplayRevisionId, award.completionSourceType, timestamp, timestamp, row.id, reviewId));
         }
@@ -6052,7 +6147,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
 
       let reward: { challengeId: string; titleKey: string; titleName: string; mapId: string | null; gameplayRevisionId: string | null; slot: string | null } | null = null;
-      if (input.decision === "approved" && row.challengeId) {
+      if (input.decision === "approved" && row.challengeId && selectedRows.some((selection) => selection.challengeId === row.challengeId || selection.canonicalChallengeId === row.challengeId)) {
 
         // Fast path: submission was created with an immutable rule snapshot.
         if (row.ruleSnapshotJson) {
@@ -6115,12 +6210,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
-      const statements: D1PreparedStatement[] = [...(reviewedAnnotation?.statements ?? [])];
+      const statements: D1PreparedStatement[] = [
+        ...(reviewedAnnotation?.statements ?? []),
+      ];
       statements.push(
         database.prepare(
           "INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?"
         ).bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id)
       );
+      statements.push(...(verifiedRunPlan?.statements ?? []));
+      if (input.decision === "approved" && verifiedRunOutcome) statements.push(masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome));
       if (reward) {
         const mapMatch = reward.mapId ? "g.map_id = ?" : "g.map_id IS NULL";
         const revisionMatch = reward.gameplayRevisionId ? "g.gameplay_revision_id = ?" : "g.gameplay_revision_id IS NULL";
