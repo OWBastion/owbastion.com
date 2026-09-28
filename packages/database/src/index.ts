@@ -1714,8 +1714,43 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const glossary = async () => (await platformCache.cached("catalog", "glossary-terms", () => db.select().from(effectGlossaryTerms))).map((term) => ({ key: term.key, nameZh: term.nameZh, aliases: JSON.parse(term.aliasesJson) as string[], category: term.category, summary: term.summary, definition: term.definition, rules: JSON.parse(term.rulesJson) as string[], sourceVersion: term.sourceVersion }));
-  const annotateEffects = async (tags: string[]) => { const terms = await glossary(); const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const))); return tags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }); };
-  const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, eventGroup: row.eventGroup, effectTags, effectAnnotations: await annotateEffects(effectTags), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: await publicEventChallenges(row.id) }; };
+  type GlossaryTerm = Awaited<ReturnType<typeof glossary>>[number];
+  type EffectAnnotation = { tag: string; term: GlossaryTerm };
+  const effectTermLookup = (terms: GlossaryTerm[]) => {
+    const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const)));
+    return (tag: string): GlossaryTerm | undefined => byLabel.get(tag);
+  };
+  const annotateEffectTags = (tags: string[], termForTag: (tag: string) => GlossaryTerm | undefined): EffectAnnotation[] => tags.flatMap((tag) => {
+    const term = termForTag(tag);
+    return term ? [{ tag, term }] : [];
+  });
+  const annotateEffects = async (tags: string[]) => annotateEffectTags(tags, effectTermLookup(await glossary()));
+  const toRandomEvent = (
+    row: typeof randomEvents.$inferSelect,
+    effectTags: string[],
+    effectAnnotations: EffectAnnotation[],
+    challenges: Challenge[],
+  ): RandomEvent => ({
+    eventId: row.id,
+    name: row.name,
+    category: row.category,
+    rarity: row.rarity,
+    description: row.description,
+    durationSeconds: row.durationSeconds,
+    cooldownSeconds: row.cooldownSeconds,
+    weight: row.weight,
+    gameVersion: row.gameVersion,
+    eventGroup: row.eventGroup,
+    effectTags,
+    effectAnnotations,
+    releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"],
+    archived: row.archivedAt !== null,
+    challenges,
+  });
+  const asRandomEvent = async (row: typeof randomEvents.$inferSelect): Promise<RandomEvent> => {
+    const effectTags = JSON.parse(row.effectTagsJson) as string[];
+    return toRandomEvent(row, effectTags, await annotateEffects(effectTags), await publicEventChallenges(row.id));
+  };
   const suspendedEventVersions = async () => new Set((await platformCache.cached("catalog", "suspended-event-versions", () => db.select({ gameVersion: randomEventVersions.gameVersion }).from(randomEventVersions).where(eq(randomEventVersions.availability, "suspended")))).map((row) => row.gameVersion));
   // Two membership lookups per link batch instead of one select per link;
   // chunked so a large import cannot exceed the SQLite variable limit.
@@ -4919,7 +4954,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           fetchAllPublicChallenges(),
           glossary(),
         ]);
-        const byLabel = new Map(terms.flatMap((term) => [term.nameZh, ...term.aliases].map((label) => [label, term] as const)));
+        const termForTag = effectTermLookup(terms);
         const challengeById = new Map(allChallenges.map((c) => [c.challengeId, c]));
         const challengesByEvent = new Map<string, Challenge[]>(eventIds.map((id) => [id, []]));
         for (const links of [mapLinks, titleLinks]) {
@@ -4928,7 +4963,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
             if (challenge) challengesByEvent.get(link.eventId)?.push(challenge);
           }
         }
-      return rows.map((row): RandomEvent => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, eventGroup: row.eventGroup, effectTags, effectAnnotations: effectTags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: challengesByEvent.get(row.id) ?? [] }; });
+      return rows.map((row) => {
+        const effectTags = JSON.parse(row.effectTagsJson) as string[];
+        return toRandomEvent(row, effectTags, annotateEffectTags(effectTags, termForTag), challengesByEvent.get(row.id) ?? []);
+      });
     },
     async getRandomEvent(input) {
       const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
