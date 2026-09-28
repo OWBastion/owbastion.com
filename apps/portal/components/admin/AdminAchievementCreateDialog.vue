@@ -1,28 +1,10 @@
 <script setup lang="ts">
+import type { AdminAchievementCreateRequest } from "@owbastion/contracts";
+
 type TargetMap = { mapId: string; mapName: string };
-type CreatePayload = {
-  contractVersion: "1";
-  titleKey: string;
-  titleName: string;
-  icon: string;
-  category: string;
-  condition: string;
-  evidenceRule: string;
-  submissionMode: "manual" | "automatic";
-  scope: "global" | "map";
-  mapIds: string[];
-  mapVariant?: "classic";
-  status: "scheduled" | "active" | "sunsetting" | "retired";
-  gameVersion: string | null;
-  categoryOverride: string | null;
-  iconUrl: string | null;
-  startsAt?: number;
-  endsAt?: number;
-  retiredVersion?: string;
-};
 
 const props = defineProps<{ open: boolean; maps: TargetMap[]; saving: boolean }>();
-const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: CreatePayload, iconFile: File | null] }>();
+const emit = defineEmits<{ "update:open": [open: boolean]; submit: [payload: AdminAchievementCreateRequest, iconFile: File | null] }>();
 const dialogOpen = computed({
   get: () => props.open,
   set: (open: boolean) => emit("update:open", open),
