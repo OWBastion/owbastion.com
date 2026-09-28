@@ -892,22 +892,34 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     submissionMode: challenge.submissionMode as "manual" | "automatic",
   });
 
+  const publicTitleChallengeFields = (
+    challenge: typeof titleChallenges.$inferSelect,
+    title: typeof titleCatalog.$inferSelect,
+    timestamp: number,
+  ) => {
+    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
+    const gameVersion = challenge.gameVersion?.trim();
+    if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
+    return {
+      gameVersion,
+      status: status as "scheduled" | "active" | "sunsetting",
+      startsAt: challenge.startsAt ?? undefined,
+      endsAt: challenge.endsAt ?? undefined,
+      retiredVersion: challenge.retiredVersion ?? undefined,
+    };
+  };
+
   const toPublicTitleChallenge = (
     challenge: typeof titleChallenges.$inferSelect,
     title: typeof titleCatalog.$inferSelect,
     timestamp: number,
     mapIdsByChallenge: globalThis.Map<string, string[]>,
   ): Extract<Challenge, { family: "achievement" }> | null => {
-    const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-    const gameVersion = challenge.gameVersion?.trim();
-    if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
+    const fields = publicTitleChallengeFields(challenge, title, timestamp);
+    if (!fields) return null;
     return {
       ...toTitleChallengeBase(challenge, title),
-      gameVersion,
-      status: status as "scheduled" | "active" | "sunsetting",
-      startsAt: challenge.startsAt ?? undefined,
-      endsAt: challenge.endsAt ?? undefined,
-      retiredVersion: challenge.retiredVersion ?? undefined,
+      ...fields,
       scope: (challenge.scope ?? "global") as "global" | "map",
       mapIds: (challenge.scope ?? "global") === "map" ? (mapIdsByChallenge.get(challenge.id) ?? []) : [],
       ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}),
@@ -4252,16 +4264,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           .orderBy(titleCatalog.category, titleCatalog.label);
         const timestamp = now();
         items.push(...rows.flatMap(({ challenge, title }): Challenge[] => {
-          const status = publicTitleChallengeStatus(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion);
-          const gameVersion = challenge.gameVersion?.trim();
-          if (!status || !gameVersion || !title.gameVersion?.trim() || (challenge.scope ?? "global") === "map" && challenge.mapVariant) return [];
+          const fields = publicTitleChallengeFields(challenge, title, timestamp);
+          if (!fields || (challenge.scope ?? "global") === "map" && challenge.mapVariant) return [];
           return [{
             ...toTitleChallengeBase(challenge, title),
-            gameVersion,
-            status: status as "scheduled" | "active" | "sunsetting",
-            startsAt: challenge.startsAt ?? undefined,
-            endsAt: challenge.endsAt ?? undefined,
-            retiredVersion: challenge.retiredVersion ?? undefined,
+            ...fields,
           }];
         }));
       }
