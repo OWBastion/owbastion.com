@@ -3,6 +3,7 @@ import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
 import AdminLegacyCompositeSpatialConfigInput from "./AdminLegacyCompositeSpatialConfigInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
+import { createEmptyCompositeConfig, hasCompositeStructure } from "~/utils/composite-spatial-config";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 
 const props = withDefaults(defineProps<{
@@ -23,40 +24,15 @@ const modeItems = [
   { value: "composite", label: "多合一（每局随机抽几段）" },
 ];
 
-const isComposite = (value: SpatialConfigValue | null): value is SpatialConfigValue =>
-  Boolean(value && Array.isArray(value.stages) && value.composition && typeof value.composition === "object");
+const isLegacyComposite = (value: SpatialConfigValue | null) => hasCompositeStructure(value) && !("endPosition" in value);
 
-const isLegacyComposite = (value: SpatialConfigValue | null) => isComposite(value) && !("endPosition" in value);
-
-const createEmptySpatialStage = (stageId: string) => ({
-  stageId,
-  bastionPositions: [],
-  control: null,
-  portalPositions: [],
-  springboardPositions: [],
-});
-
-const createEmptyCompositeConfig = (): SpatialConfigValue => ({
-  resetPosition: null,
-  endPosition: null,
-  thirdPersonPosition: null,
-  creditsPosition: null,
-  control: null,
-  composition: {
-    selectionCount: 2,
-    firstStageSelection: { mode: "random" },
-    remainingStageSelection: "random_unique",
-  },
-  stages: [createEmptySpatialStage("stage-1"), createEmptySpatialStage("stage-2")],
-});
-
-const mode = shallowRef<SpatialMode>(isComposite(props.modelValue) ? "composite" : "single");
+const mode = shallowRef<SpatialMode>(hasCompositeStructure(props.modelValue) ? "composite" : "single");
 const singleDraft = shallowRef<SpatialConfigValue | null>(mode.value === "single" ? props.modelValue : null);
 const compositeDraft = shallowRef<SpatialConfigValue | null>(mode.value === "composite" ? props.modelValue : null);
 const singleCoordinatesValid = shallowRef(true);
 const compositeValid = shallowRef(true);
 function sync() {
-  mode.value = isComposite(props.modelValue) ? "composite" : "single";
+  mode.value = hasCompositeStructure(props.modelValue) ? "composite" : "single";
   singleDraft.value = mode.value === "single" ? props.modelValue : null;
   compositeDraft.value = mode.value === "composite" ? props.modelValue : null;
   singleCoordinatesValid.value = true;
