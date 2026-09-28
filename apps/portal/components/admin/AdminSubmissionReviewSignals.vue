@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 import { reviewCandidateScopeLabel, reviewCandidateSearchText, reviewCandidateStatus, reviewFieldList } from "~/utils/submissionReview";
@@ -9,7 +9,7 @@ type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrF
 
 const props = defineProps<{ submission: AdminSubmission; preview?: AdminSubmissionReviewPreview | null; previewLoading?: boolean; stacked?: boolean; disabled?: boolean }>();
 const emit = defineEmits<{
-  "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }>];
+  "field-corrections": [value: AdminSubmissionReviewInput["fieldCorrections"]];
   "confirmed-challenges": [value: string[]];
 }>();
 
@@ -160,7 +160,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
           <p class="signal-kicker">识别</p>
           <h3 id="ocr-title">OCRKit</h3>
         </div>
-        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
+        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(submission.ocrStatus ?? 'not_started')" />
       </header>
       <dl class="signal-meta">
         <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>

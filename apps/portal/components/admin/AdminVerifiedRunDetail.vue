@@ -80,7 +80,7 @@ function sourcePath(submissionId: string) {
       </div>
       <dl class="detail-grid verified-run-detail__facts">
         <div class="detail-grid__row"><dt>提交编号</dt><dd class="verified-run-detail__code">{{ detail.sourceSubmission.submissionId }}</dd></div>
-        <div class="detail-grid__row"><dt>识别状态</dt><dd><StatusBadge :label="ocrStatusLabel(detail.sourceSubmission.ocrStatus)" :tone="ocrStatusTone(detail.sourceSubmission.ocrStatus)" /></dd></div>
+        <div class="detail-grid__row"><dt>识别状态</dt><dd><StatusBadge :label="ocrStatusLabel(detail.sourceSubmission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(detail.sourceSubmission.ocrStatus ?? 'not_started')" /></dd></div>
         <div class="detail-grid__row"><dt>识别次数</dt><dd :class="{ 'detail-grid__empty': detail.sourceSubmission.ocrAttempt == null }">{{ detail.sourceSubmission.ocrAttempt ?? NONE }}</dd></div>
       </dl>
       <div class="verified-run-detail__actions">

@@ -145,7 +145,7 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
       <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
-      <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
+      <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(row.original.ocrStatus ?? 'not_started')" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
       <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
       <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/reviews/${encodeURIComponent(row.original.submissionId)}`" label="查看" size="sm" color="neutral" variant="outline" /></div></template>

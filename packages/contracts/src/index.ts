@@ -1589,6 +1589,7 @@ export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
+export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;
