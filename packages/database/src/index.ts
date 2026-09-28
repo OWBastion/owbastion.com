@@ -17,7 +17,7 @@ import { createQqGroupServices } from "./qq-group-service";
 import { createAgentServices } from "./agent-service";
 import { createRandomEventServices } from "./random-event-service";
 import { createMapRevisionServices, parseAgentSpatialConfig, pioneerExceptionHasValidWindow } from "./map-revision-service";
-import { createPlayerTitleServices } from "./player-title-service";
+import { createPlayerTitleServices, type ManualTitleGrantResolution } from "./player-title-service";
 import { createBindingServices } from "./binding-service";
 import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { pageResult, paginate } from "./page-result";
@@ -723,14 +723,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!resolved) return null;
     const { revision, assignment } = resolved;
     return toTitleChallengeSnapshot(challenge, title, mapId, revision.id, assignment);
-  };
-
-  type ManualTitleGrantResolution = {
-    title: { key: string; label: string; scope: string; lifecycle: string };
-    mapId: string | null;
-    gameplayRevisionId: string | null;
-    slot: string | null;
-    manualChallengeId: string;
   };
 
   const resolveManualTitleGrantTarget = async (input: Pick<AdminManualTitleGrantRequest, "titleKey" | "mapId" | "gameplayRevisionId">): Promise<ManualTitleGrantResolution> => {
