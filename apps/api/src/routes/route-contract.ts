@@ -9,6 +9,7 @@ export type ServiceAccessor = (env: RuntimeEnv) => PlatformServices;
 export type RouteAccess = { auth?: AuthContext; error?: Response };
 export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503;
 export type MutationStatus = 404 | 409 | 422 | 503;
+export type RouteErrorMap = Partial<Record<string, { status: ErrorStatus; message: string; responseCode?: string }>>;
 
 export type AdminMutationOptions<T> = {
   schema?: { safeParse(value: unknown): { success: true; data: T } | { success: false } };
@@ -37,6 +38,12 @@ export const parseBody = async (request: Request) => {
   } catch {
     return null;
   }
+};
+
+export const routeErrorResponse = (context: ApiContext, error: unknown, errors: RouteErrorMap, errorResponse: AdminRouteDependencies["errorResponse"]) => {
+  if (!(error instanceof Error)) return null;
+  const mapping = errors[error.message];
+  return mapping ? errorResponse(context, mapping.status, mapping.responseCode ?? error.message, mapping.message) : null;
 };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
