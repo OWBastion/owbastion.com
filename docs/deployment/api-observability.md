@@ -156,3 +156,45 @@ migrations, catalog mutations, Queue messages, or any other business state.
 
 The API unit test `can disable public Agents HTTP caching without changing
 catalog data` is the local regression check for this rollback control.
+
+## Portal catalog cache layer and combined freshness bound
+
+The Worker's `public, max-age=300, s-maxage=300` policy documented above is
+one of two stacked TTL caches for Portal-rendered public catalog data
+(`/maps`, `/events`, `/achievements`). The Portal server (`apps/portal/server/utils/public-catalog.ts`)
+additionally caches the same identity-independent reads (`getPublicCatalog`,
+Nitro `cachedFunction`, `name: "public-catalog"`) with its own 300-second
+`maxAge`, fetched without the player cookie. This cache is in-process memory
+on the Portal container; it is not Workers KV, D1, or any shared store, and it
+is not visible to or clearable through the Worker's Cache API.
+
+`getPublicCatalog` sets `swr: false`. Nitro's `cachedFunction` defaults to
+`swr: true` (stale-while-revalidate: serve the expired entry immediately,
+refresh in the background, with no bound on how long that stale entry keeps
+being served if traffic is low). `swr: false` makes a read past `maxAge`
+block on a fresh upstream fetch instead, so this layer's own contribution to
+staleness is bounded by its `maxAge` rather than open-ended. Regression check:
+`apps/portal/server/utils/public-catalog.test.ts` fails if `swr` is re-enabled.
+
+**Combined freshness bound.** #206 accepted "about 5 minutes" for the Worker
+layer read alone. With the Portal layer stacked in front of it, the
+documented combined bound for Portal-rendered pages is now the sum of both
+`maxAge` values: up to 300s (Worker) + 300s (Portal) = **up to 600 seconds
+(about 10 minutes)** worst case between an administrator edit and that edit
+being visible on a Portal-rendered public catalog page. `/me` and other
+`/api/portal/*` reads that bypass the Portal catalog cache remain bound by
+the Worker layer alone (about 5 minutes), so they can briefly show fresher
+data than `/maps`, `/events`, or `/achievements` during that gap; this is an
+accepted consequence of the accepted non-goal of write-time cache
+invalidation (#33, #206), not a defect.
+
+**Clearing the Portal cache layer.** The Worker's `PUBLIC_HTTP_CACHE_ENABLED:false`
+rollback above only changes Worker-layer caching; it does not touch the
+Portal process's in-memory cache, which keeps serving its own cached entries
+until their `maxAge` elapses (now bounded to 300s by `swr: false`, previously
+unbounded). To clear the Portal cache immediately — for example while
+investigating a suspected stale-catalog report — restart or redeploy the Portal
+container (`docs/deployment/portal-hkg.md`, "HKG operations"). The next read
+still goes through the Worker layer and may use an entry within that layer's
+own 300-second TTL. There is no remote purge for the Portal cache; a restart
+is the only way to clear it without waiting out `maxAge`.
