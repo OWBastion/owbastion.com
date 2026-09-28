@@ -1,4 +1,4 @@
-import { hasOnlyUniqueQueryNames } from "../query-params";
+import { hasOnlyUniqueQueryNames, parsePagination } from "../query-params";
 import type { ErrorStatus, ApiApp, ServiceAccessor } from "./route-contract";
 
 type AgentRouteDependencies = {
@@ -17,13 +17,7 @@ type AgentRouteDependencies = {
   bearerTokenMatches: (authorization: string | undefined, secret: string) => boolean;
 };
 
-const agentPage = (request: Request) => {
-  const params = new URL(request.url).searchParams;
-  const page = Number(params.get("page") ?? "1");
-  const pageSize = Number(params.get("pageSize") ?? "20");
-  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) return null;
-  return { page, pageSize };
-};
+const agentPage = (request: Request) => parsePagination(new URL(request.url).searchParams, 100);
 
 export const registerAgentRoutes = (app: ApiApp, dependencies: AgentRouteDependencies) => {
   const { services, errorResponse, publicCacheKey, hasNoQuery, logServiceOperation, cachePublicResponse, bearerTokenMatches } = dependencies;

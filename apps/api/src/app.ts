@@ -30,7 +30,7 @@ import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-manag
 import { registerBindingInviteRoutes } from "./routes/binding-invites";
 import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { registerReviewRoutes } from "./routes/reviews";
-import { hasOnlyUniqueQueryNames } from "./query-params";
+import { hasOnlyUniqueQueryNames, parsePagination } from "./query-params";
 
 export type RuntimeEnv = {
   DB: D1Database;
@@ -147,12 +147,10 @@ const playerMasteryQuery = (request: Request) => {
   if (!hasOnlyUniqueQueryNames(params, ["mapId", "gameplayRevisionId", "page", "pageSize"])) return null;
   const mapId = params.get("mapId");
   const gameplayRevisionId = params.get("gameplayRevisionId");
-  const page = Number(params.get("page") ?? "1");
-  const pageSize = Number(params.get("pageSize") ?? "20");
   if (mapId !== null && (!mapId.trim() || mapId.trim().length > 256)) return null;
   if (gameplayRevisionId !== null && (!gameplayRevisionId.trim() || gameplayRevisionId.trim().length > 256)) return null;
-  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
-  return { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, page, pageSize };
+  const pagination = parsePagination(params, 50);
+  return pagination ? { mapId: mapId?.trim() || undefined, gameplayRevisionId: gameplayRevisionId?.trim() || undefined, ...pagination } : null;
 };
 
 export const createApp = (dependencies: AppDependencies) => {

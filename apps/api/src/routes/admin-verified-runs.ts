@@ -3,15 +3,14 @@ import {
   adminVerifiedRunCorrectionRequestSchema,
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
-import { hasOnlyUniqueQueryNames } from "../query-params";
+import { hasOnlyUniqueQueryNames, parsePagination } from "../query-params";
 import { isUuid, maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const adminVerifiedRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
   const allowed = ["playerAccountId", "mapId", "gameplayRevisionId", "difficulty", "status", "unresolvedConflictsOnly", "acceptanceSource", "matchCode", "from", "to", "page", "pageSize"];
   if (!hasOnlyUniqueQueryNames(params, allowed)) return null;
-  const page = Number(params.get("page") ?? "1");
-  const pageSize = Number(params.get("pageSize") ?? "20");
+  const pagination = parsePagination(params, 50);
   const playerAccountId = params.get("playerAccountId")?.trim() || undefined;
   const mapId = params.get("mapId")?.trim() || undefined;
   const gameplayRevisionId = params.get("gameplayRevisionId")?.trim() || undefined;
@@ -24,7 +23,7 @@ const adminVerifiedRunQuery = (request: Request) => {
   const toValue = params.get("to");
   const from = fromValue === null ? undefined : Number(fromValue);
   const to = toValue === null ? undefined : Number(toValue);
-  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
+  if (!pagination) return null;
   if (playerAccountId && !isUuid(playerAccountId)) return null;
   if (mapId && mapId.length > 256) return null;
   if (gameplayRevisionId && gameplayRevisionId.length > 256) return null;
@@ -37,8 +36,7 @@ const adminVerifiedRunQuery = (request: Request) => {
   if (to !== undefined && (!Number.isInteger(to) || to < 0)) return null;
   if (from !== undefined && to !== undefined && from > to) return null;
   return {
-    page,
-    pageSize,
+    ...pagination,
     ...(playerAccountId ? { playerAccountId } : {}),
     ...(mapId ? { mapId } : {}),
     ...(gameplayRevisionId ? { gameplayRevisionId } : {}),

@@ -5,6 +5,7 @@ import {
   reviewTargetTypeSchema,
 } from "@owbastion/contracts";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
+import { parsePagination } from "../query-params";
 import { isUuid, parseBody, routeErrorResponse, type ApiApp, type ApiContext, type AdminRouteDependencies, type RouteErrorMap, type ServiceAccessor } from "./route-contract";
 
 type Player = NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>;
@@ -71,11 +72,7 @@ const parseReviewTarget = (c: ApiContext) => {
     : { targetType, targetId });
 };
 
-const parsePublicReviewPage = (c: ApiContext) => {
-  const page = Number(c.req.query("page") ?? "1");
-  const pageSize = Number(c.req.query("pageSize") ?? "20");
-  return Number.isInteger(page) && page >= 1 && Number.isInteger(pageSize) && pageSize >= 1 && pageSize <= 50 ? { page, pageSize } : null;
-};
+const parsePublicReviewPage = (c: ApiContext) => parsePagination(new URL(c.req.url).searchParams, 50);
 
 export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDependencies) => {
   const { services, allowPortal, requirePortalPlayer, errorResponse, logServiceOperation } = dependencies;
