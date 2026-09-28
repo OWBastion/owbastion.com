@@ -7271,11 +7271,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
     },
 
-    async createBinding() {
-      // Older adapters receive a deterministic migration-safe response.
-      throw new Error("INVITE_REQUIRED");
-    },
-
     async createSubmission(input: SubmissionRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["createSubmission"]> extends Promise<infer T> ? T : never>(db, auth.subject, "submission.create", idempotencyKey, input);
       if (replay) return replay;

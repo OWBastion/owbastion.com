@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import {
-  qqBindingRequestSchema,
   submissionRequestSchema,
   qqLoginAttemptRequestSchema,
   qqLoginVerifyRequestSchema,
@@ -1748,20 +1747,6 @@ export const createApp = (dependencies: AppDependencies) => {
       },
     });
   });
-
-  app.post("/v1/qq/bindings", async (c) => {
-    const auth = await dependencies.authenticate(c.req.raw, c.env);
-    if (!auth) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    if (!auth.roles.includes("channel:write")) return errorResponse(c, 403, "FORBIDDEN", "The actor cannot write channel data");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = qqBindingRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-
-    void parsed; void auth; void idempotencyKey;
-    return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
-  });
-
 
   app.post("/v1/submissions", async (c) => {
     const auth = await dependencies.authenticate(c.req.raw, c.env);

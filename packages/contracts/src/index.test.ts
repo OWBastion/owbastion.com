@@ -31,10 +31,6 @@ describe("v1 platform contracts", () => {
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "disabled" }).success).toBe(false);
     expect(adminRandomEventVersionListResponseSchema.safeParse({ contractVersion: "1", items: [{ gameVersion: "26.0901.1", availability: "available", eventCount: 2 }] }).success).toBe(true);
   });
-  it("accepts stable QQ binding metadata", () => {
-    expect(qqBindingRequestSchema.safeParse({ contractVersion: "1", provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1", playerName: "Player", playerId: "1234" }).success).toBe(true);
-  });
-
   it("validates the administrator BattleTag name update contract", () => {
     expect(adminPlayerIdentityRequestSchema.safeParse({ contractVersion: "1", playerName: "新名称" }).success).toBe(true);
     expect(adminPlayerIdentityRequestSchema.safeParse({ contractVersion: "1", playerName: "   " }).success).toBe(false);
@@ -53,10 +49,6 @@ describe("v1 platform contracts", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "rejected", confirmedChallengeIds: ["challenge.a"] }).success).toBe(false);
     expect(adminSubmissionReviewPreviewRequestSchema.safeParse({ contractVersion: "1", confirmedChallengeIds: ["challenge.a"], fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "国王大道" }] }).success).toBe(true);
     expect(adminSubmissionReviewPreviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved" }).success).toBe(false);
-  });
-
-  it("rejects an unversioned contract", () => {
-    expect(qqBindingRequestSchema.safeParse({ contractVersion: "2", provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1", playerName: "Player", playerId: "1234" }).success).toBe(false);
   });
 
   it("accepts QQ binding claim verification without treating QQ as Portal authentication", () => {

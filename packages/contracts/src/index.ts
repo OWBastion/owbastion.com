@@ -16,26 +16,6 @@ const optionalScheduleTimestamp = z.preprocess((value) => value === null ? undef
 const gameVersionValue = z.string().trim().min(1).max(64).nullable();
 const optionalGameVersion = gameVersionValue.optional();
 
-export const qqBindingRequestSchema = z.object({
-  contractVersion,
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-
-export const qqBindingResponseSchema = z.object({
-  contractVersion,
-  bindingId: z.string().uuid(),
-  identityId: z.string().uuid(),
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-
 const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
 const inviteClaimCode = z.string().trim().regex(/^[A-Z2-9]{6}$/);
 const historicalTitleGrantId = z.string().trim().min(1).max(256);
@@ -1562,8 +1542,6 @@ export const errorResponseSchema = z.object({
   }),
 });
 
-export type QqBindingRequest = z.infer<typeof qqBindingRequestSchema>;
-export type QqBindingResponse = z.infer<typeof qqBindingResponseSchema>;
 export type AdminBindingInviteRequest = z.infer<typeof adminBindingInviteRequestSchema>;
 export type AdminBindingInviteResponse = z.infer<typeof adminBindingInviteResponseSchema>;
 export type AdminBindingInviteBatchRequest = z.infer<typeof adminBindingInviteBatchRequestSchema>;
