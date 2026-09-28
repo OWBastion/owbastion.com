@@ -3267,6 +3267,104 @@ describe("submission mastery outcomes", () => {
     }
   });
 
+  it("rolls back review approval when a concurrent Run insert wins, then retries against that Run", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.review-race", "binding.review-race", "Review Race");
+    seedMasterySubmission(sqlite, "submission.review-race", "binding.review-race", "Review Race");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.review-race");
+    const ocr = masteryOcr();
+    ocr.data.map_name = "地图 unknown";
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.review-race', 'submission.review-race', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.review-race', 'submission.review-race', 'verified_run', 'verified_run', 'ineligible', NULL, 0, '{}', ?, ?)").run(now, now);
+
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const input = {
+      submissionId: "submission.review-race",
+      decision: "approved" as const,
+      fieldCorrections: [{ fieldKey: "map_name" as const, reviewedValue: "地图 map.mastery" }],
+    };
+    const originalBatch = database.batch.bind(database);
+    let concurrentRunId: string | null = null;
+    database.batch = async (statements) => {
+      database.batch = originalBatch;
+      const concurrentRun = await services.recordVerifiedRun({
+        playerAccountId: "player.review-race",
+        sourceSubmissionId: "submission.review-race",
+        mapId: "map.mastery",
+        gameplayRevisionId: "revision:map.mastery:initial",
+        mapVariant: null,
+        difficulty: "困难",
+        gameVersion: "99.0101.1",
+        matchCode: "1234-5678-9012",
+        completionDurationSeconds: 600,
+        deaths: 1,
+        skips: 0,
+        eventCounters: {},
+        acceptanceSource: "submission_automatic",
+        acceptedAt: now,
+      });
+      concurrentRunId = concurrentRun.run.runId;
+      return originalBatch(statements);
+    };
+
+    await expect(services.reviewSubmission(input, maintainer, "review-race")).rejects.toThrow();
+    database.batch = originalBatch;
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.review-race'").get()).toEqual({ status: "ocr_review_required" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.review-race'").get()).toEqual({ count: 0 });
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.review-race' AND outcome_key = 'verified_run'").get()).toEqual({ status: "ineligible" });
+    expect(sqlite.prepare("SELECT id FROM mastery_runs WHERE source_submission_id = 'submission.review-race'").get()).toEqual({ id: concurrentRunId });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE id = 'admin:submission.review:review-race'").get()).toEqual({ count: 0 });
+
+    await expect(services.reviewSubmission(input, maintainer, "review-race")).resolves.toMatchObject({ decision: "approved", verifiedRunOutcome: { status: "created" } });
+    expect(sqlite.prepare("SELECT status, entity_id FROM submission_outcomes WHERE submission_id = 'submission.review-race' AND outcome_key = 'verified_run'").get()).toEqual({ status: "created", entity_id: concurrentRunId });
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.review-race'").get()).toEqual({ status: "approved" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM mastery_runs WHERE source_submission_id = 'submission.review-race'").get()).toEqual({ count: 1 });
+  });
+
+  it("does not show a stale recorded Run when corrected preview evidence conflicts", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.preview-stale", "binding.preview-stale", "Preview Stale");
+    seedMasterySubmission(sqlite, "submission.preview-stale", "binding.preview-stale", "Preview Stale");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.preview-stale");
+    const ocr = masteryOcr();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.preview-stale', 'submission.preview-stale', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const run = await services.recordVerifiedRun({
+      playerAccountId: "player.preview-stale",
+      sourceSubmissionId: "submission.preview-stale",
+      mapId: "map.mastery",
+      gameplayRevisionId: "revision:map.mastery:initial",
+      mapVariant: null,
+      difficulty: "困难",
+      gameVersion: "99.0101.1",
+      matchCode: "1234-5678-9012",
+      completionDurationSeconds: 600,
+      deaths: 1,
+      skips: 0,
+      eventCounters: {},
+      acceptanceSource: "submission_automatic",
+      acceptedAt: now,
+    });
+    sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.preview-stale', 'submission.preview-stale', 'verified_run', 'verified_run', 'created', ?, ?, '{}', ?, ?)").run(run.run.runId, run.run.awardedXp, now, now);
+
+    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const preview = await services.previewSubmissionReview({
+      submissionId: "submission.preview-stale",
+      fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "传奇" }],
+    }, maintainer);
+
+    expect(preview).toMatchObject({
+      approvable: false,
+      blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED",
+      verifiedRun: { status: "ineligible", reason: "conflicting_run_code_evidence" },
+    });
+  });
+
   it("matches map Challenges only on the exact Gameplay Revision identified by the evidence", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
