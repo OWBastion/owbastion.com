@@ -21,7 +21,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { isUuid, maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext } from "./routes/route-contract";
+import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";

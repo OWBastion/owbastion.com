@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { randomEventRarityForWeight } from "@owbastion/domain";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
 import type { AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventVersionListResponse, Challenge, RandomEvent, RandomEventVersion } from "@owbastion/contracts";
-import { achievementChallenges, auditEvents, effectGlossaryTerms, idempotencyKeys, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, titleChallenges } from "./schema";
+import { achievementChallenges, effectGlossaryTerms, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, titleChallenges } from "./schema";
 
 type EventImportRow = Omit<AdminRandomEventCreateRequest, "contractVersion">;
 type RandomEventPlatformServices = Pick<PlatformServices,

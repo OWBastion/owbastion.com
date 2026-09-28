@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, type VerifiedRunForProjection } from "./mastery";
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV1, calculateVerifiedRunXpV2, createVerifiedRunEvidenceCompatibilityV1, isVerifiedRunEvidenceCompatibilityEnabled, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, verifiedRunEvidenceCompatibilityV1, verifiedRunXpRuleV1, verifiedRunXpRuleV2, normalizeMatchCode, type VerifiedRunForProjection } from "./mastery";
 
 const run = (overrides: Partial<VerifiedRunForProjection> = {}): VerifiedRunForProjection => ({
   runId: "run-1",
