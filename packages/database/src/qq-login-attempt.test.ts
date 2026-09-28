@@ -3,6 +3,8 @@ import {
   bindingsSchema,
   idempotencyKeysRequiredIdSchema,
   playerAccountsSchema,
+  qqGroupAccessSchema,
+  qqLoginAttemptsSchema,
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
@@ -25,18 +27,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${playerAccountsSchema}
   ${bindingsSchema}
   CREATE UNIQUE INDEX bindings_provider_member_idx ON bindings(provider, member_open_id);
-  CREATE TABLE qq_group_access (
-    group_open_id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
-    bind_enabled INTEGER NOT NULL DEFAULT 0, verify_enabled INTEGER NOT NULL DEFAULT 0,
-    lifecycle_occurred_at INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE qq_login_attempts (
-    id TEXT PRIMARY KEY NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL, status TEXT NOT NULL,
-    purpose TEXT NOT NULL DEFAULT 'login', player_account_id TEXT, target_group_open_id TEXT,
-    group_open_id TEXT, member_open_id TEXT, environment TEXT, message_id TEXT,
-    session_token_hash TEXT, session_issued_at INTEGER, expires_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL, verified_at INTEGER
-  );
+  ${qqGroupAccessSchema}
+  ${qqLoginAttemptsSchema}
   CREATE UNIQUE INDEX qq_login_attempts_token_idx ON qq_login_attempts(token_hash);
   CREATE INDEX qq_login_attempts_expiry_idx ON qq_login_attempts(expires_at, status);
   CREATE UNIQUE INDEX qq_login_attempts_pending_code_idx ON qq_login_attempts(code_hash) WHERE status = 'pending';
