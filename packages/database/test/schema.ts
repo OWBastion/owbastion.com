@@ -186,3 +186,113 @@ export const effectGlossaryTermsSchema = `CREATE TABLE effect_glossary_terms (
       source_version TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );`;
+
+export const mapMetadataSchema = `CREATE TABLE map_metadata (
+      map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id),
+      difficulty_rating TEXT,
+      mechanics_json TEXT NOT NULL DEFAULT '[]',
+      cover_url TEXT,
+      background_url TEXT,
+      updated_at INTEGER NOT NULL,
+      updated_by TEXT NOT NULL
+    );`;
+export const achievementChallengeMapsSchema = `CREATE TABLE achievement_challenge_maps (
+      challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE,
+      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+      PRIMARY KEY (challenge_id, map_id)
+    );`;
+export const mapTitleRewardsSchema = `CREATE TABLE map_title_rewards (
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      slot TEXT NOT NULL,
+      title_key TEXT NOT NULL REFERENCES title_catalog(key),
+      pioneer_prefixes_json TEXT NOT NULL,
+      PRIMARY KEY (map_id, slot)
+    );`;
+export const mapTitleRulesSchema = `CREATE TABLE map_title_rules (
+      id TEXT PRIMARY KEY NOT NULL,
+      title_key TEXT NOT NULL REFERENCES title_catalog(key),
+      kind TEXT NOT NULL,
+      condition TEXT NOT NULL,
+      evidence_rule TEXT NOT NULL,
+      submission_mode TEXT NOT NULL DEFAULT 'manual',
+      display_kind TEXT NOT NULL,
+      slot TEXT,
+      map_variant TEXT,
+      default_scope TEXT NOT NULL DEFAULT 'all_active',
+      status TEXT NOT NULL DEFAULT 'active',
+      introduced_version TEXT NOT NULL,
+      retired_version TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );`;
+export const mapTitleRuleExceptionsSchema = `CREATE TABLE map_title_rule_exceptions (
+      id TEXT PRIMARY KEY NOT NULL,
+      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition TEXT,
+      evidence_rule TEXT,
+      submission_mode TEXT,
+      slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );`;
+export const mapTitleRuleCompatSchema = `CREATE TABLE map_title_rule_compat (
+      legacy_challenge_id TEXT NOT NULL,
+      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      is_standard_instance INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (legacy_challenge_id, map_id)
+    );`;
+export const achievementChallengesSchema = `CREATE TABLE achievement_challenges (
+      id TEXT PRIMARY KEY NOT NULL,
+      map_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      difficulty TEXT,
+      condition TEXT NOT NULL DEFAULT '',
+      evidence_rule TEXT NOT NULL DEFAULT '',
+      submission_mode TEXT NOT NULL DEFAULT 'manual',
+      reward_title_key TEXT,
+      game_version TEXT NOT NULL,
+      status TEXT NOT NULL,
+      introduced_version TEXT NOT NULL,
+      retired_version TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );`;
+export const randomEventMapChallengesSchema = `CREATE TABLE random_event_map_challenges (
+      event_id TEXT NOT NULL REFERENCES random_events(id),
+      challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),
+      PRIMARY KEY (event_id, challenge_id)
+    );`;
+export const randomEventTitleChallengesSchema = `CREATE TABLE random_event_title_challenges (
+      event_id TEXT NOT NULL REFERENCES random_events(id),
+      challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
+      PRIMARY KEY (event_id, challenge_id)
+    );`;
+export const qqGroupAccessSchema = `CREATE TABLE qq_group_access (
+    group_open_id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+    bind_enabled INTEGER NOT NULL DEFAULT 0, verify_enabled INTEGER NOT NULL DEFAULT 0,
+    lifecycle_occurred_at INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  );`;
+export const qqLoginAttemptsSchema = `CREATE TABLE qq_login_attempts (
+    id TEXT PRIMARY KEY NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL, status TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'login', player_account_id TEXT, target_group_open_id TEXT,
+    group_open_id TEXT, member_open_id TEXT, environment TEXT, message_id TEXT,
+    session_token_hash TEXT, session_issued_at INTEGER, expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL, verified_at INTEGER
+  );`;
+export const qqSessionsSchema = `CREATE TABLE qq_sessions (
+      id TEXT PRIMARY KEY NOT NULL,
+      attempt_id TEXT NOT NULL,
+      group_open_id TEXT NOT NULL,
+      member_open_id TEXT NOT NULL,
+      environment TEXT NOT NULL,
+      token_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );`;

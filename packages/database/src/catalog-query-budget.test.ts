@@ -1,8 +1,17 @@
 import {
+  achievementChallengeMapsSchema,
+  achievementChallengesSchema,
   effectGlossaryTermsSchema,
   gameplayRevisionsSchema,
+  mapMetadataSchema,
+  mapTitleRewardsSchema,
+  mapTitleRuleCompatSchema,
+  mapTitleRuleExceptionsSchema,
+  mapTitleRulesSchema,
   mapsSchema,
   playerAccountsSchema,
+  randomEventMapChallengesSchema,
+  randomEventTitleChallengesSchema,
   randomEventsSchema,
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
@@ -35,15 +44,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE map_metadata (
-      map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id),
-      difficulty_rating TEXT,
-      mechanics_json TEXT NOT NULL DEFAULT '[]',
-      cover_url TEXT,
-      background_url TEXT,
-      updated_at INTEGER NOT NULL,
-      updated_by TEXT NOT NULL
-    );
+    ${mapMetadataSchema}
     CREATE TABLE title_catalog (
       key TEXT PRIMARY KEY NOT NULL,
       label TEXT NOT NULL,
@@ -78,89 +79,19 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE achievement_challenge_maps (
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE,
-      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
-      PRIMARY KEY (challenge_id, map_id)
-    );
-    CREATE TABLE map_title_rewards (
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      slot TEXT NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      pioneer_prefixes_json TEXT NOT NULL,
-      PRIMARY KEY (map_id, slot)
-    );
-    CREATE TABLE map_title_rules (
-      id TEXT PRIMARY KEY NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      kind TEXT NOT NULL,
-      condition TEXT NOT NULL,
-      evidence_rule TEXT NOT NULL,
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      display_kind TEXT NOT NULL,
-      slot TEXT,
-      map_variant TEXT,
-      default_scope TEXT NOT NULL DEFAULT 'all_active',
-      status TEXT NOT NULL DEFAULT 'active',
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_title_rule_exceptions (
-      id TEXT PRIMARY KEY NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_title_rule_compat (
-      legacy_challenge_id TEXT NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      is_standard_instance INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL,
-      PRIMARY KEY (legacy_challenge_id, map_id)
-    );
-    CREATE TABLE achievement_challenges (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      name TEXT NOT NULL,
-      difficulty TEXT,
-      condition TEXT NOT NULL DEFAULT '',
-      evidence_rule TEXT NOT NULL DEFAULT '',
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      reward_title_key TEXT,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${achievementChallengeMapsSchema}
+    ${mapTitleRewardsSchema}
+    ${mapTitleRulesSchema}
+    ${mapTitleRuleExceptionsSchema}
+    ${mapTitleRuleCompatSchema}
+    ${achievementChallengesSchema}
     ${randomEventsSchema}
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available'
     );
-    CREATE TABLE random_event_map_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
-    CREATE TABLE random_event_title_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
+    ${randomEventMapChallengesSchema}
+    ${randomEventTitleChallengesSchema}
     ${effectGlossaryTermsSchema}
     ${playerAccountsSchema}
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
