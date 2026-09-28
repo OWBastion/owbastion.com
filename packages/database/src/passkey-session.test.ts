@@ -1,3 +1,4 @@
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -21,60 +22,7 @@ vi.mock("@owbastion/auth", async (importOriginal) => {
 const { createPlatformServices } = await import("./index");
 const { hashRequest, resolvePortalSession } = await import("./portal-session");
 
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let batchTail = Promise.resolve();
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        const changes = isWrite ? Number((sqlite.prepare("SELECT changes() AS changes").get() as { changes: number }).changes) : 0;
-        return { results, success: true, meta: { changes, duration: 0, size_after: 0, rows_read: results.length, rows_written: changes, last_row_id: 0, changed_db: changes > 0 } };
-      },
-      async run() {
-        const result = sqlite.prepare(sql).run(...bound);
-        const changes = Number(result.changes ?? 0);
-        return { success: true, meta: { changes, duration: 0, size_after: 0, rows_read: 0, rows_written: changes, last_row_id: Number(result.lastInsertRowid ?? 0), changed_db: changes > 0 } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrapStatement(sql); },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const previous = batchTail;
-      let release: () => void = () => undefined;
-      batchTail = new Promise<void>((resolve) => { release = resolve; });
-      await previous;
-      try {
-        sqlite.exec("BEGIN");
-        const results = [];
-        for (const statement of statements) results.push(await statement.all());
-        sqlite.exec("COMMIT");
-        return results;
-      } catch (error) {
-        sqlite.exec("ROLLBACK");
-        throw error;
-      } finally {
-        release();
-      }
-    },
-    async exec(sql: string) { sqlite.exec(sql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
+const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized", reportWriteChangesInAll: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE player_accounts (
     id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
