@@ -200,6 +200,14 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   const platformCache = createPlatformCache(cacheKv);
   const database = instrumentDatabase(rawDatabase, platformCache);
   const db = drizzle(database);
+  const databaseServiceDependencies = {
+    now,
+    platformCache,
+    hashRequest,
+    replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
+    recordIdempotency: (actorId: string, operation: string, key: string, input: unknown, response: unknown) => recordIdempotency(db, actorId, operation, key, input, response),
+    recordAudit: (auth: AuthContext, operation: string, entityType: string, entityId: string, payload: unknown) => recordAudit(db, auth, operation, entityType, entityId, payload),
+  };
   const randomEventServices = createRandomEventServices(database, db, {
     now,
     platformCache,
@@ -3995,12 +4003,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     }),
     ...randomEventServices.services,
     ...createMapRevisionServices(database, db, {
-      now,
-      platformCache,
-      hashRequest,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
-      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
-      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
+      ...databaseServiceDependencies,
       insertDefaultMapTitleRuleAssignment,
       latestBuildVersion,
     }),
@@ -4628,9 +4631,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
 
     ...createPlayerTitleServices(database, db, {
-      now,
-      hashRequest,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
+      ...databaseServiceDependencies,
       getCurrentPortalPlayer,
       findEquipableGrantIds,
       isInheritedConquerorGrant,
@@ -5572,20 +5573,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     ...createQqGroupServices({
       db,
       queue: qqPolicyQueue,
-      now,
-      hashRequest,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
+      ...databaseServiceDependencies,
     }),
 
     ...createAdminPlayerServices({
       db,
-      now,
+      ...databaseServiceDependencies,
       normalizePlayerName,
       playerSubmissionStatus,
       countPendingSubmissionsByPlayer,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
-      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
-      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
       loadRecentSubmissionDetails: async (rows) => {
         const details = rows.length ? await resolveAdminSubmissionDetails(rows) : null;
         return new Map(rows.map((submission) => [submission.id, {
@@ -6104,10 +6100,8 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     },
 
     ...createBindingServices({
-      db, now, hashRequest, randomToken, randomCode,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
-      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
-      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
+      db, randomToken, randomCode,
+      ...databaseServiceDependencies,
       normalizePlayerName, encryptBindingInviteCode, decryptBindingInviteCode, bindingInviteCodeEncryptionKey,
       sessionTtlMs, pruneExpiredPortalSessions, pruneExpiredBindingClaims, migrateAuthorizedHistoricalTitles,
     }),
@@ -6124,10 +6118,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       return { contractVersion: "1" as const, submissionId: submission.id, status: playerSubmissionStatus(submission.status), resubmissionRequired: submission.status === "resubmission_required", mapName: submission.mapName, challengeId: submission.challengeId ?? undefined, difficulty: submission.difficulty ?? undefined, reason: verifiedRunOutcome?.status === "conflict" ? undefined : submission.reviewReason ?? undefined, ...playerVerifiedRunSubmissionOutcomeFields(verifiedRunOutcome), createdAt: submission.createdAt, updatedAt: submission.updatedAt };
     },
     ...createReviewServices(database, db, {
-      now,
-      replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => replayOrConflict<T>(db, actorId, operation, key, input),
-      recordIdempotency: (actorId, operation, key, input, response) => recordIdempotency(db, actorId, operation, key, input, response),
-      recordAudit: (auth, operation, entityType, entityId, payload) => recordAudit(db, auth, operation, entityType, entityId, payload),
+      ...databaseServiceDependencies,
     }),
   };
 };
