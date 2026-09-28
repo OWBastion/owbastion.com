@@ -14,7 +14,6 @@ const emit = defineEmits<{
   retry: [];
 }>();
 
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const currentPage = computed(() => props.history?.page ?? 1);
 const pageSize = computed(() => props.history?.pageSize ?? 10);
 const totalPages = computed(() => Math.max(1, Math.ceil((props.history?.total ?? 0) / pageSize.value)));

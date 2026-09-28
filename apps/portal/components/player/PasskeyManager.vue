@@ -47,10 +47,6 @@ async function remove() {
   } finally { saving.value = false; }
 }
 
-function formatDate(timestamp: number) {
-  return new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
-}
-
 onMounted(() => { void load(); });
 </script>
 
