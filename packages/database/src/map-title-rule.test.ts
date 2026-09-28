@@ -2976,12 +2976,18 @@ describe("OCR queue failure recovery", () => {
 
     const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
     const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
-    const secondRejection = expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
+    const secondOutcome = second.then(
+      () => ({ status: "resolved" as const }),
+      (error: unknown) => ({ status: "rejected" as const, error }),
+    );
     await queueSendStarted;
-    await secondRejection;
-    expect(queue.send).toHaveBeenCalledOnce();
+    try {
+      expect(await secondOutcome).toMatchObject({ status: "rejected", error: { message: "OCR_RETRY_IN_PROGRESS" } });
+      expect(queue.send).toHaveBeenCalledOnce();
+    } finally {
+      releaseQueueSend();
+    }
 
-    releaseQueueSend();
     await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
     expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
   });
