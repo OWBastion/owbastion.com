@@ -2267,6 +2267,57 @@ describe("submission mastery outcomes", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 1 });
   });
 
+  it("lets only one concurrent player completion enqueue, so a competing send failure cannot undo it", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    const sessionToken = "concurrent-completion-player-one";
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+      .run("session.player.one", "attempt.player.one", "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
+    let sendCount = 0;
+    let releaseQueueSend!: () => void;
+    let markQueueSendStarted!: () => void;
+    const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
+    const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
+    const queue = {
+      send: vi.fn(async () => {
+        sendCount += 1;
+        markQueueSendStarted();
+        if (sendCount === 2) throw new Error("competing queue send rejected");
+        await queueSendGate;
+      }),
+    } as unknown as Queue;
+    const services = createPlatformServices(
+      synchronizeConcurrentBatches(database, 2),
+      { put: async () => undefined } as unknown as R2Bucket,
+      "https://api.example.com", undefined, undefined, queue,
+    );
+    const body = new TextEncoder().encode("concurrent-image").buffer as ArrayBuffer;
+    const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
+    await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
+
+    const first = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.first");
+    const second = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.second");
+    const settle = (promise: Promise<unknown>) => promise.then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason: unknown) => ({ status: "rejected" as const, reason }),
+    );
+    const firstSettled = settle(first);
+    const secondSettled = settle(second);
+    await queueSendStarted;
+    const earlyOutcome = await Promise.race([firstSettled, secondSettled]);
+    releaseQueueSend();
+    const outcomes = await Promise.all([firstSettled, secondSettled]);
+
+    expect(earlyOutcome).toMatchObject({ status: "rejected", reason: new Error("UPLOAD_COMPLETION_IN_PROGRESS") });
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toMatchObject([
+      { status: "rejected", reason: new Error("UPLOAD_COMPLETION_IN_PROGRESS") },
+    ]);
+    expect(queue.send).toHaveBeenCalledOnce();
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
+  });
+
   it("repairs a completed upload session whose submission never left upload_pending", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);

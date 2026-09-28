@@ -1219,7 +1219,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
-    catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); throw error; }
+    catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); if (error instanceof Error && error.message === "UPLOAD_COMPLETION_IN_PROGRESS") return errorResponse(c, 409, error.message, "Upload completion is already in progress"); throw error; }
   });
 
   app.post("/v1/player/submissions/:submissionId/manual-review", async (c) => {

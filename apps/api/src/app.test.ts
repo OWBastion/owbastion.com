@@ -1848,6 +1848,20 @@ describe("API", () => {
     expect((await complete.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
   });
 
+  it("returns a conflict while another player upload completion is enqueueing", async () => {
+    const completionApp = createApp({
+      authenticate: async () => null,
+      services: () => ({ ...services, completePlayerUpload: async () => { throw new Error("UPLOAD_COMPLETION_IN_PROGRESS"); } }),
+    });
+    const response = await completionApp.request("http://localhost/v1/player/uploads/00000000-0000-0000-0000-000000000004/complete", {
+      method: "POST",
+      headers: { cookie: "owb_session=session-token" },
+    }, env);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: "UPLOAD_COMPLETION_IN_PROGRESS" } });
+  });
+
   it("allows the Portal to preflight direct upload URLs", async () => {
     const response = await app.request("http://localhost/v1/uploads/00000000-0000-0000-0000-000000000004", {
       method: "OPTIONS",

@@ -207,7 +207,7 @@ describe("OCR Queue consumer", () => {
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
   });
 
-  it("dispatches policy events and reconciles stale OCR jobs from the five-minute scheduled repair", async () => {
+  it("reconciles stale OCR jobs on schedule without dispatching QQ policy events", async () => {
     const dispatchPendingQqGroupPolicyEvents = vi.fn<PlatformServices["dispatchPendingQqGroupPolicyEvents"]>().mockResolvedValue(undefined);
     const reconcileStaleOcrJobs = vi.fn<PlatformServices["reconcileStaleOcrJobs"]>().mockResolvedValue(0);
     const before = Date.now();
@@ -215,7 +215,7 @@ describe("OCR Queue consumer", () => {
 
     await worker.scheduled({} as never, {} as never);
 
-    expect(dispatchPendingQqGroupPolicyEvents).toHaveBeenCalledOnce();
+    expect(dispatchPendingQqGroupPolicyEvents).not.toHaveBeenCalled();
     expect(reconcileStaleOcrJobs).toHaveBeenCalledOnce();
     const olderThan = reconcileStaleOcrJobs.mock.calls[0]![0].olderThan;
     expect(olderThan).toBeGreaterThanOrEqual(before - OCR_PENDING_RECOVERY_AGE_MS);
