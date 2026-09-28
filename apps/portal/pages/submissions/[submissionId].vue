@@ -328,17 +328,6 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 .status-live { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
 .status-alert + .status-live { margin-top: calc(var(--space-1) * -1); }
 .status-alert { margin: 0; }
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
 .submission-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -348,16 +337,11 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
 }
 .evidence-col, .info-col { min-width: 0; }
 .info-col { display: grid; gap: var(--space-4); }
-.overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--line); }
-.ocr-wait { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
-.ocr-wait > span { color: var(--muted); font-size: var(--type-caption-size); }
+.overview-card, .evidence-card, .ocr-card, .resubmission-card { border-color: var(--line); }
 .mastery-outcome { margin-top: var(--space-4); }
 .overview-actions { display: grid; gap: var(--space-2); margin-top: var(--space-5); }
 .evidence-image { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
 .evidence-message, .message { margin: 0; padding: var(--space-16) 0; color: var(--muted); font-size: .88rem; text-align: center; }
-.catalog-loading { padding: var(--space-6) 0; }
-.confirm-card :deep(.catalog) { margin-bottom: var(--space-5); }
-.confirm-catalog--busy { opacity: .72; }
 .resubmission-card { display: grid; margin-top: clamp(var(--space-4), 2.4vw, var(--space-6)); }
 .resubmission-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .resubmission-tip { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: var(--space-2); }
@@ -447,13 +431,10 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
   .submission-skeleton-label, .submission-skeleton-value { width: 62%; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { box-shadow: none; }
+  .overview-card, .evidence-card, .ocr-card, .resubmission-card { box-shadow: none; }
   .tip-icon { background: var(--surface); }
 }
 @media (prefers-contrast: more) {
-  .overview-card, .evidence-card, .ocr-card, .confirm-card, .resubmission-card { border-color: var(--text); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .confirm-catalog--busy { opacity: 1; }
+  .overview-card, .evidence-card, .ocr-card, .resubmission-card { border-color: var(--text); }
 }
 </style>

@@ -550,23 +550,6 @@ async function copyCoordinate(pos: Vector) {
   color: var(--muted);
 }
 
-.summary-chip .chip-label {
-  font-weight: 500;
-}
-
-.summary-chip .chip-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.125rem;
-  padding: 0 0.25rem;
-  height: 1.125rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 600;
-  font-size: 0.6875rem;
-}
-
 .point-sections {
   display: grid;
   gap: 0.875rem;

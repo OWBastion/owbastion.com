@@ -341,16 +341,12 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "ËØÅÊç
   font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
-.signal-note,
-.signal-error {
+.signal-note {
   margin: var(--space-3) 0 0;
   color: var(--muted);
   font-size: var(--type-caption-size);
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-.signal-error {
-  color: var(--danger);
 }
 .signal-meta,
 .ocr-fields {

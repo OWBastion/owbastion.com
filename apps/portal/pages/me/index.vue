@@ -310,7 +310,6 @@ onMounted(() => {
 .me-skeleton-intro-copy { display: grid; gap: var(--space-3); min-width: 0; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: var(--radius-pill); }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
-.me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }
 .me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }

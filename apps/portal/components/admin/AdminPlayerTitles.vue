@@ -323,7 +323,6 @@ onMounted(() => { void loadOptions(); });
 .section-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
 .section-heading h3 { margin: 0; font-size: var(--type-card-title-size); letter-spacing: -.025em; }
 .section-heading__actions { display: flex; align-items: center; gap: var(--space-2); }
-.card-kicker { margin: 0 0 var(--space-1); color: var(--quiet); font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
 .grants-tabs { display: flex; gap: var(--space-1); width: fit-content; max-width: 100%; padding: var(--space-1); overflow-x: auto; border: 1px solid color-mix(in oklch, var(--line) 76%, transparent); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 60%, transparent); }
 .grants-tab { display: flex; align-items: center; gap: var(--space-2); min-height: 2.75rem; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font-size: var(--type-caption-size); font-weight: 600; cursor: pointer; transition: color 140ms ease, background 140ms ease; }
 .grants-tab:hover { color: var(--text); background: color-mix(in oklch, var(--surface) 72%, transparent); }

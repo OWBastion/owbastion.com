@@ -131,7 +131,6 @@ onMounted(() => { hydrated.value = true; });
 .empty-stat-grid > div:first-child { padding-left: 0; border-right: 1px solid var(--line); }
 .empty-stat-grid > div:last-child { padding-right: 0; }
 .empty-stat-grid strong { color: var(--text); font-size: 1.45rem; letter-spacing: -.04em; }
-.muted-copy { margin: 0; color: var(--quiet); font-size: .84rem; }
 @container (max-width: 23.99rem) {
   .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
