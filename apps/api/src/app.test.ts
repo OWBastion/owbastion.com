@@ -100,7 +100,6 @@ const services: PlatformServices = {
   listAdminBindingClaims: async () => ({ contractVersion: "1", items: [] }),
   decideAdminBindingClaim: async () => {},
   retryHistoricalTitleMigration: async () => {},
-  createSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "evidence_pending", mapName: "Test Map", attachmentIds: ["00000000-0000-0000-0000-000000000004"] }),
   getSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "processing", mapName: "Test Map", createdAt: 1, updatedAt: 1 }),
   createQqLoginAttempt: async () => ({ contractVersion: "1", attemptId: "00000000-0000-0000-0000-000000000005", attemptToken: "a".repeat(64), code: "ABC234", expiresAt: 1 }),
   getQqLoginStatus: async () => ({ contractVersion: "1", status: "pending" }),
@@ -701,6 +700,11 @@ describe("API", () => {
 
   it("does not expose the retired direct binding endpoint", async () => {
     const response = await app.request("http://localhost/v1/qq/bindings", { method: "POST" }, env);
+    expect(response.status).toBe(404);
+  });
+
+  it("does not expose QQ channel submission creation", async () => {
+    const response = await app.request("http://localhost/v1/submissions", { method: "POST" }, env);
     expect(response.status).toBe(404);
   });
 

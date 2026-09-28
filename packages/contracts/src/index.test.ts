@@ -36,10 +36,6 @@ describe("v1 platform contracts", () => {
     expect(adminPlayerIdentityRequestSchema.safeParse({ contractVersion: "1", playerName: "   " }).success).toBe(false);
   });
 
-  it("rejects a submission without evidence metadata", () => {
-    expect(submissionRequestSchema.safeParse({ contractVersion: "1", actor: { provider: "qq", groupOpenId: "group-1", memberOpenId: "user-1" }, challenge: { type: "map_completion", mapName: "Test Map" }, source: { provider: "qq", conversationId: "group-1", messageId: "message-1" }, attachments: [] }).success).toBe(false);
-  });
-
   it("keeps challenge qualification canonical and complete OCR field review explicit", () => {
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "achievement_titles", reviewedValue: "HERO、SECOND" }] }).success).toBe(true);
     expect(adminSubmissionReviewRequestSchema.safeParse({ contractVersion: "1", decision: "approved", fieldCorrections: [{ fieldKey: "difficulty", reviewedValue: "一般" }] }).success).toBe(true);

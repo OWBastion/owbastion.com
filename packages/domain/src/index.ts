@@ -1,7 +1,5 @@
 import type {
   AdminBindingInviteRequest, AdminBindingInviteResponse, AdminBindingInviteBatchRequest, AdminBindingInviteBatchResponse, AdminBindingInviteListResponse, AdminBindingInviteRevokeRequest, AdminBindingInviteCodeResponse, AdminActiveBindingListResponse, BindingInviteRedeemRequest, BindingInviteRedeemResponse, BindingClaimStatusResponse, BindingClaimSessionResponse, QqBindingClaimVerifyRequest, QqBindingClaimVerifyResponse, AdminBindingClaimDecisionRequest, AdminBindingClaimListResponse,
-  SubmissionRequest,
-  SubmissionResponse,
   SubmissionStatusResponse,
   PlayerSubmissionStatus,
   PlayerSubmissionDetail,
@@ -258,7 +256,6 @@ export type PlatformServices = {
   verifyBindingClaim(input: QqBindingClaimVerifyRequest, auth: AuthContext, idempotencyKey: string): Promise<QqBindingClaimVerifyResponse>;
   listAdminBindingClaims(auth: AuthContext): Promise<AdminBindingClaimListResponse>;
   decideAdminBindingClaim(input: { claimId: string } & AdminBindingClaimDecisionRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
-  createSubmission(input: SubmissionRequest, auth: AuthContext, idempotencyKey: string): Promise<SubmissionResponse>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
