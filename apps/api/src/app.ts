@@ -1888,7 +1888,6 @@ export const createApp = (dependencies: AppDependencies) => {
     return errorResponse(c, 422, "INVITE_REQUIRED", "Use an invitation to request a binding");
   });
 
-
   app.get("/v1/submissions/:submissionId", async (c) => {
     c.header("Access-Control-Allow-Origin", "*");
     c.header("Cache-Control", "private, no-store");
