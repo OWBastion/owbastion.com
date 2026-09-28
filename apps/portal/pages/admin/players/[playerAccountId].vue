@@ -127,7 +127,7 @@ async function copyRecoveryLink() {
         </div>
         <UAlert v-if="recoveryError" color="error" variant="subtle" :description="recoveryError" />
         <div v-if="recoveryLink" class="recovery-result">
-          <UAlert color="success" variant="subtle" title="一次性恢复链接已签发" :description="recoveryExpiresAt ? `有效至 ${new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(recoveryExpiresAt)}` : undefined" />
+          <UAlert color="success" variant="subtle" title="一次性恢复链接已签发" :description="recoveryExpiresAt ? `有效至 ${formatTime(recoveryExpiresAt)}` : undefined" />
           <code>{{ recoveryLink }}</code>
           <UButton :label="recoveryCopied ? '已复制' : '复制恢复链接'" icon="i-lucide-copy" color="neutral" variant="outline" @click="copyRecoveryLink" />
         </div>

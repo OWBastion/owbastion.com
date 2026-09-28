@@ -104,7 +104,6 @@ const statusLabel = (status: AdminBindingClaim["status"]) => ({ pending_confirma
 const invitationStatusLabel = (status: AdminBindingInvitation["status"]) => ({ active: "待使用", redeemed: "已确认", expired: "已过期", revoked: "已撤销" })[status];
 const historicalMigrationLabel = (migration: HistoricalMigration) => ({ not_requested: "未请求", authorized: `已授权 · ${migration.requestedCount} 项`, completed: `已完成 · ${migration.completedCount} 项`, partial: `部分完成 · ${migration.completedCount}/${migration.requestedCount}`, retry_required: "需重试", cancelled: "已取消" })[migration.status];
 const historicalMigrationTone = (migration: HistoricalMigration) => migration.status === "completed" ? "success" as const : migration.status === "retry_required" || migration.status === "partial" ? "warning" as const : "default" as const;
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 
 const operationTypeLabel = (type?: AdminBindingClaim["operationType"]) => {
   switch (type) {
@@ -273,7 +272,7 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #operationType-cell="{ row }"><StatusBadge :label="operationTypeLabel(row.original.operationType)" :tone="operationTypeTone(row.original.operationType)" /></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedClaimIds.has(row.original.claimId) ? 'row-update-flash' : undefined" :label="statusLabel(row.original.status)" :tone="row.original.status === 'pending_review' ? 'warning' : row.original.status === 'approved' ? 'success' : 'default'" /></template>
-            <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.createdAt) }}</span></template>
+            <template #createdAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.createdAt) }}</span></template>
             <template #actions-cell="{ row }">
               <div class="claim-actions">
                 <UButton label="详情" color="neutral" variant="outline" size="sm" @click="detailTarget = row.original" />
@@ -290,7 +289,7 @@ async function retryHistoricalMigration(invitation: AdminBindingInvitation) {
             <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
             <template #status-cell="{ row }"><StatusBadge :class="updatedInviteIds.has(row.original.inviteId) ? 'row-update-flash' : undefined" :label="invitationStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'warning' : row.original.status === 'redeemed' ? 'success' : 'default'" /></template>
             <template #historicalMigration-cell="{ row }"><StatusBadge :label="historicalMigrationLabel(row.original.historicalMigration)" :tone="historicalMigrationTone(row.original.historicalMigration)" /></template>
-            <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatDate(row.original.expiresAt) }}</span></template>
+            <template #expiresAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.expiresAt) }}</span></template>
             <template #actions-cell="{ row }"><div v-if="row.original.status === 'active'" class="table-actions invite-actions"><UButton v-if="row.original.codeAvailable" label="查看" color="neutral" variant="outline" size="sm" @click="revealCode(row.original)" /><span v-else class="table-meta">需重新生成</span><UButton label="撤销" color="error" variant="soft" size="sm" @click="openRevoke(row.original)" /></div><UButton v-if="row.original.historicalMigration.status === 'retry_required'" label="重试迁移" color="warning" variant="soft" size="sm" @click="retryHistoricalMigration(row.original)" /></template>
           </AdminDataTable>
         </template>

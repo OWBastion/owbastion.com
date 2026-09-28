@@ -23,7 +23,6 @@ const masteryMaps = shallowRef<PortalMap[]>([]);
 const masteryChallenges = shallowRef<MapProgressChallenge[]>([]);
 const masteryCatalogError = shallowRef("");
 const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
-const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
 const showSkeleton = computed(() => loading.value && !player.value);
@@ -205,7 +204,7 @@ onMounted(() => {
         <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles stacked-list">
           <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
             <strong>{{ title.label }}</strong>
-            <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
+            <span>{{ formatDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
           </li>
         </ul>
         <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
