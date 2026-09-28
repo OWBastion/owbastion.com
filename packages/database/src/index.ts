@@ -4758,79 +4758,78 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
         await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
         return response;
-      } else {
-        const row = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
-        if (!row) throw new Error("CHALLENGE_NOT_FOUND");
-        const scope = input.scope ?? (row.challenge.scope as "global" | "map" ?? "global");
-        const mapIds = input.mapIds !== undefined ? [...new Set(input.mapIds)] : (scope === "map" ? (await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id))).map(({ mapId }) => mapId) : []);
-        if (scope === "global" && mapIds.length) throw new Error("INVALID_MAP_SCOPE");
-        if (scope === "map" && mapIds.length) {
-          const targetMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds));
-          if (targetMaps.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
-          if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
-        }
-        const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
-        const introducedVersion = row.challenge.introducedVersion ?? input.gameVersion ?? null;
-        const hasReleaseHistory = row.challenge.introducedVersion !== null || row.challenge.gameVersion !== null;
-        if (input.gameVersion === null && hasReleaseHistory) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
-        if (input.status !== "scheduled" && !gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
-        await db.update(titleChallenges).set({
-          condition: input.condition,
-          evidenceRule: input.evidenceRule,
-          submissionMode: input.submissionMode,
-          categoryOverride: input.categoryOverride,
-          status: input.status,
-          retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null,
-          startsAt: input.status === "scheduled" ? input.startsAt ?? null : null,
-          endsAt: input.status === "scheduled" ? input.endsAt ?? null : null,
-          scope,
-          mapVariant: scope === "global" ? null : input.mapVariant !== undefined ? input.mapVariant : row.challenge.mapVariant,
-          gameVersion,
-          introducedVersion,
-          updatedAt: timestamp,
-        }).where(eq(titleChallenges.id, row.challenge.id));
-        if (input.scope !== undefined || input.mapIds !== undefined) {
-          await db.delete(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id));
-          if (scope === "map" && mapIds.length) await db.insert(achievementChallengeMaps).values(mapIds.map((mapId) => ({ challengeId: row.challenge.id, mapId })));
-        }
-        await db.update(titleCatalog).set({ gameVersion }).where(eq(titleCatalog.key, row.title.key));
-        if (scope === "map") {
-          const assignedMapIds = mapIds.length
-            ? mapIds
-            : (await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active"))).map(({ id }) => id);
-          const mapVariant = input.mapVariant !== undefined ? input.mapVariant : (row.challenge.mapVariant as "classic" | null) ?? null;
-          const revisions = assignedMapIds.length
-            ? await db.select({ revision: gameplayRevisions }).from(gameplayRevisions).where(and(
-              inArray(gameplayRevisions.mapId, assignedMapIds),
-              mapVariant === "classic"
-                ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic"))
-                : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)),
-            ))
-            : [];
-          if (revisions.length) await db.insert(gameplayRevisionChallengeAssignments).values(revisions.map(({ revision }) => ({
-            id: `assignment:${revision.id}:title_challenge:${row.challenge.id}`,
-            gameplayRevisionId: revision.id,
-            mapId: revision.mapId,
-            challengeFamily: "title_challenge",
-            challengeId: row.challenge.id,
-            enabled: 1,
-            condition: null,
-            evidenceRule: null,
-            submissionMode: null,
-            slot: null,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          }))).onConflictDoNothing();
-        }
-        if (input.iconUrl !== undefined) {
-          await db.update(titleCatalog).set({ iconUrl: input.iconUrl, iconObjectKey: input.iconUrl === row.title.iconUrl ? row.title.iconObjectKey : null }).where(eq(titleCatalog.key, row.title.key));
-          if (input.iconUrl !== row.title.iconUrl && row.title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(row.title.iconObjectKey);
-        }
-        const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, icon: row.title.icon, iconUrl: input.iconUrl !== undefined ? input.iconUrl : row.title.iconUrl, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null, startsAt: input.status === "scheduled" ? input.startsAt ?? null : null, endsAt: input.status === "scheduled" ? input.endsAt ?? null : null, scope, mapIds, ...(input.mapVariant !== undefined ? { mapVariant: input.mapVariant } : row.challenge.mapVariant ? { mapVariant: row.challenge.mapVariant as "classic" } : {}) };
-        await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
-        await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
-        return response;
       }
+      const row = await db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(eq(titleChallenges.id, input.challengeId)).get();
+      if (!row) throw new Error("CHALLENGE_NOT_FOUND");
+      const scope = input.scope ?? (row.challenge.scope as "global" | "map" ?? "global");
+      const mapIds = input.mapIds !== undefined ? [...new Set(input.mapIds)] : (scope === "map" ? (await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id))).map(({ mapId }) => mapId) : []);
+      if (scope === "global" && mapIds.length) throw new Error("INVALID_MAP_SCOPE");
+      if (scope === "map" && mapIds.length) {
+        const targetMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds));
+        if (targetMaps.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
+        if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+      }
+      const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
+      const introducedVersion = row.challenge.introducedVersion ?? input.gameVersion ?? null;
+      const hasReleaseHistory = row.challenge.introducedVersion !== null || row.challenge.gameVersion !== null;
+      if (input.gameVersion === null && hasReleaseHistory) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+      if (input.status !== "scheduled" && !gameVersion?.trim()) throw new Error("ACHIEVEMENT_GAME_VERSION_REQUIRED");
+      await db.update(titleChallenges).set({
+        condition: input.condition,
+        evidenceRule: input.evidenceRule,
+        submissionMode: input.submissionMode,
+        categoryOverride: input.categoryOverride,
+        status: input.status,
+        retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null,
+        startsAt: input.status === "scheduled" ? input.startsAt ?? null : null,
+        endsAt: input.status === "scheduled" ? input.endsAt ?? null : null,
+        scope,
+        mapVariant: scope === "global" ? null : input.mapVariant !== undefined ? input.mapVariant : row.challenge.mapVariant,
+        gameVersion,
+        introducedVersion,
+        updatedAt: timestamp,
+      }).where(eq(titleChallenges.id, row.challenge.id));
+      if (input.scope !== undefined || input.mapIds !== undefined) {
+        await db.delete(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id));
+        if (scope === "map" && mapIds.length) await db.insert(achievementChallengeMaps).values(mapIds.map((mapId) => ({ challengeId: row.challenge.id, mapId })));
+      }
+      await db.update(titleCatalog).set({ gameVersion }).where(eq(titleCatalog.key, row.title.key));
+      if (scope === "map") {
+        const assignedMapIds = mapIds.length
+          ? mapIds
+          : (await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active"))).map(({ id }) => id);
+        const mapVariant = input.mapVariant !== undefined ? input.mapVariant : (row.challenge.mapVariant as "classic" | null) ?? null;
+        const revisions = assignedMapIds.length
+          ? await db.select({ revision: gameplayRevisions }).from(gameplayRevisions).where(and(
+            inArray(gameplayRevisions.mapId, assignedMapIds),
+            mapVariant === "classic"
+              ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic"))
+              : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)),
+          ))
+          : [];
+        if (revisions.length) await db.insert(gameplayRevisionChallengeAssignments).values(revisions.map(({ revision }) => ({
+          id: `assignment:${revision.id}:title_challenge:${row.challenge.id}`,
+          gameplayRevisionId: revision.id,
+          mapId: revision.mapId,
+          challengeFamily: "title_challenge",
+          challengeId: row.challenge.id,
+          enabled: 1,
+          condition: null,
+          evidenceRule: null,
+          submissionMode: null,
+          slot: null,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        }))).onConflictDoNothing();
+      }
+      if (input.iconUrl !== undefined) {
+        await db.update(titleCatalog).set({ iconUrl: input.iconUrl, iconObjectKey: input.iconUrl === row.title.iconUrl ? row.title.iconObjectKey : null }).where(eq(titleCatalog.key, row.title.key));
+        if (input.iconUrl !== row.title.iconUrl && row.title.iconObjectKey && evidenceBucket) await evidenceBucket.delete(row.title.iconObjectKey);
+      }
+      const response: AdminChallenge = { challengeId: row.challenge.id, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: row.title.key, titleName: row.title.label, icon: row.title.icon, iconUrl: input.iconUrl !== undefined ? input.iconUrl : row.title.iconUrl, category: input.categoryOverride ?? row.title.category, categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion, status: input.status, submissionMode: input.submissionMode, introducedVersion, retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null, startsAt: input.status === "scheduled" ? input.startsAt ?? null : null, endsAt: input.status === "scheduled" ? input.endsAt ?? null : null, scope, mapIds, ...(input.mapVariant !== undefined ? { mapVariant: input.mapVariant } : row.challenge.mapVariant ? { mapVariant: row.challenge.mapVariant as "classic" } : {}) };
+      await recordIdempotency(db, auth.subject, "admin.achievement.update", idempotencyKey, input, response);
+      await recordAudit(db, auth, "admin.achievement.update", "challenge", input.challengeId, input);
+      return response;
     },
 
     async updateAdminCatalogTitle(input: AdminCatalogTitleUpdateRequest & { titleKey: string }, auth, idempotencyKey) {
