@@ -2976,8 +2976,9 @@ describe("OCR queue failure recovery", () => {
 
     const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
     const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
+    const secondRejection = expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
     await queueSendStarted;
-    await expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
+    await secondRejection;
     expect(queue.send).toHaveBeenCalledOnce();
 
     releaseQueueSend();
