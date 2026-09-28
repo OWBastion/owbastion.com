@@ -12,7 +12,7 @@ export type SpatialConfigImportResult =
   | { ok: true; config: SpatialConfigValue; summary: SpatialConfigImportSummary }
   | { ok: false; error: string };
 
-type Vector = [number, number, number];
+export type Vector = [number, number, number];
 
 const numberToken = "[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?";
 const vectorCapture = `(?:Vector|vect)\\s*\\(\\s*(${numberToken})\\s*,\\s*(${numberToken})\\s*,\\s*(${numberToken})\\s*\\)`;
@@ -36,11 +36,11 @@ function vectorFromMatch(match: RegExpExecArray, offset: number): Vector {
   return [Number(match[offset]), Number(match[offset + 1]), Number(match[offset + 2])];
 }
 
-function isVector(value: unknown): value is Vector {
+export function isVector(value: unknown): value is Vector {
   return Array.isArray(value) && value.length === 3 && value.every((part) => typeof part === "number" && Number.isFinite(part));
 }
 
-function isVectorList(value: unknown): value is Vector[] {
+export function isVectorList(value: unknown): value is Vector[] {
   return Array.isArray(value) && value.every(isVector);
 }
 

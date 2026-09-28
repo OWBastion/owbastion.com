@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import {
   formatWorkshopSpatialConfig,
+  isVector,
+  isVectorList,
   parseSpatialConfigSource,
   type SpatialConfigImportSummary,
   type SpatialConfigScope,
   type SpatialConfigValue,
+  type Vector,
 } from "~/utils/spatial-config-import";
 
 const props = withDefaults(
@@ -29,8 +32,6 @@ const emit = defineEmits<{
   "update:modelValue": [value: SpatialConfigValue | null];
   valid: [value: boolean];
 }>();
-
-type Vector = [number, number, number];
 
 type PointItem = {
   id: string;
@@ -57,14 +58,6 @@ const parsedConfig = shallowRef<SpatialConfigValue | null>(null);
 const showDetails = shallowRef(true);
 const lastSyncedSource = shallowRef<string>();
 const lastEmittedSource = shallowRef<string>();
-
-const isVector = (value: unknown): value is Vector =>
-  Array.isArray(value) &&
-  value.length === 3 &&
-  value.every((part) => typeof part === "number" && Number.isFinite(part));
-
-const isVectorList = (value: unknown): value is Vector[] =>
-  Array.isArray(value) && value.every(isVector);
 
 const pointItems = (value: unknown, id: string, name: string, icon: string): PointItem[] =>
   isVectorList(value) ? value.map((position, index) => ({ id: `${id}-${index}`, name, index, position, icon })) : [];
