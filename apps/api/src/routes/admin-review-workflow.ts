@@ -12,6 +12,7 @@ import {
   reviewTargetTypeSchema,
 } from "@owbastion/contracts";
 import type { AuthContext } from "@owbastion/domain";
+import { parsePagination } from "../query-params";
 import { isUuid, maintainerRoute, parseBody, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: AdminRouteDependencies) => {
