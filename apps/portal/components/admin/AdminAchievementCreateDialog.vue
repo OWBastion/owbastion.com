@@ -111,7 +111,7 @@ function submit() {
 <template>
   <AdminResponsiveDialog v-model:open="dialogOpen" title="新建成就挑战" size="lg">
     <template #body>
-      <form id="achievement-create-form" class="editor" @submit.prevent="submit">
+      <form id="achievement-create-form" class="admin-achievement-editor admin-achievement-editor--create" @submit.prevent="submit">
         <UFormField class="editor-field editor-field--wide" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="完成条件" required><UTextarea v-model="form.condition" class="editor-control" :disabled="props.saving" required maxlength="1024" /></UFormField>
         <UFormField class="editor-field" label="完成规则" hint="集齐指定地图的进度型挑战以已验证通关为准，不走截图审核。"><USelect v-model="form.progressMode" class="editor-control" :disabled="props.saving" :items="progressModeItems" /></UFormField>
@@ -125,7 +125,7 @@ function submit() {
         <UFormField v-if="form.status === 'sunsetting'" class="editor-field" label="计划下线版本" required><UInput v-model="form.retiredVersion" class="editor-control" placeholder="例如 26.0801.1" :disabled="props.saving" required /></UFormField>
         <details class="editor-field editor-field--wide more-settings">
           <summary>更多设置</summary>
-          <div class="editor more-settings-body">
+          <div class="admin-achievement-editor more-settings-body">
             <UFormField class="editor-field" label="唯一 key" hint="留空自动生成。"><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" /></UFormField>
             <UFormField class="editor-field" label="系列" hint="选择已有系列，或输入新的。"><UInputMenu v-model="form.category" :items="categories" create-item placeholder="选择或输入" class="editor-control" :disabled="props.saving" @create="form.category = $event.trim()" /></UFormField>
             <UFormField class="editor-field" label="图标"><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" /></UFormField>
@@ -162,67 +162,7 @@ function submit() {
 </template>
 
 <style scoped>
-.editor {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  padding: var(--space-6);
-}
-
 .more-settings { border-top: 1px solid var(--line); color: var(--muted); }
 .more-settings summary { padding: var(--space-3) 0; cursor: pointer; }
 .more-settings-body { padding: var(--space-2) 0 0; }
-
-.editor-field,
-.editor-control {
-  width: 100%;
-}
-
-.editor :deep(textarea) {
-  min-height: 104px;
-}
-
-.icon-upload {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.icon-upload-option {
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: .82rem;
-}
-
-.icon-upload-option summary {
-  padding-top: var(--space-3);
-  cursor: pointer;
-}
-
-.icon-upload-content {
-  display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-}
-
-.icon-upload-content p {
-  margin: 0;
-  color: var(--quiet);
-  font-size: .78rem;
-}
-
-.editor-field--wide {
-  grid-column: 1 / -1;
-}
-
-@container (max-width: 23.99rem) {
-  .editor {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-4);
-  }
-
-  .editor-field--wide {
-    grid-column: auto;
-  }
-}
 </style>

@@ -390,6 +390,34 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .admin-achievement-icon-preview img { width: 42px; height: 42px; object-fit: contain; }
 
+.admin-achievement-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.admin-achievement-editor--create { padding: var(--space-6); }
+.admin-achievement-editor--edit { padding: var(--space-2) 0 var(--space-1); }
+.admin-achievement-editor .editor-field,
+.admin-achievement-editor .editor-control { width: 100%; }
+.admin-achievement-editor--edit .editor-field,
+.admin-achievement-editor--edit .editor-control { min-width: 0; }
+.admin-achievement-editor textarea { min-height: 104px; }
+.admin-achievement-editor .editor-field--wide { grid-column: 1 / -1; }
+.admin-achievement-editor .icon-upload { display: grid; gap: var(--space-3); }
+.admin-achievement-editor .icon-upload-option { border-top: 1px solid var(--line); color: var(--muted); }
+.admin-achievement-editor--create .icon-upload-option { font-size: .82rem; }
+.admin-achievement-editor--edit .icon-upload-option { font-size: var(--type-caption-size); }
+.admin-achievement-editor .icon-upload-option summary { padding-top: var(--space-3); cursor: pointer; }
+.admin-achievement-editor .icon-upload-content { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
+.admin-achievement-editor .icon-upload-content p { margin: 0; color: var(--quiet); }
+.admin-achievement-editor--create .icon-upload-content p { font-size: .78rem; }
+.admin-achievement-editor--edit .icon-upload-content p { font-size: var(--type-caption-size); }
+@container (max-width: 23.99rem) {
+  .admin-achievement-editor { grid-template-columns: minmax(0, 1fr); }
+  .admin-achievement-editor--create { gap: var(--space-4); padding: var(--space-5) var(--space-4); }
+  .admin-achievement-editor .editor-field--wide { grid-column: auto; }
+}
+
 /* Shared Modal / Drawer sheet: pinned header, scrolling body, no Vaul page scale. */
 .overlay-sheet {
   display: flex !important;
