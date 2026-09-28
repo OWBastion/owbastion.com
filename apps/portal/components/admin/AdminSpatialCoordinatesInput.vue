@@ -51,6 +51,7 @@ type PointSection = {
 };
 
 const toast = useToast();
+const coordinateAxes = ["X", "Y", "Z"] as const;
 const source = shallowRef("");
 const error = shallowRef("");
 const summary = shallowRef<SpatialConfigImportSummary | null>(null);
@@ -359,20 +360,13 @@ async function copyCoordinate(pos: Vector) {
                 :aria-label="`复制 ${item.name} 坐标`"
                 @click="copyCoordinate(item.position)"
               >
-                <span class="coord-segment">
-                  <span class="coord-axis">X</span>
-                  <span class="coord-val">{{ formatCoord(item.position[0]) }}</span>
-                </span>
-                <span class="coord-divider" aria-hidden="true" />
-                <span class="coord-segment">
-                  <span class="coord-axis">Y</span>
-                  <span class="coord-val">{{ formatCoord(item.position[1]) }}</span>
-                </span>
-                <span class="coord-divider" aria-hidden="true" />
-                <span class="coord-segment">
-                  <span class="coord-axis">Z</span>
-                  <span class="coord-val">{{ formatCoord(item.position[2]) }}</span>
-                </span>
+                <template v-for="(axis, index) in coordinateAxes" :key="axis">
+                  <span v-if="index" class="coord-divider" aria-hidden="true" />
+                  <span class="coord-segment">
+                    <span class="coord-axis">{{ axis }}</span>
+                    <span class="coord-val">{{ formatCoord(item.position[index]!) }}</span>
+                  </span>
+                </template>
                 <UIcon name="i-lucide-copy" class="coord-copy-icon" aria-hidden="true" />
               </button>
             </article>
