@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { watchDebounced } from "@vueuse/core";
+import type { AdminManualTitleGrantBatchResponse, Title } from "@owbastion/contracts";
+import type { AdminPlayer } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "批量授予称号 · 躲避堡垒 3" });
 
-type Player = { playerAccountId: string; playerId: string; playerName: string; status: "active" | "banned" };
-type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string };
+type Player = Pick<AdminPlayer, "playerAccountId" | "playerId" | "playerName" | "status">;
 type TitleOption = Title & { value: string; mapName?: string };
-type BatchResult = { batchId: string; requestedCount: number; createdCount: number; alreadyOwnedCount: number };
+type BatchResult = Pick<AdminManualTitleGrantBatchResponse, "batchId" | "requestedCount" | "createdCount" | "alreadyOwnedCount">;
 
 const api = useAdminApi();
 const toast = useToast();
