@@ -198,7 +198,7 @@ onBeforeUnmount(() => {
             <h3 id="completions-title">最近挑战完成</h3>
             <span class="table-meta">{{ props.player.recentCompletions.length }} 项</span>
           </div>
-          <ul v-if="props.player.recentCompletions.length" class="player-activity-list">
+          <ul v-if="props.player.recentCompletions.length" class="player-activity-list stacked-list">
             <li v-for="completion in props.player.recentCompletions" :key="completion.completionId" class="player-activity-row">
               <div class="player-activity-row__main">
                 <strong>{{ completion.titleName }}</strong>
@@ -216,7 +216,7 @@ onBeforeUnmount(() => {
             <h3 id="progression-title">通关进度</h3>
             <span class="table-meta">{{ props.player.progression.activeVerifiedRunCount }} 次已核验通关</span>
           </div>
-          <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list">
+          <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list stacked-list">
             <li v-for="run in props.player.progression.recentVerifiedRuns" :key="run.runId" class="player-activity-row">
               <div class="player-activity-row__main">
                 <strong>{{ run.mapName }} · {{ run.difficulty }}</strong>
@@ -551,7 +551,6 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.player-activity-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .player-activity-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .player-activity-row:last-child { border-bottom: 0; }
 .player-activity-row__main { display: grid; min-width: 0; gap: var(--space-1); }

@@ -202,7 +202,7 @@ onMounted(() => {
             <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" />
           </template>
         </UAlert>
-        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles">
+        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles stacked-list">
           <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
             <strong>{{ title.label }}</strong>
             <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
@@ -296,7 +296,6 @@ onMounted(() => {
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .section-block--first { margin-top: 0; }
 .titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.recent-titles { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .recent-title { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .recent-title strong { overflow-wrap: anywhere; font-weight: 600; letter-spacing: var(--type-headline-tracking); }
 .recent-title span { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }

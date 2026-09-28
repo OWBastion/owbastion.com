@@ -53,7 +53,7 @@ onMounted(() => { hydrated.value = true; });
             <div><dt>地图评级</dt><dd>{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
             <div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div>
           </dl>
-          <ul v-if="mapChallenges.length" class="challenge-list">
+          <ul v-if="mapChallenges.length" class="challenge-list stacked-list">
             <li v-for="challenge in mapChallenges" :key="challenge.challengeId">
               <strong>{{ challenge.name }}</strong>
               <span>{{ [challenge.difficulty, challengeStatusLabel(challenge.status)].filter(Boolean).join(" · ") || "—" }}</span>
@@ -116,7 +116,6 @@ onMounted(() => { hydrated.value = true; });
 .detail-facts > div { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
 .detail-facts dt, .progress-row span, .empty-stat-grid span, .empty-stat-grid small { color: var(--muted); font-size: .8rem; }
 .detail-facts dd { margin: 0; color: var(--text); font-size: .84rem; font-weight: 600; }
-.challenge-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .challenge-list li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .challenge-list strong { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: .84rem; }
 .challenge-list span { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }

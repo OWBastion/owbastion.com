@@ -131,7 +131,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
       <section v-if="candidates.length" class="manual-add" aria-labelledby="manual-add-title">
         <h4 id="manual-add-title">搜索并添加 Challenge</h4>
         <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
-        <ul v-if="searchResults.length" class="manual-add__results">
+        <ul v-if="searchResults.length" class="manual-add__results stacked-list">
           <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
             <div>
               <strong>{{ candidate.label }}</strong>
@@ -291,13 +291,6 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
 .manual-add h4 {
   margin: 0;
   font-size: var(--type-label-sm-size);
-}
-.manual-add__results {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 .manual-add__result {
   display: flex;
