@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import type { AuthContext, PlatformServices } from "@owbastion/domain";
+import type { PlatformServices } from "@owbastion/domain";
 import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminManualTitleGrantResponse, AdminManualTitleGrantBatchResponse } from "@owbastion/contracts";
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
