@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
-import AdminLegacyCompositeSpatialConfigInput from "./AdminLegacyCompositeSpatialConfigInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
 import { createEmptyCompositeConfig, hasCompositeStructure } from "~/utils/composite-spatial-config";
 import { parseSpatialConfigSource, type SpatialConfigValue } from "~/utils/spatial-config-import";
@@ -25,6 +24,7 @@ const modeItems = [
 ];
 
 const isLegacyComposite = (value: SpatialConfigValue | null) => hasCompositeStructure(value) && !("endPosition" in value);
+const compositeMode = computed(() => isLegacyComposite(compositeDraft.value) ? "legacy" : "current");
 
 const mode = shallowRef<SpatialMode>(hasCompositeStructure(props.modelValue) ? "composite" : "single");
 const singleDraft = shallowRef<SpatialConfigValue | null>(mode.value === "single" ? props.modelValue : null);
@@ -143,19 +143,12 @@ function updateAdvancedJson(value: string) {
       @update:model-value="updateSingle"
       @valid="updateSingleValidity"
     />
-    <AdminLegacyCompositeSpatialConfigInput
-      v-else-if="compositeDraft && isLegacyComposite(compositeDraft)"
-      :model-value="compositeDraft"
-      :revision-key="revisionKey + ':composite-legacy'"
-      :disabled="disabled"
-      @update:model-value="updateComposite"
-      @valid="updateCompositeValidity"
-    />
     <AdminCompositeSpatialConfigInput
       v-else-if="compositeDraft"
       :model-value="compositeDraft"
-      :revision-key="revisionKey + ':composite'"
+      :revision-key="revisionKey + (compositeMode === 'legacy' ? ':composite-legacy' : ':composite')"
       :disabled="disabled"
+      :mode="compositeMode"
       @update:model-value="updateComposite"
       @valid="updateCompositeValidity"
     />
