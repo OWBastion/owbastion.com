@@ -415,16 +415,6 @@ function spotCheckLoading(decision: SpotCheckDecision) {
 .detail-meta__time {
   color: var(--quiet);
 }
-.player-link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-.player-link:hover,
-.player-link:focus-visible {
-  text-decoration: underline;
-}
-
 .surface-panel,
 .flow-evidence,
 .flow-actions,

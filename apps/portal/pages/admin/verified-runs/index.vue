@@ -248,7 +248,7 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
           </div>
         </template>
         <template #map-cell="{ row }"><strong>{{ row.original.mapName }}</strong><span class="table-meta">{{ row.original.mapId }}</span></template>
-        <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink><span class="table-meta">{{ row.original.playerId }}</span></template>
+        <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink><span class="table-meta">{{ row.original.playerId }}</span></template>
         <template #matchCode-cell="{ row }"><span class="run-code">{{ row.original.matchCode }}</span></template>
         <template #status-cell="{ row }"><StatusBadge :label="runStatusLabel(row.original.status)" :tone="row.original.status === 'active' ? 'success' : 'warning'" /></template>
         <template #acceptanceSource-cell="{ row }"><span class="table-meta">{{ acceptanceSourceLabel(row.original.acceptanceSource) }}</span></template>
@@ -282,9 +282,6 @@ watch([matchCode, playerAccountId, unresolvedConflictsOnly, mapId, difficulty, r
 .verified-run-filters { display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; }
 .verified-run-filters > * { flex: 1 1 10rem; min-width: 9rem; }
 .table-meta { display: block; color: var(--quiet); font-size: .78rem; }
-.player-link { color: var(--accent); font-weight: 600; text-decoration: none; }
-.player-link:hover,
-.player-link:focus-visible { text-decoration: underline; }
 .run-code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .82rem; }
 .pagination { display: flex; justify-content: center; margin-top: .75rem; }
 .detail-loading { display: grid; gap: .625rem; }
