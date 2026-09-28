@@ -257,7 +257,7 @@ const recordAudit = async (db: ReturnType<typeof drizzle>, auth: AuthContext, op
 const normalizePlayerName = (name: string) => name.trim().toLocaleLowerCase();
 
 const titleColor = (value: string) => JSON.parse(value) as { kind: "heroColor"; index: number } | { kind: "rgb"; value: [number, number, number] } | { kind: "palette"; name: "orange" | "red" | "purple" | "gold" | "blue" } | null;
-const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
+const titleCatalogView = (row: typeof titleCatalog.$inferSelect): Omit<Title, "scope" | "mapId" | "slot" | "pioneerPrefixes" | "gameVersion"> => ({
   titleKey: row.key,
   label: row.label,
   icon: row.icon,
@@ -266,10 +266,13 @@ const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
   condition: row.condition,
   lifecycle: row.lifecycle as Title["lifecycle"],
   publicVisibility: row.publicVisibility === 1,
-  availability: (row.lifecycle === "retired" ? "retired" : "active"),
-  scope: row.scope as Title["scope"],
+  availability: row.lifecycle === "retired" ? "retired" : "active",
   displayKind: row.displayKind as Title["displayKind"],
   color: titleColor(row.colorJson),
+});
+const toAgentTitle = (row: typeof titleCatalog.$inferSelect): AgentTitle => ({
+  ...titleCatalogView(row),
+  scope: row.scope as Title["scope"],
   gameVersion: row.gameVersion?.trim() || null,
 });
 
@@ -4904,18 +4907,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async listTitles(input) {
       const globalRows = await db.select().from(titleCatalog).where(and(eq(titleCatalog.scope, "global"), ne(titleCatalog.lifecycle, "draft"), eq(titleCatalog.publicVisibility, 1), isNotNull(titleCatalog.gameVersion))).orderBy(titleCatalog.key);
       const globalTitles: Title[] = globalRows.map((row) => ({
-        titleKey: row.key,
-        label: row.label,
-        icon: row.icon,
-        iconUrl: row.iconUrl,
-        category: row.category,
-        condition: row.condition,
-        lifecycle: row.lifecycle as Title["lifecycle"],
-        publicVisibility: row.publicVisibility === 1,
-        availability: (row.lifecycle === "retired" ? "retired" : "active"),
+        ...titleCatalogView(row),
         scope: "global",
-        displayKind: row.displayKind as Title["displayKind"],
-        color: titleColor(row.colorJson),
         gameVersion: row.gameVersion!,
       }));
       if (!input.mapId) return globalTitles;
@@ -4935,39 +4928,19 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         return !targets.length || targets.some((mapId) => mapId === input.mapId);
       });
       const mappedTitles = mapRows.map(({ title, reward }): Title => ({
-        titleKey: title.key,
-        label: title.label,
-        icon: title.icon,
-        iconUrl: title.iconUrl,
-        category: title.category,
-        condition: title.condition,
-        lifecycle: title.lifecycle as Title["lifecycle"],
-        publicVisibility: title.publicVisibility === 1,
-        availability: (title.lifecycle === "retired" ? "retired" : "active"),
+        ...titleCatalogView(title),
         scope: "map",
-        displayKind: title.displayKind as Title["displayKind"],
         mapId: input.mapId,
         slot: reward.slot as Title["slot"],
         pioneerPrefixes: JSON.parse(reward.pioneerPrefixesJson) as string[],
-        color: titleColor(title.colorJson),
         gameVersion: title.gameVersion!,
       }));
       const mappedKeys = new Set(mappedTitles.map((title) => title.titleKey));
       const timestamp = now();
       const customTitles = customMapRows.filter(({ title, challenge }) => !mappedKeys.has(title.key) && titleChallengeIsSubmittable(challenge.status, challenge.startsAt, challenge.endsAt, timestamp, challenge.gameVersion)).map(({ title }): Title => ({
-        titleKey: title.key,
-        label: title.label,
-        icon: title.icon,
-        iconUrl: title.iconUrl,
-        category: title.category,
-        condition: title.condition,
-        lifecycle: title.lifecycle as Title["lifecycle"],
-        publicVisibility: title.publicVisibility === 1,
-        availability: (title.lifecycle === "retired" ? "retired" : "active"),
+        ...titleCatalogView(title),
         scope: "map",
-        displayKind: title.displayKind as Title["displayKind"],
         mapId: input.mapId,
-        color: titleColor(title.colorJson),
         gameVersion: title.gameVersion!,
       }));
       return globalTitles.concat(mappedTitles, customTitles);
