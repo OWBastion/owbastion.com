@@ -4,18 +4,12 @@ import type {
   Map,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
   PlayerSubmissionDetail,
-  PlayerSubmissionStatus,
   PlayerVerifiedRun as ContractPlayerVerifiedRun,
-  VerifiedRunDifficulty as ContractVerifiedRunDifficulty,
 } from "@owbastion/contracts";
 import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
 import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = PlayerSubmissionStatus;
-
 export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
-
-export type VerifiedRunDifficulty = ContractVerifiedRunDifficulty;
 
 export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 

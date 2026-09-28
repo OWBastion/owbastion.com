@@ -11,7 +11,6 @@ import type {
   AdminVerifiedRunDetailResponse,
   OcrAccuracyFeedbackResponse,
   QqGroupAccessResponse,
-  VerifiedRunDifficulty,
 } from "@owbastion/contracts";
 export type {
   AdminPlayerDetail,
@@ -39,7 +38,6 @@ export type AdminBindingInvitation = AdminBindingInviteListResponse["items"][num
 export type AdminSubmissionReviewPreview = AdminSubmissionReviewPreviewResponse;
 export type AdminSubmissionReviewInput = Required<Pick<AdminSubmissionReviewPreviewRequest, "fieldCorrections" | "confirmedChallengeIds">>;
 export type AdminSubmission = ContractAdminSubmission;
-export type AdminVerifiedRunDifficulty = VerifiedRunDifficulty;
 export type AdminVerifiedRun = ContractAdminVerifiedRun;
 export type AdminVerifiedRunCorrectionChanges = AdminVerifiedRunCorrectionRequest["changes"];
 export type AdminVerifiedRunDetail = AdminVerifiedRunDetailResponse;
