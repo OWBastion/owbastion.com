@@ -417,6 +417,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 /* Shared domain patterns: card headers and key-value detail lists. */
+.stacked-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .card-heading {
   display: flex;
   align-items: center;

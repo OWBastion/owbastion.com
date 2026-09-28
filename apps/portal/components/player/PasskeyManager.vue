@@ -67,7 +67,7 @@ onMounted(() => { void load(); });
     <UAlert v-if="error || passkeyError" color="error" variant="subtle" :description="error || passkeyError" />
     <p v-if="loading" class="passkey-note" role="status">读取 Passkey…</p>
     <UEmpty v-else-if="items.length === 0" title="尚无 Passkey" description="添加后，下次可以用设备的指纹、面容或屏幕锁直接登录。" variant="naked" />
-    <ul v-else class="passkey-list">
+    <ul v-else class="passkey-list stacked-list">
       <li v-for="item in items" :key="item.passkeyId" class="passkey-row">
         <div class="passkey-copy">
           <strong>{{ item.name }}</strong>
@@ -99,7 +99,6 @@ onMounted(() => { void load(); });
 .passkey-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); }
 .passkey-title { margin: 0; font-size: 1rem; font-weight: 600; }
 .passkey-note { margin: var(--space-2) 0 0; color: var(--muted); font-size: .88rem; line-height: 1.55; }
-.passkey-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .passkey-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .passkey-copy { display: grid; gap: var(--space-1); min-width: 0; }
 .passkey-copy span { color: var(--muted); font-size: .8rem; line-height: 1.45; }

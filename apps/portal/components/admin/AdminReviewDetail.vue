@@ -35,7 +35,7 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 
     <section class="review-detail__section" aria-labelledby="review-audit-heading">
       <h2 id="review-audit-heading">审计记录</h2>
-      <ol v-if="detail.audit.length" class="review-detail__audit">
+      <ol v-if="detail.audit.length" class="review-detail__audit stacked-list">
         <li v-for="entry in detail.audit" :key="`${entry.operation}-${entry.createdAt}-${entry.actorId}`">
           <div><strong>{{ entry.operation }}</strong><span class="table-meta">{{ formatTime(entry.createdAt) }} · {{ entry.actorType }}：{{ entry.actorId }}</span></div>
           <span v-if="entry.reason" class="table-meta">理由：{{ entry.reason }}</span>
@@ -65,7 +65,6 @@ const commentStatusLabel = (value: AdminReviewDetail["review"]["commentStatus"])
 .review-detail__comment { margin: 0; padding: var(--space-4); border-inline-start: 3px solid var(--accent); border-radius: 0 var(--radius-control) var(--radius-control) 0; background: var(--accent-surface); white-space: pre-wrap; overflow-wrap: anywhere; }
 .review-detail__muted { margin: 0; color: var(--quiet); }
 .review-detail__id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); }
-.review-detail__audit { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .review-detail__audit li { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); overflow-wrap: anywhere; }
 .review-detail__audit li > div { display: grid; gap: var(--space-1); }
 .review-detail__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-1); }
