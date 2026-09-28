@@ -1,4 +1,5 @@
 import type {
+  CurrentPlayerResponse as ContractCurrentPlayerResponse,
   CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
   Map,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
@@ -24,11 +25,7 @@ export type PortalMap = Pick<Map, "mapId" | "mapName" | "defaultGameplayRevision
 
 export type CurrentPlayerMasteryResponse = ContractCurrentPlayerMasteryResponse;
 
-export type CurrentPlayer = {
-  contractVersion: "1";
-  player: { playerId: string; playerName: string; isAdmin: boolean };
-  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; resubmissionRequired?: boolean; mapName: string; challengeId?: string; difficulty?: string; reason?: string; verifiedRunOutcome?: VerifiedRunSubmissionOutcome; createdAt: number; updatedAt: number }>;
-};
+export type CurrentPlayer = ContractCurrentPlayerResponse;
 
 export type PortalApiError = Error & { statusCode?: number; requestId?: string; data?: { error?: PortalErrorData }; response?: { status?: number; headers?: Headers; _data?: unknown } };
 
