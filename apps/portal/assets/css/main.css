@@ -240,19 +240,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   letter-spacing: var(--type-card-title-tracking);
   line-height: var(--type-card-title-leading);
 }
-.type-body,
 .body-copy {
   color: var(--muted);
   font-size: var(--type-body-size);
   font-weight: 400;
   line-height: var(--type-body-leading);
-  letter-spacing: 0;
-}
-.type-body-sm {
-  color: var(--muted);
-  font-size: var(--type-body-sm-size);
-  font-weight: 400;
-  line-height: var(--type-body-sm-leading);
   letter-spacing: 0;
 }
 .type-label {
@@ -581,49 +573,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   gap: 0.25rem;
 }
-/* Fixed geometry icon controls — hover only changes color/fill, never size or transform. */
-.table-action {
-  display: inline-grid;
-  box-sizing: border-box;
-  width: 2.75rem;
-  height: 2.75rem;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-control);
-  color: var(--muted);
-  background: transparent;
-  cursor: pointer;
-  transform: none;
-  transition: color 160ms ease, background 160ms ease, opacity 160ms ease;
-}
-.table-action:hover,
-.table-action:focus-visible {
-  color: var(--text);
-  background: var(--surface-raised);
-  transform: none;
-}
-.table-action:active {
-  transform: none;
-}
-.table-action:disabled {
-  cursor: wait;
-  opacity: .5;
-}
-.table-action svg,
-.table-action [class*="i-lucide-"] {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
 /* Labeled UButtons in row actions must not scale or reflow on hover/press. */
-.table-actions :where(button, a, [role="button"]):not(.table-action) {
+.table-actions :where(button, a, [role="button"]) {
   min-height: 2.75rem;
   flex: 0 0 auto;
 }
