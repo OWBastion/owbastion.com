@@ -1,28 +1,7 @@
 <script setup lang="ts">
+import type { PlayerSubmissionDetail } from "@owbastion/contracts";
 import { portalErrorDetails } from "~/utils/portal-error";
-import type { VerifiedRunSubmissionOutcome } from "~/composables/usePortalApi";
 import { verifiedRunOutcomePresentation } from "~/utils/mastery";
-
-type SubmissionDetail = {
-  submissionId: string;
-  status: string;
-  resubmissionRequired?: boolean;
-  mapName: string;
-  difficulty?: string;
-  reason?: string;
-  createdAt: number;
-  updatedAt: number;
-  evidenceUrl?: string | null;
-  ocrFailCount?: number;
-  manualReviewEligible?: boolean;
-  titleGrant?: { grantId: string; titleKey: string; titleName: string; mapName?: string };
-  verifiedRunOutcome?: VerifiedRunSubmissionOutcome;
-  ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
-  feedback?: {
-    ocrResultId: string;
-    accuracy: "accurate" | "inaccurate" | null;
-  };
-};
 
 definePageMeta({ middleware: "auth" });
 useSeoMeta({ title: "提交详情 · 躲避堡垒 3" });
@@ -32,7 +11,7 @@ const api = usePortalApi();
 const submissionId = String(route.params.submissionId);
 const { data, error, status: fetchStatus, refresh } = await useAsyncData(
   `player-submission:${submissionId}`,
-  () => api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`),
+  () => api<PlayerSubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`),
 );
 const requestingManualReview = shallowRef(false);
 const refreshingStatus = shallowRef(false);
@@ -88,7 +67,7 @@ const refreshSubmission = async () => {
   actionMessage.value = "";
   try {
     // Explicit refresh keeps the current detail on failure instead of replacing the page with the route error state.
-    data.value = await api<SubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`);
+    data.value = await api<PlayerSubmissionDetail>(`/v1/me/submissions/${encodeURIComponent(submissionId)}`);
   } catch (cause) {
     refreshError.value = portalErrorDetails(cause, "无法刷新状态，请稍后重试。").description;
   } finally {

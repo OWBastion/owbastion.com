@@ -2,6 +2,7 @@ import type {
   CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
   Map,
   PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
+  PlayerSubmissionDetail,
   PlayerSubmissionStatus,
   PlayerVerifiedRun as ContractPlayerVerifiedRun,
   VerifiedRunDifficulty as ContractVerifiedRunDifficulty,
@@ -11,10 +12,7 @@ import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
 export type SubmissionStatus = PlayerSubmissionStatus;
 
-export type VerifiedRunSubmissionOutcome = {
-  status: "created" | "reused" | "ineligible" | "invalidated";
-  awardedXp: number;
-};
+export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
 
 export type VerifiedRunDifficulty = ContractVerifiedRunDifficulty;
 
