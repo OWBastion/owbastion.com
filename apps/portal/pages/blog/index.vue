@@ -21,7 +21,7 @@ const blogPosts = computed(() => posts.value.map((post) => ({
 
 <template>
   <main class="editorial-page page-shell">
-    <section class="page-intro" aria-labelledby="blog-title">
+    <section class="editorial-page-intro" aria-labelledby="blog-title">
       <h1 id="blog-title" class="page-title">开发日志</h1>
     </section>
 
@@ -37,16 +37,3 @@ const blogPosts = computed(() => posts.value.map((post) => ({
     </section>
   </main>
 </template>
-
-<style scoped>
-.editorial-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.page-intro { margin-bottom: var(--space-8); }
-.editorial-directory { min-width: 0; padding: clamp(var(--space-5), 4vw, var(--space-8)); }
-.editorial-loading { min-height: 170px; display: grid; place-items: center; color: var(--muted); }
-.editorial-blog-list :deep(article) { min-width: 0; }
-@media (max-width: 47.99rem) {
-  .editorial-page { padding-block: 3rem; }
-  .page-intro { margin-bottom: var(--space-5); }
-  .editorial-directory { padding: var(--space-4); }
-}
-</style>
