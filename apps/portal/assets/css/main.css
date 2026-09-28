@@ -379,6 +379,17 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
 }
 
+.admin-achievement-icon-preview {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+}
+.admin-achievement-icon-preview img { width: 42px; height: 42px; object-fit: contain; }
+
 /* Shared Modal / Drawer sheet: pinned header, scrolling body, no Vaul page scale. */
 .overlay-sheet {
   display: flex !important;
