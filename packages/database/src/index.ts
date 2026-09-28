@@ -18,6 +18,7 @@ import { createReviewServices } from "./review-service";
 import { createQqGroupServices } from "./qq-group-service";
 import { createAgentServices } from "./agent-service";
 import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
+import { pageResult, paginate } from "./page-result";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 export { assessVerifiedRunOcrEvidence } from "./ocr-response";
@@ -43,8 +44,6 @@ const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
-const pageResult = <T>(items: T[], page: number, pageSize: number, total: number) => ({ contractVersion: "1" as const, items, page, pageSize, total, hasMore: page * pageSize < total });
-const paginate = <T>(items: T[], page: number, pageSize: number) => pageResult(items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, items.length);
 const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K, include?: (item: T) => boolean) => {
   const groups = new globalThis.Map<K, T[]>();
   for (const item of items) {
