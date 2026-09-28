@@ -11,6 +11,30 @@ const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibi
   supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v6"],
 });
 
+const synchronizeConcurrentBatches = (database: D1Database, callers: number): D1Database => {
+  let arrivals = 0;
+  let releaseBarrier!: () => void;
+  const barrier = new Promise<void>((resolve) => { releaseBarrier = resolve; });
+  let previousBatch = Promise.resolve();
+  const synchronized = Object.create(database) as D1Database;
+  synchronized.batch = async (statements) => {
+    arrivals += 1;
+    if (arrivals === callers) releaseBarrier();
+    if (arrivals <= callers) await barrier;
+
+    const previous = previousBatch;
+    let release!: () => void;
+    previousBatch = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await database.batch(statements);
+    } finally {
+      release();
+    }
+  };
+  return synchronized;
+};
+
 describe("Agents map gameplay projection", () => {
   it("projects enabled revisions with deterministic spatial and challenge references", async () => {
     const { database, sqlite } = createD1();
@@ -2215,7 +2239,7 @@ describe("submission mastery outcomes", () => {
     expect(assessVerifiedRunOcrEvidence(weakRunCode, localVerifiedRunEvidenceCompatibility)).toEqual({ outcome: "ineligible", reason: "unreliable_run_code" });
   });
 
-  it("lets a player replay upload completion after the first attempt already changed server state", async () => {
+  it("restores the completed upload to an actionable state when queue send fails, then lets the player retry", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
@@ -2236,11 +2260,62 @@ describe("submission mastery outcomes", () => {
     await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.first")).rejects.toThrow("queue unavailable");
-    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "upload_pending" });
 
     await expect(services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.retry")).resolves.toEqual({ submissionId: upload.submissionId, status: "processing" });
     expect(queued).toEqual([expect.objectContaining({ submissionId: upload.submissionId, requestId: "request.retry" })]);
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submissions").get()).toEqual({ count: 1 });
+  });
+
+  it("lets only one concurrent player completion enqueue, so a competing send failure cannot undo it", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    const sessionToken = "concurrent-completion-player-one";
+    sqlite.prepare("INSERT INTO qq_sessions (id, attempt_id, group_open_id, member_open_id, environment, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, 'test', ?, ?, ?)")
+      .run("session.player.one", "attempt.player.one", "group.player.one", "member.player.one", await requestHash(sessionToken), now + 60_000, now);
+    let sendCount = 0;
+    let releaseQueueSend!: () => void;
+    let markQueueSendStarted!: () => void;
+    const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
+    const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
+    const queue = {
+      send: vi.fn(async () => {
+        sendCount += 1;
+        markQueueSendStarted();
+        if (sendCount === 2) throw new Error("competing queue send rejected");
+        await queueSendGate;
+      }),
+    } as unknown as Queue;
+    const services = createPlatformServices(
+      synchronizeConcurrentBatches(database, 2),
+      { put: async () => undefined } as unknown as R2Bucket,
+      "https://api.example.com", undefined, undefined, queue,
+    );
+    const body = new TextEncoder().encode("concurrent-image").buffer as ArrayBuffer;
+    const upload = await services.createPlayerUploadSession({ contentType: "image/png", byteSize: body.byteLength, sha256: await uploadHash(body) }, sessionToken);
+    await services.uploadEvidence({ uploadId: upload.uploadId, contentType: "image/png", body }, sessionToken);
+
+    const first = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.first");
+    const second = services.completePlayerUpload({ uploadId: upload.uploadId }, sessionToken, "request.concurrent.second");
+    const settle = (promise: Promise<unknown>) => promise.then(
+      (value) => ({ status: "fulfilled" as const, value }),
+      (reason: unknown) => ({ status: "rejected" as const, reason }),
+    );
+    const firstSettled = settle(first);
+    const secondSettled = settle(second);
+    await queueSendStarted;
+    const earlyOutcome = await Promise.race([firstSettled, secondSettled]);
+    releaseQueueSend();
+    const outcomes = await Promise.all([firstSettled, secondSettled]);
+
+    expect(earlyOutcome).toMatchObject({ status: "rejected", reason: new Error("UPLOAD_COMPLETION_IN_PROGRESS") });
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === "rejected")).toMatchObject([
+      { status: "rejected", reason: new Error("UPLOAD_COMPLETION_IN_PROGRESS") },
+    ]);
+    expect(queue.send).toHaveBeenCalledOnce();
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = ?").get(upload.submissionId)).toEqual({ status: "ocr_pending" });
   });
 
   it("repairs a completed upload session whose submission never left upload_pending", async () => {
@@ -3015,5 +3090,88 @@ describe("submission mastery outcomes", () => {
     // The retry re-decides the already-reviewed Submission instead of leaving it waiting for OCR.
     expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.lifecycle'").get()).toEqual({ status: "approved" });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews WHERE submission_id = 'submission.lifecycle'").get()).toEqual({ count: 2 });
+  });
+});
+
+describe("OCR queue failure recovery", () => {
+  it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required' WHERE id = 'submission.concurrent-same-key'").run();
+
+    let releaseQueueSend!: () => void;
+    let markQueueSendStarted!: () => void;
+    const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
+    const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
+    const queue = { send: vi.fn(async () => { markQueueSendStarted(); await queueSendGate; }) } as unknown as Queue;
+    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
+    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
+    await queueSendStarted;
+    await expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
+    expect(queue.send).toHaveBeenCalledOnce();
+
+    releaseQueueSend();
+    await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
+    expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
+  });
+
+  it("prevents a losing simultaneous retry from undoing a successful enqueue", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.concurrent-send", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = '请重试', updated_at = 1000 WHERE id = 'submission.concurrent-send'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, error_code, created_at) VALUES ('ocr.concurrent-send-failed', 'submission.concurrent-send', 0, 'error', 'OCR_QUEUE_SEND_FAILED', 1000)").run();
+
+    const queue = { send: vi.fn(async () => {}) } as unknown as Queue;
+    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+
+    const first = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-first", "request.first");
+    const second = services.requestAdminOcr({ submissionId: "submission.concurrent-send" }, auth, "idem.concurrent-second", "request.second");
+    const outcomes = await Promise.allSettled([first, second]);
+    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(rejected).toMatchObject({ status: "rejected", reason: new Error("OCR_RETRY_IN_PROGRESS") });
+    expect(queue.send).toHaveBeenCalledOnce();
+
+    expect(outcomes.find((outcome) => outcome.status === "fulfilled")).toMatchObject({ status: "fulfilled", value: { contractVersion: "1", submissionId: "submission.concurrent-send", status: "ocr_pending" } });
+    expect(sqlite.prepare("SELECT status, review_reason FROM submissions WHERE id = 'submission.concurrent-send'").get()).toEqual({ status: "ocr_pending", review_reason: null });
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE submission_id = 'submission.concurrent-send' ORDER BY created_at").all()).toEqual([
+      { status: "error", error_code: "OCR_QUEUE_SEND_FAILED" },
+      { status: "pending", error_code: null },
+    ]);
+  });
+
+  it("moves stale OCR jobs to an actionable state after queue recovery deliveries are exhausted", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.stale-ocr", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.fresh-ocr", "binding.one", "Tester");
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 1000 WHERE id = 'submission.stale-ocr'").run();
+    sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = 2000 WHERE id = 'submission.fresh-ocr'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-stale-result', 'submission.stale-ocr', 0, 'pending', 1000)").run();
+    sqlite.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES ('admin:submission.ocr.retry:idem.stale', 'admin', 'submission.ocr.retry', 'hash', 'ocr-retry-enqueueing:ocr-stale-result', 1000)").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('ocr-fresh-result', 'submission.fresh-ocr', 0, 'pending', 2000)").run();
+    const services = createPlatformServices(database);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await expect(services.reconcileStaleOcrJobs({ olderThan: 1500 })).resolves.toBe(1);
+
+    expect(sqlite.prepare("SELECT status, ocr_fail_count FROM submissions WHERE id = 'submission.stale-ocr'").get()).toEqual({ status: "resubmission_required", ocr_fail_count: 1 });
+    expect(sqlite.prepare("SELECT status, error_code FROM ocr_results WHERE id = 'ocr-stale-result'").get()).toEqual({ status: "error", error_code: "OCR_QUEUE_STALLED" });
+    expect(sqlite.prepare("SELECT id FROM idempotency_keys WHERE id = 'admin:submission.ocr.retry:idem.stale'").get()).toBeUndefined();
+    expect(sqlite.prepare("SELECT status FROM submissions WHERE id = 'submission.fresh-ocr'").get()).toEqual({ status: "ocr_pending" });
+    expect(logSpy.mock.calls.map(([line]) => String(line)).some((line) => line.includes('"event":"stale_job_recovered"') && line.includes('"submissionId":"submission.stale-ocr"'))).toBe(true);
+    logSpy.mockRestore();
   });
 });

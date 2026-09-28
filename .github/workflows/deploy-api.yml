@@ -172,7 +172,7 @@ jobs:
         run: |
           set -euo pipefail
           queues="$(pnpm exec wrangler queues list)"
-          for queue in owbastion-ocr owbastion-qq-policy owbastion-qq-policy-dlq; do
+          for queue in owbastion-ocr owbastion-ocr-dlq owbastion-qq-policy owbastion-qq-policy-dlq; do
             if grep -Fq "$queue" <<<"$queues"; then echo "$queue already exists"; else pnpm exec wrangler queues create "$queue"; fi
           done
 

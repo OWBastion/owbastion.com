@@ -114,6 +114,7 @@ const services: PlatformServices = {
   registerQqGroup: async () => {},
   listQqGroupAccess: async () => [],
   dispatchPendingQqGroupPolicyEvents: async () => {},
+  reconcileStaleOcrJobs: async () => 0,
   markQqGroupPolicyEventDelivered: async () => {},
   listAdminPlayers: async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 25, total: 0, hasMore: false }),
   getAdminPlayer: async () => { throw new Error("PLAYER_NOT_FOUND"); },
@@ -1847,6 +1848,20 @@ describe("API", () => {
     expect((await complete.json() as { error: { code: string } }).error.code).toBe("UPLOAD_SESSION_INVALID");
   });
 
+  it("returns a conflict while another player upload completion is enqueueing", async () => {
+    const completionApp = createApp({
+      authenticate: async () => null,
+      services: () => ({ ...services, completePlayerUpload: async () => { throw new Error("UPLOAD_COMPLETION_IN_PROGRESS"); } }),
+    });
+    const response = await completionApp.request("http://localhost/v1/player/uploads/00000000-0000-0000-0000-000000000004/complete", {
+      method: "POST",
+      headers: { cookie: "owb_session=session-token" },
+    }, env);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: "UPLOAD_COMPLETION_IN_PROGRESS" } });
+  });
+
   it("allows the Portal to preflight direct upload URLs", async () => {
     const response = await app.request("http://localhost/v1/uploads/00000000-0000-0000-0000-000000000004", {
       method: "OPTIONS",
@@ -1923,6 +1938,13 @@ describe("API", () => {
     expect(response.status).toBe(200);
     expect(requests).toEqual(["00000000-0000-4000-8000-000000000000"]);
     expect(await response.json()).toMatchObject({ status: "ocr_pending" });
+  });
+
+  it("returns a conflict when another OCR retry is already in progress", async () => {
+    const retryApp = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, requestAdminOcr: async () => { throw new Error("OCR_RETRY_IN_PROGRESS"); } }) });
+    const response = await retryApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/ocr/retry", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "ocr-retry-race-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    expect(response.status).toBe(409);
+    expect((await response.json() as { error: { code: string } }).error.code).toBe("OCR_RETRY_IN_PROGRESS");
   });
 
   it("does not expose player or maintainer challenge selection routes", async () => {

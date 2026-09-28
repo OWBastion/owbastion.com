@@ -3,6 +3,9 @@ main = "apps/api/src/worker.ts"
 compatibility_date = "2026-07-14"
 workers_dev = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 PORTAL_ORIGIN = "http://localhost:3000"
 LOCAL_DEV_AUTH = "true"
@@ -35,6 +38,12 @@ queue = "owbastion-qq-policy-local"
 queue = "owbastion-ocr-local"
 max_batch_size = 1
 max_retries = 3
+dead_letter_queue = "owbastion-ocr-local-dlq"
+
+[[queues.consumers]]
+queue = "owbastion-ocr-local-dlq"
+max_batch_size = 1
+max_retries = 5
 
 [[queues.consumers]]
 queue = "owbastion-qq-policy-local"

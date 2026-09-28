@@ -27,6 +27,7 @@ const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "descript
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
   if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "resubmission_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "resubmission_required", automatic: false, reason: null, reviewedAt: 1 }, activeTitleGrants: [{ grantId: "grant-5", titleKey: "OVERWATCH", titleName: "守望先锋" }], verifiedRunOutcome: { status: "created", verifiedRunId: null, awardedXp: 0, reason: null, conflictFields: [] } });
   if (path === "/v1/submissions/submission-7") return Promise.resolve({ submissionId: "submission-7", mapName: "釜山", difficulty: "", playerName: "他又", status: "rejected", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: 2, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "rejected", automatic: false, reason: null, reviewedAt: 1 } });
+  if (path === "/v1/submissions/submission-8") return Promise.resolve({ submissionId: "submission-8", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_pending", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "error", ocrAttempt: 0, ocrErrorCode: "OCR_QUEUE_SEND_FAILED", evidenceUrl: null, ocr: null, review: null });
   if (path === "/v1/submissions/submission-6") {
     return Promise.resolve(!ocrResultReady
       ? { submissionId: "submission-6", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_pending", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "pending", ocrAttempt: null, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: null }
@@ -41,6 +42,7 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-3") return Promise.resolve({ submissionId: "submission-3", mapName: "绿洲城", difficulty: "困难", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, spotCheck: { status: "pending", sampledAt: 1, resolvedAt: null, reviewer: null, reason: null } });
   if (path === "/v1/submissions/submission-1/review" && options?.method === "POST") return Promise.resolve({ decision: "approved", titleName: "守望先锋", alreadyOwned: false });
   if (path === "/v1/submissions/submission-1/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", status: "ocr_pending" });
+  if (path === "/v1/submissions/submission-8/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-8", status: "ocr_pending" });
   if (path === "/v1/submissions/submission-3/spot-check" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-3", status: "confirmed", grantId: "grant-1" });
   throw new Error(`Unexpected request: ${path}`);
 });
@@ -229,6 +231,16 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).not.toContain("正在重新识别截图");
     const retry = wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"));
     expect(retry?.attributes("disabled")).toBeUndefined();
+  });
+
+  it("offers an OCR retry for a pending Submission whose queue send failed", async () => {
+    const wrapper = await mountPage({ route: "/admin/reviews/submission-8" });
+    await flushPromises();
+    const retry = wrapper.findAll("button").find((button) => button.text().includes("重新发送 OCRKit 请求"));
+    expect(retry?.attributes("disabled")).toBeUndefined();
+    await retry!.trigger("click");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-8/ocr/retry", expect.objectContaining({ method: "POST" }));
   });
 
   it("waits for a pending OCR request and refreshes when the result arrives", async () => {

@@ -105,13 +105,21 @@ ID returned by the originating API request. The OCR records use the fixed
 `job_failure_recorded`, and their corresponding `*_failed` events. They retain
 the Queue attempt, manual flag, HTTP status, response field names, processing
 stage, duration, and bounded exception name/message; they never log player or
-submission IDs, the image, OCR text, object key, authorization token, or response body.
+QQ identifiers, the image, OCR text, object key, authorization token, or response
+body. OCR job and queue-failure events include the opaque `submissionId` so a
+maintainer can trace one Submission without exposing its evidence or identity.
 
-`queue_job_failed` on attempts 1 or 2 means the message will be retried. On
-attempt 3, compare its `requestId` with the `X-Request-ID` sent to OCRKit and
-inspect the OCRKit container's access/error logs for the same request window.
-An OCRKit access line alone proves only that the request arrived; it does not
-prove object download or recognition succeeded.
+`queue_job_failed` on attempts 1 through 3 means the message will be retried;
+attempt 4 is the last configured OCR delivery. If recording that failure also
+fails, follow `queue_failure_record_failed` by `submissionId` and check the OCR
+dead-letter events `dead_letter_recovered` or `dead_letter_recovery_failed`.
+The five-minute scheduled repair also emits `stale_job_recovered` when a
+Submission has remained `ocr_pending` for 15 minutes, including after the
+dead-letter consumer has exhausted its retries and its message was discarded.
+Compare the `requestId` with the `X-Request-ID` sent to OCRKit and inspect the
+OCRKit container's access/error logs for the same request window. An OCRKit
+access line alone proves only that the request arrived; it does not prove object
+download or recognition succeeded.
 
 Representative operation names for D1 performance baselines:
 

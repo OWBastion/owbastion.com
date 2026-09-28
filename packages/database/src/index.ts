@@ -14,6 +14,8 @@ import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
 import { resolvePortalSession } from "./portal-session";
 
 const now = () => Date.now();
+const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
+const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
 type AdminAnnotationProposalRow = {
@@ -142,6 +144,7 @@ export const assessVerifiedRunOcrEvidence = (response: OcrResponse, compatibilit
   };
 };
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
+const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
 const paginate = <T>(items: T[], page: number, pageSize: number) => ({ items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, hasMore: page * pageSize < items.length });
 type HistoricalMigrationItem = { status: string };
@@ -820,6 +823,48 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         // The outbox remains pending for the scheduled repair pass.
       }
     }
+  };
+
+  const reconcileStaleOcrJobs = async (input: { olderThan: number }) => {
+    const staleSubmissions = await db.select({ id: submissions.id, updatedAt: submissions.updatedAt })
+      .from(submissions)
+      .where(and(eq(submissions.status, "ocr_pending"), lte(submissions.updatedAt, input.olderThan)))
+      .orderBy(asc(submissions.updatedAt), asc(submissions.id))
+      .limit(100);
+    let recoveredCount = 0;
+    for (const submission of staleSubmissions) {
+      const pendingResults = await db.select({ id: ocrResults.id })
+        .from(ocrResults)
+        .where(and(eq(ocrResults.submissionId, submission.id), eq(ocrResults.status, "pending")));
+      const timestamp = Math.max(now(), submission.updatedAt + 1);
+      const recoveryResultId = crypto.randomUUID();
+      const statements = [
+        database.prepare(`UPDATE ocr_results
+          SET status = 'error', error_code = 'OCR_QUEUE_STALLED', created_at = ?
+          WHERE submission_id = ? AND status = 'pending'
+            AND EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending' AND updated_at <= ?)`)
+          .bind(timestamp, submission.id, submission.id, input.olderThan),
+        database.prepare(`INSERT INTO ocr_results (id, submission_id, attempt, status, error_code, created_at)
+          SELECT ?, ?, 0, 'error', 'OCR_QUEUE_STALLED', ?
+          WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending' AND updated_at <= ?)`)
+          .bind(recoveryResultId, submission.id, timestamp, submission.id, input.olderThan),
+        database.prepare(`UPDATE submissions
+          SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ?
+          WHERE id = ? AND status = 'ocr_pending' AND updated_at <= ?`)
+          .bind("截图暂时无法处理，请重新提交截图。", timestamp, submission.id, input.olderThan),
+        ...pendingResults.map(({ id }) => database.prepare(`DELETE FROM idempotency_keys
+          WHERE operation = 'submission.ocr.retry' AND response_json = ?
+            AND EXISTS (SELECT 1 FROM ocr_results WHERE id = ? AND status = 'error' AND error_code = 'OCR_QUEUE_STALLED')`)
+          .bind(`${ocrRetryEnqueueingPrefix}${id}`, id)),
+      ];
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const recovered = await db.select({ id: ocrResults.id }).from(ocrResults).where(eq(ocrResults.id, recoveryResultId)).get();
+      if (recovered) {
+        recoveredCount += 1;
+        logOcrEvent("stale_job_recovered", { submissionId: submission.id, errorCode: "OCR_QUEUE_STALLED" });
+      }
+    }
+    return recoveredCount;
   };
 
   // Batch-load challenge↔map associations once and group in memory.
@@ -4029,6 +4074,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
   return {
     dispatchPendingQqGroupPolicyEvents,
+    reconcileStaleOcrJobs,
     recordVerifiedRun,
 
     async invalidateVerifiedRun(input, actor) {
@@ -5743,24 +5789,75 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const current = await getCurrentPortalPlayer(sessionToken);
       if (!current) throw new Error("UNAUTHENTICATED");
       if (current.player.id !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
-      // One batch so the two rows cannot diverge; on a replay both statements are no-ops or repair a submission still stuck in upload_pending.
+      if (!ocrQueue) {
+        await database.batch([
+          database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
+          database.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = ? WHERE id = ? AND status = 'upload_pending'").bind(now(), session.submissionId),
+        ]);
+        const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
+        if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
+        return { submissionId: session.submissionId, status: playerSubmissionStatus(submission.status) };
+      }
+
+      const requestHash = await hashRequest({ uploadId: session.id });
+      const idempotencyRecordId = `${current.player.id}:submission.upload.complete:${session.id}`;
+      const existingIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (existingIdempotency.responseJson.startsWith(playerUploadCompletionEnqueueingPrefix)) throw new Error("UPLOAD_COMPLETION_IN_PROGRESS");
+        return JSON.parse(existingIdempotency.responseJson) as { submissionId: string; status: "processing" };
+      }
+
+      const beforeCompletion = await db.select({ status: submissions.status, updatedAt: submissions.updatedAt }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
+      if (!beforeCompletion) throw new Error("UPLOAD_SESSION_INVALID");
+      const timestamp = Math.max(now(), beforeCompletion.updatedAt + 1);
+      const enqueueingMarker = `${playerUploadCompletionEnqueueingPrefix}${crypto.randomUUID()}`;
+      const response = { submissionId: session.submissionId, status: "processing" as const };
       await database.batch([
         database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
-        database.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = ? WHERE id = ? AND status = 'upload_pending'").bind(now(), session.submissionId),
+        database.prepare("INSERT OR IGNORE INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.upload.complete', ?, ?, ?)").bind(idempotencyRecordId, current.player.id, requestHash, enqueueingMarker, timestamp),
+        database.prepare(`UPDATE submissions SET status = 'ocr_pending', updated_at = ?
+          WHERE id = ? AND status = 'upload_pending' AND updated_at = ? AND changes() = 1
+            AND EXISTS (SELECT 1 FROM upload_sessions WHERE id = ? AND submission_id = ? AND status = 'completed')`)
+          .bind(timestamp, session.submissionId, beforeCompletion.updatedAt, session.id, session.submissionId),
+        database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ? AND changes() = 0").bind(idempotencyRecordId, enqueueingMarker),
       ]);
-      // A replay after a lost response or a failed queue send resumes here: the job is only (re)sent while recognition has not started.
-      const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
-      if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
-      if (submission.status === "ocr_pending" && ocrQueue) {
-        try {
-          await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
-          logOcrEvent("job_enqueued", { attempt: 0, manual: false, requestId: requestId ?? null });
-        } catch (error) {
-          logOcrEvent("job_enqueue_failed", { attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
-          throw error;
-        }
+      const claimedIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
+      if (!claimedIdempotency) {
+        const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
+        if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
+        return { submissionId: session.submissionId, status: playerSubmissionStatus(submission.status) };
       }
-      return { submissionId: session.submissionId, status: playerSubmissionStatus(submission.status) };
+      if (claimedIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+      if (claimedIdempotency.responseJson !== enqueueingMarker) {
+        if (claimedIdempotency.responseJson.startsWith(playerUploadCompletionEnqueueingPrefix)) throw new Error("UPLOAD_COMPLETION_IN_PROGRESS");
+        return JSON.parse(claimedIdempotency.responseJson) as typeof response;
+      }
+
+      try {
+        await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
+        logOcrEvent("job_enqueued", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
+      } catch (error) {
+        logOcrEvent("job_enqueue_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
+        const failedAt = Math.max(now(), timestamp + 1);
+        try {
+          await database.batch([
+            database.prepare(`UPDATE submissions SET status = 'upload_pending', updated_at = ?
+              WHERE id = ? AND status = 'ocr_pending' AND updated_at = ?
+                AND EXISTS (SELECT 1 FROM idempotency_keys WHERE id = ? AND response_json = ?)`)
+              .bind(failedAt, session.submissionId, timestamp, idempotencyRecordId, enqueueingMarker),
+            database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(idempotencyRecordId, enqueueingMarker),
+          ]);
+        } catch (recoveryError) {
+          logOcrEvent("job_enqueue_recovery_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(recoveryError) });
+        }
+        throw error;
+      }
+      const finalizedIdempotency = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?")
+        .bind(JSON.stringify(response), idempotencyRecordId, enqueueingMarker)
+        .run();
+      if (Number(finalizedIdempotency.meta.changes) !== 1) throw new Error("UPLOAD_COMPLETION_IDEMPOTENCY_FINALIZE_FAILED");
+      return response;
     },
 
     async listAdminSubmissions(input) {
@@ -5786,33 +5883,79 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async requestAdminOcr(input, auth, idempotencyKey, requestId): Promise<AdminSubmissionOcrRetryResponse> {
-      const replay = await replayOrConflict<AdminSubmissionOcrRetryResponse>(db, auth.subject, "submission.ocr.retry", idempotencyKey, input);
-      if (replay) return replay;
+      const idempotencyRecordId = `${auth.subject}:submission.ocr.retry:${idempotencyKey}`;
+      const requestHash = await hashRequest(input);
+      const existingIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
+      if (existingIdempotency) {
+        if (existingIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (existingIdempotency.responseJson.startsWith(ocrRetryEnqueueingPrefix)) throw new Error("OCR_RETRY_IN_PROGRESS");
+        return JSON.parse(existingIdempotency.responseJson) as AdminSubmissionOcrRetryResponse;
+      }
       if (!ocrQueue) throw new Error("OCR_NOT_CONFIGURED");
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
       const attachment = await db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, row.id)).orderBy(desc(attachments.createdAt)).limit(1).get();
       if (!attachment?.objectKey) throw new Error("EVIDENCE_NOT_FOUND");
 
-      const timestamp = now();
+      const latestResult = await db.select({ id: ocrResults.id, errorCode: ocrResults.errorCode, createdAt: ocrResults.createdAt })
+        .from(ocrResults)
+        .where(eq(ocrResults.submissionId, row.id))
+        .orderBy(desc(ocrResults.createdAt), desc(ocrResults.id))
+        .limit(1)
+        .get();
+      if (row.status === "ocr_pending" && latestResult?.errorCode !== "OCR_QUEUE_SEND_FAILED") throw new Error("OCR_RETRY_IN_PROGRESS");
+
+      const timestamp = Math.max(now(), row.updatedAt + 1, (latestResult?.createdAt ?? 0) + 1);
       const pendingResultId = crypto.randomUUID();
+      const enqueueingMarker = `${ocrRetryEnqueueingPrefix}${pendingResultId}`;
       const response: AdminSubmissionOcrRetryResponse = { contractVersion: "1", submissionId: row.id, status: "ocr_pending" };
-      const requestHash = await hashRequest(input);
-      const idempotencyKeyId = `${auth.subject}:submission.ocr.retry:${idempotencyKey}`;
+      const correlationId = requestId ?? crypto.randomUUID();
       await database.batch([
-        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES (?, ?, 0, 'pending', ?)").bind(pendingResultId, row.id, timestamp),
-        database.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = NULL, updated_at = ? WHERE id = ?").bind(timestamp, row.id),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.ocr.retry', ?, ?, ?)").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
+        database.prepare("INSERT OR IGNORE INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.ocr.retry', ?, ?, ?)").bind(idempotencyRecordId, auth.subject, requestHash, enqueueingMarker, timestamp),
+        database.prepare(`UPDATE submissions SET status = 'ocr_pending', review_reason = NULL, updated_at = ?
+          WHERE id = ? AND status = ? AND updated_at = ? AND changes() = 1
+            AND (? != 'ocr_pending' OR EXISTS (
+              SELECT 1 FROM ocr_results WHERE id = ? AND status = 'error' AND error_code = 'OCR_QUEUE_SEND_FAILED'
+            ))`).bind(timestamp, row.id, row.status, row.updatedAt, row.status, latestResult?.id ?? ""),
+        database.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) SELECT ?, ?, 0, 'pending', ? WHERE changes() = 1").bind(pendingResultId, row.id, timestamp),
+        database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at)
+          SELECT ?, ?, ?, ?, 'submission.ocr.retry', 'submission', ?, ?, ? WHERE changes() = 1`).bind(crypto.randomUUID(), correlationId, auth.actorType, auth.subject, row.id, JSON.stringify({ manual: true }), timestamp),
+        database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ? AND changes() = 0").bind(idempotencyRecordId, enqueueingMarker),
       ]);
+      const pendingResult = await db.select({ id: ocrResults.id }).from(ocrResults).where(eq(ocrResults.id, pendingResultId)).get();
+      if (!pendingResult) {
+        const racedIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
+        if (racedIdempotency) {
+          if (racedIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
+          if (racedIdempotency.responseJson.startsWith(ocrRetryEnqueueingPrefix)) throw new Error("OCR_RETRY_IN_PROGRESS");
+          return JSON.parse(racedIdempotency.responseJson) as AdminSubmissionOcrRetryResponse;
+        }
+        throw new Error("OCR_RETRY_IN_PROGRESS");
+      }
       try {
         await ocrQueue.send({ version: 1, submissionId: row.id, objectKey: attachment.objectKey, manual: true, ...(requestId ? { requestId } : {}) });
-        logOcrEvent("job_enqueued", { attempt: 0, manual: true, requestId: requestId ?? null });
+        logOcrEvent("job_enqueued", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null });
       } catch (error) {
-        logOcrEvent("job_enqueue_failed", { attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
-        await db.update(ocrResults).set({ status: "error", errorCode: "OCR_QUEUE_SEND_FAILED", createdAt: now() }).where(eq(ocrResults.id, pendingResultId));
+        logOcrEvent("job_enqueue_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(error) });
+        const failedAt = Math.max(now(), timestamp + 1);
+        try {
+          await database.batch([
+            database.prepare("UPDATE ocr_results SET status = 'error', error_code = 'OCR_QUEUE_SEND_FAILED', created_at = ? WHERE id = ? AND status = 'pending'").bind(failedAt, pendingResultId),
+            database.prepare(`UPDATE submissions SET status = ?, review_reason = ?, updated_at = ?
+              WHERE id = ? AND status = 'ocr_pending' AND updated_at = ?
+                AND EXISTS (SELECT 1 FROM ocr_results WHERE id = ? AND status = 'error' AND error_code = 'OCR_QUEUE_SEND_FAILED')`)
+              .bind(row.status, row.reviewReason, failedAt, row.id, timestamp, pendingResultId),
+            database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(idempotencyRecordId, enqueueingMarker),
+          ]);
+        } catch (recoveryError) {
+          logOcrEvent("job_enqueue_recovery_failed", { submissionId: row.id, attempt: 0, manual: true, requestId: requestId ?? null, ...errorDetails(recoveryError) });
+        }
         throw error;
       }
+      const finalizedIdempotency = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?")
+        .bind(JSON.stringify(response), idempotencyRecordId, enqueueingMarker)
+        .run();
+      if (Number(finalizedIdempotency.meta.changes) !== 1) throw new Error("OCR_RETRY_IDEMPOTENCY_FINALIZE_FAILED");
       return response;
     },
 
@@ -6659,7 +6802,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async processOcrJob(input) {
       activeMapsPromise = null;
       const ocrRequestId = input.requestId ?? crypto.randomUUID();
-      const context = { attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
+      const context = { submissionId: input.submissionId, attempt: input.attempt, manual: Boolean(input.manual), requestId: ocrRequestId };
       const startedAt = Date.now();
       logOcrEvent("job_started", context);
       if (!evidenceBucket || !ocrkitBaseUrl || !ocrkitApiToken) {
@@ -6686,7 +6829,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       try {
         const formData = new FormData();
         formData.append("file", new Blob([evidenceBytes], { type: contentType }), "evidence");
-        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData });
+        response = await fetch(`${ocrkitBaseUrl.replace(/\/$/, "")}/api/v1/ocr/challenge`, { method: "POST", headers: { authorization: `Bearer ${ocrkitApiToken}`, "user-agent": "OWBastion-PlatformAPI/1.0", "x-request-id": ocrRequestId }, body: formData, signal: AbortSignal.timeout(ocrkitRequestTimeoutMs) });
       } catch (error) {
         logOcrEvent("ocrkit_request_failed", { ...context, stage: "fetch", durationMs: Date.now() - startedAt, ...errorDetails(error) });
         throw new Error("OCR_NETWORK");
@@ -6788,7 +6931,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, request_id, attempt, status, error_code, created_at) VALUES (?, ?, ?, ?, 'error', ?, ?)").bind(crypto.randomUUID(), row.id, requestId, input.attempt, input.errorCode, now()),
         database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending'").bind("截图暂时无法处理，请重新提交截图。", now(), row.id),
       ]);
-      logOcrEvent("job_failure_recorded", { attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
+      logOcrEvent("job_failure_recorded", { submissionId: row.id, attempt: input.attempt, manual: Boolean(input.manual), requestId, errorCode: input.errorCode });
     },
 
     async listQqGroupAccess() {

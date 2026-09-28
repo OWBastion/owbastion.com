@@ -47,6 +47,7 @@ const approvalHint = computed(() => {
 });
 // A decision taken while OCR runs moves the Submission on and leaves its OCR row pending for good.
 const ocrPending = computed(() => props.submission.status === "ocr_pending");
+const ocrQueueSendFailed = computed(() => ocrPending.value && props.submission.ocrErrorCode === "OCR_QUEUE_SEND_FAILED");
 const reviewRecord = computed(() => props.submission.review ?? null);
 
 type ConfirmTarget = { kind: "review"; decision: Exclude<ReviewDecision, "approved"> } | { kind: "spot-check"; decision: "revoked" };
@@ -295,11 +296,11 @@ onBeforeUnmount(() => {
           <UButton
             type="button"
             icon="i-lucide-refresh-cw"
-            :label="ocrPending ? '识别中…' : '重新发送 OCRKit 请求'"
+            :label="ocrPending && !ocrQueueSendFailed ? '识别中…' : '重新发送 OCRKit 请求'"
             color="neutral"
             variant="ghost"
-            :loading="ocrRetryLoading || ocrPending"
-            :disabled="actionsLoading || ocrPending"
+            :loading="ocrRetryLoading || (ocrPending && !ocrQueueSendFailed)"
+            :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
             @click="emit('retry-ocr')"
           />
           <UButton

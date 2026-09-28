@@ -3,6 +3,9 @@ main = "apps/api/src/worker.ts"
 compatibility_date = "2026-07-14"
 workers_dev = false
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 PORTAL_ORIGIN = "https://owbastion.com"
 OCRKIT_BASE_URL = "https://ocr.owbastion.com"
@@ -53,6 +56,12 @@ queue = "owbastion-qq-policy"
 queue = "owbastion-ocr"
 max_batch_size = 1
 max_retries = 3
+dead_letter_queue = "owbastion-ocr-dlq"
+
+[[queues.consumers]]
+queue = "owbastion-ocr-dlq"
+max_batch_size = 1
+max_retries = 5
 
 [[queues.consumers]]
 queue = "owbastion-qq-policy"
