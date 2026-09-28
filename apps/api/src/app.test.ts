@@ -728,6 +728,11 @@ describe("API", () => {
     expect(response.status).toBe(404);
   });
 
+  it("does not expose QQ channel submission creation", async () => {
+    const response = await app.request("http://localhost/v1/submissions", { method: "POST" }, env);
+    expect(response.status).toBe(404);
+  });
+
   it("creates a public invitation claim without a player session", async () => {
     const response = await app.request("http://localhost/v1/public/binding-invites/redeem", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", code: "ABCDEFGHIJKL" }) }, env);
     expect(response.status).toBe(201);
