@@ -42,7 +42,6 @@ const selectedTitles = computed(() => titles.value.filter((title) => selectedTit
 const selectedTitleCount = computed(() => selectedTitles.value.length);
 const sourceLabels = { historical: "历史迁移", submission: "截图核对", manual: "人工发放", automatic: "自动获得" } as const;
 const slotLabels = { pioneer: "开拓者", conqueror: "征服者", dominator: "主宰" } as const;
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const activeTab = shallowRef<"global" | "map">("global");
 const globalGrants = computed(() => props.titleGrants.filter((g) => g.scope === "global"));
 const mapGrants = computed(() => props.titleGrants.filter((g) => g.scope === "map"));

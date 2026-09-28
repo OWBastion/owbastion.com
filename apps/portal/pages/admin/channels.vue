@@ -24,7 +24,6 @@ const groupSortingOptions = [
   { id: "status", label: "状态" },
   { id: "updatedAt", label: "最近更新" },
 ];
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const columns = [
   { accessorKey: "displayName", header: "群组" },
   { accessorKey: "environment", header: "环境" },

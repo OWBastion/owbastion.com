@@ -32,7 +32,6 @@ const emit = defineEmits<{
   "retry-ocr": [];
 }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 

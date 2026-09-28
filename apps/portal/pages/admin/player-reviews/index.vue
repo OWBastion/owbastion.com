@@ -26,7 +26,6 @@ const pendingAction = ref<'hide-comment' | 'restore-comment' | 'invalidate' | 'r
 const reason = ref('');
 const saving = ref(false);
 
-const formatTime = (value: number) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value);
 const targetTypeLabel = (value: AdminReview['targetType']) => value === 'event' ? '事件' : '地图';
 const statusLabel = (value: AdminReview['status']) => value === 'active' ? '有效' : value === 'withdrawn' ? '已撤回' : '已失效';
 const commentStatusLabel = (value: AdminReview['commentStatus']) => value === 'visible' ? '公开' : '已隐藏';

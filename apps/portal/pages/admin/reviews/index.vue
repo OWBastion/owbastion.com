@@ -18,7 +18,6 @@ const total = ref(0);
 type OcrField = { confidence?: unknown };
 type OcrPayload = { data?: { map_name?: unknown; achievement_titles?: unknown }; fields?: Record<string, OcrField> };
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 type ReviewStatus = "queue" | "all" | keyof typeof submissionStatusText;
 const queueStatuses = "ready_for_review,ocr_review_required";
 function parseReviewStatus(value: unknown): ReviewStatus {

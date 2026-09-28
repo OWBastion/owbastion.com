@@ -5,7 +5,6 @@ import { submissionStatusText, submissionStatusTone } from "~/utils/submissionSt
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; grantCompleted: []; editIdentity: [] }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const battleTag = computed(() => `${props.player.playerName}#${props.player.playerId}`);
 const initials = computed(() => props.player.playerName.slice(0, 2));
 const statusLabel = computed(() => props.player.status === "active" ? "正常" : "已封禁");
