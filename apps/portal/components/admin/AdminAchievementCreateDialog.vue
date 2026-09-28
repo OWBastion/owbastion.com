@@ -80,7 +80,7 @@ function submit() {
 <template>
   <AdminResponsiveDialog v-model:open="dialogOpen" title="新建成就挑战" size="lg">
     <template #body>
-      <form id="achievement-create-form" class="editor" @submit.prevent="submit">
+      <form id="achievement-create-form" class="admin-achievement-editor admin-achievement-editor--create" @submit.prevent="submit">
         <UFormField class="editor-field" label="唯一 key" required><UInput v-model="form.titleKey" class="editor-control" placeholder="例如 CLASSIC_RACETRACK" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="称号名称" required><UInput v-model="form.titleName" class="editor-control" :disabled="props.saving" required /></UFormField>
         <UFormField class="editor-field" label="图标" required><UInput v-model="form.icon" class="editor-control" placeholder="trophy" :disabled="props.saving" required /></UFormField>
@@ -116,65 +116,3 @@ function submit() {
     <template #footer><UButton label="创建挑战" type="submit" form="achievement-create-form" :loading="props.saving" :disabled="!canSubmit" /><UButton label="取消" color="neutral" variant="outline" :disabled="props.saving" @click="dialogOpen = false" /></template>
   </AdminResponsiveDialog>
 </template>
-
-<style scoped>
-.editor {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  padding: var(--space-6);
-}
-
-.editor-field,
-.editor-control {
-  width: 100%;
-}
-
-.editor :deep(textarea) {
-  min-height: 104px;
-}
-
-.icon-upload {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.icon-upload-option {
-  border-top: 1px solid var(--line);
-  color: var(--muted);
-  font-size: .82rem;
-}
-
-.icon-upload-option summary {
-  padding-top: var(--space-3);
-  cursor: pointer;
-}
-
-.icon-upload-content {
-  display: grid;
-  gap: var(--space-3);
-  padding-top: var(--space-3);
-}
-
-.icon-upload-content p {
-  margin: 0;
-  color: var(--quiet);
-  font-size: .78rem;
-}
-
-.editor-field--wide {
-  grid-column: 1 / -1;
-}
-
-@container (max-width: 23.99rem) {
-  .editor {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
-    padding: var(--space-5) var(--space-4);
-  }
-
-  .editor-field--wide {
-    grid-column: auto;
-  }
-}
-</style>
