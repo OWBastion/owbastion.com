@@ -379,6 +379,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
   transition: background-color var(--theme-transition), border-color var(--theme-transition), box-shadow var(--theme-transition);
 }
 
+.invite-panel, .batch-invites { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
+.invite-panel__header, .invite-panel__actions, .batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.invite-panel__hint, .invite-panel__count, .batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
+.invite-panel__header h2, .batch-invites__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
+.invite-panel__count, .batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
+.invite-results { display: grid; gap: var(--space-2); }
+.invite-result { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
+.invite-result__identity { display: grid; min-width: 0; gap: var(--space-1); }
+.invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); }
+.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
+@container (max-width: 23.99rem) {
+  .invite-panel__header, .invite-panel__actions, .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }
+  .invite-panel__actions button, .batch-invites__actions button, .invite-result button { width: 100%; justify-content: center; }
+}
+
 .admin-achievement-icon-preview {
   display: grid;
   width: 64px;
