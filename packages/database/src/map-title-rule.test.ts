@@ -35,11 +35,16 @@ const synchronizeConcurrentBatches = (database: D1Database, callers: number): D1
   return synchronized;
 };
 
+const createMapTestDatabase = (mapId: string) => {
+  const { database, sqlite } = createD1();
+  installSchema(sqlite);
+  seedMap(sqlite, mapId);
+  return { database, sqlite };
+};
+
 describe("Agents map gameplay projection", () => {
   it("projects enabled revisions with deterministic spatial and challenge references", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.agents");
+    const { database, sqlite } = createMapTestDatabase("map.agents");
     seedTitle(sqlite, "CONQUEROR");
     seedTitle(sqlite, "REWORK");
     seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
@@ -83,9 +88,7 @@ describe("Agents map gameplay projection", () => {
   });
 
   it("resolves a legacy title challenge alias through its assigned map title rule", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.classic");
+    const { database, sqlite } = createMapTestDatabase("map.classic");
     seedTitle(sqlite, "CLASSIC");
     seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
     seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.classic");
@@ -112,9 +115,7 @@ describe("Agents map gameplay projection", () => {
   });
 
   it("preserves expired Pioneer assignments during unrelated Revision updates", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.expired-pioneer");
+    const { database, sqlite } = createMapTestDatabase("map.expired-pioneer");
     seedTitle(sqlite, "PIONEER");
     seedRule(sqlite, "rule.pioneer.expired", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
     seedException(sqlite, "exception.pioneer.expired", "rule.pioneer.expired", "map.expired-pioneer", { startsAt: now - 120_000, endsAt: now - 60_000 });
@@ -175,9 +176,7 @@ describe("Agents map gameplay projection", () => {
 
 describe("Agents map projection readiness", () => {
   it("projects route-root composite stages in stable ID order", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.composite");
+    const { database, sqlite } = createMapTestDatabase("map.composite");
     seedAgentSpatialConfig(sqlite, "revision:map.composite:initial");
     const baseComposite = sharedCompositeSpatialConfig();
     const composite = {
@@ -204,9 +203,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("keeps legacy full-stage composite revisions editable but out of the Agents projection", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.legacy-composite");
+    const { database, sqlite } = createMapTestDatabase("map.legacy-composite");
     seedAgentSpatialConfig(sqlite, "revision:map.legacy-composite:initial");
     const legacyComposite = compositeSpatialConfig();
     sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run(JSON.stringify(legacyComposite), "revision:map.legacy-composite:initial");
@@ -241,9 +238,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("keeps preparing composite revisions out of the Agents projection", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.preparing-composite");
+    const { database, sqlite } = createMapTestDatabase("map.preparing-composite");
     seedAgentSpatialConfig(sqlite, "revision:map.preparing-composite:initial");
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
@@ -272,9 +267,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("projects composite revisions when they are selectable or default", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.composite-rollout");
+    const { database, sqlite } = createMapTestDatabase("map.composite-rollout");
     seedAgentSpatialConfig(sqlite, "revision:map.composite-rollout:initial");
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
@@ -339,9 +332,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("fails the whole map closed for an incomplete enabled revision and never projects historical or preparing rows", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.agents");
+    const { database, sqlite } = createMapTestDatabase("map.agents");
     seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
     const invalidSelectableId = seedSelectableGameplayRevision(sqlite, "map.agents", "invalid");
     sqlite.prepare("UPDATE gameplay_revisions SET spatial_config_json = ? WHERE id = ?").run("not-json", invalidSelectableId);
@@ -353,9 +344,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("keeps a valid map with zero legitimate holders as an empty projection", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.empty");
+    const { database, sqlite } = createMapTestDatabase("map.empty");
     seedAgentSpatialConfig(sqlite, "revision:map.empty:initial");
     const services = createPlatformServices(database);
 
@@ -365,9 +354,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("does not turn durable grants into an empty projection when an enabled map is unavailable", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.unavailable");
+    const { database, sqlite } = createMapTestDatabase("map.unavailable");
     seedTitle(sqlite, "PIONEER");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.unavailable', '1003', 'Unavailable Player', 'unavailable player', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.unavailable', 'player.unavailable', 'PIONEER', 'map.unavailable', 'revision:map.unavailable:initial', 'pioneer', 'active', 'submission', 'source.unavailable', 'admin', ?)").run(now);
@@ -377,9 +364,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("fails closed when a compat title alias lacks its mapped rule assignment", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.compat");
+    const { database, sqlite } = createMapTestDatabase("map.compat");
     seedTitle(sqlite, "CLASSIC");
     seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
     seedCompat(sqlite, "title.CLASSIC", "rule.classic", "map.compat");
@@ -398,9 +383,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("does not project a map when enabled defaults are ambiguous", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.agents");
+    const { database, sqlite } = createMapTestDatabase("map.agents");
     seedAgentSpatialConfig(sqlite, "revision:map.agents:initial");
     sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, spatial_config_json, created_at, updated_at) VALUES ('revision:map.agents:duplicate-default', 'map.agents', 'default', NULL, NULL, NULL, '2026.08.1', ?, ?, ?)").run(JSON.stringify({}), now, now);
     seedAgentSpatialConfig(sqlite, "revision:map.agents:duplicate-default");
@@ -410,9 +393,7 @@ describe("Agents map projection readiness", () => {
   });
 
   it("scopes map title holders to projectable revision identities", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.agents");
+    const { database, sqlite } = createMapTestDatabase("map.agents");
     seedTitle(sqlite, "PIONEER");
     const selectableRevisionId = seedSelectableGameplayRevision(sqlite, "map.agents");
     sqlite.prepare("INSERT INTO gameplay_revisions (id, map_id, lifecycle, legacy_map_variant, copied_from_revision_id, reset_reason, game_version, created_at, updated_at) VALUES ('revision:map.agents:historical', 'map.agents', 'historical', NULL, NULL, NULL, '2025.01.1', ?, ?)").run(now, now);
@@ -430,9 +411,7 @@ describe("Agents map projection readiness", () => {
 
 describe("Admin map revision editor", () => {
   it("only exposes active and assignable map title rules", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.editor.catalog");
+    const { database, sqlite } = createMapTestDatabase("map.editor.catalog");
     seedTitle(sqlite, "PIONEER");
     seedRule(sqlite, "rule.pioneer.catalog", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
     seedTitle(sqlite, "CONQUEROR");
@@ -461,9 +440,7 @@ describe("Admin map revision editor", () => {
   });
 
   it("promotes explicitly, preserves R1 history, and independently qualifies R2", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.editor");
+    const { database, sqlite } = createMapTestDatabase("map.editor");
     sqlite.prepare("UPDATE maps SET game_version = '2026.08.12' WHERE id = 'map.editor'").run();
     seedLegacyMapChallenge(sqlite, "challenge.editor", "map.editor");
     seedAgentSpatialConfig(sqlite, "revision:map.editor:initial");
@@ -634,9 +611,7 @@ describe("Admin map revision editor", () => {
   });
 
   it("rolls back both lifecycle changes, idempotency, and audit when promotion fails", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.promotion-atomic");
+    const { database, sqlite } = createMapTestDatabase("map.promotion-atomic");
     seedAgentSpatialConfig(sqlite, "revision:map.promotion-atomic:initial");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.promotion-atomic', 'atomic', 'Atomic', 'atomic', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_ATOMIC_TITLE', 'Atomic title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
@@ -673,9 +648,7 @@ describe("Admin map revision editor", () => {
   });
 
   it("rebinds or clears equipped preferences atomically with revision applicability", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.equipped-reset");
+    const { database, sqlite } = createMapTestDatabase("map.equipped-reset");
     seedAgentSpatialConfig(sqlite, "revision:map.equipped-reset:initial");
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.rebound', 'rebound', 'Rebound', 'rebound', ?, ?), ('player.cleared', 'cleared', 'Cleared', 'cleared', ?, ?)").run(now, now, now, now);
     sqlite.prepare("INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES ('GLOBAL_RESET_TITLE', 'Reset title', 'award', 'Test', 'Test', 'active', 'global', 'fixed', 'null', '2026.08.13')").run();
@@ -710,9 +683,7 @@ describe("Admin map revision editor", () => {
   });
 
   it("rejects invalid spatial data and challenge references before writing a revision", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.editor.invalid");
+    const { database, sqlite } = createMapTestDatabase("map.editor.invalid");
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
     const revision = (await services.getAdminMapEditor({ mapId: "map.editor.invalid" }, auth)).revisions[0]!;
@@ -1002,9 +973,7 @@ const uploadHash = async (body: ArrayBuffer) => {
 describe("map title rule model – locked invariants", () => {
   describe("post-OCR player confirmation", () => {
     it("repairs a legacy classic submission before manual OCR retry", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CLASSIC");
       seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
       seedException(sqlite, "exception.paris", "rule.classic", "map.paris");
@@ -1041,9 +1010,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("persists the covered conqueror grant when a dominator OCR match is automated", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.dorado");
+      const { database, sqlite } = createMapTestDatabase("map.dorado");
       seedTitle(sqlite, "CONQUEROR");
       seedTitle(sqlite, "DOMINATOR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
@@ -1104,9 +1071,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("preserves each matched challenge completion while granting a shared title once", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.shared-title");
+      const { database, sqlite } = createMapTestDatabase("map.shared-title");
       seedTitle(sqlite, "SHARED_TITLE");
       const challengeIds = ["challenge.shared.first", "challenge.shared.second"];
       const insertChallenge = sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES (?, 'map.shared-title', 'difficulty_completion', ?, '传奇', '完成通关', '上传截图', 'automatic', 'SHARED_TITLE', '2026.07.15', 'active', '2026.07.15', ?, ?)");
@@ -1234,9 +1199,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("blocks a single historical claim when the player's same-scope Grant was administratively revoked", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.revoked.single");
+      const { database, sqlite } = createMapTestDatabase("map.revoked.single");
       seedTitle(sqlite, "DOMINATOR");
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked.single', 'revoked-single-1', 'Revoked Player', 'revoked player', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.revoked.single', 'map', 'map.revoked.single', 'revision:map.revoked.single:initial', 'dominator', 'DOMINATOR', 'Revoked Player', 'test')").run();
@@ -1249,9 +1212,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("blocks bulk historical claims when a same-scope Grant was administratively revoked", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.revoked.bulk");
+      const { database, sqlite } = createMapTestDatabase("map.revoked.bulk");
       seedTitle(sqlite, "DOMINATOR");
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked.bulk', 'revoked-bulk-1', 'Bulk Revoked Player', 'bulk revoked player', 0, 'active', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('historical.revoked.bulk', 'map', 'map.revoked.bulk', 'revision:map.revoked.bulk:initial', 'dominator', 'DOMINATOR', 'Bulk Revoked Player', 'test')").run();
@@ -1267,9 +1228,7 @@ describe("map title rule model – locked invariants", () => {
   // ─── Invariant: Stable IDs ────────────────────────────────────────────────
   describe("stable IDs – compat table preserves map.<mapId>.<kind> IDs", () => {
     it("resolves a legacy challenge ID via the compat table", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris", 1);
@@ -1317,9 +1276,7 @@ describe("map title rule model – locked invariants", () => {
   // ─── Invariant: Exception precedence ─────────────────────────────────────
   describe("exception precedence – resolution is deterministic", () => {
     it("projects map-scoped title challenges into the map catalog and admin map list", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.hanamura");
+      const { database, sqlite } = createMapTestDatabase("map.hanamura");
       seedTitle(sqlite, "CLASSIC");
       seedMapTitleChallenge(sqlite, "title.CLASSIC", "CLASSIC", "map.hanamura");
       const services = createPlatformServices(database);
@@ -1330,9 +1287,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("projects one stable, traceable map challenge for Portal, Admin, and Agents", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
@@ -1350,9 +1305,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("projects assignments on an arbitrary selectable revision across every map challenge family", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedTitle(sqlite, "REWORK");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
@@ -1526,9 +1479,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("does not expose a legacy map-title row alongside its rule projection", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedCompat(sqlite, "map.paris.conqueror", "rule.conqueror", "map.paris");
@@ -1546,9 +1497,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("keeps repeated legacy challenge IDs distinct by map context", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedMap(sqlite, "map.hanamura");
       seedTitle(sqlite, "CLASSIC");
       seedRule(sqlite, "rule.classic", "CLASSIC", "classic", { mapVariant: "classic", defaultScope: "explicit" });
@@ -1574,9 +1523,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("disabled standard-rule exception does not remove an enabled revision assignment", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror", defaultScope: "all_active" });
       seedException(sqlite, "exc.1", "rule.conqueror", "map.paris", { enabled: 0, condition: "不生效的地图覆盖" });
@@ -1592,9 +1539,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("enabled map overrides take precedence over revision values while keeping title_key in the rule", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       seedException(sqlite, "exc.1", "rule.conqueror", "map.paris", {
@@ -1633,9 +1578,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("saves map overrides without changing revision applicability or assignment values", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.override");
+      const { database, sqlite } = createMapTestDatabase("map.override");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
       sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET condition = '修订条件', evidence_rule = '修订截图规则', submission_mode = 'automatic', slot = 'dominator' WHERE gameplay_revision_id = 'revision:map.override:initial' AND challenge_family = 'map_title_rule' AND challenge_id = 'rule.conqueror'").run();
@@ -1694,9 +1637,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("explicit-scope rule does not project without a revision assignment", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "SPECIAL");
       seedRule(sqlite, "rule.special", "SPECIAL", "special", { defaultScope: "explicit" });
       const services = createPlatformServices(database);
@@ -1705,9 +1646,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("requires both a revision assignment and a valid Pioneer window", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "PIONEER");
       seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
       seedException(sqlite, "exception.pioneer", "rule.pioneer", "map.paris", { startsAt: now - 60_000, endsAt: now + 60_000 });
@@ -1739,9 +1678,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("uses submission.createdAt for Pioneer OCR after the window ends", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "PIONEER");
       seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
       const startsAt = now - 10_000;
@@ -1781,9 +1718,7 @@ describe("map title rule model – locked invariants", () => {
     });
 
     it("allows evidence review for an expired Pioneer rule when the submission is in-window", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "PIONEER");
       seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "explicit" });
       const startsAt = now - 10_000;
@@ -1857,9 +1792,7 @@ describe("map title rule model – locked invariants", () => {
 
   describe("gameplay revision applicability", () => {
     it("keeps old map grants active as facts while the current player view derives only the default revision", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "LEGACY");
       seedTitle(sqlite, "CURRENT");
       sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('p.1', '1001', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
@@ -1931,9 +1864,7 @@ describe("map title rule model – locked invariants", () => {
   // ─── Invariant: reviewSubmission reads snapshot for new-model submissions ──
   describe("submission review – snapshot path", () => {
     it("uses rule_snapshot_json for reward resolution when present, ignoring live rule changes", async () => {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.paris");
+      const { database, sqlite } = createMapTestDatabase("map.paris");
       seedTitle(sqlite, "CONQUEROR");
       seedRule(sqlite, "rule.conqueror", "CONQUEROR", "conqueror", { slot: "conqueror" });
 
@@ -2323,9 +2254,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("covers the authenticated upload, unlisted CDN screenshot, OCR, mastery-only, and combined-title paths with local fakes", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasteryPlayer(sqlite, "player.two", "binding.two", "Other");
 
@@ -2461,9 +2390,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("completes a Run-only Submission when an unrelated Challenge has no matching evidence", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedTitle(sqlite, "FLAWLESS");
     sqlite.prepare("UPDATE title_catalog SET scope = 'global' WHERE key = 'FLAWLESS'").run();
     sqlite.prepare("INSERT INTO title_challenges (id, title_key, condition, evidence_rule, submission_mode, game_version, status, introduced_version, scope, created_at, updated_at) VALUES ('title.flawless', 'FLAWLESS', '全成就完成', '成就列表', 'manual', '99.0101.1', 'active', '99.0101.1', 'global', ?, ?)").run(now, now);
@@ -2486,9 +2413,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("commits a corrected review Run and its Submission outcome atomically", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.review-atomic", "binding.review-atomic", "Review Atomic");
     seedMasterySubmission(sqlite, "submission.review-atomic", "binding.review-atomic", "Review Atomic");
     sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.review-atomic");
@@ -2548,9 +2473,7 @@ describe("submission mastery outcomes", () => {
     ] as const;
 
     for (const scenario of scenarios) {
-      const { database, sqlite } = createD1();
-      installSchema(sqlite);
-      seedMap(sqlite, "map.mastery");
+      const { database, sqlite } = createMapTestDatabase("map.mastery");
       if (scenario.extraMap) {
         sqlite.prepare("INSERT INTO maps (id, name, game_version, status, introduced_version, created_at, updated_at) VALUES ('map.mastery.duplicate', '地图 map.mastery', '2026.07.15', 'active', '2026.07.15', ?, ?)").run(now, now);
       }
@@ -2593,9 +2516,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("rolls back review approval when a concurrent Run insert wins, then retries against that Run", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.review-race", "binding.review-race", "Review Race");
     seedMasterySubmission(sqlite, "submission.review-race", "binding.review-race", "Review Race");
     sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.review-race");
@@ -2650,9 +2571,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("does not show a stale recorded Run when corrected preview evidence conflicts", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.preview-stale", "binding.preview-stale", "Preview Stale");
     seedMasterySubmission(sqlite, "submission.preview-stale", "binding.preview-stale", "Preview Stale");
     sqlite.prepare("UPDATE submissions SET status = 'ocr_review_required', target_map_id = ? WHERE id = ?").run("map.mastery", "submission.preview-stale");
@@ -2691,9 +2610,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("matches map Challenges only on the exact Gameplay Revision identified by the evidence", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedTitle(sqlite, "CONQUEROR");
     const otherRevisionId = seedSelectableGameplayRevision(sqlite, "map.mastery");
     sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.revision-scoped', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
@@ -2831,9 +2748,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("requires and preserves a classic map variant when the submission contract distinguishes it", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedClassicGameplayRevision(sqlite, "map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.classic-missing", "binding.one", "Tester");
@@ -2858,9 +2773,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("does not let an OCR queue key select evidence outside its submission attachment", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.bound", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.other", "binding.one", "Tester", false);
@@ -2880,9 +2793,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("credits one player run once across exact and changed screenshots, keeps players independent, and surfaces conflicts", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasteryPlayer(sqlite, "player.two", "binding.two", "Other");
     for (const submissionId of ["submission.first", "submission.exact", "submission.reencoded", "submission.conflict"]) seedMasterySubmission(sqlite, submissionId, "binding.one", "Tester");
@@ -2998,9 +2909,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("keeps title-only administration separate from mastery and blocks acquisition after an admin revoke", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedTitle(sqlite, "CONQUEROR");
     sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.mastery', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
     seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.mastery" });
@@ -3037,9 +2946,7 @@ describe("submission mastery outcomes", () => {
   });
 
   it("invalidates and restores the source run exactly once through the existing spot-check and OCR-retry path", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.lifecycle", "binding.one", "Tester", true);
     const queued: unknown[] = [];
@@ -3075,9 +2982,7 @@ describe("submission mastery outcomes", () => {
 
 describe("OCR queue failure recovery", () => {
   it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
     sqlite.prepare("UPDATE submissions SET status = 'resubmission_required' WHERE id = 'submission.concurrent-same-key'").run();
@@ -3102,9 +3007,7 @@ describe("OCR queue failure recovery", () => {
   });
 
   it("prevents a losing simultaneous retry from undoing a successful enqueue", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.concurrent-send", "binding.one", "Tester");
     sqlite.prepare("UPDATE submissions SET status = 'ocr_pending', review_reason = '请重试', updated_at = 1000 WHERE id = 'submission.concurrent-send'").run();
@@ -3131,9 +3034,7 @@ describe("OCR queue failure recovery", () => {
   });
 
   it("moves stale OCR jobs to an actionable state after queue recovery deliveries are exhausted", async () => {
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    seedMap(sqlite, "map.mastery");
+    const { database, sqlite } = createMapTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.stale-ocr", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.fresh-ocr", "binding.one", "Tester");
