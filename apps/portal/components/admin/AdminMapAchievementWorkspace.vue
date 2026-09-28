@@ -1,68 +1,22 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
+import type {
+  AdminMapTitleRule,
+  AdminMapTitleInheritanceResponse,
+  Map as ApiMap,
+} from "@owbastion/contracts";
+import type { MapAchievement } from "~/components/admin/admin-achievement-types";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 import { mapVariantLabel } from "~/utils/map-variant";
 
-type AchievementStatus = "scheduled" | "active" | "sunsetting" | "retired";
-type MapItem = { mapId: string; mapName: string };
-type MapChallenge = {
-  challengeId: string;
-  family: "map";
-  gameplayRevisionId: string;
-  type: "map_completion";
-  kind?: string;
-  titleKey?: string;
-  name: string;
-  mapVariant?: "classic";
-  mapId: string;
-  mapName: string;
-  difficulty?: string;
-  condition?: string;
-  evidenceRule?: string;
-  submissionMode?: "manual" | "automatic";
-  status: AchievementStatus;
-  introducedVersion: string;
-  retiredVersion: string | null;
-  mapTitleRule?: { ruleId: string; kind: string; displayKind: Rule["displayKind"]; slot: Rule["slot"]; dynamic: boolean };
-};
-type Rule = {
-  ruleId: string;
-  titleKey: string;
-  titleName: string;
-  kind: string;
-  condition: string;
-  evidenceRule: string;
-  submissionMode: "manual" | "automatic";
-  displayKind: "fixed" | "map_pioneer" | "map_name_suffix";
-  slot: "pioneer" | "conqueror" | "dominator" | null;
-  mapVariant?: "classic";
-  defaultScope: "all_active" | "explicit";
-  status: "active" | "sunsetting" | "retired";
-  introducedVersion: string;
-  retiredVersion: string | null;
-};
-type Exception = {
-  exceptionId?: string;
-  ruleId?: string;
-  mapId?: string;
-  enabled: boolean;
-  condition: string | null;
-  evidenceRule: string | null;
-  submissionMode: "manual" | "automatic" | null;
-  slot: Rule["slot"];
-  startsAt: number | null;
-  endsAt: number | null;
-};
-type Inheritance = {
-  mapId: string;
-  rule: Rule;
-  projected: boolean;
-  source: "map_title_rule";
-  effective: { condition: string; evidenceRule: string; submissionMode: Rule["submissionMode"]; slot: Rule["slot"] } | null;
-  exception: Exception | null;
-};
+type MapChallenge = MapAchievement;
+type AchievementStatus = MapChallenge["status"];
+type MapItem = Pick<ApiMap, "mapId" | "mapName">;
+type Rule = AdminMapTitleRule;
+type Inheritance = AdminMapTitleInheritanceResponse["items"][number];
+type Exception = Pick<NonNullable<Inheritance["exception"]>, "enabled" | "condition" | "evidenceRule" | "submissionMode" | "slot" | "startsAt" | "endsAt">;
 type RuleSummary = Rule & { effectiveMapCount: number; exceptionCount: number };
 type MapViewRow = {
   rowId: string;

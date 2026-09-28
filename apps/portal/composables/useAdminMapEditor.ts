@@ -1,70 +1,29 @@
+import type {
+  AdminMapEditorAudit as ContractAdminMapEditorAudit,
+  AdminMapEditorChallengeOption as ContractAdminMapEditorChallengeOption,
+  AdminMapEditorResponse,
+  AdminMapMetadataUpdateRequest,
+  AdminMapRevision as ContractAdminMapRevision,
+  AdminMapRevisionChallengeAssignment as ContractAdminMapRevisionChallengeAssignment,
+  AdminMapRevisionCreateRequest,
+  AdminMapRevisionPromotionRequest,
+  AdminMapRevisionUpdateRequest,
+} from "@owbastion/contracts";
 import type { Map } from "~/types/challenge";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
+import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 
-export type AdminMapRevisionLifecycle = "preparing" | "default" | "selectable" | "historical";
-export type AdminMapRevisionReplacementLifecycle = "selectable" | "historical";
-export type AdminMapRevisionChallengeFamily = "map_challenge" | "map_title_rule" | "title_challenge";
-export type AdminMapRevisionChallengeAssignment = {
-  assignmentId: string;
-  gameplayRevisionId: string;
-  mapId: string;
-  challengeFamily: AdminMapRevisionChallengeFamily;
-  challengeId: string;
-  enabled: boolean;
-  condition: string | null;
-  evidenceRule: string | null;
-  submissionMode: "manual" | "automatic" | null;
-  slot: "pioneer" | "conqueror" | "dominator" | null;
-};
-export type AdminMapEditorRevision = {
-  revisionId: string;
-  mapId: string;
-  lifecycle: AdminMapRevisionLifecycle;
-  mapVariant: "classic" | null;
-  copiedFromRevisionId: string | null;
-  resetReason: string | null;
-  gameVersion: string;
-  spatialConfig: Record<string, unknown> | null;
-  isDefault: boolean;
-  isSelectable: boolean;
-  challengeAssignments: AdminMapRevisionChallengeAssignment[];
-  createdAt: number;
-  updatedAt: number;
-};
-export type AdminMapEditorChallengeOption = {
-  challengeFamily: AdminMapRevisionChallengeFamily;
-  challengeId: string;
-  label: string;
-  kind: string;
-  status: string;
-  gameVersion: string;
-};
-export type AdminMapEditorAudit = {
-  operation: string;
-  actorType: string;
-  actorId: string;
-  entityType: string;
-  entityId: string;
-  payload: Record<string, unknown>;
-  createdAt: number;
-};
-export type AdminMapEditor = {
-  contractVersion: "1";
-  map: Map;
-  revisions: AdminMapEditorRevision[];
-  challengeCatalog: AdminMapEditorChallengeOption[];
-  audit: AdminMapEditorAudit[];
-};
+export type AdminMapRevisionLifecycle = ContractAdminMapRevision["lifecycle"];
+export type AdminMapRevisionReplacementLifecycle = NonNullable<AdminMapRevisionPromotionRequest["replacedDefaultLifecycle"]>;
+export type AdminMapRevisionChallengeFamily = ContractAdminMapRevisionChallengeAssignment["challengeFamily"];
+export type AdminMapRevisionChallengeAssignment = ContractAdminMapRevisionChallengeAssignment;
+export type AdminMapEditorRevision = Omit<ContractAdminMapRevision, "spatialConfig"> & { spatialConfig: SpatialConfigValue | null };
+export type AdminMapEditorChallengeOption = ContractAdminMapEditorChallengeOption;
+export type AdminMapEditorAudit = ContractAdminMapEditorAudit;
+export type AdminMapEditor = Omit<AdminMapEditorResponse, "revisions" | "audit"> & { revisions: AdminMapEditorRevision[]; audit: AdminMapEditorAudit[] };
 export type AdminMapRevisionAssignmentInput = Omit<AdminMapRevisionChallengeAssignment, "assignmentId" | "gameplayRevisionId" | "mapId">;
-export type AdminMapRevisionUpdateInput = {
-  contractVersion: "1";
-  lifecycle: AdminMapRevisionLifecycle;
-  gameVersion: string;
-  mapVariant: "classic" | null;
-  spatialConfig: Record<string, unknown> | null;
-  challengeAssignments: AdminMapRevisionAssignmentInput[];
-};
+export type AdminMapRevisionUpdateInput = Omit<AdminMapRevisionUpdateRequest, "spatialConfig" | "challengeAssignments"> & { spatialConfig: SpatialConfigValue | null; challengeAssignments: AdminMapRevisionAssignmentInput[] };
 
 export function useAdminMapEditor(mapId: string) {
   const api = useAdminApi();
@@ -81,7 +40,7 @@ export function useAdminMapEditor(mapId: string) {
   const loading = adminData.loading;
   const load = async () => { error.value = ""; await adminData.refresh(); };
 
-  const saveMetadata = async (input: { gameVersion: string; difficultyRating: Map["difficultyRating"]; mechanics: string[]; coverUrl: string | null; backgroundUrl: string | null }) => {
+  const saveMetadata = async (input: Omit<AdminMapMetadataUpdateRequest, "contractVersion">) => {
     saving.value = true;
     try {
       const map = await api<Map>(`/v1/maps/${encodeURIComponent(mapId)}/metadata`, {
@@ -126,13 +85,7 @@ export function useAdminMapEditor(mapId: string) {
     }
   };
 
-  const createRevision = async (input: {
-    sourceRevisionId: string | null;
-    resetReason: string | null;
-    gameVersion?: string;
-    mapVariant: "classic" | null;
-    copyConfiguration: boolean;
-  }) => {
+  const createRevision = async (input: Omit<AdminMapRevisionCreateRequest, "contractVersion" | "spatialConfig" | "challengeAssignments">) => {
     saving.value = true;
     try {
       const revision = await api<AdminMapEditorRevision>(`/v1/maps/${encodeURIComponent(mapId)}/revisions`, {
