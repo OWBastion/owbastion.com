@@ -3,8 +3,8 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
-import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, parseCanonicalChallengeConditions, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import type { AdminVerifiedRunQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, RecordVerifiedRunResult, ReviewSummary, ReviewTarget, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
@@ -15,6 +15,7 @@ import { resolvePortalSession } from "./portal-session";
 import { createReviewServices } from "./review-service";
 import { createQqGroupServices } from "./qq-group-service";
 import { createAgentServices } from "./agent-service";
+import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
 export { assessVerifiedRunOcrEvidence } from "./ocr-response";
@@ -1679,166 +1680,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return { candidates, exclusions };
   };
 
-  const normalizeVerifiedRunEventCounters = (value: VerifiedRunEventCounters | undefined): VerifiedRunEventCounters => {
-    const entries = Object.entries(value ?? {}).map(([key, count]) => {
-      const normalizedKey = key.trim();
-      if (!normalizedKey || !Number.isInteger(count) || count < 0) throw new Error("VERIFIED_RUN_EVENT_COUNTER_INVALID");
-      return [normalizedKey, count] as const;
-    }).sort(([left], [right]) => left.localeCompare(right));
-    if (new Set(entries.map(([key]) => key)).size !== entries.length) throw new Error("VERIFIED_RUN_EVENT_COUNTER_INVALID");
-    return Object.fromEntries(entries);
-  };
-
-  const asVerifiedRun = (row: typeof verifiedRuns.$inferSelect): VerifiedRun => {
-    try {
-      const eventCounters = normalizeVerifiedRunEventCounters(JSON.parse(row.eventCountersJson) as VerifiedRunEventCounters);
-      const xpInputSnapshot = JSON.parse(row.xpInputSnapshotJson) as VerifiedRunXpSnapshot;
-      const xpRuleVersion = row.xpRuleVersion as VerifiedRun["xpRuleVersion"];
-      if (xpInputSnapshot.ruleVersion !== xpRuleVersion) throw new Error("VERIFIED_RUN_XP_SNAPSHOT_INVALID");
-      return {
-        runId: row.id,
-        playerAccountId: row.playerAccountId,
-        sourceSubmissionId: row.sourceSubmissionId,
-        mapId: row.mapId,
-        gameplayRevisionId: row.gameplayRevisionId,
-        mapVariant: (row.mapVariant ?? null) as VerifiedRun["mapVariant"],
-        difficulty: row.difficulty as VerifiedRun["difficulty"],
-        gameVersion: row.gameVersion,
-        matchCode: row.matchCode,
-        completionDurationSeconds: row.completionDurationSeconds,
-        deaths: row.deaths,
-        skips: row.skips,
-        eventCounters,
-        acceptanceSource: row.acceptanceSource as VerifiedRun["acceptanceSource"],
-        acceptedAt: row.acceptedAt,
-        status: row.status as VerifiedRun["status"],
-        invalidatedAt: row.invalidatedAt,
-        invalidatedBy: row.invalidatedBy,
-        invalidationReason: row.invalidationReason,
-        xpRuleVersion,
-        xpInputSnapshot,
-        awardedXp: row.awardedXp,
-      };
-    } catch {
-      throw new Error("VERIFIED_RUN_DATA_INVALID");
-    }
-  };
-
-  const prepareVerifiedRun = (input: VerifiedRunInput) => {
-    const required = (value: string, error: string) => {
-      const normalized = value.trim();
-      if (!normalized) throw new Error(error);
-      return normalized;
-    };
-    const completionDurationSeconds = input.completionDurationSeconds;
-    if (!Number.isInteger(completionDurationSeconds) || completionDurationSeconds <= 0) throw new Error("VERIFIED_RUN_COMPLETION_DURATION_INVALID");
-    const acceptedAt = input.acceptedAt ?? now();
-    if (!Number.isInteger(acceptedAt) || acceptedAt <= 0) throw new Error("VERIFIED_RUN_ACCEPTED_AT_INVALID");
-    const mapVariant = input.mapVariant ?? null;
-    if (mapVariant !== null && mapVariant !== "classic") throw new Error("VERIFIED_RUN_MAP_VARIANT_INVALID");
-    if (!(["submission_automatic", "submission_review"] as const).includes(input.acceptanceSource)) throw new Error("VERIFIED_RUN_ACCEPTANCE_SOURCE_INVALID");
-    return {
-      playerAccountId: required(input.playerAccountId, "VERIFIED_RUN_PLAYER_NOT_FOUND"),
-      sourceSubmissionId: required(input.sourceSubmissionId, "VERIFIED_RUN_SUBMISSION_NOT_FOUND"),
-      mapId: required(input.mapId, "VERIFIED_RUN_MAP_NOT_FOUND"),
-      gameplayRevisionId: required(input.gameplayRevisionId, "VERIFIED_RUN_GAMEPLAY_REVISION_NOT_FOUND"),
-      mapVariant,
-      difficulty: input.difficulty,
-      gameVersion: required(input.gameVersion, "VERIFIED_RUN_GAME_VERSION_INVALID"),
-      matchCode: normalizeMatchCode(input.matchCode),
-      completionDurationSeconds,
-      deaths: input.deaths ?? null,
-      skips: input.skips ?? null,
-      eventCounters: normalizeVerifiedRunEventCounters(input.eventCounters),
-      acceptanceSource: input.acceptanceSource,
-      acceptedAt,
-      mapFactor: input.mapFactor ?? null,
-    };
-  };
-
-  const masteryConflictFields = (run: VerifiedRun, input: ReturnType<typeof prepareVerifiedRun>): VerifiedRunConflictField[] => {
-    const fields: VerifiedRunConflictField[] = [];
-    if (run.matchCode !== input.matchCode) fields.push("match_code");
-    if (run.mapId !== input.mapId) fields.push("map");
-    if (run.gameplayRevisionId !== input.gameplayRevisionId) fields.push("gameplay_revision");
-    if (run.mapVariant !== input.mapVariant) fields.push("map_variant");
-    if (run.difficulty !== input.difficulty) fields.push("difficulty");
-    if (run.gameVersion !== input.gameVersion) fields.push("game_version");
-    if (run.completionDurationSeconds !== input.completionDurationSeconds) fields.push("completion_duration");
-    if (run.deaths !== input.deaths) fields.push("deaths");
-    if (run.skips !== input.skips) fields.push("skips");
-    if (JSON.stringify(run.eventCounters) !== JSON.stringify(input.eventCounters)) fields.push("event_counters");
-    return fields;
-  };
-
-  const loadActiveVerifiedRuns = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; currentOnly?: boolean }) => {
-    const rows = await db.select({ run: verifiedRuns, lifecycle: gameplayRevisions.lifecycle }).from(verifiedRuns)
-      .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
-      .where(and(
-        eq(verifiedRuns.playerAccountId, input.playerAccountId),
-        eq(verifiedRuns.status, "active"),
-        input.mapId ? eq(verifiedRuns.mapId, input.mapId) : undefined,
-        input.gameplayRevisionId ? eq(verifiedRuns.gameplayRevisionId, input.gameplayRevisionId) : undefined,
-        input.currentOnly ? eq(gameplayRevisions.lifecycle, "default") : undefined,
-      ));
-    return rows.map(({ run, lifecycle }) => ({ run: asVerifiedRun(run), gameplayRevisionLifecycle: masteryRevisionLifecycle(lifecycle) }));
-  };
-
-  const loadPlayerMasteryHistory = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; page: number; pageSize: number }) => {
-    const condition = and(
-      eq(verifiedRuns.playerAccountId, input.playerAccountId),
-      input.mapId ? eq(verifiedRuns.mapId, input.mapId) : undefined,
-      input.gameplayRevisionId ? eq(verifiedRuns.gameplayRevisionId, input.gameplayRevisionId) : undefined,
-    );
-    const [rows, [{ total }]] = await Promise.all([
-      db.select({ run: verifiedRuns, lifecycle: gameplayRevisions.lifecycle }).from(verifiedRuns)
-        .innerJoin(gameplayRevisions, eq(verifiedRuns.gameplayRevisionId, gameplayRevisions.id))
-        .where(condition).orderBy(desc(verifiedRuns.acceptedAt), desc(verifiedRuns.id)).limit(input.pageSize).offset((input.page - 1) * input.pageSize),
-      db.select({ total: count() }).from(verifiedRuns).where(condition),
-    ]);
-    return { runs: rows.map(({ run, lifecycle }) => ({ run: asVerifiedRun(run), gameplayRevisionLifecycle: masteryRevisionLifecycle(lifecycle) })), total };
-  };
-
-  const activeMasteryProfiles = async (input: { playerAccountId: string; mapId?: string; gameplayRevisionId?: string; currentOnly?: boolean; recentLimit?: number }): Promise<MasteryMapProfile[]> => {
-    const runs = await loadActiveVerifiedRuns(input);
-    const recentLimit = Math.min(50, Math.max(1, input.recentLimit ?? 10));
-    return buildMasteryProfiles(runs.map(({ run }) => run), recentLimit);
-  };
-
-  const masteryRevisionLifecycle = (value: string) => {
-    if (!["preparing", "default", "selectable", "historical"].includes(value)) throw new Error("GAMEPLAY_REVISION_DATA_INVALID");
-    return value as CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"];
-  };
-
-  const playerVerifiedRunView = (run: VerifiedRunForProjection, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["runs"][number] => ({
-    runId: run.runId,
-    mapId: run.mapId,
-    gameplayRevisionId: run.gameplayRevisionId,
-    gameplayRevisionLifecycle,
-    mapVariant: run.mapVariant,
-    difficulty: run.difficulty,
-    completionDurationSeconds: run.completionDurationSeconds,
-    deaths: run.deaths,
-    skips: run.skips,
-    awardedXp: run.awardedXp,
-    acceptedAt: run.acceptedAt,
-    status: run.status,
-  });
-
-  const playerMasteryProfileView = (profile: MasteryMapProfile, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["profiles"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["profiles"][number] => ({
-    mapId: profile.mapId,
-    gameplayRevisionId: profile.gameplayRevisionId,
-    gameplayRevisionLifecycle,
-    totalXp: profile.totalXp,
-    verifiedRunCount: profile.verifiedRunCount,
-    difficultyStats: profile.difficultyStats,
-    lowestDeaths: profile.lowestDeaths,
-    fewestSkips: profile.fewestSkips,
-    highestSingleRunXp: profile.highestSingleRunXp,
-    highestCompletedDifficulty: profile.highestCompletedDifficulty,
-    recentRuns: profile.recentRuns.map((run) => playerVerifiedRunView(run, gameplayRevisionLifecycle)),
-  });
-
   const prepareVerifiedRunTransitionStatements = (input: {
     row: typeof verifiedRuns.$inferSelect;
     actor: VerifiedRunActor;
@@ -1871,7 +1712,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (!row) throw new Error("VERIFIED_RUN_NOT_FOUND");
     if (row.status === nextStatus) return asVerifiedRun(row);
     if (nextStatus === "active") {
-      if (await findConflictingVerifiedRun({ playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: row.playerAccountId, matchCode: row.matchCode, exceptRunId: row.id, activeOnly: true })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
     }
@@ -2023,7 +1864,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const planVerifiedRunRecord = async (input: VerifiedRunInput, rejectConcurrentInsert = false): Promise<VerifiedRunRecordPlan> => {
-    const candidate = prepareVerifiedRun(input);
+    const candidate = prepareVerifiedRun(input, now());
     const source = await db.select({ playerAccountId: submissions.playerAccountId, gameplayRevisionId: submissions.gameplayRevisionId }).from(submissions)
       .where(eq(submissions.id, candidate.sourceSubmissionId)).get();
     if (!source) throw new Error("VERIFIED_RUN_SUBMISSION_NOT_FOUND");
@@ -2396,7 +2237,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const adminMasteryProjection = async (input: { playerAccountId: string; mapId: string; gameplayRevisionId: string }): Promise<AdminVerifiedRunProjection> => {
-    const profile = (await activeMasteryProfiles({ playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0];
+    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0];
     if (!profile) {
       return {
         mapId: input.mapId,
@@ -2587,7 +2428,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const nextScope = { playerAccountId: previous.playerAccountId, mapId: corrected.mapId, gameplayRevisionId: corrected.gameplayRevisionId };
 
     if (!sameFacts) {
-      if (await findConflictingVerifiedRun({ playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
+      if (await findConflictingVerifiedRun(db, { playerAccountId: previous.playerAccountId, matchCode: corrected.matchCode, exceptRunId: previous.runId })) {
         throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
       }
       const award = calculateVerifiedRunXpV2({
@@ -2645,7 +2486,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const nextStatus = input.action === "invalidate" ? "invalidated" : "active";
     if (loaded.row.run.status !== nextStatus) {
       if (nextStatus === "active") {
-        if (await findConflictingVerifiedRun({ playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
+        if (await findConflictingVerifiedRun(db, { playerAccountId: loaded.row.run.playerAccountId, matchCode: loaded.row.run.matchCode, exceptRunId: loaded.row.run.id, activeOnly: true })) {
           throw new Error("VERIFIED_RUN_MATCH_CODE_CONFLICT");
         }
       }
@@ -3818,7 +3659,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async rebuildMasteryProfiles(input) {
-      return activeMasteryProfiles(input);
+      return activeMasteryProfiles(db, input);
     },
 
     async listAdminVerifiedRuns(input: AdminVerifiedRunQuery, _auth: AuthContext) {
@@ -6374,8 +6215,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const page = Number.isInteger(input.page) && input.page > 0 ? input.page : 1;
       const pageSize = Number.isInteger(input.pageSize) && input.pageSize > 0 ? Math.min(50, input.pageSize) : 20;
       const [activeRunRows, history] = await Promise.all([
-        loadActiveVerifiedRuns({ playerAccountId: access.player.id, mapId, gameplayRevisionId, currentOnly: !gameplayRevisionId }),
-        loadPlayerMasteryHistory({ playerAccountId: access.player.id, mapId, gameplayRevisionId, page, pageSize }),
+        loadActiveVerifiedRuns(db, { playerAccountId: access.player.id, mapId, gameplayRevisionId, currentOnly: !gameplayRevisionId }),
+        loadPlayerMasteryHistory(db, { playerAccountId: access.player.id, mapId, gameplayRevisionId, page, pageSize }),
       ]);
       const profiles = buildMasteryProfiles(activeRunRows.map(({ run }) => run), 10);
       const lifecycleByRevisionId = new globalThis.Map<string, CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]>([
