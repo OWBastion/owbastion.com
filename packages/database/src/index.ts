@@ -1003,6 +1003,23 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     await database.batch(revisions.map(({ revision }) => insertDefaultMapTitleRuleAssignment(revision.id, revision.mapId, rule.id, timestamp)));
   };
 
+  const toTitleChallengeBase = (
+    challenge: typeof titleChallenges.$inferSelect,
+    title: typeof titleCatalog.$inferSelect,
+  ) => ({
+    challengeId: challenge.id,
+    family: "achievement" as const,
+    type: "title_achievement" as const,
+    kind: "title_achievement" as const,
+    titleKey: title.key,
+    titleName: title.label,
+    icon: title.icon,
+    iconUrl: title.iconUrl,
+    category: challenge.categoryOverride ?? title.category,
+    condition: challenge.condition,
+    evidenceRule: challenge.evidenceRule,
+    submissionMode: challenge.submissionMode as "manual" | "automatic",
+  });
 
   const toPublicTitleChallenge = (
     challenge: typeof titleChallenges.$inferSelect,
@@ -1015,23 +1032,12 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     if (!status || !gameVersion || !title.gameVersion?.trim()) return null;
     const progressRule = parseChallengeProgressRule(challenge.progressRule);
     return {
-      challengeId: challenge.id,
-      family: "achievement" as const,
-      type: "title_achievement" as const,
-      kind: "title_achievement" as const,
-      titleKey: title.key,
-      titleName: title.label,
-      icon: title.icon,
-      iconUrl: title.iconUrl,
-      category: challenge.categoryOverride ?? title.category,
-      condition: challenge.condition,
-      evidenceRule: challenge.evidenceRule,
+      ...toTitleChallengeBase(challenge, title),
       gameVersion,
       status: status as "scheduled" | "active" | "sunsetting",
       startsAt: challenge.startsAt ?? undefined,
       endsAt: challenge.endsAt ?? undefined,
       retiredVersion: challenge.retiredVersion ?? undefined,
-      submissionMode: challenge.submissionMode as "manual" | "automatic",
       scope: (challenge.scope ?? "global") as "global" | "map",
       mapIds: (challenge.scope ?? "global") === "map" ? (mapIdsByChallenge.get(challenge.id) ?? []) : [],
       ...(challenge.mapVariant ? { mapVariant: challenge.mapVariant as "classic" } : {}),
@@ -5390,24 +5396,13 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           if (!status || !gameVersion || !title.gameVersion?.trim() || (challenge.scope ?? "global") === "map" && challenge.mapVariant) return [];
           const progressRule = parseChallengeProgressRule(challenge.progressRule);
           return [{
-          challengeId: challenge.id,
-          family: "achievement",
-          type: "title_achievement",
-          kind: "title_achievement",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: challenge.categoryOverride ?? title.category,
-          condition: challenge.condition,
-          evidenceRule: challenge.evidenceRule,
-          gameVersion,
-          status: status as "scheduled" | "active" | "sunsetting",
-          startsAt: challenge.startsAt ?? undefined,
-          endsAt: challenge.endsAt ?? undefined,
-          retiredVersion: challenge.retiredVersion ?? undefined,
-          submissionMode: challenge.submissionMode as "manual" | "automatic",
-          ...(progressRule ? { progressRule } : {}),
+            ...toTitleChallengeBase(challenge, title),
+            gameVersion,
+            status: status as "scheduled" | "active" | "sunsetting",
+            startsAt: challenge.startsAt ?? undefined,
+            endsAt: challenge.endsAt ?? undefined,
+            retiredVersion: challenge.retiredVersion ?? undefined,
+            ...(progressRule ? { progressRule } : {}),
           }];
         }));
       }
@@ -5465,21 +5460,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
         items.push(...rows.filter(({ challenge }) => !((challenge.scope ?? "global") === "map" && challenge.mapVariant)).map(({ challenge, title }): AdminChallenge => {
           const progressRule = parseChallengeProgressRule(challenge.progressRule);
           return {
-          challengeId: challenge.id,
-          family: "achievement",
-          type: "title_achievement",
-          kind: "title_achievement",
-          titleKey: title.key,
-          titleName: title.label,
-          icon: title.icon,
-          iconUrl: title.iconUrl,
-          category: challenge.categoryOverride ?? title.category,
+          ...toTitleChallengeBase(challenge, title),
           categoryOverride: challenge.categoryOverride,
-          condition: challenge.condition,
-          evidenceRule: challenge.evidenceRule,
           gameVersion: challenge.gameVersion,
           status: challenge.status as "active" | "sunsetting" | "retired",
-          submissionMode: challenge.submissionMode as "manual" | "automatic",
           introducedVersion: challenge.introducedVersion,
           retiredVersion: challenge.retiredVersion,
           startsAt: challenge.startsAt,
