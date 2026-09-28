@@ -499,6 +499,7 @@ export const adminStandaloneModeUpsertRequestSchema = z.object({
 }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
+const reviewRatingSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [
   z.object({ targetType: z.literal("event"), targetId: externalId }).strict(),
   z.object({ targetType: z.literal("map"), targetId: externalId, gameplayRevisionId: externalId }).strict(),
@@ -517,7 +518,7 @@ export const publicReviewSummarySchema = z.discriminatedUnion("targetType", [
 ]);
 export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
 export const publicReviewCommentSchema = z.object({
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment,
   author: z.object({ displayName: z.string().trim().min(1).max(64) }).strict().nullable(),
   createdAt: z.number().int(),
@@ -538,7 +539,7 @@ export const playerReviewSchema = z.object({
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
   gameplayRevisionId: externalId.nullable(),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   createdAt: z.number().int(),
@@ -547,7 +548,7 @@ export const playerReviewSchema = z.object({
 export const playerReviewResponseSchema = z.object({ contractVersion, review: playerReviewSchema.nullable() }).strict();
 export const playerReviewUpsertRequestSchema = z.object({
   contractVersion,
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable().optional(),
   anonymous: z.boolean().default(false),
 }).strict();
@@ -566,7 +567,7 @@ export const adminReviewSchema = z.object({
   playerAccountId: z.string().uuid(),
   playerId,
   playerName: z.string().trim().min(1).max(64),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   commentStatus: reviewCommentStatusSchema,
@@ -1708,7 +1709,11 @@ export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
 export type AgentMap = z.infer<typeof agentMapSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type ReviewTargetType = z.infer<typeof reviewTargetTypeSchema>;
+export type ReviewRating = z.infer<typeof reviewRatingSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
+export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
 export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
 export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
