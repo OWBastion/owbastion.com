@@ -21,7 +21,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { isUuid, maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
+import { isUuid, maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
@@ -352,7 +352,10 @@ export const createApp = (dependencies: AppDependencies) => {
 
 
 
-  const requirePortalPlayer = async (c: any) => {
+  type PortalPlayerAccess =
+    | { error: Response; sessionToken?: undefined; player?: undefined }
+    | { error?: undefined; sessionToken: string; player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>> };
+  const requirePortalPlayer = async (c: any): Promise<PortalPlayerAccess> => {
     allowPortal(c);
     c.header("Cache-Control", "private, no-store");
     const sessionToken = portalSessionToken(c.req.raw);
@@ -360,6 +363,12 @@ export const createApp = (dependencies: AppDependencies) => {
     const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
+  };
+  type AuthenticatedPortalPlayer = Extract<PortalPlayerAccess, { sessionToken: string }>;
+  const portalPlayerRoute = (action: (c: ApiContext, access: AuthenticatedPortalPlayer) => Promise<any> | any) => async (c: ApiContext) => {
+    const access = await requirePortalPlayer(c);
+    if (access.error) return access.error;
+    return action(c, access);
   };
 
   registerBindingInviteRoutes(app, { services: dependencies.services, requireMaintainer, errorResponse, errorGroup, adminMutation, allowPortal, sessionCookie });
@@ -431,12 +440,10 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
-  app.get("/v1/me/passkeys", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken! });
+  app.get("/v1/me/passkeys", portalPlayerRoute(async (c, access) => {
+    const result = await dependencies.services(c.env).listCurrentPlayerPasskeys({ sessionToken: access.sessionToken });
     return result ? c.json(result) : errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-  });
+  }));
 
   app.post("/v1/me/passkeys/registration/options", async (c) => {
     const origin = passkeyOrigin(c);
@@ -445,7 +452,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (access.error) return access.error;
     const parsed = passkeyAuthenticatedRegistrationOptionsRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken!, rpId: origin.rpId }), 201); }
+    try { return c.json(await dependencies.services(c.env).createCurrentPlayerPasskeyRegistrationOptions({ ...parsed.data, sessionToken: access.sessionToken, rpId: origin.rpId }), 201); }
     catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
 
@@ -457,7 +464,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = passkeyRegistrationVerifyRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken!, ...origin });
+      await dependencies.services(c.env).completeCurrentPlayerPasskeyRegistration({ ...parsed.data, sessionToken: access.sessionToken, ...origin });
       return c.body(null, 204);
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -470,7 +477,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const passkeyId = c.req.param("passkeyId");
     if (!/^[0-9a-f-]{36}$/i.test(passkeyId)) return errorResponse(c, 422, "INVALID_PASSKEY", "The passkey id is invalid");
     try {
-      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken!, passkeyId });
+      await dependencies.services(c.env).removeCurrentPlayerPasskey({ sessionToken: access.sessionToken, passkeyId });
       return c.json({ contractVersion: "1" as const, removed: true as const });
     } catch (error) { return passkeyError(c, error) ?? (() => { throw error; })(); }
   });
@@ -557,22 +564,18 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  app.get("/v1/me", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.get("/v1/me", portalPlayerRoute((c, access) => {
     return c.json(access.player);
-  });
+  }));
 
-  app.get("/v1/me/mastery", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.get("/v1/me/mastery", portalPlayerRoute(async (c, access) => {
     c.header("Cache-Control", "private, no-store");
     const query = playerMasteryQuery(c.req.raw);
     if (!query) return errorResponse(c, 422, "INVALID_REQUEST", "The mastery query is invalid");
-    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken!, ...query });
+    const mastery = await dependencies.services(c.env).getCurrentPlayerMastery({ sessionToken: access.sessionToken, ...query });
     if (!mastery) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     return c.json(mastery);
-  });
+  }));
 
   app.get("/v1/me/titles", async (c) => {
     allowPortal(c);
@@ -625,29 +628,25 @@ export const createApp = (dependencies: AppDependencies) => {
     logServiceOperation,
   });
 
-  app.get("/v1/me/submissions/:submissionId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.get("/v1/me/submissions/:submissionId", portalPlayerRoute(async (c, access) => {
     try {
-      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId") }, access.sessionToken!));
+      return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
     } catch (error) {
       if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
       throw error;
     }
-  });
+  }));
 
   // Screenshot-level accuracy marking (#253): one accurate/inaccurate mark per
   // recognition result; the latest value wins. No transcription is accepted.
-  app.post("/v1/me/submissions/:submissionId/ocr-feedback", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/me/submissions/:submissionId/ocr-feedback", portalPlayerRoute(async (c, access) => {
     c.header("Cache-Control", "private, no-store");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
     const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
-      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
+      const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
       return c.json(response);
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
@@ -658,7 +657,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
-  });
+  }));
 
   app.post("/v1/auth/logout", async (c) => {
     allowPortal(c);
@@ -708,34 +707,26 @@ export const createApp = (dependencies: AppDependencies) => {
     bearerTokenMatches,
   });
 
-  app.post("/v1/player/uploads/session", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/player/uploads/session", portalPlayerRoute(async (c, access) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken!), 201); }
+    try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken), 201); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge revision is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
-  });
+  }));
 
-  app.put("/v1/uploads/:uploadId", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId"), body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken!); return c.body(null, 204); }
+  app.put("/v1/uploads/:uploadId", portalPlayerRoute(async (c, access) => {
+    try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId")!, body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken); return c.body(null, 204); }
     catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
-  });
+  }));
 
-  app.post("/v1/player/uploads/:uploadId/complete", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId") }, access.sessionToken!, c.get("requestId"))); }
+  app.post("/v1/player/uploads/:uploadId/complete", portalPlayerRoute(async (c, access) => {
+    try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId")! }, access.sessionToken, c.get("requestId"))); }
     catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); if (error instanceof Error && error.message === "UPLOAD_COMPLETION_IN_PROGRESS") return errorResponse(c, 409, error.message, "Upload completion is already in progress"); throw error; }
-  });
+  }));
 
-  app.post("/v1/player/submissions/:submissionId/manual-review", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
+  app.post("/v1/player/submissions/:submissionId/manual-review", portalPlayerRoute(async (c, access) => {
     try {
-      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId") }, access.sessionToken!);
+      await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId")! }, access.sessionToken);
       return c.body(null, 204);
     } catch (error) {
       const code = error instanceof Error ? error.message : "MANUAL_REVIEW_FAILED";
@@ -743,7 +734,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "MANUAL_REVIEW_NOT_ELIGIBLE") return errorResponse(c, 409, code, "The submission is not eligible for manual review");
       throw error;
     }
-  });
+  }));
 
   app.put("/v1/admin/qq/groups/:groupOpenId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const idempotencyKey = c.req.header("idempotency-key");
