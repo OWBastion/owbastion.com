@@ -100,7 +100,7 @@ function submit() {
         <UFormField class="editor-field" label="展示分类"><UInput v-model="form.categoryOverride" class="editor-control" placeholder="留空使用系列" :disabled="props.saving" /></UFormField>
         <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
           <div class="icon-upload">
-            <div v-if="form.iconUrl" class="icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
+            <div v-if="form.iconUrl" class="admin-achievement-icon-preview"><img :src="form.iconUrl" alt="当前成就图标" /></div>
             <UInput v-model="form.iconUrl" class="editor-control" type="url" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="props.saving" />
             <details class="icon-upload-option">
               <summary>上传图标</summary>
@@ -160,22 +160,6 @@ function submit() {
   margin: 0;
   color: var(--quiet);
   font-size: .78rem;
-}
-
-.icon-preview {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface-raised);
-}
-
-.icon-preview img {
-  width: 42px;
-  height: 42px;
-  object-fit: contain;
 }
 
 .editor-field--wide {

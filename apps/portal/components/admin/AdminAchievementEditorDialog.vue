@@ -182,7 +182,7 @@ function onIconFile(value: File | null | undefined) {
         <template v-if="asTitle(item) && !asCatalog(item)">
           <UFormField class="editor-field editor-field--wide" label="自定义图标" hint="留空使用默认图标。">
             <div class="icon-upload">
-              <div v-if="asTitle(item)!.iconUrl" class="icon-preview">
+              <div v-if="asTitle(item)!.iconUrl" class="admin-achievement-icon-preview">
                 <img :src="asTitle(item)!.iconUrl!" alt="当前成就图标" />
               </div>
               <UInput class="editor-control" type="url" :model-value="asTitle(item)!.iconUrl ?? ''" placeholder="https://cdn.example.com/icon.webp" maxlength="2048" :disabled="saving" @update:model-value="setIconUrl" />
@@ -224,16 +224,6 @@ function onIconFile(value: File | null | undefined) {
 .icon-upload-option summary { padding-top: var(--space-3); cursor: pointer; }
 .icon-upload-content { display: grid; gap: var(--space-3); padding-top: var(--space-3); }
 .icon-upload-content p { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); }
-.icon-preview {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  background: var(--surface-raised);
-}
-.icon-preview img { width: 42px; height: 42px; object-fit: contain; }
 @container (max-width: 23.99rem) {
   .editor { grid-template-columns: minmax(0, 1fr); }
   .editor-field--wide { grid-column: auto; }
