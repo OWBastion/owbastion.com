@@ -1566,6 +1566,7 @@ export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSet
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
+export type PlayerEquippedTitlesResponse = z.infer<typeof playerEquippedTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
 export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
