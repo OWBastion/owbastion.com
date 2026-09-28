@@ -265,8 +265,26 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
-  const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
-    c.header("Cache-Control", enabled ? "public, max-age=300, s-maxage=300" : "private, no-store");
+  const cachedCatalogResponse = (c: any, {
+    operation,
+    query = {},
+    eligible = hasNoQuery(c.req.raw),
+    response,
+  }: {
+    operation: string;
+    query?: Record<string, string>;
+    eligible?: boolean;
+    response: () => Promise<Response> | Response;
+  }) => {
+    c.header("Cache-Control", eligible && publicCacheEnabled(c) ? "public, max-age=300, s-maxage=300" : "private, no-store");
+    return cachePublicResponse(c, {
+      operation,
+      cacheKey: publicCacheKey(c.req.raw, query),
+      eligible,
+      identityIndependent: true,
+      response,
+      decorateHit: decoratePortalCacheHit(c),
+    });
   };
   app.get("/health", (c) => {
     c.header("Cache-Control", "private, no-store");
@@ -735,15 +753,9 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/public/achievements", async (c) => {
     allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
+    return cachedCatalogResponse(c, {
       operation: "catalog_public_achievements",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
       response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }),
-      decorateHit: decoratePortalCacheHit(c),
     });
   });
 
@@ -838,15 +850,11 @@ export const createApp = (dependencies: AppDependencies) => {
     if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
     if (family === "map") {
       allowPortal(c);
-      const cacheable = new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1;
-      setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-      return cachePublicResponse(c, {
+      return cachedCatalogResponse(c, {
         operation: "catalog_map_challenges",
-        cacheKey: publicCacheKey(c.req.raw, { family: "map" }),
-        eligible: cacheable,
-        identityIndependent: true,
+        query: { family: "map" },
+        eligible: new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1,
         response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) }),
-        decorateHit: decoratePortalCacheHit(c),
       });
     }
     const access = await requirePortalPlayer(c);
@@ -864,46 +872,28 @@ export const createApp = (dependencies: AppDependencies) => {
 
   app.get("/v1/maps", async (c) => {
     allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
+    return cachedCatalogResponse(c, {
       operation: "catalog_maps",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
       response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) }),
-      decorateHit: decoratePortalCacheHit(c),
     });
   });
 
   app.get("/v1/events", async (c) => {
     allowPortal(c); const status = c.req.query("status");
     if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
+    return cachedCatalogResponse(c, {
       operation: "catalog_events",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
       response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
-      decorateHit: decoratePortalCacheHit(c),
     });
   });
   app.get("/v1/events/:eventId", async (c) => {
     allowPortal(c);
-    const cacheable = hasNoQuery(c.req.raw);
-    setPublicCatalogCache(c, cacheable && publicCacheEnabled(c));
-    return cachePublicResponse(c, {
+    return cachedCatalogResponse(c, {
       operation: "catalog_event",
-      cacheKey: publicCacheKey(c.req.raw),
-      eligible: cacheable,
-      identityIndependent: true,
       response: async () => {
         const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
-      decorateHit: decoratePortalCacheHit(c),
     });
   });
 
