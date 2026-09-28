@@ -2,26 +2,9 @@
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeStagesInput from "./AdminCompositeStagesInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
+import { createEmptyCompositeConfig, isCompositeForMode, type CompositeConfig, type ValidationIssue } from "~/utils/composite-spatial-config";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 import { spatialNumberInput, spatialTextInput } from "~/utils/spatial-config-input";
-
-type Detection = { position: unknown[]; radius: unknown };
-type CompositeStage = SpatialConfigValue & { stageId: string; setupDetection?: Detection };
-type RouteControl = { respawnAxis: "x" | "y" | "z" | null; respawnAxisThreshold: number | null } | null;
-type CompositeConfig = SpatialConfigValue & {
-  resetPosition?: unknown;
-  endPosition?: unknown;
-  thirdPersonPosition?: unknown;
-  creditsPosition?: unknown;
-  control?: RouteControl;
-  composition: {
-    selectionCount: number;
-    firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
-    remainingStageSelection: "random_unique" | "stage_id_cycle";
-  };
-  stages: CompositeStage[];
-};
-type ValidationIssue = { path: PropertyKey[]; message: string };
 
 const props = withDefaults(defineProps<{
   modelValue: SpatialConfigValue;
@@ -35,23 +18,7 @@ const emit = defineEmits<{
   valid: [value: boolean];
 }>();
 
-const isComposite = (value: SpatialConfigValue): value is CompositeConfig =>
-  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && (props.mode === "legacy" || "endPosition" in value);
-
-function emptyStage(stageId: string): CompositeStage {
-  const stage = { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
-  return props.mode === "legacy" ? { ...stage, resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null } : stage;
-}
-
-function defaultConfig(): CompositeConfig {
-  const config: Pick<CompositeConfig, "composition" | "stages"> = {
-    composition: { selectionCount: 2, firstStageSelection: { mode: "random" }, remainingStageSelection: "random_unique" },
-    stages: [emptyStage("stage-1"), emptyStage("stage-2")],
-  };
-  return props.mode === "legacy" ? config : { resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null, ...config };
-}
-
-const config = computed(() => isComposite(props.modelValue) ? props.modelValue : defaultConfig());
+const config = computed(() => isCompositeForMode(props.modelValue, props.mode) ? props.modelValue : createEmptyCompositeConfig(props.mode));
 const stages = computed(() => config.value.stages);
 const issues = computed(() => {
   const result = agentSpatialConfigSchema.safeParse(config.value);
@@ -131,7 +98,7 @@ function updateStageCoordinatesValidity(value: boolean) {
 function updateRouteControl(axis: unknown, threshold: unknown) {
   const respawnAxis = axis === "x" || axis === "y" || axis === "z" ? axis : null;
   const respawnAxisThreshold = spatialNumberInput(threshold);
-  const control: RouteControl = respawnAxis === null ? null : { respawnAxis, respawnAxisThreshold };
+  const control: CompositeConfig["control"] = respawnAxis === null ? null : { respawnAxis, respawnAxisThreshold };
   commit({ ...config.value, control });
 }
 

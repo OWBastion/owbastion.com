@@ -3,6 +3,7 @@ import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeSpatialConfigInput from "./AdminCompositeSpatialConfigInput.vue";
 import AdminLegacyCompositeSpatialConfigInput from "./AdminLegacyCompositeSpatialConfigInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
+import { createEmptyCompositeConfig, hasCompositeStructure } from "~/utils/composite-spatial-config";
 import { parseSpatialConfigSource, type SpatialConfigValue } from "~/utils/spatial-config-import";
 
 const props = withDefaults(defineProps<{
@@ -23,34 +24,9 @@ const modeItems = [
   { value: "composite", label: "组合路线" },
 ];
 
-const isComposite = (value: SpatialConfigValue | null): value is SpatialConfigValue =>
-  Boolean(value && Array.isArray(value.stages) && value.composition && typeof value.composition === "object");
+const isLegacyComposite = (value: SpatialConfigValue | null) => hasCompositeStructure(value) && !("endPosition" in value);
 
-const isLegacyComposite = (value: SpatialConfigValue | null) => isComposite(value) && !("endPosition" in value);
-
-const createEmptySpatialStage = (stageId: string) => ({
-  stageId,
-  bastionPositions: [],
-  control: null,
-  portalPositions: [],
-  springboardPositions: [],
-});
-
-const createEmptyCompositeConfig = (): SpatialConfigValue => ({
-  resetPosition: null,
-  endPosition: null,
-  thirdPersonPosition: null,
-  creditsPosition: null,
-  control: null,
-  composition: {
-    selectionCount: 2,
-    firstStageSelection: { mode: "random" },
-    remainingStageSelection: "random_unique",
-  },
-  stages: [createEmptySpatialStage("stage-1"), createEmptySpatialStage("stage-2")],
-});
-
-const mode = shallowRef<SpatialMode>(isComposite(props.modelValue) ? "composite" : "single");
+const mode = shallowRef<SpatialMode>(hasCompositeStructure(props.modelValue) ? "composite" : "single");
 const singleDraft = shallowRef<SpatialConfigValue | null>(mode.value === "single" ? props.modelValue : null);
 const compositeDraft = shallowRef<SpatialConfigValue | null>(mode.value === "composite" ? props.modelValue : null);
 const singleCoordinatesValid = shallowRef(true);
@@ -64,7 +40,7 @@ function writeAdvancedJson(value: SpatialConfigValue | null) {
 }
 
 function sync() {
-  mode.value = isComposite(props.modelValue) ? "composite" : "single";
+  mode.value = hasCompositeStructure(props.modelValue) ? "composite" : "single";
   singleDraft.value = mode.value === "single" ? props.modelValue : null;
   compositeDraft.value = mode.value === "composite" ? props.modelValue : null;
   singleCoordinatesValid.value = true;
@@ -137,7 +113,7 @@ function updateAdvancedJson(value: string) {
     return;
   }
   const config = validated.data as SpatialConfigValue;
-  mode.value = isComposite(config) ? "composite" : "single";
+  mode.value = hasCompositeStructure(config) ? "composite" : "single";
   singleDraft.value = mode.value === "single" ? config : null;
   compositeDraft.value = mode.value === "composite" ? config : null;
   singleCoordinatesValid.value = true;

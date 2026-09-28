@@ -1,20 +1,9 @@
 <script setup lang="ts">
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
+import { createEmptyCompositeConfig, createEmptyCompositeStage, isCompositeForMode, type CompositeConfig, type CompositeStage, type ValidationIssue } from "~/utils/composite-spatial-config";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
 import { spatialNumberInput, spatialTextInput } from "~/utils/spatial-config-input";
-
-type Detection = { position: unknown[]; radius: unknown };
-type CompositeStage = Record<string, unknown> & { stageId: string; setupDetection?: Detection };
-type CompositeConfig = SpatialConfigValue & {
-  composition: {
-    selectionCount: number;
-    firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
-    remainingStageSelection: string;
-  };
-  stages: CompositeStage[];
-};
-type ValidationIssue = { path: PropertyKey[]; message: string };
 
 const props = withDefaults(defineProps<{
   modelValue: SpatialConfigValue;
@@ -30,25 +19,7 @@ const emit = defineEmits<{
   valid: [value: boolean];
 }>();
 
-const isComposite = (value: SpatialConfigValue): value is CompositeConfig =>
-  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && (props.mode === "legacy" || "endPosition" in value);
-
-function emptyStage(stageId: string): CompositeStage {
-  return props.mode === "legacy"
-    ? { stageId, bastionPositions: [], resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null, portalPositions: [], springboardPositions: [] }
-    : { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
-}
-
-function defaultConfig(): CompositeConfig {
-  const route = props.mode === "current" ? { resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null } : {};
-  return {
-    ...route,
-    composition: { selectionCount: 2, firstStageSelection: { mode: "random" }, remainingStageSelection: "random_unique" },
-    stages: [emptyStage("stage-1"), emptyStage("stage-2")],
-  };
-}
-
-const config = computed(() => isComposite(props.modelValue) ? props.modelValue : defaultConfig());
+const config = computed(() => isCompositeForMode(props.modelValue, props.mode) ? props.modelValue : createEmptyCompositeConfig(props.mode));
 const stages = computed(() => config.value.stages);
 const fallbackStageItems = computed(() => stages.value.map((stage) => ({ value: stage.stageId, label: stage.stageId || "未命名阶段" })));
 const issues = computed(() => {
@@ -137,7 +108,7 @@ function nextStageId() {
 
 function addStage() {
   if (stages.value.length >= 16) return;
-  commit({ ...config.value, stages: [...stages.value, emptyStage(nextStageId())] });
+  commit({ ...config.value, stages: [...stages.value, createEmptyCompositeStage(nextStageId(), props.mode)] });
 }
 
 function removeStage(index: number) {
