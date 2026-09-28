@@ -651,6 +651,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   gap: 0.25rem;
 }
+.condition-cell {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 /* Labeled UButtons in row actions must not scale or reflow on hover/press. */
 .table-actions :where(button, a, [role="button"]) {
   min-height: 2.75rem;
