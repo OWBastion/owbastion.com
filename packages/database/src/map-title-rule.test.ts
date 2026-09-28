@@ -3434,7 +3434,7 @@ describe("submission mastery outcomes", () => {
 });
 
 describe("OCR queue failure recovery", () => {
-  it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
+  it("rejects an OCR retry while the same-key queue send is pending and replays after completion", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
@@ -3445,10 +3445,11 @@ describe("OCR queue failure recovery", () => {
     const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
     const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
     const queue = { send: vi.fn(async () => { markQueueSendStarted(); await queueSendGate; }) } as unknown as Queue;
-    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
     const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
+    await queueSendStarted;
     const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
     const outcomes = Promise.allSettled([first, second]);
     const losingAttempt = Promise.race([first.catch((error) => error), second.catch((error) => error)]);
