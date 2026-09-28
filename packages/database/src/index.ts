@@ -3154,8 +3154,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     return row.id;
   };
 
-  const canonicalChallengeIdForGrant = async (input: CanonicalChallengeInput) => materializeCanonicalChallenge(await planCanonicalChallenge(input));
-
   // Write paths materialize canonical Challenges as they resolve them. Read-only
   // planning (approval preview) keeps planned rows and archivals in memory instead.
   type CanonicalChallengeOverlay = { rows: globalThis.Map<string, CanonicalChallengeRow>; archived: Set<string> };
@@ -3180,10 +3178,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       resolveMany: async (inputs) => resolvePlans(await batchPlanCanonicalChallenges(inputs)),
       resolvePlans,
     };
-  };
-  const loadCanonicalChallenge = async (challengeId: string, overlay: CanonicalChallengeOverlay | null) => {
-    const row = overlay?.rows.get(challengeId) ?? await db.select().from(challenges).where(eq(challenges.id, challengeId)).get();
-    return row && overlay?.archived.has(row.id) ? { ...row, status: "archived" } : row;
   };
   const loadCanonicalChallenges = async (challengeIds: string[], overlay: CanonicalChallengeOverlay | null) => {
     const unresolvedIds = [...new Set(challengeIds.filter((id) => !overlay?.rows.has(id)))];
@@ -3309,88 +3303,6 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
     for (const award of input.completionAuditAwards) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', id, ?, ? FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND gameplay_revision_id IS ? AND status = 'active' AND source_id = ? LIMIT 1").bind(crypto.randomUUID(), crypto.randomUUID(), input.auth.actorType, input.auth.subject, JSON.stringify({ submissionId: input.row.id, challengeId: award.challengeId, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, satisfaction: award.satisfiedBy }), input.timestamp, input.row.playerAccountId, award.challengeId, award.gameplayRevisionId, input.row.id));
     for (const award of input.grantAuditAwards) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE id = ? AND status = 'active'").bind(crypto.randomUUID(), crypto.randomUUID(), input.auth.actorType, input.auth.subject, JSON.stringify({ submissionId: input.row.id, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, challengeId: award.challengeId, satisfiedBy: award.satisfiedBy }), input.timestamp, award.grantId));
     return statements;
-  };
-
-  const challengeCompletionChain = async (input: {
-    playerAccountId: string;
-    challengeId: string;
-    slot: string | null;
-    eligibilityAt: number;
-    overlay?: CanonicalChallengeOverlay | null;
-  }): Promise<ChallengeCompletionAward[]> => {
-    const overlay = input.overlay ?? null;
-    const root = await loadCanonicalChallenge(input.challengeId, overlay);
-    if (!root) throw new Error("CHALLENGE_NOT_FOUND");
-    const result: ChallengeCompletionAward[] = [];
-    const seen = new Set<string>();
-    const pending: Array<{ challenge: typeof challenges.$inferSelect; root: boolean }> = [{ challenge: root, root: true }];
-    while (pending.length) {
-      const batch = pending.splice(0, 80);
-      for (const entry of batch) {
-        const challenge = entry.challenge;
-        if (seen.has(challenge.id)) continue;
-        seen.add(challenge.id);
-        const preArchiveSubmission = challenge.status === "archived" && challenge.endsAt !== null && input.eligibilityAt < challenge.endsAt;
-        const title = await db.select({ lifecycle: titleCatalog.lifecycle }).from(titleCatalog).where(eq(titleCatalog.key, challenge.titleKey)).get();
-        if (!title || title.lifecycle !== "active" || challenge.manual === 1 || (challenge.status !== "active" && !preArchiveSubmission)) continue;
-        if ((challenge.startsAt !== null && input.eligibilityAt < challenge.startsAt) || (challenge.endsAt !== null && input.eligibilityAt >= challenge.endsAt)) continue;
-        const mapId = entry.root ? root.mapId : challenge.mapId;
-        const gameplayRevisionId = entry.root ? root.gameplayRevisionId : challenge.gameplayRevisionId;
-        const owned = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "active"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        if (owned) continue;
-        const administrativelyRevoked = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(
-          eq(playerTitleGrants.playerAccountId, input.playerAccountId),
-          eq(playerTitleGrants.titleKey, challenge.titleKey),
-          eq(playerTitleGrants.status, "revoked"),
-          eq(playerTitleGrants.revocationType, "administrator"),
-          mapId ? eq(playerTitleGrants.mapId, mapId) : isNull(playerTitleGrants.mapId),
-          gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId),
-        )).get();
-        const relation = challenge.sourceFamily === "map_title_rule" && mapId
-          ? await db.select({ ruleId: mapTitleRuleCompat.ruleId }).from(mapTitleRuleCompat).where(and(eq(mapTitleRuleCompat.legacyChallengeId, challenge.sourceId), eq(mapTitleRuleCompat.mapId, mapId))).get()
-          : null;
-        const assignmentFamily = challenge.sourceFamily;
-        const assignmentId = relation?.ruleId ?? challenge.sourceId;
-        const assignment = mapId && gameplayRevisionId
-          ? await db.select({ slot: gameplayRevisionChallengeAssignments.slot }).from(gameplayRevisionChallengeAssignments).where(and(
-            eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, gameplayRevisionId),
-            eq(gameplayRevisionChallengeAssignments.mapId, mapId),
-            eq(gameplayRevisionChallengeAssignments.challengeFamily, assignmentFamily),
-            eq(gameplayRevisionChallengeAssignments.challengeId, assignmentId),
-          )).get()
-          : null;
-        const ruleSlot = assignmentFamily === "map_title_rule"
-          ? await db.select({ slot: mapTitleRules.slot }).from(mapTitleRules).where(eq(mapTitleRules.id, assignmentId)).get()
-          : null;
-        const mapReward = mapId
-          ? await db.select({ slot: mapTitleRewards.slot }).from(mapTitleRewards).where(and(eq(mapTitleRewards.mapId, mapId), eq(mapTitleRewards.titleKey, challenge.titleKey))).get()
-          : null;
-        result.push({
-          challengeId: challenge.id,
-          titleKey: challenge.titleKey,
-          mapId,
-          gameplayRevisionId,
-          slot: entry.root ? input.slot : assignment?.slot ?? ruleSlot?.slot ?? mapReward?.slot ?? null,
-          completionSourceType: entry.root ? "submission" : "challenge_satisfies",
-          satisfiedBy: entry.root ? null : input.challengeId,
-          root: entry.root,
-          grantable: !administrativelyRevoked,
-        });
-        const satisfied = await db.select({ satisfiedChallengeId: challengeSatisfies.satisfiedChallengeId }).from(challengeSatisfies).where(eq(challengeSatisfies.challengeId, challenge.id));
-        for (const relationRow of satisfied) {
-          if (seen.has(relationRow.satisfiedChallengeId)) continue;
-          const target = await loadCanonicalChallenge(relationRow.satisfiedChallengeId, overlay);
-          if (target) pending.push({ challenge: target, root: false });
-        }
-      }
-    }
-    return result;
   };
 
   const challengeCompletionChains = async (input: {
