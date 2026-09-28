@@ -4,9 +4,7 @@ import {
   adminVerifiedRunStateRequestSchema,
 } from "@owbastion/contracts";
 import { hasOnlyUniqueQueryNames } from "../query-params";
-import { maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
-
-const verifiedRunUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { isUuid, maintainerRoute, type AdminRouteDependencies, type ApiApp } from "./route-contract";
 
 const adminVerifiedRunQuery = (request: Request) => {
   const params = new URL(request.url).searchParams;
@@ -27,7 +25,7 @@ const adminVerifiedRunQuery = (request: Request) => {
   const from = fromValue === null ? undefined : Number(fromValue);
   const to = toValue === null ? undefined : Number(toValue);
   if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) return null;
-  if (playerAccountId && !verifiedRunUuid.test(playerAccountId)) return null;
+  if (playerAccountId && !isUuid(playerAccountId)) return null;
   if (mapId && mapId.length > 256) return null;
   if (gameplayRevisionId && gameplayRevisionId.length > 256) return null;
   if (difficulty && !["简单", "一般", "困难", "专家", "传奇", "地狱"].includes(difficulty)) return null;
@@ -65,7 +63,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
 
   app.get("/v1/admin/verified-runs/:verifiedRunId", maintainerRoute(requireMaintainer, async (c, auth) => {
     const verifiedRunId = c.req.param("verifiedRunId")!;
-    if (!verifiedRunUuid.test(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
+    if (!isUuid(verifiedRunId)) return errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid");
     try {
       return c.json(await services(c.env).getAdminVerifiedRun({ verifiedRunId }, auth));
     } catch (error) {
@@ -79,7 +77,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
     const verifiedRunId = c.req.param("verifiedRunId");
     return adminMutation(c, {
       schema: adminVerifiedRunStateRequestSchema,
-      before: () => verifiedRunUuid.test(verifiedRunId)
+      before: () => isUuid(verifiedRunId)
         ? undefined
         : errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid"),
       action: (input, auth, key) => services(c.env).transitionAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),
@@ -95,9 +93,9 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
     const submissionId = c.req.param("submissionId");
     return adminMutation(c, {
       schema: adminVerifiedRunConflictResolutionRequestSchema,
-      before: () => !verifiedRunUuid.test(verifiedRunId)
+      before: () => !isUuid(verifiedRunId)
         ? errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid")
-        : !verifiedRunUuid.test(submissionId)
+        : !isUuid(submissionId)
           ? errorResponse(c, 422, "INVALID_SUBMISSION_ID", "The submission ID is invalid")
           : undefined,
       action: (input, auth, key) => services(c.env).resolveAdminVerifiedRunConflict({ ...input, verifiedRunId, submissionId }, auth, key),
@@ -112,7 +110,7 @@ export const registerAdminVerifiedRunRoutes = (app: ApiApp, dependencies: AdminR
     const verifiedRunId = c.req.param("verifiedRunId");
     return adminMutation(c, {
       schema: adminVerifiedRunCorrectionRequestSchema,
-      before: () => verifiedRunUuid.test(verifiedRunId)
+      before: () => isUuid(verifiedRunId)
         ? undefined
         : errorResponse(c, 422, "INVALID_VERIFIED_RUN_ID", "The verified run ID is invalid"),
       action: (input, auth, key) => services(c.env).correctAdminVerifiedRun({ ...input, verifiedRunId }, auth, key),

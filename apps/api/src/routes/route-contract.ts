@@ -31,6 +31,17 @@ export type AdminRouteDependencies = {
   adminMutation: AdminMutation;
 };
 
+export const parseBody = async (request: Request) => {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const isUuid = (value: string) => uuidPattern.test(value);
+
 export const maintainerRoute = (
   requireMaintainer: AdminRouteDependencies["requireMaintainer"],
   action: (context: ApiContext, auth: AuthContext) => Promise<any> | any,
