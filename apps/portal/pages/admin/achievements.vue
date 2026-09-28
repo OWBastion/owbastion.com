@@ -64,16 +64,12 @@ watch(activeTab, (section) => {
 const createOpen = shallowRef(false);
 const creating = shallowRef(false);
 const maps = ref<AdminMap[]>([]);
-const defaultTitleSorting: SortingState = [
+const defaultSorting: SortingState = [
   { id: "category", desc: false },
   { id: "titleName", desc: false },
 ];
-const defaultCatalogSorting: SortingState = [
-  { id: "category", desc: false },
-  { id: "titleName", desc: false },
-];
-const titleSorting = shallowRef<SortingState>([...defaultTitleSorting]);
-const catalogSorting = shallowRef<SortingState>([...defaultCatalogSorting]);
+const titleSorting = shallowRef<SortingState>([...defaultSorting]);
+const catalogSorting = shallowRef<SortingState>([...defaultSorting]);
 const titleSortingOptions = [
   { id: "category", label: "系列" },
   { id: "titleName", label: "称号" },
@@ -473,7 +469,7 @@ async function endChallenge() {
         <template #generic>
           <section class="catalog-section" aria-labelledby="title-achievements-title">
             <h2 id="title-achievements-title" class="sr-only">称号挑战</h2>
-            <AdminDataTable v-model:column-filters="titleStatusFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultTitleSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
+            <AdminDataTable v-model:column-filters="titleStatusFilters" v-model:sorting="titleSorting" :data="titleChallengeItems" :columns="titleColumns" :loading="loading" :sorting-options="titleSortingOptions" :default-sorting="defaultSorting" empty="暂无记录。" row-key="challengeId" table-key="achievement-titles" table-min-width="860px" class="admin-table achievement-table achievement-table--titles">
               <template #filters>
                 <USelect v-model="titleStatus" size="md" aria-label="筛选挑战状态" :items="[{ label: '全部状态', value: 'all' }, { label: '未开放', value: 'scheduled' }, { label: '已开放', value: 'active' }, { label: '即将结束', value: 'sunsetting' }, { label: '已下线', value: 'retired' }]" />
               </template>
@@ -520,7 +516,7 @@ async function endChallenge() {
         <template #catalog>
           <section class="catalog-section" aria-labelledby="title-catalog-title">
             <h2 id="title-catalog-title" class="sr-only">称号目录</h2>
-            <AdminDataTable v-model:column-filters="catalogStatusFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultCatalogSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
+            <AdminDataTable v-model:column-filters="catalogStatusFilters" v-model:sorting="catalogSorting" :data="catalogItems" :columns="catalogColumns" :loading="loading" :sorting-options="catalogSortingOptions" :default-sorting="defaultSorting" empty="暂无称号目录记录。" row-key="challengeId" table-key="achievement-title-catalog" table-min-width="1120px" class="admin-table achievement-table achievement-table--catalog">
               <template #filters>
                 <USelect v-model="catalogStatus" size="md" aria-label="筛选称号状态" :items="[{ label: '全部状态', value: 'all' }, { label: '草稿', value: 'draft' }, { label: '已启用', value: 'active' }, { label: '已退休', value: 'retired' }]" />
               </template>
