@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
+import { useAutoFitStackedLayout } from "~/composables/useAutoFitStackedLayout";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
@@ -33,33 +34,10 @@ function setActiveSection(id: (typeof sections)[number]["id"]) {
   activeSection.value = id;
 }
 
-/**
- * player-detail__layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * viewport width. A ResizeObserver reads the browser's own resolved column
- * count instead of a matching `matchMedia` breakpoint, so the "desktop
- * sidebar vs. stacked tab" layout and the submissions-tab active-state
- * tracking below can never disagree about which state they're in.
- */
-const layoutRef = ref<HTMLElement | null>(null);
-const stacked = ref(false);
-let layoutObserver: ResizeObserver | null = null;
-
-function updateStacked() {
-  const el = layoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  stacked.value = columns.length <= 1;
-}
+const { target: layoutRef, stacked } = useAutoFitStackedLayout();
 
 onMounted(() => {
   if (typeof window === "undefined") return;
-
-  if (layoutRef.value) {
-    updateStacked();
-    layoutObserver = new ResizeObserver(updateStacked);
-    layoutObserver.observe(layoutRef.value);
-  }
 
   if (typeof IntersectionObserver === "undefined") return;
   const ids = sections.map((section) => section.id);
@@ -89,8 +67,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sectionObserver?.disconnect();
   sectionObserver = null;
-  layoutObserver?.disconnect();
-  layoutObserver = null;
 });
 </script>
 

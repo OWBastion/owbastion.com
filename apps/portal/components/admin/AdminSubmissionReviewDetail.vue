@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, OcrAccuracyMark } from "~/composables/useAdminApi";
+import { useAutoFitStackedLayout } from "~/composables/useAutoFitStackedLayout";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
@@ -129,36 +130,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
 
-/**
- * review-layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * width — there is no CSS query for "auto-fit resolved to one column," so
- * the narrow-mode order/stickiness overrides read the browser's own
- * resolved column count instead of guessing a matching breakpoint.
- */
-const reviewLayoutRef = ref<HTMLElement | null>(null);
-const reviewLayoutStacked = ref(false);
-let reviewLayoutObserver: ResizeObserver | null = null;
-
-function updateReviewLayoutStacked() {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  reviewLayoutStacked.value = columns.length <= 1;
-}
-
-onMounted(() => {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  updateReviewLayoutStacked();
-  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
-  reviewLayoutObserver.observe(el);
-});
-
-onBeforeUnmount(() => {
-  reviewLayoutObserver?.disconnect();
-  reviewLayoutObserver = null;
-});
+const { target: reviewLayoutRef, stacked: reviewLayoutStacked } = useAutoFitStackedLayout();
 </script>
 
 <template>
