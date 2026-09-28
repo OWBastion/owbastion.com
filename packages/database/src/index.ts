@@ -1545,13 +1545,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     };
   };
 
-  const validateRevisionAssignments = async (mapId: string, assignments: AdminRevisionAssignmentInput[]) => {
+  const validateRevisionAssignments = async (
+    mapId: string,
+    assignments: AdminRevisionAssignmentInput[],
+    existingAssignments: Array<typeof gameplayRevisionChallengeAssignments.$inferSelect> = [],
+  ) => {
     const seen = new Set<string>();
+    const existingByIdentity = new globalThis.Map(existingAssignments.map((assignment) => [
+      `${assignment.challengeFamily}:${assignment.challengeId}`,
+      assignment,
+    ]));
     for (const assignment of assignments) {
       if (!revisionChallengeFamilies.has(assignment.challengeFamily)) throw new Error("INVALID_REVISION_ASSIGNMENT");
       const identity = `${assignment.challengeFamily}:${assignment.challengeId}`;
       if (seen.has(identity)) throw new Error("DUPLICATE_REVISION_ASSIGNMENT");
       seen.add(identity);
+      const existing = existingByIdentity.get(identity);
+      if (existing
+        && existing.mapId === mapId
+        && existing.enabled === (assignment.enabled ? 1 : 0)
+        && nullableEditorText(existing.condition) === nullableEditorText(assignment.condition)
+        && nullableEditorText(existing.evidenceRule) === nullableEditorText(assignment.evidenceRule)
+        && existing.submissionMode === assignment.submissionMode
+        && existing.slot === assignment.slot) continue;
       if (assignment.challengeFamily === "map_challenge") {
         const challenge = await db.select({ id: achievementChallenges.id, status: achievementChallenges.status }).from(achievementChallenges).where(and(eq(achievementChallenges.id, assignment.challengeId), eq(achievementChallenges.mapId, mapId))).get();
         if (!challenge) throw new Error("REVISION_CHALLENGE_NOT_FOUND");
@@ -4537,7 +4553,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if ((current.lifecycle === "default") !== (input.lifecycle === "default")) throw new Error("REVISION_PROMOTION_REQUIRES_EXPLICIT_OPERATION");
       assertRevisionLifecycle(current.lifecycle, input.lifecycle);
       const spatialConfig = assertRevisionConfiguration(input.lifecycle, input.mapVariant, input.spatialConfig);
-      await validateRevisionAssignments(input.mapId, input.challengeAssignments);
+      const currentAssignments = await db.select().from(gameplayRevisionChallengeAssignments)
+        .where(eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, input.revisionId));
+      await validateRevisionAssignments(input.mapId, input.challengeAssignments, currentAssignments);
 
       if (input.mapVariant === "classic") {
         const otherClassic = await db.select({ id: gameplayRevisions.id }).from(gameplayRevisions).where(and(eq(gameplayRevisions.mapId, input.mapId), eq(gameplayRevisions.legacyMapVariant, "classic"), ne(gameplayRevisions.id, input.revisionId))).get();
