@@ -95,14 +95,25 @@ Passkey challenges, session tokens, recovery tokens, QQ login codes, QQ login at
 member OpenIDs are private. The database stores hashes of session and recovery
 tokens and of the short-lived QQ attempt token and code. QQ login attempts expire
 after two minutes and a verified attempt issues the same direct Player Account
-session as Passkey login. Passkey challenges expire after five minutes and can be consumed only
-once. Authentication and registration require user verification; registration
-requires a discoverable credential. The Worker checks the exact Portal Origin
-and derives the WebAuthn RP ID from its hostname before it asks the auth package
-to verify a response. Invitation codes are hashed for verification and encrypted at rest for
-maintainer re-copy, are single-use, target one BattleTag, and expire after
-seven days. A maintainer can revoke only an unused, unexpired invitation; the
-reason is retained in the audit record and revocation takes effect immediately.
+session as Passkey login. At most one live pending QQ login attempt may hold a
+given code at a time; a colliding creation retries with a new code, and
+verification only ever matches a live (pending, unexpired) attempt for its code.
+Expired QQ login attempts are pruned after a short retention window on the
+login-attempt creation path rather than by a scheduled job. Expired
+`pending_confirmation` binding claims are marked expired and pruned after the
+same retention window when a new invitation claim is redeemed; claims awaiting
+review and approved claims remain as workflow and migration provenance.
+Expired Portal sessions are removed when a new session is issued. Expired
+Passkey challenges and sessions linked to them are pruned when a new Passkey
+challenge is created. Passkey challenges expire after five minutes and can be
+consumed only once. Authentication and registration require
+user verification; registration requires a discoverable credential. The Worker
+checks the exact Portal Origin and derives the WebAuthn RP ID from its hostname
+before it asks the auth package to verify a response. Invitation codes are
+hashed for verification and encrypted at rest for maintainer re-copy, are
+single-use, target one BattleTag, and expire after seven days. A maintainer can
+revoke only an unused, unexpired invitation; the reason is retained in the
+audit record and revocation takes effect immediately.
 Invitation confirmation codes expire after two minutes. The platform creates a
 first Player Account only after QQBot verifies the invited claim in an enabled
 group, then commits the account, QQ binding, and claim approval together. The

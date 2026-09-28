@@ -407,6 +407,28 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       `).bind(timestamp, timestamp),
     ]);
   };
+  const expiredAuthRowRetentionMs = 10 * 60 * 1000;
+  const pruneExpiredPortalSessions = async (timestamp: number) => {
+    await database.prepare("DELETE FROM portal_sessions WHERE expires_at <= ?").bind(timestamp).run();
+  };
+  const pruneExpiredBindingClaims = async (timestamp: number) => {
+    const staleBefore = timestamp - expiredAuthRowRetentionMs;
+    await database.batch([
+      database.prepare("UPDATE binding_claims SET status = 'expired' WHERE status = 'pending_confirmation' AND expires_at <= ?").bind(timestamp),
+      database.prepare("DELETE FROM binding_claims WHERE status = 'expired' AND expires_at <= ?").bind(staleBefore),
+    ]);
+  };
+  // Anonymous callers can create qq_login_attempts rows without authentication (#245), so this table's retention
+  // runs on its own creation path rather than waiting for an authenticated maintenance path or a cron decision.
+  // Pending confirmation claims are pruned from redeemBindingInvite, and expired Portal sessions when a new
+  // session is issued; approved and pending-review claims remain as business and migration provenance.
+  const pruneExpiredAuthRows = async (timestamp: number) => {
+    const staleBefore = timestamp - expiredAuthRowRetentionMs;
+    await database.batch([
+      database.prepare("UPDATE qq_login_attempts SET status = 'expired' WHERE status = 'pending' AND expires_at <= ?").bind(timestamp),
+      database.prepare("DELETE FROM qq_login_attempts WHERE status != 'pending' AND expires_at <= ?").bind(staleBefore),
+    ]);
+  };
   const isInheritedConquerorGrant = (
     source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
     historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
@@ -6635,11 +6657,24 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     async createQqLoginAttempt(input: QqLoginAttemptRequest) {
       const timestamp = now();
+      await pruneExpiredAuthRows(timestamp);
       const attemptId = crypto.randomUUID();
       const attemptToken = randomToken();
-      const code = randomCode();
-      await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash: await hashRequest(attemptToken), codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
-      return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
+      const tokenHash = await hashRequest(attemptToken);
+      const maxCodeAttempts = 5;
+      for (let attemptIndex = 0; attemptIndex < maxCodeAttempts; attemptIndex += 1) {
+        const code = randomCode();
+        try {
+          await db.insert(qqLoginAttempts).values({ id: attemptId, tokenHash, codeHash: await hashRequest(code), status: "pending", expiresAt: timestamp + loginTtlMs, createdAt: timestamp });
+          return { contractVersion: "1" as const, attemptId, attemptToken, code, expiresAt: timestamp + loginTtlMs };
+        } catch (error) {
+          const cause = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+          const message = cause instanceof Error ? cause.message : "";
+          // A live pending attempt already holds this code_hash (qq_login_attempts_pending_code_idx); retry with a fresh code.
+          if (!message.includes("UNIQUE constraint failed: qq_login_attempts.code_hash") || attemptIndex === maxCodeAttempts - 1) throw error;
+        }
+      }
+      throw new Error("LOGIN_CODE_UNAVAILABLE");
     },
 
     async getQqLoginStatus(input) {
@@ -6658,6 +6693,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!account) return { contractVersion: "1" as const, status: "expired" as const };
       const sessionToken = randomToken();
       const timestamp = now();
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: crypto.randomUUID(), playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
       await db.update(qqLoginAttempts).set({ sessionTokenHash: await hashRequest(sessionToken), sessionIssuedAt: timestamp }).where(eq(qqLoginAttempts.id, attempt.id));
       return { contractVersion: "1" as const, status: "verified" as const, environment: attempt.environment as "production" | "test", sessionToken };
@@ -6666,11 +6702,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async verifyQqLogin(input: QqLoginVerifyRequest, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["verifyQqLogin"]> extends Promise<infer T> ? T : never>(db, auth.subject, "qq.login.verify", idempotencyKey, input);
       if (replay) return replay;
-      const attempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, await hashRequest(input.code)), eq(qqLoginAttempts.status, "pending"))).get();
-      if (!attempt) throw new Error("LOGIN_CODE_INVALID");
-      if (attempt.expiresAt <= now()) {
-        await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, attempt.id));
-        throw new Error("LOGIN_CODE_EXPIRED");
+      const timestamp = now();
+      const codeHash = await hashRequest(input.code);
+      // qq_login_attempts_pending_code_idx guarantees at most one pending row per code_hash, so this can only ever
+      // match the single live attempt for that code, never an older abandoned-but-pending row sharing the same code.
+      const attempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"), gt(qqLoginAttempts.expiresAt, timestamp))).get();
+      if (!attempt) {
+        const staleAttempt = await db.select().from(qqLoginAttempts).where(and(eq(qqLoginAttempts.codeHash, codeHash), eq(qqLoginAttempts.status, "pending"))).get();
+        if (staleAttempt) {
+          await db.update(qqLoginAttempts).set({ status: "expired" }).where(eq(qqLoginAttempts.id, staleAttempt.id));
+          throw new Error("LOGIN_CODE_EXPIRED");
+        }
+        throw new Error("LOGIN_CODE_INVALID");
       }
       const group = await db.select().from(qqGroupAccess).where(and(eq(qqGroupAccess.groupOpenId, input.groupOpenId), eq(qqGroupAccess.status, "active"), eq(qqGroupAccess.verifyEnabled, 1))).get();
       if (!group) throw new Error("LOGIN_GROUP_NOT_ALLOWED");
@@ -6805,6 +6848,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const credentialRowId = crypto.randomUUID();
       const sessionToken = randomToken();
       const sessionId = crypto.randomUUID();
+      await pruneExpiredPortalSessions(timestamp);
       const results = await runPasskeyRegistrationBatch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'recovery' AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_recovery_grants WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ?)").bind(timestamp, consumedBy, challenge.id, account.id, timestamp, grant.id, account.id, timestamp),
         database.prepare("UPDATE passkey_recovery_grants SET used_at = ? WHERE id = ? AND player_account_id = ? AND used_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(timestamp, grant.id, account.id, timestamp, challenge.id, consumedBy),
@@ -6836,6 +6880,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const tokenHash = await hashRequest(sessionToken);
       const consumedBy = randomToken(16);
       const sessionId = crypto.randomUUID();
+      await pruneExpiredPortalSessions(timestamp);
       const results = await database.batch([
         database.prepare("UPDATE passkey_challenges SET used_at = ?, consumed_by = ? WHERE id = ? AND purpose = 'login' AND used_at IS NULL AND expires_at > ?").bind(timestamp, consumedBy, challenge.id, timestamp),
         database.prepare("UPDATE passkey_credentials SET counter = ?, last_used_at = ? WHERE id = ? AND counter = ? AND EXISTS (SELECT 1 FROM passkey_challenges WHERE id = ? AND consumed_by = ?)").bind(verified.newCounter, timestamp, stored.id, stored.counter, challenge.id, consumedBy),
@@ -6860,6 +6905,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       const sessionToken = randomToken();
       const sessionTokenHash = await hashRequest(sessionToken);
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: crypto.randomUUID(), playerAccountId: account.id, tokenHash: sessionTokenHash, expiresAt: timestamp + sessionTtlMs, createdAt: timestamp });
       return { sessionToken };
     },
@@ -7002,21 +7048,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async redeemBindingInvite(input) {
       const invite = await db.select().from(bindingInvites).where(eq(bindingInvites.codeHash, await hashRequest(input.code))).get();
       if (!invite || invite.expiresAt <= now() || invite.redeemedAt || invite.revokedAt) throw new Error("INVITE_INVALID");
+      const timestamp = now();
+      await pruneExpiredBindingClaims(timestamp);
       const pending = await db.select().from(bindingClaims).where(and(eq(bindingClaims.inviteId, invite.id), eq(bindingClaims.status, "pending_confirmation"))).get();
-      if (pending) {
-        if (pending.expiresAt > now()) throw new Error("INVITE_INVALID");
-      }
-      const timestamp = now(); const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
+      if (pending) throw new Error("INVITE_INVALID");
+      const claimId = crypto.randomUUID(); const claimToken = randomToken(); const code = randomCode();
       const insertStmt = db.insert(bindingClaims).values({ id: claimId, inviteId: invite.id, tokenHash: await hashRequest(claimToken), codeHash: await hashRequest(code), playerName: invite.playerName, normalizedPlayerName: invite.normalizedPlayerName, playerId: invite.playerId, status: "pending_confirmation", expiresAt: timestamp + bindingClaimTtlMs, createdAt: timestamp });
       try {
-        if (pending) {
-          await db.batch([
-            db.update(bindingClaims).set({ status: "expired" }).where(and(eq(bindingClaims.id, pending.id), eq(bindingClaims.status, "pending_confirmation"))),
-            insertStmt,
-          ]);
-        } else {
-          await db.batch([insertStmt]);
-        }
+        await db.batch([insertStmt]);
       } catch {
         throw new Error("INVITE_INVALID");
       }
@@ -7048,6 +7087,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!binding) throw new Error("BINDING_CLAIM_NOT_COMPLETE");
       const sessionToken = await hashRequest({ purpose: "binding-claim-session", claimToken: input.claimToken });
       const sessionId = `binding-claim:${claim.id}`;
+      await pruneExpiredPortalSessions(timestamp);
       await db.insert(portalSessions).values({ id: sessionId, playerAccountId: account.id, tokenHash: await hashRequest(sessionToken), passkeyChallengeId: null, expiresAt: timestamp + sessionTtlMs, createdAt: timestamp }).onConflictDoNothing();
       const existing = await db.select().from(portalSessions).where(eq(portalSessions.id, sessionId)).get();
       if (!existing || existing.playerAccountId !== account.id || existing.tokenHash !== await hashRequest(sessionToken)) throw new Error("BINDING_CLAIM_NOT_COMPLETE");

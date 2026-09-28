@@ -228,11 +228,14 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT operation FROM audit_events WHERE operation = 'qq.binding_claim.auto_activate'").get()).toEqual({ operation: "qq.binding_claim.auto_activate" });
 
     sqlite.prepare("UPDATE binding_claims SET expires_at = ? WHERE id = ?").run(now - 1, claim.claimId);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.expired', 'player.1', 'expired-token', ?, ?)").run(now - 1, now - 1000);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.active', 'player.1', 'active-token', ?, ?)").run(now + 60_000, now);
     const sessionOne = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
     const sessionTwo = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
     expect(sessionTwo.sessionToken).toBe(sessionOne.sessionToken);
     expect(await resolvePortalSession(database, sessionOne.sessionToken)).toMatchObject({ player: { playerId: "1234" } });
-    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions").get()).toEqual({ count: 1 });
+    expect(sqlite.prepare("SELECT id FROM portal_sessions ORDER BY id").all()).toEqual([{ id: "binding-claim:" + claim.claimId }, { id: "session.active" }]);
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM portal_sessions WHERE id = 'session.expired'").get()).toEqual({ count: 0 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM qq_sessions").get()).toEqual({ count: 0 });
 
     sqlite.prepare("DELETE FROM portal_sessions").run();
@@ -258,6 +261,27 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT player_account_id, provider, member_open_id FROM bindings").get()).toEqual({ player_account_id: account.id, provider: "qq", member_open_id: "member.new" });
     const session = await services.exchangeBindingClaimSession({ claimId: claim.claimId, claimToken: claim.claimToken });
     expect(await resolvePortalSession(database, session.sessionToken)).toMatchObject({ player: { id: account.id, playerId: "5678" } });
+  });
+
+  it("prunes only expired confirmation claims and preserves claims used by review workflows", async () => {
+    const { database, sqlite } = createD1();
+    const now = Date.now();
+    sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES ('invite.active', ?, 'Player', 'player', '1234', 'admin', ?, ?)").run(hashRequest("ACTIVEINVITE"), now, now + 60_000);
+    sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES ('invite.old', ?, 'Player', 'player', '1234', 'admin', ?, ?)").run(hashRequest("OLDINVITE"), now - 60_000, now + 60_000);
+    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, expires_at, created_at) VALUES ('claim.old-pending', 'invite.old', 'token.old', 'code.old-pending', 'Player', 'player', '1234', 'pending_confirmation', ?, ?)").run(now - 11 * 60_000, now - 12 * 60_000);
+    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, expires_at, created_at) VALUES ('claim.recent-pending', 'invite.old', 'token.recent', 'code.recent', 'Player', 'player', '1234', 'pending_confirmation', ?, ?)").run(now - 5 * 60_000, now - 6 * 60_000);
+    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, expires_at, created_at) VALUES ('claim.review', 'invite.old', 'token.review', 'code.review', 'Player', 'player', '1234', 'pending_review', ?, ?)").run(now - 60 * 60_000, now - 61 * 60_000);
+    sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, expires_at, created_at) VALUES ('claim.approved', 'invite.old', 'token.approved', 'code.approved', 'Player', 'player', '1234', 'approved', ?, ?)").run(now - 60 * 60_000, now - 61 * 60_000);
+
+    const services = createPlatformServices(database);
+    const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "ACTIVEINVITE" });
+    const rows = sqlite.prepare("SELECT id, status FROM binding_claims ORDER BY id").all() as Array<{ id: string; status: string }>;
+
+    expect(rows).toContainEqual({ id: "claim.recent-pending", status: "expired" });
+    expect(rows).toContainEqual({ id: "claim.review", status: "pending_review" });
+    expect(rows).toContainEqual({ id: "claim.approved", status: "approved" });
+    expect(rows).toContainEqual({ id: claim.claimId, status: "pending_confirmation" });
+    expect(rows.some(({ id }) => id === "claim.old-pending")).toBe(false);
   });
 
   it("does not exchange an approved claim when its QQ binding is missing or belongs to another group", async () => {
@@ -299,7 +323,7 @@ describe("invitation binding flow", () => {
   });
 
   it("keeps the verified QQ binding when a large historical migration fails, then retries the remaining titles", async () => {
-    const { database, sqlite } = createD1([4]);
+    const { database, sqlite } = createD1([5]);
     const now = Date.now();
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("invite.bulk", hashRequest("BULKTITLE123"), "Player", "player", "1234", "admin", now, now + 60_000);
     const insertHistorical = sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES (?, 'global', ?, 'Player', 'test')");

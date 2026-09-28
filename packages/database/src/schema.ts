@@ -31,6 +31,7 @@ export const bindingClaims = sqliteTable("binding_claims", {
 }, (table) => ({
   code: uniqueIndex("binding_claims_code_idx").on(table.codeHash),
   activeInvite: uniqueIndex("binding_claims_active_invite_idx").on(table.inviteId).where(sql`status = 'pending_confirmation'`),
+  expiry: index("binding_claims_expiry_idx").on(table.status, table.expiresAt),
 }));
 
 export const playerAccounts = sqliteTable("player_accounts", {
@@ -773,7 +774,9 @@ export const qqLoginAttempts = sqliteTable("qq_login_attempts", {
   expiresAt: integer("expires_at").notNull(),
   createdAt: integer("created_at").notNull(),
   verifiedAt: integer("verified_at"),
-});
+}, (table) => ({
+  pendingCode: uniqueIndex("qq_login_attempts_pending_code_idx").on(table.codeHash).where(sql`status = 'pending'`),
+}));
 
 export const portalSessions = sqliteTable("portal_sessions", {
   id: text("id").primaryKey(),
@@ -786,4 +789,5 @@ export const portalSessions = sqliteTable("portal_sessions", {
   tokenHash: uniqueIndex("portal_sessions_token_idx").on(table.tokenHash),
   passkeyChallengeId: uniqueIndex("portal_sessions_challenge_idx").on(table.passkeyChallengeId),
   playerAccount: index("portal_sessions_player_account_idx").on(table.playerAccountId, table.expiresAt),
+  expiry: index("portal_sessions_expiry_idx").on(table.expiresAt),
 }));
