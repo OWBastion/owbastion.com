@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
 import type { SortingState } from "@tanstack/vue-table";
+import { loadAdminTitleOptions, type AdminTitleOption } from "~/composables/admin-title-options";
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
-type Title = { titleKey: string; label: string; category: string; availability: "active" | "retired"; scope: "global" | "map"; mapId?: string; slot?: "pioneer" | "conqueror" | "dominator" };
-type TitleOption = Title & { mapName?: string; value: string };
 type TitleMenuItem = { label: string; value: string };
 type GrantRow = AdminPlayerDetail["titleGrants"][number] & { sourceLabel: string; mapLabel: string };
 
@@ -14,8 +13,7 @@ const props = defineProps<{ playerAccountId: string; titleGrants: AdminPlayerDet
 const emit = defineEmits<{ granted: []; revoked: []; restored: []; recovered: [] }>();
 const api = useAdminApi();
 const toast = useToast();
-const maps = shallowRef<Array<{ mapId: string; mapName: string }>>([]);
-const titles = shallowRef<TitleOption[]>([]);
+const titles = shallowRef<AdminTitleOption[]>([]);
 const selectedGlobalValues = ref<TitleMenuItem[]>([]);
 const selectedMapValues = ref<TitleMenuItem[]>([]);
 const reason = shallowRef("");
@@ -33,8 +31,8 @@ const recoveryOpen = shallowRef(false);
 const recoveryGrantIds = ref<string[]>([]);
 const recovering = shallowRef(false);
 const recoveryError = shallowRef("");
-const titleLabel = (title: TitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
-const selectedTitleLabel = (title: TitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
+const titleLabel = (title: AdminTitleOption) => `${title.label}${title.availability === "retired" ? "（不再发放）" : ""}`;
+const selectedTitleLabel = (title: AdminTitleOption) => `${title.label}${title.mapName ? ` · ${title.mapName}` : ""}`;
 const globalTitleItems = computed(() => titles.value.filter((title) => title.scope === "global").map((title) => ({ label: titleLabel(title), value: title.value })));
 const mapTitleItems = computed(() => titles.value.filter((title) => title.scope === "map").map((title) => ({ label: `${title.mapName ?? "未知地图"} · ${titleLabel(title)}`, value: title.value })));
 const selectedTitleValues = computed(() => new Set([...selectedGlobalValues.value, ...selectedMapValues.value].map((item) => item.value)));
@@ -83,15 +81,7 @@ const recoverySelectionError = computed(() => recoveryGrantIds.value.length > 10
 async function loadOptions() {
   loadingOptions.value = true;
   try {
-    const mapResponse = await api<{ items: Array<{ mapId: string; mapName: string }> }>("/v1/maps");
-    maps.value = mapResponse.items;
-    const responses = await Promise.all([
-      api<{ items: Title[] }>("/v1/titles"),
-      ...mapResponse.items.map((map) => api<{ items: Title[] }>(`/v1/titles?mapId=${encodeURIComponent(map.mapId)}`)),
-    ]);
-    const mapNames = new Map(mapResponse.items.map((map) => [map.mapId, map.mapName]));
-    const options = responses.flatMap((response) => response.items).map((title) => ({ ...title, mapName: title.mapId ? mapNames.get(title.mapId) : undefined, value: `${title.titleKey}:${title.mapId ?? ""}` }));
-    titles.value = [...new Map(options.map((title) => [title.value, title])).values()].sort((left, right) => {
+    titles.value = (await loadAdminTitleOptions(api)).sort((left, right) => {
       if (left.scope !== right.scope) return left.scope === "global" ? -1 : 1;
       const map = (left.mapName ?? "").localeCompare(right.mapName ?? "", "zh-CN");
       if (map) return map;
