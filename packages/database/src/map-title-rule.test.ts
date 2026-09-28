@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
 import { createVerifiedRunEvidenceCompatibilityV1, legacyGameplayRevisionId } from "@owbastion/domain";
 import { assessVerifiedRunOcrEvidence, createPlatformServices } from "./index";
-import { createD1, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
+import { createD1, createOcrDifficultyResponse, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
 const now = Date.now();
 const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibilityV1({
@@ -1022,18 +1022,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.auto', 'binding.auto', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'auto.1', ?, ?)").run(now, now);
       sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.auto', 'submission.auto', 'portal', 'external.auto', 'image/png', 1, 'hash', 'evidence/auto.png', 'stored', ?)").run(now);
 
-      const ocrResponse = {
-        schema_version: "1",
-        ok: true,
-        layout_version: "1280x720-v6",
-        fields: {
-          challenge_completed: { status: "ok", confidence: 0.99 },
-          viewer_player: { status: "ok", confidence: 0.99 },
-          map_name: { status: "ok", confidence: 0.99 },
-          difficulty: { status: "ok", confidence: 0.99 },
-        },
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.dorado", difficulty: "地狱" },
-      };
+      const ocrResponse = createOcrDifficultyResponse("地图 map.dorado", "地狱", "1280x720-v6");
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
@@ -1085,18 +1074,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.shared.auto', 'submission.shared.auto', 'portal', 'external.shared.auto', 'image/png', 1, 'hash', 'evidence/shared-auto.png', 'stored', ?)").run(now);
       seedPlayerSubmission("player.shared.review", "binding.shared.review", "submission.shared.review", "ocr_review_required");
 
-      const ocrResponse = {
-        schema_version: "1",
-        ok: true,
-        layout_version: "1280x720-v6",
-        fields: {
-          challenge_completed: { status: "ok", confidence: 0.99 },
-          viewer_player: { status: "ok", confidence: 0.99 },
-          map_name: { status: "ok", confidence: 0.99 },
-          difficulty: { status: "ok", confidence: 0.99 },
-        },
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.shared-title", difficulty: "传奇" },
-      };
+      const ocrResponse = createOcrDifficultyResponse("地图 map.shared-title", "传奇", "1280x720-v6");
       sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.shared.review', 'submission.shared.review', 1, 'review_required', ?, '{}', ?)").run(JSON.stringify(ocrResponse), now);
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
@@ -1677,18 +1655,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.pioneer.inside', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.inside', ?, ?), ('submission.pioneer.at-end', 'binding.pioneer', 'ocr_pending', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.at-end', ?, ?)").run(endsAt - 1, endsAt - 1, endsAt, endsAt);
       sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, byte_size, sha256, object_key, upload_status, created_at) VALUES ('attachment.pioneer.inside', 'submission.pioneer.inside', 'portal', 'external.inside', 'image/png', 1, 'hash', 'evidence/inside.png', 'stored', ?), ('attachment.pioneer.at-end', 'submission.pioneer.at-end', 'portal', 'external.at-end', 'image/png', 1, 'hash', 'evidence/at-end.png', 'stored', ?)").run(now, now);
 
-      const ocrResponse = {
-        schema_version: "1",
-        ok: true,
-        layout_version: "1280x720-v6",
-        fields: {
-          challenge_completed: { status: "ok", confidence: 0.99 },
-          viewer_player: { status: "ok", confidence: 0.99 },
-          map_name: { status: "ok", confidence: 0.99 },
-          difficulty: { status: "ok", confidence: 0.99 },
-        },
-        data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.paris", difficulty: "地狱" },
-      };
+      const ocrResponse = createOcrDifficultyResponse("地图 map.paris", "地狱", "1280x720-v6");
       vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");

@@ -33,6 +33,19 @@ import { DatabaseSync } from "node:sqlite";
  */
 const now = Date.now();
 
+export const createOcrDifficultyResponse = (mapName: string, difficulty: string, layoutVersion = "test-layout-v1") => ({
+  schema_version: "1",
+  ok: true,
+  layout_version: layoutVersion,
+  fields: {
+    challenge_completed: { status: "ok", confidence: 0.99 },
+    viewer_player: { status: "ok", confidence: 0.99 },
+    map_name: { status: "ok", confidence: 0.99 },
+    difficulty: { status: "ok", confidence: 0.99 },
+  },
+  data: { challenge_completed: true, viewer_player: "Tester", map_name: mapName, difficulty },
+});
+
 /**
  * Minimal D1Database shim over node:sqlite, reused from catalog-query-budget.test.ts.
  */
