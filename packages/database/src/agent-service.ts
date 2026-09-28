@@ -17,6 +17,7 @@ import type {
   AgentTitleQuery,
   PlatformServices,
 } from "@owbastion/domain";
+import type { paginate } from "./page-result";
 import {
   gameplayRevisions,
   mapTitleRewards,
@@ -47,14 +48,7 @@ type AgentServices = Pick<PlatformServices,
 type Dependencies = {
   now: () => number;
   platformCache: PlatformCache;
-  paginate: <T>(items: T[], page: number, pageSize: number) => {
-    contractVersion: "1";
-    items: T[];
-    page: number;
-    pageSize: number;
-    total: number;
-    hasMore: boolean;
-  };
+  paginate: typeof paginate;
   loadAgentMapProjectionsFast: (input: { mapId?: string }) => Promise<AgentMap[]>;
   suspendedEventVersions: () => Promise<Set<string>>;
   listGlobalAgentTitles: () => Promise<AgentTitle[]>;
