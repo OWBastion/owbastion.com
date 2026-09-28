@@ -249,7 +249,7 @@ export type MasteryMapProfile = {
 
 const byMostRecent = (left: VerifiedRunForProjection, right: VerifiedRunForProjection) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId);
 
-const verifiedRunProjection = (run: VerifiedRunForProjection): VerifiedRunForProjection => ({
+export const verifiedRunProjection = (run: VerifiedRunForProjection): VerifiedRunForProjection => ({
   runId: run.runId,
   mapId: run.mapId,
   gameplayRevisionId: run.gameplayRevisionId,

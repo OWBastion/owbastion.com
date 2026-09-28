@@ -3,8 +3,13 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
+<<<<<<< HEAD
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, parseCanonicalChallengeConditions, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, RecordVerifiedRunResult, ReviewSummary, ReviewTarget, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
+=======
+import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV2, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import type { AdminVerifiedRunQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEvidenceCompatibilityV1, VerifiedRunActor, VerifiedRunConflictField, PlatformServices, RecordVerifiedRunResult, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
+>>>>>>> a17e0221 (refactor(database): reuse mastery projections)
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
@@ -2237,31 +2242,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const adminMasteryProjection = async (input: { playerAccountId: string; mapId: string; gameplayRevisionId: string }): Promise<AdminVerifiedRunProjection> => {
-    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0];
-    if (!profile) {
-      return {
-        mapId: input.mapId,
-        gameplayRevisionId: input.gameplayRevisionId,
-        totalXp: 0,
-        verifiedRunCount: 0,
-        difficultyStats: [],
-        lowestDeaths: null,
-        fewestSkips: null,
-        highestSingleRunXp: null,
-        highestCompletedDifficulty: null,
-      };
-    }
-    return {
-      mapId: profile.mapId,
-      gameplayRevisionId: profile.gameplayRevisionId,
-      totalXp: profile.totalXp,
-      verifiedRunCount: profile.verifiedRunCount,
-      difficultyStats: profile.difficultyStats,
-      lowestDeaths: profile.lowestDeaths,
-      fewestSkips: profile.fewestSkips,
-      highestSingleRunXp: profile.highestSingleRunXp,
-      highestCompletedDifficulty: profile.highestCompletedDifficulty,
-    };
+    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0]
+      ?? buildMasteryMapProfile(input.mapId, input.gameplayRevisionId, [], 0);
+    const { recentRuns: _recentRuns, ...projection } = profile;
+    return projection;
   };
 
   const masteryConflictFacts = (responseJson: string | null): AdminVerifiedRunConflict["facts"] => {
