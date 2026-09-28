@@ -3,28 +3,17 @@ import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminCompositeStagesInput from "./AdminCompositeStagesInput.vue";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
+import { spatialNumberInput, spatialTextInput } from "~/utils/spatial-config-input";
 
 type Detection = { position: unknown[]; radius: unknown };
-type StageControl = { centerPositions: unknown[]; jumpPositions: unknown[]; respawnPositions: unknown[] } | null;
-type CompositeStage = SpatialConfigValue & {
-  stageId: string;
-  setupDetection?: Detection;
-  bastionPositions: unknown[];
-  control: StageControl;
-  portalPositions: unknown[];
-  springboardPositions: unknown[];
-  resetPosition?: unknown;
-  thirdPersonPosition?: unknown;
-  creditsPosition?: unknown;
-  endPosition?: unknown;
-};
+type CompositeStage = SpatialConfigValue & { stageId: string; setupDetection?: Detection };
 type RouteControl = { respawnAxis: "x" | "y" | "z" | null; respawnAxisThreshold: number | null } | null;
 type CompositeConfig = SpatialConfigValue & {
-  resetPosition: unknown;
-  endPosition: unknown;
-  thirdPersonPosition: unknown;
-  creditsPosition: unknown;
-  control: RouteControl;
+  resetPosition?: unknown;
+  endPosition?: unknown;
+  thirdPersonPosition?: unknown;
+  creditsPosition?: unknown;
+  control?: RouteControl;
   composition: {
     selectionCount: number;
     firstStageSelection: { mode: "random" } | { mode: "setup_detection"; fallbackStageId: string };
@@ -38,7 +27,8 @@ const props = withDefaults(defineProps<{
   modelValue: SpatialConfigValue;
   revisionKey: string;
   disabled?: boolean;
-}>(), { disabled: false });
+  mode?: "legacy" | "current";
+}>(), { disabled: false, mode: "current" });
 
 const emit = defineEmits<{
   "update:modelValue": [value: SpatialConfigValue];
@@ -46,22 +36,19 @@ const emit = defineEmits<{
 }>();
 
 const isComposite = (value: SpatialConfigValue): value is CompositeConfig =>
-  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && "endPosition" in value;
+  Array.isArray(value.stages) && Boolean(value.composition && typeof value.composition === "object") && (props.mode === "legacy" || "endPosition" in value);
 
 function emptyStage(stageId: string): CompositeStage {
-  return { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
+  const stage = { stageId, bastionPositions: [], control: null, portalPositions: [], springboardPositions: [] };
+  return props.mode === "legacy" ? { ...stage, resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null } : stage;
 }
 
 function defaultConfig(): CompositeConfig {
-  return {
-    resetPosition: null,
-    endPosition: null,
-    thirdPersonPosition: null,
-    creditsPosition: null,
-    control: null,
+  const config: Pick<CompositeConfig, "composition" | "stages"> = {
     composition: { selectionCount: 2, firstStageSelection: { mode: "random" }, remainingStageSelection: "random_unique" },
     stages: [emptyStage("stage-1"), emptyStage("stage-2")],
   };
+  return props.mode === "legacy" ? config : { resetPosition: null, endPosition: null, thirdPersonPosition: null, creditsPosition: null, control: null, ...config };
 }
 
 const config = computed(() => isComposite(props.modelValue) ? props.modelValue : defaultConfig());
@@ -72,11 +59,11 @@ const issues = computed(() => {
 });
 const routeCoordinatesValid = shallowRef(true);
 const stageCoordinatesValid = shallowRef(true);
+const configIsValid = (value: unknown) => agentSpatialConfigSchema.safeParse(value).success && stageCoordinatesValid.value && (props.mode === "legacy" || routeCoordinatesValid.value);
 
 function issueMessage(issue: ValidationIssue): string {
   const path = issue.path.map(String).join(".");
   if (path === "composition.selectionCount") return "选择数量必须是 2 到 16 的整数，且不得超过阶段数量。";
-  if (path.startsWith("stages.") && path.includes(".control")) return "每个阶段须恰好配置一个占领跳跃点和一个重生点；路线共用同一重生轴与阈值。";
   if (path === "composition.firstStageSelection.fallbackStageId") return "请选择一个已存在的回退阶段。";
   if (path.endsWith(".stageId")) return issue.message === "Duplicate composite spatial stage" ? "阶段 ID 重复。" : "阶段 ID 格式无效。";
   if (path.endsWith(".setupDetection.position")) return "请输入三个有效的检测坐标。";
@@ -89,6 +76,8 @@ function issueMessage(issue: ValidationIssue): string {
     if (selection.mode === "random") return "随机选择首阶段时不能设置初始阶段检测。";
     return "此阶段需要设置检测位置和正半径。";
   }
+  if (props.mode === "legacy") return "空间配置无效。";
+  if (path.startsWith("stages.") && path.includes(".control")) return "每个阶段须恰好配置一个占领跳跃点和一个重生点；路线共用同一重生轴与阈值。";
   if (path.endsWith(".control.jumpPositions") || path.endsWith(".control.respawnPositions")) return "每阶段的阶段间传送点与占领重生点须成对配置，且最多一对。";
   if (["resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition"].includes(String(issue.path[0]))) return "请在全路线点位中提供此坐标。";
   if (issue.path[0] === "control") return "复合路线必须设置一个重生轴及非负阈值。";
@@ -106,6 +95,12 @@ function routeControlError() {
 }
 
 function stageSpatialError(index: number) {
+  if (props.mode === "legacy") {
+    const hasInvalidSpatialField = issues.value.some((issue) => issue.path[0] === "stages" && issue.path[1] === index && [
+      "bastionPositions", "resetPosition", "endPosition", "thirdPersonPosition", "creditsPosition", "control", "portalPositions", "springboardPositions",
+    ].includes(String(issue.path[2])));
+    return hasInvalidSpatialField ? "请粘贴此阶段完整的 Raw Workshop 点位代码。" : "";
+  }
   const stageFields = new Set(["bastionPositions", "control", "portalPositions", "springboardPositions", "resetPosition", "thirdPersonPosition", "creditsPosition", "endPosition"]);
   const issue = issues.value.find((item) => item.path[0] === "stages" && item.path[1] === index && stageFields.has(String(item.path[2])));
   if (!issue) return "";
@@ -115,38 +110,27 @@ function stageSpatialError(index: number) {
 
 function commit(next: CompositeConfig) {
   emit("update:modelValue", next);
-  emit("valid", agentSpatialConfigSchema.safeParse(next).success && routeCoordinatesValid.value && stageCoordinatesValid.value);
+  emit("valid", configIsValid(next));
 }
 
 watch(() => props.modelValue, () => {
-  emit("valid", agentSpatialConfigSchema.safeParse(config.value).success && routeCoordinatesValid.value && stageCoordinatesValid.value);
+  emit("valid", configIsValid(config.value));
 }, { immediate: true });
 
 function updateComposite(value: SpatialConfigValue) {
   const next = value as CompositeConfig;
   emit("update:modelValue", next);
-  emit("valid", agentSpatialConfigSchema.safeParse(next).success && routeCoordinatesValid.value && stageCoordinatesValid.value);
+  emit("valid", configIsValid(next));
 }
 
 function updateStageCoordinatesValidity(value: boolean) {
   stageCoordinatesValid.value = value;
-  emit("valid", value && routeCoordinatesValid.value && agentSpatialConfigSchema.safeParse(config.value).success);
-}
-
-function coordinateInputValue(value: unknown): number | null {
-  if (value === "" || value === null || value === undefined) return null;
-  if (typeof value !== "string" && typeof value !== "number") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function detectionInputValue(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value);
+  emit("valid", configIsValid(config.value));
 }
 
 function updateRouteControl(axis: unknown, threshold: unknown) {
   const respawnAxis = axis === "x" || axis === "y" || axis === "z" ? axis : null;
-  const respawnAxisThreshold = coordinateInputValue(threshold);
+  const respawnAxisThreshold = spatialNumberInput(threshold);
   const control: RouteControl = respawnAxis === null ? null : { respawnAxis, respawnAxisThreshold };
   commit({ ...config.value, control });
 }
@@ -158,13 +142,13 @@ function updateRouteSpatialConfig(value: SpatialConfigValue | null) {
 
 function updateRouteCoordinateValidity(valid: boolean) {
   routeCoordinatesValid.value = valid;
-  emit("valid", valid && stageCoordinatesValid.value && agentSpatialConfigSchema.safeParse(config.value).success);
+  emit("valid", configIsValid(config.value));
 }
 </script>
 
 <template>
   <div class="composite-spatial-editor">
-    <section class="shared-route-fields" aria-labelledby="shared-route-heading">
+    <section v-if="mode === 'current'" class="shared-route-fields" aria-labelledby="shared-route-heading">
       <div class="section-heading">
         <h3 id="shared-route-heading">全路线共享点位</h3>
         <p>终点、重置点、英雄环和结算点作为整条组合路线的默认值；阶段可在下方覆盖。</p>
@@ -190,7 +174,7 @@ function updateRouteCoordinateValidity(valid: boolean) {
         </UFormField>
         <UFormField label="占领重生轴阈值" required>
           <UInput
-            :model-value="detectionInputValue(config.control?.respawnAxisThreshold)"
+            :model-value="spatialTextInput(config.control?.respawnAxisThreshold)"
             type="number"
             min="0"
             step="any"
@@ -206,7 +190,7 @@ function updateRouteCoordinateValidity(valid: boolean) {
     <AdminCompositeStagesInput
       :model-value="config"
       :revision-key="revisionKey"
-      mode="current"
+      :mode="mode"
       :disabled="disabled"
       :issue-message="issueMessage"
       :stage-spatial-error="stageSpatialError"
