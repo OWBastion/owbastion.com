@@ -113,6 +113,9 @@ maintainer can trace one Submission without exposing its evidence or identity.
 attempt 4 is the last configured OCR delivery. If recording that failure also
 fails, follow `queue_failure_record_failed` by `submissionId` and check the OCR
 dead-letter events `dead_letter_recovered` or `dead_letter_recovery_failed`.
+The five-minute scheduled repair also emits `stale_job_recovered` when a
+Submission has remained `ocr_pending` for 15 minutes, including after the
+dead-letter consumer has exhausted its retries and its message was discarded.
 Compare the `requestId` with the `X-Request-ID` sent to OCRKit and inspect the
 OCRKit container's access/error logs for the same request window. An OCRKit
 access line alone proves only that the request arrived; it does not prove object

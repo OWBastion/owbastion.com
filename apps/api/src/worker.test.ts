@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformServices } from "@owbastion/domain";
-import worker, { OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./worker";
+import worker, { OCR_PENDING_RECOVERY_AGE_MS, OCR_QUEUE_MAX_DELIVERIES, OCR_QUEUE_MAX_RETRIES } from "./worker";
 
 const createPlatformServices = vi.hoisted(() => vi.fn());
 
@@ -36,6 +36,8 @@ describe("OCR Queue consumer", () => {
       };
     };
     const deployWorkflow = readFileSync(new URL("../../../.github/workflows/deploy-api.yml", import.meta.url), "utf8") as string;
+    const productionCron = readFileSync(new URL("../../../wrangler.toml", import.meta.url), "utf8") as string;
+    const localCron = readFileSync(new URL("../../../wrangler.local.toml", import.meta.url), "utf8") as string;
     const production = readConsumer("../../../wrangler.toml", "owbastion-ocr");
     const local = readConsumer("../../../wrangler.local.toml", "owbastion-ocr-local");
     const productionDeadLetter = readConsumer("../../../wrangler.toml", "owbastion-ocr-dlq");
@@ -46,6 +48,8 @@ describe("OCR Queue consumer", () => {
     expect(productionDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(localDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(deployWorkflow).toMatch(/for queue in [^\n]*owbastion-ocr-dlq/);
+    expect(productionCron).toMatch(/^crons\s*=\s*\["\*\/5 \* \* \* \*"\]/m);
+    expect(localCron).toMatch(/^crons\s*=\s*\["\*\/5 \* \* \* \*"\]/m);
     expect(OCR_QUEUE_MAX_DELIVERIES).toBe(OCR_QUEUE_MAX_RETRIES + 1);
   });
 
@@ -203,12 +207,18 @@ describe("OCR Queue consumer", () => {
     expect(message.retry).toHaveBeenCalledWith({ delaySeconds: 10 });
   });
 
-  it("dispatches pending policy events from the five-minute scheduled repair", async () => {
+  it("dispatches policy events and reconciles stale OCR jobs from the five-minute scheduled repair", async () => {
     const dispatchPendingQqGroupPolicyEvents = vi.fn<PlatformServices["dispatchPendingQqGroupPolicyEvents"]>().mockResolvedValue(undefined);
-    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents });
+    const reconcileStaleOcrJobs = vi.fn<PlatformServices["reconcileStaleOcrJobs"]>().mockResolvedValue(0);
+    const before = Date.now();
+    createPlatformServices.mockReturnValue({ dispatchPendingQqGroupPolicyEvents, reconcileStaleOcrJobs });
 
     await worker.scheduled({} as never, {} as never);
 
     expect(dispatchPendingQqGroupPolicyEvents).toHaveBeenCalledOnce();
+    expect(reconcileStaleOcrJobs).toHaveBeenCalledOnce();
+    const olderThan = reconcileStaleOcrJobs.mock.calls[0]![0].olderThan;
+    expect(olderThan).toBeGreaterThanOrEqual(before - OCR_PENDING_RECOVERY_AGE_MS);
+    expect(olderThan).toBeLessThanOrEqual(Date.now() - OCR_PENDING_RECOVERY_AGE_MS);
   });
 });

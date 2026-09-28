@@ -3,6 +3,9 @@ main = "apps/api/src/worker.ts"
 compatibility_date = "2026-07-14"
 workers_dev = false
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [vars]
 PORTAL_ORIGIN = "https://owbastion.com"
 OCRKIT_BASE_URL = "https://ocr.owbastion.com"

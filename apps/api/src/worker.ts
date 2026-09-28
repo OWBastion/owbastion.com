@@ -8,6 +8,7 @@ type QqPolicyQueueMessage = { version: 1; eventId: string };
 // Keep this aligned with `max_retries` for the OCR consumers in wrangler.toml and wrangler.local.toml.
 export const OCR_QUEUE_MAX_RETRIES = 3;
 export const OCR_QUEUE_MAX_DELIVERIES = OCR_QUEUE_MAX_RETRIES + 1;
+export const OCR_PENDING_RECOVERY_AGE_MS = 15 * 60_000;
 const OCR_DEAD_LETTER_QUEUES = new Set(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"]);
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
@@ -78,6 +79,10 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    await createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN).dispatchPendingQqGroupPolicyEvents();
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    await Promise.all([
+      platform.dispatchPendingQqGroupPolicyEvents(),
+      platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS }),
+    ]);
   },
 };

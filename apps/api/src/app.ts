@@ -2118,6 +2118,7 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "SUBMISSION_NOT_FOUND" || code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, code === "EVIDENCE_NOT_FOUND" ? "The submission has no evidence" : "The submission does not exist");
       if (code === "OCR_NOT_CONFIGURED") return errorResponse(c, 503, code, "OCRKit is not configured");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      if (code === "OCR_RETRY_IN_PROGRESS") return errorResponse(c, 409, code, "An OCR retry is already in progress for this submission");
       throw error;
     }
   });
