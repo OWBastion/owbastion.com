@@ -55,6 +55,10 @@ const createD1 = (failBatchNumbers: number[] = []) => {
 };
 
 const auth = { actorType: "service" as const, subject: "qqbot", roles: ["channel:write"] as const, provider: "test" };
+const seedPlayerAccount = (sqlite: DatabaseSync, now: number) => sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+const seedActiveVerificationGroup = (sqlite: DatabaseSync, now: number) => sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
+const seedPlayerAndActiveVerificationGroup = (sqlite: DatabaseSync, now: number) => { seedPlayerAccount(sqlite, now); seedActiveVerificationGroup(sqlite, now); };
+const createServicesWithTestEncryptionKey = (database: D1Database) => createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
 
 describe("invitation binding flow", () => {
   it("updates an administrator's player name while keeping the numeric ID stable", async () => {
@@ -94,10 +98,9 @@ describe("invitation binding flow", () => {
   it("migrates only explicitly authorized historical titles after a clean binding", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.1"] }, auth, "invite.1");
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.1", messageId: "message.1" }, auth, "verify.1");
@@ -114,13 +117,12 @@ describe("invitation binding flow", () => {
     const now = Date.now();
     sqlite.exec("CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, '')) WHERE status = 'active';");
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('hist.conqueror', 'map', 'map.inherited', 'revision:map.inherited:initial', 'conqueror', 'CONQUEROR', 'Player', 'test'), ('hist.dominator', 'map', 'map.inherited', 'revision:map.inherited:initial', 'dominator', 'DOMINATOR', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.old', 'member.old', ?)").run(now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.dominator', 'player.1', 'DOMINATOR', 'map.inherited', 'revision:map.inherited:initial', 'dominator', 'active', 'historical', 'hist.dominator', 'admin', ?), ('grant.inherited.conqueror', 'player.1', 'CONQUEROR', 'map.inherited', 'revision:map.inherited:initial', 'conqueror', 'active', 'historical', 'hist.dominator', 'admin', ?)").run(now, now);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
 
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.conqueror"] }, auth, "invite.inherited");
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.inherited" }, auth, "verify.inherited");
@@ -136,13 +138,12 @@ describe("invitation binding flow", () => {
     const now = Date.now();
     sqlite.exec("CREATE UNIQUE INDEX player_title_grants_active_identity_idx ON player_title_grants(player_account_id, title_key, COALESCE(map_id, '')) WHERE status = 'active';");
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, map_id, gameplay_revision_id, slot, title_key, holder_name, source_version) VALUES ('hist.pending.conqueror', 'map', 'map.manual', 'revision:map.manual:initial', 'conqueror', 'CONQUEROR', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.old', 'member.old', ?)").run(now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.manual', 'player.1', 'CONQUEROR', 'map.manual', 'revision:map.manual:initial', 'conqueror', 'active', 'manual', 'manual.source', 'admin', ?)").run(now);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
 
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.pending.conqueror"] }, auth, "invite.manual");
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.manual" }, auth, "verify.manual");
@@ -155,10 +156,9 @@ describe("invitation binding flow", () => {
   it("does not authorize a name-equal historical holder without explicit selection", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: [] }, auth, "invite.1");
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.1", messageId: "message.1" }, auth, "verify.1");
@@ -198,11 +198,10 @@ describe("invitation binding flow", () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'map', 'TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.old', 'member.old', ?)").run(now);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.1"] }, auth, "invite.1");
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.1" }, auth, "verify.1");
@@ -215,10 +214,9 @@ describe("invitation binding flow", () => {
   it("records a conflict without reassigning an already migrated historical title", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO historical_title_grants (id, scope, title_key, holder_name, source_version) VALUES ('hist.1', 'global', 'TITLE', 'Player', 'test')").run();
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "test-encryption-key");
+    const services = createServicesWithTestEncryptionKey(database);
     const invite = await services.createAdminBindingInvite({ contractVersion: "1", playerName: "Player", playerId: "1234", historicalTitleGrantIds: ["hist.1"] }, auth, "invite.1");
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.other', 'other-player', 'TITLE', 'active', 'historical', 'hist.1', 'admin', ?)").run(now);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: invite.code });
@@ -231,9 +229,8 @@ describe("invitation binding flow", () => {
   it("automatically activates an existing account's first binding and exchanges it for a Portal session", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("invite.1", hashRequest("INVITE123456"), "Player", "player", "1234", "admin", now, now + 60_000);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "INVITE123456" });
     expect(claim.expiresAt).toBeGreaterThan(now + 9 * 60 * 1000);
@@ -266,7 +263,7 @@ describe("invitation binding flow", () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("invite.new-player", hashRequest("NEWPLAYER123"), "New Player", "new player", "5678", "admin", now, now + 60_000);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
+    seedActiveVerificationGroup(sqlite, now);
     const services = createPlatformServices(database);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "NEWPLAYER123" });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM player_accounts").get()).toEqual({ count: 0 });
@@ -306,7 +303,7 @@ describe("invitation binding flow", () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
     const claimToken = "a".repeat(64);
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAccount(sqlite, now);
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at, redeemed_at) VALUES ('invite.1', ?, 'Player', 'player', '1234', 'admin', ?, ?, ?)").run(hashRequest("INVITE123456"), now, now + 60_000, now);
     sqlite.prepare("INSERT INTO binding_claims (id, invite_id, token_hash, code_hash, player_name, normalized_player_name, player_id, status, member_open_id, group_open_id, expires_at, created_at, decided_at) VALUES ('claim.1', 'invite.1', ?, 'code', 'Player', 'player', '1234', 'approved', 'member.1', 'group.expected', ?, ?, ?)").run(hashRequest(claimToken), now + 60_000, now, now);
     const services = createPlatformServices(database);
@@ -351,7 +348,7 @@ describe("invitation binding flow", () => {
       insertHistorical.run(id, `TITLE_${index}`);
       insertAuthorization.run(`authorization.${index}`, id, now);
     }
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
+    seedActiveVerificationGroup(sqlite, now);
 
     const services = createPlatformServices(database);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "BULKTITLE123" });
@@ -429,11 +426,10 @@ describe("invitation binding flow", () => {
   it("routes an existing account binding to review instead of replacing it", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
-    sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.1', '1234', 'Player', 'player', ?, ?)").run(now, now);
+    seedPlayerAndActiveVerificationGroup(sqlite, now);
     sqlite.prepare("INSERT INTO identities (id, created_at, updated_at) VALUES ('identity.1', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.1', 'identity.1', 'player.1', 'qq', 'group.old', 'member.old', ?)").run(now);
     sqlite.prepare("INSERT INTO binding_invites (id, code_hash, player_name, normalized_player_name, player_id, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run("invite.1", hashRequest("INVITE123456"), "Player", "player", "1234", "admin", now, now + 60_000);
-    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, environment, status, verify_enabled, created_at, updated_at) VALUES ('group.1', 'test', 'active', 1, ?, ?)").run(now, now);
     const services = createPlatformServices(database);
     const claim = await services.redeemBindingInvite({ contractVersion: "1", code: "INVITE123456" });
     await services.verifyBindingClaim({ contractVersion: "1", provider: "qq", code: claim.code, groupOpenId: "group.1", memberOpenId: "member.new", messageId: "message.1" }, auth, "verify.1");
