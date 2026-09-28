@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TableColumn } from "@nuxt/ui";
-import type { AdminVerifiedRun, AdminVerifiedRunCorrectionChanges, AdminVerifiedRunCorrectionResponse, AdminVerifiedRunDetail, AdminVerifiedRunProjection } from "~/composables/useAdminApi";
+import type { AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunStateResponse } from "@owbastion/contracts";
+import type { AdminVerifiedRun, AdminVerifiedRunCorrectionChanges, AdminVerifiedRunCorrectionResponse, AdminVerifiedRunDetail } from "~/composables/useAdminApi";
 import { createRequestId } from "~/utils/request-id";
 import { portalErrorDetails } from "~/utils/portal-error";
 
@@ -10,7 +11,7 @@ useSeoMeta({ title: "通关记录 · 躲避堡垒 3" });
 type PendingAction =
   | { kind: "state"; action: "invalidate" | "restore" }
   | { kind: "conflict"; submissionId: string; action: "keep_existing" | "invalidate_existing" };
-type VerifiedRunActionResponse = { contractVersion: "1"; run: AdminVerifiedRun; projection: AdminVerifiedRunProjection };
+type VerifiedRunActionResponse = AdminVerifiedRunStateResponse | AdminVerifiedRunConflictResolutionResponse;
 
 const api = useAdminApi();
 const toast = useToast();
