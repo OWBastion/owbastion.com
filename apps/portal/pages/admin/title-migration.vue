@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { useDebounceFn } from "@vueuse/core";
+import type {
+  AdminPlayerListResponse,
+  AdminTitleGrantBulkResponse,
+  AdminTitleGrantHolderDetailResponse,
+  AdminTitleGrantListResponse,
+  HistoricalTitleGrant,
+} from "@owbastion/contracts";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "称号迁移 · 躲避堡垒 3" });
 
-type Grant = { grantId: string; titleKey: string; label: string; category: string; scope: "global" | "map"; mapName?: string; holderName: string; playerAccountId?: string; playerName?: string; playerId?: string; status: "unclaimed" | "active" | "revoked"; revokeReason?: string };
-type Player = { playerAccountId: string; playerName: string; playerId: string };
-type HolderSummary = { holderName: string; totalCount: number; unclaimedCount: number; status: "pending" | "completed" };
+type Grant = HistoricalTitleGrant;
+type Player = Pick<AdminPlayerListResponse["items"][number], "playerAccountId" | "playerName" | "playerId">;
+type HolderSummary = AdminTitleGrantListResponse["holders"][number];
 type HolderDetail = HolderSummary & { grants: Grant[]; grantPage: number; grantPageSize: number; grantTotal: number; grantHasMore: boolean };
-type MigrationStats = { pendingHolderCount: number; unclaimedGrantCount: number; migratedGrantCount: number };
-type HolderListResponse = { holders: HolderSummary[]; page: number; pageSize: number; total: number; hasMore: boolean; filter: "all" | "pending" | "completed"; stats: MigrationStats };
-type HolderDetailResponse = { holder: HolderSummary; items: Grant[]; page: number; pageSize: number; total: number; hasMore: boolean };
-type BulkPreviewGrant = { grantId: string; label: string; mapName?: string };
+type HolderListResponse = AdminTitleGrantListResponse;
+type HolderDetailResponse = AdminTitleGrantHolderDetailResponse;
+type BulkPreviewGrant = Pick<Grant, "grantId" | "label" | "mapName">;
 
 const toast = useToast();
 const api = useAdminApi();
@@ -33,7 +39,7 @@ const playerTotal = shallowRef(0);
 
 const selectedHolderName = shallowRef("");
 const selectedHolder = shallowRef<HolderDetail | null>(null);
-const filter = shallowRef<"all" | "pending" | "completed">("all");
+const filter = shallowRef<AdminTitleGrantListResponse["filter"]>("all");
 const page = shallowRef(1);
 const pageSize = 20;
 const total = shallowRef(0);
@@ -64,7 +70,7 @@ const holderData = useAdminAsyncData("title-migration-holders", () => api<Holder
 });
 const loading = holderData.loading;
 const playerData = useAdminAsyncData("title-migration-players", async () => {
-  const response = await api<{ items: Player[]; total: number; hasMore: boolean; page: number; pageSize: number }>(
+  const response = await api<AdminPlayerListResponse>(
     `/v1/player-accounts?query=${encodeURIComponent(settledPlayerQuery.value.trim())}&page=${playerPage.value}&pageSize=${playerPageSize}`,
   );
   const items = playerPage.value > 1
@@ -256,7 +262,7 @@ async function grantAll() {
   errorMessage.value = "";
   detailError.value = "";
   try {
-    const result = await api<{ grantedCount: number; skippedClaimedCount?: number }>("/v1/title-grants/bulk", {
+    const result = await api<AdminTitleGrantBulkResponse>("/v1/title-grants/bulk", {
       method: "POST",
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", holderName: holder.holderName, playerAccountId: player.playerAccountId },
