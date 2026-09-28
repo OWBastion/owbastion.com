@@ -11,7 +11,7 @@ describe("AdminDataTable mobile action menu", () => {
     wrapper = undefined;
   });
 
-  const mountTable = async () => {
+  const mountTable = async (mobileRowAction?: (row: { id: string; name: string; status: string }) => void) => {
     const revoke = vi.fn();
     wrapper = mount(AdminDataTable, {
       props: {
@@ -28,6 +28,7 @@ describe("AdminDataTable mobile action menu", () => {
         empty: "暂无记录。",
         tableKey: "mobile-menu",
         rowKey: "id",
+        mobileRowAction,
       },
       slots: {
         "actions-cell": ({ row }: { row: { original: { id: string } } }) =>
@@ -60,5 +61,14 @@ describe("AdminDataTable mobile action menu", () => {
     expect(action).toBeTruthy();
     action!.click();
     expect(revoke).toHaveBeenCalledOnce();
+  });
+
+  it("runs the mobile row action when its record is tapped", async () => {
+    const mobileRowAction = vi.fn();
+    await mountTable(mobileRowAction);
+
+    await wrapper!.get("button.admin-data-table__mobile-primary-link").trigger("click");
+
+    expect(mobileRowAction).toHaveBeenCalledExactlyOnceWith({ id: "record-a", name: "第一条", status: "待处理" });
   });
 });

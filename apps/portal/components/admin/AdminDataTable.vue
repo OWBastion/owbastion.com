@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
               :class="props.mobileRowLink || props.mobileRowAction ? 'admin-data-table__mobile-primary-link pressable-soft' : 'admin-data-table__mobile-primary'"
               :to="props.mobileRowLink?.(item)"
               :type="props.mobileRowAction && !props.mobileRowLink ? 'button' : undefined"
-              @click="!props.mobileRowLink && props.mobileRowAction ? () => props.mobileRowAction?.(item) : undefined"
+              @click="!props.mobileRowLink && props.mobileRowAction ? props.mobileRowAction(item) : undefined"
             >
               <div :class="{ 'admin-data-table__mobile-primary': Boolean(props.mobileRowLink || props.mobileRowAction) }">
                 <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
