@@ -1,4 +1,4 @@
-import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne, lte, notExists, sql, asc } from "drizzle-orm";
+import { count, desc, eq, and, gt, gte, or, inArray, isNull, isNotNull, ne, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
