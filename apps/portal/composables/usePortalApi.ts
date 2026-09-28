@@ -1,85 +1,36 @@
+import type {
+  CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
+  Map,
+  PlayerChallengeProgress as ContractPlayerChallengeProgress,
+  PlayerChallengeProgressListResponse as ContractPlayerChallengeProgressListResponse,
+  PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
+  PlayerSubmissionStatus,
+  PlayerVerifiedRun as ContractPlayerVerifiedRun,
+  VerifiedRunDifficulty as ContractVerifiedRunDifficulty,
+} from "@owbastion/contracts";
 import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
 import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = "processing" | "needs_review" | "completed" | "rejected";
+export type SubmissionStatus = PlayerSubmissionStatus;
 
 export type VerifiedRunSubmissionOutcome = {
   status: "created" | "reused" | "ineligible" | "invalidated";
   awardedXp: number;
 };
 
-export type VerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
+export type VerifiedRunDifficulty = ContractVerifiedRunDifficulty;
 
-export type PlayerVerifiedRun = {
-  runId: string;
-  mapId: string;
-  gameplayRevisionId: string;
-  gameplayRevisionLifecycle: "preparing" | "default" | "selectable" | "historical";
-  mapVariant: "classic" | null;
-  difficulty: VerifiedRunDifficulty;
-  completionDurationSeconds: number;
-  deaths: number | null;
-  skips: number | null;
-  awardedXp: number;
-  acceptedAt: number;
-  status: "active" | "invalidated";
-};
+export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 
-export type PlayerMasteryMapProfile = {
-  mapId: string;
-  gameplayRevisionId: string;
-  gameplayRevisionLifecycle: "preparing" | "default" | "selectable" | "historical";
-  totalXp: number;
-  verifiedRunCount: number;
-  difficultyStats: Array<{ difficulty: VerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
-  lowestDeaths: number | null;
-  fewestSkips: number | null;
-  highestSingleRunXp: number | null;
-  highestCompletedDifficulty: VerifiedRunDifficulty | null;
-  recentRuns: PlayerVerifiedRun[];
-};
+export type PlayerMasteryMapProfile = ContractPlayerMasteryMapProfile;
 
-export type PortalMap = {
-  mapId: string;
-  mapName: string;
-  defaultGameplayRevisionId?: string | null;
-};
+export type PortalMap = Pick<Map, "mapId" | "mapName" | "defaultGameplayRevisionId">;
 
-export type AchievementProgressRule = {
-  type: "required_maps_completed";
-  mapIds: string[];
-  difficultyAtLeast?: string;
-};
+export type PlayerChallengeProgress = ContractPlayerChallengeProgress;
 
-export type PlayerChallengeProgress = {
-  challengeId: string;
-  titleKey: string;
-  titleName: string;
-  icon: string;
-  iconUrl?: string | null;
-  status: "scheduled" | "active" | "sunsetting";
-  startsAt?: number;
-  endsAt?: number;
-  progressRule: AchievementProgressRule;
-  maps: Array<{ mapId: string; completed: boolean }>;
-  completedMaps: number;
-  satisfied: boolean;
-};
+export type PlayerChallengeProgressListResponse = ContractPlayerChallengeProgressListResponse;
 
-export type PlayerChallengeProgressListResponse = {
-  contractVersion: "1";
-  items: PlayerChallengeProgress[];
-};
-
-export type CurrentPlayerMasteryResponse = {
-  contractVersion: "1";
-  profiles: PlayerMasteryMapProfile[];
-  runs: PlayerVerifiedRun[];
-  page: number;
-  pageSize: number;
-  total: number;
-  hasMore: boolean;
-};
+export type CurrentPlayerMasteryResponse = ContractCurrentPlayerMasteryResponse;
 
 export type PlayerActivityDay = { date: string; runCount: number };
 
