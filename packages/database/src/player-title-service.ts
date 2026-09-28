@@ -5,7 +5,7 @@ import type { AdminManualTitleGrantRequest, AdminManualTitleGrantTarget, AdminMa
 import { auditEvents, challengeCompletions, challenges, gameplayRevisions, historicalTitleGrants, idempotencyKeys, maps, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, titleCatalog } from "./schema";
 import type { resolvePortalSession } from "./portal-session";
 
-type ManualTitleGrantResolution = {
+export type ManualTitleGrantResolution = {
   title: { key: string; label: string; scope: string; lifecycle: string };
   mapId: string | null;
   gameplayRevisionId: string | null;
