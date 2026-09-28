@@ -389,6 +389,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .invite-result__identity { display: grid; min-width: 0; gap: var(--space-1); }
 .invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); }
 .invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
+.field-hint {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+  color: var(--quiet);
+}
+.field-error {
+  margin: 0.375rem 0 0;
+  color: var(--danger);
+  font-size: var(--type-caption-size);
+  line-height: 1.4;
+}
 @container (max-width: 23.99rem) {
   .invite-panel__header, .invite-panel__actions, .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }
   .invite-panel__actions button, .batch-invites__actions button, .invite-result button { width: 100%; justify-content: center; }

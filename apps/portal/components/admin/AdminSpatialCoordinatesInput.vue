@@ -446,13 +446,6 @@ async function copyCoordinate(pos: Vector) {
   margin: 0;
 }
 
-.field-hint {
-  margin: 0;
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-  color: var(--quiet);
-}
-
 .spatial-error-alert {
   margin-top: 0.25rem;
 }
