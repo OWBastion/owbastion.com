@@ -569,6 +569,37 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     endsAt: number | null;
   };
 
+  const toMapTitleRuleSnapshot = (
+    rule: typeof mapTitleRules.$inferSelect,
+    mapId: string,
+    revision: typeof gameplayRevisions.$inferSelect,
+    assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect | undefined,
+    exception: typeof mapTitleRuleExceptions.$inferSelect | undefined,
+    eligibilityAt: number,
+  ): MapTitleRuleSnapshot | null => {
+    if (!assignment || assignment.enabled === 0 || rule.status === "inactive") return null;
+    const pioneer = rule.kind.trim().toLocaleLowerCase() === "pioneer";
+    if (pioneer && (rule.defaultScope !== "explicit" || !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt))) return null;
+    const activeException = exception?.enabled === 1 ? exception : null;
+    return {
+      ruleId: rule.id,
+      ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
+      mapId,
+      gameplayRevisionId: revision.id,
+      titleKey: rule.titleKey,
+      mapVariant: (rule.mapVariant as "classic" | null) ?? null,
+      slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
+      displayKind: rule.displayKind,
+      condition: activeException?.condition ?? assignment.condition ?? rule.condition,
+      evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
+      submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
+      defaultScope: rule.defaultScope,
+      exceptionId: activeException?.id ?? null,
+      startsAt: activeException?.startsAt ?? null,
+      endsAt: activeException?.endsAt ?? null,
+    };
+  };
+
   const selectGameplayRevision = async (input: {
     mapId: string;
     mapVariant: "classic" | null;
@@ -631,10 +662,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
     // Load the rule.
     const rule = await db.select().from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get();
-    if (!rule || rule.status === "inactive") return null;
-    // Pioneer is a time-limited map event. It must never inherit to every
-    // active map, including while an older database is being migrated.
-    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") return null;
+    if (!rule) return null;
 
     const mapVariant = (rule.mapVariant as "classic" | null) ?? null;
     const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "map_title_rule", challengeId: rule.id, gameplayRevisionId });
@@ -643,25 +671,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const exception = await db.select().from(mapTitleRuleExceptions)
       .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
       .get();
-    if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt)) return null;
-    const activeException = exception?.enabled === 1 ? exception : null;
-    return {
-      ruleId: rule.id,
-      ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
-      mapId,
-      gameplayRevisionId: revision.id,
-      titleKey: rule.titleKey,
-      mapVariant,
-      slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
-      displayKind: rule.displayKind,
-      condition: activeException?.condition ?? assignment.condition ?? rule.condition,
-      evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
-      submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
-      defaultScope: rule.defaultScope,
-      exceptionId: activeException?.id ?? null,
-      startsAt: activeException?.startsAt ?? null,
-      endsAt: activeException?.endsAt ?? null,
-    };
+    return toMapTitleRuleSnapshot(rule, mapId, revision, assignment, exception, eligibilityAt);
   };
 
   // Resolve a compat-mapped legacy challenge ID through the rule model.
@@ -691,56 +701,44 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return resolveMapTitleProjection(target.ruleId, target.mapId, gameplayRevisionId, eligibilityAt);
   };
 
+  const toTitleChallengeSnapshot = (
+    challenge: typeof titleChallenges.$inferSelect,
+    title: typeof titleCatalog.$inferSelect,
+    mapId: string | null,
+    gameplayRevisionId: string | null,
+    assignment?: typeof gameplayRevisionChallengeAssignments.$inferSelect,
+  ): MapTitleRuleSnapshot => ({
+    challengeId: challenge.id,
+    challengeType: mapId ? "map_title_achievement" : "title_achievement",
+    ruleId: `title-challenge:${challenge.id}`,
+    ruleRevision: assignment ? Math.max(challenge.updatedAt, assignment.updatedAt) : challenge.updatedAt,
+    mapId,
+    gameplayRevisionId,
+    titleKey: title.key,
+    mapVariant: (challenge.mapVariant as "classic" | null) ?? null,
+    slot: assignment?.slot ?? null,
+    displayKind: title.displayKind,
+    condition: assignment?.condition ?? challenge.condition,
+    evidenceRule: assignment?.evidenceRule ?? challenge.evidenceRule,
+    submissionMode: assignment?.submissionMode ?? challenge.submissionMode,
+    defaultScope: challenge.scope ?? (mapId ? "map" : "global"),
+    exceptionId: null,
+    startsAt: null,
+    endsAt: null,
+  });
+
   const snapshotTitleChallenge = async (
     challenge: typeof titleChallenges.$inferSelect,
     title: typeof titleCatalog.$inferSelect,
     mapId: string | null,
     gameplayRevisionId?: string | null,
   ): Promise<MapTitleRuleSnapshot | null> => {
+    if (!mapId) return toTitleChallengeSnapshot(challenge, title, null, null);
     const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
-    if (!mapId) {
-      return {
-        challengeId: challenge.id,
-        challengeType: "title_achievement",
-        ruleId: `title-challenge:${challenge.id}`,
-        ruleRevision: challenge.updatedAt,
-        mapId: null,
-        gameplayRevisionId: null,
-        titleKey: title.key,
-        mapVariant,
-        slot: null,
-        displayKind: title.displayKind,
-        condition: challenge.condition,
-        evidenceRule: challenge.evidenceRule,
-        submissionMode: challenge.submissionMode,
-        defaultScope: challenge.scope ?? "global",
-        exceptionId: null,
-        startsAt: null,
-        endsAt: null,
-      };
-    }
     const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "title_challenge", challengeId: challenge.id, gameplayRevisionId });
     if (!resolved) return null;
     const { revision, assignment } = resolved;
-    return {
-      challengeId: challenge.id,
-      challengeType: "map_title_achievement",
-      ruleId: `title-challenge:${challenge.id}`,
-      ruleRevision: Math.max(challenge.updatedAt, assignment.updatedAt),
-      mapId,
-      gameplayRevisionId: revision.id,
-      titleKey: title.key,
-      mapVariant,
-      slot: assignment.slot ?? null,
-      displayKind: title.displayKind,
-      condition: assignment.condition ?? challenge.condition,
-      evidenceRule: assignment.evidenceRule ?? challenge.evidenceRule,
-      submissionMode: assignment.submissionMode ?? challenge.submissionMode,
-      defaultScope: challenge.scope ?? "map",
-      exceptionId: null,
-      startsAt: null,
-      endsAt: null,
-    };
+    return toTitleChallengeSnapshot(challenge, title, mapId, revision.id, assignment);
   };
 
   type ManualTitleGrantResolution = {
@@ -1887,6 +1885,22 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     revision: typeof gameplayRevisions.$inferSelect;
   };
 
+  const verifiedRunCorrectionSnapshot = (run: VerifiedRun): AdminVerifiedRunDetailResponse["corrections"][number]["before"] => ({
+    mapId: run.mapId,
+    gameplayRevisionId: run.gameplayRevisionId,
+    mapVariant: run.mapVariant,
+    difficulty: run.difficulty,
+    gameVersion: run.gameVersion,
+    matchCode: run.matchCode,
+    completionDurationSeconds: run.completionDurationSeconds,
+    deaths: run.deaths,
+    skips: run.skips,
+    eventCounters: run.eventCounters,
+    xpRuleVersion: run.xpRuleVersion,
+    xpInputSnapshot: run.xpInputSnapshot,
+    awardedXp: run.awardedXp,
+  });
+
   const asAdminVerifiedRun = (row: AdminVerifiedRunJoin, conflictCount: number): AdminVerifiedRun => {
     const run = asVerifiedRun(row.run);
     return {
@@ -1895,18 +1909,9 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       playerId: row.player.playerId,
       playerName: row.player.playerName,
       sourceSubmissionId: run.sourceSubmissionId,
-      mapId: run.mapId,
+      ...verifiedRunCorrectionSnapshot(run),
       mapName: row.map.name,
-      gameplayRevisionId: run.gameplayRevisionId,
       gameplayRevisionLifecycle: masteryRevisionLifecycle(row.revision.lifecycle),
-      mapVariant: run.mapVariant,
-      difficulty: run.difficulty,
-      gameVersion: run.gameVersion,
-      matchCode: run.matchCode,
-      completionDurationSeconds: run.completionDurationSeconds,
-      deaths: run.deaths,
-      skips: run.skips,
-      eventCounters: run.eventCounters,
       acceptanceSource: run.acceptanceSource,
       acceptedAt: run.acceptedAt,
       status: run.status,
@@ -1998,22 +2003,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       };
     });
   };
-
-  const verifiedRunCorrectionSnapshot = (run: VerifiedRun): AdminVerifiedRunDetailResponse["corrections"][number]["before"] => ({
-    mapId: run.mapId,
-    gameplayRevisionId: run.gameplayRevisionId,
-    mapVariant: run.mapVariant,
-    difficulty: run.difficulty,
-    gameVersion: run.gameVersion,
-    matchCode: run.matchCode,
-    completionDurationSeconds: run.completionDurationSeconds,
-    deaths: run.deaths,
-    skips: run.skips,
-    eventCounters: run.eventCounters,
-    xpRuleVersion: run.xpRuleVersion,
-    xpInputSnapshot: run.xpInputSnapshot,
-    awardedXp: run.awardedXp,
-  });
 
   const loadAdminVerifiedRunDetail = async (verifiedRunId: string): Promise<AdminVerifiedRunDetailResponse | null> => {
     const loaded = await loadAdminVerifiedRun(verifiedRunId);
@@ -2319,33 +2308,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     for (const candidate of ruleCandidates) {
       if (mapStatusById.get(candidate.mapId) !== "active") continue;
       const rule = ruleById.get(candidate.ruleId);
-      if (!rule || rule.status === "inactive") continue;
-      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && rule.defaultScope !== "explicit") continue;
+      if (!rule) continue;
       const revision = revisionById.get(candidate.gameplayRevisionId);
       if (!revision || revision.mapId !== candidate.mapId) continue;
       const assignment = assignmentByKey.get(`${revision.id}:${candidate.mapId}:map_title_rule:${rule.id}`);
       const exception = exceptionByKey.get(`${rule.id}:${candidate.mapId}`);
-      if (!assignment || assignment.enabled === 0) continue;
-      if (rule.kind.trim().toLocaleLowerCase() === "pioneer" && !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt)) continue;
-      const activeException = exception?.enabled === 1 ? exception : null;
-      const mapVariant = (rule.mapVariant as "classic" | null) ?? null;
-      results[candidate.index] = {
-        ruleId: rule.id,
-        ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
-        mapId: candidate.mapId,
-        gameplayRevisionId: revision.id,
-        titleKey: rule.titleKey,
-        mapVariant,
-        slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
-        displayKind: rule.displayKind,
-        condition: activeException?.condition ?? assignment.condition ?? rule.condition,
-        evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
-        submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
-        defaultScope: rule.defaultScope,
-        exceptionId: activeException?.id ?? null,
-        startsAt: activeException?.startsAt ?? null,
-        endsAt: activeException?.endsAt ?? null,
-      };
+      const snapshot = toMapTitleRuleSnapshot(rule, candidate.mapId, revision, assignment, exception, eligibilityAt);
+      if (snapshot) results[candidate.index] = snapshot;
     }
 
     for (const candidate of legacyMapCandidates) {
@@ -2356,26 +2325,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         if (!revision || revision.mapId !== candidate.mapId) continue;
         const assignment = assignmentByKey.get(`${revision.id}:${candidate.mapId}:title_challenge:${challenge.id}`);
         if (!assignment || assignment.enabled === 0) continue;
-        const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
-        results[candidate.index] = {
-          challengeId: challenge.id,
-          challengeType: "map_title_achievement",
-          ruleId: `title-challenge:${challenge.id}`,
-          ruleRevision: Math.max(challenge.updatedAt, assignment.updatedAt),
-          mapId: candidate.mapId,
-          gameplayRevisionId: revision.id,
-          titleKey: title.key,
-          mapVariant,
-          slot: assignment.slot ?? null,
-          displayKind: title.displayKind,
-          condition: assignment.condition ?? challenge.condition,
-          evidenceRule: assignment.evidenceRule ?? challenge.evidenceRule,
-          submissionMode: assignment.submissionMode ?? challenge.submissionMode,
-          defaultScope: challenge.scope ?? "map",
-          exceptionId: null,
-          startsAt: null,
-          endsAt: null,
-        };
+        results[candidate.index] = toTitleChallengeSnapshot(challenge, title, candidate.mapId, revision.id, assignment);
         continue;
       }
       const achievementChallengeRow = achievementChallengeById.get(candidate.challengeId);
@@ -2412,26 +2362,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const row = titleChallengeById.get(candidate.challengeId);
       if (!row) continue;
       const { challenge, title } = row;
-      const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
-      results[candidate.index] = {
-        challengeId: challenge.id,
-        challengeType: "title_achievement",
-        ruleId: `title-challenge:${challenge.id}`,
-        ruleRevision: challenge.updatedAt,
-        mapId: null,
-        gameplayRevisionId: null,
-        titleKey: title.key,
-        mapVariant,
-        slot: null,
-        displayKind: title.displayKind,
-        condition: challenge.condition,
-        evidenceRule: challenge.evidenceRule,
-        submissionMode: challenge.submissionMode,
-        defaultScope: challenge.scope ?? "global",
-        exceptionId: null,
-        startsAt: null,
-        endsAt: null,
-      };
+      results[candidate.index] = toTitleChallengeSnapshot(challenge, title, null, null);
     }
 
     return results;

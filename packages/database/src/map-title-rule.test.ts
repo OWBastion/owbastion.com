@@ -1710,9 +1710,17 @@ describe("map title rule model – locked invariants", () => {
       seedMap(sqlite, "map.paris");
       seedTitle(sqlite, "PIONEER");
       seedRule(sqlite, "rule.pioneer", "PIONEER", "pioneer", { slot: "pioneer", defaultScope: "all_active" });
+      seedException(sqlite, "exception.pioneer", "rule.pioneer", "map.paris", { startsAt: now - 60_000, endsAt: now + 60_000 });
+      const playerAccountId = "11111111-1111-4111-8111-111111111111";
+      sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES (?, '1001', 'Pioneer Player', 'pioneer player', ?, ?)").run(playerAccountId, now, now);
       const services = createPlatformServices(database);
       const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
+      await expect(services.createAdminManualTitleGrantBatch({
+        contractVersion: "1",
+        playerAccountIds: [playerAccountId],
+        targets: [{ titleKey: "PIONEER", mapId: "map.paris" }],
+      }, auth, "pioneer-default-scope")).rejects.toThrow("TITLE_MAP_REWARD_NOT_CONFIGURED");
       await expect(services.listChallenges({ family: "map" })).resolves.not.toContainEqual(expect.objectContaining({ titleKey: "PIONEER", mapId: "map.paris" }));
 
       sqlite.prepare("UPDATE map_title_rules SET default_scope = 'explicit' WHERE id = 'rule.pioneer'").run();
