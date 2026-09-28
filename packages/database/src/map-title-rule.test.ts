@@ -111,7 +111,7 @@ describe("Agents map gameplay projection", () => {
     });
   });
 
-  it("does not reference an expired Pioneer rule in the map projection", async () => {
+  it("preserves expired Pioneer assignments during unrelated Revision updates", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
     seedMap(sqlite, "map.expired-pioneer");
@@ -122,6 +122,24 @@ describe("Agents map gameplay projection", () => {
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, created_at, updated_at) VALUES ('player.expired-pioneer', '1003', 'Expired Pioneer', 'expired pioneer', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at) VALUES ('grant.expired-pioneer', 'player.expired-pioneer', 'PIONEER', 'map.expired-pioneer', 'revision:map.expired-pioneer:initial', 'pioneer', 'active', 'submission', 'submission.expired-pioneer', 'admin', ?)").run(now);
     const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const editor = await services.getAdminMapEditor({ mapId: "map.expired-pioneer" }, auth);
+    const revision = editor.revisions[0]!;
+    const assignments = revision.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _gameplayRevisionId, mapId: _mapId, ...assignment }) => assignment);
+    const update = (challengeAssignments: typeof assignments) => ({
+      contractVersion: "1" as const,
+      mapId: "map.expired-pioneer",
+      revisionId: revision.revisionId,
+      lifecycle: revision.lifecycle,
+      gameVersion: revision.gameVersion,
+      mapVariant: revision.mapVariant,
+      spatialConfig: { ...revision.spatialConfig!, resetPosition: [14, 15, 16] as const },
+      challengeAssignments,
+    });
+
+    const updated = await services.updateAdminMapRevision(update(assignments), auth, "expired-pioneer-spatial-update");
+    expect(updated.spatialConfig?.resetPosition).toEqual([14, 15, 16]);
+    expect(updated.challengeAssignments.map(({ assignmentId: _assignmentId, gameplayRevisionId: _gameplayRevisionId, mapId: _mapId, ...assignment }) => assignment)).toEqual(assignments);
 
     const map = (await services.getAgentMap({ mapId: "map.expired-pioneer" }))!;
     expect(map.gameplayRevisions[0]?.challengeRefs).toEqual([]);
@@ -129,6 +147,29 @@ describe("Agents map gameplay projection", () => {
     await expect(services.listAgentMapTitleHolders({ mapId: "map.expired-pioneer", page: 1, pageSize: 20 })).resolves.toMatchObject({
       items: [expect.objectContaining({ titleKey: "PIONEER", gameplayRevisionId: "revision:map.expired-pioneer:initial" })],
     });
+
+    const modifiedAssignments = assignments.map((assignment) => assignment.challengeId === "rule.pioneer.expired"
+      ? { ...assignment, condition: "Modified historical assignment" }
+      : assignment);
+    await expect(services.updateAdminMapRevision(update(modifiedAssignments), auth, "expired-pioneer-modified-assignment"))
+      .rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+
+    sqlite.prepare("UPDATE gameplay_revision_challenge_assignments SET enabled = 0 WHERE gameplay_revision_id = ? AND challenge_id = ?")
+      .run(revision.revisionId, "rule.pioneer.expired");
+    const disabledEditor = await services.getAdminMapEditor({ mapId: "map.expired-pioneer" }, auth);
+    const disabledAssignments = disabledEditor.revisions[0]!.challengeAssignments
+      .map(({ assignmentId: _assignmentId, gameplayRevisionId: _gameplayRevisionId, mapId: _mapId, ...assignment }) => assignment);
+    await expect(services.updateAdminMapRevision(update(disabledAssignments.map((assignment) => ({ ...assignment, enabled: true }))), auth, "expired-pioneer-enable-assignment"))
+      .rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
+
+    await expect(services.createAdminMapRevision({
+      contractVersion: "1",
+      mapId: "map.expired-pioneer",
+      gameVersion: "2026.09.28",
+      mapVariant: null,
+      copyConfiguration: false,
+      challengeAssignments: assignments,
+    }, auth, "expired-pioneer-create-assignment")).rejects.toThrow("REVISION_CHALLENGE_NOT_ASSIGNABLE");
   });
 });
 
