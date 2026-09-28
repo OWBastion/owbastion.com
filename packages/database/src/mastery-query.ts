@@ -1,6 +1,6 @@
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { buildMasteryProfiles, normalizeMatchCode } from "@owbastion/domain";
+import { buildMasteryProfiles, normalizeMatchCode, verifiedRunProjection } from "@owbastion/domain";
 import type {
   MasteryMapProfile,
   VerifiedRun,
@@ -145,34 +145,21 @@ export const activeMasteryProfiles = async (db: Database, input: { playerAccount
   return buildMasteryProfiles(runs.map(({ run }) => run), recentLimit);
 };
 
-export const playerVerifiedRunView = (run: VerifiedRunForProjection, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["runs"][number] => ({
-  runId: run.runId,
-  mapId: run.mapId,
-  gameplayRevisionId: run.gameplayRevisionId,
-  gameplayRevisionLifecycle,
-  mapVariant: run.mapVariant,
-  difficulty: run.difficulty,
-  completionDurationSeconds: run.completionDurationSeconds,
-  deaths: run.deaths,
-  skips: run.skips,
-  awardedXp: run.awardedXp,
-  acceptedAt: run.acceptedAt,
-  status: run.status,
-});
+export const playerVerifiedRunView = (run: VerifiedRunForProjection, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["runs"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["runs"][number] => {
+  const { runId, mapId, gameplayRevisionId, ...projection } = verifiedRunProjection(run);
+  return { runId, mapId, gameplayRevisionId, gameplayRevisionLifecycle, ...projection };
+};
 
-export const playerMasteryProfileView = (profile: MasteryMapProfile, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["profiles"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["profiles"][number] => ({
-  mapId: profile.mapId,
-  gameplayRevisionId: profile.gameplayRevisionId,
-  gameplayRevisionLifecycle,
-  totalXp: profile.totalXp,
-  verifiedRunCount: profile.verifiedRunCount,
-  difficultyStats: profile.difficultyStats,
-  lowestDeaths: profile.lowestDeaths,
-  fewestSkips: profile.fewestSkips,
-  highestSingleRunXp: profile.highestSingleRunXp,
-  highestCompletedDifficulty: profile.highestCompletedDifficulty,
-  recentRuns: profile.recentRuns.map((run) => playerVerifiedRunView(run, gameplayRevisionLifecycle)),
-});
+export const playerMasteryProfileView = (profile: MasteryMapProfile, gameplayRevisionLifecycle: CurrentPlayerMasteryResponse["profiles"][number]["gameplayRevisionLifecycle"]): CurrentPlayerMasteryResponse["profiles"][number] => {
+  const { mapId, gameplayRevisionId, recentRuns, ...statistics } = profile;
+  return {
+    mapId,
+    gameplayRevisionId,
+    gameplayRevisionLifecycle,
+    ...statistics,
+    recentRuns: recentRuns.map((run) => playerVerifiedRunView(run, gameplayRevisionLifecycle)),
+  };
+};
 
 export const findConflictingVerifiedRun = (db: Database, input: { playerAccountId: string; matchCode: string; exceptRunId: string; activeOnly?: boolean }) =>
   db.select({ id: verifiedRuns.id }).from(verifiedRuns).where(and(

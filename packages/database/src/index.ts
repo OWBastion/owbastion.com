@@ -2515,31 +2515,10 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   const adminMasteryProjection = async (input: { playerAccountId: string; mapId: string; gameplayRevisionId: string }): Promise<AdminVerifiedRunProjection> => {
-    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0];
-    if (!profile) {
-      return {
-        mapId: input.mapId,
-        gameplayRevisionId: input.gameplayRevisionId,
-        totalXp: 0,
-        verifiedRunCount: 0,
-        difficultyStats: [],
-        lowestDeaths: null,
-        fewestSkips: null,
-        highestSingleRunXp: null,
-        highestCompletedDifficulty: null,
-      };
-    }
-    return {
-      mapId: profile.mapId,
-      gameplayRevisionId: profile.gameplayRevisionId,
-      totalXp: profile.totalXp,
-      verifiedRunCount: profile.verifiedRunCount,
-      difficultyStats: profile.difficultyStats,
-      lowestDeaths: profile.lowestDeaths,
-      fewestSkips: profile.fewestSkips,
-      highestSingleRunXp: profile.highestSingleRunXp,
-      highestCompletedDifficulty: profile.highestCompletedDifficulty,
-    };
+    const profile = (await activeMasteryProfiles(db, { playerAccountId: input.playerAccountId, mapId: input.mapId, gameplayRevisionId: input.gameplayRevisionId, recentLimit: 10 }))[0]
+      ?? buildMasteryMapProfile(input.mapId, input.gameplayRevisionId, [], 0);
+    const { recentRuns: _recentRuns, ...projection } = profile;
+    return projection;
   };
 
   const masteryConflictFacts = (responseJson: string | null): AdminVerifiedRunConflict["facts"] => {
