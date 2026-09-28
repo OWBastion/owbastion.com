@@ -73,6 +73,24 @@ describe("invitation binding flow", () => {
     expect(sqlite.prepare("SELECT operation, payload_json FROM audit_events WHERE operation = 'admin.player.identity.update'").get()).toMatchObject({ operation: "admin.player.identity.update" });
   });
 
+  it("keeps one active QQ group when access is moved to another group", async () => {
+    const { database, sqlite } = createD1();
+    const timestamp = Date.now();
+    sqlite.exec("CREATE TABLE qq_group_policy_outbox (id TEXT PRIMARY KEY, request_id TEXT, created_at INTEGER NOT NULL, enqueued_at INTEGER, delivered_at INTEGER)");
+    sqlite.prepare("INSERT INTO qq_group_access (group_open_id, display_name, environment, status, bind_enabled, verify_enabled, lifecycle_occurred_at, created_at, updated_at) VALUES ('group.old', 'Old', 'production', 'active', 1, 1, ?, ?, ?)").run(timestamp, timestamp, timestamp);
+    const services = createPlatformServices(database);
+
+    await services.upsertQqGroupAccess({ contractVersion: "1", groupOpenId: "group.new", displayName: "New", environment: "production", status: "active", bindEnabled: true, verifyEnabled: true }, auth, "group-access.new");
+
+    expect(sqlite.prepare("SELECT group_open_id, display_name, status, bind_enabled, verify_enabled FROM qq_group_access ORDER BY group_open_id").all()).toEqual([
+      { group_open_id: "group.new", display_name: "New", status: "active", bind_enabled: 1, verify_enabled: 1 },
+      { group_open_id: "group.old", display_name: "Old", status: "legacy", bind_enabled: 0, verify_enabled: 0 },
+    ]);
+    expect(sqlite.prepare("SELECT operation FROM idempotency_keys WHERE operation = 'qq.group_access.update'").get()).toEqual({ operation: "qq.group_access.update" });
+    expect(sqlite.prepare("SELECT operation FROM audit_events WHERE operation = 'qq.group_access.update'").get()).toEqual({ operation: "qq.group_access.update" });
+    expect(sqlite.prepare("SELECT COUNT(*) AS count FROM qq_group_policy_outbox").get()).toEqual({ count: 1 });
+  });
+
   it("migrates only explicitly authorized historical titles after a clean binding", async () => {
     const { database, sqlite } = createD1();
     const now = Date.now();
