@@ -1675,6 +1675,7 @@ export type PlayerChallengeProgressListResponse = z.infer<typeof playerChallenge
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type PlayerActivityDay = z.infer<typeof playerActivityDaySchema>;
 export type PlayerActivityResponse = z.infer<typeof playerActivityResponseSchema>;
+export type PlayerEquippedTitlesResponse = z.infer<typeof playerEquippedTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
 export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
