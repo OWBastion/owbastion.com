@@ -5,7 +5,7 @@ import {
   reviewTargetTypeSchema,
 } from "@owbastion/contracts";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import { isUuid, parseBody, type ApiApp, type ApiContext, type AdminRouteDependencies, type ServiceAccessor } from "./route-contract";
+import { isUuid, parseBody, type ApiApp, type ApiContext, type AdminRouteDependencies, type ErrorStatus, type ServiceAccessor } from "./route-contract";
 
 type Player = NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>;
 type PlayerAccess = { error?: Response; sessionToken?: string; player?: Player };
@@ -14,6 +14,41 @@ type ReviewRouteDependencies = Pick<AdminRouteDependencies, "errorResponse"> & {
   allowPortal: (c: ApiContext) => void;
   requirePortalPlayer: (c: ApiContext) => Promise<PlayerAccess>;
   logServiceOperation: <T>(c: ApiContext, operation: string, action: () => Promise<T>) => Promise<T>;
+};
+type ReviewErrorMap = Partial<Record<string, { status: ErrorStatus; message: string; responseCode?: string }>>;
+
+const playerReviewReadErrors = {
+  PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
+  REVIEW_TARGET_NOT_FOUND: { status: 404, message: "The review target does not exist" },
+} satisfies ReviewErrorMap;
+
+const playerReviewUpsertErrors = {
+  PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
+  PLAYER_BANNED: { status: 403, message: "The player account is banned" },
+  REVIEW_TARGET_NOT_FOUND: { status: 404, message: "The review target does not exist" },
+  REVIEW_TARGET_NOT_RATEABLE: { status: 409, message: "The review target is closed to new reviews" },
+  REVIEW_INVALIDATED: { status: 409, message: "The review cannot be updated" },
+  REVIEW_RATING_INVALID: { status: 422, message: "The review content is invalid" },
+  REVIEW_COMMENT_TOO_LONG: { status: 422, message: "The review content is invalid" },
+  IDEMPOTENCY_CONFLICT: { status: 409, message: "The idempotency key was used with a different request" },
+} satisfies ReviewErrorMap;
+
+const playerReviewWithdrawErrors = {
+  PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
+  REVIEW_NOT_FOUND: { status: 404, responseCode: "REVIEW_NOT_FOUND", message: "The review does not exist" },
+  REVIEW_NOT_OWNED: { status: 404, responseCode: "REVIEW_NOT_FOUND", message: "The review does not exist" },
+  REVIEW_INVALIDATED: { status: 409, message: "The review cannot be withdrawn" },
+  IDEMPOTENCY_CONFLICT: { status: 409, message: "The idempotency key was used with a different request" },
+} satisfies ReviewErrorMap;
+
+const publicReviewErrors = {
+  REVIEW_TARGET_NOT_FOUND: { status: 404, message: "The review target does not exist" },
+} satisfies ReviewErrorMap;
+
+const reviewErrorResponse = (c: ApiContext, error: unknown, errors: ReviewErrorMap, errorResponse: ReviewRouteDependencies["errorResponse"]) => {
+  if (!(error instanceof Error)) return null;
+  const mapping = errors[error.message];
+  return mapping ? errorResponse(c, mapping.status, mapping.responseCode ?? error.message, mapping.message) : null;
 };
 
 const playerAuth = (player: Player): AuthContext => ({
@@ -63,9 +98,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c.env).getPlayerReview(target.data, playerAuth(access.player!));
       return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
     } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_READ_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, code, "Authentication is required");
-      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
+      const response = reviewErrorResponse(c, error, playerReviewReadErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
@@ -85,14 +119,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c.env).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: playerReviewView(review) });
     } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_UPSERT_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, code, "Authentication is required");
-      if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned");
-      if (code === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, code, "The review target does not exist");
-      if (code === "REVIEW_TARGET_NOT_RATEABLE") return errorResponse(c, 409, code, "The review target is closed to new reviews");
-      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be updated");
-      if (["REVIEW_RATING_INVALID", "REVIEW_COMMENT_TOO_LONG"].includes(code)) return errorResponse(c, 422, code, "The review content is invalid");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      const response = reviewErrorResponse(c, error, playerReviewUpsertErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
@@ -111,11 +139,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       await services(c.env).withdrawReview({ reviewId }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: null });
     } catch (error) {
-      const code = error instanceof Error ? error.message : "PLAYER_REVIEW_WITHDRAW_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 401, code, "Authentication is required");
-      if (["REVIEW_NOT_FOUND", "REVIEW_NOT_OWNED"].includes(code)) return errorResponse(c, 404, "REVIEW_NOT_FOUND", "The review does not exist");
-      if (code === "REVIEW_INVALIDATED") return errorResponse(c, 409, code, "The review cannot be withdrawn");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      const response = reviewErrorResponse(c, error, playerReviewWithdrawErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
@@ -145,7 +170,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
     } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
@@ -159,7 +185,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const summary = await logServiceOperation(c, "review_public_summary", () => services(c.env).getReviewSummary(target.data));
       return c.json({ contractVersion: "1", summary });
     } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
@@ -174,7 +201,8 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const comments = await logServiceOperation(c, "review_public_comments", () => services(c.env).listPublicReviewComments({ ...target.data, ...page }));
       return c.json({ contractVersion: "1", ...comments });
     } catch (error) {
-      if (error instanceof Error && error.message === "REVIEW_TARGET_NOT_FOUND") return errorResponse(c, 404, error.message, "The review target does not exist");
+      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      if (response) return response;
       throw error;
     }
   });
