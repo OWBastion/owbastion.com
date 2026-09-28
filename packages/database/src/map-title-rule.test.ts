@@ -2960,7 +2960,7 @@ describe("submission mastery outcomes", () => {
 });
 
 describe("OCR queue failure recovery", () => {
-  it("serializes simultaneous OCR retries for the same idempotency key without duplicate queue sends", async () => {
+  it("rejects an OCR retry while the same-key queue send is pending and replays after completion", async () => {
     const { database, sqlite } = createTestDatabase("map.mastery");
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.concurrent-same-key", "binding.one", "Tester");
@@ -2971,16 +2971,16 @@ describe("OCR queue failure recovery", () => {
     const queueSendStarted = new Promise<void>((resolve) => { markQueueSendStarted = resolve; });
     const queueSendGate = new Promise<void>((resolve) => { releaseQueueSend = resolve; });
     const queue = { send: vi.fn(async () => { markQueueSendStarted(); await queueSendGate; }) } as unknown as Queue;
-    const services = createPlatformServices(synchronizeConcurrentBatches(database, 2), fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
+    const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
 
     const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
+    await queueSendStarted;
     const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
     const secondOutcome = second.then(
       () => ({ status: "resolved" as const }),
       (error: unknown) => ({ status: "rejected" as const, error }),
     );
-    await queueSendStarted;
     try {
       expect(await secondOutcome).toMatchObject({ status: "rejected", error: { message: "OCR_RETRY_IN_PROGRESS" } });
       expect(queue.send).toHaveBeenCalledOnce();
@@ -2989,6 +2989,8 @@ describe("OCR queue failure recovery", () => {
     }
 
     await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
+    await expect(services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.replay")).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
+    expect(queue.send).toHaveBeenCalledOnce();
     expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
   });
 
