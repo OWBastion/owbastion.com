@@ -2,6 +2,7 @@
 import { agentSpatialConfigSchema } from "@owbastion/contracts";
 import AdminSpatialCoordinatesInput from "./AdminSpatialCoordinatesInput.vue";
 import type { SpatialConfigValue } from "~/utils/spatial-config-import";
+import { spatialNumberInput, spatialTextInput } from "~/utils/spatial-config-input";
 
 type Detection = { position: unknown[]; radius: unknown };
 type CompositeStage = Record<string, unknown> & { stageId: string; setupDetection?: Detection };
@@ -152,23 +153,12 @@ function removeStage(index: number) {
   commit({ ...config.value, composition, stages: nextStages });
 }
 
-function coordinateInputValue(value: unknown): number | null {
-  if (value === "" || value === null || value === undefined) return null;
-  if (typeof value !== "string" && typeof value !== "number") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function detectionInputValue(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value);
-}
-
 function updateDetectionPosition(index: number, axis: number, value: unknown) {
   const stage = stages.value[index];
   if (!stage) return;
   const detection = stage.setupDetection ?? { position: [null, null, null], radius: null };
   const position = [...detection.position];
-  position[axis] = coordinateInputValue(value);
+  position[axis] = spatialNumberInput(value);
   updateStage(index, { ...stage, setupDetection: { ...detection, position } });
 }
 
@@ -176,7 +166,7 @@ function updateDetectionRadius(index: number, value: unknown) {
   const stage = stages.value[index];
   if (!stage) return;
   const detection = stage.setupDetection ?? { position: [null, null, null], radius: null };
-  updateStage(index, { ...stage, setupDetection: { ...detection, radius: coordinateInputValue(value) } });
+  updateStage(index, { ...stage, setupDetection: { ...detection, radius: spatialNumberInput(value) } });
 }
 
 function updateStage(index: number, stage: CompositeStage) {
@@ -280,12 +270,12 @@ function updateStageCoordinateValidity(index: number, stage: CompositeStage, val
           <p v-if="fieldError('stages', index, 'setupDetection')" class="field-error" role="alert">{{ fieldError('stages', index, 'setupDetection') }}</p>
           <UFormField label="检测位置" required>
             <div class="detection-position" role="group" :aria-label="stage.stageId + ' 检测位置'">
-              <UInput v-for="(axis, axisIndex) in ['X', 'Y', 'Z']" :key="axis" type="number" step="any" :model-value="detectionInputValue(stage.setupDetection?.position?.[axisIndex])" :disabled="disabled" :aria-label="stage.stageId + ' 检测位置 ' + axis" @update:model-value="updateDetectionPosition(index, axisIndex, $event)" />
+              <UInput v-for="(axis, axisIndex) in ['X', 'Y', 'Z']" :key="axis" type="number" step="any" :model-value="spatialTextInput(stage.setupDetection?.position?.[axisIndex])" :disabled="disabled" :aria-label="stage.stageId + ' 检测位置 ' + axis" @update:model-value="updateDetectionPosition(index, axisIndex, $event)" />
             </div>
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'position')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'position') }}</p>
           </UFormField>
           <UFormField label="检测半径" required>
-            <UInput type="number" min="0" step="any" :model-value="detectionInputValue(stage.setupDetection?.radius)" :disabled="disabled" :aria-label="stage.stageId + ' 检测半径'" @update:model-value="updateDetectionRadius(index, $event)" />
+            <UInput type="number" min="0" step="any" :model-value="spatialTextInput(stage.setupDetection?.radius)" :disabled="disabled" :aria-label="stage.stageId + ' 检测半径'" @update:model-value="updateDetectionRadius(index, $event)" />
             <p v-if="nestedFieldError('stages', index, 'setupDetection', 'radius')" class="field-error" role="alert">{{ nestedFieldError('stages', index, 'setupDetection', 'radius') }}</p>
           </UFormField>
         </div>
