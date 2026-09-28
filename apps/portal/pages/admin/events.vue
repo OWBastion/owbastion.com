@@ -3,6 +3,7 @@ import type { TableColumn } from "@nuxt/ui";
 import { getGroupedRowModel, type ColumnPinningState, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
 import type { RandomEvent } from "~/types/random-event";
 import { randomEventRarityForWeight } from "@owbastion/domain";
+import type { AdminRandomEventCreateRequest, RandomEventVersion } from "@owbastion/contracts";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -10,9 +11,9 @@ import { createRequestId } from "~/utils/request-id";
 definePageMeta({ middleware: ["auth", "admin-client"] });
 useSeoMeta({ title: "事件管理 · 躲避堡垒 3" });
 
-type Link = { family: "map" | "achievement"; challengeId: string };
+type Link = AdminRandomEventCreateRequest["challengeLinks"][number];
 type ImportPreview = { sourceHash: string; validRowCount: number; errors: Array<{ row: number; message: string }>; rows: Array<{ name: string; category: string; releaseStatus: string }> };
-type EventVersion = { gameVersion: string; availability: "available" | "suspended"; eventCount: number };
+type EventVersion = RandomEventVersion;
 const defaultEventSorting: SortingState = [
   { id: "gameVersion", desc: true },
   { id: "name", desc: false },
