@@ -21,7 +21,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { isUuid, maintainerRoute, parseBody, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
+import { isUuid, maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
@@ -335,9 +335,11 @@ export const createApp = (dependencies: AppDependencies) => {
       const result = await options.action(parsed?.success ? parsed.data : undefined as T, access.auth!, idempotencyKey);
       return options.noContent ? c.body(null, 204) : c.json(result, options.status ?? 200);
     } catch (error) {
-      const code = error instanceof Error ? error.message : undefined;
-      const mapped = code ? options.errors?.[code] ?? (code === "IDEMPOTENCY_CONFLICT" ? idempotencyConflict : undefined) : undefined;
-      if (code && mapped) return errorResponse(c, mapped.status, code, mapped.message);
+      const response = routeErrorResponse(c, error, {
+        ...options.errors,
+        IDEMPOTENCY_CONFLICT: options.errors?.IDEMPOTENCY_CONFLICT ?? idempotencyConflict,
+      }, errorResponse);
+      if (response) return response;
       throw error;
     }
   };

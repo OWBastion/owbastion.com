@@ -5,7 +5,7 @@ import {
   reviewTargetTypeSchema,
 } from "@owbastion/contracts";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
-import { isUuid, parseBody, type ApiApp, type ApiContext, type AdminRouteDependencies, type ErrorStatus, type ServiceAccessor } from "./route-contract";
+import { isUuid, parseBody, routeErrorResponse, type ApiApp, type ApiContext, type AdminRouteDependencies, type RouteErrorMap, type ServiceAccessor } from "./route-contract";
 
 type Player = NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>;
 type PlayerAccess = { error?: Response; sessionToken?: string; player?: Player };
@@ -15,12 +15,10 @@ type ReviewRouteDependencies = Pick<AdminRouteDependencies, "errorResponse"> & {
   requirePortalPlayer: (c: ApiContext) => Promise<PlayerAccess>;
   logServiceOperation: <T>(c: ApiContext, operation: string, action: () => Promise<T>) => Promise<T>;
 };
-type ReviewErrorMap = Partial<Record<string, { status: ErrorStatus; message: string; responseCode?: string }>>;
-
 const playerReviewReadErrors = {
   PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
   REVIEW_TARGET_NOT_FOUND: { status: 404, message: "The review target does not exist" },
-} satisfies ReviewErrorMap;
+} satisfies RouteErrorMap;
 
 const playerReviewUpsertErrors = {
   PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
@@ -31,7 +29,7 @@ const playerReviewUpsertErrors = {
   REVIEW_RATING_INVALID: { status: 422, message: "The review content is invalid" },
   REVIEW_COMMENT_TOO_LONG: { status: 422, message: "The review content is invalid" },
   IDEMPOTENCY_CONFLICT: { status: 409, message: "The idempotency key was used with a different request" },
-} satisfies ReviewErrorMap;
+} satisfies RouteErrorMap;
 
 const playerReviewWithdrawErrors = {
   PLAYER_NOT_FOUND: { status: 401, message: "Authentication is required" },
@@ -39,17 +37,11 @@ const playerReviewWithdrawErrors = {
   REVIEW_NOT_OWNED: { status: 404, responseCode: "REVIEW_NOT_FOUND", message: "The review does not exist" },
   REVIEW_INVALIDATED: { status: 409, message: "The review cannot be withdrawn" },
   IDEMPOTENCY_CONFLICT: { status: 409, message: "The idempotency key was used with a different request" },
-} satisfies ReviewErrorMap;
+} satisfies RouteErrorMap;
 
 const publicReviewErrors = {
   REVIEW_TARGET_NOT_FOUND: { status: 404, message: "The review target does not exist" },
-} satisfies ReviewErrorMap;
-
-const reviewErrorResponse = (c: ApiContext, error: unknown, errors: ReviewErrorMap, errorResponse: ReviewRouteDependencies["errorResponse"]) => {
-  if (!(error instanceof Error)) return null;
-  const mapping = errors[error.message];
-  return mapping ? errorResponse(c, mapping.status, mapping.responseCode ?? error.message, mapping.message) : null;
-};
+} satisfies RouteErrorMap;
 
 const playerAuth = (player: Player): AuthContext => ({
   actorType: "user",
@@ -98,7 +90,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c.env).getPlayerReview(target.data, playerAuth(access.player!));
       return c.json({ contractVersion: "1", review: review?.status === "active" ? playerReviewView(review) : null });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, playerReviewReadErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewReadErrors, errorResponse);
       if (response) return response;
       throw error;
     }
@@ -119,7 +111,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const review = await services(c.env).upsertReview({ ...target.data, ...reviewInput, rating: reviewInput.rating as 1 | 2 | 3 | 4 | 5 }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: playerReviewView(review) });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, playerReviewUpsertErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewUpsertErrors, errorResponse);
       if (response) return response;
       throw error;
     }
@@ -139,7 +131,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       await services(c.env).withdrawReview({ reviewId }, playerAuth(access.player!), idempotencyKey);
       return c.json({ contractVersion: "1", review: null });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, playerReviewWithdrawErrors, errorResponse);
+      const response = routeErrorResponse(c, error, playerReviewWithdrawErrors, errorResponse);
       if (response) return response;
       throw error;
     }
@@ -170,7 +162,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       ));
       return c.json({ contractVersion: "1", targetType: targetType.data, items });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
       if (response) return response;
       throw error;
     }
@@ -185,7 +177,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const summary = await logServiceOperation(c, "review_public_summary", () => services(c.env).getReviewSummary(target.data));
       return c.json({ contractVersion: "1", summary });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
       if (response) return response;
       throw error;
     }
@@ -201,7 +193,7 @@ export const registerReviewRoutes = (app: ApiApp, dependencies: ReviewRouteDepen
       const comments = await logServiceOperation(c, "review_public_comments", () => services(c.env).listPublicReviewComments({ ...target.data, ...page }));
       return c.json({ contractVersion: "1", ...comments });
     } catch (error) {
-      const response = reviewErrorResponse(c, error, publicReviewErrors, errorResponse);
+      const response = routeErrorResponse(c, error, publicReviewErrors, errorResponse);
       if (response) return response;
       throw error;
     }
