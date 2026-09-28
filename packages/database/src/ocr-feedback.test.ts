@@ -1,3 +1,16 @@
+import {
+  attachmentsSchema,
+  auditEventsRequiredIdSchema,
+  bindingsSchema,
+  idempotencyKeysRequiredIdSchema,
+  ocrAccuracyFeedbackSchema,
+  ocrResultsSchema,
+  playerAccountsSchema,
+  portalSessionsSchema,
+  submissionOutcomesSchema,
+  submissionReviewsSchema,
+  submissionsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -5,38 +18,12 @@ import { createPlatformServices } from "./index";
 
 const createD1 = () => createTestD1({ foreignKeys: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (
-    id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active',
-    banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE bindings (
-    id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL,
-    provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE portal_sessions (
-    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL,
-    expires_at INTEGER NOT NULL
-  );
-  CREATE TABLE submissions (
-    id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, binding_id TEXT, status TEXT NOT NULL,
-    challenge_type TEXT NOT NULL, challenge_id TEXT, target_map_id TEXT, gameplay_revision_id TEXT,
-    map_name TEXT NOT NULL, difficulty TEXT, player_name TEXT, review_reason TEXT, grant_id TEXT,
-    ocr_fail_count INTEGER NOT NULL DEFAULT 0, rule_snapshot_json TEXT, source_provider TEXT NOT NULL,
-    source_conversation_id TEXT NOT NULL, source_message_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE ocr_results (
-    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL,
-    status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE ocr_accuracy_feedback (
-    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
-    accuracy TEXT NOT NULL CHECK (accuracy IN ('accurate', 'inaccurate')),
-    marked_by TEXT NOT NULL, marked_by_type TEXT NOT NULL CHECK (marked_by_type IN ('player', 'maintainer')),
-    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
-    UNIQUE (submission_id, ocr_result_id)
-  );
+  ${playerAccountsSchema}
+  ${bindingsSchema}
+  ${portalSessionsSchema}
+  ${submissionsSchema}
+  ${ocrResultsSchema}
+  ${ocrAccuracyFeedbackSchema}
   CREATE TABLE ocr_feedback_proposals (
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
     field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
@@ -47,29 +34,11 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
     UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
   );
-  CREATE TABLE idempotency_keys (
-    id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL,
-    request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE attachments (
-    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, provider TEXT NOT NULL,
-    external_attachment_id TEXT NOT NULL, content_type TEXT NOT NULL, byte_size INTEGER,
-    sha256 TEXT, object_key TEXT, upload_status TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE submission_outcomes (
-    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, outcome_key TEXT NOT NULL,
-    outcome_type TEXT NOT NULL, status TEXT NOT NULL, entity_id TEXT, awarded_xp INTEGER NOT NULL DEFAULT 0,
-    details_json TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE submission_reviews (
-    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, decision TEXT NOT NULL,
-    reason TEXT, reviewer TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
+  ${attachmentsSchema}
+  ${submissionOutcomesSchema}
+  ${submissionReviewsSchema}
 `);
 
 const sha256Hex = async (value: string) => {

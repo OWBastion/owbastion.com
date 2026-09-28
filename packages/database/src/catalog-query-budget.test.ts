@@ -1,3 +1,10 @@
+import {
+  effectGlossaryTermsSchema,
+  gameplayRevisionsSchema,
+  mapsSchema,
+  playerAccountsSchema,
+  randomEventsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -10,28 +17,8 @@ import { createPlatformServices } from "./index";
 const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
-    CREATE TABLE maps (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE gameplay_revisions (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      lifecycle TEXT NOT NULL,
-      legacy_map_variant TEXT,
-      copied_from_revision_id TEXT,
-      reset_reason TEXT,
-      game_version TEXT NOT NULL,
-      spatial_config_json TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${mapsSchema}
+    ${gameplayRevisionsSchema}
     CREATE TABLE gameplay_revision_challenge_assignments (
       id TEXT PRIMARY KEY NOT NULL,
       gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
@@ -159,23 +146,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE random_events (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      rarity TEXT NOT NULL,
-      description TEXT NOT NULL,
-      duration_seconds INTEGER,
-      cooldown_seconds REAL,
-      weight REAL,
-      game_version TEXT NOT NULL,
-      effect_tags_json TEXT NOT NULL DEFAULT '[]',
-      release_status TEXT NOT NULL,
-      archived_at INTEGER,
-      archived_by TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${randomEventsSchema}
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available'
@@ -190,30 +161,8 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
       PRIMARY KEY (event_id, challenge_id)
     );
-    CREATE TABLE effect_glossary_terms (
-      key TEXT PRIMARY KEY NOT NULL,
-      name_zh TEXT NOT NULL,
-      aliases_json TEXT NOT NULL DEFAULT '[]',
-      category TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      definition TEXT NOT NULL,
-      rules_json TEXT NOT NULL DEFAULT '[]',
-      source_version TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE player_accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'active',
-      banned_at INTEGER,
-      banned_by TEXT,
-      ban_reason TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${effectGlossaryTermsSchema}
+    ${playerAccountsSchema}
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE player_title_grants (
       id TEXT PRIMARY KEY NOT NULL,

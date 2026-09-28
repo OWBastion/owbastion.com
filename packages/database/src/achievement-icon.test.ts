@@ -1,3 +1,7 @@
+import {
+  auditEventsRequiredIdSchema,
+  titleCatalogSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -6,33 +10,8 @@ import { createPlatformServices } from "./index";
 
 const createD1 = () => createTestD1();
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE title_catalog (
-    key TEXT PRIMARY KEY NOT NULL,
-    label TEXT NOT NULL,
-    icon TEXT NOT NULL DEFAULT 'award',
-    icon_url TEXT,
-    icon_object_key TEXT,
-    category TEXT NOT NULL,
-    condition TEXT NOT NULL,
-    availability TEXT NOT NULL,
-    lifecycle TEXT NOT NULL DEFAULT 'active',
-    public_visibility INTEGER NOT NULL DEFAULT 1,
-    scope TEXT NOT NULL,
-    display_kind TEXT NOT NULL,
-    color_json TEXT NOT NULL DEFAULT 'null',
-    game_version TEXT NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL,
-    correlation_id TEXT NOT NULL,
-    actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    operation TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
+  ${titleCatalogSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 const insertTitle = (sqlite: DatabaseSync, key: string) => sqlite.prepare(

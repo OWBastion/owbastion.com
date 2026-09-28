@@ -1,3 +1,11 @@
+import {
+  auditEventsRequiredIdSchema,
+  gameplayRevisionsSchema,
+  idempotencyKeysRequiredIdSchema,
+  mapsSchema,
+  playerAccountsSchema,
+  randomEventsSchema,
+} from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -6,63 +14,15 @@ import { createPlatformServices } from "./index";
 
 const createD1 = () => createTestD1({ foreignKeys: true, countStatements: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (
-    id TEXT PRIMARY KEY NOT NULL,
-    player_id TEXT NOT NULL,
-    player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL,
-    is_admin INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active',
-    banned_at INTEGER,
-    banned_by TEXT,
-    ban_reason TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE maps (
-    id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL,
-    game_version TEXT NOT NULL,
-    status TEXT NOT NULL,
-    introduced_version TEXT NOT NULL,
-    retired_version TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE gameplay_revisions (
-    id TEXT PRIMARY KEY NOT NULL,
-    map_id TEXT NOT NULL REFERENCES maps(id),
-    lifecycle TEXT NOT NULL,
-    legacy_map_variant TEXT,
-    copied_from_revision_id TEXT,
-    reset_reason TEXT,
-    game_version TEXT NOT NULL,
-    spatial_config_json TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
+  ${playerAccountsSchema}
+  ${mapsSchema}
+  ${gameplayRevisionsSchema}
   CREATE UNIQUE INDEX gameplay_revisions_one_default_idx ON gameplay_revisions(map_id) WHERE lifecycle = 'default';
   CREATE TRIGGER reviews_test_default_revision AFTER INSERT ON maps BEGIN
     INSERT INTO gameplay_revisions (id, map_id, lifecycle, game_version, created_at, updated_at)
     VALUES ('revision:' || NEW.id || ':initial', NEW.id, CASE WHEN NEW.status = 'active' THEN 'default' ELSE 'historical' END, NEW.game_version, NEW.created_at, NEW.updated_at);
   END;
-  CREATE TABLE random_events (
-    id TEXT PRIMARY KEY NOT NULL,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,
-    rarity TEXT NOT NULL,
-    description TEXT NOT NULL,
-    duration_seconds INTEGER,
-    cooldown_seconds REAL,
-    weight REAL,
-    game_version TEXT NOT NULL,
-    effect_tags_json TEXT NOT NULL DEFAULT '[]',
-    release_status TEXT NOT NULL,
-    archived_at INTEGER,
-    archived_by TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
+  ${randomEventsSchema}
   CREATE TABLE reviews (
     id TEXT PRIMARY KEY NOT NULL,
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -85,25 +45,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE UNIQUE INDEX reviews_player_legacy_map_idx ON reviews(player_account_id, target_id) WHERE target_type = 'map' AND gameplay_revision_id IS NULL;
   CREATE UNIQUE INDEX reviews_player_map_revision_idx ON reviews(player_account_id, target_id, gameplay_revision_id) WHERE target_type = 'map' AND gameplay_revision_id IS NOT NULL;
   CREATE INDEX reviews_target_status_idx ON reviews(target_type, target_id, gameplay_revision_id, status);
-  CREATE TABLE idempotency_keys (
-    id TEXT PRIMARY KEY NOT NULL,
-    actor_id TEXT NOT NULL,
-    operation TEXT NOT NULL,
-    request_hash TEXT NOT NULL,
-    response_json TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL,
-    correlation_id TEXT NOT NULL,
-    actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    operation TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 const auth = (subject: string) => ({ actorType: "user" as const, subject, roles: [] as string[], provider: "test" });
