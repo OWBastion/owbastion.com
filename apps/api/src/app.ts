@@ -29,6 +29,7 @@ import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflo
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog";
 import { registerAdminPlayerManagementRoutes } from "./routes/admin-player-management";
 import { registerBindingInviteRoutes } from "./routes/binding-invites";
+import { registerPublicCatalogRoutes } from "./routes/public-catalog";
 import { hasOnlyUniqueQueryNames } from "./query-params";
 
 export type RuntimeEnv = {
@@ -751,12 +752,13 @@ export const createApp = (dependencies: AppDependencies) => {
     return c.body(null, 204);
   });
 
-  app.get("/v1/public/achievements", async (c) => {
-    allowPortal(c);
-    return cachedCatalogResponse(c, {
-      operation: "catalog_public_achievements",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_achievements", () => dependencies.services(c.env).listChallenges({ family: "achievement" })) }),
-    });
+  registerPublicCatalogRoutes(app, {
+    services: dependencies.services,
+    allowPortal,
+    errorResponse,
+    requirePortalPlayer,
+    logServiceOperation,
+    cachedCatalogResponse,
   });
 
   const parsePublicReviewPage = (c: any) => {
@@ -843,58 +845,6 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("Cache-Control", "public, max-age=300");
     if (icon.etag) c.header("ETag", icon.etag);
     return c.body(icon.body, 200, { "Content-Type": icon.contentType });
-  });
-
-  app.get("/v1/challenges", async (c) => {
-    const family = c.req.query("family");
-    if (family && family !== "map" && family !== "achievement") return errorResponse(c, 422, "INVALID_REQUEST", "The challenge family is invalid");
-    if (family === "map") {
-      allowPortal(c);
-      return cachedCatalogResponse(c, {
-        operation: "catalog_map_challenges",
-        query: { family: "map" },
-        eligible: new URL(c.req.url).searchParams.getAll("family").length === 1 && new URL(c.req.url).searchParams.size === 1,
-        response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_map_challenges", () => dependencies.services(c.env).listChallenges({ family: "map" })) }),
-      });
-    }
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_challenges", () => dependencies.services(c.env).listChallenges({ family: family as "map" | "achievement" | undefined })) });
-  });
-
-  app.get("/v1/titles", async (c) => {
-    const access = await requirePortalPlayer(c);
-    if (access.error) return access.error;
-    c.header("Cache-Control", "private, no-store");
-    return c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_titles", () => dependencies.services(c.env).listTitles({ mapId: c.req.query("mapId") || undefined })) });
-  });
-
-  app.get("/v1/maps", async (c) => {
-    allowPortal(c);
-    return cachedCatalogResponse(c, {
-      operation: "catalog_maps",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_maps", () => dependencies.services(c.env).listMaps()) }),
-    });
-  });
-
-  app.get("/v1/events", async (c) => {
-    allowPortal(c); const status = c.req.query("status");
-    if (status && status !== "implemented" && status !== "removed") return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
-    return cachedCatalogResponse(c, {
-      operation: "catalog_events",
-      response: async () => c.json({ contractVersion: "1", items: await logServiceOperation(c, "catalog_list_events", () => dependencies.services(c.env).listRandomEvents({ query: c.req.query("query")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "implemented" | "removed" | undefined })) }),
-    });
-  });
-  app.get("/v1/events/:eventId", async (c) => {
-    allowPortal(c);
-    return cachedCatalogResponse(c, {
-      operation: "catalog_event",
-      response: async () => {
-        const event = await logServiceOperation(c, "catalog_get_event", () => dependencies.services(c.env).getRandomEvent({ eventId: c.req.param("eventId") }));
-        return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
-      },
-    });
   });
 
   registerAgentRoutes(app, {
