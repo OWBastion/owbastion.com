@@ -1,25 +1,7 @@
 <script setup lang="ts">
+import type { Challenge } from "@owbastion/contracts";
 
-export type PublicAchievement = {
-  challengeId: string;
-  family: "achievement";
-  type: "title_achievement";
-  kind: "title_achievement";
-  titleKey: string;
-  titleName: string;
-  icon: string;
-  iconUrl?: string | null;
-  category: string;
-  condition: string;
-  evidenceRule: string;
-  gameVersion: string;
-  status: "scheduled" | "active" | "sunsetting";
-  startsAt?: number;
-  endsAt?: number;
-  retiredVersion?: string;
-  submissionMode: "manual" | "automatic";
-  progressRule?: { type: "required_maps_completed"; mapIds: string[]; difficultyAtLeast?: string };
-};
+export type PublicAchievement = Extract<Challenge, { family: "achievement" }>;
 
 const props = defineProps<{ challenges: PublicAchievement[] }>();
 const groups = computed(() => {
