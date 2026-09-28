@@ -3381,6 +3381,24 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return selected;
   };
 
+  const submissionCompletionStatements = (input: {
+    row: typeof submissions.$inferSelect;
+    completionAwards: ChallengeCompletionAward[];
+    grantAwards: Array<ChallengeCompletionAward & { grantId: string }>;
+    completionAuditAwards: ChallengeCompletionAward[];
+    grantAuditAwards: Array<ChallengeCompletionAward & { grantId: string }>;
+    timestamp: number;
+    reviewId: string;
+    auth: AuthContext;
+  }) => {
+    const statements: D1PreparedStatement[] = [];
+    for (const award of input.completionAwards) statements.push(database.prepare("INSERT OR IGNORE INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) SELECT ?, s.player_account_id, ?, ?, 'active', ?, s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(crypto.randomUUID(), award.challengeId, award.gameplayRevisionId, award.completionSourceType, input.timestamp, input.timestamp, input.row.id, input.reviewId));
+    for (const award of input.grantAwards) statements.push(database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) SELECT ?, s.player_account_id, ?, ?, ?, ?, 'active', 'submission', s.id, ?, ?, (SELECT completion.id FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ? LIMIT 1) FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?) AND EXISTS (SELECT 1 FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ?)").bind(award.grantId, award.titleKey, award.mapId, award.gameplayRevisionId, award.slot, input.auth.subject, input.timestamp, award.challengeId, award.gameplayRevisionId, input.row.id, input.reviewId, award.challengeId, award.gameplayRevisionId));
+    for (const award of input.completionAuditAwards) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', id, ?, ? FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND gameplay_revision_id IS ? AND status = 'active' AND source_id = ? LIMIT 1").bind(crypto.randomUUID(), crypto.randomUUID(), input.auth.actorType, input.auth.subject, JSON.stringify({ submissionId: input.row.id, challengeId: award.challengeId, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, satisfaction: award.satisfiedBy }), input.timestamp, input.row.playerAccountId, award.challengeId, award.gameplayRevisionId, input.row.id));
+    for (const award of input.grantAuditAwards) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE id = ? AND status = 'active'").bind(crypto.randomUUID(), crypto.randomUUID(), input.auth.actorType, input.auth.subject, JSON.stringify({ submissionId: input.row.id, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, challengeId: award.challengeId, satisfiedBy: award.satisfiedBy }), input.timestamp, award.grantId));
+    return statements;
+  };
+
   const challengeCompletionChain = async (input: {
     playerAccountId: string;
     challengeId: string;
@@ -6106,12 +6124,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           ...(verifiedRunPlan?.statements ?? []),
           ...(verifiedRunOutcome ? [masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome)] : []),
         ];
-        for (const award of completionAwardRows) {
-          statements.push(database.prepare("INSERT OR IGNORE INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) SELECT ?, s.player_account_id, ?, ?, 'active', ?, s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(crypto.randomUUID(), award.challengeId, award.gameplayRevisionId, award.completionSourceType, timestamp, timestamp, row.id, reviewId));
-        }
-        for (const award of completionGrantsByScope.values()) {
-          statements.push(database.prepare("INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) SELECT ?, s.player_account_id, ?, ?, ?, ?, 'active', 'submission', s.id, ?, ?, (SELECT completion.id FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ? LIMIT 1) FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?) AND EXISTS (SELECT 1 FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ?)").bind(award.grantId, award.titleKey, award.mapId, award.gameplayRevisionId, award.slot, auth.subject, timestamp, award.challengeId, award.gameplayRevisionId, row.id, reviewId, award.challengeId, award.gameplayRevisionId));
-        }
+        statements.push(...submissionCompletionStatements({
+          row,
+          completionAwards: completionAwardRows,
+          grantAwards: [...completionGrantsByScope.values()],
+          completionAuditAwards: completionAwardRows.filter((award) => !award.root || !grantResults.some((result) => result.canonicalChallengeId === award.challengeId && titleGrantScopeKey(result.reward) === titleGrantScopeKey(award))),
+          grantAuditAwards: [...completionGrantsByScope].filter(([scope]) => !directGrantsByScope.has(scope)).map(([, award]) => award),
+          timestamp,
+          reviewId,
+          auth,
+        }));
         const primaryMapMatch = primaryGrant.reward.mapId ? "g.map_id = ?" : "g.map_id IS NULL";
         const primaryRevisionMatch = primaryGrant.reward.gameplayRevisionId ? "g.gameplay_revision_id = ?" : "g.gameplay_revision_id IS NULL";
         statements.push(database.prepare(`UPDATE submissions SET status = 'approved', review_reason = ?, gameplay_revision_id = COALESCE(gameplay_revision_id, ?), grant_id = (SELECT g.id FROM player_title_grants g WHERE g.player_account_id = submissions.player_account_id AND g.title_key = ? AND ${primaryMapMatch} AND ${primaryRevisionMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)`)
@@ -6131,14 +6153,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
             titleGrantOutcomeScopes.add(scope);
             statements.push(approvedSubmissionOutcomeStatement({ submissionId: row.id, outcomeKey: `title_grant:${scope}`, outcomeType: "title_grant", status: "created", entityId: award.grantId, details: { titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, slot: award.slot, satisfiedBy: award.satisfiedBy } }));
           }
-        }
-        for (const award of completionAwardRows) {
-          if (award.root && grantResults.some((result) => result.canonicalChallengeId === award.challengeId && titleGrantScopeKey(result.reward) === titleGrantScopeKey(award))) continue;
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', id, ?, ? FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND gameplay_revision_id IS ? AND status = 'active' AND source_id = ? LIMIT 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, challengeId: award.challengeId, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, satisfaction: award.satisfiedBy }), timestamp, row.playerAccountId, award.challengeId, award.gameplayRevisionId, row.id));
-        }
-        for (const [scope, award] of completionGrantsByScope) {
-          if (directGrantsByScope.has(scope)) continue;
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE id = ? AND status = 'active'").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, challengeId: award.challengeId, satisfiedBy: award.satisfiedBy }), timestamp, award.grantId));
         }
         const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
         statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'submission.review', ?, ?, ? FROM submission_reviews WHERE id = ?").bind(idempotencyKeyId, auth.subject, requestHash, JSON.stringify(response), timestamp, reviewId));
@@ -6226,16 +6240,18 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       statements.push(...(verifiedRunPlan?.statements ?? []));
       if (input.decision === "approved" && verifiedRunOutcome) statements.push(masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome));
       if (reward) {
+        statements.push(...submissionCompletionStatements({
+          row,
+          completionAwards: completionAwardRows,
+          grantAwards: completionAwardRows.filter((award) => award.grantable),
+          completionAuditAwards: completionAwardRows,
+          grantAuditAwards: completionAwardRows.filter((award) => !award.root && award.grantable),
+          timestamp,
+          reviewId,
+          auth,
+        }));
         const mapMatch = reward.mapId ? "g.map_id = ?" : "g.map_id IS NULL";
         const revisionMatch = reward.gameplayRevisionId ? "g.gameplay_revision_id = ?" : "g.gameplay_revision_id IS NULL";
-        for (const award of completionAwardRows) {
-          statements.push(database.prepare("INSERT OR IGNORE INTO challenge_completions (id, player_account_id, challenge_id, gameplay_revision_id, status, source_type, source_id, completed_at, created_at) SELECT ?, s.player_account_id, ?, ?, 'active', ?, s.id, ?, ? FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)").bind(crypto.randomUUID(), award.challengeId, award.gameplayRevisionId, award.completionSourceType, timestamp, timestamp, row.id, reviewId));
-        }
-        for (const award of completionAwardRows.filter((item) => item.grantable)) {
-          statements.push(database.prepare(
-            "INSERT OR IGNORE INTO player_title_grants (id, player_account_id, title_key, map_id, gameplay_revision_id, slot, status, source_type, source_id, granted_by, granted_at, completion_id) SELECT ?, s.player_account_id, ?, ?, ?, ?, 'active', 'submission', s.id, ?, ?, (SELECT completion.id FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ? LIMIT 1) FROM submissions s WHERE s.id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?) AND EXISTS (SELECT 1 FROM challenge_completions completion WHERE completion.player_account_id = s.player_account_id AND completion.challenge_id = ? AND completion.status = 'active' AND completion.gameplay_revision_id IS ?)"
-          ).bind(award.grantId, award.titleKey, award.mapId, award.gameplayRevisionId, award.slot, auth.subject, timestamp, award.challengeId, award.gameplayRevisionId, row.id, reviewId, award.challengeId, award.gameplayRevisionId));
-        }
         statements.push(
           database.prepare(
             `UPDATE submissions SET status = 'approved', review_reason = ?, gameplay_revision_id = COALESCE(gameplay_revision_id, ?), grant_id = (SELECT g.id FROM player_title_grants g WHERE g.player_account_id = submissions.player_account_id AND g.title_key = ? AND ${mapMatch} AND ${revisionMatch} AND g.status = 'active'), updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)`
@@ -6266,10 +6282,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
               details: { mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId },
             }),
           );
-        }
-        for (const award of completionAwardRows) {
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'challenge.completion.submission', 'challenge_completion', id, ?, ? FROM challenge_completions WHERE player_account_id = ? AND challenge_id = ? AND gameplay_revision_id IS ? AND status = 'active' AND source_id = ? LIMIT 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, challengeId: award.challengeId, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, satisfaction: award.satisfiedBy }), timestamp, row.playerAccountId, award.challengeId, award.gameplayRevisionId, row.id));
-          if (!award.root && award.grantable) statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', id, ?, ? FROM player_title_grants WHERE id = ? AND status = 'active'").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: award.titleKey, mapId: award.mapId, gameplayRevisionId: award.gameplayRevisionId, challengeId: award.challengeId, satisfiedBy: award.satisfiedBy }), timestamp, award.grantId));
         }
       } else {
         statements.push(
