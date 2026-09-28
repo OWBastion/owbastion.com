@@ -51,7 +51,7 @@ function sourcePath(submissionId: string) {
         <StatusBadge :label="runStatusLabel(detail.run.status)" :tone="detail.run.status === 'active' ? 'success' : 'warning'" />
       </div>
       <dl class="detail-grid verified-run-detail__facts">
-        <div class="detail-grid__row"><dt>玩家</dt><dd><NuxtLink :to="`/admin/players/${encodeURIComponent(detail.run.playerAccountId)}`">{{ detail.run.playerName }}</NuxtLink><span class="verified-run-detail__quiet">{{ detail.run.playerId }}</span></dd></div>
+        <div class="detail-grid__row"><dt>玩家</dt><dd><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(detail.run.playerAccountId)}`">{{ detail.run.playerName }}</NuxtLink><span class="verified-run-detail__quiet">{{ detail.run.playerId }}</span></dd></div>
         <div class="detail-grid__row"><dt>地图</dt><dd>{{ detail.run.mapName }}<span class="verified-run-detail__quiet">{{ detail.run.mapId }}</span></dd></div>
         <div class="detail-grid__row"><dt>难度</dt><dd>{{ detail.run.difficulty }}</dd></div>
         <div class="detail-grid__row"><dt>通关码</dt><dd class="verified-run-detail__code">{{ detail.run.matchCode }}</dd></div>
@@ -189,9 +189,6 @@ function sourcePath(submissionId: string) {
 .verified-run-detail__history { display: grid; gap: .75rem; margin: 0; padding-left: 1.25rem; }
 .verified-run-detail__history li { display: grid; gap: .25rem; }
 .verified-run-detail__history p { margin: 0; }
-.verified-run-detail__facts a { color: var(--accent); font-weight: 600; text-decoration: none; }
-.verified-run-detail__facts a:hover,
-.verified-run-detail__facts a:focus-visible { text-decoration: underline; }
 .verified-run-detail__quiet { display: block; color: var(--quiet); font-size: .78rem; overflow-wrap: anywhere; }
 .verified-run-detail__code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
 .verified-run-detail__actions,

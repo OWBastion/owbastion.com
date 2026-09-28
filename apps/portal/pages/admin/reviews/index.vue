@@ -144,7 +144,7 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
       <template #mobile-secondary><div class="review-filters"><USelect v-model="reviewStatus" aria-label="筛选提交状态" :items="reviewStatusOptions" /><USelect v-model="spotCheckFilter" aria-label="筛选抽检状态" :items="spotCheckOptions" /><USelect v-model="reviewOrder" aria-label="队列顺序" :items="reviewOrderOptions" /></div></template>
       <template #ocrContent-cell="{ row }"><strong>{{ ocrMapName(row.original) }}</strong><small class="table-meta">成就挑战：{{ ocrAchievementTitles(row.original) }}</small></template>
       <template #ocrConfidence-cell="{ row }"><span class="table-meta">地图 {{ ocrConfidence(row.original, "map_name") }}</span><span class="table-meta">成就 {{ ocrConfidence(row.original, "achievement_titles") }}</span></template>
-      <template #playerName-cell="{ row }"><NuxtLink class="player-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
+      <template #playerName-cell="{ row }"><NuxtLink class="accent-link" :to="`/admin/players/${encodeURIComponent(row.original.playerAccountId)}`">{{ row.original.playerName }}</NuxtLink></template>
       <template #status-cell="{ row }"><StatusBadge :label="formatStatus(row.original.status)" :tone="submissionStatusTone(row.original.status)" /></template>
       <template #ocrStatus-cell="{ row }"><StatusBadge :label="ocrStatusLabel(row.original.ocrStatus)" :tone="ocrStatusTone(row.original.ocrStatus)" /></template>
       <template #spotCheck-cell="{ row }"><StatusBadge v-if="row.original.spotCheck" :label="spotCheckLabel(row.original)" :tone="spotCheckTone(row.original)" /><span v-else class="table-meta">—</span></template>
@@ -157,8 +157,6 @@ watch(() => route.fullPath, (path) => { queuePath.value = path; }, { immediate: 
 <style scoped>
 .review-filters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .table-meta { display: block; color: var(--quiet); font-size: var(--type-caption-size); }
-.player-link { color: var(--accent); font-weight: 600; text-decoration: none; }
-.player-link:hover, .player-link:focus-visible { text-decoration: underline; }
 .pagination { display: flex; justify-content: center; margin-top: var(--space-3); }
 @media (max-width: 48rem) { .review-filters { display: grid; grid-template-columns: 1fr; width: 100%; } }
 </style>

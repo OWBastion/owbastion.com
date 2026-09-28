@@ -424,6 +424,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 0;
   list-style: none;
 }
+.accent-link { color: var(--accent); font-weight: 600; text-decoration: none; }
+.accent-link:hover, .accent-link:focus-visible { text-decoration: underline; }
 .card-heading {
   display: flex;
   align-items: center;
