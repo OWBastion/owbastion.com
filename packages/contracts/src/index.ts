@@ -2,6 +2,13 @@ import { z } from "zod";
 
 export const contractVersion = z.literal("1");
 
+const pageInfo = (maxPageSize?: number) => z.object({
+  page: z.number().int().positive(),
+  pageSize: maxPageSize === undefined ? z.number().int().positive() : z.number().int().positive().max(maxPageSize),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
 const externalId = z.string().trim().min(1).max(256);
 const playerId = z.string().regex(/^\d{1,10}$/);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
@@ -161,7 +168,7 @@ export const adminPlayerSummarySchema = z.object({
   pendingSubmissionCount: z.number().int().nonnegative(),
   updatedAt: z.number().int(),
 });
-export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema) }).merge(pageInfo());
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
 export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64) });
 
@@ -527,11 +534,7 @@ export const publicReviewCommentPageSchema = z.object({
   targetId: externalId,
   gameplayRevisionId: externalId.nullable(),
   items: z.array(publicReviewCommentSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 export const playerReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
@@ -584,7 +587,7 @@ export const adminReviewAuditSchema = z.object({
   reason: z.string().nullable(),
   createdAt: z.number().int(),
 }).strict();
-export const adminReviewListResponseSchema = z.object({ contractVersion, items: z.array(adminReviewSchema).max(50), page: z.number().int().positive(), pageSize: z.number().int().positive().max(50), total: z.number().int().nonnegative(), hasMore: z.boolean() }).strict();
+export const adminReviewListResponseSchema = z.object({ contractVersion, items: z.array(adminReviewSchema).max(50) }).merge(pageInfo(50)).strict();
 export const adminReviewDetailResponseSchema = z.object({ contractVersion, review: adminReviewSchema, audit: z.array(adminReviewAuditSchema).max(50) }).strict();
 export const adminReviewCommentModerationRequestSchema = z.object({ contractVersion, action: z.enum(["hide", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
 export const adminReviewStateModerationRequestSchema = z.object({ contractVersion, action: z.enum(["invalidate", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
@@ -674,12 +677,7 @@ export const agentTitleSchema = titleSchema.extend({
 });
 
 
-const agentPage = z.object({
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-});
+const agentPage = pageInfo(100);
 export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(agentMapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
@@ -718,23 +716,15 @@ export const adminHistoricalTitleHolderSchema = z.object({
 export const adminTitleGrantListResponseSchema = z.object({
   contractVersion,
   holders: z.array(adminHistoricalTitleHolderSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
   filter: adminHistoricalTitleHolderFilterSchema,
   stats: adminTitleGrantStatsSchema,
-});
+}).merge(pageInfo());
 export const adminTitleGrantHolderDetailResponseSchema = z.object({
   contractVersion,
   holder: adminHistoricalTitleHolderSchema,
   items: z.array(historicalTitleGrantSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
   grantStatus: z.enum(["all", "unclaimed", "active", "revoked"]).optional(),
-});
+}).merge(pageInfo());
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
@@ -1033,7 +1023,7 @@ export const adminSubmissionSchema = z.object({
   verifiedRunOutcome: adminVerifiedRunSubmissionOutcomeSchema.optional(),
 });
 
-export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema) }).merge(pageInfo());
 const submissionReviewFieldCorrectionsSchema = z.array(z.object({
   fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "mode", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"]),
   reviewedValue: z.string().trim().max(2048),
@@ -1221,11 +1211,7 @@ export const adminVerifiedRunConflictSchema = z.object({
 export const adminVerifiedRunListResponseSchema = z.object({
   contractVersion,
   items: z.array(adminVerifiedRunSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 const verifiedRunCorrectionSnapshotSchema = z.object({
   mapId: externalId,
   gameplayRevisionId: externalId,
@@ -1593,11 +1579,7 @@ export const currentPlayerMasteryResponseSchema = z.object({
   contractVersion,
   profiles: z.array(playerMasteryMapProfileSchema).max(100),
   runs: z.array(playerVerifiedRunSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 
 // Derived, privacy-safe per-player progress for aggregate Challenges. It
 // exposes only required-map completion flags evaluated from authoritative
