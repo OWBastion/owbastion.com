@@ -5,6 +5,9 @@ import { createApp, type RuntimeEnv } from "./app";
 import { withPublicCache } from "./public-cache";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
+const maintainerContext = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+const authenticateAsMaintainer = async () => maintainerContext;
+const anonymousAuth = async () => null;
 const services: PlatformServices = {
   recordVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
   invalidateVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
@@ -275,7 +278,7 @@ describe("API", () => {
   it("bypasses Cache API for filtered, credentialed, and admin requests", async () => {
     const cache = new FakeCache();
     vi.stubGlobal("caches", { default: cache });
-    const cacheApp = createTestApp({}, async () => null);
+    const cacheApp = createTestApp({}, anonymousAuth);
 
     expect((await cacheApp.request("http://localhost/v1/events?category=%E5%A2%9E%E7%9B%8A", {}, env)).status).toBe(200);
     expect((await cacheApp.request("http://localhost/v1/agents/maps", { headers: { authorization: "Bearer build-token" } }, { ...env, BASTION_BUILD_TOKEN: "build-token" })).status).toBe(200);
@@ -294,7 +297,7 @@ describe("API", () => {
         mapCalls += 1;
         return [{ mapId: "map.samoa", mapName: "萨摩亚", gameVersion: "2026.07.15", difficultyRating: "T3", mechanics: [], coverUrl: null, backgroundUrl: null }];
       },
-    }, async () => null);
+    }, anonymousAuth);
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     // 1. Signed-in player request (carries owb_session cookie)
@@ -361,7 +364,7 @@ describe("API", () => {
       },
       listRandomEvents: async () => { eventCalls += 1; return [{ eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }]; },
       getRandomEvent: async () => { singleEventCalls += 1; return { eventId: "event.test", name: "稳住", category: "增益", rarity: "R", description: "测试事件", durationSeconds: 60, cooldownSeconds: .32, weight: 1, gameVersion: "5.0", effectTags: [], effectAnnotations: [], releaseStatus: "implemented", archived: false, challenges: [] }; },
-    }, async () => null);
+    }, anonymousAuth);
 
     const cookieHeader = { headers: { cookie: "owb_session=player-session" } };
 
@@ -405,7 +408,7 @@ describe("API", () => {
       } : null,
       listChallenges: async () => [],
       listTitles: async () => [],
-    }, async () => null);
+    }, anonymousAuth);
 
     const cookieHeader = { headers: { cookie: "owb_session=player-session" } };
 
@@ -596,7 +599,7 @@ describe("API", () => {
   it("requires a maintainer and an idempotency key for event imports", async () => {
     const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
     expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);
-    const maintainerApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const maintainerApp = createTestApp({}, authenticateAsMaintainer);
     expect((await maintainerApp.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(422);
   });
   it("lists and updates random-event version availability through maintainer routes", async () => {
@@ -604,7 +607,7 @@ describe("API", () => {
     const maintainerApp = createTestApp({
       listAdminRandomEventVersions: async () => ({ contractVersion: "1" as const, items: [{ gameVersion: "26.0901.1", availability: "available" as const, eventCount: 2 }] }),
       updateAdminRandomEventVersion: async (input, _auth, key) => { calls.push({ gameVersion: input.gameVersion, availability: input.availability, key }); return { gameVersion: input.gameVersion, availability: input.availability, eventCount: 2 }; },
-    }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const listed = await maintainerApp.request("http://localhost/v1/admin/event-versions", {}, env);
     const updated = await maintainerApp.request("http://localhost/v1/admin/event-versions/26.0901.1/availability", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "version-1" }, body: JSON.stringify({ contractVersion: "1", availability: "suspended" }) }, env);
     expect(listed.status).toBe(200);
@@ -710,14 +713,14 @@ describe("API", () => {
   it("limits invitation creation and claim decisions to maintainers", async () => {
     const body = JSON.stringify({ contractVersion: "1", playerName: "Player", playerId: "1234" });
     expect((await app.request("http://localhost/v1/admin/binding-invites", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "invite-1" }, body }, env)).status).toBe(403);
-    const adminApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({}, authenticateAsMaintainer);
     expect((await adminApp.request("http://localhost/v1/admin/binding-invites", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "invite-1" }, body }, env)).status).toBe(201);
     expect((await adminApp.request("http://localhost/v1/admin/binding-claims/00000000-0000-0000-0000-000000000008/decision", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "claim-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved" }) }, env)).status).toBe(204);
   });
 
   it("lists issued invitation status only for maintainers", async () => {
     expect((await app.request("http://localhost/v1/admin/binding-invites", {}, env)).status).toBe(403);
-    const adminApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({}, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/binding-invites", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ items: [{ playerName: "Player", status: "active" }] });
@@ -725,7 +728,7 @@ describe("API", () => {
 
   it("lists binding claims only for maintainers", async () => {
     expect((await app.request("http://localhost/v1/admin/binding-claims", {}, env)).status).toBe(403);
-    const adminApp = createTestApp({ listAdminBindingClaims: async () => ({ contractVersion: "1", items: [{ claimId: "c1", playerName: "Player", playerId: "1234", status: "expired" as const, createdAt: 1, invitedBy: "admin" }] }) }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ listAdminBindingClaims: async () => ({ contractVersion: "1", items: [{ claimId: "c1", playerName: "Player", playerId: "1234", status: "expired" as const, createdAt: 1, invitedBy: "admin" }] }) }, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/binding-claims", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ items: [{ claimId: "c1", status: "expired" }] });
@@ -734,7 +737,7 @@ describe("API", () => {
   it("returns an active invitation code only to maintainers", async () => {
     const path = "http://localhost/v1/admin/binding-invites/00000000-0000-0000-0000-000000000007/code";
     expect((await app.request(path, {}, env)).status).toBe(403);
-    const adminApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({}, authenticateAsMaintainer);
     const response = await adminApp.request(path, {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ code: "ABCDEFGHIJKL" });
@@ -745,7 +748,7 @@ describe("API", () => {
     const path = "http://localhost/v1/admin/binding-invites/00000000-0000-0000-0000-000000000007/revoke";
     expect((await app.request(path, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "revoke-1" }, body }, env)).status).toBe(403);
     const revoked: Array<{ inviteId: string; reason?: string }> = [];
-    const adminApp = createTestApp({ revokeAdminBindingInvite: async (input) => { revoked.push(input); } }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ revokeAdminBindingInvite: async (input) => { revoked.push(input); } }, authenticateAsMaintainer);
     expect((await adminApp.request(path, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "revoke-1" }, body }, env)).status).toBe(204);
     expect(revoked).toEqual([{ inviteId: "00000000-0000-0000-0000-000000000007", contractVersion: "1" }]);
   });
@@ -753,7 +756,7 @@ describe("API", () => {
   it("creates a batch of binding invitations for maintainers", async () => {
     const body = JSON.stringify({ contractVersion: "1", invitations: [{ playerName: "Player", playerId: "1234" }, { playerName: "Another", playerId: "5678" }] });
     expect((await app.request("http://localhost/v1/admin/binding-invites/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-invite-1" }, body }, env)).status).toBe(403);
-    const adminApp = createTestApp({}, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({}, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/binding-invites/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-invite-1" }, body }, env);
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ items: [{ code: "ABCDEFGHIJKL" }] });
@@ -789,7 +792,7 @@ describe("API", () => {
 
   it("requires idempotency for administrator group configuration", async () => {
     const updates: Array<{ input: unknown; key: string }> = [];
-    const adminApp = createTestApp({ upsertQqGroupAccess: async (input, _auth, key) => { updates.push({ input, key }); } }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ upsertQqGroupAccess: async (input, _auth, key) => { updates.push({ input, key }); } }, authenticateAsMaintainer);
     const body = JSON.stringify({ contractVersion: "1", displayName: "主群", environment: "production", status: "active", bindEnabled: true, verifyEnabled: true });
     expect((await adminApp.request("http://localhost/v1/admin/qq/groups/group-1", { method: "PUT", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
     expect((await adminApp.request("http://localhost/v1/admin/qq/groups/group-1", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "group-update-1" }, body }, env)).status).toBe(204);
@@ -1124,8 +1127,8 @@ describe("API", () => {
       getAdminReview: async () => detail,
       hideReviewComment: async (input, _auth, key) => { calls.push({ operation: "comment", input, key }); return { ...adminReview, commentStatus: "hidden" as const }; },
       invalidateReview: async (input, _auth, key) => { calls.push({ operation: "state", input, key }); return { ...adminReview, status: "invalidated" as const }; },
-    }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
-    const unauthenticated = createTestApp({}, async () => null);
+    }, authenticateAsMaintainer);
+    const unauthenticated = createTestApp({}, anonymousAuth);
     expect((await unauthenticated.request("http://localhost/v1/admin/reviews", {}, env)).status).toBe(401);
     expect((await app.request("http://localhost/v1/admin/reviews", {}, env)).status).toBe(403);
 
@@ -1198,8 +1201,8 @@ describe("API", () => {
         calls.push({ operation: "correct", input, key });
         return { contractVersion: "1" as const, detail: { contractVersion: "1" as const, run, projection, sourceSubmission: {} as never, lifecycle: [], corrections: [], conflicts: [] }, affectedProjections: [projection] };
       },
-    }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
-    const unauthenticated = createTestApp({}, async () => null);
+    }, authenticateAsMaintainer);
+    const unauthenticated = createTestApp({}, anonymousAuth);
     expect((await unauthenticated.request("http://localhost/v1/admin/verified-runs", {}, env)).status).toBe(401);
     expect((await app.request("http://localhost/v1/admin/verified-runs", {}, env)).status).toBe(403);
 
@@ -1312,7 +1315,7 @@ describe("API", () => {
 
   it("limits historical title migration to maintainers and requires idempotency", async () => {
     const createAdminTitleGrant = async () => {};
-    const adminApp = createTestApp({ createAdminTitleGrant }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ createAdminTitleGrant }, authenticateAsMaintainer);
     const body = JSON.stringify({ contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", historicalTitleGrantId: "22222222-2222-4222-8222-222222222222" });
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
     expect((await adminApp.request("http://localhost/v1/admin/title-grants", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "title-grant-1" }, body }, env)).status).toBe(204);
@@ -1321,7 +1324,7 @@ describe("API", () => {
   it("returns paginated historical title migration data with global stats", async () => {
     const calls: Array<{ query?: string; filter?: string; page: number; pageSize: number }> = [];
     const listResponse = { contractVersion: "1" as const, holders: [{ holderName: "Cold", totalCount: 3, unclaimedCount: 2, status: "pending" as const }], page: 2, pageSize: 10, total: 25, hasMore: true, filter: "pending" as const, stats: { pendingHolderCount: 3, unclaimedGrantCount: 12, migratedGrantCount: 28 } };
-    const adminApp = createTestApp({ listHistoricalTitleGrants: async (input) => { calls.push(input); return listResponse; } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ listHistoricalTitleGrants: async (input) => { calls.push(input); return listResponse; } }, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/title-grants?query=Cold&filter=pending&page=2&pageSize=10", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(listResponse);
@@ -1340,7 +1343,7 @@ describe("API", () => {
       hasMore: true,
       grantStatus: "unclaimed" as const,
     };
-    const adminApp = createTestApp({ getHistoricalTitleHolder: async (input) => { calls.push(input); return detailResponse; } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ getHistoricalTitleHolder: async (input) => { calls.push(input); return detailResponse; } }, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/title-grants/holder?holderName=Cold&page=1&pageSize=1&grantStatus=unclaimed", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual(detailResponse);
@@ -1349,7 +1352,7 @@ describe("API", () => {
 
   it("exposes manual title grants only to maintainers", async () => {
     const manualGrant = { contractVersion: "1" as const, grantId: "00000000-0000-4000-8000-000000000009", titleKey: "PIONEER", titleName: "开拓者", mapId: null, slot: null, alreadyOwned: true };
-    const adminApp = createTestApp({ createAdminManualTitleGrant: async () => manualGrant }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const adminApp = createTestApp({ createAdminManualTitleGrant: async () => manualGrant }, authenticateAsMaintainer);
     const body = JSON.stringify({ contractVersion: "1", playerAccountId: "11111111-1111-4111-8111-111111111111", titleKey: "PIONEER", reason: "申诉纠正" });
     expect((await app.request("http://localhost/v1/admin/title-grants/manual", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "manual-1" }, body }, env)).status).toBe(403);
     const response = await adminApp.request("http://localhost/v1/admin/title-grants/manual", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "manual-1" }, body }, env);
@@ -1361,7 +1364,7 @@ describe("API", () => {
     const requests: unknown[] = [];
     const adminApp = createTestApp({
       restoreAdminTitleGrant: async (input, _auth, idempotencyKey) => { requests.push({ input, idempotencyKey }); },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const url = "http://localhost/v1/admin/title-grants/00000000-0000-4000-8000-000000000001/restore";
     const headers = { "content-type": "application/json", "idempotency-key": "restore-1" };
     const body = JSON.stringify({ contractVersion: "1", reason: "复核完成" });
@@ -1396,7 +1399,7 @@ describe("API", () => {
         if (!existing) { requestByKey.set(idempotencyKey, serialized); requests.push({ input, idempotencyKey }); }
         return batchResponse;
       },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const body = JSON.stringify({ contractVersion: "1", playerAccountIds: ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"], targets: [{ titleKey: "GLOBAL" }] });
     expect((await app.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "batch-1" }, body }, env)).status).toBe(403);
     expect((await adminApp.request("http://localhost/v1/admin/title-grants/manual/batch", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
@@ -1426,7 +1429,7 @@ describe("API", () => {
         responses.set(idempotencyKey, response);
         return response;
       },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const body = JSON.stringify({ contractVersion: "1", holderName: "Cold", playerAccountId: "11111111-1111-4111-8111-111111111111" });
     expect((await adminApp.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json" }, body }, env)).status).toBe(422);
     expect((await app.request("http://localhost/v1/admin/title-grants/bulk", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "bulk-1" }, body }, env)).status).toBe(403);
@@ -1447,9 +1450,9 @@ describe("API", () => {
       listAdminChallenges: async ({ family, status }) => ({ contractVersion: "1", items: family === "achievement" && status === "active" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", categoryOverride: null, condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "active", submissionMode: "manual", introducedVersion: "2026.07.15", retiredVersion: null }] : family === undefined ? [{ challengeId: "title.INTERNAL", family: "title_catalog", type: "title_catalog", titleKey: "INTERNAL", titleName: "内部称号", icon: "wrench", category: "开发保留", condition: "开发/管理用途。", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", status: "active", gameVersion: "2026.07.15", hasChallenge: false }] : [] }),
       updateAdminChallenge: async (input) => { if (input.family !== "achievement") throw new Error("CHALLENGE_NOT_FOUND"); updates.push(input); return { challengeId: input.challengeId, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: input.categoryOverride ?? "极限操作系列", categoryOverride: input.categoryOverride, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: "2026.07.15", status: input.status, submissionMode: input.submissionMode, introducedVersion: "2026.07.15", retiredVersion: input.status === "sunsetting" ? input.retiredVersion! : null } as const; },
       updateAdminCatalogTitle: async (input) => { catalogUpdates.push(input); },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     expect((await app.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(403);
-    const anonymousApp = createTestApp({}, async () => null);
+    const anonymousApp = createTestApp({}, anonymousAuth);
     expect((await anonymousApp.request("http://localhost/v1/admin/achievements", {}, env)).status).toBe(401);
     const listed = await adminApp.request("http://localhost/v1/admin/achievements?type=title_achievement&status=active", {}, env);
     expect(listed.status).toBe(200);
@@ -1477,7 +1480,7 @@ describe("API", () => {
         created.push(input);
         return { challengeId: `title.${input.titleKey}`, family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: input.titleKey, titleName: input.titleName, icon: input.icon, category: input.category, categoryOverride: null, condition: input.condition, evidenceRule: input.evidenceRule, gameVersion: input.gameVersion ?? null, status: input.status, submissionMode: input.submissionMode, introducedVersion: input.gameVersion ?? null, retiredVersion: null, scope: input.scope, mapIds: input.mapIds };
       },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const body = { contractVersion: "1", titleKey: "CLASSIC_RACETRACK", titleName: "经典赛道", icon: "trophy", category: "经典版系列", condition: "完成经典版挑战", evidenceRule: "完整截图", submissionMode: "manual", scope: "map", mapIds: ["map.route66"], status: "active", gameVersion: "26.0728.1" };
     expect((await app.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env)).status).toBe(403);
     const response = await adminApp.request("http://localhost/v1/admin/achievements", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "create-1" }, body: JSON.stringify(body) }, env);
@@ -1490,7 +1493,7 @@ describe("API", () => {
     const uploads: Array<{ titleKey: string; contentType: string; byteSize: number }> = [];
     const adminApp = createTestApp({
       uploadAdminTitleIcon: async (input) => { uploads.push({ titleKey: input.titleKey, contentType: input.contentType, byteSize: input.body.byteLength }); return { iconUrl: "https://api.example.com/v1/public/achievement-icons/FLAWLESS" }; },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const form = new FormData();
     form.append("file", new File([new Uint8Array([1, 2, 3])], "icon.png", { type: "image/png" }));
     const response = await adminApp.request("http://localhost/v1/admin/titles/FLAWLESS/icon", { method: "POST", body: form }, env);
@@ -1538,13 +1541,13 @@ describe("API", () => {
       },
       listTitles: async ({ mapId }) => mapId ? [{ titleKey: "PIONEER", label: "开拓者", icon: "trophy", category: "社区贡献系列", condition: "地图挑战", lifecycle: "active", publicVisibility: true, availability: "active", scope: "map", displayKind: "map_pioneer", mapId, slot: "pioneer", pioneerPrefixes: ["萨摩亚"], color: { kind: "heroColor" as const, index: 12 }, gameVersion: "2026.07.15" }] : [{ titleKey: "ALL_IN_ONE", label: "万象归一", icon: "trophy", category: "地图精通系列", condition: "获得所有地图征服者头衔", lifecycle: "active", publicVisibility: true, availability: "active", scope: "global", displayKind: "fixed", color: null, gameVersion: "2026.07.15" }],
     };
-    const catalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
+    const catalogApp = createApp({ authenticate: anonymousAuth, services: () => catalogServices });
     expect((await catalogApp.request("http://localhost/v1/maps", {}, env)).status).toBe(200);
     expect((await catalogApp.request("http://localhost/v1/challenges?family=map", {}, env)).status).toBe(200);
     expect((await catalogApp.request("http://localhost/v1/titles", {}, env)).status).toBe(401);
 
     const adminCatalogApp = createApp({
-      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      authenticate: authenticateAsMaintainer,
       services: () => ({ ...catalogServices, updateAdminMapMetadata: async (input) => ({ mapId: input.mapId, mapName: "萨摩亚", gameVersion: input.gameVersion, difficultyRating: input.difficultyRating, mechanics: input.mechanics, coverUrl: input.coverUrl, backgroundUrl: input.backgroundUrl }) }),
     });
     expect((await adminCatalogApp.request("http://localhost/v1/admin/maps", {}, env)).status).toBe(200);
@@ -1589,7 +1592,7 @@ describe("API", () => {
       ],
     };
     const editorApp = createApp({
-      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      authenticate: authenticateAsMaintainer,
       services: () => ({
         ...catalogServices,
         getAdminMapEditor: async () => ({ contractVersion: "1" as const, map: (await catalogServices.listMaps())[0]!, revisions: [editorRevision], challengeCatalog: [], audit: [] }),
@@ -1645,7 +1648,7 @@ describe("API", () => {
     expect(await promotion.json()).toMatchObject({ lifecycle: "default", isDefault: true });
     expect(revisionRequests.find((request) => request.operation === "promote")).toMatchObject({ operation: "promote", input: { mapId: "map.samoa", revisionId: "revision:map.samoa:rework", replacedDefaultLifecycle: "selectable" } });
 
-    const playerCatalogApp = createApp({ authenticate: async () => null, services: () => catalogServices });
+    const playerCatalogApp = createApp({ authenticate: anonymousAuth, services: () => catalogServices });
     const maps = await playerCatalogApp.request("http://localhost/v1/maps", { headers: { cookie: "owb_session=session-token" } }, env);
     const challenges = await playerCatalogApp.request("http://localhost/v1/challenges", { headers: { cookie: "owb_session=session-token" } }, env);
     const mapChallenges = await playerCatalogApp.request("http://localhost/v1/challenges?family=map", { headers: { cookie: "owb_session=session-token" } }, env);
@@ -1672,7 +1675,7 @@ describe("API", () => {
   it("serves the public achievement catalog without a player session", async () => {
     const publicApp = createTestApp({
       listChallenges: async (input) => input?.family === "achievement" ? [{ challengeId: "title.flawless", family: "achievement", type: "title_achievement", kind: "title_achievement", titleKey: "FLAWLESS", titleName: "完美无缺", icon: "zap", category: "极限操作系列", condition: "单局跳过英雄次数为 0 且通关。", evidenceRule: "完整截图", gameVersion: "2026.07.15", status: "sunsetting", retiredVersion: "26.0713.1", submissionMode: "manual" }] : [],
-    }, async () => null);
+    }, anonymousAuth);
     const response = await publicApp.request("http://localhost/v1/public/achievements", {}, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ contractVersion: "1", items: [{ challengeId: "title.flawless", family: "achievement", status: "sunsetting", retiredVersion: "26.0713.1", submissionMode: "manual" }] });
@@ -1680,7 +1683,7 @@ describe("API", () => {
 
   it("rejects a challenge selector in player upload requests", async () => {
     const createSession = vi.fn(async () => services.createPlayerUploadSession({ contractVersion: "1", contentType: "image/png", byteSize: 1, sha256: "a".repeat(64) }, "session-token"));
-    const uploadApp = createTestApp({ createPlayerUploadSession: createSession }, async () => null);
+    const uploadApp = createTestApp({ createPlayerUploadSession: createSession }, anonymousAuth);
     const response = await uploadApp.request("http://localhost/v1/player/uploads/session", {
       method: "POST",
       headers: { cookie: "owb_session=session-token", "content-type": "application/json" },
@@ -1695,7 +1698,7 @@ describe("API", () => {
     const ownershipApp = createTestApp({
       uploadEvidence: async () => { throw new Error("UPLOAD_SESSION_INVALID"); },
       completePlayerUpload: async () => { throw new Error("UPLOAD_SESSION_INVALID"); },
-    }, async () => null);
+    }, anonymousAuth);
     const upload = await ownershipApp.request("http://localhost/v1/uploads/00000000-0000-0000-0000-000000000004", {
       method: "PUT",
       headers: { cookie: "owb_session=session-token", "content-type": "image/png" },
@@ -1742,7 +1745,7 @@ describe("API", () => {
   it("returns a conflict while another player upload completion is enqueueing", async () => {
     const completionApp = createTestApp({
       completePlayerUpload: async () => { throw new Error("UPLOAD_COMPLETION_IN_PROGRESS"); },
-    }, async () => null);
+    }, anonymousAuth);
     const response = await completionApp.request("http://localhost/v1/player/uploads/00000000-0000-0000-0000-000000000004/complete", {
       method: "POST",
       headers: { cookie: "owb_session=session-token" },
@@ -1783,7 +1786,7 @@ describe("API", () => {
   });
 
   it("returns the title grant summary from an approved review", async () => {
-    const reviewApp = createTestApp({ reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "approved" as const, grantId: "00000000-0000-4000-8000-000000000001", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false }) }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const reviewApp = createTestApp({ reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "approved" as const, grantId: "00000000-0000-4000-8000-000000000001", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false }) }, authenticateAsMaintainer);
     const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved" }) }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ decision: "approved", titleKey: "PIONEER", titleName: "开拓者", alreadyOwned: false });
@@ -1794,8 +1797,8 @@ describe("API", () => {
     const previewInputs: unknown[] = [];
     const reviewApp = createTestApp({
       reviewSubmission: async (input) => { reviewInputs.push(input); return { contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "approved" as const, grantId: "00000000-0000-4000-8000-000000000001", titleKey: "HERO", titleName: "英雄", alreadyOwned: false }; },
-      previewSubmissionReview: async (input) => { previewInputs.push(input); return services.previewSubmissionReview(input, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }); },
-    }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+      previewSubmissionReview: async (input) => { previewInputs.push(input); return services.previewSubmissionReview(input, maintainerContext); },
+    }, authenticateAsMaintainer);
     const body = { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "国王大道" }], confirmedChallengeIds: ["legacy:title_challenge:title.hero:::abc"] };
     const preview = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review/preview", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, env);
     expect(preview.status).toBe(200);
@@ -1809,7 +1812,7 @@ describe("API", () => {
   });
 
   it("maps ineligible Challenge confirmations to a review error", async () => {
-    const reviewApp = createTestApp({ reviewSubmission: async () => { throw new Error("CHALLENGE_CONFIRMATION_INELIGIBLE"); } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const reviewApp = createTestApp({ reviewSubmission: async () => { throw new Error("CHALLENGE_CONFIRMATION_INELIGIBLE"); } }, authenticateAsMaintainer);
     const response = await reviewApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/review", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "review-ineligible-1" }, body: JSON.stringify({ contractVersion: "1", decision: "approved", confirmedChallengeIds: ["challenge.owned"] }) }, env);
     expect(response.status).toBe(422);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("CHALLENGE_CONFIRMATION_INELIGIBLE");
@@ -1822,7 +1825,7 @@ describe("API", () => {
 
   it("allows maintainers to request another OCRKit attempt", async () => {
     const requests: string[] = [];
-    const retryApp = createTestApp({ requestAdminOcr: async ({ submissionId }) => { requests.push(submissionId); return { contractVersion: "1", submissionId, status: "ocr_pending" as const }; } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const retryApp = createTestApp({ requestAdminOcr: async ({ submissionId }) => { requests.push(submissionId); return { contractVersion: "1", submissionId, status: "ocr_pending" as const }; } }, authenticateAsMaintainer);
     const response = await retryApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/ocr/retry", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "ocr-retry-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect(response.status).toBe(200);
     expect(requests).toEqual(["00000000-0000-4000-8000-000000000000"]);
@@ -1830,7 +1833,7 @@ describe("API", () => {
   });
 
   it("returns a conflict when another OCR retry is already in progress", async () => {
-    const retryApp = createTestApp({ requestAdminOcr: async () => { throw new Error("OCR_RETRY_IN_PROGRESS"); } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const retryApp = createTestApp({ requestAdminOcr: async () => { throw new Error("OCR_RETRY_IN_PROGRESS"); } }, authenticateAsMaintainer);
     const response = await retryApp.request("http://localhost/v1/admin/submissions/00000000-0000-0000-0000-000000000000/ocr/retry", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "ocr-retry-race-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect(response.status).toBe(409);
     expect((await response.json() as { error: { code: string } }).error.code).toBe("OCR_RETRY_IN_PROGRESS");
@@ -1848,7 +1851,7 @@ describe("API", () => {
 
   it("lets maintainers resolve an automatic-decision spot check", async () => {
     const resolutions: string[] = [];
-    const spotCheckApp = createTestApp({ resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001", verifiedRunId: null }; } }, async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }));
+    const spotCheckApp = createTestApp({ resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => { resolutions.push(`${submissionId}:${decision}`); return { contractVersion: "1", submissionId, status: decision, grantId: "00000000-0000-4000-8000-000000000001", verifiedRunId: null }; } }, authenticateAsMaintainer);
     const response = await spotCheckApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000000/spot-check", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "spot-check-1" }, body: JSON.stringify({ contractVersion: "1", decision: "confirmed" }) }, env);
     expect(response.status).toBe(200);
     expect(resolutions).toEqual(["00000000-0000-4000-8000-000000000000:confirmed"]);
@@ -1856,7 +1859,7 @@ describe("API", () => {
 
   it("protects administrative player data with the platform session", async () => {
     const adminServices: PlatformServices = { ...services, getCurrentPlayer: async ({ sessionToken }) => sessionToken === "admin-session" ? { contractVersion: "1", player: { playerId: "1234", playerName: "Player", isAdmin: true }, recentSubmissions: [] } : null };
-    const adminApp = createApp({ authenticate: async () => null, services: () => adminServices });
+    const adminApp = createApp({ authenticate: anonymousAuth, services: () => adminServices });
     const denied = await adminApp.request("http://localhost/v1/admin/player-accounts", {}, env);
     expect(denied.status).toBe(401);
     const allowed = await adminApp.request("http://localhost/v1/admin/player-accounts", { headers: { cookie: "owb_session=admin-session" } }, env);
@@ -1868,7 +1871,7 @@ describe("API", () => {
     const updates: Array<{ playerAccountId: string; playerName: string; key: string }> = [];
     const adminApp = createTestApp({
       updateAdminPlayerIdentity: async (input, _auth, key) => { updates.push({ playerAccountId: input.playerAccountId, playerName: input.playerName, key }); },
-    }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/identity", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "identity-1" }, body: JSON.stringify({ contractVersion: "1", playerName: "新名称" }) }, env);
     expect(response.status).toBe(204);
     expect(updates).toEqual([{ playerAccountId: "player-1", playerName: "新名称", key: "identity-1" }]);
@@ -1878,7 +1881,7 @@ describe("API", () => {
     const requests: Array<{ playerAccountId: string; grantIds: string[]; key: string }> = [];
     const adminApp = createTestApp({
       replaceAdminPlayerEquippedTitles: async (input, _auth, key) => { requests.push({ ...input, key }); return { contractVersion: "1" as const, grantIds: input.grantIds }; },
-    }, async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }));
+    }, authenticateAsMaintainer);
     const response = await adminApp.request("http://localhost/v1/admin/player-accounts/player-1/titles/equipped", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "recover-1" }, body: JSON.stringify({ contractVersion: "1", grantIds: ["00000000-0000-4000-8000-000000000006"] }) }, env);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ contractVersion: "1", grantIds: ["00000000-0000-4000-8000-000000000006"] });
@@ -1895,7 +1898,7 @@ describe("API", () => {
       },
     };
     const adminApp = createApp({
-      authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }),
+      authenticate: authenticateAsMaintainer,
       services: () => adminServices,
     });
     const paged = await adminApp.request("http://localhost/v1/admin/submissions?status=ready_for_review,ocr_review_required&page=2&pageSize=20", {}, env);
@@ -1921,7 +1924,7 @@ describe("API", () => {
       createLocalDevSession: async () => ({ sessionToken: "local-session" }),
       getCurrentPlayer: async ({ sessionToken }) => sessionToken === "local-session" ? { contractVersion: "1", player: { playerId: "local-player", playerName: "Local Player", isAdmin: false }, recentSubmissions: [] } : null,
     };
-    const localApp = createApp({ authenticate: async () => null, services: () => localServices });
+    const localApp = createApp({ authenticate: anonymousAuth, services: () => localServices });
     expect((await localApp.request("http://localhost/v1/__local/accounts", {}, env)).status).toBe(404);
 
     const localEnv = { ...env, LOCAL_DEV_AUTH: "true" };
