@@ -12,6 +12,7 @@ import type {
   OcrAccuracyFeedbackResponse,
   QqGroupAccessResponse,
 } from "@owbastion/contracts";
+import { createApiClient } from "~/utils/api-client";
 export type {
   AdminPlayerDetail,
   AdminReview,
@@ -28,9 +29,6 @@ export type {
   AdminVerifiedRunProjection,
   OcrAccuracyMark,
 } from "@owbastion/contracts";
-import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
-import { recordPortalError } from "~/utils/portal-error";
-
 export type AdminPlayer = AdminPlayerListResponse["items"][number];
 export type AdminGroup = Omit<QqGroupAccessResponse, "contractVersion">;
 export type AdminBindingClaim = AdminBindingClaimListResponse["items"][number];
@@ -45,16 +43,5 @@ export type AdminReviewDetail = ContractAdminReviewDetail;
 export type AdminOcrAccuracyResponse = OcrAccuracyFeedbackResponse;
 
 export function useAdminApi() {
-  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
-    const requestId = createRequestId();
-    const headers = new Headers(options?.headers as HeadersInit | undefined);
-    if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
-    try {
-      return await $fetch<T>(`/api/admin${path}`, { ...options, headers, cache: "no-store", credentials: "include", retry: 0, timeout: 8_000 });
-    } catch (error) {
-      Object.assign(error as object, { requestId });
-      recordPortalError(error, { operation: path, requestId });
-      throw error;
-    }
-  };
+  return createApiClient("/api/admin", $fetch, "no-store");
 }
