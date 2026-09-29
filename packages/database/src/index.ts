@@ -744,6 +744,30 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     await database.batch(revisions.map(({ revision }) => insertDefaultMapTitleRuleAssignment(revision.id, revision.mapId, rule.id, timestamp)));
   };
 
+  const validateChallengeMapScope = async (scope: "global" | "map", mapIds: string[]) => {
+    if (scope === "global") {
+      if (mapIds.length) throw new Error("INVALID_MAP_SCOPE");
+      return;
+    }
+    if (!mapIds.length) return;
+    const targetMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds));
+    if (targetMaps.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
+    if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
+  };
+
+  const loadTitleChallengeRevisions = async (mapIds: string[], mapVariant: "classic" | null) => {
+    const assignedMapIds = mapIds.length
+      ? mapIds
+      : (await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active"))).map(({ id }) => id);
+    if (!assignedMapIds.length) return [];
+    return db.select({ revision: gameplayRevisions }).from(gameplayRevisions).where(and(
+      inArray(gameplayRevisions.mapId, assignedMapIds),
+      mapVariant === "classic"
+        ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic"))
+        : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)),
+    ));
+  };
+
   const toTitleChallengeBase = (
     challenge: typeof titleChallenges.$inferSelect,
     title: typeof titleCatalog.$inferSelect,
@@ -2928,28 +2952,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const existing = await db.select({ key: titleCatalog.key, category: titleCatalog.category }).from(titleCatalog).where(eq(titleCatalog.key, input.titleKey)).get();
       if (existing) throw new Error("TITLE_KEY_CONFLICT");
       const targetMapIds = [...new Set(input.mapIds)];
-      if (input.scope === "global" && targetMapIds.length) throw new Error("INVALID_MAP_SCOPE");
-      if (input.scope === "map" && targetMapIds.length) {
-        const targetMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, targetMapIds));
-        if (targetMaps.length !== targetMapIds.length) throw new Error("MAP_NOT_FOUND");
-        if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
-      }
+      await validateChallengeMapScope(input.scope, targetMapIds);
       const timestamp = now();
       const challengeId = `title.${input.titleKey}`;
-      const assignedMapIds = input.scope === "map"
-        ? targetMapIds.length
-          ? targetMapIds
-          : (await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active"))).map(({ id }) => id)
-        : [];
       const mapVariant = input.mapVariant ?? null;
-      const revisions = assignedMapIds.length
-        ? await db.select({ revision: gameplayRevisions }).from(gameplayRevisions).where(and(
-          inArray(gameplayRevisions.mapId, assignedMapIds),
-          mapVariant === "classic"
-            ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic"))
-            : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)),
-        ))
-        : [];
+      const revisions = input.scope === "map" ? await loadTitleChallengeRevisions(targetMapIds, mapVariant) : [];
       const response: AdminChallenge = {
         challengeId,
         family: "achievement",
@@ -3021,12 +3028,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (!row) throw new Error("CHALLENGE_NOT_FOUND");
       const scope = input.scope ?? (row.challenge.scope as "global" | "map" ?? "global");
       const mapIds = input.mapIds !== undefined ? [...new Set(input.mapIds)] : (scope === "map" ? (await db.select({ mapId: achievementChallengeMaps.mapId }).from(achievementChallengeMaps).where(eq(achievementChallengeMaps.challengeId, row.challenge.id))).map(({ mapId }) => mapId) : []);
-      if (scope === "global" && mapIds.length) throw new Error("INVALID_MAP_SCOPE");
-      if (scope === "map" && mapIds.length) {
-        const targetMaps = await db.select({ id: maps.id, status: maps.status }).from(maps).where(inArray(maps.id, mapIds));
-        if (targetMaps.length !== mapIds.length) throw new Error("MAP_NOT_FOUND");
-        if (targetMaps.some((map) => map.status !== "active")) throw new Error("MAP_NOT_ACTIVE");
-      }
+      await validateChallengeMapScope(scope, mapIds);
       const gameVersion = input.gameVersion !== undefined ? input.gameVersion : row.challenge.gameVersion;
       const introducedVersion = row.challenge.introducedVersion ?? input.gameVersion ?? null;
       const hasReleaseHistory = row.challenge.introducedVersion !== null || row.challenge.gameVersion !== null;
@@ -3053,18 +3055,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
       await db.update(titleCatalog).set({ gameVersion }).where(eq(titleCatalog.key, row.title.key));
       if (scope === "map") {
-        const assignedMapIds = mapIds.length
-          ? mapIds
-          : (await db.select({ id: maps.id }).from(maps).where(eq(maps.status, "active"))).map(({ id }) => id);
         const mapVariant = input.mapVariant !== undefined ? input.mapVariant : (row.challenge.mapVariant as "classic" | null) ?? null;
-        const revisions = assignedMapIds.length
-          ? await db.select({ revision: gameplayRevisions }).from(gameplayRevisions).where(and(
-            inArray(gameplayRevisions.mapId, assignedMapIds),
-            mapVariant === "classic"
-              ? and(eq(gameplayRevisions.lifecycle, "selectable"), eq(gameplayRevisions.legacyMapVariant, "classic"))
-              : and(eq(gameplayRevisions.lifecycle, "default"), isNull(gameplayRevisions.legacyMapVariant)),
-          ))
-          : [];
+        const revisions = await loadTitleChallengeRevisions(mapIds, mapVariant);
         if (revisions.length) await db.insert(gameplayRevisionChallengeAssignments).values(revisions.map(({ revision }) => ({
           id: `assignment:${revision.id}:title_challenge:${row.challenge.id}`,
           gameplayRevisionId: revision.id,
