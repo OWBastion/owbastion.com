@@ -4,25 +4,7 @@ import { parseChallengeProgressRule } from "@owbastion/domain";
 import type { ChallengeCondition } from "@owbastion/domain";
 import { hashRequest } from "./portal-session";
 import { achievementChallenges, challenges, mapTitleRuleCompat, mapTitleRules, titleCatalog, titleChallenges } from "./schema";
-export type MapTitleRuleSnapshot = {
-  challengeId?: string;
-  challengeType?: string;
-  ruleId: string;
-  ruleRevision: number;
-  mapId: string | null;
-  gameplayRevisionId: string | null;
-  titleKey: string;
-  mapVariant: "classic" | null;
-  slot: string | null;
-  displayKind: string;
-  condition: string;
-  evidenceRule: string;
-  submissionMode: string;
-  defaultScope: string;
-  exceptionId: string | null;
-  startsAt: number | null;
-  endsAt: number | null;
-};
+import type { MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 
 export type CanonicalChallengeInput = {
   snapshot?: MapTitleRuleSnapshot | null;
