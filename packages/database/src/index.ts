@@ -7,6 +7,7 @@ import { agentGameplayRevisionSchema } from "@owbastion/contracts";
 import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, ScreenshotSetStatus, Title } from "@owbastion/contracts";
 import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
+import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, normalizeOcrDifficulty, type OcrResponse } from "./ocr-response";
 import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengeOverlay, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
@@ -31,17 +32,9 @@ export type { VerifiedRunOcrEvidenceAssessment } from "./ocr-response";
 
 const now = () => Date.now();
 const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
-const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 
-const playerSubmissionStatus = (status: string): PlayerSubmissionStatus => {
-  if (["upload_pending", "received", "evidence_pending", "evidence_stored", "ocr_pending"].includes(status)) return "processing";
-  if (["awaiting_player_confirmation", "ready_for_review", "ocr_review_required"].includes(status)) return "needs_review";
-  if (status === "approved") return "completed";
-  if (["rejected", "resubmission_required"].includes(status)) return "rejected";
-  throw new Error("SUBMISSION_STATUS_INVALID");
-};
 const logOcrEvent = (event: string, fields: Record<string, unknown>) => console.log(JSON.stringify({ layer: "ocr", event, ...fields }));
 const ocrkitRequestTimeoutMs = 20_000;
 const errorDetails = (error: unknown) => ({ errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) });
@@ -59,9 +52,6 @@ const groupBy = <T, K extends string>(items: Iterable<T>, keyOf: (item: T) => K,
 
 const sessionTtlMs = 30 * 24 * 60 * 60 * 1000;
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const uploadTtlMs = 10 * 60 * 1000;
-const evidenceExtensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
-const maxUploadBytes = 10 * 1024 * 1024;
 const maxTitleIconBytes = 512 * 1024;
 const titleIconContentTypes = new Map([["image/png", "png"], ["image/jpeg", "jpg"], ["image/webp", "webp"]]);
 // The stored object key is `.../<version>.<extension>`; the version segment is minted once at
@@ -87,7 +77,6 @@ export const titleChallengeIsSubmittable = (status: string, startsAt: number | n
 export const pioneerExceptionIsSubmittable = (enabled: number, startsAt: number | null, endsAt: number | null, timestamp: number) => enabled === 1 && pioneerExceptionHasValidWindow(startsAt, endsAt) && timestamp >= startsAt! && timestamp < endsAt!;
 const bytesToHex = (value: Uint8Array) => Array.from(value, (byte) => byte.toString(16).padStart(2, "0")).join("");
 const sha256 = (value: BufferSource) => crypto.subtle.digest("SHA-256", value);
-const digestHex = async (value: BufferSource) => bytesToHex(new Uint8Array(await sha256(value)));
 const randomToken = (bytes = 32) => {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(bytes)));
 };
@@ -3220,113 +3209,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       resolveManualTitleGrantTarget,
     }),
 
-    async createPlayerUploadSession(input, sessionToken) {
-      const current = await getCurrentPortalPlayer(sessionToken);
-      if (!current) throw new Error("UNAUTHENTICATED");
-      const account = current.player;
-      if (account.status === "banned") throw new Error("PLAYER_BANNED");
-      const submissionId = crypto.randomUUID();
-      const uploadId = crypto.randomUUID();
-      const timestamp = now();
-      const objectKey = userEvidenceObjectKey(submissionId, input.sha256, evidenceExtensions[input.contentType]);
-      await db.insert(submissions).values({ id: submissionId, playerAccountId: account.id, bindingId: null, status: "upload_pending", challengeType: "unknown", challengeId: null, targetMapId: null, gameplayRevisionId: null, mapName: "成就挑战", difficulty: null, playerName: account.playerName, sourceProvider: "portal", sourceConversationId: "portal", sourceMessageId: uploadId, createdAt: timestamp, updatedAt: timestamp });
-      await db.insert(uploadSessions).values({ id: uploadId, submissionId, playerAccountId: account.id, contentType: input.contentType, byteSize: input.byteSize, sha256: input.sha256, objectKey, status: "pending", expiresAt: timestamp + uploadTtlMs, createdAt: timestamp });
-      return { contractVersion: "1" as const, submissionId, uploadId, uploadUrl: `${uploadOrigin}/v1/uploads/${uploadId}`, expiresAt: timestamp + uploadTtlMs, maxBytes: maxUploadBytes };
-    },
-
-    async uploadEvidence(input, sessionToken) {
-      if (!evidenceBucket) throw new Error("EVIDENCE_BUCKET_UNAVAILABLE");
-      const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
-      if (!session || session.expiresAt <= now() || session.status !== "pending") throw new Error("UPLOAD_SESSION_INVALID");
-      const current = await getCurrentPortalPlayer(sessionToken);
-      if (!current) throw new Error("UNAUTHENTICATED");
-      if (current.player.id !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
-      const account = await db.select().from(playerAccounts).where(eq(playerAccounts.id, session.playerAccountId)).get();
-      if (!account || account.status === "banned") throw new Error("PLAYER_BANNED");
-      if (input.contentType !== session.contentType || input.body.byteLength !== session.byteSize || input.body.byteLength > maxUploadBytes) throw new Error("UPLOAD_METADATA_MISMATCH");
-      const sha256 = await digestHex(input.body);
-      if (sha256 !== session.sha256) throw new Error("UPLOAD_HASH_MISMATCH");
-      await evidenceBucket.put(session.objectKey, input.body, { httpMetadata: { contentType: input.contentType } });
-      await db.update(uploadSessions).set({ status: "uploaded" }).where(eq(uploadSessions.id, session.id));
-      await db.insert(attachments).values({ id: crypto.randomUUID(), submissionId: session.submissionId, provider: "portal", externalAttachmentId: session.id, contentType: input.contentType, byteSize: input.body.byteLength, sha256, objectKey: session.objectKey, uploadStatus: "stored", createdAt: now() });
-    },
-
-    async completePlayerUpload(input, sessionToken, requestId) {
-      const session = await db.select().from(uploadSessions).where(eq(uploadSessions.id, input.uploadId)).get();
-      if (!session || !["uploaded", "completed"].includes(session.status) || (session.status === "uploaded" && session.expiresAt <= now())) throw new Error("UPLOAD_SESSION_INVALID");
-      const current = await getCurrentPortalPlayer(sessionToken);
-      if (!current) throw new Error("UNAUTHENTICATED");
-      if (current.player.id !== session.playerAccountId) throw new Error("UPLOAD_SESSION_INVALID");
-      if (!ocrQueue) {
-        await database.batch([
-          database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
-          database.prepare("UPDATE submissions SET status = 'ocr_pending', updated_at = ? WHERE id = ? AND status = 'upload_pending'").bind(now(), session.submissionId),
-        ]);
-        const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
-        if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
-        return { submissionId: session.submissionId, status: playerSubmissionStatus(submission.status) };
-      }
-
-      const requestHash = await hashRequest({ uploadId: session.id });
-      const idempotencyRecordId = `${current.player.id}:submission.upload.complete:${session.id}`;
-      const existingIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
-      if (existingIdempotency) {
-        if (existingIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
-        if (existingIdempotency.responseJson.startsWith(playerUploadCompletionEnqueueingPrefix)) throw new Error("UPLOAD_COMPLETION_IN_PROGRESS");
-        return JSON.parse(existingIdempotency.responseJson) as { submissionId: string; status: "processing" };
-      }
-
-      const beforeCompletion = await db.select({ status: submissions.status, updatedAt: submissions.updatedAt }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
-      if (!beforeCompletion) throw new Error("UPLOAD_SESSION_INVALID");
-      const timestamp = Math.max(now(), beforeCompletion.updatedAt + 1);
-      const enqueueingMarker = `${playerUploadCompletionEnqueueingPrefix}${crypto.randomUUID()}`;
-      const response = { submissionId: session.submissionId, status: "processing" as const };
-      await database.batch([
-        database.prepare("UPDATE upload_sessions SET status = 'completed' WHERE id = ? AND status = 'uploaded'").bind(session.id),
-        database.prepare("INSERT OR IGNORE INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'submission.upload.complete', ?, ?, ?)").bind(idempotencyRecordId, current.player.id, requestHash, enqueueingMarker, timestamp),
-        database.prepare(`UPDATE submissions SET status = 'ocr_pending', updated_at = ?
-          WHERE id = ? AND status = 'upload_pending' AND updated_at = ? AND changes() = 1
-            AND EXISTS (SELECT 1 FROM upload_sessions WHERE id = ? AND submission_id = ? AND status = 'completed')`)
-          .bind(timestamp, session.submissionId, beforeCompletion.updatedAt, session.id, session.submissionId),
-        database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ? AND changes() = 0").bind(idempotencyRecordId, enqueueingMarker),
-      ]);
-      const claimedIdempotency = await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.id, idempotencyRecordId)).get();
-      if (!claimedIdempotency) {
-        const submission = await db.select({ status: submissions.status }).from(submissions).where(eq(submissions.id, session.submissionId)).get();
-        if (!submission) throw new Error("UPLOAD_SESSION_INVALID");
-        return { submissionId: session.submissionId, status: playerSubmissionStatus(submission.status) };
-      }
-      if (claimedIdempotency.requestHash !== requestHash) throw new Error("IDEMPOTENCY_CONFLICT");
-      if (claimedIdempotency.responseJson !== enqueueingMarker) {
-        if (claimedIdempotency.responseJson.startsWith(playerUploadCompletionEnqueueingPrefix)) throw new Error("UPLOAD_COMPLETION_IN_PROGRESS");
-        return JSON.parse(claimedIdempotency.responseJson) as typeof response;
-      }
-
-      try {
-        await ocrQueue.send({ version: 1, submissionId: session.submissionId, objectKey: session.objectKey, ...(requestId ? { requestId } : {}) });
-        logOcrEvent("job_enqueued", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null });
-      } catch (error) {
-        logOcrEvent("job_enqueue_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(error) });
-        const failedAt = Math.max(now(), timestamp + 1);
-        try {
-          await database.batch([
-            database.prepare(`UPDATE submissions SET status = 'upload_pending', updated_at = ?
-              WHERE id = ? AND status = 'ocr_pending' AND updated_at = ?
-                AND EXISTS (SELECT 1 FROM idempotency_keys WHERE id = ? AND response_json = ?)`)
-              .bind(failedAt, session.submissionId, timestamp, idempotencyRecordId, enqueueingMarker),
-            database.prepare("DELETE FROM idempotency_keys WHERE id = ? AND response_json = ?").bind(idempotencyRecordId, enqueueingMarker),
-          ]);
-        } catch (recoveryError) {
-          logOcrEvent("job_enqueue_recovery_failed", { submissionId: session.submissionId, attempt: 0, manual: false, requestId: requestId ?? null, ...errorDetails(recoveryError) });
-        }
-        throw error;
-      }
-      const finalizedIdempotency = await database.prepare("UPDATE idempotency_keys SET response_json = ? WHERE id = ? AND response_json = ?")
-        .bind(JSON.stringify(response), idempotencyRecordId, enqueueingMarker)
-        .run();
-      if (Number(finalizedIdempotency.meta.changes) !== 1) throw new Error("UPLOAD_COMPLETION_IDEMPOTENCY_FINALIZE_FAILED");
-      return response;
-    },
+    ...createPlayerUploadServices({ database, db, evidenceBucket, uploadOrigin, ocrQueue, now, getCurrentPortalPlayer, hashRequest, logOcrEvent, errorDetails }),
 
     async listAdminSubmissions(input) {
       const conditions = input.statuses?.length ? [inArray(submissions.status, input.statuses)] : [];
