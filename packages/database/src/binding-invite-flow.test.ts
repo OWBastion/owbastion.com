@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { createTestD1 } from "../test/d1";
 import { createPlatformServices } from "./index";
 import { resolvePortalSession } from "./portal-session";
 
@@ -9,8 +10,7 @@ const hashRequest = (value: unknown) => createHash("sha256").update(JSON.stringi
 const legacyInviteRetryMigration = readFileSync(new URL("../../../migrations/0087_legacy_passkey_invite_retry_anchor.sql", import.meta.url), "utf8");
 
 const createD1 = (failBatchNumbers: number[] = []) => {
-  const sqlite = new DatabaseSync(":memory:");
-  let batchNumber = 0;
+  const { database, sqlite } = createTestD1({ batchStatementMethod: "run", failBatchNumbers });
   sqlite.exec(`
     CREATE TABLE binding_invites (id TEXT PRIMARY KEY, code_hash TEXT NOT NULL UNIQUE, code_ciphertext TEXT, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER, legacy_passkey_player_account_id TEXT, legacy_passkey_challenge_id TEXT, revoked_at INTEGER, revoked_by TEXT);
     CREATE TABLE historical_title_grants (id TEXT PRIMARY KEY, scope TEXT NOT NULL, map_id TEXT, gameplay_revision_id TEXT, slot TEXT, title_key TEXT NOT NULL, holder_name TEXT NOT NULL, source_version TEXT NOT NULL);
@@ -31,26 +31,6 @@ const createD1 = (failBatchNumbers: number[] = []) => {
     CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE qq_sessions (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, environment TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
   `);
-  const wrap = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() { const results = sqlite.prepare(sql).all(...bound) as T[]; return { results, success: true, meta: {} }; },
-      async run() { sqlite.prepare(sql).run(...bound); return { success: true, meta: {} }; },
-      async raw<T extends unknown[] = unknown[]>() { const statement = sqlite.prepare(sql); statement.setReturnArrays(true); return statement.all(...bound) as T[]; },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrap(sql); },
-    async batch(statements: Array<ReturnType<typeof wrap>>) {
-      batchNumber += 1;
-      if (failBatchNumbers.includes(batchNumber)) throw new Error("D1_TRANSIENT_FAILURE");
-      for (const statement of statements) await statement.run();
-      return [];
-    },
-  } as unknown as D1Database;
   return { database, sqlite };
 };
 
