@@ -42,7 +42,7 @@ const versionSaving = shallowRef(false);
 const form = reactive({ name: "", category: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
 const categoryItems = computed(() => [...new Set(events.value.map((event) => event.category))].sort());
 const effectTagItems = computed(() => [...new Set(events.value.flatMap((event) => event.effectTags))].sort());
-const derivedRarity = computed(() => randomEventRarityForWeight(form.weight) || "—");
+const derivedRarity = computed(() => randomEventRarityForWeight(form.weight ?? null) || "—");
 
 const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "已实装" : status === "removed" ? "已移除" : "开发中";
 const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "success" : status === "removed" ? "default" : "warning";
@@ -69,7 +69,7 @@ const tableGroupingOptions: GroupingOptions = {
   groupedColumnMode: false,
   getGroupedRowModel: getGroupedRowModel(),
 };
-const groupLabel = (columnId: string, value: unknown) => columnId === "releaseStatus" ? releaseStatusText(value as RandomEvent["releaseStatus"]) : String(value ?? "未设置");
+const groupLabel = (columnId: string, value: unknown) => columnId === "releaseStatus" ? releaseStatusText(value as RandomEvent["releaseStatus"]) : String(value || "未设置");
 const eventColumns: TableColumn<RandomEvent>[] = [
   { accessorKey: "name", header: "事件名称", size: 128, meta: { class: { th: "w-32", td: "!whitespace-nowrap" } } },
   { accessorKey: "description", header: "事件效果", meta: { class: { th: "w-80", td: "align-top" } } },
@@ -86,6 +86,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
 ];
 
 function number(value: number | string | null | undefined) { return value === "" || value === null || value === undefined ? null : Number(value); }
+const createEffectTag = (value: string) => { const tag = value.trim(); if (tag && !form.effectTags.includes(tag)) form.effectTags.push(tag); };
 function resetForm(event?: RandomEvent) {
   Object.assign(form, event ? { name: event.name, category: event.category, description: event.description, durationSeconds: event.durationSeconds, cooldownSeconds: event.cooldownSeconds, weight: event.weight, gameVersion: event.gameVersion, effectTags: [...event.effectTags], releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "", effectTags: [], releaseStatus: "development", links: [] });
 }
@@ -148,6 +149,7 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
         <template #name-cell="{ row }"><div v-if="row.getIsGrouped()" class="flex items-center gap-2"><UButton class="hit-target-lg" size="sm" color="neutral" variant="ghost" square :icon="row.getIsExpanded() ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'" :aria-label="row.getIsExpanded() ? '收起分组' : '展开分组'" @click="row.toggleExpanded()" /><strong>{{ groupLabel(row.groupingColumnId ?? "", row.getValue(row.groupingColumnId ?? "")) }}</strong><span class="text-sm text-muted">{{ row.subRows.length }} 条</span></div><strong v-else class="block truncate" :title="row.original.name">{{ row.original.name }}</strong></template>
         <template #description-cell="{ row }"><span v-if="!row.getIsGrouped()" class="line-clamp-2 block" :title="row.original.description">{{ row.original.description }}</span></template>
         <template #category-cell="{ row }"><UBadge v-if="!row.getIsGrouped()" :label="row.original.category" :color="categoryColor(row.original.category)" variant="subtle" /></template>
+        <template #rarity-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.rarity || "—" }}</span></template>
         <template #cooldownSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.cooldownSeconds ?? "—" }}</span></template>
         <template #durationSeconds-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.durationSeconds === null ? "—" : `${row.original.durationSeconds} 秒` }}</span></template>
         <template #weight-cell="{ row }"><span v-if="!row.getIsGrouped()">{{ row.original.weight ?? "—" }}</span></template>
@@ -165,7 +167,7 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
             <h3 class="text-base font-semibold">基本信息</h3>
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="名称"><UInput v-model="form.name" required /></UFormField>
-              <UFormField label="类别"><UInputMenu v-model="form.category" :items="categoryItems" create-item placeholder="选择或输入类别" :disabled="saving" required class="w-full" /></UFormField>
+              <UFormField label="类别"><UInputMenu v-model="form.category" :items="categoryItems" create-item placeholder="选择或输入类别" :disabled="saving" required class="w-full" @create="form.category = $event.trim()" /></UFormField>
               <UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField>
               <UFormField label="权重" :hint="`稀有度：${derivedRarity}`"><UInputNumber v-model="form.weight" :min="0" :step="0.01" class="w-full" /></UFormField>
               <UFormField label="内置冷却（秒）"><UInputNumber v-model="form.cooldownSeconds" :min="0" class="w-full" /></UFormField>
@@ -192,7 +194,7 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
           </section>
 
           <section class="grid gap-4">
-            <UFormField label="效果标签"><UInputMenu v-model="form.effectTags" :items="effectTagItems" multiple create-item placeholder="输入或选择效果标签" :disabled="saving" aria-label="效果标签" class="w-full" /></UFormField>
+            <UFormField label="效果标签"><UInputMenu v-model="form.effectTags" :items="effectTagItems" multiple create-item placeholder="输入或选择效果标签" :disabled="saving" aria-label="效果标签" class="w-full" @create="createEffectTag" /></UFormField>
             <UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField>
             <UFormField label="关联挑战">
               <div v-if="selectedEvent?.challenges.length" class="grid gap-2">

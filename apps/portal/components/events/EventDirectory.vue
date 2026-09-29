@@ -21,7 +21,7 @@ const [DefineDetailContent, ReuseDetailContent] = createReusableTemplate();
 const [DefineHeaderTags, ReuseHeaderTags] = createReusableTemplate();
 
 const categories = computed(() => [...new Set(props.events.map((event) => event.category))].sort());
-const rarities = computed(() => [...new Set(props.events.map((event) => event.rarity))].sort());
+const rarities = computed(() => [...new Set(props.events.map((event) => event.rarity).filter(Boolean))].sort());
 const filteredEvents = computed(() => props.events.filter((event) => (status.value === "all" || event.releaseStatus === status.value) && (category.value === "all" || event.category === category.value) && (rarity.value === "all" || event.rarity === rarity.value) && (!query.value.trim() || `${event.name}${event.description}`.includes(query.value.trim()))));
 const groupedEvents = computed(() => {
   const groups = new Map<string, RandomEvent[]>();
@@ -83,7 +83,7 @@ onMounted(() => { hydrated.value = true; });
               </div>
               <div class="card-meta type-label-sm">
                 <span class="event-category">{{ event.category }}</span>
-                <span class="event-rarity">{{ event.rarity }}</span>
+                <span v-if="event.rarity" class="event-rarity">{{ event.rarity }}</span>
               </div>
               <p class="type-label-sm">{{ event.description }}</p>
             </button>
@@ -104,7 +104,7 @@ onMounted(() => { hydrated.value = true; });
     <DefineHeaderTags>
       <div v-if="selected" class="detail-header-tags">
         <UBadge :label="selected.category" :color="categoryColor(selected.category)" variant="subtle" />
-        <UBadge :label="selected.rarity" color="primary" variant="subtle" />
+        <UBadge v-if="selected.rarity" :label="selected.rarity" color="primary" variant="subtle" />
         <UBadge :label="selected.gameVersion" color="neutral" variant="subtle" />
       </div>
     </DefineHeaderTags>
