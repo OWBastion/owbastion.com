@@ -401,7 +401,6 @@ export const createApp = (dependencies: AppDependencies) => {
   registerAdminVerifiedRunRoutes(app, adminRouteDependencies);
 
 
-
   type PortalPlayerAccess =
     | { error: Response; sessionToken?: undefined; player?: undefined }
     | { error?: undefined; sessionToken: string; player: NonNullable<Awaited<ReturnType<PlatformServices["getPortalSessionIdentity"]>>> };
