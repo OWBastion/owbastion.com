@@ -157,6 +157,23 @@ export const gameplayRevisionsSchema = `CREATE TABLE gameplay_revisions (
       updated_at INTEGER NOT NULL
     );`;
 
+export const gameplayRevisionChallengeAssignmentsSchema = `CREATE TABLE gameplay_revision_challenge_assignments (
+      id TEXT PRIMARY KEY NOT NULL,
+      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
+      map_id TEXT NOT NULL REFERENCES maps(id),
+      challenge_family TEXT NOT NULL,
+      challenge_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      condition TEXT,
+      evidence_rule TEXT,
+      submission_mode TEXT,
+      slot TEXT,
+      starts_at INTEGER,
+      ends_at INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );`;
+
 export const randomEventsSchema = `CREATE TABLE random_events (
       id TEXT PRIMARY KEY NOT NULL,
       name TEXT NOT NULL,
