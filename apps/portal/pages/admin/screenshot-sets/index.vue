@@ -1,6 +1,6 @@
 <script setup lang='ts'>
 import type { TableColumn } from '@nuxt/ui';
-import type { AdminScreenshotSet, AdminScreenshotSetCandidate, AdminScreenshotSetDetail } from '~/composables/useAdminApi';
+import type { AdminScreenshotSet, AdminScreenshotSetCandidate, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetail } from '~/composables/useAdminApi';
 import { createRequestId } from '~/utils/request-id';
 import { portalErrorDetails } from '~/utils/portal-error';
 
@@ -88,7 +88,7 @@ async function createDraft() {
   creating.value = true;
   errorMessage.value = '';
   try {
-    const response = await api<AdminScreenshotSetDetail['set']>('/v1/screenshot-sets', {
+    const response = await api<AdminScreenshotSetCreateResponse>('/v1/screenshot-sets', {
       method: 'POST',
       headers: { 'Idempotency-Key': createRequestId() },
       body: { contractVersion: '1', ...(excludedSourceIds.value.length ? { excludedSourceIds: excludedSourceIds.value } : {}) },

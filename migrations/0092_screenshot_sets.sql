@@ -32,6 +32,7 @@ CREATE TABLE screenshot_set_members (
   source_id TEXT NOT NULL REFERENCES attachments(id),
   position INTEGER NOT NULL,
   submission_id TEXT NOT NULL,
+  map_name TEXT NOT NULL,
   ocr_result_id TEXT,
   object_key TEXT NOT NULL,
   sha256 TEXT NOT NULL,

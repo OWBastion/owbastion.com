@@ -7,12 +7,14 @@ const createD1 = () => {
   sqlite.exec("PRAGMA foreign_keys = ON;");
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
+    const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
     const statement = {
       bind(...params: unknown[]) { bound = params; return statement; },
       async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
       async all<T>() {
         const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
+        const changes = isWrite ? Number((sqlite.prepare("SELECT changes() AS changes").get() as { changes: number }).changes) : 0;
+        return { results, success: true, meta: { changes, duration: 0, size_after: 0, rows_read: results.length, rows_written: changes, last_row_id: 0, changed_db: changes > 0 } };
       },
       async run() {
         const info = sqlite.prepare(sql).run(...bound);
@@ -79,6 +81,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     source_id TEXT NOT NULL REFERENCES attachments(id),
     position INTEGER NOT NULL,
     submission_id TEXT NOT NULL,
+    map_name TEXT NOT NULL,
     ocr_result_id TEXT,
     object_key TEXT NOT NULL,
     sha256 TEXT NOT NULL,
@@ -215,7 +218,7 @@ describe("screenshot sets", () => {
     await expect(services.createAdminScreenshotSet({ note: "different" }, maintainer, "key-1")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
 
     // Later business changes do not rewrite the frozen member payload.
-    sqlite.prepare("UPDATE submissions SET status = 'rejected' WHERE id = 'sub-a'").run();
+    sqlite.prepare("UPDATE submissions SET status = 'rejected', map_name = '改名后地图' WHERE id = 'sub-a'").run();
     sqlite.prepare("UPDATE ocr_accuracy_feedback SET accuracy = 'inaccurate' WHERE submission_id = 'sub-a'").run();
     const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
     expect(detail.members).toEqual([{

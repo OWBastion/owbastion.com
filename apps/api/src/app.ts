@@ -76,7 +76,7 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
-type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "portal" | "qq" | "unknown";
+type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
 
 const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
@@ -86,6 +86,7 @@ const routeClassForPath = (pathname: string): RequestRouteClass => {
   if (pathname.startsWith("/v1/admin/")) return "admin";
   if (pathname.startsWith("/v1/agents/")) return "agents";
   if (pathname.startsWith("/v1/__local/")) return "local";
+  if (pathname.startsWith("/v1/ocrkit/")) return "ocrkit";
   if (pathname.startsWith("/v1/qq/")) return "qq";
   if (["/v1/events", "/v1/maps", "/v1/public/achievements"].includes(pathname) || pathname.startsWith("/v1/public/achievement-icons/") || pathname.startsWith("/v1/challenges") || pathname.startsWith("/v1/titles")) return "catalog";
   if (pathname.startsWith("/v1/me") || pathname.startsWith("/v1/player/") || pathname.startsWith("/v1/uploads/") || pathname.startsWith("/v1/auth/") || pathname.startsWith("/v1/public/")) return "portal";

@@ -201,6 +201,7 @@ export type AdminScreenshotSetMember = {
 };
 export type AdminScreenshotSetExclusion = { sourceId: string | null; submissionId: string; reason: string };
 export type AdminScreenshotSetDetail = { contractVersion: "1"; set: AdminScreenshotSet; members: AdminScreenshotSetMember[]; exclusions: AdminScreenshotSetExclusion[] };
+export type AdminScreenshotSetCreateResponse = { contractVersion: "1"; setId: string; version: number; status: "draft"; counts: { memberCount: number; excludedCount: number } };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

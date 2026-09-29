@@ -662,6 +662,7 @@ export const screenshotSetMembers = sqliteTable("screenshot_set_members", {
   sourceId: text("source_id").notNull().references(() => attachments.id),
   position: integer("position").notNull(),
   submissionId: text("submission_id").notNull(),
+  mapName: text("map_name").notNull(),
   ocrResultId: text("ocr_result_id"),
   objectKey: text("object_key").notNull(),
   sha256: text("sha256").notNull(),

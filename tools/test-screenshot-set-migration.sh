@@ -35,11 +35,11 @@ VALUES ('ocr-1', 'submission-1', 'req-1', 1, 'ok', '{"schema_version":"1","ok":t
 SQL
 sqlite3 -bail "$representative_database" < "$root_dir/migrations/0092_screenshot_sets.sql"
 sqlite3 -bail "$representative_database" "INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES ('set-1', 1, 'draft', 'maintainer-1', 3, NULL, '{\"memberCount\":1,\"excludedCount\":0,\"exclusions\":[]}');"
-sqlite3 -bail "$representative_database" "INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, ocr_result_id, object_key, sha256, mime_type, size_bytes, layout_version, accuracy) VALUES ('set-1', 'attachment-1', 0, 'submission-1', 'ocr-1', 'uploads/submissions/submission-1/a.png', 'a', 'image/png', 100, 'layout-v2', 'inaccurate');"
+sqlite3 -bail "$representative_database" "INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, map_name, ocr_result_id, object_key, sha256, mime_type, size_bytes, layout_version, accuracy) VALUES ('set-1', 'attachment-1', 0, 'submission-1', '测试地图', 'ocr-1', 'uploads/submissions/submission-1/a.png', 'a', 'image/png', 100, 'layout-v2', 'inaccurate');"
 [[ "$(sqlite3 "$representative_database" "SELECT source_id || ':' || object_key FROM screenshot_set_members WHERE set_id = 'set-1';")" == "attachment-1:uploads/submissions/submission-1/a.png" ]]
 [[ "$(sqlite3 "$representative_database" "PRAGMA foreign_key_check;")" == "" ]]
 # The same screenshot cannot belong twice to one set.
-if sqlite3 -bail "$representative_database" "INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, object_key, sha256, mime_type, size_bytes, layout_version) VALUES ('set-1', 'attachment-1', 1, 'submission-1', 'uploads/submissions/submission-1/a.png', 'a', 'image/png', 100, 'layout-v2');" 2>/dev/null; then
+if sqlite3 -bail "$representative_database" "INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, map_name, object_key, sha256, mime_type, size_bytes, layout_version) VALUES ('set-1', 'attachment-1', 1, 'submission-1', '测试地图', 'uploads/submissions/submission-1/a.png', 'a', 'image/png', 100, 'layout-v2');" 2>/dev/null; then
   echo "Expected the set membership primary key to reject a duplicate screenshot." >&2
   exit 1
 fi
@@ -49,7 +49,7 @@ if sqlite3 -bail "$representative_database" "INSERT INTO screenshot_sets (id, ve
   exit 1
 fi
 # A member requires a real attachment (provenance must resolve).
-if sqlite3 -bail "$representative_database" "PRAGMA foreign_keys = ON; INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, object_key, sha256, mime_type, size_bytes, layout_version) VALUES ('set-1', 'missing-attachment', 1, 'submission-1', 'uploads/submissions/submission-1/missing.png', 'b', 'image/png', 100, 'layout-v2');" 2>/dev/null; then
+if sqlite3 -bail "$representative_database" "PRAGMA foreign_keys = ON; INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, map_name, object_key, sha256, mime_type, size_bytes, layout_version) VALUES ('set-1', 'missing-attachment', 1, 'submission-1', '测试地图', 'uploads/submissions/submission-1/missing.png', 'b', 'image/png', 100, 'layout-v2');" 2>/dev/null; then
   echo "Expected the member foreign key to reject an unknown attachment." >&2
   exit 1
 fi

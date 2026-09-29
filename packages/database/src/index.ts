@@ -1823,7 +1823,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const submissionIds = candidateSubmissions.map((row) => row.id);
     const [attachmentRows, ocrRows, feedbackRows] = await Promise.all([
       submissionIds.length ? db.select().from(attachments).where(and(inArray(attachments.submissionId, submissionIds), eq(attachments.uploadStatus, "stored"))).all() : [],
-      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt)).all() : [],
+      submissionIds.length ? db.select().from(ocrResults).where(inArray(ocrResults.submissionId, submissionIds)).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).all() : [],
       submissionIds.length ? db.select().from(ocrAccuracyFeedback).where(inArray(ocrAccuracyFeedback.submissionId, submissionIds)).all() : [],
     ]);
     const latestAttachmentBySubmission = new Map<string, typeof attachments.$inferSelect>();
@@ -6002,7 +6002,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<OcrAccuracyFeedbackResponse>(db, player.player.id, "ocr.accuracy.mark", idempotencyKey, input);
       if (replay) return { ...replay, alreadySubmitted: true };
       if (!ocrFeedbackEligibleStatuses.has(submission.status)) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
-      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).limit(1).get();
       if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
       if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
       const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, submission.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
@@ -6027,7 +6027,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return { ...replay, alreadySubmitted: true };
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).limit(1).get();
       if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
       if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
       const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, row.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
@@ -6086,19 +6086,29 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ];
       const timestamp = now();
       const setId = crypto.randomUUID();
-      const versionRow = await db.select({ version: screenshotSets.version }).from(screenshotSets).orderBy(desc(screenshotSets.version)).limit(1).get();
-      const version = (versionRow?.version ?? 0) + 1;
       const counts = { memberCount: members.length, excludedCount: exclusions.length };
       const eligibilityJson = JSON.stringify({ ...counts, exclusions });
-      const response: AdminScreenshotSetCreateResponse = { contractVersion: "1", setId, version, status: "draft", counts };
-      const statements: D1PreparedStatement[] = [
-        database.prepare("INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES (?, ?, 'draft', ?, ?, ?, ?)").bind(setId, version, auth.subject, timestamp, input.note?.trim() ?? null, eligibilityJson),
-        ...members.map((member, index) => database.prepare("INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, ocr_result_id, object_key, sha256, mime_type, size_bytes, layout_version, accuracy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(setId, member.sourceId, index, member.submissionId, member.ocrResultId, member.objectKey, member.sha256, member.mimeType, member.sizeBytes, member.layoutVersion, member.accuracy)),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'screenshot_set.draft.create', ?, ?, ?)").bind(`${auth.subject}:screenshot_set.draft.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'screenshot_set.draft.created', 'screenshot_set', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, setId, JSON.stringify({ version, ...counts, exclusions }), timestamp),
-      ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return response;
+      const insert = async (): Promise<AdminScreenshotSetCreateResponse> => {
+        const versionRow = await db.select({ version: screenshotSets.version }).from(screenshotSets).orderBy(desc(screenshotSets.version)).limit(1).get();
+        const version = (versionRow?.version ?? 0) + 1;
+        const response: AdminScreenshotSetCreateResponse = { contractVersion: "1", setId, version, status: "draft", counts };
+        const statements: D1PreparedStatement[] = [
+          database.prepare("INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES (?, ?, 'draft', ?, ?, ?, ?)").bind(setId, version, auth.subject, timestamp, input.note?.trim() ?? null, eligibilityJson),
+          ...members.map((member, index) => database.prepare("INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, map_name, ocr_result_id, object_key, sha256, mime_type, size_bytes, layout_version, accuracy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(setId, member.sourceId, index, member.submissionId, member.mapName, member.ocrResultId, member.objectKey, member.sha256, member.mimeType, member.sizeBytes, member.layoutVersion, member.accuracy)),
+          database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'screenshot_set.draft.create', ?, ?, ?)").bind(`${auth.subject}:screenshot_set.draft.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
+          database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'screenshot_set.draft.created', 'screenshot_set', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, setId, JSON.stringify({ version, ...counts, exclusions }), timestamp),
+        ];
+        await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+        return response;
+      };
+      // Version allocation is read-then-insert; two concurrent drafts can pick
+      // the same version. The UNIQUE constraint decides the winner — retry once.
+      try {
+        return await insert();
+      } catch (error) {
+        if (!(error instanceof Error && error.message.includes("UNIQUE constraint failed"))) throw error;
+        return await insert();
+      }
     },
 
     async listAdminScreenshotSets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, _auth: AuthContext): Promise<AdminScreenshotSetListResponse> {
@@ -6129,7 +6139,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const set = await db.select().from(screenshotSets).where(eq(screenshotSets.id, input.setId)).get();
       if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
       const eligibility = JSON.parse(set.eligibilityJson) as { memberCount: number; excludedCount: number; exclusions?: Array<{ sourceId: string | null; submissionId: string; reason: string }> };
-      const members = await db.select({ member: screenshotSetMembers, mapName: submissions.mapName }).from(screenshotSetMembers).innerJoin(submissions, eq(submissions.id, screenshotSetMembers.submissionId)).where(eq(screenshotSetMembers.setId, set.id)).orderBy(asc(screenshotSetMembers.position)).all();
+      const members = await db.select().from(screenshotSetMembers).where(eq(screenshotSetMembers.setId, set.id)).orderBy(asc(screenshotSetMembers.position)).all();
       return {
         contractVersion: "1",
         set: {
@@ -6143,10 +6153,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           note: set.note,
           counts: { memberCount: eligibility.memberCount, excludedCount: eligibility.excludedCount },
         },
-        members: members.map(({ member, mapName }) => ({
+        members: members.map((member) => ({
           sourceId: member.sourceId,
           submissionId: member.submissionId,
-          mapName,
+          mapName: member.mapName,
           objectKey: member.objectKey,
           sha256: member.sha256,
           mimeType: member.mimeType,
@@ -6169,10 +6179,11 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const response: AdminScreenshotSetFinalizeResponse = { contractVersion: "1", setId: set.id, version: set.version, status: "finalized", finalizedAt: timestamp };
       const statements: D1PreparedStatement[] = [
         database.prepare("UPDATE screenshot_sets SET status = 'finalized', finalized_by = ?, finalized_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, set.id),
-        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'screenshot_set.finalize', ?, ?, ?)").bind(`${auth.subject}:screenshot_set.finalize:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
-        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'screenshot_set.finalized', 'screenshot_set', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, set.id, JSON.stringify({ version: set.version }), timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'screenshot_set.finalize', ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:screenshot_set.finalize:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'screenshot_set.finalized', 'screenshot_set', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, set.id, JSON.stringify({ version: set.version }), timestamp),
       ];
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (Number(results[0]?.meta?.changes ?? 0) !== 1) throw new Error("SCREENSHOT_SET_ALREADY_FINALIZED");
       return response;
     },
 
@@ -6182,14 +6193,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     async getOcrkitScreenshotSet(input: { version: number }): Promise<OcrkitScreenshotSetResponse> {
       const set = await db.select().from(screenshotSets).where(eq(screenshotSets.version, input.version)).get();
       if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
-      if (set.status !== "finalized") throw new Error("SCREENSHOT_SET_NOT_FINALIZED");
+      if (set.status !== "finalized" || set.finalizedAt === null) throw new Error("SCREENSHOT_SET_NOT_FINALIZED");
       const members = await db.select().from(screenshotSetMembers).where(eq(screenshotSetMembers.setId, set.id)).orderBy(asc(screenshotSetMembers.position)).all();
       return {
         schema_version: 1,
         set_id: set.id,
         version: set.version,
         finalized: true,
-        finalized_at: new Date(set.finalizedAt ?? 0).toISOString(),
+        finalized_at: new Date(set.finalizedAt).toISOString(),
         members: members.map((member) => ({
           source_id: member.sourceId,
           object_key: member.objectKey,
