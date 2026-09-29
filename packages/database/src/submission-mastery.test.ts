@@ -7,6 +7,21 @@ import {
   seedRevisionAssignment, seedSelectableGameplayRevision, seedTitle, synchronizeConcurrentBatches, uploadHash,
 } from "../test/map-title-rule-fixtures";
 
+const automaticRunFacts = {
+  mapId: "map.mastery",
+  gameplayRevisionId: "revision:map.mastery:initial",
+  mapVariant: null,
+  difficulty: "困难",
+  gameVersion: "99.0101.1",
+  matchCode: "1234-5678-9012",
+  completionDurationSeconds: 600,
+  deaths: 1,
+  skips: 0,
+  eventCounters: {},
+  acceptanceSource: "submission_automatic",
+  acceptedAt: now,
+} as const;
+
 describe("submission mastery outcomes", () => {
   it("keeps the version, layout, and run-code gate platform-owned", () => {
     expect(assessVerifiedRunOcrEvidence(masteryOcr())).toEqual({ outcome: "ineligible", reason: "mastery_rollout_disabled" });
@@ -404,20 +419,9 @@ describe("submission mastery outcomes", () => {
     database.batch = async (statements) => {
       database.batch = originalBatch;
       const concurrentRun = await services.recordVerifiedRun({
+        ...automaticRunFacts,
         playerAccountId: "player.review-race",
         sourceSubmissionId: "submission.review-race",
-        mapId: "map.mastery",
-        gameplayRevisionId: "revision:map.mastery:initial",
-        mapVariant: null,
-        difficulty: "困难",
-        gameVersion: "99.0101.1",
-        matchCode: "1234-5678-9012",
-        completionDurationSeconds: 600,
-        deaths: 1,
-        skips: 0,
-        eventCounters: {},
-        acceptanceSource: "submission_automatic",
-        acceptedAt: now,
       });
       concurrentRunId = concurrentRun.run.runId;
       return originalBatch(statements);
@@ -446,20 +450,9 @@ describe("submission mastery outcomes", () => {
     sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.preview-stale', 'submission.preview-stale', 1, 'review_required', ?, ?)").run(JSON.stringify(ocr), now);
     const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
     const run = await services.recordVerifiedRun({
+      ...automaticRunFacts,
       playerAccountId: "player.preview-stale",
       sourceSubmissionId: "submission.preview-stale",
-      mapId: "map.mastery",
-      gameplayRevisionId: "revision:map.mastery:initial",
-      mapVariant: null,
-      difficulty: "困难",
-      gameVersion: "99.0101.1",
-      matchCode: "1234-5678-9012",
-      completionDurationSeconds: 600,
-      deaths: 1,
-      skips: 0,
-      eventCounters: {},
-      acceptanceSource: "submission_automatic",
-      acceptedAt: now,
     });
     sqlite.prepare("INSERT INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) VALUES ('outcome.preview-stale', 'submission.preview-stale', 'verified_run', 'verified_run', 'created', ?, ?, '{}', ?, ?)").run(run.run.runId, run.run.awardedXp, now, now);
 

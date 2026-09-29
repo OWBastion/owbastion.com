@@ -74,6 +74,25 @@ const addSession = async (sqlite: DatabaseSync, id: string, accountId: string, t
     .run(id, accountId, await hashRequest(token), Date.now() + 60_000, Date.now());
 };
 
+const createRecoveryFixture = async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
+  const { database, sqlite } = createD1();
+  installSchema(sqlite);
+  addAccount(sqlite, "account.one", "1001");
+  sqlite.prepare(`
+    INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
+    VALUES ('credential.old', 'account.one', 'credential.old', 'cHVi', 0, '[]', 'old device', 1)
+  `).run();
+  await addSession(sqlite, "session.old", "account.one", "session-token.old");
+  return {
+    database,
+    sqlite,
+    services: createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "recovery-test-key"),
+    maintainer: { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" },
+  };
+};
+
 describe("Passkey session and ownership boundaries", () => {
   afterEach(() => {
     verifyAuthentication.mockReset();
@@ -167,18 +186,7 @@ describe("Passkey session and ownership boundaries", () => {
   });
 
   it("allows only one concurrent completion of a one-time recovery grant", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    addAccount(sqlite, "account.one", "1001");
-    sqlite.prepare(`
-      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
-      VALUES ('credential.old', 'account.one', 'credential.old', 'cHVi', 0, '[]', 'old device', 1)
-    `).run();
-    await addSession(sqlite, "session.old", "account.one", "session-token.old");
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "recovery-test-key");
-    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const { database, sqlite, services, maintainer } = await createRecoveryFixture();
     const recovery = await services.createAdminPasskeyRecovery({ playerAccountId: "account.one", identityVerified: true }, maintainer, "recovery.one");
     const first = await services.createPasskeyRecoveryOptions({ token: recovery.token, rpId: "owbastion.com" });
     const second = await services.createPasskeyRecoveryOptions({ token: recovery.token, rpId: "owbastion.com" });
@@ -208,18 +216,7 @@ describe("Passkey session and ownership boundaries", () => {
   });
 
   it("keeps existing credentials and sessions until a recovery registration completes", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-26T10:00:00.000Z"));
-    const { database, sqlite } = createD1();
-    installSchema(sqlite);
-    addAccount(sqlite, "account.one", "1001");
-    sqlite.prepare(`
-      INSERT INTO passkey_credentials (id, player_account_id, credential_id, public_key, counter, transports_json, name, created_at)
-      VALUES ('credential.old', 'account.one', 'credential.old', 'cHVi', 0, '[]', 'old device', 1)
-    `).run();
-    await addSession(sqlite, "session.old", "account.one", "session-token.old");
-    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, "recovery-test-key");
-    const maintainer = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
+    const { database, sqlite, services, maintainer } = await createRecoveryFixture();
     await services.createAdminPasskeyRecovery({ playerAccountId: "account.one", identityVerified: true }, maintainer, "recovery.unused");
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE player_account_id = 'account.one'").get()).toEqual({ count: 1 });
     expect((await resolvePortalSession(database, "session-token.old"))?.player.id).toBe("account.one");
