@@ -1059,6 +1059,11 @@ describe("API", () => {
     const stale = await staleApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
     expect(stale.status).toBe(409);
     expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
+
+    const noResultApp = createApp({ authenticate: auth, services: () => ({ ...services, submitPlayerOcrFeedback: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); } }) });
+    const noResult = await noResultApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-5" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(noResult.status).toBe(409);
+    expect((await noResult.json() as { error: { code: string } }).error.code).toBe("OCR_RESULT_NOT_FOUND");
   });
 
   it("lets maintainers mark screenshot OCR accuracy with an idempotency key", async () => {
@@ -1094,6 +1099,11 @@ describe("API", () => {
     const stale = await staleApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-3" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
     expect(stale.status).toBe(409);
     expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
+
+    const noResultApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, submitAdminOcrAccuracy: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); } }) });
+    const noResult = await noResultApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(noResult.status).toBe(409);
+    expect((await noResult.json() as { error: { code: string } }).error.code).toBe("OCR_RESULT_NOT_FOUND");
   });
 
   it("no longer exposes annotation review, dataset, or OCRKit snapshot routes", async () => {

@@ -1898,7 +1898,7 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) {
       const code = error instanceof Error ? error.message : "OCR_ACCURACY_FAILED";
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (code === "OCR_RESULT_NOT_FOUND") return errorResponse(c, 404, code, "The recognition result does not exist for this submission");
+      if (code === "OCR_RESULT_NOT_FOUND") return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
       if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;

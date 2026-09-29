@@ -1,6 +1,8 @@
 -- Screenshot-level OCR accuracy marks replace field-level annotation proposals
 -- (#253). One effective row per (submission, ocr_result); players and
--- maintainers share the mark and the latest writer wins. The mark is a
+-- maintainers share the mark and the latest writer wins. marked_by always
+-- stores the actor's platform player ID (player_accounts.player_id), matching
+-- the auth subject domain. The mark is a
 -- sampling hint for OCRKit screenshot-set selection, never a training label.
 -- The historical ocr_feedback_proposals / reviewed_annotations /
 -- dataset_snapshot tables stay in place; nothing writes to them anymore.

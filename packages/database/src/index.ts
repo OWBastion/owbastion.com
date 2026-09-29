@@ -1737,7 +1737,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const submission = await db.select().from(submissions).where(eq(submissions.id, submissionId)).get();
     if (!submission) throw new Error("SUBMISSION_NOT_FOUND");
     if (submission.playerAccountId !== current.player.id) throw new Error("SUBMISSION_NOT_FOUND");
-    return submission;
+    return { player: current, submission };
   };
 
   // Accuracy feedback is offered only when the submission carries usable OCR
@@ -5883,7 +5883,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async getPlayerSubmission(input, sessionToken) {
-      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      const { submission } = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
       const [result, attachment, grantRow, verifiedRunOutcome] = await Promise.all([
         db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get(),
         db.select({ objectKey: attachments.objectKey }).from(attachments).where(eq(attachments.submissionId, submission.id)).orderBy(desc(attachments.createdAt)).limit(1).get(),
@@ -5918,9 +5918,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse> {
-      const player = await getCurrentPortalPlayer(sessionToken);
-      if (!player) throw new Error("UNAUTHENTICATED");
-      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      const { player, submission } = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
       const replay = await replayOrConflict<OcrAccuracyFeedbackResponse>(db, player.player.id, "ocr.accuracy.mark", idempotencyKey, input);
       if (replay) return { ...replay, alreadySubmitted: true };
       if (!ocrFeedbackEligibleStatuses.has(submission.status)) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
@@ -5934,7 +5932,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         database.prepare(
           `INSERT INTO ocr_accuracy_feedback (id, submission_id, ocr_result_id, accuracy, marked_by, marked_by_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'player', ?, ?)
            ON CONFLICT(submission_id, ocr_result_id) DO UPDATE SET accuracy = excluded.accuracy, marked_by = excluded.marked_by, marked_by_type = excluded.marked_by_type, updated_at = excluded.updated_at`
-        ).bind(crypto.randomUUID(), submission.id, result.id, input.accuracy, player.player.id, timestamp, timestamp),
+        ).bind(crypto.randomUUID(), submission.id, result.id, input.accuracy, player.player.playerId, timestamp, timestamp),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'ocr.accuracy.mark', ?, ?, ?)").bind(`${player.player.id}:ocr.accuracy.mark:${idempotencyKey}`, player.player.id, await hashRequest(input), JSON.stringify(responseBody), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, 'user', ?, 'ocr.accuracy.marked', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), player.player.id, submission.id, JSON.stringify({ ocrResultId: result.id, accuracy: input.accuracy }), timestamp),
       ];
@@ -5968,7 +5966,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async requestManualReview(input, sessionToken) {
-      const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
+      const { submission } = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
       if (submission.status === "ocr_review_required") return;
       if (submission.status !== "resubmission_required" || submission.ocrFailCount < ocrManualReviewThreshold) throw new Error("MANUAL_REVIEW_NOT_ELIGIBLE");
       const timestamp = now();

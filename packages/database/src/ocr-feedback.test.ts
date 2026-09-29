@@ -164,7 +164,7 @@ describe("OCR accuracy feedback", () => {
     const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-1");
     expect(response).toEqual({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate", alreadySubmitted: false });
     const [row] = accuracyRows(sqlite);
-    expect(row).toMatchObject({ submission_id: "submission-1", ocr_result_id: "ocr-1", accuracy: "accurate", marked_by: "player-owner", marked_by_type: "player" });
+    expect(row).toMatchObject({ submission_id: "submission-1", ocr_result_id: "ocr-1", accuracy: "accurate", marked_by: "1001", marked_by_type: "player" });
     // The original OCR evidence is preserved byte-for-byte.
     const ocr = sqlite.prepare("SELECT response_json FROM ocr_results WHERE id = 'ocr-1'").get() as { response_json: string };
     expect(JSON.parse(ocr.response_json)).toEqual(highConfidenceOcr);
