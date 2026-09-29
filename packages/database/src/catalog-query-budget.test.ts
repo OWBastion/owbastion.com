@@ -2,6 +2,7 @@ import {
   achievementChallengeMapsSchema,
   achievementChallengesSchema,
   effectGlossaryTermsSchema,
+  gameplayRevisionChallengeAssignmentsSchema,
   gameplayRevisionsSchema,
   mapMetadataSchema,
   mapTitleRewardsSchema,
@@ -28,22 +29,7 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
     ${mapsSchema}
     ${gameplayRevisionsSchema}
-    CREATE TABLE gameplay_revision_challenge_assignments (
-      id TEXT PRIMARY KEY NOT NULL,
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      challenge_family TEXT NOT NULL,
-      challenge_id TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${gameplayRevisionChallengeAssignmentsSchema}
     ${mapMetadataSchema}
     CREATE TABLE title_catalog (
       key TEXT PRIMARY KEY NOT NULL,
