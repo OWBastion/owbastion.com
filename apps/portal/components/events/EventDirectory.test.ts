@@ -88,6 +88,25 @@ describe("EventDirectory", () => {
     expect(wrapper.get('[role="dialog"]').text()).toContain("普通");
   });
 
+  it("renders no empty rarity artifacts for weightless events", async () => {
+    const wrapper = await mountSuspended(EventDirectory, {
+      props: {
+        events: [event({ eventId: "event.weightless", name: "无权重事件", rarity: "" })],
+        authenticated: false,
+      },
+      global,
+    });
+
+    const rarityFilter = wrapper.get('select[aria-label="筛选事件稀有度"]');
+    expect(rarityFilter.findAll("option").map((option) => option.text())).toEqual(["全部稀有度"]);
+    expect(wrapper.find(".event-rarity").exists()).toBe(false);
+
+    await wrapper.findAll("button").find((button) => button.text().includes("无权重事件"))!.trigger("click");
+    await wrapper.vm.$nextTick();
+    const headerTags = wrapper.get('[role="dialog"] .detail-header-tags');
+    expect(headerTags.findAll("span").map((badge) => badge.text())).toEqual(["增益", "26.0718.1"]);
+  });
+
   it("sends map-family challenges to the map directory", async () => {
     const wrapper = await mountSuspended(EventDirectory, {
       props: {

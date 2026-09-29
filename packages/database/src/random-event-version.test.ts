@@ -88,7 +88,7 @@ describe("random-event version availability", () => {
   it("filters suspended versions and restores the unchanged event projection", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
-    sqlite.exec("INSERT INTO random_events (id, name, category, rarity, description, duration_seconds, cooldown_seconds, weight, game_version, release_status, created_at, updated_at) VALUES ('event.suspended', '挂起事件', '增益', 'R', '原始说明', 30, 0.32, 0.7, '26.0901.1', 'implemented', 1, 1), ('event.available', '可用事件', '机制', 'SR', '另一说明', 60, 1, 2, '26.0902.1', 'implemented', 1, 1);");
+    sqlite.exec("INSERT INTO random_events (id, name, category, rarity, description, duration_seconds, cooldown_seconds, weight, game_version, release_status, created_at, updated_at) VALUES ('event.suspended', '挂起事件', '增益', 'SR', '原始说明', 30, 0.32, 0.7, '26.0901.1', 'implemented', 1, 1), ('event.available', '可用事件', '机制', 'N', '另一说明', 60, 1, 2, '26.0902.1', 'implemented', 1, 1);");
     const services = createPlatformServices(database);
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
 
