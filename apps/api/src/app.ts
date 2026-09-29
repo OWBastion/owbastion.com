@@ -129,9 +129,8 @@ const equippedTitleErrors: RouteErrorMap = {
 const ocrFeedbackErrors: RouteErrorMap = {
   ...unauthenticatedErrors,
   ...submissionNotFoundErrors,
-  ...errorGroup(409, "Feedback is unavailable for this submission", "OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"),
+  ...errorGroup(409, "Feedback is unavailable for this submission", "OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND"),
   OCR_PROMPT_STALE: { status: 409, message: "The recognition prompt is no longer current; refresh the submission" },
-  ...errorGroup(422, "The feedback content is invalid", "OCR_FEEDBACK_FIELD_UNSAFE", "OCR_FEEDBACK_FIELD_NOT_PROMPTED", "OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED", "OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG"),
   ...idempotencyErrors,
 };
 const playerUploadSessionErrors: RouteErrorMap = {
