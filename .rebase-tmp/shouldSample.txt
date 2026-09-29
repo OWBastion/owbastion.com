@@ -1,0 +1,6 @@
+  const shouldSampleAutomaticDecision = async (submissionId: string) => {
+    if (ocrAutoReviewSampleRate <= 0) return false;
+    const digest = await hashRequest({ submissionId, policy: "ocr-auto-v1" });
+    return Number.parseInt(digest.slice(0, 8), 16) / 0xffffffff < ocrAutoReviewSampleRate;
+  };
+
