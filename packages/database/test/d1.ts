@@ -10,6 +10,7 @@ type TestD1Options = {
   reportWriteChangesInAll?: boolean;
   countStatements?: boolean;
   execReturnsD1Result?: boolean;
+  failBatchNumbers?: number[];
 };
 
 export const createTestD1 = ({
@@ -19,10 +20,12 @@ export const createTestD1 = ({
   reportWriteChangesInAll = false,
   countStatements = false,
   execReturnsD1Result = false,
+  failBatchNumbers = [],
 }: TestD1Options = {}) => {
   const sqlite = new DatabaseSync(":memory:");
   if (foreignKeys) sqlite.exec("PRAGMA foreign_keys = ON;");
   let statementCount = 0;
+  let batchNumber = 0;
   let batchTail = Promise.resolve();
   const countStatement = () => {
     if (countStatements) statementCount += 1;
@@ -83,6 +86,8 @@ export const createTestD1 = ({
   const database = {
     prepare(sql: string) { return wrapStatement(sql); },
     batch(statements: Array<ReturnType<typeof wrapStatement>>) {
+      batchNumber += 1;
+      if (failBatchNumbers.includes(batchNumber)) return Promise.reject(new Error("D1_TRANSIENT_FAILURE"));
       if (batchMode !== "serialized") return applyBatch(statements);
       const batch = batchTail.then(() => applyBatch(statements), () => applyBatch(statements));
       batchTail = batch.then(() => undefined, () => undefined);
