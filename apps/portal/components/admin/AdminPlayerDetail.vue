@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
           </div>
           <ul v-if="props.player.recentCompletions.length" class="player-activity-list stacked-list">
             <li v-for="completion in props.player.recentCompletions" :key="completion.completionId" class="player-activity-row">
-              <div class="player-activity-row__main">
+              <div class="player-activity-row__main content-stack">
                 <strong>{{ completion.titleName }}</strong>
                 <small>{{ [completion.mapName, completion.gameVersion, completionSourceLabel(completion.sourceType)].filter(Boolean).join(' · ') }}</small>
               </div>
@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
           </div>
           <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list stacked-list">
             <li v-for="run in props.player.progression.recentVerifiedRuns" :key="run.runId" class="player-activity-row">
-              <div class="player-activity-row__main">
+              <div class="player-activity-row__main content-stack">
                 <strong>{{ run.mapName }} · {{ run.difficulty }}</strong>
                 <small>{{ run.gameVersion }} · {{ run.awardedXp }} XP</small>
               </div>
@@ -528,7 +528,6 @@ onBeforeUnmount(() => {
 
 .player-activity-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .player-activity-row:last-child { border-bottom: 0; }
-.player-activity-row__main { display: grid; min-width: 0; gap: var(--space-1); }
 .player-activity-row__main strong, .player-activity-row__main small { overflow-wrap: anywhere; }
 .player-activity-row__main small, .player-activity-row time { color: var(--quiet); font-size: var(--type-caption-size); }
 @container (max-width: 28rem) { .player-activity-row { grid-template-columns: minmax(0, 1fr) auto; } .player-activity-row time { grid-column: 1 / -1; } }

@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
               @click="!props.mobileRowLink && props.mobileRowAction ? props.mobileRowAction(item) : undefined"
             >
               <div :class="{ 'admin-data-table__mobile-primary': Boolean(props.mobileRowLink || props.mobileRowAction) }">
-                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
+                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field content-stack">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                   <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
                   <span v-else>{{ mobileValue(item, field.column) }}</span>
@@ -368,7 +368,7 @@ onBeforeUnmount(() => {
                 <span>{{ mobileExpanded[rowIdentity(item)] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
               </button>
               <div v-if="mobileExpanded[rowIdentity(item)]" :id="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" class="admin-data-table__mobile-details">
-                <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field">
+                <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field content-stack">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                   <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
                   <span v-else>{{ mobileValue(item, field.column) }}</span>
@@ -481,7 +481,6 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-primary-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: var(--space-3); }
 .admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
-.admin-data-table__mobile-field { display: grid; gap: var(--space-1); min-width: 0; }
 .admin-data-table__mobile-label { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table__mobile-disclosure { margin-top: var(--space-3); }
 .admin-data-table__mobile-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--line); color: var(--quiet); background: transparent; font: inherit; font-size: .82rem; font-weight: 600; text-align: left; cursor: pointer; }

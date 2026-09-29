@@ -103,7 +103,7 @@ async function copyInvitation(invitation: Invitation) {
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     <TransitionGroup v-if="invitations.length" name="invite-list" tag="div" class="invite-results" aria-label="本次生成的邀请码">
       <article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result">
-        <div class="invite-result__identity"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div>
+        <div class="invite-result__identity content-stack"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div>
         <UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" :aria-label="`复制 ${invitation.playerName} 的绑定口令`" @click="copyInvitation(invitation)" />
       </article>
     </TransitionGroup>

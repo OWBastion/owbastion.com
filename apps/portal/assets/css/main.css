@@ -386,7 +386,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .invite-panel__count, .batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .invite-results { display: grid; gap: var(--space-2); }
 .invite-result { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); }
-.invite-result__identity { display: grid; min-width: 0; gap: var(--space-1); }
 .invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); }
 .invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
 .field-hint {
@@ -493,6 +492,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.content-stack {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
 }
 .accent-link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .accent-link:hover, .accent-link:focus-visible { text-decoration: underline; }

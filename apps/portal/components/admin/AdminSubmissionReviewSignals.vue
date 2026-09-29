@@ -133,7 +133,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
         <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
         <ul v-if="searchResults.length" class="manual-add__results stacked-list">
           <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
-            <div>
+            <div class="content-stack">
               <strong>{{ candidate.label }}</strong>
               <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}<template v-if="candidateDetail(candidate)"> · {{ candidateDetail(candidate) }}</template></span>
             </div>
@@ -302,11 +302,6 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
-}
-.manual-add__result > div {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
 }
 .manual-add__result strong {
   overflow-wrap: anywhere;
