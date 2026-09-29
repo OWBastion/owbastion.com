@@ -1,0 +1,42 @@
+    async markOcrJobFailed(input) {
+      if (!input.jobId) return;
+      await database.batch([
+        database.prepare(`UPDATE ocr_results SET status = 'error', error_code = ?, attempt = ?
+          WHERE id = ? AND submission_id = ? AND status = 'pending' AND callback_claimed = 0
+            AND NOT EXISTS (SELECT 1 FROM ocr_results newer WHERE newer.submission_id = ocr_results.submission_id AND (newer.created_at > ocr_results.created_at OR (newer.created_at = ocr_results.created_at AND newer.id > ocr_results.id)))`)
+          .bind(input.errorCode, input.attempt, input.jobId, input.submissionId),
+        database.prepare("UPDATE submissions SET status = 'resubmission_required', review_reason = ?, ocr_fail_count = ocr_fail_count + 1, updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND changes() = 1").bind("截图暂时无法处理，请重新提交截图。", now(), input.submissionId),
+      ]);
+    },
+
+    async listQqGroupAccess() {
+      const groups = await db.select().from(qqGroupAccess).orderBy(desc(qqGroupAccess.updatedAt));
+      return groups.map((group) => ({ contractVersion: "1" as const, groupOpenId: group.groupOpenId, displayName: group.displayName, environment: group.environment as "production" | "test", status: group.status as "pending" | "active" | "legacy" | "disconnected", bindEnabled: group.bindEnabled === 1, verifyEnabled: group.verifyEnabled === 1, updatedAt: group.updatedAt }));
+    },
+
+    async listAdminPlayers(input) {
+      const conditions = [];
+      if (input.status) conditions.push(eq(playerAccounts.status, input.status));
+      if (input.query) {
+        const query = `%${input.query}%`;
+        const matchingBindings = await db.select({ playerAccountId: bindings.playerAccountId }).from(bindings).where(and(eq(bindings.status, "active"), or(like(bindings.groupOpenId, query), like(bindings.memberOpenId, query))));
+        conditions.push(or(like(playerAccounts.playerId, query), like(playerAccounts.playerName, query), like(playerAccounts.normalizedPlayerName, query), ...(matchingBindings.length ? [inArray(playerAccounts.id, matchingBindings.map((binding) => binding.playerAccountId))] : []))!);
+      }
+      const condition = conditions.length ? and(...conditions) : undefined;
+      const [accounts, [{ total }]] = await Promise.all([
+        db.select().from(playerAccounts).where(condition).orderBy(desc(playerAccounts.updatedAt)).limit(input.pageSize + 1).offset((input.page - 1) * input.pageSize),
+        db.select({ total: count() }).from(playerAccounts).where(condition),
+      ]);
+      const hasMore = accounts.length > input.pageSize;
+      const items = accounts.slice(0, input.pageSize);
+      return {
+        contractVersion: "1" as const,
+        items: await Promise.all(items.map(async (account) => ({
+          playerAccountId: account.id,
+          playerId: account.playerId,
+          playerName: account.playerName,
+          status: account.status as "active" | "banned",
+          bindingCount: (await db.select().from(bindings).where(and(eq(bindings.playerAccountId, account.id), eq(bindings.status, "active")))).length,
+          updatedAt: account.updatedAt,
+        }))),
+        page: input.page,

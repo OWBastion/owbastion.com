@@ -1,0 +1,159 @@
+  const completeOcrResult = async (row: typeof submissions.$inferSelect, result: OcrResponse, input: { attempt: number; manual: boolean; requestId: string }) => {
+    const ocrRequestId = input.requestId;
+    const startedAt = Date.now();
+    const context = { submissionId: row.id, ...input };
+    let stage = "load_submission";
+    try {
+      stage = "resolve_auto_candidates";
+      const preparedCanonicalCandidates = await preparePlayerAutoMatchChallenges(row, result);
+      const canonicalDecision = matchOcrAgainstChallenges(preparedCanonicalCandidates.candidates, result, preparedCanonicalCandidates.mapIdsByName, preparedCanonicalCandidates.titleNamesByKey);
+      const verifiedRunOutcome = await resolveVerifiedRunSubmissionOutcome(row, result, input.manual ? "submission_review" : "submission_automatic");
+      const masteryAccepted = verifiedRunOutcome.status === "created" || verifiedRunOutcome.status === "reused";
+      if (verifiedRunOutcome.status === "conflict") {
+        stage = "persist_mastery_conflict";
+        await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: "review_required", responseJson: JSON.stringify(result), matchJson: JSON.stringify({ verifiedRunOutcome: { status: verifiedRunOutcome.status, conflictFields: verifiedRunOutcome.conflictFields } }), nextStatus: "ocr_review_required", reviewReason: "通关码与已验证记录存在冲突，请人工核对", incrementFailCount: false, verifiedRunOutcome });
+        logOcrEvent("job_completed", { ...context, outcome: "mastery_conflict", conflictFields: verifiedRunOutcome.conflictFields, durationMs: Date.now() - startedAt });
+        return;
+      }
+      {
+        const prepared = preparedCanonicalCandidates;
+        const decision = canonicalDecision;
+        const candidateOutcomes = decision.candidates.map(({ challenge, canonicalChallengeId, evaluation, quality }) => ({
+          challengeId: challenge.challengeId,
+          canonicalChallengeId,
+          challengeType: challenge.family === "map" ? challenge.kind : challenge.scope === "map" ? "map_title_achievement" : "title_achievement",
+          targetMapName: challenge.family === "map" ? challenge.mapName : undefined,
+          targetDifficulty: challenge.family === "map" ? challenge.difficulty ?? null : undefined,
+          titleName: challenge.titleKey ? prepared.titleNamesByKey.get(challenge.titleKey) ?? null : null,
+          matched: evaluation.matched,
+          conditionsSupported: evaluation.supported,
+          requiredFields: evaluation.requiredFields,
+          quality,
+        }));
+        const matchJson = JSON.stringify({ mode: "canonical_conditions", outcome: decision.outcome, candidates: candidateOutcomes, verifiedRunOutcome: { status: verifiedRunOutcome.status } });
+        if (decision.outcome === "automatic") {
+          const completionRoots = [...new Map(decision.exact.map((item) => {
+            const snapshot = prepared.snapshots.get(item.canonicalChallengeId);
+            if (!snapshot?.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+            return [item.canonicalChallengeId, { canonicalChallengeId: item.canonicalChallengeId, snapshot, slot: snapshot.slot }] as const;
+          })).values()];
+          const uniqueGrantCandidates = [...new Map(decision.exact.filter((item) => item.grantable).map((item) => {
+            const snapshot = prepared.snapshots.get(item.canonicalChallengeId);
+            if (!snapshot?.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+            return [`${snapshot.titleKey}:${snapshot.mapId ?? ""}:${snapshot.gameplayRevisionId ?? ""}`, item] as const;
+          })).values()];
+          const grantTitleKeys = [...new Set(uniqueGrantCandidates.map((item) => prepared.snapshots.get(item.canonicalChallengeId)?.titleKey).filter((key): key is string => Boolean(key)))];
+          const existingGrantRows = grantTitleKeys.length ? await db.select({ id: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, mapId: playerTitleGrants.mapId, gameplayRevisionId: playerTitleGrants.gameplayRevisionId }).from(playerTitleGrants).where(and(
+            eq(playerTitleGrants.playerAccountId, row.playerAccountId),
+            eq(playerTitleGrants.status, "active"),
+            sql`${playerTitleGrants.titleKey} IN (SELECT value FROM json_each(${JSON.stringify(grantTitleKeys)}))`,
+          )) : [];
+          const existingGrantByScope = new globalThis.Map(existingGrantRows.map((grant) => [JSON.stringify([grant.titleKey, grant.mapId, grant.gameplayRevisionId]), grant]));
+          const grants: Array<{ snapshot: MapTitleRuleSnapshot; canonicalChallengeId: string; titleKey: string; mapId: string | null; slot: string | null; alreadyOwned: boolean; existingGrantId: string | null }> = [];
+          for (const grantCandidate of uniqueGrantCandidates) {
+            const snapshot = prepared.snapshots.get(grantCandidate.canonicalChallengeId);
+            if (!snapshot?.titleKey) throw new Error("CHALLENGE_REWARD_NOT_CONFIGURED");
+            const mapId = snapshot.mapId;
+            const existing = existingGrantByScope.get(JSON.stringify([snapshot.titleKey, mapId, snapshot.gameplayRevisionId]));
+            grants.push({ snapshot, canonicalChallengeId: grantCandidate.canonicalChallengeId, titleKey: snapshot.titleKey, mapId, slot: snapshot.slot, alreadyOwned: Boolean(existing), existingGrantId: existing?.id ?? null });
+          }
+          const sample = await shouldSampleAutomaticDecision(row.id);
+          stage = "persist_automatic_decision";
+          await persistAutomaticDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, grants, completionRoots, canonicalChallengePlans: prepared.canonicalChallengePlans, sample, verifiedRunOutcome });
+          logOcrEvent("job_completed", { ...context, outcome: "automatic", titleKey: grants[0]?.titleKey ?? null, grantCount: grants.length, spotCheck: sample, durationMs: Date.now() - startedAt });
+          return;
+        }
+        stage = "persist_auto_routing";
+        if (masteryAccepted && decision.outcome === "resubmit") {
+          await persistMasteryOnlyDecision({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, responseJson: JSON.stringify(result), matchJson, verifiedRunOutcome, sample: await shouldSampleAutomaticDecision(row.id) });
+        } else {
+          await persistOcrResult({ submissionId: row.id, requestId: ocrRequestId, attempt: input.attempt, status: decision.outcome === "review" ? "review_required" : "mismatch", responseJson: JSON.stringify(result), matchJson, nextStatus: decision.outcome === "review" ? "ocr_review_required" : "resubmission_required", reviewReason: decision.outcome === "review" ? "无法唯一判断挑战，请人工核对" : "截图与当前挑战目录不匹配，请重新提交", incrementFailCount: decision.outcome === "resubmit", verifiedRunOutcome });
+        }
+        logOcrEvent("job_completed", { ...context, outcome: decision.outcome, candidateCount: decision.exact.length, durationMs: Date.now() - startedAt });
+        return;
+      }
+    } catch (error) {
+      const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : `OCR_PROCESS_FAILED_${stage.toUpperCase()}`;
+      logOcrEvent("job_processing_failed", { ...context, stage, errorCode, durationMs: Date.now() - startedAt, ...errorDetails(error) });
+      throw new Error(errorCode, { cause: error });
+    }
+  };
+
+  const getReviewSummaries = async (input: ReviewSummaryBatchInput): Promise<ReviewSummary[]> => {
+    type AggregateRow = { target_id: string; gameplay_revision_id: string | null; review_count: number; average_rating: number | null; rating_1: number | null; rating_2: number | null; rating_3: number | null; rating_4: number | null; rating_5: number | null };
+    const toSummary = (target: { targetId: string; gameplayRevisionId: string | null }, aggregate: AggregateRow | undefined): ReviewSummary => {
+      const reviewCount = Number(aggregate?.review_count ?? 0);
+      return {
+        targetType: input.targetType,
+        targetId: target.targetId,
+        gameplayRevisionId: target.gameplayRevisionId,
+        averageRating: aggregate?.average_rating === null || aggregate?.average_rating === undefined ? null : Number(Number(aggregate.average_rating).toFixed(2)),
+        reviewCount,
+        ratingDistribution: { 1: Number(aggregate?.rating_1 ?? 0), 2: Number(aggregate?.rating_2 ?? 0), 3: Number(aggregate?.rating_3 ?? 0), 4: Number(aggregate?.rating_4 ?? 0), 5: Number(aggregate?.rating_5 ?? 0) },
+        sampleInsufficient: reviewCount < reviewSampleThreshold,
+      };
+    };
+    if (input.targetType === "event") {
+      const targetIds = [...new Set(input.targetIds)];
+      if (!targetIds.length || targetIds.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
+      const targetRows = await db.select({ id: randomEvents.id }).from(randomEvents).where(inArray(randomEvents.id, targetIds));
+      if (targetRows.length !== targetIds.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
+      const placeholders = targetIds.map(() => "?").join(", ");
+      const aggregateResult = await database.prepare(`
+        SELECT target_id, NULL AS gameplay_revision_id, COUNT(*) AS review_count, AVG(rating) AS average_rating,
+          SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+          SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+          SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+          SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+          SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS rating_5
+        FROM reviews
+        WHERE target_type = 'event' AND target_id IN (${placeholders}) AND status = 'active'
+        GROUP BY target_id
+      `).bind(...targetIds).all<AggregateRow>();
+      const aggregates = new Map(aggregateResult.results.map((row) => [row.target_id, row]));
+      return targetIds.map((targetId) => toSummary({ targetId, gameplayRevisionId: null }, aggregates.get(targetId)));
+    }
+
+    const targets = [...new Map(input.targets.map((target) => [`${target.targetId}:${target.gameplayRevisionId}`, target])).values()];
+    if (!targets.length || targets.length > 100) throw new Error("REVIEW_TARGET_BATCH_INVALID");
+    const serializedTargets = JSON.stringify(targets);
+    const targetCount = await database.prepare(`
+      SELECT COUNT(*) AS count FROM json_each(?)
+      WHERE EXISTS (
+        SELECT 1 FROM gameplay_revisions revision
+        WHERE revision.id = json_extract(json_each.value, '$.gameplayRevisionId')
+          AND revision.map_id = json_extract(json_each.value, '$.targetId')
+      )
+    `).bind(serializedTargets).first<{ count: number }>();
+    if (Number(targetCount?.count ?? 0) !== targets.length) throw new Error("REVIEW_TARGET_NOT_FOUND");
+    const aggregateResult = await database.prepare(`
+      WITH requested AS (
+        SELECT json_extract(value, '$.targetId') AS target_id,
+               json_extract(value, '$.gameplayRevisionId') AS gameplay_revision_id
+        FROM json_each(?)
+      )
+      SELECT review.target_id, review.gameplay_revision_id, COUNT(*) AS review_count, AVG(review.rating) AS average_rating,
+        SUM(CASE WHEN review.rating = 1 THEN 1 ELSE 0 END) AS rating_1,
+        SUM(CASE WHEN review.rating = 2 THEN 1 ELSE 0 END) AS rating_2,
+        SUM(CASE WHEN review.rating = 3 THEN 1 ELSE 0 END) AS rating_3,
+        SUM(CASE WHEN review.rating = 4 THEN 1 ELSE 0 END) AS rating_4,
+        SUM(CASE WHEN review.rating = 5 THEN 1 ELSE 0 END) AS rating_5
+      FROM reviews AS review
+      INNER JOIN requested ON requested.target_id = review.target_id AND requested.gameplay_revision_id = review.gameplay_revision_id
+      WHERE review.target_type = 'map' AND review.status = 'active'
+      GROUP BY review.target_id, review.gameplay_revision_id
+    `).bind(serializedTargets).all<AggregateRow>();
+    const aggregates = new Map(aggregateResult.results.map((row) => [`${row.target_id}:${row.gameplay_revision_id}`, row]));
+    return targets.map((target) => toSummary(target, aggregates.get(`${target.targetId}:${target.gameplayRevisionId}`)));
+  };
+
+  const recordVerifiedRun = async (input: VerifiedRunInput): Promise<RecordVerifiedRunResult> => {
+    const planned = await planVerifiedRunRecord(input);
+    if (!planned.statements.length) return planned.result;
+    await database.batch(planned.statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+    const persistedBySource = await db.select().from(verifiedRuns).where(eq(verifiedRuns.sourceSubmissionId, planned.candidate.sourceSubmissionId)).get();
+    const persisted = persistedBySource ?? await db.select().from(verifiedRuns).where(and(
+      eq(verifiedRuns.playerAccountId, planned.candidate.playerAccountId),
+      eq(verifiedRuns.matchCode, planned.candidate.matchCode),
+    )).get();
+    if (!persisted) throw new Error("VERIFIED_RUN_PERSIST_FAILED");

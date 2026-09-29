@@ -1,0 +1,22 @@
+  const persistOcrResult = async (input: {
+    submissionId: string;
+    requestId: string;
+    attempt: number;
+    status: string;
+    responseJson?: string;
+    matchJson?: string;
+    nextStatus: string;
+    reviewReason: string | null;
+    incrementFailCount: boolean;
+    ruleSnapshotJson?: string | null;
+    verifiedRunOutcome?: VerifiedRunSubmissionOutcome;
+  }) => {
+    const timestamp = now();
+    const resultInsert = database.prepare("UPDATE ocr_results SET request_id = ?, attempt = ?, status = ?, response_json = ?, match_json = ?, callback_claimed = 0, created_at = ? WHERE id = ? AND submission_id = ? AND status = 'pending' AND callback_claimed = 1 AND EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'ocr_pending')")
+      .bind(input.requestId, input.attempt, input.status, input.responseJson ?? null, input.matchJson ?? null, timestamp, input.requestId, input.submissionId, input.submissionId);
+    const submissionUpdate = database.prepare(
+      `UPDATE submissions SET status = ?, review_reason = ?, ocr_fail_count = ocr_fail_count + ?, rule_snapshot_json = COALESCE(?, rule_snapshot_json), updated_at = ? WHERE id = ? AND status = 'ocr_pending' AND changes() = 1`
+    ).bind(input.nextStatus, input.reviewReason, input.incrementFailCount ? 1 : 0, input.ruleSnapshotJson ?? null, timestamp, input.submissionId);
+    await database.batch(input.verifiedRunOutcome ? [resultInsert, submissionUpdate, masterySubmissionOutcomeStatement(input.submissionId, input.verifiedRunOutcome)] : [resultInsert, submissionUpdate]);
+  };
+
