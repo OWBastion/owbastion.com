@@ -9,7 +9,6 @@ import {
   bindingInviteHistoricalTitleGrants,
   challengeCompletions,
   challenges,
-  historicalTitleGrants,
   playerTitleGrants,
 } from "./schema";
 

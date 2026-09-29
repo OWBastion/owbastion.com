@@ -1,4 +1,4 @@
-import { count, desc, eq, and, gte, or, inArray, isNull, isNotNull, ne, lte, notExists, sql, asc } from "drizzle-orm";
+import { count, desc, eq, and, or, inArray, isNull, isNotNull, ne, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
 import { buildMasteryMapProfile, buildMasteryProfiles, calculateVerifiedRunXpV2, parseCanonicalChallengeConditions, randomEventRarityForWeight, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
@@ -10,7 +10,7 @@ import { userEvidenceObjectKey } from "./object-key";
 import { createPlayerUploadServices, maxUploadBytes, playerSubmissionStatus } from "./player-upload-service";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, type OcrResponse } from "./ocr-response";
-import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengeOverlay, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
+import { createCanonicalChallengeServices, type CanonicalChallengeInput, type CanonicalChallengePlan, type CanonicalChallengeResolver } from "./canonical-challenge-service";
 import { createChallengeCompletionServices, type ChallengeCompletionAward } from "./challenge-completion-service";
 import { hashRequest, resolvePortalSession } from "./portal-session";
 import { createReviewServices } from "./review-service";
@@ -22,7 +22,7 @@ import { createMapRevisionServices, pioneerExceptionHasValidWindow } from "./map
 import { createPlayerTitleServices, type ManualTitleGrantResolution } from "./player-title-service";
 import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
-import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
+import { activeMasteryProfiles, asVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { pageResult, paginate } from "./page-result";
 import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";

@@ -8,7 +8,6 @@ import type {
   AdminVerifiedRunCorrectionRequest,
   AdminVerifiedRunCorrectionResponse,
   AdminVerifiedRunDetailResponse,
-  AdminVerifiedRunListResponse,
   AdminVerifiedRunProjection,
   AdminVerifiedRunStateResponse,
   AdminVerifiedRunConflictResolutionResponse,
