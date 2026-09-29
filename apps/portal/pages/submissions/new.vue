@@ -86,7 +86,7 @@ const send = async (_event: FormSubmitEvent<typeof state>) => {
                 <span>截图用途</span>
               </div>
               <ul class="privacy-details">
-                <li>截图仅用于挑战核对与截图识别</li>
+                <li>截图用于挑战核对、截图识别，以及改进截图识别模型</li>
                 <li>提交截图不会对外公开</li>
                 <li>原始识别结果仅平台内部使用</li>
               </ul>
