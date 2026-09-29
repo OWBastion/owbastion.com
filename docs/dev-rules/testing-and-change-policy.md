@@ -27,28 +27,27 @@ without an architecture decision record.
 
 ## Testing layers
 
+Select tests under the [organization testing policy](https://github.com/OWBastion/.github/blob/main/docs/testing-policy.md).
+A durable platform test protects a business/API/UI contract, state-machine
+transition, idempotency/retry invariant, privacy/security boundary, migration
+invariant, or a real regression; it does not exist to snapshot the current
+internal repository or service shape. Prefer public/domain boundaries and
+representative inputs over private helper-call assertions.
+
 - Unit and contract tests for observable API, Portal, and package behavior.
 - D1 migration and repository tests when persistence changes.
-- Title-grant tests for account isolation, map and global title scope, manual
-  grant validation and idempotency, manual batch Cartesian expansion and cell
-  cap, duplicate normalization, mixed created/already-owned outcomes, empty
-  results, duplicate historical-holder associations, explicit invitation
-  authorization, automatic clean-binding migration, conflict/retry handling,
-  revocation, administrator authorization, idempotency, and audit records.
-- Achievement-management tests for maintainer authorization, three-state
-  validation, idempotency replay and conflicts, audit records, immediate
-  title-rule updates, planned retirement versions, reopening, and the
-  preservation of in-flight submissions after retirement. Scheduled title
-  challenges must also be tested before, during, and after their time window.
+- High-risk business workflows — submissions and review, grants, and
+  title/achievement administration — are covered at their domain and API
+  boundaries for the durable invariants they own: authorization and scope
+  isolation; state transitions including retirement, reopening, and
+  revocation; idempotent replay and queue redelivery without duplicate rows
+  or audit effects; conflict and rollback handling; privacy-negative
+  responses across player, public, and maintainer projections; and
+  time-windowed behavior before, during, and after the window.
 - Integration tests with fake R2, OCR, GitHub, and QQ clients as those
   integrations are introduced.
-- Queue redelivery, review, grant, and end-to-end tests for submission approval,
-  including rollback and idempotent replay.
-- Review integration tests must cover both event and map targets through the
-  D1-backed player, public, and maintainer projections, including update,
-  withdrawal, comment moderation, whole-review invalidation/restore, aggregate
-  changes, privacy-negative responses, and idempotent replay without duplicate
-  rows or audit effects.
+- End-to-end tests for submission approval cover rollback and idempotent
+  replay.
 - Security tests for authorization, SSRF, file validation, and private-data
   exposure.
 - Local authentication fixtures do not represent QQ authentication. Tests that

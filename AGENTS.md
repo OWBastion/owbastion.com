@@ -1,6 +1,6 @@
 # OWBastion Web Platform: Agent Work Entry
 
-This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization policy](https://github.com/OWBastion/.github/blob/main/README.md) owns shared engineering, testing, verification, entropy, and delivery policy. This file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
+This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization routing](https://github.com/OWBastion/.github/blob/main/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
 
 ## Repository role
 
@@ -12,13 +12,15 @@ This repository owns platform business metadata and state, player identities, su
 
 For cross-repository work, change the authoritative contract at its owner and integrate this repository separately as a consumer or producer.
 
-## Platform work
+## Work from intent, not repeated setup
 
-Use [organization agent guidance](https://github.com/OWBastion/.github/blob/main/docs/agent-guidance.md) for shared context and authority rules. For substantive platform changes, trace business behavior through its authoritative service, persistence, API/adapters, and consumers as applicable, using the local rule indexes below.
+A short request such as `implement #123`, `fix #123`, or `review #123` is sufficient. Follow the [organization preflight](https://github.com/OWBastion/.github/blob/main/docs/issue-readiness.md#preflight): inspect the worktree, linked Issue, source, tests, and evidence before claiming current behavior; route through the indexes below and load only the smallest relevant rule set; trace behavior through its authoritative owner, persistence, API/adapters, and consumers; surface material Issue/contract/code mismatches instead of deciding them.
 
-## Delivery
+Verify the narrowest decisive surface first, then the broader gates the risk requires. For issue work, verify the actual repository remote before repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
 
-Follow [organization PR delivery policy](https://github.com/OWBastion/.github/blob/main/docs/pr-delivery.md) and retain this repository's authorization boundaries below.
+## Repository delivery constraints
+
+Follow [organization PR delivery policy](https://github.com/OWBastion/.github/blob/main/docs/pr-delivery.md). Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
@@ -48,9 +50,11 @@ Root `AGENTS.md` is a router and invariant source. Module-specific rules belong 
 - Applied D1 migrations are forward-only. Migrations contain schema changes and necessary repair, not routine seed/catalog snapshots or demo/user data.
 - HTTP success, health checks, builds, deployments, or local integration tests do not by themselves prove a production business path works.
 
-## Platform verification
+## Verification, quality, and entropy
 
-Apply the [organization testing policy](https://github.com/OWBastion/.github/blob/main/docs/testing-policy.md) and [verification policy](https://github.com/OWBastion/.github/blob/main/docs/verification-and-acceptance.md). Platform expectations must come from accepted business/API contracts, migration invariants, representative regressions, or observable Portal behavior. Material state-machine, migration, security, privacy, public-contract, or cross-service changes need evidence at the affected platform boundary. Local tests and builds do not establish production behavior.
+Apply the organization [testing](https://github.com/OWBastion/.github/blob/main/docs/testing-policy.md), [verification](https://github.com/OWBastion/.github/blob/main/docs/verification-and-acceptance.md), [engineering quality](https://github.com/OWBastion/.github/blob/main/docs/engineering-quality.md), and [entropy](https://github.com/OWBastion/.github/blob/main/docs/entropy-policy.md) policies. Platform-specific independent bases for expected results: accepted business/API contract, migration invariant, representative regression, or observable UI behavior. Material state-machine, grants/review, migration, security, public-contract, privacy, or cross-service changes need an independent falsification pass (`.agents/skills/owbastion-verify-change/SKILL.md` when reviewing another author's change). Rendered Portal behavior keeps a separate evidence boundary from component and SSR checks; see the [testing and change policy](docs/dev-rules/testing-and-change-policy.md).
+
+Before adding a service, state field, adapter, compatibility path, queue/state representation, cache, configuration surface, or cross-repository contract, identify the present requirement the existing mechanism cannot satisfy; test access alone never widens production architecture. Platform entropy work targets duplicate business truth or ownerless projections, obsolete adapters and compatibility paths after completed migrations, duplicated lifecycle state, stale execution/status material in durable docs, and wrappers that no longer protect a real boundary — without removing authorization, auditability, idempotency, migration compatibility, privacy boundaries, or failure visibility that remain part of the platform contract.
 
 ## High-risk stop conditions
 
