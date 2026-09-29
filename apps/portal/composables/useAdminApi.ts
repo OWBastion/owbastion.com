@@ -29,9 +29,6 @@ export type {
   AdminVerifiedRunProjection,
   OcrAccuracyMark,
 } from "@owbastion/contracts";
-import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
-import { recordPortalError } from "~/utils/portal-error";
-
 export type AdminPlayer = AdminPlayerListResponse["items"][number];
 export type AdminGroup = Omit<QqGroupAccessResponse, "contractVersion">;
 export type AdminBindingClaim = AdminBindingClaimListResponse["items"][number];
