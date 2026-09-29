@@ -20,10 +20,11 @@ describe("v1 platform contracts", () => {
     }).success).toBe(true);
   });
   it("keeps random-event writes to source fields and accepts fractional cooldowns", () => {
-    const input = { contractVersion: "1", name: "赌徒：梭哈艺术", category: "机制", rarity: "SR", description: "事件说明", durationSeconds: 15, cooldownSeconds: 0.32, weight: 0.7, gameVersion: "5.0", effectTags: ["心之钢"], releaseStatus: "implemented", challengeLinks: [] };
+    const input = { contractVersion: "1", name: "赌徒：梭哈艺术", category: "机制", description: "事件说明", durationSeconds: 15, cooldownSeconds: 0.32, weight: 0.7, gameVersion: "5.0", effectTags: ["心之钢"], releaseStatus: "implemented", challengeLinks: [] };
     expect(adminRandomEventUpdateRequestSchema.safeParse(input).success).toBe(true);
+    expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, rarity: "SSR" }).success).toBe(false);
     expect(adminRandomEventUpdateRequestSchema.safeParse({ ...input, appearanceProbability: 0.1 }).success).toBe(false);
-    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, effectAnnotations: [], archived: false, challenges: [] }).success).toBe(true);
+    expect(randomEventSchema.safeParse({ eventId: "event.test", ...input, rarity: "SR", effectAnnotations: [], archived: false, challenges: [] }).success).toBe(true);
   });
   it("validates version-level random-event availability", () => {
     expect(adminRandomEventVersionAvailabilityRequestSchema.safeParse({ contractVersion: "1", availability: "suspended" }).success).toBe(true);

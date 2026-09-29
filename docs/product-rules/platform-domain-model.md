@@ -507,7 +507,7 @@ The platform owns Random Event:
 
 - stable key;
 - public/admin metadata;
-- rarity and current weight;
+- current weight and the rarity derived from it (`≤ 0.4` SSR, `≤ 0.8` SR, `≤ 1.2` R, otherwise N);
 - other build metadata that is genuinely platform-owned.
 
 Bastion owns:
