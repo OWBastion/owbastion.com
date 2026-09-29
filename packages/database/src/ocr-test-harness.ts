@@ -22,6 +22,7 @@ import {
   randomEventMapChallengesSchema,
   randomEventTitleChallengesSchema,
   randomEventsSchema,
+  reviewedAnnotationsSchemaWithoutReferences,
   submissionReviewsSchema,
   titleCatalogSchema,
   verifiedRunsSchema,
@@ -402,27 +403,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       updated_at INTEGER NOT NULL,
       UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
     );
-    CREATE TABLE reviewed_annotations (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      ocr_result_id TEXT NOT NULL,
-      proposal_id TEXT,
-      field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
-      original_ocr_value TEXT,
-      model_version TEXT,
-      layout_version TEXT,
-      reviewed_value TEXT NOT NULL CHECK (length(trim(reviewed_value)) > 0),
-      normalized_value TEXT,
-      player_account_id TEXT,
-      player_proposed_value TEXT,
-      prompt_origin TEXT,
-      review_state TEXT NOT NULL DEFAULT 'accepted' CHECK (review_state IN ('accepted', 'superseded')),
-      reviewed_by TEXT NOT NULL,
-      reviewed_at INTEGER NOT NULL,
-      note TEXT,
-      supersedes_annotation_id TEXT,
-      created_at INTEGER NOT NULL
-    );
+    ${reviewedAnnotationsSchemaWithoutReferences}
     CREATE UNIQUE INDEX reviewed_annotations_active_field_idx ON reviewed_annotations (submission_id, ocr_result_id, field_key) WHERE review_state = 'accepted';
     CREATE TABLE ocr_accuracy_feedback (
       id TEXT PRIMARY KEY NOT NULL,

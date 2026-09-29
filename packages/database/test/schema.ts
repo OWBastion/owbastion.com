@@ -85,11 +85,11 @@ export const ocrFeedbackProposalsSchema = `CREATE TABLE ocr_feedback_proposals (
     UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
   );`;
 
-export const reviewedAnnotationsSchema = `CREATE TABLE reviewed_annotations (
+const createReviewedAnnotationsSchema = (enforceReferences: boolean) => `CREATE TABLE reviewed_annotations (
     id TEXT PRIMARY KEY NOT NULL,
     submission_id TEXT NOT NULL,
     ocr_result_id TEXT NOT NULL,
-    proposal_id TEXT REFERENCES ocr_feedback_proposals(id),
+    proposal_id TEXT${enforceReferences ? " REFERENCES ocr_feedback_proposals(id)" : ""},
     field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
     original_ocr_value TEXT,
     model_version TEXT,
@@ -103,9 +103,12 @@ export const reviewedAnnotationsSchema = `CREATE TABLE reviewed_annotations (
     reviewed_by TEXT NOT NULL,
     reviewed_at INTEGER NOT NULL,
     note TEXT,
-    supersedes_annotation_id TEXT REFERENCES reviewed_annotations(id),
+    supersedes_annotation_id TEXT${enforceReferences ? " REFERENCES reviewed_annotations(id)" : ""},
     created_at INTEGER NOT NULL
   );`;
+
+export const reviewedAnnotationsSchema = createReviewedAnnotationsSchema(true);
+export const reviewedAnnotationsSchemaWithoutReferences = createReviewedAnnotationsSchema(false);
 
 export const idempotencyKeysRequiredIdSchema = `CREATE TABLE idempotency_keys (
     id TEXT PRIMARY KEY NOT NULL,
