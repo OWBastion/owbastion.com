@@ -233,7 +233,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   letter-spacing: var(--type-headline-tracking);
   line-height: var(--type-headline-leading);
 }
-.type-card-title {
+.type-card-title,
+.card-heading :where(h2, h3) {
   margin: 0;
   font-size: var(--type-card-title-size);
   font-weight: 600;
@@ -380,7 +381,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .invite-panel, .batch-invites { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
-.invite-panel__header, .invite-panel__actions, .batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.invite-panel__header, .invite-panel__actions, .batch-invites__header, .batch-invites__actions, .invite-result, .card-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .invite-panel__hint, .invite-panel__count, .batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
 .invite-panel__header h2, .batch-invites__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
 .invite-panel__count, .batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
@@ -500,19 +501,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .accent-link { color: var(--accent); font-weight: 600; text-decoration: none; }
 .accent-link:hover, .accent-link:focus-visible { text-decoration: underline; }
-.card-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.card-heading :where(h2, h3) {
-  margin: 0;
-  font-size: var(--type-card-title-size);
-  font-weight: 600;
-  letter-spacing: var(--type-card-title-tracking);
-  line-height: var(--type-card-title-leading);
-}
 .card-heading > span {
   color: var(--quiet);
   font-size: var(--type-caption-size);
