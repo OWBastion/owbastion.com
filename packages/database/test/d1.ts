@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-type BatchMode = "direct" | "transactional" | "serialized";
+type BatchMode = "direct" | "transactional" | "serialized" | "immediate";
 type BatchStatementMethod = "all" | "run";
 
 type TestD1Options = {
@@ -9,6 +9,7 @@ type TestD1Options = {
   batchStatementMethod?: BatchStatementMethod;
   reportWriteChangesInAll?: boolean;
   countStatements?: boolean;
+  countPreparations?: boolean;
   execReturnsD1Result?: boolean;
   failBatchNumbers?: number[];
 };
@@ -19,6 +20,7 @@ export const createTestD1 = ({
   batchStatementMethod = "all",
   reportWriteChangesInAll = false,
   countStatements = false,
+  countPreparations = false,
   execReturnsD1Result = false,
   failBatchNumbers = [],
 }: TestD1Options = {}) => {
@@ -28,7 +30,7 @@ export const createTestD1 = ({
   let batchNumber = 0;
   let batchTail = Promise.resolve();
   const countStatement = () => {
-    if (countStatements) statementCount += 1;
+    if (countStatements && !countPreparations) statementCount += 1;
   };
   const metadata = (changes: number, rowsRead = 0, lastRowId = 0) => ({
     changes,
@@ -72,7 +74,8 @@ export const createTestD1 = ({
     return statement;
   };
   const applyBatch = async (statements: Array<ReturnType<typeof wrapStatement>>) => {
-    if (batchMode !== "direct") sqlite.exec("BEGIN");
+    if (batchMode === "immediate") sqlite.exec("BEGIN IMMEDIATE");
+    else if (batchMode !== "direct") sqlite.exec("BEGIN");
     try {
       const results = [];
       for (const statement of statements) results.push(await statement[batchStatementMethod]());
@@ -84,7 +87,10 @@ export const createTestD1 = ({
     }
   };
   const database = {
-    prepare(sql: string) { return wrapStatement(sql); },
+    prepare(sql: string) {
+      if (countPreparations) statementCount += 1;
+      return wrapStatement(sql);
+    },
     batch(statements: Array<ReturnType<typeof wrapStatement>>) {
       batchNumber += 1;
       if (failBatchNumbers.includes(batchNumber)) return Promise.reject(new Error("D1_TRANSIENT_FAILURE"));
