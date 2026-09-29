@@ -12,7 +12,7 @@ import {
 } from "@owbastion/contracts";
 import type { Authenticator, PlatformServices } from "@owbastion/domain";
 import { withPublicCache } from "./public-cache";
-import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext } from "./routes/route-contract";
+import { maintainerRoute, parseBody, routeErrorResponse, type AdminMutation, type AdminMutationOptions, type ApiContext, type RouteErrorMap } from "./routes/route-contract";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerAdminVerifiedRunRoutes } from "./routes/admin-verified-runs";
 import { registerAdminReviewWorkflowRoutes } from "./routes/admin-review-workflow";
@@ -119,6 +119,40 @@ const errorResponse = (c: any, status: 400 | 401 | 403 | 404 | 409 | 422 | 500 |
 const errorGroup = (status: 404 | 409 | 422 | 503, message: string, ...codes: string[]) =>
   Object.fromEntries(codes.map((code) => [code, { status, message }]));
 const idempotencyConflict = { status: 409, message: "The idempotency key was used with a different request" } as const;
+const idempotencyErrors: RouteErrorMap = { IDEMPOTENCY_CONFLICT: idempotencyConflict };
+const unauthenticatedErrors: RouteErrorMap = { UNAUTHENTICATED: { status: 401, message: "Authentication is required" } };
+const submissionNotFoundErrors: RouteErrorMap = errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND");
+const equippedTitleErrors: RouteErrorMap = {
+  ...errorGroup(422, "The selected titles cannot be equipped", "EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"),
+  ...idempotencyErrors,
+};
+const ocrFeedbackErrors: RouteErrorMap = {
+  ...unauthenticatedErrors,
+  ...submissionNotFoundErrors,
+  ...errorGroup(409, "Feedback is unavailable for this submission", "OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"),
+  OCR_PROMPT_STALE: { status: 409, message: "The recognition prompt is no longer current; refresh the submission" },
+  ...errorGroup(422, "The feedback content is invalid", "OCR_FEEDBACK_FIELD_UNSAFE", "OCR_FEEDBACK_FIELD_NOT_PROMPTED", "OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED", "OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG"),
+  ...idempotencyErrors,
+};
+const playerUploadSessionErrors: RouteErrorMap = {
+  ...errorGroup(422, "The challenge revision is not available", "CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"),
+  CHALLENGE_AUTOMATIC: { status: 422, message: "该称号满足条件后自动获得，无需提交截图。" },
+  PLAYER_BANNED: { status: 403, message: "The player account is banned" },
+};
+const invalidUploadErrors: RouteErrorMap = errorGroup(422, "The upload is invalid or expired", "UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH");
+const uploadCompletionErrors: RouteErrorMap = {
+  UPLOAD_SESSION_INVALID: { status: 422, message: "The upload is invalid or expired" },
+  UPLOAD_COMPLETION_IN_PROGRESS: { status: 409, message: "Upload completion is already in progress" },
+};
+const manualReviewErrors: RouteErrorMap = {
+  ...submissionNotFoundErrors,
+  ...errorGroup(409, "The submission is not eligible for manual review", "MANUAL_REVIEW_NOT_ELIGIBLE"),
+};
+const respondToMappedError = (context: ApiContext, error: unknown, errors: RouteErrorMap): Response => {
+  const response = routeErrorResponse(context, error, errors, errorResponse);
+  if (response) return response;
+  throw error;
+};
 
 const portalSessionToken = (request: Request) => request.headers.get("cookie")?.split(";").map((part) => part.trim()).find((part) => part.startsWith("owb_session="))?.slice("owb_session=".length);
 
@@ -369,8 +403,7 @@ export const createApp = (dependencies: AppDependencies) => {
       await dependencies.services(c.env).registerQqGroup(parsed.data, auth, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
-      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
-      throw error;
+      return respondToMappedError(c, error, idempotencyErrors);
     }
   });
 
@@ -406,11 +439,7 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).replaceCurrentPlayerEquippedTitles({ ...parsed.data, sessionToken }, idempotencyKey)); }
     catch (error) {
-      const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
-      if (code === "UNAUTHENTICATED") return errorResponse(c, 401, code, "Authentication is required");
-      if (["EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
+      return respondToMappedError(c, error, { ...unauthenticatedErrors, ...equippedTitleErrors });
     }
   });
 
@@ -422,11 +451,10 @@ export const createApp = (dependencies: AppDependencies) => {
     try {
       return c.json(await dependencies.services(c.env).replaceAdminPlayerEquippedTitles({ playerAccountId: c.req.param("playerAccountId")!, grantIds: parsed.data.grantIds }, auth, idempotencyKey));
     } catch (error) {
-      const code = error instanceof Error ? error.message : "EQUIPPED_TITLES_UPDATE_FAILED";
-      if (code === "PLAYER_NOT_FOUND") return errorResponse(c, 404, code, "The player does not exist");
-      if (["EQUIPPED_TITLE_GRANT_INVALID", "EQUIPPED_TITLE_LIMIT_EXCEEDED"].includes(code)) return errorResponse(c, 422, code, "The selected titles cannot be equipped");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
+      return respondToMappedError(c, error, {
+        PLAYER_NOT_FOUND: { status: 404, message: "The player does not exist" },
+        ...equippedTitleErrors,
+      });
     }
   }));
 
@@ -442,8 +470,7 @@ export const createApp = (dependencies: AppDependencies) => {
     try {
       return c.json(await dependencies.services(c.env).getPlayerSubmission({ submissionId: c.req.param("submissionId")! }, access.sessionToken));
     } catch (error) {
-      if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
-      throw error;
+      return respondToMappedError(c, error, submissionNotFoundErrors);
     }
   }));
 
@@ -459,13 +486,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId")! }, access.sessionToken, idempotencyKey);
       return c.json(response);
     } catch (error) {
-      const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
-      if (code === "UNAUTHENTICATED") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
-      if (["OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND"].includes(code)) return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
-      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
+      return respondToMappedError(c, error, ocrFeedbackErrors);
     }
   }));
 
@@ -521,17 +542,17 @@ export const createApp = (dependencies: AppDependencies) => {
     const parsed = playerUploadSessionRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try { return c.json(await dependencies.services(c.env).createPlayerUploadSession(parsed.data, access.sessionToken), 201); }
-    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_SESSION_FAILED"; if (["CHALLENGE_NOT_FOUND", "GAMEPLAY_REVISION_REQUIRED"].includes(code)) return errorResponse(c, 422, code, "The challenge revision is not available"); if (code === "CHALLENGE_AUTOMATIC") return errorResponse(c, 422, code, "该称号满足条件后自动获得，无需提交截图。"); if (code === "PLAYER_BANNED") return errorResponse(c, 403, code, "The player account is banned"); throw error; }
+    catch (error) { return respondToMappedError(c, error, playerUploadSessionErrors); }
   }));
 
   app.put("/v1/uploads/:uploadId", portalPlayerRoute(async (c, access) => {
     try { await dependencies.services(c.env).uploadEvidence({ uploadId: c.req.param("uploadId")!, body: await c.req.raw.arrayBuffer(), contentType: c.req.header("content-type") ?? "" }, access.sessionToken); return c.body(null, 204); }
-    catch (error) { const code = error instanceof Error ? error.message : "UPLOAD_FAILED"; if (["UPLOAD_SESSION_INVALID", "UPLOAD_METADATA_MISMATCH", "UPLOAD_HASH_MISMATCH"].includes(code)) return errorResponse(c, 422, code, "The upload is invalid or expired"); throw error; }
+    catch (error) { return respondToMappedError(c, error, invalidUploadErrors); }
   }));
 
   app.post("/v1/player/uploads/:uploadId/complete", portalPlayerRoute(async (c, access) => {
     try { return c.json(await dependencies.services(c.env).completePlayerUpload({ uploadId: c.req.param("uploadId")! }, access.sessionToken, c.get("requestId"))); }
-    catch (error) { if (error instanceof Error && error.message === "UPLOAD_SESSION_INVALID") return errorResponse(c, 422, "UPLOAD_SESSION_INVALID", "The upload is invalid or expired"); if (error instanceof Error && error.message === "UPLOAD_COMPLETION_IN_PROGRESS") return errorResponse(c, 409, error.message, "Upload completion is already in progress"); throw error; }
+    catch (error) { return respondToMappedError(c, error, uploadCompletionErrors); }
   }));
 
   app.post("/v1/player/submissions/:submissionId/manual-review", portalPlayerRoute(async (c, access) => {
@@ -539,10 +560,7 @@ export const createApp = (dependencies: AppDependencies) => {
       await dependencies.services(c.env).requestManualReview({ submissionId: c.req.param("submissionId")! }, access.sessionToken);
       return c.body(null, 204);
     } catch (error) {
-      const code = error instanceof Error ? error.message : "MANUAL_REVIEW_FAILED";
-      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
-      if (code === "MANUAL_REVIEW_NOT_ELIGIBLE") return errorResponse(c, 409, code, "The submission is not eligible for manual review");
-      throw error;
+      return respondToMappedError(c, error, manualReviewErrors);
     }
   }));
 
@@ -555,8 +573,7 @@ export const createApp = (dependencies: AppDependencies) => {
       await dependencies.services(c.env).upsertQqGroupAccess(parsed.data, auth, idempotencyKey);
       return c.body(null, 204);
     } catch (error) {
-      if (error instanceof Error && error.message === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, error.message, "The idempotency key was used with a different request");
-      throw error;
+      return respondToMappedError(c, error, idempotencyErrors);
     }
   }));
 
@@ -695,8 +712,7 @@ export const createApp = (dependencies: AppDependencies) => {
       const submission = await dependencies.services(c.env).getSubmission({ submissionId }, { actorType: "user", subject: "public-status", roles: [], provider: "public" });
       return c.json(submission);
     } catch (error) {
-      if (error instanceof Error && error.message === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
-      throw error;
+      return respondToMappedError(c, error, submissionNotFoundErrors);
     }
   });
 
