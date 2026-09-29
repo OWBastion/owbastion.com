@@ -265,15 +265,18 @@ export const achievementChallengeSchema = z.object({
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
 
 
-export const mapSchema = z.object({
-  mapId: externalId,
-  mapName: z.string().trim().min(1).max(256),
-  defaultGameplayRevisionId: externalId.nullable().optional(),
+const mapMetadataFields = {
   gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
   coverUrl: z.string().trim().url().max(2048).nullable(),
   backgroundUrl: z.string().trim().url().max(2048).nullable(),
+};
+export const mapSchema = z.object({
+  mapId: externalId,
+  mapName: z.string().trim().min(1).max(256),
+  defaultGameplayRevisionId: externalId.nullable().optional(),
+  ...mapMetadataFields,
 });
 
 
@@ -602,11 +605,7 @@ export const adminMapCreateRequestSchema = z.object({
 
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
-  gameVersion: z.string().trim().min(1).max(64),
-  difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
-  mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
-  coverUrl: z.string().trim().url().max(2048).nullable(),
-  backgroundUrl: z.string().trim().url().max(2048).nullable(),
+  ...mapMetadataFields,
 });
 
 const adminMapRevisionLifecycle = z.enum(["preparing", "default", "selectable", "historical"]);
@@ -1125,6 +1124,17 @@ const verifiedRunXpInputSnapshotV2Schema = z.object({
 }).strict();
 const verifiedRunXpInputSnapshotSchema = z.discriminatedUnion("ruleVersion", [verifiedRunXpInputSnapshotV1Schema, verifiedRunXpInputSnapshotV2Schema]);
 
+const verifiedRunFactFields = {
+  mapVariant: z.literal("classic").nullable(),
+  difficulty: verifiedRunDifficultySchema,
+  gameVersion: z.string().trim().min(1).max(64),
+  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
+  completionDurationSeconds: z.number().int().positive(),
+  deaths: z.number().int().nonnegative().nullable(),
+  skips: z.number().int().nonnegative().nullable(),
+  eventCounters: verifiedRunEventCountersSchema,
+};
+
 export const adminVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   playerAccountId: z.string().uuid(),
@@ -1135,14 +1145,7 @@ export const adminVerifiedRunSchema = z.object({
   mapName: z.string().trim().min(1).max(256),
   gameplayRevisionId: externalId,
   gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
-  mapVariant: z.literal("classic").nullable(),
-  difficulty: verifiedRunDifficultySchema,
-  gameVersion: z.string().trim().min(1).max(64),
-  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
-  completionDurationSeconds: z.number().int().positive(),
-  deaths: z.number().int().nonnegative().nullable(),
-  skips: z.number().int().nonnegative().nullable(),
-  eventCounters: verifiedRunEventCountersSchema,
+  ...verifiedRunFactFields,
   acceptanceSource: masteryAcceptanceSourceSchema,
   acceptedAt: z.number().int().positive(),
   status: verifiedRunStatusSchema,
@@ -1215,14 +1218,7 @@ export const adminVerifiedRunListResponseSchema = z.object({
 const verifiedRunCorrectionSnapshotSchema = z.object({
   mapId: externalId,
   gameplayRevisionId: externalId,
-  mapVariant: z.literal("classic").nullable(),
-  difficulty: verifiedRunDifficultySchema,
-  gameVersion: z.string().trim().min(1).max(64),
-  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
-  completionDurationSeconds: z.number().int().positive(),
-  deaths: z.number().int().nonnegative().nullable(),
-  skips: z.number().int().nonnegative().nullable(),
-  eventCounters: verifiedRunEventCountersSchema,
+  ...verifiedRunFactFields,
   xpRuleVersion: z.enum(["v1", "v2"]),
   xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
   awardedXp: z.number().int().nonnegative(),
