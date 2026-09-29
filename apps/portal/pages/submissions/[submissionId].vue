@@ -19,13 +19,8 @@ type SubmissionDetail = {
   verifiedRunOutcome?: VerifiedRunSubmissionOutcome;
   ocr?: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles: string[] };
   feedback?: {
-    mode: "none" | "targeted" | "grouped";
-    promptOrigin: "uncertainty" | "conflict" | "grouped" | "calibration" | null;
-    promptFieldKeys: string[];
-    fields: Array<{ key: string; value: string | null }>;
     ocrResultId: string;
-    submitted: boolean;
-    available: boolean;
+    accuracy: "accurate" | "inaccurate" | null;
   };
 };
 
@@ -248,7 +243,7 @@ onBeforeUnmount(() => { if (ocrPollTimer) clearInterval(ocrPollTimer); });
           </UCard>
 
           <OcrFeedbackPanel
-            v-if="data.feedback?.available"
+            v-if="data.feedback"
             :submission-id="data.submissionId"
             :feedback="data.feedback"
             @recorded="refreshSubmission"

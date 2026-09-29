@@ -22,7 +22,7 @@ describe("new submission page privacy statement", () => {
     const text = wrapper.text();
     expect(text).toContain("提交完成截图");
     expect(text).toContain("截图用途");
-    expect(text).toContain("截图仅用于挑战核对与截图识别");
+    expect(text).toContain("截图用于挑战核对、截图识别，以及改进截图识别模型");
     expect(text).toContain("提交截图不会对外公开");
     expect(text).toContain("原始识别结果仅平台内部使用");
     expect(text).not.toContain("默认 F9");

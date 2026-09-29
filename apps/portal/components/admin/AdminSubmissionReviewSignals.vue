@@ -144,8 +144,8 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
       </section>
       <section class="field-review" aria-labelledby="field-review-title">
         <div>
-          <h4 id="field-review-title">审核中确认识别字段</h4>
-          <p>勾选并确认截图中的完整值后，会随本次审核保存为审定标注。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
+          <h4 id="field-review-title">校正识别字段</h4>
+          <p>勾选并填写截图中的完整值后，会作为本次审核的业务校正随决定保存。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
         </div>
         <div v-for="field in annotatableFields" :key="field.key" class="field-review__row">
           <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="disabled" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />

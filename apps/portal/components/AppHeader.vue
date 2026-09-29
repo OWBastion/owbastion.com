@@ -21,7 +21,6 @@ const adminNavigationItems = computed(() => {
   const playerBindingActive = adminPathActive("/admin/bindings") && !invitationTabActive;
   const playerActive = adminPathActive("/admin/players") || playerBindingActive;
   const invitationActive = adminPathActive("/admin/bindings") && invitationTabActive;
-  const ocrActive = ["/admin/annotations", "/admin/datasets"].some((to) => adminPathActive(to));
   const toolsActive = ["/admin/grants", "/admin/verified-runs", "/admin/titles"].some((to) => adminPathActive(to));
   return [
     { label: "称号", icon: "i-lucide-award", to: "/admin/achievements?section=catalog", active: achievementPageActive && section === "catalog" },
@@ -49,16 +48,6 @@ const adminNavigationItems = computed(() => {
       ],
     },
     { label: "截图审核", icon: "i-lucide-scan-eye", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
-    {
-      label: "OCR",
-      icon: "i-lucide-scan-text",
-      active: ocrActive,
-      defaultOpen: ocrActive,
-      children: [
-        { label: "标注与反馈", description: "OCR 质量核对", icon: "i-lucide-scan-text", to: "/admin/annotations", active: adminPathActive("/admin/annotations") },
-        { label: "数据集快照", description: "样本查询与定稿", icon: "i-lucide-database", to: "/admin/datasets", active: adminPathActive("/admin/datasets") },
-      ],
-    },
     {
       label: "评价与审核",
       icon: "i-lucide-message-square-quote",

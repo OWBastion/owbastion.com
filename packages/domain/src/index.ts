@@ -55,21 +55,8 @@ import type {
   RandomEvent, RandomEventListResponse, AdminRandomEventCreateRequest, AdminRandomEventUpdateRequest, AdminRandomEventImportRequest, RandomEventVersion, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse,
   PlayerUploadSessionRequest,
   PlayerUploadSessionResponse,
-  PlayerOcrFeedbackRequest,
-  PlayerOcrFeedbackResponse,
-  AdminAnnotationProposalListResponse,
-  AdminAnnotationProposalDetailResponse,
-  AdminAnnotationDecisionRequest,
-  AdminAnnotationDecisionResponse,
-  AdminAnnotationDirectCreateRequest,
-  AdminAnnotationDirectCreateResponse,
-  AdminReviewedAnnotationListResponse,
-  AdminDatasetCreateResponse,
-  AdminDatasetCandidateListResponse,
-  AdminDatasetListResponse,
-  AdminDatasetDetailResponse,
-  AdminDatasetFinalizeResponse,
-  OcrkitDatasetResponse,
+  OcrAccuracyFeedbackRequest,
+  OcrAccuracyFeedbackResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
@@ -77,8 +64,6 @@ import type { VerifiedRunDifficulty, MasteryMapProfile, VerifiedRunActor, Record
 
 export * from "./mastery";
 export * from "./gameplay-revision";
-export * from "./ocr-feedback";
-export * from "./annotation-review";
 export * from "./challenge-conditions";
 
 export type LocalDevAccount = {
@@ -270,20 +255,9 @@ export type PlatformServices = {
   createSubmission(input: SubmissionRequest, auth: AuthContext, idempotencyKey: string): Promise<SubmissionResponse>;
   getSubmission(input: { submissionId: string }, auth: AuthContext): Promise<SubmissionStatusResponse>;
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
-  submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse>;
+  submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
+  submitAdminOcrAccuracy(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
-  listAdminAnnotationProposals(input: { page: number; pageSize: number; state?: "pending" | "accepted" | "rejected"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string; kind?: "correction" | "confirmation" }, auth: AuthContext): Promise<AdminAnnotationProposalListResponse>;
-  getAdminAnnotationProposal(input: { proposalId: string }, auth: AuthContext): Promise<AdminAnnotationProposalDetailResponse>;
-  decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse>;
-  createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse>;
-  listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, auth: AuthContext): Promise<AdminReviewedAnnotationListResponse>;
-  listAdminDatasetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminDatasetCandidateListResponse>;
-  createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse>;
-  listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, auth: AuthContext): Promise<AdminDatasetListResponse>;
-  getAdminDataset(input: { datasetId: string }, auth: AuthContext): Promise<AdminDatasetDetailResponse>;
-  finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse>;
-  getOcrkitDataset(input: { version: number }): Promise<OcrkitDatasetResponse>;
-  getOcrkitDatasetEvidence(input: { version: number; annotationId: string }): Promise<{ body: ArrayBuffer; contentType: string }>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   listQqGroupAccess(auth: AuthContext): Promise<QqGroupAccessResponse[]>;

@@ -937,6 +937,11 @@ export const adminSubmissionChallengeSchema = z.union([
   z.object({ family: z.literal("map"), name: z.string(), mapName: z.string(), difficulty: z.string().nullable(), kind: z.enum(["difficulty_completion", "pioneer", "classic_completion", "map_title_achievement"]).optional(), mapVariant: z.literal("classic").optional() }),
   z.object({ family: z.literal("achievement"), titleName: z.string(), category: z.string(), condition: z.string(), evidenceRule: z.string(), mapVariant: z.literal("classic").optional() }),
 ]);
+// Screenshot-level OCR accuracy marks (#253). A mark says whether one
+// recognition result read the screenshot correctly; it is a sampling hint for
+// OCRKit screenshot-set selection, never a transcription or training label.
+export const ocrAccuracyMarkSchema = z.enum(["accurate", "inaccurate"]);
+
 export const adminSubmissionSchema = z.object({
   submissionId: z.string().uuid(),
   status: z.union([submissionStatus, z.enum(["received", "evidence_pending", "evidence_stored"])]),
@@ -953,6 +958,8 @@ export const adminSubmissionSchema = z.object({
   ocrAttempt: z.number().int().nullable().optional(),
   ocrErrorCode: z.string().nullable().optional(),
   ocrResultId: z.string().uuid().nullable().optional(),
+  // Current screenshot-level accuracy mark for that recognition (#253).
+  ocrAccuracy: ocrAccuracyMarkSchema.nullable().optional(),
   ocr: z.record(z.string(), z.unknown()).nullable(),
   match: z.record(z.string(), z.unknown()).nullable().optional(),
   reason: z.string().nullable().optional(),
@@ -1030,10 +1037,10 @@ export const adminSubmissionReviewPreviewResponseSchema = z.object({
   blockingCode: z.string().nullable(),
 }).strict();
 export const adminSubmissionReviewResponseSchema = z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean(), grants: z.array(z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), alreadyOwned: z.boolean() })).min(1).optional(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema.optional(),
 }).or(z.object({
-  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema, reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional(),
-})).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null(), reviewedAnnotationId: z.string().uuid().optional(), reviewedAnnotationIds: z.array(z.string().uuid()).optional() }));
+  contractVersion, submissionId: z.string().uuid(), decision: z.literal("approved"), grant: z.null(), verifiedRunOutcome: playerVerifiedRunSubmissionOutcomeSchema,
+})).or(z.object({ contractVersion, submissionId: z.string().uuid(), decision: z.enum(["rejected", "resubmission_required"]), grant: z.null() }));
 export const adminSubmissionOcrRetryRequestSchema = z.object({ contractVersion });
 export const adminSubmissionOcrRetryResponseSchema = z.object({ contractVersion, submissionId: z.string().uuid(), status: z.literal("ocr_pending") });
 export const adminSubmissionSpotCheckRequestSchema = z.object({ contractVersion, decision: z.enum(["confirmed", "revoked"]), reason: z.string().trim().max(512).optional() });
@@ -1274,61 +1281,27 @@ export const playerSubmissionOcrSummarySchema = z.object({
   achievementTitles: z.array(z.string()).optional(),
 }).strict();
 
-export const ocrFeedbackFieldKeySchema = z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]);
-export const ocrFeedbackModeSchema = z.enum(["none", "targeted", "grouped"]);
-export const ocrFeedbackPromptOriginSchema = z.enum(["uncertainty", "conflict", "grouped", "calibration"]);
-export const ocrFeedbackActionSchema = z.enum(["confirmed", "corrected"]);
-
 export const playerSubmissionOcrFeedbackSchema = z.object({
-  // Whether a prompt exists for this recognition: none / targeted / grouped.
-  mode: ocrFeedbackModeSchema,
-  // The policy reason that produced a prompt, when one was generated.
-  promptOrigin: ocrFeedbackPromptOriginSchema.nullable(),
-  // Safe field keys the player is asked to confirm/correct.
-  promptFieldKeys: z.array(ocrFeedbackFieldKeySchema),
-  // Safe field identifiers and recognized values the player may give feedback
-  // on. This is the entire presentation contract; it never exposes numeric
-  // confidence, thresholds, warnings, risk signals, or raw OCRKit payloads.
-  fields: z.array(z.object({ key: ocrFeedbackFieldKeySchema, value: z.string().nullable() }).strict()),
-  // The recognition this feedback state refers to. Submissions bind feedback
-  // to a specific OCR result so a stale prompt is explicit.
+  // The recognition result this mark refers to; a re-recognition resets it.
   ocrResultId: z.string().uuid(),
-  // Whether the player already recorded feedback for this recognition.
-  submitted: z.boolean(),
-  // Explicit prompt availability for the UI: unavailable when the recognition
-  // or submission cannot receive feedback (e.g. severe quality failure).
-  available: z.boolean(),
+  // The current mark, or null when nobody marked this recognition yet.
+  accuracy: ocrAccuracyMarkSchema.nullable(),
 }).strict();
 
-export const playerOcrFeedbackItemSchema = z.object({
-  fieldKey: ocrFeedbackFieldKeySchema,
-  action: ocrFeedbackActionSchema,
-  // Required for "corrected": the visible value the player proposes.
-  proposedValue: z.string().trim().min(1).max(256).optional(),
-}).strict().superRefine((item, context) => {
-  if (item.action === "corrected" && !item.proposedValue) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["proposedValue"], message: "A correction requires a proposed visible value" });
-  }
-});
-
-export const playerOcrFeedbackRequestSchema = z.object({
+// Shared by the player endpoint and the maintainer endpoint: the same mark
+// shape, the same recognition binding.
+export const ocrAccuracyFeedbackRequestSchema = z.object({
   contractVersion,
-  // The recognition result the player was prompted on.
   ocrResultId: z.string().uuid(),
-  items: z.array(playerOcrFeedbackItemSchema).min(1).max(10),
+  accuracy: ocrAccuracyMarkSchema,
 }).strict();
 
-export const playerOcrFeedbackRecordedSchema = z.object({
-  fieldKey: ocrFeedbackFieldKeySchema,
-  action: ocrFeedbackActionSchema,
-  status: z.literal("submitted"),
-}).strict();
-
-export const playerOcrFeedbackResponseSchema = z.object({
+export const ocrAccuracyFeedbackResponseSchema = z.object({
   contractVersion,
   submissionId: z.string().uuid(),
-  recorded: z.array(playerOcrFeedbackRecordedSchema),
-  // True when the exact same feedback was already recorded (idempotent replay).
+  ocrResultId: z.string().uuid(),
+  accuracy: ocrAccuracyMarkSchema,
+  // True when this exact mark was already recorded (idempotent replay).
   alreadySubmitted: z.boolean(),
 }).strict();
 
@@ -1340,233 +1313,6 @@ export const playerSubmissionDetailSchema = submissionStatusResponseSchema.exten
   titleGrant: z.object({ grantId: z.string().uuid(), titleKey: externalId, titleName: z.string(), mapName: z.string().optional() }).optional(),
   feedback: playerSubmissionOcrFeedbackSchema.optional(),
 });
-
-// ---- Maintainer annotation review (#104) ----
-
-export const adminAnnotationProposalStateSchema = z.enum(["pending", "accepted", "rejected"]);
-export const adminAnnotationPriorityCategorySchema = z.enum(["correction", "calibration_failure", "uncertain", "repeat", "confirmation"]);
-
-export const adminAnnotationProposalSchema = z.object({
-  proposalId: z.string().uuid(),
-  submissionId: z.string().uuid(),
-  submissionMapName: z.string().trim().min(1),
-  submissionCreatedAt: z.number().int(),
-  ocrResultId: z.string().uuid(),
-  fieldKey: ocrFeedbackFieldKeySchema,
-  originalValue: z.string().nullable(),
-  feedbackType: z.enum(["confirmed", "corrected", "passive_report"]),
-  promptOrigin: ocrFeedbackPromptOriginSchema.nullable(),
-  proposedValue: z.string().nullable(),
-  modelVersion: z.string().nullable(),
-  layoutVersion: z.string().nullable(),
-  playerSubmittedAt: z.number().int(),
-  reviewState: adminAnnotationProposalStateSchema,
-  priority: z.object({ score: z.number().int().nonnegative(), category: adminAnnotationPriorityCategorySchema, reasons: z.array(z.string()).min(1) }).strict(),
-}).strict();
-
-export const adminAnnotationProposalListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(adminAnnotationProposalSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
-
-export const adminAnnotationProposalDetailSchema = z.object({
-  contractVersion,
-  proposal: adminAnnotationProposalSchema,
-  ocr: playerSubmissionOcrSummarySchema.nullable(),
-}).strict();
-
-export const adminAnnotationDecisionRequestSchema = z.object({
-  contractVersion,
-  action: z.enum(["accept", "edit_accept", "reject"]),
-  // Required for edit_accept; for accept it defaults to the player proposal.
-  reviewedValue: z.string().trim().min(1).max(512).optional(),
-  // Business-normalized value, kept distinct from the exact visible
-  // transcription.
-  normalizedValue: z.string().trim().max(512).optional(),
-  note: z.string().trim().max(1000).optional(),
-}).strict().superRefine((input, context) => {
-  if (input.action === "edit_accept" && !input.reviewedValue) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["reviewedValue"], message: "Edit+Accept requires a reviewed value" });
-  }
-  if (input.action === "accept" && input.reviewedValue === undefined && input.normalizedValue !== undefined) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["normalizedValue"], message: "A normalized value requires a reviewed transcription" });
-  }
-});
-
-export const adminAnnotationDecisionResponseSchema = z.object({
-  contractVersion,
-  proposalId: z.string().uuid(),
-  reviewState: adminAnnotationProposalStateSchema,
-  annotationId: z.string().uuid().nullable(),
-}).strict();
-
-export const adminReviewedAnnotationSchema = z.object({
-  annotationId: z.string().uuid(),
-  submissionId: z.string().uuid(),
-  submissionMapName: z.string().trim().min(1),
-  ocrResultId: z.string().uuid(),
-  proposalId: z.string().uuid().nullable(),
-  fieldKey: ocrFeedbackFieldKeySchema,
-  originalOcrValue: z.string().nullable(),
-  modelVersion: z.string().nullable(),
-  layoutVersion: z.string().nullable(),
-  reviewedValue: z.string().trim().min(1),
-  normalizedValue: z.string().nullable(),
-  playerAccountId: z.string().nullable(),
-  playerProposedValue: z.string().nullable(),
-  promptOrigin: ocrFeedbackPromptOriginSchema.nullable(),
-  reviewState: z.enum(["accepted", "superseded"]),
-  reviewedBy: z.string(),
-  reviewedAt: z.number().int(),
-  note: z.string().nullable(),
-  supersedesAnnotationId: z.string().uuid().nullable(),
-  createdAt: z.number().int(),
-}).strict();
-
-export const adminReviewedAnnotationListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(adminReviewedAnnotationSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
-
-export const adminAnnotationDirectCreateRequestSchema = z.object({
-  contractVersion,
-  submissionId: z.string().uuid(),
-  ocrResultId: z.string().uuid(),
-  fieldKey: ocrFeedbackFieldKeySchema,
-  reviewedValue: z.string().trim().min(1).max(512),
-  normalizedValue: z.string().trim().max(512).optional(),
-  note: z.string().trim().max(1000).optional(),
-}).strict();
-
-export const adminAnnotationDirectCreateResponseSchema = z.object({
-  contractVersion,
-  annotationId: z.string().uuid(),
-  supersededAnnotationId: z.string().uuid().nullable(),
-}).strict();
-
-// ---- Immutable reviewed dataset snapshots and OCRKit consumption (#105) ----
-
-export const datasetSnapshotStatusSchema = z.enum(["draft", "finalized"]);
-
-export const adminDatasetSnapshotSchema = z.object({
-  datasetId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: datasetSnapshotStatusSchema,
-  createdBy: z.string(),
-  createdAt: z.number().int(),
-  finalizedBy: z.string().nullable(),
-  finalizedAt: z.number().int().nullable(),
-  note: z.string().nullable(),
-  counts: z.object({
-    eligibleCount: z.number().int().nonnegative(),
-    excludedCount: z.number().int().nonnegative(),
-    submissionCount: z.number().int().nonnegative(),
-    annotationCount: z.number().int().nonnegative(),
-  }).strict(),
-}).strict();
-
-export const adminDatasetListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(adminDatasetSnapshotSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
-
-export const adminDatasetCreateRequestSchema = z.object({
-  contractVersion,
-  note: z.string().trim().max(1000).optional(),
-  excludedAnnotationIds: z.array(z.string().uuid()).max(500).optional(),
-}).strict();
-
-export const adminDatasetCreateResponseSchema = z.object({
-  contractVersion,
-  datasetId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: z.literal("draft"),
-  counts: adminDatasetSnapshotSchema.shape.counts,
-}).strict();
-
-export const adminDatasetCandidateListResponseSchema = z.object({
-  contractVersion,
-  items: z.array(z.object({
-    annotationId: z.string().uuid(),
-    fieldKey: ocrFeedbackFieldKeySchema,
-    reviewedValue: z.string().trim().min(1),
-    submissionMapName: z.string().trim().min(1),
-  }).strict()),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
-
-export const adminDatasetFinalizeRequestSchema = z.object({
-  contractVersion,
-  note: z.string().trim().max(1000).optional(),
-}).strict();
-
-export const adminDatasetFinalizeResponseSchema = z.object({
-  contractVersion,
-  datasetId: z.string().uuid(),
-  version: z.number().int().positive(),
-  status: z.literal("finalized"),
-  finalizedAt: z.number().int(),
-}).strict();
-
-export const adminDatasetMemberSchema = z.object({
-  annotationId: z.string().uuid(),
-  fieldKey: ocrFeedbackFieldKeySchema,
-  reviewedValue: z.string().trim().min(1),
-  normalizedValue: z.string().nullable(),
-  originalOcrValue: z.string().nullable(),
-  modelVersion: z.string().nullable(),
-  layoutVersion: z.string().nullable(),
-  evidence: z.object({ available: z.boolean(), contentType: z.string().nullable() }).strict(),
-}).strict();
-
-export const adminDatasetExclusionSchema = z.object({
-  annotationId: z.string().uuid(),
-  reason: z.string(),
-}).strict();
-
-export const adminDatasetDetailResponseSchema = z.object({
-  contractVersion,
-  snapshot: adminDatasetSnapshotSchema,
-  members: z.array(adminDatasetMemberSchema),
-  exclusions: z.array(adminDatasetExclusionSchema),
-}).strict();
-
-export const ocrkitDatasetMemberSchema = z.object({
-  annotationId: z.string().uuid(),
-  fieldKey: ocrFeedbackFieldKeySchema,
-  reviewedValue: z.string().trim().min(1),
-  normalizedValue: z.string().nullable(),
-  originalOcrValue: z.string().nullable(),
-  modelVersion: z.string().nullable(),
-  layoutVersion: z.string().nullable(),
-  evidence: z.object({ id: z.string().uuid(), available: z.boolean(), contentType: z.string().nullable() }).strict(),
-}).strict();
-
-export const ocrkitDatasetResponseSchema = z.object({
-  contractVersion,
-  snapshot: z.object({
-    id: z.string().uuid(),
-    version: z.number().int().positive(),
-    finalizedAt: z.number().int(),
-    note: z.string().nullable(),
-  }).strict(),
-  members: z.array(ocrkitDatasetMemberSchema),
-}).strict();
 
 export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.omit({ contractVersion: true }).extend({
   challenge: adminSubmissionChallengeSchema.nullable().optional(),
@@ -1715,26 +1461,9 @@ export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionStatus = SubmissionStatusResponse["status"];
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
-export type PlayerOcrFeedbackRequest = z.infer<typeof playerOcrFeedbackRequestSchema>;
-export type PlayerOcrFeedbackResponse = z.infer<typeof playerOcrFeedbackResponseSchema>;
-export type OcrFeedbackFieldKey = z.infer<typeof ocrFeedbackFieldKeySchema>;
-export type OcrFeedbackAction = z.infer<typeof ocrFeedbackActionSchema>;
-export type AdminAnnotationProposal = z.infer<typeof adminAnnotationProposalSchema>;
-export type AdminAnnotationProposalListResponse = z.infer<typeof adminAnnotationProposalListResponseSchema>;
-export type AdminAnnotationProposalDetailResponse = z.infer<typeof adminAnnotationProposalDetailSchema>;
-export type AdminAnnotationDecisionRequest = z.infer<typeof adminAnnotationDecisionRequestSchema>;
-export type AdminAnnotationDecisionResponse = z.infer<typeof adminAnnotationDecisionResponseSchema>;
-export type AdminReviewedAnnotation = z.infer<typeof adminReviewedAnnotationSchema>;
-export type AdminReviewedAnnotationListResponse = z.infer<typeof adminReviewedAnnotationListResponseSchema>;
-export type AdminAnnotationDirectCreateRequest = z.infer<typeof adminAnnotationDirectCreateRequestSchema>;
-export type AdminAnnotationDirectCreateResponse = z.infer<typeof adminAnnotationDirectCreateResponseSchema>;
-export type AdminDatasetSnapshot = z.infer<typeof adminDatasetSnapshotSchema>;
-export type AdminDatasetListResponse = z.infer<typeof adminDatasetListResponseSchema>;
-export type AdminDatasetCreateResponse = z.infer<typeof adminDatasetCreateResponseSchema>;
-export type AdminDatasetCandidateListResponse = z.infer<typeof adminDatasetCandidateListResponseSchema>;
-export type AdminDatasetFinalizeResponse = z.infer<typeof adminDatasetFinalizeResponseSchema>;
-export type AdminDatasetDetailResponse = z.infer<typeof adminDatasetDetailResponseSchema>;
-export type OcrkitDatasetResponse = z.infer<typeof ocrkitDatasetResponseSchema>;
+export type OcrAccuracyMark = z.infer<typeof ocrAccuracyMarkSchema>;
+export type OcrAccuracyFeedbackRequest = z.infer<typeof ocrAccuracyFeedbackRequestSchema>;
+export type OcrAccuracyFeedbackResponse = z.infer<typeof ocrAccuracyFeedbackResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;

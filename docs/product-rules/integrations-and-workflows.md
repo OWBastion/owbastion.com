@@ -296,13 +296,10 @@ while a submission created before `startsAt` or at/after `endsAt` never gains
 Pioneer eligibility later.
 
 During approval, a maintainer may confirm or correct the complete visible
-value of any safe structured OCR field. Each complete field value creates or
-supersedes its accepted reviewed annotation in the same review operation,
-linked to the exact OCR result and preserving the original OCR value,
-model/layout versions, reviewer, time, and submission evidence provenance.
-Incomplete visual knowledge creates no annotation. Raw OCR evidence remains
-unchanged, and annotation creation does not decide business matches or grants.
-This path does not mutate finalized dataset snapshots or trigger training.
+value of any safe structured OCR field. These are business corrections: they
+rerun canonical Challenge matching and drive Grant and Verified Run outcomes
+for that Submission. They are not OCR annotations; the platform no longer
+derives training labels from review. Raw OCR evidence remains unchanged.
 
 Each review decision, automatic or by a maintainer, is kept as its own
 `submission_reviews` record; the latest one is the Submission's current
@@ -324,11 +321,6 @@ Player-facing Submission detail describes an `ocr_review_required` record as a
 submitted request only when the player asked for manual handling; automatic
 routes to maintainer review (ambiguity, low confidence, Verified Run conflicts)
 carry no player-visible reason beyond the waiting state.
-
-Dataset drafts include every eligible accepted annotation by default. During
-draft creation, maintainers may explicitly exclude anomalous candidates; each
-exclusion is recorded in that snapshot's eligibility report. Snapshot membership
-is fixed at draft creation and becomes immutable when finalized.
 
 The legacy QQ flow retains its evidence retrieval states. Portal uploads are
 single-image submissions and enter `ocr_pending` only after the upload hash,
@@ -788,75 +780,25 @@ are routed to maintainers; OCRKit does not decide eligibility or approval.
 Bastion implementation and build changes remain reviewable, idempotent, and
 reconciled through Bastion's own CI and release process.
 
-## OCR annotation feedback pipeline
+## OCR accuracy feedback
 
-The platform owns the durable annotation workflow that turns production OCR
-evidence into reviewed training feedback without making production screenshots
-automatically become training data.
+The platform is not an OCR annotation tool. ROI-level transcription review and
+training labels live in OCRKit Model Studio; Submission review produces only
+business corrections. What the platform still collects is a single
+screenshot-level accuracy mark per OCR result.
 
-### Player OCR feedback
+An authenticated player may mark whether the latest recognition result for
+their own Submission read the screenshot `accurate` or `inaccurate`; a
+maintainer may set the same mark from the review surface. One row per
+(Submission, OCR result) is shared between both actors and the latest writer
+wins. The mark binds to a specific OCR result ID; marking a stale result is
+rejected, and a re-recognition starts unmarked. Retries are idempotent via the
+Idempotency-Key header. The mark carries no transcription content, never
+changes the Submission decision, challenge selection, Grants, Verified Run
+outcomes, or mastery state, and never overwrites original OCR evidence.
 
-The server derives a feedback prompt from centralized OCR quality and
-field-level policy (field criticality, confidence/status gates, and
-deterministic calibration sampling). The player projection receives only a
-derived mode (`none`, `targeted`, `grouped`), the prompt-origin category, and
-safe field identifiers/values; Portal code contains no independent confidence
-thresholds. A high-confidence usable Submission requires no confirmation; a
-passive correction entry remains available for confident-but-wrong results.
-Unsupported/cropped/unusable evidence stays in the existing
-resubmission/manual-review path and is never turned into an annotation task.
-Calibration spot checks are distinguishable in provenance from
-uncertainty-triggered prompts.
-
-An authenticated player can confirm or correct only safe, player-visible OCR
-fields of their own Submission. Each feedback record preserves the immutable
-recognition context (source Submission/evidence, field, original recognized
-value, OCR model/layout version, feedback type, prompt origin, proposed value,
-actor, time). Retries are idempotent through a unique per-field proposal
-boundary. Feedback is an annotation proposal only: it never changes the
-Submission status, challenge selection, Grants, Verified Run outcomes, or OCR
-evidence, and never becomes reviewed truth by itself.
-
-### Maintainer annotation review
-
-Maintainers review proposals in a queue ordered by a derived, explainable
-priority (player corrections, uncertain/conflicting fields, and high-confidence
-calibration failures above routine confirmations; critical field families and
-repeated error patterns add weight). The queue exposes only the priority
-category and reasons — never raw scoring internals — and priority never
-substitutes for visual verification or affects Submission risk/business state.
-
-A maintainer can Accept, Edit + Accept, or Reject without a mandatory reason,
-or create a reviewed annotation directly for an eligible OCR field when no
-player proposal exists. Reviewed annotations preserve source Submission,
-OCR result/model/layout, field, original OCR value, player proposal and actor,
-prompt origin, final reviewed transcription, maintainer actor/time, review
-state, and optional note as separately traceable facts; original OCR evidence
-and the player proposal are never overwritten. Accepting or rejecting an
-annotation never mutates the Submission, challenge, Grant, or mastery
-lifecycle. A correction uses an auditable supersession path: the previous
-accepted annotation is marked superseded and its content is preserved; a
-finalized dataset snapshot is never retroactively mutated.
-
-### Reviewed dataset snapshots and OCRKit consumption
-
-Maintainers explicitly create a draft snapshot from eligible reviewed
-annotations (accepted, non-superseded, with model/layout provenance and source
-evidence, and no prior snapshot membership); every exclusion is reported with
-its reason, and no dataset is created automatically when feedback arrives.
-Finalizing freezes membership and provenance; later annotations or corrections
-belong to a later snapshot and never alter a finalized snapshot. Snapshot
-records keep the exact visible transcription, the business-normalized value,
-and the original OCR prediction distinct; the platform never manufactures a
-training transcription from business metadata.
-
-OCRKit consumes finalized snapshots through a private, versioned HTTP contract
-(`/v1/ocrkit/datasets/:version`) authenticated with the `OCRKIT_SNAPSHOT_TOKEN`
-secret. It reads only snapshot metadata and member annotation facts, and
-retrieves source evidence through a platform-side proxy bounded to snapshot
-members; OCRKit never receives direct D1 access, broad R2 credentials, QQ
-identity, review risk signals, Grant/mastery decisions, or unrelated Submission
-payloads. Missing or deleted source evidence is reported explicitly
-(`410 EVIDENCE_UNAVAILABLE`) and never silently replaced; repeated reads and
-download retries do not alter snapshot state. Source-level train/holdout
-splitting and ML label generation remain OCRKit responsibilities.
+OCRKit may consume the marks only as a sampling and prioritization hint when
+selecting screenshots for its own annotation workflow; a platform accuracy mark
+is never itself a training label. Historical `ocr_feedback_proposals`,
+`reviewed_annotations`, and dataset snapshot tables remain for audit but are no
+longer produced or consumed by any workflow.
