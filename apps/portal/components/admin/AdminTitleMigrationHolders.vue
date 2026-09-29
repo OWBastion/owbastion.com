@@ -52,7 +52,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
         @click="emit('select', holder)"
       >
         <span class="holder-avatar" aria-hidden="true">{{ holderInitial(holder.holderName) }}</span>
-        <span class="holder-copy">
+        <span class="holder-copy content-stack">
           <strong>{{ holder.holderName }}</strong>
           <small>{{ holder.totalCount }} 项称号<span v-if="holder.unclaimedCount"> · {{ holder.unclaimedCount }} 项未关联</span></small>
         </span>
@@ -84,7 +84,7 @@ const holderInitial = (name: string) => name.slice(0, 1).toUpperCase();
 .holder-item:focus-visible { z-index: 1; outline: 3px solid var(--accent); outline-offset: -3px; }
 .holder-item--selected { background: var(--accent-surface); }
 .holder-avatar { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: var(--on-accent); background: var(--accent); font-size: var(--type-label-sm-size); font-weight: 700; }
-.holder-copy { display: grid; flex: 1; min-width: 0; gap: var(--space-1); }
+.holder-copy { flex: 1; }
 .holder-copy strong, .holder-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .holder-copy strong { font-size: var(--type-body-sm-size); }
 .holder-copy small { color: var(--quiet); font-size: var(--type-caption-size); }

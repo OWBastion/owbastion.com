@@ -132,7 +132,7 @@ onMounted(() => { void loadCandidates(); });
       <div class="invite-panel__actions"><p class="invite-panel__hint">创建后，历史称号授权会在绑定成功后执行。</p><UButton type="submit" label="生成邀请码" :loading="submitting" :disabled="!canSubmit" /></div>
     </form>
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
-    <div v-if="invitations.length" class="invite-results" aria-label="本次生成的邀请码"><article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result"><div class="invite-result__identity"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div><UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" @click="copyInvitation(invitation)" /></article></div>
+    <div v-if="invitations.length" class="invite-results" aria-label="本次生成的邀请码"><article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result"><div class="invite-result__identity content-stack"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div><UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" @click="copyInvitation(invitation)" /></article></div>
   </section>
 </template>
 

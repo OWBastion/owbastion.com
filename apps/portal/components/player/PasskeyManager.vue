@@ -65,7 +65,7 @@ onMounted(() => { void load(); });
     <UEmpty v-else-if="items.length === 0" title="尚无 Passkey" description="添加后，下次可以用设备的指纹、面容或屏幕锁直接登录。" variant="naked" />
     <ul v-else class="passkey-list stacked-list">
       <li v-for="item in items" :key="item.passkeyId" class="passkey-row">
-        <div class="passkey-copy">
+        <div class="passkey-copy content-stack">
           <strong>{{ item.name }}</strong>
           <span>添加于 {{ formatDate(item.createdAt) }}<template v-if="item.lastUsedAt"> · 最近使用 {{ formatDate(item.lastUsedAt) }}</template></span>
         </div>
@@ -96,7 +96,6 @@ onMounted(() => { void load(); });
 .passkey-title { margin: 0; font-size: 1rem; font-weight: 600; }
 .passkey-note { margin: var(--space-2) 0 0; color: var(--muted); font-size: .88rem; line-height: 1.55; }
 .passkey-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
-.passkey-copy { display: grid; gap: var(--space-1); min-width: 0; }
 .passkey-copy span { color: var(--muted); font-size: .8rem; line-height: 1.45; }
 .passkey-add { display: grid; grid-template-columns: minmax(12rem, 1fr) auto; align-items: end; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .passkey-confirm { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--surface-raised); }

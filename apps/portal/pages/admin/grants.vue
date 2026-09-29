@@ -148,7 +148,7 @@ watchDebounced(playerQuery, () => {
         <div v-if="loadingPlayers" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!players.length" class="selector-state">暂无匹配玩家。</div>
         <div v-else class="selector-list" role="group" aria-label="玩家结果">
-          <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
+          <UCheckbox v-for="player in players" :key="player.playerAccountId" class="selector-option" :model-value="selectedPlayerIds.has(player.playerAccountId)" :disabled="saving" @update:model-value="(value) => togglePlayer(player, value === true)"><span class="selector-copy content-stack"><strong>{{ player.playerName }}#{{ player.playerId }}</strong><small>{{ player.playerAccountId }}</small></span></UCheckbox>
         </div>
         <UPagination v-if="playerTotal > playerPageSize" v-model:page="playerPage" :total="playerTotal" :items-per-page="playerPageSize" :disabled="saving || searchingPlayers" class="selector-pagination" />
       </div>
@@ -161,7 +161,7 @@ watchDebounced(playerQuery, () => {
         <div v-if="loadingTitles" class="selector-state" role="status">读取中…</div>
         <div v-else-if="!filteredTitles.length" class="selector-state">暂无匹配称号。</div>
         <div v-else class="selector-list" role="group" aria-label="称号结果">
-          <UCheckbox v-for="title in filteredTitles" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
+          <UCheckbox v-for="title in filteredTitles" :key="title.value" class="selector-option" :model-value="selectedTitleSet.has(title.value)" :disabled="saving" @update:model-value="(value) => toggleTitle(title, value === true)"><span class="selector-copy content-stack"><strong>{{ titleDescription(title) }}</strong><small>{{ title.category }} · {{ title.scope === 'map' ? '地图称号' : '全局称号' }}</small></span></UCheckbox>
         </div>
       </div>
     </section>
@@ -196,7 +196,6 @@ watchDebounced(playerQuery, () => {
 .selector-list { display: grid; gap: var(--space-1); max-height: 22rem; overflow-y: auto; }
 .selector-option { display: flex; align-items: start; gap: var(--space-3); min-width: 0; min-height: 2.75rem; padding: var(--space-3) var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
 .selector-option:hover { background: var(--accent-surface); }
-.selector-copy { display: grid; min-width: 0; gap: var(--space-1); }
 .selector-option strong { overflow-wrap: anywhere; }
 .selector-option small { color: var(--quiet); overflow-wrap: anywhere; }
 .selector-state { min-height: 5rem; display: grid; place-items: center; color: var(--quiet); font-size: var(--type-label-sm-size); }
