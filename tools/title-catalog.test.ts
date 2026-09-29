@@ -39,12 +39,16 @@ const snapshot = (titleCount: number, mapCount: number): TitleCatalogSnapshot =>
 });
 
 describe("readTitleCatalogSnapshot", () => {
-  it("accepts catalogs with more than the historical title count", () => {
-    expect(() => readTitleCatalogSnapshot(snapshot(59, 38))).not.toThrow();
-  });
+  it("returns every title and map when the catalog outgrows the historical counts", () => {
+    const read = readTitleCatalogSnapshot(snapshot(59, 39));
 
-  it("accepts catalogs with more than the historical map count", () => {
-    expect(() => readTitleCatalogSnapshot(snapshot(58, 39))).not.toThrow();
+    expect(read.titles.map((title) => title.key)).toEqual([
+      "PIONEER",
+      "CONQUEROR",
+      "DOMINATOR",
+      ...Array.from({ length: 56 }, (_, index) => `TITLE_${index}`),
+    ]);
+    expect(read.maps.map((map) => map.mapId)).toEqual(Array.from({ length: 39 }, (_, index) => `map.${index}`));
   });
 });
 

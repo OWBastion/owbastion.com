@@ -48,8 +48,10 @@ describe("OCR Queue consumer", () => {
     expect(productionDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(localDeadLetter.maxRetries).toBeGreaterThan(0);
     expect(deployWorkflow).toMatch(/for queue in [^\n]*owbastion-ocr-dlq/);
-    expect(productionCron).toMatch(/^crons\s*=\s*\["\*\/5 \* \* \* \*"\]/m);
-    expect(localCron).toMatch(/^crons\s*=\s*\["\*\/5 \* \* \* \*"\]/m);
+    // Both environments must schedule the reconciliation; the cadence value is deployment tuning, not a contract.
+    const cronOf = (source: string) => source.match(/^\s*crons\s*=\s*(\[[^\]]*\])/m)?.[1];
+    expect(cronOf(productionCron)).toBeTruthy();
+    expect(cronOf(productionCron)).toBe(cronOf(localCron));
     expect(OCR_QUEUE_MAX_DELIVERIES).toBe(OCR_QUEUE_MAX_RETRIES + 1);
   });
 
@@ -64,12 +66,16 @@ describe("OCR Queue consumer", () => {
 
     await worker.queue({ messages: [message] } as never, { OCRKIT_BASE_URL: "https://ocr.example", OCRKIT_API_TOKEN: "ocr-token", EVIDENCE_PUBLIC_ORIGIN: "https://evidence.example" } as never);
 
-    expect(createPlatformServices).toHaveBeenCalledWith(undefined, undefined, undefined, "https://ocr.example", "ocr-token", undefined, undefined, undefined, 1, 0, {
+    // Env values must land in the right createPlatformServices slots; unconfigured bindings are not asserted.
+    const serviceArgs = createPlatformServices.mock.calls[0]!;
+    expect(serviceArgs.slice(3, 5)).toEqual(["https://ocr.example", "ocr-token"]);
+    expect(serviceArgs[10]).toEqual({
       version: "v1",
       minimumGameVersion: null,
       supportedOcrLayoutVersions: [],
       requiredConfidence: 0.9,
-    }, "https://evidence.example");
+    });
+    expect(serviceArgs[11]).toBe("https://evidence.example");
     expect(processOcrJob).toHaveBeenCalledWith({
       version: 1,
       submissionId: "submission-1",

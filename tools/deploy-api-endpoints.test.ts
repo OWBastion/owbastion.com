@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { deployOperations, listOperations, operationsFromOpenApi, selectApiShieldOperations } from "./deploy-api-endpoints.ts";
+import { API_SHIELD_OPERATION_BUDGET, deployOperations, listOperations, operationsFromOpenApi, selectApiShieldOperations } from "./deploy-api-endpoints.ts";
 
 describe("API endpoint deployment", () => {
   it("extracts sorted Cloudflare operations from OpenAPI paths", () => {
@@ -67,7 +67,7 @@ describe("API endpoint deployment", () => {
 
   it("fails before reading Cloudflare when the desired state exceeds the budget", async () => {
     const fetcher = vi.fn();
-    const operations = Array.from({ length: 81 }, (_, index) => ({ endpoint: `/v1/${index}`, host: "api.example.com", method: "GET" }));
+    const operations = Array.from({ length: API_SHIELD_OPERATION_BUDGET + 1 }, (_, index) => ({ endpoint: `/v1/${index}`, host: "api.example.com", method: "GET" }));
     await expect(deployOperations("zone-id", "token", operations, fetcher)).rejects.toThrow("exceeding the configured budget");
     expect(fetcher).not.toHaveBeenCalled();
   });
