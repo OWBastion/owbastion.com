@@ -3,11 +3,11 @@ import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne
 import { drizzle } from "drizzle-orm/d1";
 import { alias } from "drizzle-orm/sqlite-core";
 import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, passkeyUserHandleMatches, verifyPasskeyAuthentication, verifyPasskeyRegistration } from "@owbastion/auth";
-import { buildMasteryProfiles, calculateVerifiedRunXpV2, annotationProposalPriority, deriveOcrFeedbackDecision, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
-import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, OcrFeedbackDecision, OcrFeedbackFieldInput, OcrFeedbackFieldKey, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
+import { buildMasteryProfiles, calculateVerifiedRunXpV2, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
+import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminAnnotationDecisionRequest, AdminAnnotationDecisionResponse, AdminAnnotationDirectCreateRequest, AdminAnnotationDirectCreateResponse, AdminAnnotationProposal, AdminAnnotationProposalDetailResponse, AdminAnnotationProposalListResponse, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminDatasetCreateResponse, AdminDatasetDetailResponse, AdminDatasetFinalizeResponse, AdminDatasetListResponse, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminReviewedAnnotation, AdminReviewedAnnotationListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrkitDatasetResponse, PlayerOcrFeedbackRequest, PlayerOcrFeedbackResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, datasetSnapshotAnnotations, datasetSnapshots, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrFeedbackProposals, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviewedAnnotations, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
@@ -18,47 +18,6 @@ const ocrRetryEnqueueingPrefix = "ocr-retry-enqueueing:";
 const playerUploadCompletionEnqueueingPrefix = "player-upload-completion-enqueueing:";
 const formatCurrentGameVersion = (timestamp = now()) => new Date(timestamp).toISOString().slice(0, 10).replaceAll("-", ".");
 
-type AdminAnnotationProposalRow = {
-  id: string;
-  submission_id: string;
-  submission_map_name: string;
-  submission_created_at: number;
-  ocr_result_id: string;
-  field_key: string;
-  original_value: string | null;
-  feedback_type: string;
-  prompt_origin: string | null;
-  proposed_value: string | null;
-  model_version: string | null;
-  layout_version: string | null;
-  player_account_id: string;
-  status: string;
-  review_state: string;
-  created_at: number;
-};
-
-type AdminReviewedAnnotationRow = {
-  id: string;
-  submission_id: string;
-  submission_map_name: string;
-  ocr_result_id: string;
-  proposal_id: string | null;
-  field_key: string;
-  original_ocr_value: string | null;
-  model_version: string | null;
-  layout_version: string | null;
-  reviewed_value: string;
-  normalized_value: string | null;
-  player_account_id: string | null;
-  player_proposed_value: string | null;
-  prompt_origin: string | null;
-  review_state: string;
-  reviewed_by: string;
-  reviewed_at: number;
-  note: string | null;
-  supersedes_annotation_id: string | null;
-  created_at: number;
-};
 const normalizedOcrLabel = (value: unknown) => typeof value === "string" ? value.trim().toLocaleLowerCase() : "";
 const normalizedOcrDifficulty = (value: unknown) => {
   const label = normalizedOcrLabel(value);
@@ -385,7 +344,7 @@ const persistEvidence = async (db: ReturnType<typeof drizzle>, bucket: R2Bucket,
 
 const playerManualReviewReason = "玩家申请人工处理";
 
-export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, ocrFeedbackCalibrationRate = 0.02, evidencePublicOrigin?: string): PlatformServices => {
+export const createPlatformServices = (database: D1Database, evidenceBucket?: R2Bucket, uploadOrigin = "https://api.owbastion.com", ocrkitBaseUrl?: string, ocrkitApiToken?: string, ocrQueue?: Queue, qqPolicyQueue?: Queue, bindingInviteCodeEncryptionKey?: string, ocrManualReviewThreshold = 1, ocrAutoReviewSampleRate = 0, masteryEvidenceCompatibility: VerifiedRunEvidenceCompatibilityV1 = verifiedRunEvidenceCompatibilityV1, evidencePublicOrigin?: string): PlatformServices => {
   const db = drizzle(database);
   const runPasskeyRegistrationBatch = async (statements: D1PreparedStatement[]) => {
     try { return await database.batch(statements); }
@@ -1781,24 +1740,10 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return submission;
   };
 
-  // Feedback is offered only when the submission carries usable OCR evidence.
-  // Unsupported/cropped/unusable records already live in the existing
-  // resubmission/manual-review path and must never become annotation tasks.
+  // Accuracy feedback is offered only when the submission carries usable OCR
+  // evidence. Unsupported/cropped/unusable records already live in the
+  // resubmission/manual-review path.
   const ocrFeedbackEligibleStatuses = new Set(["approved", "ready_for_review", "ocr_review_required", "awaiting_player_confirmation"]);
-
-  const ocrFeedbackSafeKeys: OcrFeedbackFieldKey[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"];
-
-  const ocrFeedbackValue = (response: OcrResponse, key: OcrFeedbackFieldKey): string | null => {
-    const data = response.data ?? {};
-    switch (key) {
-      case "map_name": return typeof data.map_name === "string" ? data.map_name : null;
-      case "difficulty": return typeof data.difficulty === "string" ? data.difficulty : null;
-      case "viewer_player": return typeof data.viewer_player === "string" ? data.viewer_player : null;
-      case "challenge_completed": return data.challenge_completed === null || data.challenge_completed === undefined ? null : String(data.challenge_completed);
-      case "map_variant": return typeof data.map_variant === "string" ? data.map_variant : null;
-      case "achievement_titles": return Array.isArray(data.achievement_titles) && data.achievement_titles.length ? data.achievement_titles.join("、") : null;
-    }
-  };
 
   const applySubmissionFieldCorrections = (response: OcrResponse, corrections: AdminSubmissionReviewRequest["fieldCorrections"]): OcrResponse => {
     const data = { ...response.data };
@@ -1836,35 +1781,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     return { ...response, data, fields };
   };
 
-  const ocrFeedbackFieldInputs = (response: OcrResponse): OcrFeedbackFieldInput[] => ocrFeedbackSafeKeys.map((key) => {
-    const evidence = response.fields?.[key];
-    return {
-      key,
-      value: ocrFeedbackValue(response, key),
-      confidence: typeof evidence?.confidence === "number" ? evidence.confidence : null,
-      status: evidence?.status ?? null,
-    };
-  });
-
-  const buildPlayerOcrFeedbackState = async (submissionId: string, result: typeof ocrResults.$inferSelect, response: OcrResponse, calibrationSampleRate = ocrFeedbackCalibrationRate) => {
-    const decision = await deriveOcrFeedbackDecision({
-      submissionId,
-      ocrResultId: result.id,
-      ok: response.ok,
-      schemaVersion: response.schema_version,
-      fields: ocrFeedbackFieldInputs(response),
-      calibrationSampleRate,
-    });
-    const existing = await db.select({ id: ocrFeedbackProposals.id }).from(ocrFeedbackProposals).where(and(eq(ocrFeedbackProposals.submissionId, submissionId), eq(ocrFeedbackProposals.ocrResultId, result.id), eq(ocrFeedbackProposals.status, "submitted"))).limit(1).get();
-    return {
-      mode: decision.mode,
-      promptOrigin: decision.promptOrigin,
-      promptFieldKeys: decision.promptFieldKeys,
-      fields: ocrFeedbackSafeKeys.map((key) => ({ key, value: ocrFeedbackValue(response, key) })),
-      ocrResultId: result.id,
-      submitted: Boolean(existing),
-      available: !decision.severeFailure,
-    };
+  // The player-facing accuracy state is just the current mark bound to the
+  // latest recognition result; a re-recognition produces a fresh unmarked
+  // result id.
+  const buildPlayerOcrFeedbackState = async (submissionId: string, result: typeof ocrResults.$inferSelect) => {
+    const mark = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, submissionId), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
+    return { ocrResultId: result.id, accuracy: (mark?.accuracy ?? null) as OcrAccuracyMark | null };
   };
 
   const getCurrentPortalPlayer = (sessionToken: string) => resolvePortalSession(db, sessionToken);
@@ -2139,43 +2061,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const timestamp = now();
     return database.prepare("INSERT OR IGNORE INTO submission_outcomes (id, submission_id, outcome_key, outcome_type, status, entity_id, awarded_xp, details_json, created_at, updated_at) SELECT ?, ?, ?, ?, ?, ?, 0, ?, ?, ? WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'approved')")
       .bind(crypto.randomUUID(), input.submissionId, input.outcomeKey, input.outcomeType, input.status, input.entityId, JSON.stringify(input.details), timestamp, timestamp, input.submissionId);
-  };
-
-  const prepareSubmissionReviewAnnotation = async (
-    row: typeof submissions.$inferSelect,
-    input: Pick<AdminSubmissionReviewRequest, "decision" | "reason" | "fieldCorrections">,
-    auth: AuthContext,
-    timestamp: number,
-  ): Promise<{ annotationIds: string[]; statements: D1PreparedStatement[] } | null> => {
-    const corrections = input.fieldCorrections ?? [];
-    if (!corrections.length) return null;
-    const ocrRows = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt));
-    const ocrResult = ocrRows.find((candidate) => Boolean(candidate.responseJson));
-    if (!ocrResult?.responseJson) return null;
-    let response: OcrResponse;
-    try { response = JSON.parse(ocrResult.responseJson) as OcrResponse; } catch { return null; }
-    const statements: D1PreparedStatement[] = [];
-    const annotationIds: string[] = [];
-    for (const correction of corrections) {
-      if (!ocrFeedbackSafeKeys.includes(correction.fieldKey)) continue;
-      const annotationId = crypto.randomUUID();
-      annotationIds.push(annotationId);
-      const existing = await db.select({ id: reviewedAnnotations.id }).from(reviewedAnnotations).where(and(
-        eq(reviewedAnnotations.submissionId, row.id),
-        eq(reviewedAnnotations.ocrResultId, ocrResult.id),
-        eq(reviewedAnnotations.fieldKey, correction.fieldKey),
-        eq(reviewedAnnotations.reviewState, "accepted"),
-      )).get();
-      if (existing) {
-        statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
-        statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ source: "submission_review", submissionId: row.id, ocrResultId: ocrResult.id, fieldKey: correction.fieldKey }), timestamp));
-      }
-      statements.push(database.prepare(
-        "INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 'accepted', ?, ?, ?, ?, ?)",
-      ).bind(annotationId, row.id, ocrResult.id, correction.fieldKey, ocrFeedbackValue(response, correction.fieldKey), response.model_version ?? null, response.layout_version ?? null, correction.reviewedValue, auth.subject, timestamp, input.reason ?? null, existing?.id ?? null, timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.submission_review.created', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, annotationId, JSON.stringify({ submissionId: row.id, ocrResultId: ocrResult.id, fieldKey: correction.fieldKey, reviewedValue: correction.reviewedValue, source: "submission_review" }), timestamp));
-    }
-    return annotationIds.length ? { annotationIds, statements } : null;
   };
 
   const existingMasteryOutcome = (outcome: VerifiedRunSubmissionOutcome) => ({ ...outcome, conflictFields: [...outcome.conflictFields] });
@@ -2477,7 +2362,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     });
     const snapshotTitleKeys = [...new Set(snapshots.map(({ snapshot }) => snapshot.titleKey))];
     const playerAccountIds = [...new Set(submissionRows.map((row) => row.playerAccountId))];
-    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes, reviewRows, grantRows] = await Promise.all([
+    const [mapRows, titleRows, snapshotTitleRows, ocrRows, spotCheckRows, playerRows, verifiedRunOutcomes, reviewRows, grantRows, accuracyRows] = await Promise.all([
       mapChallengeIds.length ? db.select({ challenge: achievementChallenges, map: maps }).from(achievementChallenges).innerJoin(maps, eq(achievementChallenges.mapId, maps.id)).where(inArray(achievementChallenges.id, mapChallengeIds)) : [],
       titleChallengeIds.length ? db.select({ challenge: titleChallenges, title: titleCatalog }).from(titleChallenges).innerJoin(titleCatalog, eq(titleChallenges.titleKey, titleCatalog.key)).where(inArray(titleChallenges.id, titleChallengeIds)) : [],
       snapshotTitleKeys.length ? db.select().from(titleCatalog).where(inArray(titleCatalog.key, snapshotTitleKeys)) : [],
@@ -2487,6 +2372,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       loadVerifiedRunSubmissionOutcomes(submissionIds),
       submissionIds.length ? db.select().from(submissionReviews).where(inArray(submissionReviews.submissionId, submissionIds)).orderBy(submissionReviews.createdAt, sql`rowid`) : [],
       submissionIds.length ? db.select({ submissionId: playerTitleGrants.sourceId, grantId: playerTitleGrants.id, titleKey: playerTitleGrants.titleKey, titleName: titleCatalog.label }).from(playerTitleGrants).innerJoin(titleCatalog, eq(titleCatalog.key, playerTitleGrants.titleKey)).where(and(inArray(playerTitleGrants.sourceType, ["automatic", "submission"]), inArray(playerTitleGrants.sourceId, submissionIds), eq(playerTitleGrants.status, "active"))).orderBy(playerTitleGrants.grantedAt, playerTitleGrants.id) : [],
+      submissionIds.length ? db.select().from(ocrAccuracyFeedback).where(inArray(ocrAccuracyFeedback.submissionId, submissionIds)) : [],
     ]);
     const challenges = new Map<string, AdminSubmissionChallenge>();
     const latestOcr = new Map<string, typeof ocrResults.$inferSelect>();
@@ -2501,9 +2387,12 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (title) challenges.set(challengeId, { family: "achievement", titleName: title.label, category: title.category, condition: snapshot.condition, evidenceRule: snapshot.evidenceRule, ...(snapshot.mapVariant ? { mapVariant: snapshot.mapVariant } : {}) });
     }
     for (const result of ocrRows) if (!latestOcr.has(result.submissionId)) latestOcr.set(result.submissionId, result);
+    // A mark binds to one OCR result, so it is only surfaced while that result
+    // remains the latest recognition for the submission.
+    const ocrAccuracy = new Map(accuracyRows.map((row) => [`${row.submissionId}:${row.ocrResultId}`, row.accuracy]));
     const activeTitleGrants = new Map<string, Array<{ grantId: string; titleKey: string; titleName: string }>>();
     for (const { submissionId, ...grant } of grantRows) activeTitleGrants.set(submissionId, [...(activeTitleGrants.get(submissionId) ?? []), grant]);
-    return { activeTitleGrants, challenges, latestOcr, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), latestReviews: new Map(reviewRows.map((review) => [review.submissionId, review])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
+    return { activeTitleGrants, challenges, latestOcr, ocrAccuracy, spotChecks: new Map(spotCheckRows.map((spotCheck) => [spotCheck.submissionId, spotCheck])), latestReviews: new Map(reviewRows.map((review) => [review.submissionId, review])), playerAccountIds: new Set(playerRows.map((player) => player.id)), verifiedRunOutcomes };
   };
 
   const adminSubmissionReview = (review: typeof submissionReviews.$inferSelect | undefined) => review
@@ -2532,6 +2421,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ocrAttempt: ocr?.attempt ?? null,
       ocrErrorCode: ocr?.errorCode ?? null,
       ocrResultId: ocr?.id ?? null,
+      ocrAccuracy: (ocr ? details.ocrAccuracy.get(`${row.id}:${ocr.id}`) ?? null : null) as OcrAccuracyMark | null,
       ocr: ocr?.responseJson ? JSON.parse(ocr.responseJson) : null,
       match,
       reason: row.reviewReason,
@@ -4063,29 +3953,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     if (persisted.id === planned.result.run.runId) return { outcome: "created", run };
     const conflictFields = masteryConflictFields(run, planned.candidate);
     return conflictFields.length ? { outcome: "conflict", run, conflictFields } : { outcome: "reused", run };
-  };
-
-  const loadDatasetEligibility = async () => {
-    const accepted = await db.select().from(reviewedAnnotations).where(eq(reviewedAnnotations.reviewState, "accepted")).orderBy(asc(reviewedAnnotations.reviewedAt), asc(reviewedAnnotations.id)).all();
-    const memberRows = accepted.length ? await db.select({ annotationId: datasetSnapshotAnnotations.annotationId }).from(datasetSnapshotAnnotations).where(inArray(datasetSnapshotAnnotations.annotationId, accepted.map((annotation) => annotation.id))).all() : [];
-    const snapshottedIds = new Set(memberRows.map((row) => row.annotationId));
-    const submissionIds = [...new Set(accepted.map((annotation) => annotation.submissionId))];
-    const attachmentRows = submissionIds.length ? await db.select({ submissionId: attachments.submissionId, objectKey: attachments.objectKey, contentType: attachments.contentType, createdAt: attachments.createdAt }).from(attachments).where(inArray(attachments.submissionId, submissionIds)).all() : [];
-    const latestAttachment = new Map<string, { objectKey: string; contentType: string }>();
-    for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) {
-      if (row.objectKey) latestAttachment.set(row.submissionId, { objectKey: row.objectKey, contentType: row.contentType });
-    }
-    const candidates: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string; contentType: string }> = [];
-    const exclusions: Array<{ annotationId: string; reason: string }> = [];
-    for (const annotation of accepted) {
-      if (snapshottedIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "already_snapshotted" }); continue; }
-      if (!annotation.modelVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_model_version" }); continue; }
-      if (!annotation.layoutVersion) { exclusions.push({ annotationId: annotation.id, reason: "missing_layout_version" }); continue; }
-      const evidence = latestAttachment.get(annotation.submissionId);
-      if (!evidence) { exclusions.push({ annotationId: annotation.id, reason: "missing_evidence" }); continue; }
-      candidates.push({ annotation, ...evidence });
-    }
-    return { accepted, candidates, exclusions };
   };
 
   return {
@@ -6027,7 +5894,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ]);
       const raw = result?.responseJson ? JSON.parse(result.responseJson) as OcrResponse : null;
       const feedback = raw && result && ocrFeedbackEligibleStatuses.has(submission.status)
-        ? await buildPlayerOcrFeedbackState(submission.id, result, raw)
+        ? await buildPlayerOcrFeedbackState(submission.id, result)
         : null;
       return {
         contractVersion: "1" as const,
@@ -6050,421 +5917,54 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       };
     },
 
-    async submitPlayerOcrFeedback(input: Omit<PlayerOcrFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<PlayerOcrFeedbackResponse> {
+    async submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse> {
       const player = await getCurrentPortalPlayer(sessionToken);
       if (!player) throw new Error("UNAUTHENTICATED");
       const submission = await getPlayerOwnedSubmission(input.submissionId, sessionToken);
-      const replay = await replayOrConflict<PlayerOcrFeedbackResponse>(db, player.player.id, "ocr.feedback.submit", idempotencyKey, input);
+      const replay = await replayOrConflict<OcrAccuracyFeedbackResponse>(db, player.player.id, "ocr.accuracy.mark", idempotencyKey, input);
       if (replay) return { ...replay, alreadySubmitted: true };
       if (!ocrFeedbackEligibleStatuses.has(submission.status)) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
       const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
       if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
       if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
-      let response: OcrResponse;
-      try { response = JSON.parse(result.responseJson) as OcrResponse; } catch { throw new Error("OCR_RESULT_INVALID"); }
-      const decision = await deriveOcrFeedbackDecision({ submissionId: submission.id, ocrResultId: result.id, ok: response.ok, schemaVersion: response.schema_version, fields: ocrFeedbackFieldInputs(response), calibrationSampleRate: ocrFeedbackCalibrationRate });
-      if (decision.severeFailure) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
-      const existingRows = await db.select({ fieldKey: ocrFeedbackProposals.fieldKey }).from(ocrFeedbackProposals).where(and(eq(ocrFeedbackProposals.submissionId, submission.id), eq(ocrFeedbackProposals.ocrResultId, result.id), eq(ocrFeedbackProposals.playerAccountId, player.player.id)));
-      const existingKeys = new Set(existingRows.map((row) => row.fieldKey));
+      const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, submission.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
       const timestamp = now();
-      const statements: D1PreparedStatement[] = [];
-      const recorded: PlayerOcrFeedbackResponse["recorded"] = [];
-      for (const item of input.items) {
-        if (!ocrFeedbackSafeKeys.includes(item.fieldKey)) throw new Error("OCR_FEEDBACK_FIELD_UNSAFE");
-        const prompted = decision.promptFieldKeys.includes(item.fieldKey);
-        if (item.action === "confirmed" && !prompted) throw new Error("OCR_FEEDBACK_FIELD_NOT_PROMPTED");
-        const proposedValue = item.action === "corrected" ? item.proposedValue?.trim() ?? "" : null;
-        if (item.action === "corrected" && !proposedValue) throw new Error("OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED");
-        if (proposedValue && Array.from(proposedValue).length > 256) throw new Error("OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG");
-        const origin = prompted && decision.promptOrigin ? decision.promptOrigin : "passive";
-        statements.push(database.prepare(
-          `INSERT INTO ocr_feedback_proposals (id, submission_id, ocr_result_id, field_key, original_value, feedback_type, prompt_origin, proposed_value, model_version, layout_version, player_account_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)
-           ON CONFLICT(submission_id, ocr_result_id, field_key, player_account_id) DO UPDATE SET feedback_type = excluded.feedback_type, prompt_origin = excluded.prompt_origin, proposed_value = excluded.proposed_value, original_value = excluded.original_value, model_version = excluded.model_version, layout_version = excluded.layout_version, status = 'submitted', updated_at = excluded.updated_at`
-        ).bind(crypto.randomUUID(), submission.id, result.id, item.fieldKey, ocrFeedbackValue(response, item.fieldKey), item.action === "confirmed" ? "confirmed" : "corrected", origin, proposedValue, response.model_version ?? null, response.layout_version ?? null, player.player.id, timestamp, timestamp));
-        recorded.push({ fieldKey: item.fieldKey, action: item.action, status: "submitted" });
-      }
-      const responseBody: PlayerOcrFeedbackResponse = { contractVersion: "1", submissionId: submission.id, recorded, alreadySubmitted: false };
-      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'ocr.feedback.submit', ?, ?, ?)").bind(`${player.player.id}:ocr.feedback.submit:${idempotencyKey}`, player.player.id, await hashRequest(input), JSON.stringify(responseBody), timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, 'user', ?, 'ocr.feedback.submitted', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), player.player.id, submission.id, JSON.stringify({ ocrResultId: result.id, recorded, promptOrigin: decision.promptOrigin ?? null, modelVersion: response.model_version ?? null, layoutVersion: response.layout_version ?? null }), timestamp));
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return { ...responseBody, alreadySubmitted: input.items.every((item) => existingKeys.has(item.fieldKey)) };
-    },
-
-    // SQL-side deterministic order proxy for the proposal queue. It mirrors the
-    // domain priority scoring factors (calibration failure > correction >
-    // uncertain > critical field) so corrections, uncertain fields, and
-    // calibration failures always rank above routine confirmations. The
-    // displayed per-row priority (with repeat-pattern boost) is computed by the
-    // domain function for each returned row.
-    listAdminAnnotationProposals: async (input: { page: number; pageSize: number; state?: "pending" | "accepted" | "rejected"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string; kind?: "correction" | "confirmation" }, _auth: AuthContext): Promise<AdminAnnotationProposalListResponse> => {
-      const conditions = ["p.status = 'submitted'"];
-      const params: unknown[] = [];
-      const add = (clause: string, value: unknown) => { conditions.push(clause); params.push(value); };
-      if (input.state) add("p.review_state = ?", input.state);
-      if (input.fieldKey) add("p.field_key = ?", input.fieldKey);
-      if (input.modelVersion) add("p.model_version = ?", input.modelVersion);
-      if (input.layoutVersion) add("p.layout_version = ?", input.layoutVersion);
-      if (input.promptOrigin) add("p.prompt_origin = ?", input.promptOrigin);
-      if (input.kind === "correction") conditions.push("p.feedback_type IN ('corrected', 'passive_report')");
-      if (input.kind === "confirmation") conditions.push("p.feedback_type = 'confirmed'");
-      const where = conditions.join(" AND ");
-      const page = input.page >= 1 ? input.page : 1;
-      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
-      const totalRow = await database.prepare(`SELECT COUNT(*) AS total FROM ocr_feedback_proposals p WHERE ${where}`).bind(...params).first<{ total: number }>();
-      const total = totalRow?.total ?? 0;
-      const order = `CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.prompt_origin = 'calibration' THEN 40 ELSE 0 END
-        + CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.proposed_value IS NOT NULL AND p.proposed_value != p.original_value THEN 20 ELSE 0 END
-        + CASE WHEN p.feedback_type IN ('corrected', 'passive_report') AND p.prompt_origin IN ('uncertainty', 'conflict', 'grouped') THEN 15 ELSE 0 END
-        + CASE WHEN p.field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed') THEN 5 ELSE 0 END`;
-      const rows = await database.prepare(
-        `SELECT p.*, s.map_name AS submission_map_name, s.created_at AS submission_created_at FROM ocr_feedback_proposals p INNER JOIN submissions s ON s.id = p.submission_id WHERE ${where} ORDER BY (${order}) DESC, p.created_at ASC LIMIT ? OFFSET ?`
-      ).bind(...params, pageSize, (page - 1) * pageSize).all<AdminAnnotationProposalRow>();
-      const repeatKeys = [...new Set(rows.results.filter((row) => (row.feedback_type === "corrected" || row.feedback_type === "passive_report") && row.proposed_value).map((row) => `${row.field_key}:${row.proposed_value}`))];
-      const repeatCounts = new Map<string, number>();
-      if (repeatKeys.length) {
-        const placeholders = repeatKeys.map(() => "?").join(", ");
-        const counts = await database.prepare(`SELECT field_key, proposed_value, COUNT(*) AS cnt FROM ocr_feedback_proposals WHERE status = 'submitted' AND feedback_type IN ('corrected', 'passive_report') AND proposed_value IS NOT NULL AND (field_key || ':' || proposed_value) IN (${placeholders}) GROUP BY field_key, proposed_value`).bind(...repeatKeys).all<{ field_key: string; proposed_value: string; cnt: number }>();
-        for (const row of counts.results) repeatCounts.set(`${row.field_key}:${row.proposed_value}`, row.cnt);
-      }
-      const items: AdminAnnotationProposal[] = rows.results.map((row) => {
-        const priority = annotationProposalPriority({
-          feedbackType: row.feedback_type as "confirmed" | "corrected" | "passive_report",
-          promptOrigin: row.prompt_origin,
-          fieldKey: row.field_key,
-          originalValue: row.original_value,
-          proposedValue: row.proposed_value,
-          repeatCount: Math.max(0, (repeatCounts.get(`${row.field_key}:${row.proposed_value}`) ?? 1) - 1),
-        });
-        return {
-          proposalId: row.id,
-          submissionId: row.submission_id,
-          submissionMapName: row.submission_map_name,
-          submissionCreatedAt: row.submission_created_at,
-          ocrResultId: row.ocr_result_id,
-          fieldKey: row.field_key as AdminAnnotationProposal["fieldKey"],
-          originalValue: row.original_value,
-          feedbackType: row.feedback_type as AdminAnnotationProposal["feedbackType"],
-          promptOrigin: row.prompt_origin as AdminAnnotationProposal["promptOrigin"],
-          proposedValue: row.proposed_value,
-          modelVersion: row.model_version,
-          layoutVersion: row.layout_version,
-          playerSubmittedAt: row.created_at,
-          reviewState: row.review_state as AdminAnnotationProposal["reviewState"],
-          priority,
-        };
-      });
-      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
-    },
-
-    async getAdminAnnotationProposal(input: { proposalId: string }, _auth: AuthContext): Promise<AdminAnnotationProposalDetailResponse> {
-      const row = await database.prepare(
-        "SELECT p.*, s.map_name AS submission_map_name, s.created_at AS submission_created_at FROM ocr_feedback_proposals p INNER JOIN submissions s ON s.id = p.submission_id WHERE p.id = ?"
-      ).bind(input.proposalId).first<AdminAnnotationProposalRow>();
-      if (!row) throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND");
-      const priority = annotationProposalPriority({
-        feedbackType: row.feedback_type as "confirmed" | "corrected" | "passive_report",
-        promptOrigin: row.prompt_origin,
-        fieldKey: row.field_key,
-        originalValue: row.original_value,
-        proposedValue: row.proposed_value,
-      });
-      const proposal: AdminAnnotationProposal = {
-        proposalId: row.id,
-        submissionId: row.submission_id,
-        submissionMapName: row.submission_map_name,
-        submissionCreatedAt: row.submission_created_at,
-        ocrResultId: row.ocr_result_id,
-        fieldKey: row.field_key as AdminAnnotationProposal["fieldKey"],
-        originalValue: row.original_value,
-        feedbackType: row.feedback_type as AdminAnnotationProposal["feedbackType"],
-        promptOrigin: row.prompt_origin as AdminAnnotationProposal["promptOrigin"],
-        proposedValue: row.proposed_value,
-        modelVersion: row.model_version,
-        layoutVersion: row.layout_version,
-        playerSubmittedAt: row.created_at,
-        reviewState: row.review_state as AdminAnnotationProposal["reviewState"],
-        priority,
-      };
-      const ocrResult = await db.select().from(ocrResults).where(eq(ocrResults.id, row.ocr_result_id)).get();
-      let ocr: AdminAnnotationProposalDetailResponse["ocr"] = null;
-      if (ocrResult?.responseJson) {
-        try {
-          const response = JSON.parse(ocrResult.responseJson) as OcrResponse;
-          ocr = { mapName: response.data?.map_name ?? null, difficulty: response.data?.difficulty ?? null, playerName: response.data?.viewer_player ?? null, challengeCompleted: response.data?.challenge_completed ?? null, achievementTitles: response.data?.achievement_titles ?? [] };
-        } catch { ocr = null; }
-      }
-      return { contractVersion: "1", proposal, ocr };
-    },
-
-    async decideAdminAnnotationProposal(input: AdminAnnotationDecisionRequest & { proposalId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDecisionResponse> {
-      const replay = await replayOrConflict<AdminAnnotationDecisionResponse>(db, auth.subject, "annotation.proposal.decide", idempotencyKey, input);
-      if (replay) return replay;
-      const proposal = await db.select().from(ocrFeedbackProposals).where(eq(ocrFeedbackProposals.id, input.proposalId)).get();
-      if (!proposal) throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND");
-      if (proposal.reviewState !== "pending") throw new Error("ANNOTATION_PROPOSAL_ALREADY_DECIDED");
-      const timestamp = now();
-      const statements: D1PreparedStatement[] = [];
-      let annotationId: string | null = null;
-      let newState: "accepted" | "rejected" = "rejected";
-      if (input.action !== "reject") {
-        newState = "accepted";
-        const reviewedValue = (input.reviewedValue ?? proposal.proposedValue ?? proposal.originalValue)?.trim();
-        if (!reviewedValue) throw new Error("ANNOTATION_REVIEWED_VALUE_REQUIRED");
-        const existing = await db.select().from(reviewedAnnotations).where(and(eq(reviewedAnnotations.submissionId, proposal.submissionId), eq(reviewedAnnotations.ocrResultId, proposal.ocrResultId), eq(reviewedAnnotations.fieldKey, proposal.fieldKey), eq(reviewedAnnotations.reviewState, "accepted"))).get();
-        annotationId = crypto.randomUUID();
-        if (existing) {
-          statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
-          statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ proposalId: proposal.id, reason: input.note ?? null }), timestamp));
-        }
-        statements.push(database.prepare(
-          `INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ?, ?, ?)`
-        ).bind(annotationId, proposal.submissionId, proposal.ocrResultId, proposal.id, proposal.fieldKey, proposal.originalValue, proposal.modelVersion, proposal.layoutVersion, reviewedValue, input.normalizedValue?.trim() ?? null, proposal.playerAccountId, proposal.proposedValue, proposal.promptOrigin, auth.subject, timestamp, input.note?.trim() ?? null, existing?.id ?? null, timestamp));
-        statements.push(database.prepare("UPDATE ocr_feedback_proposals SET review_state = 'accepted', updated_at = ? WHERE id = ? AND review_state = 'pending'").bind(timestamp, proposal.id));
-      } else {
-        statements.push(database.prepare("UPDATE ocr_feedback_proposals SET review_state = 'rejected', updated_at = ? WHERE id = ? AND review_state = 'pending'").bind(timestamp, proposal.id));
-      }
-      const response: AdminAnnotationDecisionResponse = { contractVersion: "1", proposalId: proposal.id, reviewState: newState, annotationId };
-      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'annotation.proposal.decide', ?, ?, ?)").bind(`${auth.subject}:annotation.proposal.decide:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, ?, 'annotation_proposal', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, `annotation.proposal.${newState}`, proposal.id, JSON.stringify({ action: input.action, reviewedValue: input.reviewedValue ?? null, normalizedValue: input.normalizedValue?.trim() ?? null, note: input.note?.trim() ?? null, annotationId }), timestamp));
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return response;
-    },
-
-    async createAdminReviewedAnnotation(input: AdminAnnotationDirectCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminAnnotationDirectCreateResponse> {
-      const replay = await replayOrConflict<AdminAnnotationDirectCreateResponse>(db, auth.subject, "annotation.direct.create", idempotencyKey, input);
-      if (replay) return replay;
-      const ocrResult = await db.select().from(ocrResults).where(and(eq(ocrResults.id, input.ocrResultId), eq(ocrResults.submissionId, input.submissionId))).get();
-      if (!ocrResult?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
-      let response: OcrResponse;
-      try { response = JSON.parse(ocrResult.responseJson) as OcrResponse; } catch { throw new Error("OCR_RESULT_INVALID"); }
-      if (!ocrFeedbackSafeKeys.includes(input.fieldKey)) throw new Error("OCR_FEEDBACK_FIELD_UNSAFE");
-      const timestamp = now();
-      const statements: D1PreparedStatement[] = [];
-      const annotationId = crypto.randomUUID();
-      const existing = await db.select().from(reviewedAnnotations).where(and(eq(reviewedAnnotations.submissionId, input.submissionId), eq(reviewedAnnotations.ocrResultId, input.ocrResultId), eq(reviewedAnnotations.fieldKey, input.fieldKey), eq(reviewedAnnotations.reviewState, "accepted"))).get();
-      let supersededAnnotationId: string | null = null;
-      if (existing) {
-        supersededAnnotationId = existing.id;
-        statements.push(database.prepare("UPDATE reviewed_annotations SET review_state = 'superseded' WHERE id = ? AND review_state = 'accepted'").bind(existing.id));
-        statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.superseded', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, existing.id, JSON.stringify({ reason: input.note ?? null }), timestamp));
-      }
-      statements.push(database.prepare(
-        `INSERT INTO reviewed_annotations (id, submission_id, ocr_result_id, proposal_id, field_key, original_ocr_value, model_version, layout_version, reviewed_value, normalized_value, player_account_id, player_proposed_value, prompt_origin, review_state, reviewed_by, reviewed_at, note, supersedes_annotation_id, created_at) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 'accepted', ?, ?, ?, ?, ?)`
-      ).bind(annotationId, input.submissionId, input.ocrResultId, input.fieldKey, ocrFeedbackValue(response, input.fieldKey), response.model_version ?? null, response.layout_version ?? null, input.reviewedValue, input.normalizedValue?.trim() ?? null, auth.subject, timestamp, input.note?.trim() ?? null, supersededAnnotationId, timestamp));
-      const result: AdminAnnotationDirectCreateResponse = { contractVersion: "1", annotationId, supersededAnnotationId };
-      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'annotation.direct.create', ?, ?, ?)").bind(`${auth.subject}:annotation.direct.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(result), timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'annotation.direct.created', 'reviewed_annotation', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, annotationId, JSON.stringify({ submissionId: input.submissionId, ocrResultId: input.ocrResultId, fieldKey: input.fieldKey, supersededAnnotationId }), timestamp));
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return result;
-    },
-
-    async listAdminReviewedAnnotations(input: { page: number; pageSize: number; state?: "accepted" | "superseded"; fieldKey?: string; modelVersion?: string; layoutVersion?: string; promptOrigin?: string }, _auth: AuthContext): Promise<AdminReviewedAnnotationListResponse> {
-      const conditions = ["1 = 1"];
-      const params: unknown[] = [];
-      if (input.state) { conditions.push("r.review_state = ?"); params.push(input.state); }
-      if (input.fieldKey) { conditions.push("r.field_key = ?"); params.push(input.fieldKey); }
-      if (input.modelVersion) { conditions.push("r.model_version = ?"); params.push(input.modelVersion); }
-      if (input.layoutVersion) { conditions.push("r.layout_version = ?"); params.push(input.layoutVersion); }
-      if (input.promptOrigin) { conditions.push("r.prompt_origin = ?"); params.push(input.promptOrigin); }
-      const where = conditions.join(" AND ");
-      const page = input.page >= 1 ? input.page : 1;
-      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
-      const totalRow = await database.prepare(`SELECT COUNT(*) AS total FROM reviewed_annotations r WHERE ${where}`).bind(...params).first<{ total: number }>();
-      const total = totalRow?.total ?? 0;
-      const rows = await database.prepare(
-        `SELECT r.*, s.map_name AS submission_map_name FROM reviewed_annotations r INNER JOIN submissions s ON s.id = r.submission_id WHERE ${where} ORDER BY r.reviewed_at DESC, r.created_at DESC LIMIT ? OFFSET ?`
-      ).bind(...params, pageSize, (page - 1) * pageSize).all<AdminReviewedAnnotationRow>();
-      const items: AdminReviewedAnnotation[] = rows.results.map((row) => ({
-        annotationId: row.id,
-        submissionId: row.submission_id,
-        submissionMapName: row.submission_map_name,
-        ocrResultId: row.ocr_result_id,
-        proposalId: row.proposal_id,
-        fieldKey: row.field_key as AdminReviewedAnnotation["fieldKey"],
-        originalOcrValue: row.original_ocr_value,
-        modelVersion: row.model_version,
-        layoutVersion: row.layout_version,
-        reviewedValue: row.reviewed_value,
-        normalizedValue: row.normalized_value,
-        playerAccountId: row.player_account_id,
-        playerProposedValue: row.player_proposed_value,
-        promptOrigin: row.prompt_origin as AdminReviewedAnnotation["promptOrigin"],
-        reviewState: row.review_state as AdminReviewedAnnotation["reviewState"],
-        reviewedBy: row.reviewed_by,
-        reviewedAt: row.reviewed_at,
-        note: row.note,
-        supersedesAnnotationId: row.supersedes_annotation_id,
-        createdAt: row.created_at,
-      }));
-      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
-    },
-
-    // ---- Immutable reviewed dataset snapshots (#105) ----
-
-    async listAdminDatasetCandidates(input: { page: number; pageSize: number }, _auth: AuthContext) {
-      const { candidates } = await loadDatasetEligibility();
-      const ids = candidates.map(({ annotation }) => annotation.id);
-      const rows = ids.length ? await db.select({ annotationId: reviewedAnnotations.id, fieldKey: reviewedAnnotations.fieldKey, reviewedValue: reviewedAnnotations.reviewedValue, submissionMapName: submissions.mapName }).from(reviewedAnnotations).innerJoin(submissions, eq(submissions.id, reviewedAnnotations.submissionId)).where(inArray(reviewedAnnotations.id, ids)).orderBy(desc(reviewedAnnotations.reviewedAt), desc(reviewedAnnotations.id)).all() : [];
-      const page = Math.max(input.page, 1);
-      const pageSize = Math.min(Math.max(input.pageSize, 1), 100);
-      const total = rows.length;
-      return { contractVersion: "1", items: rows.slice((page - 1) * pageSize, page * pageSize).map((row) => ({ annotationId: row.annotationId, fieldKey: row.fieldKey as AdminReviewedAnnotation["fieldKey"], reviewedValue: row.reviewedValue, submissionMapName: row.submissionMapName })), page, pageSize, total, hasMore: page * pageSize < total };
-    },
-
-    async createAdminDatasetDraft(input: { note?: string; excludedAnnotationIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetCreateResponse> {
-      const replay = await replayOrConflict<AdminDatasetCreateResponse>(db, auth.subject, "dataset.draft.create", idempotencyKey, input);
-      if (replay) return replay;
-      const eligibility = await loadDatasetEligibility();
-      const { accepted } = eligibility;
-      const excludedAnnotationIds = new Set(input.excludedAnnotationIds ?? []);
-      const candidates = new Map(eligibility.candidates.map((candidate) => [candidate.annotation.id, candidate]));
-      if ([...excludedAnnotationIds].some((annotationId) => !candidates.has(annotationId))) throw new Error("DATASET_ANNOTATION_EXCLUSION_INVALID");
-      const members: Array<{ annotation: typeof reviewedAnnotations.$inferSelect; objectKey: string | null; contentType: string | null; available: boolean }> = [];
-      const automaticExclusions = new Map(eligibility.exclusions.map((exclusion) => [exclusion.annotationId, exclusion.reason]));
-      const exclusions: Array<{ annotationId: string; reason: string }> = [];
-      for (const annotation of accepted) {
-        const candidate = candidates.get(annotation.id);
-        if (!candidate) { exclusions.push({ annotationId: annotation.id, reason: automaticExclusions.get(annotation.id)! }); continue; }
-        if (excludedAnnotationIds.has(annotation.id)) { exclusions.push({ annotationId: annotation.id, reason: "maintainer_excluded" }); continue; }
-        members.push({ ...candidate, available: evidenceBucket ? Boolean(await evidenceBucket.head(candidate.objectKey)) : true });
-      }
-      const timestamp = now();
-      const datasetId = crypto.randomUUID();
-      const versionRow = await db.select({ version: datasetSnapshots.version }).from(datasetSnapshots).orderBy(desc(datasetSnapshots.version)).limit(1).get();
-      const version = (versionRow?.version ?? 0) + 1;
-      const submissionCount = new Set(members.map((member) => member.annotation.submissionId)).size;
-      const eligibilityJson = JSON.stringify({ eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, annotationCount: members.length, exclusions });
+      const responseBody: OcrAccuracyFeedbackResponse = { contractVersion: "1", submissionId: submission.id, ocrResultId: result.id, accuracy: input.accuracy, alreadySubmitted: false };
       const statements: D1PreparedStatement[] = [
-        database.prepare("INSERT INTO dataset_snapshots (id, version, status, created_by, created_at, note, eligibility_json) VALUES (?, ?, 'draft', ?, ?, ?, ?)").bind(datasetId, version, auth.subject, timestamp, input.note?.trim() ?? null, eligibilityJson),
-        ...members.map((member, index) => database.prepare("INSERT INTO dataset_snapshot_annotations (snapshot_id, annotation_id, position, evidence_object_key, evidence_content_type, evidence_available) VALUES (?, ?, ?, ?, ?, ?)").bind(datasetId, member.annotation.id, index, member.objectKey, member.contentType, member.available ? 1 : 0)),
+        database.prepare(
+          `INSERT INTO ocr_accuracy_feedback (id, submission_id, ocr_result_id, accuracy, marked_by, marked_by_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'player', ?, ?)
+           ON CONFLICT(submission_id, ocr_result_id) DO UPDATE SET accuracy = excluded.accuracy, marked_by = excluded.marked_by, marked_by_type = excluded.marked_by_type, updated_at = excluded.updated_at`
+        ).bind(crypto.randomUUID(), submission.id, result.id, input.accuracy, player.player.id, timestamp, timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'ocr.accuracy.mark', ?, ?, ?)").bind(`${player.player.id}:ocr.accuracy.mark:${idempotencyKey}`, player.player.id, await hashRequest(input), JSON.stringify(responseBody), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, 'user', ?, 'ocr.accuracy.marked', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), player.player.id, submission.id, JSON.stringify({ ocrResultId: result.id, accuracy: input.accuracy }), timestamp),
       ];
-      const response: AdminDatasetCreateResponse = { contractVersion: "1", datasetId, version, status: "draft", counts: { eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, annotationCount: members.length } };
-      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'dataset.draft.create', ?, ?, ?)").bind(`${auth.subject}:dataset.draft.create:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'dataset.draft.created', 'dataset_snapshot', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, datasetId, JSON.stringify({ version, eligibleCount: members.length, excludedCount: exclusions.length, submissionCount, exclusions }), timestamp));
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return response;
+      await database.batch(statements);
+      return { ...responseBody, alreadySubmitted: existing?.accuracy === input.accuracy };
     },
 
-    async listAdminDatasets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, _auth: AuthContext): Promise<AdminDatasetListResponse> {
-      const page = input.page >= 1 ? input.page : 1;
-      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
-      const conditions = input.status ? [eq(datasetSnapshots.status, input.status)] : [];
-      const totalRow = await db.select({ total: count() }).from(datasetSnapshots).where(conditions.length ? and(...conditions) : undefined).get();
-      const total = totalRow?.total ?? 0;
-      const rows = await db.select().from(datasetSnapshots).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(datasetSnapshots.createdAt)).limit(pageSize).offset((page - 1) * pageSize).all();
-      const items: AdminDatasetListResponse["items"] = rows.map((row) => {
-        const eligibility = JSON.parse(row.eligibilityJson) as { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number };
-        return {
-          datasetId: row.id,
-          version: row.version,
-          status: row.status as "draft" | "finalized",
-          createdBy: row.createdBy,
-          createdAt: row.createdAt,
-          finalizedBy: row.finalizedBy,
-          finalizedAt: row.finalizedAt,
-          note: row.note,
-          counts: { eligibleCount: eligibility.eligibleCount, excludedCount: eligibility.excludedCount, submissionCount: eligibility.submissionCount, annotationCount: eligibility.annotationCount },
-        };
-      });
-      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
-    },
-
-    async getAdminDataset(input: { datasetId: string }, _auth: AuthContext): Promise<AdminDatasetDetailResponse> {
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.id, input.datasetId)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      const eligibility = JSON.parse(snapshot.eligibilityJson) as { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number; exclusions?: Array<{ annotationId: string; reason: string }> };
-      const members = await db.select().from(datasetSnapshotAnnotations).where(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id)).orderBy(asc(datasetSnapshotAnnotations.position)).all();
-      const annotationIds = members.map((member) => member.annotationId);
-      const annotationRows = annotationIds.length ? await db.select().from(reviewedAnnotations).where(inArray(reviewedAnnotations.id, annotationIds)).all() : [];
-      const byId = new Map(annotationRows.map((annotation) => [annotation.id, annotation]));
-      return {
-        contractVersion: "1",
-        snapshot: {
-          datasetId: snapshot.id,
-          version: snapshot.version,
-          status: snapshot.status as "draft" | "finalized",
-          createdBy: snapshot.createdBy,
-          createdAt: snapshot.createdAt,
-          finalizedBy: snapshot.finalizedBy,
-          finalizedAt: snapshot.finalizedAt,
-          note: snapshot.note,
-          counts: { eligibleCount: eligibility.eligibleCount, excludedCount: eligibility.excludedCount, submissionCount: eligibility.submissionCount, annotationCount: eligibility.annotationCount },
-        },
-        members: members.map((member) => {
-          const annotation = byId.get(member.annotationId);
-          return {
-            annotationId: member.annotationId,
-            fieldKey: annotation?.fieldKey as AdminDatasetDetailResponse["members"][number]["fieldKey"],
-            reviewedValue: annotation?.reviewedValue ?? "",
-            normalizedValue: annotation?.normalizedValue ?? null,
-            originalOcrValue: annotation?.originalOcrValue ?? null,
-            modelVersion: annotation?.modelVersion ?? null,
-            layoutVersion: annotation?.layoutVersion ?? null,
-            evidence: { available: member.evidenceAvailable === 1, contentType: member.evidenceContentType },
-          };
-        }),
-        exclusions: eligibility.exclusions ?? [],
-      };
-    },
-
-    async finalizeAdminDataset(input: { datasetId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminDatasetFinalizeResponse> {
-      const replay = await replayOrConflict<AdminDatasetFinalizeResponse>(db, auth.subject, "dataset.finalize", idempotencyKey, input);
-      if (replay) return replay;
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.id, input.datasetId)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      if (snapshot.status !== "draft") throw new Error("DATASET_ALREADY_FINALIZED");
+    // Maintainers mark the same shared mark on a specific recognition result;
+    // the latest writer wins regardless of actor type (#253).
+    async submitAdminOcrAccuracy(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse> {
+      const replay = await replayOrConflict<OcrAccuracyFeedbackResponse>(db, auth.subject, "ocr.accuracy.mark", idempotencyKey, input);
+      if (replay) return { ...replay, alreadySubmitted: true };
+      const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
+      if (!row) throw new Error("SUBMISSION_NOT_FOUND");
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
+      if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
+      const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, row.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
       const timestamp = now();
+      const responseBody: OcrAccuracyFeedbackResponse = { contractVersion: "1", submissionId: row.id, ocrResultId: result.id, accuracy: input.accuracy, alreadySubmitted: false };
       const statements: D1PreparedStatement[] = [
-        database.prepare("UPDATE dataset_snapshots SET status = 'finalized', finalized_by = ?, finalized_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, snapshot.id),
+        database.prepare(
+          `INSERT INTO ocr_accuracy_feedback (id, submission_id, ocr_result_id, accuracy, marked_by, marked_by_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'maintainer', ?, ?)
+           ON CONFLICT(submission_id, ocr_result_id) DO UPDATE SET accuracy = excluded.accuracy, marked_by = excluded.marked_by, marked_by_type = excluded.marked_by_type, updated_at = excluded.updated_at`
+        ).bind(crypto.randomUUID(), row.id, result.id, input.accuracy, auth.subject, timestamp, timestamp),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'ocr.accuracy.mark', ?, ?, ?)").bind(`${auth.subject}:ocr.accuracy.mark:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(responseBody), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'ocr.accuracy.marked', 'submission', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, row.id, JSON.stringify({ ocrResultId: result.id, accuracy: input.accuracy }), timestamp),
       ];
-      const response: AdminDatasetFinalizeResponse = { contractVersion: "1", datasetId: snapshot.id, version: snapshot.version, status: "finalized", finalizedAt: timestamp };
-      statements.push(database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'dataset.finalize', ?, ?, ?)").bind(`${auth.subject}:dataset.finalize:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp));
-      statements.push(database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'dataset.finalized', 'dataset_snapshot', ?, ?, ?)").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, snapshot.id, JSON.stringify({ version: snapshot.version }), timestamp));
-      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
-      return response;
-    },
-
-    // Private, versioned OCRKit consumption contract. Reads only finalized
-    // snapshots and never exposes QQ identity, player-account internals, risk
-    // signals, Grant/mastery decisions, or unrelated Submission payloads.
-    async getOcrkitDataset(input: { version: number }): Promise<OcrkitDatasetResponse> {
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
-      const members = await db.select().from(datasetSnapshotAnnotations).where(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id)).orderBy(asc(datasetSnapshotAnnotations.position)).all();
-      const annotationIds = members.map((member) => member.annotationId);
-      const annotationRows = annotationIds.length ? await db.select().from(reviewedAnnotations).where(inArray(reviewedAnnotations.id, annotationIds)).all() : [];
-      const byId = new Map(annotationRows.map((annotation) => [annotation.id, annotation]));
-      return {
-        contractVersion: "1",
-        snapshot: { id: snapshot.id, version: snapshot.version, finalizedAt: snapshot.finalizedAt ?? 0, note: snapshot.note },
-        members: members.map((member) => {
-          const annotation = byId.get(member.annotationId);
-          return {
-            annotationId: member.annotationId,
-            fieldKey: annotation?.fieldKey as OcrkitDatasetResponse["members"][number]["fieldKey"],
-            reviewedValue: annotation?.reviewedValue ?? "",
-            normalizedValue: annotation?.normalizedValue ?? null,
-            originalOcrValue: annotation?.originalOcrValue ?? null,
-            modelVersion: annotation?.modelVersion ?? null,
-            layoutVersion: annotation?.layoutVersion ?? null,
-            evidence: { id: member.annotationId, available: member.evidenceAvailable === 1, contentType: member.evidenceContentType },
-          };
-        }),
-      };
-    },
-
-    async getOcrkitDatasetEvidence(input: { version: number; annotationId: string }): Promise<{ body: ArrayBuffer; contentType: string }> {
-      if (!evidenceBucket) throw new Error("EVIDENCE_UNAVAILABLE");
-      const snapshot = await db.select().from(datasetSnapshots).where(eq(datasetSnapshots.version, input.version)).get();
-      if (!snapshot) throw new Error("DATASET_NOT_FOUND");
-      if (snapshot.status !== "finalized") throw new Error("DATASET_NOT_FINALIZED");
-      const member = await db.select().from(datasetSnapshotAnnotations).where(and(eq(datasetSnapshotAnnotations.snapshotId, snapshot.id), eq(datasetSnapshotAnnotations.annotationId, input.annotationId))).get();
-      if (!member?.evidenceObjectKey) throw new Error("EVIDENCE_NOT_FOUND");
-      if (member.evidenceAvailable !== 1) throw new Error("EVIDENCE_UNAVAILABLE");
-      const object = await evidenceBucket.get(member.evidenceObjectKey);
-      if (!object) throw new Error("EVIDENCE_UNAVAILABLE");
-      return { body: await object.arrayBuffer(), contentType: object.httpMetadata?.contentType ?? member.evidenceContentType ?? "image/png" };
+      await database.batch(statements);
+      return { ...responseBody, alreadySubmitted: existing?.accuracy === input.accuracy };
     },
 
     async requestManualReview(input, sessionToken) {
@@ -6604,15 +6104,13 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         const timestamp = approvalTimestamp;
         const primaryGrant = grantResults[0];
         const reviewId = crypto.randomUUID();
-        const reviewedAnnotation = await prepareSubmissionReviewAnnotation(row, input, auth, timestamp);
         const requestHash = await hashRequest(input);
         const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
         const grants = grantResults.map(({ reward, grantId, alreadyOwned }) => ({ grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned }));
         const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
-        const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
-        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+        const response: AdminSubmissionReviewResponse = { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: primaryGrant.grantId, titleKey: primaryGrant.reward.titleKey, titleName: primaryGrant.reward.titleName, alreadyOwned: primaryGrant.alreadyOwned, grants, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
+        const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grants, selections: selectedRows.map((selection) => ({ challengeId: selection.challengeId, mapId: selection.targetMapId, gameplayRevisionId: selection.gameplayRevisionId, basis: selection.basis })), evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, reviewerConfirmedChallengeIds, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
         const statements: D1PreparedStatement[] = [
-          ...(reviewedAnnotation?.statements ?? []),
           database.prepare("INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?").bind(reviewId, input.decision, input.reason ?? null, auth.subject, timestamp, row.id),
           ...(verifiedRunPlan?.statements ?? []),
           ...(verifiedRunOutcome ? [masterySubmissionOutcomeStatement(row.id, verifiedRunOutcome)] : []),
@@ -6696,7 +6194,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
       const timestamp = now();
       const reviewId = crypto.randomUUID();
-      const reviewedAnnotation = await prepareSubmissionReviewAnnotation(row, input, auth, timestamp);
       const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
       let alreadyOwned = false;
       let grantId = crypto.randomUUID();
@@ -6717,18 +6214,16 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
       const requestHash = await hashRequest(input);
       const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
       const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
         : input.decision === "approved" && retainedGrants.length
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}), ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) }
         : input.decision === "approved"
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome!, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) }
-          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null, ...(reviewedAnnotation ? { reviewedAnnotationId: reviewedAnnotation.annotationIds[0], reviewedAnnotationIds: reviewedAnnotation.annotationIds } : {}) };
+          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome! }
+          : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
       const idempotencyKeyId = `${auth.subject}:submission.review:${idempotencyKey}`;
-      const statements: D1PreparedStatement[] = [
-        ...(reviewedAnnotation?.statements ?? []),
-      ];
+      const statements: D1PreparedStatement[] = [];
       statements.push(
         database.prepare(
           "INSERT INTO submission_reviews (id, submission_id, decision, reason, reviewer, created_at) SELECT ?, id, ?, ?, ?, ? FROM submissions WHERE id = ?"

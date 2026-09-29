@@ -23,6 +23,7 @@ const settlePreview = async () => { await new Promise((resolve) => setTimeout(re
 
 const navigate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 let ocrResultReady = false;
+let ocrMarkedInaccurate = false;
 const dialogStub = { AdminResponsiveDialog: { props: ["open", "title", "description"], template: '<div v-if="open" role="dialog" :aria-label="title"><p>{{ description }}</p><slot name="body" /><slot name="footer" /></div>' } };
 const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknown }) => {
   if (path === "/v1/submissions/submission-5") return Promise.resolve({ submissionId: "submission-5", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "resubmission_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, review: { decision: "resubmission_required", automatic: false, reason: null, reviewedAt: 1 }, activeTitleGrants: [{ grantId: "grant-5", titleKey: "OVERWATCH", titleName: "守望先锋" }], verifiedRunOutcome: { status: "created", verifiedRunId: null, awardedXp: 0, reason: null, conflictFields: [] } });
@@ -37,11 +38,12 @@ const adminApi = vi.fn((path: string, options?: { method?: string; body?: unknow
   if (path === "/v1/submissions/submission-1/review/preview" && options?.method === "POST") return Promise.resolve(reviewPreview(options.body as PreviewBody));
   if (path === "/v1/submissions/submission-4/review/preview" && options?.method === "POST") return Promise.resolve({ ...reviewPreview(), submissionId: "submission-4", candidates: [], titles: [], approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" });
   if (path === "/v1/submissions/submission-4") return Promise.resolve({ submissionId: "submission-4", mapName: "釜山", difficulty: "", playerName: "他又", status: "ocr_review_required", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "review_required", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: { data: { map_name: "釜山" }, fields: {} } });
-  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" } }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
+  if (path === "/v1/submissions/submission-1") return Promise.resolve({ submissionId: "submission-1", mapName: "成就挑战", difficulty: "", playerName: "他又", status: "ready_for_review", createdAt: 0, updatedAt: 1, challenge: { family: "achievement", titleName: "守望先锋", category: "战绩", condition: "完成挑战", evidenceRule: "完整截图" }, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, ocrResultId: "ocr-result-1", ocrAccuracy: ocrMarkedInaccurate ? "inaccurate" : null, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png", ocr: { model_version: "v1", request_id: "ocr-request-1", data: { map_name: "帕拉伊苏", difficulty: "地狱", viewer_player: "他又", challenge_completed: true }, fields: { map_name: { confidence: 0.98, status: "ok" }, difficulty: { confidence: 0.97, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.99, status: "ok" } }, warnings: ["right_panel.version_missing"] }, match: { outcome: "review", candidates: [{ challengeId: "title.legacy", challengeType: "title_achievement", titleName: "旧匹配称号", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence", "achievement_evidence:title_not_checked"] } }] } });
   if (path === "/v1/submissions/submission-2") return Promise.resolve({ submissionId: "submission-2", mapName: "釜山", difficulty: "专家", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null });
   if (path === "/v1/submissions/submission-3") return Promise.resolve({ submissionId: "submission-3", mapName: "绿洲城", difficulty: "困难", playerName: "他又", status: "approved", createdAt: 0, updatedAt: 1, challenge: null, ocrStatus: "matched", ocrAttempt: 1, ocrErrorCode: null, evidenceUrl: null, ocr: null, spotCheck: { status: "pending", sampledAt: 1, resolvedAt: null, reviewer: null, reason: null } });
   if (path === "/v1/submissions/submission-1/review" && options?.method === "POST") return Promise.resolve({ decision: "approved", titleName: "守望先锋", alreadyOwned: false });
   if (path === "/v1/submissions/submission-1/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", status: "ocr_pending" });
+  if (path === "/v1/submissions/submission-1/ocr-accuracy" && options?.method === "POST") { ocrMarkedInaccurate = true; return Promise.resolve({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-result-1", accuracy: "inaccurate", alreadySubmitted: false }); }
   if (path === "/v1/submissions/submission-8/ocr/retry" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-8", status: "ocr_pending" });
   if (path === "/v1/submissions/submission-3/spot-check" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", submissionId: "submission-3", status: "confirmed", grantId: "grant-1" });
   throw new Error(`Unexpected request: ${path}`);
@@ -76,7 +78,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).not.toContain("98% · ok");
     expect(wrapper.text()).toContain("查看原始识别数据");
     expect(wrapper.text()).toContain("提交信息");
-    for (const label of ["通过", "要求重新提交", "驳回", "重新发送 OCRKit 请求", "直接标注"]) {
+    for (const label of ["通过", "要求重新提交", "驳回", "重新发送 OCRKit 请求", "识别准确", "识别有误"]) {
       expect(wrapper.text()).toContain(label);
     }
     expect(wrapper.get(".evidence-image").attributes("src")).toBe("https://evidence.owbastion.codes/uploads/submissions/test/high-entropy-key.png");
@@ -108,12 +110,17 @@ describe("admin review detail page", () => {
     expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/ocr/retry", expect.objectContaining({ method: "POST" }));
   });
 
-  it("opens direct annotation locally without changing the route", async () => {
+  it("marks the current OCR result as inaccurate", async () => {
+    ocrMarkedInaccurate = false;
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll("button").find((button) => button.text().includes("直接标注"))?.trigger("click");
+    await wrapper.findAll("button").find((button) => button.text() === "识别有误")?.trigger("click");
     await flushPromises();
-    expect(wrapper.text()).toContain("直接标注");
+    expect(adminApi).toHaveBeenCalledWith("/v1/submissions/submission-1/ocr-accuracy", expect.objectContaining({
+      method: "POST",
+      body: { contractVersion: "1", ocrResultId: "ocr-result-1", accuracy: "inaccurate" },
+    }));
+    expect(wrapper.text()).toContain("有误");
   });
 
   it("shows live Challenge results instead of stale stored match reasons", async () => {

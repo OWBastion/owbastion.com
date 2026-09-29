@@ -251,7 +251,7 @@ Player-facing Submission state should remain compact:
 - `completed`;
 - `rejected`.
 
-Internal Queue, OCR, annotation, Grant, and downstream projection states should
+Internal Queue, OCR, review, Grant, and downstream projection states should
 not leak into the player workflow vocabulary.
 
 Later invalidation of a downstream Run, Completion, or Grant does not rewrite a
@@ -270,8 +270,8 @@ the current screenshot contract.
 
 ### Evidence retention
 
-Evidence that still supports a Verified Run, Completion, Grant, reviewed
-annotation, or finalized dataset provenance is retained. A Player must not be
+Evidence that still supports a Verified Run, Completion, Grant, or historical
+annotation provenance is retained. A Player must not be
 able to physically delete evidence whose removal would sever an accepted
 business fact from its provenance.
 
@@ -656,36 +656,27 @@ Review rows remain auditable. Avoid a generic moderation workflow engine,
 mandatory reasons, or tagging/state complexity without a demonstrated product
 need.
 
-## Annotation and dataset flow
+## OCR accuracy feedback and annotation ownership
 
-Routine Submission review should produce training-quality correction data when
-the administrator corrects complete OCR evidence. The desired flow is:
+Submission review and OCR annotation are decoupled. Routine Submission review
+produces business corrections only: corrected structured OCR evidence that
+reruns Challenge matching and drives Grant, Verified Run, and mastery
+outcomes. The platform does not derive training labels from review.
 
-~~~text
-Submission review
--> corrected structured OCR evidence
--> reviewed annotation
--> dataset candidate
--> immutable dataset snapshot when selected
--> OCRKit training/evaluation
-~~~
+ROI-level transcription, accept/reject annotation review, and training
+datasets belong to OCRKit Model Studio. The platform keeps only a
+screenshot-level accuracy mark per OCR result (`accurate`/`inaccurate`,
+latest writer wins between player and maintainer). The mark carries no
+transcription, never affects Submission review or business outcomes, and may
+be consumed by OCRKit as a sampling/prioritization hint only — never as a
+label.
 
-Administrators should not have to review the same screenshot a second time in a
-separate annotation workflow merely to make the correction usable.
-
-Standalone Annotation UI is therefore a secondary QA/query/exception tool, not
-the normal path.
-
-Reviewed annotations are eligible dataset candidates by default; maintainers
-may exclude anomalies. The platform may freeze immutable dataset snapshots with
-provenance for reproducible consumption.
+Historical proposal/reviewed-annotation/dataset-snapshot records are retained
+for audit but no new records are produced or consumed.
 
 OCRKit owns train/validation/test splitting, augmentation, hyperparameters,
 training, evaluation, checkpoints, model publication, and rollback. The
 platform does not become a second ML model registry.
-
-Player OCR feedback may create a candidate correction but does not enter a
-training dataset without administrator review.
 
 ## Agents API and cross-repository ownership
 
@@ -813,8 +804,7 @@ Completion, Grant, mastery, and ranking outcomes automatically.
 ## Audit
 
 Audit records meaningful writes to business facts, including lifecycle,
-qualification, review, correction, binding, issuance, revocation, reset, and
-annotation decisions.
+qualification, review, correction, binding, issuance, revocation, and reset.
 
 Normal reads and page views are not business Audit events.
 

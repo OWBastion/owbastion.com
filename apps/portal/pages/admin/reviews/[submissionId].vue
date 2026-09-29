@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watchDebounced } from "@vueuse/core";
-import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, AdminOcrAccuracyResponse, OcrAccuracyMark } from "~/composables/useAdminApi";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 import { knownReviewBlockingMessage, reviewBlockingMessage } from "~/utils/submissionReview";
@@ -12,11 +12,12 @@ const toast = useToast();
 const submission = shallowRef<AdminSubmission | null>(null);
 const actionLoading = ref(false);
 const ocrRetryLoading = ref(false);
+const ocrAccuracyLoading = ref(false);
 const errorMessage = ref("");
 const reviewError = ref("");
 const ocrRetryError = ref("");
+const ocrAccuracyError = ref("");
 const spotCheckError = ref("");
-const annotationOpen = shallowRef(false);
 const evidenceError = ref(false);
 const refreshError = ref("");
 const queuePath = useAdminReviewQueuePath();
@@ -156,6 +157,20 @@ async function retryOcr() {
   } finally { ocrRetryLoading.value = false; }
 }
 
+async function markOcrAccuracy(accuracy: OcrAccuracyMark) {
+  const detail = submission.value;
+  if (!detail?.ocrResultId || actionLoading.value || ocrAccuracyLoading.value) return;
+  ocrAccuracyLoading.value = true;
+  ocrAccuracyError.value = "";
+  try {
+    await api<AdminOcrAccuracyResponse>(`/v1/submissions/${encodeURIComponent(detail.submissionId)}/ocr-accuracy`, { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body: { contractVersion: "1", ocrResultId: detail.ocrResultId, accuracy } });
+    await load();
+  } catch (error) {
+    const details = portalErrorDetails(error, "标记失败，请稍后重试。");
+    ocrAccuracyError.value = details.code ? `标记失败（${details.code}）：${details.description}` : details.description;
+  } finally { ocrAccuracyLoading.value = false; }
+}
+
 useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
 </script>
 
@@ -163,9 +178,8 @@ useSeoMeta({ title: () => `${pageTitle.value} · 躲避堡垒 3` });
   <AdminWorkspace :title="pageTitle">
     <template #actions><UButton :to="queuePath" label="返回队列" icon="i-lucide-arrow-left" color="neutral" variant="ghost" /></template>
     <template #messages><UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" /><USkeleton v-else-if="loading" class="detail-loading" /><UAlert v-if="refreshError" color="warning" variant="subtle" :description="refreshError" role="status" /></template>
-    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" :preview="preview" :preview-loading="previewLoading" :preview-error="previewError" :preview-current="previewKey === reviewInputKey" @review="review" @review-input="updateReviewInput" @retry-preview="loadPreview" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @open-direct-annotation="annotationOpen = true" @evidence-error="evidenceError = true" />
+    <AdminSubmissionReviewDetail v-if="submission" :submission="submission" :evidence-src="evidenceSrc" :evidence-error="evidenceError" :review-error="reviewError || spotCheckError" :action-loading="actionLoading" :ocr-retry-error="ocrRetryError" :ocr-retry-loading="ocrRetryLoading" :ocr-accuracy-error="ocrAccuracyError" :ocr-accuracy-loading="ocrAccuracyLoading" :preview="preview" :preview-loading="previewLoading" :preview-error="previewError" :preview-current="previewKey === reviewInputKey" @review="review" @review-input="updateReviewInput" @retry-preview="loadPreview" @spot-check="resolveSpotCheck" @retry-ocr="retryOcr" @ocr-accuracy="markOcrAccuracy" @evidence-error="evidenceError = true" />
     <UEmpty v-else-if="!loading" title="找不到该提交" />
-    <AdminAnnotationDirectDialog v-model:open="annotationOpen" :initial-submission-id="submissionId" @created="toast.add({ title: '已创建审定标注', color: 'success' })" />
   </AdminWorkspace>
 </template>
 

@@ -65,6 +65,13 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL,
     status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL
   );
+  CREATE TABLE ocr_accuracy_feedback (
+    id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
+    accuracy TEXT NOT NULL CHECK (accuracy IN ('accurate', 'inaccurate')),
+    marked_by TEXT NOT NULL, marked_by_type TEXT NOT NULL CHECK (marked_by_type IN ('player', 'maintainer')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    UNIQUE (submission_id, ocr_result_id)
+  );
   CREATE TABLE ocr_feedback_proposals (
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
     field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
@@ -111,15 +118,10 @@ const highConfidenceOcr = {
   data: { map_name: "萨摩亚", difficulty: "困难", viewer_player: "Player", challenge_completed: true, map_variant: "classic", achievement_titles: ["征服者"] },
 };
 
-const uncertainDifficultyOcr = {
-  ...highConfidenceOcr,
-  fields: { ...highConfidenceOcr.fields, difficulty: { confidence: 0.55, status: "low_confidence" } },
-};
-
-const setup = async (options: { response?: unknown; playerStatus?: string; submissionStatus?: string; calibrationRate?: number } = {}) => {
+const setup = async (options: { response?: unknown; playerStatus?: string; submissionStatus?: string } = {}) => {
   const { database, sqlite } = createD1();
   installSchema(sqlite);
-  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, options.calibrationRate ?? 0, "https://evidence.owbastion.codes");
+  const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, "https://evidence.owbastion.codes");
   const now = Date.now();
   const tokenHash = await sha256Hex("session-token");
   const otherTokenHash = await sha256Hex("other-session-token");
@@ -138,15 +140,16 @@ const setup = async (options: { response?: unknown; playerStatus?: string; submi
       ('submission-2', 'player-owner', 'binding-owner', '${options.submissionStatus ?? "approved"}', 'map_title_achievement', 'challenge-1', '萨摩亚', '困难', 'Owner', 'qq', 'conv-1', 'msg-2', 1, 1);
     INSERT INTO ocr_results (id, submission_id, request_id, attempt, status, response_json, created_at) VALUES
       ('ocr-1', 'submission-1', 'req-1', 1, 'ok', '${JSON.stringify(options.response ?? highConfidenceOcr).replaceAll("'", "''")}', 1),
-      ('ocr-2', 'submission-2', 'req-2', 1, 'ok', '${JSON.stringify(uncertainDifficultyOcr).replaceAll("'", "''")}', 1);
+      ('ocr-2', 'submission-2', 'req-2', 1, 'ok', '${JSON.stringify(highConfidenceOcr).replaceAll("'", "''")}', 1);
   `);
   return { database, sqlite, services };
 };
 
-const countProposals = (sqlite: DatabaseSync, submissionId = "submission-1") =>
-  (sqlite.prepare("SELECT COUNT(*) AS count FROM ocr_feedback_proposals WHERE submission_id = ?").get(submissionId) as { count: number }).count;
+const maintainer = { actorType: "user" as const, subject: "maintainer-1", roles: ["maintainer"], provider: "test" };
 
-describe("player OCR feedback", () => {
+const accuracyRows = (sqlite: DatabaseSync) => sqlite.prepare("SELECT submission_id, ocr_result_id, accuracy, marked_by, marked_by_type FROM ocr_accuracy_feedback ORDER BY created_at").all() as Array<Record<string, unknown>>;
+
+describe("OCR accuracy feedback", () => {
   it("returns the unlisted CDN evidence URL in player detail", async () => {
     const { services, sqlite } = await setup();
     sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, object_key, upload_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -156,148 +159,94 @@ describe("player OCR feedback", () => {
     expect(detail.evidenceUrl).toBe("https://evidence.owbastion.codes/uploads/submissions/submission-1/evidence.png");
   });
 
-  it("records a confirmed prompt response with immutable recognition context", async () => {
-    const { sqlite, services } = await setup({ response: uncertainDifficultyOcr });
-    const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-1");
-    expect(response).toEqual({ contractVersion: "1", submissionId: "submission-2", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false });
-    const row = sqlite.prepare("SELECT * FROM ocr_feedback_proposals").get() as Record<string, unknown>;
-    expect(row.submission_id).toBe("submission-2");
-    expect(row.ocr_result_id).toBe("ocr-2");
-    expect(row.field_key).toBe("difficulty");
-    expect(row.original_value).toBe("困难");
-    expect(row.feedback_type).toBe("confirmed");
-    expect(row.prompt_origin).toBe("uncertainty");
-    expect(row.model_version).toBe("ocr-v1");
-    expect(row.layout_version).toBe("layout-v2");
-    expect(row.player_account_id).toBe("player-owner");
-    expect(row.status).toBe("submitted");
+  it("records a player accuracy mark without transcription content", async () => {
+    const { sqlite, services } = await setup();
+    const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-1");
+    expect(response).toEqual({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate", alreadySubmitted: false });
+    const [row] = accuracyRows(sqlite);
+    expect(row).toMatchObject({ submission_id: "submission-1", ocr_result_id: "ocr-1", accuracy: "accurate", marked_by: "player-owner", marked_by_type: "player" });
     // The original OCR evidence is preserved byte-for-byte.
-    const ocr = sqlite.prepare("SELECT response_json FROM ocr_results WHERE id = 'ocr-2'").get() as { response_json: string };
-    expect(JSON.parse(ocr.response_json)).toEqual(uncertainDifficultyOcr);
+    const ocr = sqlite.prepare("SELECT response_json FROM ocr_results WHERE id = 'ocr-1'").get() as { response_json: string };
+    expect(JSON.parse(ocr.response_json)).toEqual(highConfidenceOcr);
+    // The legacy proposal table receives nothing.
+    expect((sqlite.prepare("SELECT COUNT(*) AS count FROM ocr_feedback_proposals").get() as { count: number }).count).toBe(0);
+    const audit = sqlite.prepare("SELECT payload_json FROM audit_events WHERE operation = 'ocr.accuracy.marked'").get() as { payload_json: string };
+    expect(JSON.parse(audit.payload_json)).toEqual({ ocrResultId: "ocr-1", accuracy: "accurate" });
   });
 
-  it("stores a player correction without overwriting the recognized value", async () => {
-    const { sqlite, services } = await setup({ response: uncertainDifficultyOcr });
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }, "session-token", "key-2");
-    const row = sqlite.prepare("SELECT * FROM ocr_feedback_proposals").get() as Record<string, unknown>;
-    expect(row.original_value).toBe("困难");
-    expect(row.proposed_value).toBe("一般");
-    expect(row.feedback_type).toBe("corrected");
-  });
-
-  it("keeps a map-variant correction as a player proposal", async () => {
-    const { sqlite, services } = await setup();
-    const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "map_variant", action: "corrected", proposedValue: "ramparts" }] }, "session-token", "key-map-variant");
-    expect(response.recorded).toEqual([{ fieldKey: "map_variant", action: "corrected", status: "submitted" }]);
-    const row = sqlite.prepare("SELECT field_key, original_value, proposed_value, status FROM ocr_feedback_proposals").get() as Record<string, unknown>;
-    expect(row).toEqual({ field_key: "map_variant", original_value: "classic", proposed_value: "ramparts", status: "submitted" });
-  });
-
-  it("accepts a passive correction when no prompt was generated and records origin passive", async () => {
-    const { sqlite, services } = await setup();
-    const response = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "普通" }] }, "session-token", "key-3");
-    expect(response.recorded[0]?.status).toBe("submitted");
-    const row = sqlite.prepare("SELECT * FROM ocr_feedback_proposals").get() as Record<string, unknown>;
-    expect(row.prompt_origin).toBe("passive");
-    expect(row.feedback_type).toBe("corrected");
-  });
-
-  it("rejects confirming a field that was not prompted", async () => {
+  it("enforces ownership: a player cannot mark another player's submission", async () => {
     const { services } = await setup();
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-4")).rejects.toThrow("OCR_FEEDBACK_FIELD_NOT_PROMPTED");
+    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "other-session-token", "key-2")).rejects.toThrow("SUBMISSION_NOT_FOUND");
   });
 
-  it("enforces ownership: a player cannot give feedback on another player's submission", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr });
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "other-session-token", "key-5")).rejects.toThrow("SUBMISSION_NOT_FOUND");
-  });
-
-  it("keeps retries idempotent without creating duplicate equivalent proposals", async () => {
-    const { sqlite, services } = await setup({ response: uncertainDifficultyOcr });
-    const first = await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-6");
+  it("keeps retries idempotent without creating duplicate rows", async () => {
+    const { sqlite, services } = await setup();
+    const first = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-3");
     expect(first.alreadySubmitted).toBe(false);
-    const replay = await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-6");
+    const replay = await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-3");
     expect(replay.alreadySubmitted).toBe(true);
-    const noKeyReplay = await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-7");
-    expect(noKeyReplay.alreadySubmitted).toBe(true);
-    expect(countProposals(sqlite, "submission-2")).toBe(1);
+    expect(accuracyRows(sqlite)).toHaveLength(1);
   });
 
   it("rejects a changed reuse of an idempotency key", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr });
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-8");
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }, "session-token", "key-8")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+    const { services } = await setup();
+    await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-4");
+    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "inaccurate" }, "session-token", "key-4")).rejects.toThrow("IDEMPOTENCY_CONFLICT");
   });
 
-  it("keeps severe quality failures out of the annotation task path", async () => {
-    const { services } = await setup({ response: { schema_version: "1", ok: false, fields: {}, data: {} } });
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }, "session-token", "key-9")).rejects.toThrow("OCR_FEEDBACK_UNAVAILABLE");
-  });
-
-  it("rejects feedback against a stale recognition prompt", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr });
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-1", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-10")).rejects.toThrow("OCR_PROMPT_STALE");
+  it("rejects feedback against a stale recognition result", async () => {
+    const { services } = await setup();
+    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-5")).rejects.toThrow("OCR_PROMPT_STALE");
   });
 
   it("rejects feedback when the submission is in the resubmission path", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr, submissionStatus: "resubmission_required" });
-    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }, "session-token", "key-11")).rejects.toThrow("OCR_FEEDBACK_UNAVAILABLE");
+    const { services } = await setup({ submissionStatus: "resubmission_required" });
+    await expect(services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "session-token", "key-6")).rejects.toThrow("OCR_FEEDBACK_UNAVAILABLE");
   });
 
   it("does not mutate the submission, its review state, or mastery outcome", async () => {
-    const { sqlite, services } = await setup({ response: uncertainDifficultyOcr });
+    const { sqlite, services } = await setup();
     const before = sqlite.prepare("SELECT status, updated_at, grant_id FROM submissions WHERE id = 'submission-2'").get() as Record<string, unknown>;
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }, "session-token", "key-12");
+    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "session-token", "key-7");
     const after = sqlite.prepare("SELECT status, updated_at, grant_id FROM submissions WHERE id = 'submission-2'").get() as Record<string, unknown>;
     expect(after).toEqual(before);
     expect((sqlite.prepare("SELECT COUNT(*) AS count FROM submission_outcomes").get() as { count: number }).count).toBe(0);
     expect((sqlite.prepare("SELECT COUNT(*) AS count FROM submission_reviews").get() as { count: number }).count).toBe(0);
   });
 
-  it("derives the player feedback projection without leaking confidence or raw internals", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr });
-    const detail = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
-    const serialized = JSON.stringify(detail);
-    expect(detail.feedback?.mode).toBe("targeted");
-    expect(detail.feedback?.promptFieldKeys).toEqual(["difficulty"]);
-    expect(detail.feedback?.promptOrigin).toBe("uncertainty");
-    expect(detail.feedback?.available).toBe(true);
-    expect(detail.feedback?.submitted).toBe(false);
+  it("exposes only the current mark in the player detail projection", async () => {
+    const { services } = await setup();
+    const before = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
+    expect(before.feedback).toEqual({ ocrResultId: "ocr-2", accuracy: null });
+    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", accuracy: "inaccurate" }, "session-token", "key-8");
+    const after = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
+    expect(after.feedback).toEqual({ ocrResultId: "ocr-2", accuracy: "inaccurate" });
+    const serialized = JSON.stringify(after);
     expect(serialized).not.toContain("confidence");
     expect(serialized).not.toContain("responseJson");
-    expect(serialized).not.toContain("0.9");
-    // Only safe field keys are exposed.
-    for (const item of detail.feedback?.fields ?? []) {
-      expect(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]).toContain(item.key);
-    }
   });
 
-  it("flips the submitted flag after feedback and hides other players' submissions", async () => {
-    const { services } = await setup({ response: uncertainDifficultyOcr });
-    const before = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
-    expect(before.feedback?.submitted).toBe(false);
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-2", ocrResultId: "ocr-2", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-13");
-    const after = await services.getPlayerSubmission({ submissionId: "submission-2" }, "session-token");
-    expect(after.feedback?.submitted).toBe(true);
-    await expect(services.getPlayerSubmission({ submissionId: "submission-2" }, "other-session-token")).rejects.toThrow("SUBMISSION_NOT_FOUND");
+  it("records a maintainer mark on the shared row and lets the latest writer win", async () => {
+    const { sqlite, services } = await setup();
+    await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, "session-token", "key-9");
+    const response = await services.submitAdminOcrAccuracy({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "inaccurate" }, maintainer, "admin-key-1");
+    expect(response).toEqual({ contractVersion: "1", submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "inaccurate", alreadySubmitted: false });
+    const [row] = accuracyRows(sqlite);
+    expect(row).toMatchObject({ accuracy: "inaccurate", marked_by: "maintainer-1", marked_by_type: "maintainer" });
+    expect(accuracyRows(sqlite)).toHaveLength(1);
   });
 
-  it("supports calibration spot checks with a distinguishable origin", async () => {
-    const { sqlite, services } = await setup({ calibrationRate: 1 });
-    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
-    expect(detail.feedback?.mode).toBe("grouped");
-    expect(detail.feedback?.promptOrigin).toBe("calibration");
-    await services.submitPlayerOcrFeedback({ submissionId: "submission-1", ocrResultId: "ocr-1", items: [{ fieldKey: "difficulty", action: "confirmed" }] }, "session-token", "key-14");
-    const row = sqlite.prepare("SELECT prompt_origin FROM ocr_feedback_proposals").get() as { prompt_origin: string };
-    expect(row.prompt_origin).toBe("calibration");
+  it("keeps maintainer retries idempotent", async () => {
+    const { sqlite, services } = await setup();
+    await services.submitAdminOcrAccuracy({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-2");
+    const replay = await services.submitAdminOcrAccuracy({ submissionId: "submission-1", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-2");
+    expect(replay.alreadySubmitted).toBe(true);
+    expect(accuracyRows(sqlite)).toHaveLength(1);
   });
 
-  it("does not offer a calibration prompt at a zero rate", async () => {
-    const { services } = await setup({ calibrationRate: 0 });
-    const detail = await services.getPlayerSubmission({ submissionId: "submission-1" }, "session-token");
-    expect(detail.feedback?.mode).toBe("none");
-    expect(detail.feedback?.promptOrigin).toBeNull();
-    expect(detail.feedback?.promptFieldKeys).toEqual([]);
-    expect(detail.feedback?.available).toBe(true);
+  it("rejects maintainer marks on stale or foreign recognition results", async () => {
+    const { services } = await setup();
+    await expect(services.submitAdminOcrAccuracy({ submissionId: "submission-2", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-3")).rejects.toThrow("OCR_PROMPT_STALE");
+    await expect(services.submitAdminOcrAccuracy({ submissionId: "missing", ocrResultId: "ocr-1", accuracy: "accurate" }, maintainer, "admin-key-4")).rejects.toThrow("SUBMISSION_NOT_FOUND");
   });
 });

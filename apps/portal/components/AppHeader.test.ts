@@ -50,7 +50,6 @@ describe("AppHeader", () => {
     expect(wrapper.text()).toContain("玩家");
     expect(wrapper.text()).toContain("邀请");
     expect(wrapper.text()).toContain("截图审核");
-    expect(wrapper.text()).toContain("OCR");
     expect(wrapper.text()).toContain("评价与审核");
     expect(wrapper.text()).toContain("更多");
     expect(wrapper.text()).not.toContain("待处理");

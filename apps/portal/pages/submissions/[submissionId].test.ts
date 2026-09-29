@@ -31,7 +31,7 @@ const stubs = {
   SubmissionProgress: { template: '<div class="progress-card">处理未通过</div>' },
   OcrFeedbackPanel: {
     props: ["submissionId", "feedback"],
-    template: `<section aria-label="识别反馈">{{ submissionId }}:{{ feedback.mode }}</section>`,
+    template: `<section aria-label="识别反馈">{{ submissionId }}:{{ feedback.ocrResultId }}</section>`,
   },
 };
 
@@ -276,29 +276,24 @@ describe("submission detail page", () => {
     expect(wrapper.text()).toContain("processing");
   });
 
-  it("renders the OCR feedback panel only when feedback is available", async () => {
+  it("renders the OCR feedback panel when the submission has a current OCR result", async () => {
     api.mockImplementation(() => Promise.resolve({
       ...baseSubmission,
       status: "completed",
       reason: undefined,
       feedback: {
-        mode: "targeted",
-        promptOrigin: "uncertainty",
-        promptFieldKeys: ["difficulty"],
-        fields: [{ key: "map_name", value: "帕拉伊苏" }, { key: "difficulty", value: "困难" }],
         ocrResultId: "00000000-0000-4000-8000-000000000004",
-        submitted: false,
-        available: true,
+        accuracy: null,
       },
     }));
     const wrapper = await mountSubmission("/submissions/submission-feedback");
     const panel = wrapper.get('[aria-label="识别反馈"]');
-    expect(panel.text()).toContain("targeted");
+    expect(panel.text()).toContain("00000000-0000-4000-8000-000000000004");
     expect(panel.text()).toContain("submission-1");
   });
 
-  it("omits the OCR feedback panel when feedback is unavailable", async () => {
-    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined, feedback: { mode: "none", promptOrigin: null, promptFieldKeys: [], fields: [], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: false } }));
+  it("omits the OCR feedback panel when the submission has no OCR result", async () => {
+    api.mockImplementation(() => Promise.resolve({ ...baseSubmission, status: "completed", reason: undefined }));
     const wrapper = await mountSubmission("/submissions/submission-no-feedback");
     expect(wrapper.find('[aria-label="识别反馈"]').exists()).toBe(false);
   });

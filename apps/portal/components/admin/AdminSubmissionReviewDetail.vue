@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, OcrAccuracyMark } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
@@ -14,6 +14,8 @@ const props = defineProps<{
   actionLoading?: boolean;
   ocrRetryError?: string;
   ocrRetryLoading?: boolean;
+  ocrAccuracyError?: string;
+  ocrAccuracyLoading?: boolean;
   preview?: AdminSubmissionReviewPreview | null;
   previewLoading?: boolean;
   previewError?: string;
@@ -26,7 +28,7 @@ const emit = defineEmits<{
   "retry-preview": [];
   "spot-check": [decision: SpotCheckDecision, reason?: string];
   "evidence-error": [];
-  "open-direct-annotation": [];
+  "ocr-accuracy": [accuracy: OcrAccuracyMark];
   "retry-ocr": [];
 }>();
 
@@ -291,7 +293,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || undefined">
+        <div class="ocr-retry-actions" :aria-busy="ocrRetryLoading || ocrAccuracyLoading || undefined">
           <p v-if="ocrRetryError" class="ocr-retry-error" role="alert">{{ ocrRetryError }}</p>
           <UButton
             type="button"
@@ -303,14 +305,34 @@ onBeforeUnmount(() => {
             :disabled="actionsLoading || (ocrPending && !ocrQueueSendFailed)"
             @click="emit('retry-ocr')"
           />
-          <UButton
-            type="button"
-            icon="i-lucide-pen-line"
-            label="直接标注"
-            color="neutral"
-            variant="ghost"
-            @click="emit('open-direct-annotation')"
-          />
+          <div v-if="submission.ocrResultId" class="ocr-accuracy" role="group" aria-label="识别准确性标记">
+            <p class="ocr-accuracy__hint">识别准确性<span v-if="submission.ocrAccuracy">（当前：{{ submission.ocrAccuracy === "accurate" ? "准确" : "有误" }}）</span>。标记仅用于识别质量改进，不影响审核决定。</p>
+            <p v-if="ocrAccuracyError" class="ocr-retry-error" role="alert">{{ ocrAccuracyError }}</p>
+            <div class="ocr-accuracy__buttons">
+              <UButton
+                type="button"
+                icon="i-lucide-check"
+                label="识别准确"
+                :color="submission.ocrAccuracy === 'accurate' ? 'primary' : 'neutral'"
+                :variant="submission.ocrAccuracy === 'accurate' ? 'soft' : 'ghost'"
+                size="sm"
+                :loading="ocrAccuracyLoading"
+                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'accurate'"
+                @click="emit('ocr-accuracy', 'accurate')"
+              />
+              <UButton
+                type="button"
+                icon="i-lucide-flag"
+                label="识别有误"
+                :color="submission.ocrAccuracy === 'inaccurate' ? 'primary' : 'neutral'"
+                :variant="submission.ocrAccuracy === 'inaccurate' ? 'soft' : 'ghost'"
+                size="sm"
+                :loading="ocrAccuracyLoading"
+                :disabled="actionsLoading || ocrAccuracyLoading || submission.ocrAccuracy === 'inaccurate'"
+                @click="emit('ocr-accuracy', 'inaccurate')"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -494,6 +516,22 @@ onBeforeUnmount(() => {
   color: var(--danger);
   font-size: var(--type-caption-size);
   overflow-wrap: anywhere;
+}
+.ocr-accuracy {
+  display: grid;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in oklch, var(--line) 80%, transparent);
+}
+.ocr-accuracy__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+  line-height: 1.5;
+}
+.ocr-accuracy__buttons {
+  display: flex;
+  gap: 0.5rem;
 }
 .review-record {
   display: grid;

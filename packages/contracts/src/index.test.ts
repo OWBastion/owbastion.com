@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminAchievementCreateRequestSchema, adminAnnotationDecisionRequestSchema, adminAnnotationDecisionResponseSchema, adminAnnotationDirectCreateRequestSchema, adminAnnotationDirectCreateResponseSchema, adminAnnotationProposalListResponseSchema, adminAnnotationProposalSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminDatasetCreateRequestSchema, adminDatasetCreateResponseSchema, adminDatasetDetailResponseSchema, adminDatasetFinalizeRequestSchema, adminDatasetFinalizeResponseSchema, adminDatasetListResponseSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminReviewedAnnotationSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrkitDatasetResponseSchema, playerOcrFeedbackRequestSchema, playerOcrFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
+import { adminAchievementCreateRequestSchema, adminCatalogTitleUpdateRequestSchema, adminChallengeSchema, adminChallengeUpdateRequestSchema, adminMapRevisionCreateRequestSchema, adminMapRevisionPromotionRequestSchema, adminMapRevisionUpdateRequestSchema, adminMapTitleRuleCreateRequestSchema, adminManualTitleGrantRequestSchema, adminPlayerDetailSchema, adminPlayerIdentityRequestSchema, adminRandomEventUpdateRequestSchema, adminRandomEventVersionAvailabilityRequestSchema, adminRandomEventVersionListResponseSchema, adminSubmissionReviewPreviewRequestSchema, adminSubmissionReviewRequestSchema, adminSubmissionSchema, adminVerifiedRunCorrectionRequestSchema, adminVerifiedRunSchema, agentMapSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema, agentTitleListResponseSchema, bindingInviteRedeemRequestSchema, bindingInviteRedeemResponseSchema, currentPlayerMasteryResponseSchema, currentPlayerResponseSchema, mapChallengeSchema, ocrAccuracyFeedbackRequestSchema, ocrAccuracyFeedbackResponseSchema, playerReviewResponseSchema, playerReviewUpsertRequestSchema, playerReviewUpsertResponseSchema, playerReviewWithdrawRequestSchema, playerReviewWithdrawResponseSchema, playerSubmissionDetailSchema, playerUploadSessionRequestSchema, publicReviewCommentPageSchema, publicReviewSummaryResponseSchema, qqBindingRequestSchema, qqBindingClaimVerifyRequestSchema, qqLoginVerifyRequestSchema, randomEventSchema, submissionRequestSchema } from "./index";
 
 describe("v1 platform contracts", () => {
   it("validates global and scoped achievement creation", () => {
@@ -405,111 +405,22 @@ describe("v1 platform contracts", () => {
     expect(adminChallengeSchema.safeParse({ challengeId: "title.CLASSIC", family: "map", gameplayRevisionId: "revision:map.circuit_royal:v0", type: "map_completion", kind: "map_title_achievement", titleKey: "CLASSIC", name: "老兵", mapId: "map.circuit_royal", mapName: "皇家赛道", gameVersion: "2026.07.29", status: "active", introducedVersion: "2026.07.29", retiredVersion: null }).success).toBe(true);
   });
 
-  it("keeps player OCR feedback to safe fields and a bounded presentation contract", () => {
-    const feedback = { mode: "targeted", promptOrigin: "uncertainty", promptFieldKeys: ["difficulty"], fields: [{ key: "difficulty", value: "困难" }], ocrResultId: "00000000-0000-4000-8000-000000000004", submitted: false, available: true };
+  it("keeps player OCR feedback to a bounded screenshot-level mark", () => {
+    const feedback = { ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" };
     expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true }, feedback }).success).toBe(true);
-    // Numeric confidence, thresholds, raw warnings and internal signals must not be part of the contract.
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, fields: [{ key: "difficulty", value: "困难", confidence: 0.7 }] } }).success).toBe(false);
-    // Only safe field keys may appear.
-    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, promptFieldKeys: ["run_code"] } }).success).toBe(false);
+    // No marks before feedback exists, and no transcription/internal fields are part of the projection.
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, accuracy: null } }).success).toBe(true);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, accuracy: "confirmed" } }).success).toBe(false);
+    expect(playerSubmissionDetailSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", status: "completed", mapName: "测试地图", createdAt: 1, updatedAt: 2, feedback: { ...feedback, proposedValue: "一般" } }).success).toBe(false);
   });
 
-  it("validates player OCR feedback submissions", () => {
-    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }).success).toBe(true);
-    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }).success).toBe(true);
-    // A correction without a proposed visible value is invalid.
-    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected" }] }).success).toBe(false);
-    // Unsafe fields are rejected at the contract boundary.
-    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "run_code", action: "confirmed" }] }).success).toBe(false);
-    expect(playerOcrFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [] }).success).toBe(false);
-    expect(playerOcrFeedbackResponseSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false }).success).toBe(true);
-  });
-
-  it("validates maintainer annotation decisions without requiring reasons", () => {
-    const base = { contractVersion: "1" };
-    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "accept" }).success).toBe(true);
-    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "reject" }).success).toBe(true);
-    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "edit_accept", reviewedValue: "普通" }).success).toBe(true);
-    // edit_accept without a reviewed transcription is invalid.
-    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "edit_accept" }).success).toBe(false);
-    expect(adminAnnotationDecisionRequestSchema.safeParse({ ...base, action: "accept", normalizedValue: "一般" }).success).toBe(false);
-    expect(adminAnnotationDecisionResponseSchema.safeParse({ contractVersion: "1", proposalId: "00000000-0000-4000-8000-000000000005", reviewState: "accepted", annotationId: "00000000-0000-4000-8000-000000000006" }).success).toBe(true);
-  });
-
-  it("validates direct reviewed annotation creation for eligible OCR fields", () => {
-    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道" }).success).toBe(true);
-    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道", normalizedValue: "map.royal", note: "人工核对" }).success).toBe(true);
-    expect(adminAnnotationDirectCreateRequestSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "run_code", reviewedValue: "1234" }).success).toBe(false);
-    expect(adminAnnotationDirectCreateResponseSchema.safeParse({ contractVersion: "1", annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null }).success).toBe(true);
-  });
-
-  it("keeps the annotation proposal queue contract explainable and free of raw scoring internals", () => {
-    const item = {
-      proposalId: "00000000-0000-4000-8000-000000000005",
-      submissionId: "00000000-0000-4000-8000-000000000003",
-      submissionMapName: "测试地图",
-      submissionCreatedAt: 1,
-      ocrResultId: "00000000-0000-4000-8000-000000000004",
-      fieldKey: "difficulty",
-      originalValue: "困难",
-      feedbackType: "corrected",
-      promptOrigin: "uncertainty",
-      proposedValue: "一般",
-      modelVersion: "ocr-v1",
-      layoutVersion: "layout-v2",
-      playerSubmittedAt: 2,
-      reviewState: "pending",
-      priority: { score: 25, category: "correction", reasons: ["correction"] },
-    };
-    expect(adminAnnotationProposalSchema.safeParse(item).success).toBe(true);
-    // The queue must not carry raw confidence or threshold internals.
-    expect(adminAnnotationProposalSchema.safeParse({ ...item, priority: { score: 25, category: "correction", reasons: ["correction"], confidence: 0.7 } }).success).toBe(false);
-    expect(adminAnnotationProposalListResponseSchema.safeParse({ contractVersion: "1", items: [item], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(true);
-    expect(adminReviewedAnnotationSchema.safeParse({
-      annotationId: "00000000-0000-4000-8000-000000000006",
-      submissionId: "00000000-0000-4000-8000-000000000003",
-      submissionMapName: "测试地图",
-      ocrResultId: "00000000-0000-4000-8000-000000000004",
-      proposalId: "00000000-0000-4000-8000-000000000005",
-      fieldKey: "difficulty",
-      originalOcrValue: "困难",
-      modelVersion: "ocr-v1",
-      layoutVersion: "layout-v2",
-      reviewedValue: "一般",
-      normalizedValue: "一般",
-      playerAccountId: "player-1",
-      playerProposedValue: "一般",
-      promptOrigin: "uncertainty",
-      reviewState: "accepted",
-      reviewedBy: "maintainer-1",
-      reviewedAt: 3,
-      note: null,
-      supersedesAnnotationId: null,
-      createdAt: 3,
-    }).success).toBe(true);
-  });
-
-  it("validates dataset draft creation and finalization contracts", () => {
-    expect(adminDatasetCreateRequestSchema.safeParse({ contractVersion: "1", note: "v1 采样" }).success).toBe(true);
-    expect(adminDatasetCreateRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
-    const counts = { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 };
-    expect(adminDatasetCreateResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", counts }).success).toBe(true);
-    expect(adminDatasetCreateResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "finalized", counts }).success).toBe(false);
-    expect(adminDatasetFinalizeRequestSchema.safeParse({ contractVersion: "1" }).success).toBe(true);
-    expect(adminDatasetFinalizeResponseSchema.safeParse({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "finalized", finalizedAt: 2 }).success).toBe(true);
-    expect(adminDatasetListResponseSchema.safeParse({ contractVersion: "1", items: [{ datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts }], page: 1, pageSize: 20, total: 1, hasMore: false }).success).toBe(true);
-    expect(adminDatasetDetailResponseSchema.safeParse({ contractVersion: "1", snapshot: { datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { available: true, contentType: "image/png" } }], exclusions: [{ annotationId: "00000000-0000-4000-8000-000000000008", reason: "missing_model_version" }] }).success).toBe(true);
-  });
-
-  it("keeps the OCRKit consumption contract private, versioned, and free of identity and risk internals", () => {
-    const response = {
-      contractVersion: "1",
-      snapshot: { id: "00000000-0000-4000-8000-000000000007", version: 1, finalizedAt: 2, note: null },
-      members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty", reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { id: "00000000-0000-4000-8000-000000000006", available: true, contentType: "image/png" } }],
-    };
-    expect(ocrkitDatasetResponseSchema.safeParse(response).success).toBe(true);
-    // The contract rejects fields that would leak player identity or risk internals.
-    expect(ocrkitDatasetResponseSchema.safeParse({ ...response, members: [{ ...response.members[0], playerAccountId: "player-1" }] }).success).toBe(false);
-    expect(ocrkitDatasetResponseSchema.safeParse({ ...response, members: [{ ...response.members[0], evidence: { ...response.members[0].evidence, objectKey: "evidence/1.png" } }] }).success).toBe(false);
+  it("validates screenshot-level OCR accuracy marks for players and maintainers", () => {
+    expect(ocrAccuracyFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }).success).toBe(true);
+    expect(ocrAccuracyFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate" }).success).toBe(true);
+    // The mark accepts no transcription content.
+    expect(ocrAccuracyFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "confirmed" }).success).toBe(false);
+    expect(ocrAccuracyFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004" }).success).toBe(false);
+    expect(ocrAccuracyFeedbackRequestSchema.safeParse({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }).success).toBe(false);
+    expect(ocrAccuracyFeedbackResponseSchema.safeParse({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate", alreadySubmitted: false }).success).toBe(true);
   });
 });

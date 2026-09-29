@@ -72,7 +72,7 @@ export type AdminBindingInvitation = {
 export type AdminSubmissionReviewPreview = AdminSubmissionReviewPreviewResponse;
 export type { AdminSubmissionReviewCandidate };
 export type AdminSubmissionReviewInput = { fieldCorrections: Array<{ fieldKey: string; reviewedValue: string }>; confirmedChallengeIds: string[] };
-export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; review?: { decision: "approved" | "rejected" | "resubmission_required"; automatic: boolean; reason: string | null; reviewedAt: number } | null; activeTitleGrants?: Array<{ grantId: string; titleKey: string; titleName: string }>; verifiedRunOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; verifiedRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
+export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocrAccuracy?: OcrAccuracyMark | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; review?: { decision: "approved" | "rejected" | "resubmission_required"; automatic: boolean; reason: string | null; reviewedAt: number } | null; activeTitleGrants?: Array<{ grantId: string; titleKey: string; titleName: string }>; verifiedRunOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; verifiedRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
 export type AdminVerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
 export type AdminVerifiedRunCorrectionChanges = Partial<Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters">>;
 export type AdminVerifiedRun = {
@@ -163,72 +163,8 @@ export type AdminReview = {
 };
 export type AdminReviewAudit = { operation: string; actorType: string; actorId: string; reason: string | null; createdAt: number };
 export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
-export type AdminAnnotationProposal = {
-  proposalId: string;
-  submissionId: string;
-  submissionMapName: string;
-  submissionCreatedAt: number;
-  ocrResultId: string;
-  fieldKey: "map_name" | "difficulty" | "viewer_player" | "challenge_completed" | "map_variant" | "achievement_titles";
-  originalValue: string | null;
-  feedbackType: "confirmed" | "corrected" | "passive_report";
-  promptOrigin: "uncertainty" | "conflict" | "grouped" | "calibration" | null;
-  proposedValue: string | null;
-  modelVersion: string | null;
-  layoutVersion: string | null;
-  playerSubmittedAt: number;
-  reviewState: "pending" | "accepted" | "rejected";
-  priority: { score: number; category: "correction" | "calibration_failure" | "uncertain" | "repeat" | "confirmation"; reasons: string[] };
-};
-export type AdminAnnotationProposalDetail = { contractVersion: "1"; proposal: AdminAnnotationProposal; ocr: { mapName: string | null; difficulty: string | null; playerName: string | null; challengeCompleted: boolean | null; achievementTitles?: string[] } | null };
-export type AdminReviewedAnnotation = {
-  annotationId: string;
-  submissionId: string;
-  submissionMapName: string;
-  ocrResultId: string;
-  proposalId: string | null;
-  fieldKey: AdminAnnotationProposal["fieldKey"];
-  originalOcrValue: string | null;
-  modelVersion: string | null;
-  layoutVersion: string | null;
-  reviewedValue: string;
-  normalizedValue: string | null;
-  playerAccountId: string | null;
-  playerProposedValue: string | null;
-  promptOrigin: AdminAnnotationProposal["promptOrigin"];
-  reviewState: "accepted" | "superseded";
-  reviewedBy: string;
-  reviewedAt: number;
-  note: string | null;
-  supersedesAnnotationId: string | null;
-  createdAt: number;
-};
-export type AdminDatasetSnapshot = {
-  datasetId: string;
-  version: number;
-  status: "draft" | "finalized";
-  createdBy: string;
-  createdAt: number;
-  finalizedBy: string | null;
-  finalizedAt: number | null;
-  note: string | null;
-  counts: { eligibleCount: number; excludedCount: number; submissionCount: number; annotationCount: number };
-};
-export type AdminDatasetDetail = {
-  contractVersion: "1";
-  snapshot: AdminDatasetSnapshot;
-  members: Array<{
-    annotationId: string;
-    fieldKey: AdminAnnotationProposal["fieldKey"];
-    reviewedValue: string;
-    normalizedValue: string | null;
-    originalOcrValue: string | null;
-    modelVersion: string | null;
-    layoutVersion: string | null;
-    evidence: { available: boolean; contentType: string | null };
-  }>;
-  exclusions: Array<{ annotationId: string; reason: string }>;
-};
+export type OcrAccuracyMark = "accurate" | "inaccurate";
+export type AdminOcrAccuracyResponse = { contractVersion: "1"; submissionId: string; ocrResultId: string; accuracy: OcrAccuracyMark; alreadySubmitted: boolean };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

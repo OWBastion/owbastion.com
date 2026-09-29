@@ -35,11 +35,7 @@ import {
   adminReviewCommentModerationRequestSchema, adminReviewStateModerationRequestSchema,
   adminVerifiedRunStateRequestSchema, adminVerifiedRunConflictResolutionRequestSchema, adminVerifiedRunCorrectionRequestSchema,
   playerUploadSessionRequestSchema,
-  playerOcrFeedbackRequestSchema,
-  adminAnnotationDecisionRequestSchema,
-  adminAnnotationDirectCreateRequestSchema,
-  adminDatasetCreateRequestSchema,
-  adminDatasetFinalizeRequestSchema,
+  ocrAccuracyFeedbackRequestSchema,
   adminSubmissionSpotCheckRequestSchema,
   adminBindingInviteRequestSchema, adminBindingInviteBatchRequestSchema, adminBindingInviteRevokeRequestSchema, bindingInviteRedeemRequestSchema, adminBindingClaimDecisionRequestSchema,
   playerEquippedTitlesRequestSchema, adminPlayerEquippedTitlesRequestSchema,
@@ -58,7 +54,6 @@ export type RuntimeEnv = {
   EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
-  OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
   QQBOT_POLICY_WEBHOOK_URL?: string;
@@ -66,7 +61,6 @@ export type RuntimeEnv = {
   BINDING_INVITE_CODE_ENCRYPTION_KEY?: string;
   OCR_MANUAL_REVIEW_THRESHOLD?: string;
   OCR_AUTO_REVIEW_SAMPLE_RATE?: string;
-  OCR_FEEDBACK_CALIBRATION_RATE?: string;
   MASTERY_MIN_GAME_VERSION?: string;
   MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?: string;
   DEPLOYMENT_REVISION?: string;
@@ -78,7 +72,7 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
-type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
+type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
 
 const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
@@ -87,7 +81,6 @@ const routeClassForPath = (pathname: string): RequestRouteClass => {
   if (pathname === "/health") return "health";
   if (pathname.startsWith("/v1/admin/")) return "admin";
   if (pathname.startsWith("/v1/agents/")) return "agents";
-  if (pathname.startsWith("/v1/ocrkit/")) return "ocrkit";
   if (pathname.startsWith("/v1/__local/")) return "local";
   if (pathname.startsWith("/v1/qq/")) return "qq";
   if (["/v1/events", "/v1/maps", "/v1/public/achievements"].includes(pathname) || pathname.startsWith("/v1/public/achievement-icons/") || pathname.startsWith("/v1/challenges") || pathname.startsWith("/v1/titles")) return "catalog";
@@ -398,15 +391,6 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/verified-runs/:verifiedRunId/state", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/verified-runs/:verifiedRunId/corrections", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/verified-runs/:verifiedRunId/conflicts/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/annotations/proposals", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/annotations/proposals/:proposalId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/annotations/proposals/:proposalId/decision", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/annotations/direct", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/annotations/reviewed", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/datasets/candidates", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/datasets", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/datasets/:datasetId", (c) => { allowPortal(c); return c.body(null, 204); });
-  app.options("/v1/admin/datasets/:datasetId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -434,14 +418,6 @@ export const createApp = (dependencies: AppDependencies) => {
     const player = await dependencies.services(c.env).getCurrentPlayer({ sessionToken });
     if (!player) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     return { sessionToken, player };
-  };
-
-  // Private service boundary for OCRKit snapshot consumption. The token is a
-  // secret, never a committed variable; without it the endpoints are closed.
-  const allowOcrkit = (c: any) => {
-    const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
-    const authorization = c.req.header("authorization");
-    return Boolean(token && authorization === `Bearer ${token}`);
   };
 
   const portalPlayerAuth = (player: NonNullable<Awaited<ReturnType<PlatformServices["getCurrentPlayer"]>>>) => ({
@@ -898,13 +874,15 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  // Screenshot-level accuracy marking (#253): one accurate/inaccurate mark per
+  // recognition result; the latest value wins. No transcription is accepted.
   app.post("/v1/me/submissions/:submissionId/ocr-feedback", async (c) => {
     const access = await requirePortalPlayer(c);
     if (access.error) return access.error;
     c.header("Cache-Control", "private, no-store");
     const idempotencyKey = c.req.header("idempotency-key");
     if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = playerOcrFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
+    const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
     if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
     try {
       const response = await dependencies.services(c.env).submitPlayerOcrFeedback({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.sessionToken!, idempotencyKey);
@@ -913,9 +891,8 @@ export const createApp = (dependencies: AppDependencies) => {
       const code = error instanceof Error ? error.message : "OCR_FEEDBACK_SUBMIT_FAILED";
       if (code === "UNAUTHENTICATED") return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
       if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, "SUBMISSION_NOT_FOUND", "The submission does not exist");
-      if (["OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"].includes(code)) return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
-      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition prompt is no longer current; refresh the submission");
-      if (["OCR_FEEDBACK_FIELD_UNSAFE", "OCR_FEEDBACK_FIELD_NOT_PROMPTED", "OCR_FEEDBACK_PROPOSED_VALUE_REQUIRED", "OCR_FEEDBACK_PROPOSED_VALUE_TOO_LONG"].includes(code)) return errorResponse(c, 422, code, "The feedback content is invalid");
+      if (["OCR_FEEDBACK_UNAVAILABLE", "OCR_RESULT_NOT_FOUND"].includes(code)) return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
+      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
@@ -1751,222 +1728,6 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
-  const allowedAnnotationStates = ["pending", "accepted", "rejected"] as const;
-  const allowedAnnotationFieldKeys = ["map_name", "difficulty", "viewer_player", "challenge_completed", "achievement_titles"] as const;
-  const allowedAnnotationOrigins = ["uncertainty", "conflict", "grouped", "calibration", "passive"] as const;
-  const validAnnotationUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-  app.get("/v1/admin/annotations/proposals", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const page = Number(c.req.query("page") ?? "1");
-    const pageSize = Number(c.req.query("pageSize") ?? "20");
-    const state = c.req.query("state");
-    const fieldKey = c.req.query("fieldKey");
-    const modelVersion = c.req.query("modelVersion");
-    const layoutVersion = c.req.query("layoutVersion");
-    const promptOrigin = c.req.query("promptOrigin");
-    const kind = c.req.query("kind");
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
-      || (state && !allowedAnnotationStates.includes(state as typeof allowedAnnotationStates[number]))
-      || (fieldKey && !allowedAnnotationFieldKeys.includes(fieldKey as typeof allowedAnnotationFieldKeys[number]))
-      || (promptOrigin && !allowedAnnotationOrigins.includes(promptOrigin as typeof allowedAnnotationOrigins[number]))
-      || (kind && kind !== "correction" && kind !== "confirmation")) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The annotation proposal query is invalid");
-    }
-    return c.json(await dependencies.services(c.env).listAdminAnnotationProposals({
-      page, pageSize,
-      ...(state ? { state: state as typeof allowedAnnotationStates[number] } : {}),
-      ...(fieldKey ? { fieldKey: fieldKey as typeof allowedAnnotationFieldKeys[number] } : {}),
-      ...(modelVersion?.trim() ? { modelVersion: modelVersion.trim() } : {}),
-      ...(layoutVersion?.trim() ? { layoutVersion: layoutVersion.trim() } : {}),
-      ...(promptOrigin ? { promptOrigin: promptOrigin as typeof allowedAnnotationOrigins[number] } : {}),
-      ...(kind ? { kind: kind as "correction" | "confirmation" } : {}),
-    }, access.auth!));
-  });
-
-  app.get("/v1/admin/annotations/proposals/:proposalId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const proposalId = c.req.param("proposalId");
-    if (!validAnnotationUuid(proposalId)) return errorResponse(c, 422, "INVALID_PROPOSAL_ID", "The proposal ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminAnnotationProposal({ proposalId }, access.auth!)); }
-    catch (error) { if (error instanceof Error && error.message === "ANNOTATION_PROPOSAL_NOT_FOUND") return errorResponse(c, 404, "ANNOTATION_PROPOSAL_NOT_FOUND", "The annotation proposal does not exist"); throw error; }
-  });
-
-  app.post("/v1/admin/annotations/proposals/:proposalId/decision", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const proposalId = c.req.param("proposalId");
-    if (!validAnnotationUuid(proposalId)) return errorResponse(c, 422, "INVALID_PROPOSAL_ID", "The proposal ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminAnnotationDecisionRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      return c.json(await dependencies.services(c.env).decideAdminAnnotationProposal({ ...parsed.data, proposalId }, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "ANNOTATION_DECISION_FAILED";
-      if (code === "ANNOTATION_PROPOSAL_NOT_FOUND") return errorResponse(c, 404, code, "The annotation proposal does not exist");
-      if (code === "ANNOTATION_PROPOSAL_ALREADY_DECIDED") return errorResponse(c, 409, code, "The annotation proposal was already decided");
-      if (code === "ANNOTATION_REVIEWED_VALUE_REQUIRED") return errorResponse(c, 422, code, "Accepting requires a reviewed transcription");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.post("/v1/admin/annotations/direct", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminAnnotationDirectCreateRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    try {
-      return c.json(await dependencies.services(c.env).createAdminReviewedAnnotation(parsed.data, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "ANNOTATION_CREATE_FAILED";
-      if (["OCR_RESULT_NOT_FOUND", "OCR_RESULT_INVALID"].includes(code)) return errorResponse(c, 404, "OCR_RESULT_NOT_FOUND", "The recognition result does not exist");
-      if (code === "OCR_FEEDBACK_FIELD_UNSAFE") return errorResponse(c, 422, code, "The field is not eligible for annotation");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.get("/v1/admin/annotations/reviewed", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const page = Number(c.req.query("page") ?? "1");
-    const pageSize = Number(c.req.query("pageSize") ?? "20");
-    const state = c.req.query("state");
-    const fieldKey = c.req.query("fieldKey");
-    const modelVersion = c.req.query("modelVersion");
-    const layoutVersion = c.req.query("layoutVersion");
-    const promptOrigin = c.req.query("promptOrigin");
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
-      || (state && state !== "accepted" && state !== "superseded")
-      || (fieldKey && !allowedAnnotationFieldKeys.includes(fieldKey as typeof allowedAnnotationFieldKeys[number]))
-      || (promptOrigin && !allowedAnnotationOrigins.includes(promptOrigin as typeof allowedAnnotationOrigins[number]))) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The reviewed annotation query is invalid");
-    }
-    return c.json(await dependencies.services(c.env).listAdminReviewedAnnotations({
-      page, pageSize,
-      ...(state ? { state: state as "accepted" | "superseded" } : {}),
-      ...(fieldKey ? { fieldKey: fieldKey as typeof allowedAnnotationFieldKeys[number] } : {}),
-      ...(modelVersion?.trim() ? { modelVersion: modelVersion.trim() } : {}),
-      ...(layoutVersion?.trim() ? { layoutVersion: layoutVersion.trim() } : {}),
-      ...(promptOrigin ? { promptOrigin: promptOrigin as typeof allowedAnnotationOrigins[number] } : {}),
-    }, access.auth!));
-  });
-
-  app.get("/v1/admin/datasets", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const page = Number(c.req.query("page") ?? "1");
-    const pageSize = Number(c.req.query("pageSize") ?? "20");
-    const status = c.req.query("status");
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100
-      || (status && status !== "draft" && status !== "finalized")) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The dataset query is invalid");
-    }
-    return c.json(await dependencies.services(c.env).listAdminDatasets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" } : {}) }, access.auth!));
-  });
-
-  app.get("/v1/admin/datasets/candidates", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const page = Number(c.req.query("page") ?? "1");
-    const pageSize = Number(c.req.query("pageSize") ?? "20");
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
-      return errorResponse(c, 422, "INVALID_REQUEST", "The dataset candidate query is invalid");
-    }
-    return c.json(await dependencies.services(c.env).listAdminDatasetCandidates({ page, pageSize }, access.auth!));
-  });
-
-  app.post("/v1/admin/datasets", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminDatasetCreateRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = { ...(parsed.data.note !== undefined ? { note: parsed.data.note } : {}), ...(parsed.data.excludedAnnotationIds ? { excludedAnnotationIds: parsed.data.excludedAnnotationIds } : {}) };
-    try { return c.json(await dependencies.services(c.env).createAdminDatasetDraft(input, access.auth!, idempotencyKey), 201); }
-    catch (error) {
-      const code = error instanceof Error ? error.message : "DATASET_CREATE_FAILED";
-      if (code === "DATASET_ANNOTATION_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded annotation is not eligible for this dataset");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.get("/v1/admin/datasets/:datasetId", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const datasetId = c.req.param("datasetId");
-    if (!validAnnotationUuid(datasetId)) return errorResponse(c, 422, "INVALID_DATASET_ID", "The dataset ID is invalid");
-    try { return c.json(await dependencies.services(c.env).getAdminDataset({ datasetId }, access.auth!)); }
-    catch (error) { if (error instanceof Error && error.message === "DATASET_NOT_FOUND") return errorResponse(c, 404, "DATASET_NOT_FOUND", "The dataset does not exist"); throw error; }
-  });
-
-  app.post("/v1/admin/datasets/:datasetId/finalize", async (c) => {
-    const access = await requireMaintainer(c);
-    if (access.error) return access.error;
-    const datasetId = c.req.param("datasetId");
-    if (!validAnnotationUuid(datasetId)) return errorResponse(c, 422, "INVALID_DATASET_ID", "The dataset ID is invalid");
-    const idempotencyKey = c.req.header("idempotency-key");
-    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
-    const parsed = adminDatasetFinalizeRequestSchema.safeParse(await parseBody(c.req.raw));
-    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
-    const input = parsed.data.note === undefined ? { datasetId } : { datasetId, note: parsed.data.note };
-    try {
-      return c.json(await dependencies.services(c.env).finalizeAdminDataset(input, access.auth!, idempotencyKey));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "DATASET_FINALIZE_FAILED";
-      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
-      if (code === "DATASET_ALREADY_FINALIZED") return errorResponse(c, 409, code, "The dataset is already finalized");
-      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
-      throw error;
-    }
-  });
-
-  app.get("/v1/ocrkit/datasets/:version", async (c) => {
-    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    c.header("Cache-Control", "private, no-store");
-    const version = Number(c.req.param("version"));
-    if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_DATASET_VERSION", "The dataset version is invalid");
-    try {
-      return c.json(await dependencies.services(c.env).getOcrkitDataset({ version }));
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "OCRKit_DATASET_READ_FAILED";
-      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
-      if (code === "DATASET_NOT_FINALIZED") return errorResponse(c, 409, code, "The dataset is not finalized");
-      throw error;
-    }
-  });
-
-  app.get("/v1/ocrkit/datasets/:version/evidence/:annotationId", async (c) => {
-    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
-    c.header("Cache-Control", "private, no-store");
-    const version = Number(c.req.param("version"));
-    const annotationId = c.req.param("annotationId");
-    if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_DATASET_VERSION", "The dataset version is invalid");
-    if (!validAnnotationUuid(annotationId)) return errorResponse(c, 422, "INVALID_ANNOTATION_ID", "The annotation ID is invalid");
-    try {
-      const evidence = await dependencies.services(c.env).getOcrkitDatasetEvidence({ version, annotationId });
-      return new Response(evidence.body, { headers: { "content-type": evidence.contentType, "cache-control": "private, no-store" } });
-    } catch (error) {
-      const code = error instanceof Error ? error.message : "OCRKit_EVIDENCE_READ_FAILED";
-      if (code === "DATASET_NOT_FOUND") return errorResponse(c, 404, code, "The dataset does not exist");
-      if (code === "DATASET_NOT_FINALIZED") return errorResponse(c, 409, code, "The dataset is not finalized");
-      if (code === "EVIDENCE_NOT_FOUND") return errorResponse(c, 404, code, "The evidence is not part of this dataset");
-      // Explicit, never substituted: a missing source object is reported as
-      // unavailable rather than replaced with different evidence.
-      if (code === "EVIDENCE_UNAVAILABLE") return c.json({ contractVersion: "1", error: { code, message: "The source evidence is no longer available", requestId: c.get("requestId") } }, 410);
-      throw error;
-    }
-  });
-
   app.get("/v1/admin/verified-runs", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -2119,6 +1880,27 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "OCR_NOT_CONFIGURED") return errorResponse(c, 503, code, "OCRKit is not configured");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       if (code === "OCR_RETRY_IN_PROGRESS") return errorResponse(c, 409, code, "An OCR retry is already in progress for this submission");
+      throw error;
+    }
+  });
+
+  // Maintainer-side of the shared screenshot accuracy mark (#253): marks the
+  // specific recognition result shown on the review page; latest value wins.
+  app.post("/v1/admin/submissions/:submissionId/ocr-accuracy", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = ocrAccuracyFeedbackRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).submitAdminOcrAccuracy({ ...parsed.data, submissionId: c.req.param("submissionId") }, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "OCR_ACCURACY_FAILED";
+      if (code === "SUBMISSION_NOT_FOUND") return errorResponse(c, 404, code, "The submission does not exist");
+      if (code === "OCR_RESULT_NOT_FOUND") return errorResponse(c, 404, code, "The recognition result does not exist for this submission");
+      if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }
   });

@@ -152,6 +152,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE audit_events (id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE ocr_results (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL, status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL);
+  CREATE TABLE ocr_accuracy_feedback (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL, accuracy TEXT NOT NULL CHECK (accuracy IN ('accurate', 'inaccurate')), marked_by TEXT NOT NULL, marked_by_type TEXT NOT NULL CHECK (marked_by_type IN ('player', 'maintainer')), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+  CREATE UNIQUE INDEX ocr_accuracy_feedback_result_idx ON ocr_accuracy_feedback (submission_id, ocr_result_id);
   CREATE TABLE title_catalog (key TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL);
   CREATE TABLE submission_reviews (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT, reviewer TEXT NOT NULL, created_at INTEGER NOT NULL);
   CREATE TABLE submission_spot_checks (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, status TEXT NOT NULL, policy_json TEXT NOT NULL, sampled_at INTEGER NOT NULL, resolved_at INTEGER, reviewer TEXT, reason TEXT);
