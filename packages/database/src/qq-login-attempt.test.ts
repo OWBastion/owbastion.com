@@ -8,12 +8,11 @@ import {
 } from "../test/schema";
 import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
-import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
+import { hashRequest } from "./portal-session";
 import type { AuthContext } from "@owbastion/domain";
 
-const hashRequest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const codeForByte = (byte: number) => codeAlphabet[byte % codeAlphabet.length].repeat(6);
 
