@@ -1,6 +1,6 @@
 # OWBastion Web Platform: Agent Work Entry
 
-This is the repository-specific agent entrypoint shared by coding agents. Workspace guidance owns shared engineering policy; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
+This is the repository-specific agent entrypoint shared by coding agents. [OWBastion organization routing](https://github.com/OWBastion/.github/blob/main/AGENTS.md) owns repository ownership, shared policy routing, and global invariants; this file specializes platform ownership, risk routing, authorization boundaries, and validation. Keep tool-specific entry files limited to tool behavior, and keep mutable feature status out of durable agent guidance.
 
 ## Repository role
 
@@ -14,22 +14,13 @@ For cross-repository work, change the authoritative contract at its owner and in
 
 ## Work from intent, not repeated setup
 
-A short request such as `implement #123`, `fix #123`, or `review #123` is sufficient. Resolve the smallest relevant repository context yourself; the user should not need to repeat rule paths or skill names.
+A short request such as `implement #123`, `fix #123`, or `review #123` is sufficient. Follow the [organization preflight](https://github.com/OWBastion/.github/blob/main/docs/issue-readiness.md#preflight): inspect the worktree, linked Issue, source, tests, and evidence before claiming current behavior; route through the indexes below and load only the smallest relevant rule set; trace behavior through its authoritative owner, persistence, API/adapters, and consumers; surface material Issue/contract/code mismatches instead of deciding them.
 
-For substantive work:
-
-1. Inspect the worktree, linked Issue, relevant source, tests, and existing evidence before claiming current behavior.
-2. Route through the indexes below and load only the smallest relevant rule set.
-3. Trace affected business behavior through its authoritative owner, persistence, API/adapters, and consumers as applicable.
-4. Compare the Issue contract, current authoritative contract, and implementation. Surface material mismatches instead of deciding unresolved product, architecture, compatibility, privacy, or ownership questions through implementation convenience.
-5. Implement the smallest complete coherent change and verify the narrowest decisive surface first, then broader gates required by the risk.
-6. Re-evaluate the requested goal after verification and continue until it is delivered or a concrete blocker remains.
-
-For issue work, verify the actual repository remote before repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
+Verify the narrowest decisive surface first, then the broader gates the risk requires. For issue work, verify the actual repository remote before repository-scoped GitHub commands. Use `Fixes #<number>` only when the change completely resolves the issue; otherwise use `Refs`.
 
 ## Repository delivery constraints
 
-Implementation/fix work normally uses a non-default branch and PR unless explicitly local-only. PR review results belong on the PR rather than only in chat, and review-fix work includes thread/re-review handoff. Review comments should contain only actionable findings; if none remain, approve with no body or a minimal `LGTM`. Do not add a PR summary or generic praise unless specifically useful. Never push implementation commits directly to the default branch. Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
+Follow [organization PR delivery policy](https://github.com/OWBastion/.github/blob/main/docs/pr-delivery.md). Merge, releases, deployment, production data mutation, permission/authorization changes, external publication, destructive operations, secrets changes, and material scope expansion remain separate authorization boundaries.
 
 ## Rule routing
 
@@ -59,15 +50,9 @@ Root `AGENTS.md` is a router and invariant source. Module-specific rules belong 
 - Applied D1 migrations are forward-only. Migrations contain schema changes and necessary repair, not routine seed/catalog snapshots or demo/user data.
 - HTTP success, health checks, builds, deployments, or local integration tests do not by themselves prove a production business path works.
 
-## Verification: correctness and necessity
+## Verification
 
-Tests and expected results need an independent basis: accepted business/API contract, migration invariant, representative regression, observable UI behavior, or other owner-side evidence. Do not rewrite expectations merely to match a new implementation, and do not treat test counts or CI green status as proof of correctness.
-
-Material state-machine, migration, security, public-contract, privacy, or cross-service changes should receive an independent attempt to falsify the claimed behavior. State the claim and choose a check that would fail if it were false; where practical, remove or invert the key condition and confirm the targeted regression returns. Rerunning the author's test is not independent evidence.
-
-Separately, perform one simplification/ablation pass for substantive design or implementation work. Try removing, deferring, inlining, or merging new persistent mechanisms—state, fields, services, adapters, flags, compatibility paths, or cross-repository contracts—while preserving the accepted requirement. Keep complexity only when the simpler form breaks a current contract, constraint, or real workflow. Ablation tests necessity, not correctness.
-
-Do not add production APIs, permanent hooks, state, or architecture layers solely to make tests convenient.
+Apply the organization [testing](https://github.com/OWBastion/.github/blob/main/docs/testing-policy.md), [verification](https://github.com/OWBastion/.github/blob/main/docs/verification-and-acceptance.md), and [engineering quality](https://github.com/OWBastion/.github/blob/main/docs/engineering-quality.md) policies. Platform-specific independent bases for expected results: accepted business/API contract, migration invariant, representative regression, or observable UI behavior. State-machine, migration, security, public-contract, privacy, or cross-service changes need an independent falsification pass (`.agents/skills/owbastion-verify-change/SKILL.md` when reviewing another author's change).
 
 ## High-risk stop conditions
 
