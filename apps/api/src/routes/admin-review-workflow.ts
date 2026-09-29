@@ -154,6 +154,7 @@ export const registerAdminReviewWorkflowRoutes = (app: ApiApp, dependencies: Adm
         ...errorGroup(404, "The submission does not exist", "SUBMISSION_NOT_FOUND"),
         ...errorGroup(404, "The submission has no evidence", "EVIDENCE_NOT_FOUND"),
         ...errorGroup(503, "OCRKit is not configured", "OCR_NOT_CONFIGURED"),
+        ...errorGroup(409, "An OCR retry is already in progress for this submission", "OCR_RETRY_IN_PROGRESS"),
       },
     });
   });

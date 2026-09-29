@@ -1872,34 +1872,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
 
       const timestamp = now();
       const reviewId = crypto.randomUUID();
-      const submissionSnapshot = row.ruleSnapshotJson ? JSON.parse(row.ruleSnapshotJson) as MapTitleRuleSnapshot : null;
-      let alreadyOwned = false;
-      let grantId = crypto.randomUUID();
-      if (reward) {
-        const existing = await db.select({ id: playerTitleGrants.id }).from(playerTitleGrants).where(and(eq(playerTitleGrants.playerAccountId, row.playerAccountId), eq(playerTitleGrants.titleKey, reward.titleKey), eq(playerTitleGrants.status, "active"), reward.mapId ? eq(playerTitleGrants.mapId, reward.mapId) : isNull(playerTitleGrants.mapId), reward.gameplayRevisionId ? eq(playerTitleGrants.gameplayRevisionId, reward.gameplayRevisionId) : isNull(playerTitleGrants.gameplayRevisionId))).get();
-        if (existing) { alreadyOwned = true; grantId = existing.id as typeof grantId; }
-      }
-      const canonicalChallengeId = reward
-        ? await canonicalChallengeIdForGrant({ snapshot: submissionSnapshot, legacyChallengeId: reward.challengeId, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, timestamp })
-        : null;
-      const completionAwards = new Map<string, ChallengeCompletionAward>();
-      if (reward && canonicalChallengeId && !alreadyOwned) {
-        const chain = await challengeCompletionChain({ playerAccountId: row.playerAccountId, challengeId: canonicalChallengeId, slot: reward.slot, eligibilityAt: row.createdAt });
-        if (!chain.some((award) => award.root)) throw new Error("CHALLENGE_NOT_COMPLETABLE");
-        if (chain.some((award) => award.root && !award.grantable)) throw new Error("TITLE_GRANT_ADMINISTRATIVELY_REVOKED");
-        for (const award of chain) completionAwards.set(`${award.challengeId}:${award.mapId ?? ""}:${award.gameplayRevisionId ?? ""}`, award);
-      }
-      const completionAwardRows = [...completionAwards.values()].map((award) => ({ ...award, grantId: award.root ? grantId : crypto.randomUUID() }));
       const requestHash = await hashRequest(input);
       const playerVerifiedRunOutcome = verifiedRunOutcome ? playerVerifiedRunSubmissionOutcome(verifiedRunOutcome) : null;
       const responseDetails = {
         ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}),
       };
-      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: reward ? grantId : null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(!reward && retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(reward ? { titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
-      const response: AdminSubmissionReviewResponse = reward
-        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId, titleKey: reward.titleKey, titleName: reward.titleName, alreadyOwned, ...responseDetails }
-        : input.decision === "approved" && retainedGrants.length
-          ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...responseDetails }
+      const reviewAudit = { decision: input.decision, reason: input.reason ?? null, grantId: null, evidenceMatchOutcome: reviewedMatchOutcome, evidenceMatchedChallengeIds: reviewedChallengeIds, ...(retainedGrants.length ? { retainedGrants: retainedGrants.map(({ grantId: retainedGrantId, titleKey }) => ({ grantId: retainedGrantId, titleKey })) } : {}), ...(playerVerifiedRunOutcome ? { verifiedRunOutcome: playerVerifiedRunOutcome } : {}) };
+      const response: AdminSubmissionReviewResponse = input.decision === "approved" && retainedGrants.length
+        ? { contractVersion: "1", submissionId: row.id, decision: "approved", grantId: retainedGrants[0]!.grantId as `${string}-${string}-${string}-${string}-${string}`, titleKey: retainedGrants[0]!.titleKey, titleName: retainedGrants[0]!.titleName, alreadyOwned: true, grants: retainedGrants.map(({ grantId: retainedGrantId, titleKey, titleName }) => ({ grantId: retainedGrantId as `${string}-${string}-${string}-${string}-${string}`, titleKey, titleName, alreadyOwned: true })), ...responseDetails }
         : input.decision === "approved"
           ? { contractVersion: "1", submissionId: row.id, decision: "approved", grant: null, verifiedRunOutcome: playerVerifiedRunOutcome! }
           : { contractVersion: "1", submissionId: row.id, decision: input.decision as "rejected" | "resubmission_required", grant: null };
@@ -1912,19 +1892,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
         "UPDATE submissions SET status = ?, review_reason = ?, grant_id = CASE WHEN ? = 'approved' THEN (SELECT g.id FROM player_title_grants g WHERE g.source_type IN ('automatic', 'submission') AND g.source_id = submissions.id AND g.status = 'active' ORDER BY g.granted_at, g.id LIMIT 1) ELSE NULL END, updated_at = ? WHERE id = ? AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
       ).bind(input.decision, input.reason ?? null, input.decision, timestamp, row.id, reviewId));
       const trailingStatements: D1PreparedStatement[] = [];
-      if (reward) {
-        trailingStatements.push(
-          database.prepare(
-            "INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'submission.grant', 'player_title_grant', grant_id, ?, ? FROM submissions WHERE id = ? AND grant_id IS NOT NULL AND EXISTS (SELECT 1 FROM submission_reviews WHERE id = ?)"
-          ).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, JSON.stringify({ submissionId: row.id, titleKey: reward.titleKey, mapId: reward.mapId, gameplayRevisionId: reward.gameplayRevisionId, mapVariant: submissionSnapshot?.mapVariant ?? null, ruleId: submissionSnapshot?.ruleId ?? null, ruleRevision: submissionSnapshot?.ruleRevision ?? null, alreadyOwned }), timestamp, row.id, reviewId)
-        );
-      }
       await persistSubmissionReview({ row, input, auth, reviewId, timestamp, idempotencyKeyId, requestHash, response, reviewAudit, statements, trailingStatements });
-      if (reward && response.decision === "approved" && "grantId" in response) {
-        const completed = await db.select({ grantId: submissions.grantId }).from(submissions).where(eq(submissions.id, row.id)).get();
-        if (!completed?.grantId) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-        response.grantId = completed.grantId! as typeof response.grantId;
-      }
       return response;
     },
 

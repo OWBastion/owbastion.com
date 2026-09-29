@@ -81,7 +81,7 @@ export const ocrAccuracyFeedbackSchema = `CREATE TABLE ocr_accuracy_feedback (
     UNIQUE (submission_id, ocr_result_id)
   );`;
 
-export const ocrFeedbackProposalsSchema = `CREATE TABLE ocr_feedback_proposals (
+const createOcrFeedbackProposalsSchema = (includeReviewState: boolean) => `CREATE TABLE ocr_feedback_proposals (
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL,
     field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
     original_value TEXT, feedback_type TEXT NOT NULL CHECK (feedback_type IN ('confirmed', 'corrected', 'passive_report')),

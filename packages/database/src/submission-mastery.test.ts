@@ -690,7 +690,7 @@ describe("submission mastery outcomes", () => {
     const firstEvidenceKey = `uploads/submissions/submission.first/${"a".repeat(64)}.png`;
     sqlite.prepare("INSERT INTO attachments (id, submission_id, provider, external_attachment_id, content_type, object_key, upload_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .run("attachment.first", "submission.first", "portal", "upload.first", "image/png", firstEvidenceKey, "stored", now + 1);
-    const publicServices = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, 0.02, "https://evidence.owbastion.codes");
+    const publicServices = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, "https://evidence.owbastion.codes");
     const publicOutcomes = await Promise.all([
       "submission.first",
       "submission.exact",
