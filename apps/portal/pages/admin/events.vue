@@ -2,6 +2,7 @@
 import type { TableColumn } from "@nuxt/ui";
 import { getGroupedRowModel, type ColumnPinningState, type GroupingOptions, type GroupingState, type SortingState } from "@tanstack/vue-table";
 import type { RandomEvent } from "~/types/random-event";
+import { randomEventRarityForWeight } from "@owbastion/domain";
 import { calculateEventProbabilities, formatProbability } from "~/utils/event-probabilities";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
@@ -38,7 +39,10 @@ const archiveOpen = shallowRef(false);
 const versionAvailabilityOpen = shallowRef(false);
 const versionTarget = shallowRef<{ version: EventVersion; availability: EventVersion["availability"] } | null>(null);
 const versionSaving = shallowRef(false);
-const form = reactive({ name: "", category: "", rarity: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
+const form = reactive({ name: "", category: "", description: "", durationSeconds: null as number | null, cooldownSeconds: null as number | null, weight: null as number | null, gameVersion: "", effectTags: [] as string[], releaseStatus: "development" as RandomEvent["releaseStatus"], links: [] as Link[] });
+const categoryItems = computed(() => [...new Set(events.value.map((event) => event.category))].sort());
+const effectTagItems = computed(() => [...new Set(events.value.flatMap((event) => event.effectTags))].sort());
+const derivedRarity = computed(() => randomEventRarityForWeight(form.weight) || "—");
 
 const releaseStatusText = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "已实装" : status === "removed" ? "已移除" : "开发中";
 const releaseStatusTone = (status: RandomEvent["releaseStatus"]) => status === "implemented" ? "success" : status === "removed" ? "default" : "warning";
@@ -83,7 +87,7 @@ const eventColumns: TableColumn<RandomEvent>[] = [
 
 function number(value: number | string | null | undefined) { return value === "" || value === null || value === undefined ? null : Number(value); }
 function resetForm(event?: RandomEvent) {
-  Object.assign(form, event ? { name: event.name, category: event.category, rarity: event.rarity, description: event.description, durationSeconds: event.durationSeconds, cooldownSeconds: event.cooldownSeconds, weight: event.weight, gameVersion: event.gameVersion, effectTags: [...event.effectTags], releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", rarity: "", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "", effectTags: [], releaseStatus: "development", links: [] });
+  Object.assign(form, event ? { name: event.name, category: event.category, description: event.description, durationSeconds: event.durationSeconds, cooldownSeconds: event.cooldownSeconds, weight: event.weight, gameVersion: event.gameVersion, effectTags: [...event.effectTags], releaseStatus: event.releaseStatus, links: event.challenges.map((challenge) => ({ family: challenge.family, challengeId: challenge.challengeId })) } : { name: "", category: "", description: "", durationSeconds: null, cooldownSeconds: null, weight: null, gameVersion: "", effectTags: [], releaseStatus: "development", links: [] });
 }
 function openCreate() { selectedEvent.value = null; resetForm(); editorOpen.value = true; }
 function openEvent(event: RandomEvent) { selectedEvent.value = event; resetForm(event); editorOpen.value = true; }
@@ -102,7 +106,7 @@ const adminData = useAdminAsyncData("events", async () => {
 const loading = adminData.loading;
 async function load() { error.value = ""; await adminData.refresh(); }
 async function loadAll() { await load(); }
-async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, rarity: form.rarity, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; await loadAll(); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
+async function save() { saving.value = true; error.value = ""; const body = { contractVersion: "1" as const, name: form.name, category: form.category, description: form.description, durationSeconds: number(form.durationSeconds), cooldownSeconds: number(form.cooldownSeconds), weight: number(form.weight), gameVersion: form.gameVersion, effectTags: form.effectTags.map((value) => value.trim()).filter(Boolean), releaseStatus: form.releaseStatus, challengeLinks: form.links }; try { const saved = selectedEvent.value ? await api<RandomEvent>(`/v1/events/${encodeURIComponent(selectedEvent.value.eventId)}`, { method: "PUT", headers: { "Idempotency-Key": createRequestId() }, body }) : await api<RandomEvent>("/v1/events", { method: "POST", headers: { "Idempotency-Key": createRequestId() }, body }); events.value = selectedEvent.value ? events.value.map((event) => event.eventId === saved.eventId ? saved : event) : [saved, ...events.value]; selectedEvent.value = saved; await loadAll(); editorOpen.value = false; toast.add({ title: "事件已保存", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法保存事件。").description; } finally { saving.value = false; } }
 function requestArchive() { archiveOpen.value = true; }
 async function archive() { if (!selectedEvent.value) return; saving.value = true; try { const eventId = selectedEvent.value.eventId; await api(`/v1/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { "Idempotency-Key": createRequestId() } }); events.value = events.value.filter((event) => event.eventId !== eventId); await loadAll(); archiveOpen.value = false; editorOpen.value = false; selectedEvent.value = null; toast.add({ title: "事件已归档", color: "success" }); } catch (cause) { error.value = portalErrorDetails(cause, "无法归档事件。").description; } finally { saving.value = false; } }
 function requestVersionAvailability(version: EventVersion, availability: EventVersion["availability"]) { versionTarget.value = { version, availability }; versionAvailabilityOpen.value = true; }
@@ -161,10 +165,9 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
             <h3 class="text-base font-semibold">基本信息</h3>
             <div class="grid gap-4 md:grid-cols-2">
               <UFormField label="名称"><UInput v-model="form.name" required /></UFormField>
-              <UFormField label="类别"><UInput v-model="form.category" required /></UFormField>
-              <UFormField label="稀有度"><UInput v-model="form.rarity" required /></UFormField>
+              <UFormField label="类别"><UInputMenu v-model="form.category" :items="categoryItems" create-item placeholder="选择或输入类别" :disabled="saving" required class="w-full" /></UFormField>
               <UFormField label="版本"><UInput v-model="form.gameVersion" required /></UFormField>
-              <UFormField label="权重"><UInputNumber v-model="form.weight" :min="0" :step="0.01" class="w-full" /></UFormField>
+              <UFormField label="权重" :hint="`稀有度：${derivedRarity}`"><UInputNumber v-model="form.weight" :min="0" :step="0.01" class="w-full" /></UFormField>
               <UFormField label="内置冷却（秒）"><UInputNumber v-model="form.cooldownSeconds" :min="0" class="w-full" /></UFormField>
               <UFormField label="持续时间（秒）"><UInputNumber v-model="form.durationSeconds" :min="0" class="w-full" /></UFormField>
             </div>
@@ -189,7 +192,7 @@ async function importEvents() { if (!importFile.value || !importPreview.value ||
           </section>
 
           <section class="grid gap-4">
-            <UFormField label="效果标签"><UInputTags v-model="form.effectTags" placeholder="输入效果标签" :disabled="saving" aria-label="效果标签" /></UFormField>
+            <UFormField label="效果标签"><UInputMenu v-model="form.effectTags" :items="effectTagItems" multiple create-item placeholder="输入或选择效果标签" :disabled="saving" aria-label="效果标签" class="w-full" /></UFormField>
             <UFormField label="事件状态"><USelect v-model="form.releaseStatus" :items="[{ label: '开发中', value: 'development' }, { label: '已实装', value: 'implemented' }, { label: '已移除', value: 'removed' }]" /></UFormField>
             <UFormField label="关联挑战">
               <div v-if="selectedEvent?.challenges.length" class="grid gap-2">

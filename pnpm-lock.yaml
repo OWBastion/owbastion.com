@@ -68,6 +68,9 @@ importers:
       '@owbastion/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@owbastion/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@simplewebauthn/browser':
         specifier: 14.0.0
         version: 14.0.0

@@ -74,6 +74,7 @@ import type { VerifiedRunDifficulty, MasteryMapProfile, VerifiedRunActor, Record
 export * from "./mastery";
 export * from "./gameplay-revision";
 export * from "./challenge-conditions";
+export * from "./random-event";
 
 export type LocalDevAccount = {
   accountId: string;

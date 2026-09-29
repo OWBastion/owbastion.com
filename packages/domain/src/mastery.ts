@@ -46,7 +46,7 @@ export const isVerifiedRunGameVersionSupported = (value: string, compatibility: 
   const minimum = compatibility.minimumGameVersion ? versionParts(compatibility.minimumGameVersion) : null;
   if (!candidate || !minimum) return false;
   for (let index = 0; index < candidate.length; index += 1) {
-    if (candidate[index] !== minimum[index]) return candidate[index] > minimum[index];
+    if (candidate[index] !== minimum[index]) return candidate[index]! > minimum[index]!;
   }
   return true;
 };
