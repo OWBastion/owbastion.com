@@ -12,7 +12,6 @@ export const OCR_PENDING_RECOVERY_AGE_MS = 15 * 60_000;
 const OCR_DEAD_LETTER_QUEUES = new Set(["owbastion-ocr-dlq", "owbastion-ocr-local-dlq"]);
 const ocrThreshold = (env: RuntimeEnv) => { const parsed = Number(env.OCR_MANUAL_REVIEW_THRESHOLD); return Number.isInteger(parsed) && parsed >= 1 ? parsed : 1; };
 const ocrSampleRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_AUTO_REVIEW_SAMPLE_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0; };
-const ocrFeedbackCalibrationRate = (env: RuntimeEnv) => { const parsed = Number(env.OCR_FEEDBACK_CALIBRATION_RATE); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.02; };
 const masteryCompatibility = (env: RuntimeEnv) => createVerifiedRunEvidenceCompatibilityV1({
   minimumGameVersion: env.MASTERY_MIN_GAME_VERSION,
   supportedOcrLayoutVersions: env.MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?.split(","),
@@ -20,7 +19,7 @@ const masteryCompatibility = (env: RuntimeEnv) => createVerifiedRunEvidenceCompa
 
 const app = createApp({
   authenticate: authenticateQqBot,
-  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN),
 });
 
 const policySignature = async (secret: string, timestamp: string, body: string) => {
@@ -34,7 +33,7 @@ const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage): body i
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN);
     if (OCR_DEAD_LETTER_QUEUES.has(batch.queue)) {
       for (const message of batch.messages) {
         const body = message.body as OcrQueueMessage;
@@ -79,7 +78,7 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), ocrFeedbackCalibrationRate(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN);
     await platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS });
   },
 };

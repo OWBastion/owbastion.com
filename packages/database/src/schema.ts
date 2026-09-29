@@ -637,6 +637,23 @@ export const datasetSnapshotAnnotations = sqliteTable("dataset_snapshot_annotati
   annotationIdx: index("dataset_snapshot_annotations_annotation_idx").on(table.annotationId),
 }));
 
+// Screenshot-level OCR accuracy marks (#253). One effective row per
+// (submission, OCR result); players and maintainers share the same mark and
+// the latest writer wins. A mark is a sampling/prioritization hint for OCRKit
+// screenshot-set selection, never a transcription or training label.
+export const ocrAccuracyFeedback = sqliteTable("ocr_accuracy_feedback", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  ocrResultId: text("ocr_result_id").notNull(),
+  accuracy: text("accuracy").notNull(),
+  markedBy: text("marked_by").notNull(),
+  markedByType: text("marked_by_type").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  resultIdx: uniqueIndex("ocr_accuracy_feedback_result_idx").on(table.submissionId, table.ocrResultId),
+}));
+
 export const reviews = sqliteTable("reviews", {
   id: text("id").primaryKey(),
   playerAccountId: text("player_account_id").notNull().references(() => playerAccounts.id),

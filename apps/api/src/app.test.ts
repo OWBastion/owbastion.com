@@ -74,19 +74,8 @@ const services: PlatformServices = {
   requestAdminOcr: async ({ submissionId }) => ({ contractVersion: "1", submissionId, status: "ocr_pending" }),
   resolveAdminSubmissionSpotCheck: async ({ submissionId, decision }) => ({ contractVersion: "1", submissionId, status: decision, grantId: null, verifiedRunId: null }),
   getPlayerSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-0000-0000-000000000003", status: "needs_review", mapName: "Test Map", createdAt: 1, updatedAt: 2, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/opaque-object-key.png", ocr: { mapName: "Test Map", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
-  submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false }),
-  listAdminAnnotationProposals: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
-  getAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
-  decideAdminAnnotationProposal: async () => { throw new Error("ANNOTATION_PROPOSAL_NOT_FOUND"); },
-  createAdminReviewedAnnotation: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); },
-  listAdminReviewedAnnotations: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
-  listAdminDatasetCandidates: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
-  createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft", counts: { eligibleCount: 0, excludedCount: 0, submissionCount: 0, annotationCount: 0 } }),
-  listAdminDatasets: async ({ page, pageSize }) => ({ contractVersion: "1", items: [], page, pageSize, total: 0, hasMore: false }),
-  getAdminDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
-  finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized", finalizedAt: 2 }),
-  getOcrkitDataset: async () => { throw new Error("DATASET_NOT_FOUND"); },
-  getOcrkitDatasetEvidence: async () => { throw new Error("EVIDENCE_UNAVAILABLE"); },
+  submitPlayerOcrFeedback: async (input) => ({ contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false }),
+  submitAdminOcrAccuracy: async (input) => ({ contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false }),
   previewSubmissionReview: async ({ submissionId }) => ({ contractVersion: "1", submissionId, evidenceOutcome: "review", candidates: [], completions: [], titles: [], verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
@@ -1035,7 +1024,7 @@ describe("API", () => {
     expect(invalidTarget.status).toBe(422);
   });
 
-  it("records player OCR feedback with an idempotency key and safe-field validation", async () => {
+  it("records a player OCR accuracy mark with an idempotency key and contract validation", async () => {
     const calls: Array<{ input: unknown; key: string; sessionToken: string }> = [];
     const feedbackApp = createApp({
       authenticate: auth,
@@ -1043,172 +1032,103 @@ describe("API", () => {
         ...services,
         submitPlayerOcrFeedback: async (input, sessionToken, key) => {
           calls.push({ input, key, sessionToken });
-          return { contractVersion: "1", submissionId: input.submissionId, recorded: input.items.map((item) => ({ fieldKey: item.fieldKey, action: item.action, status: "submitted" as const })), alreadySubmitted: false };
+          return { contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false };
         },
       }),
     });
 
-    const unauth = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    const unauth = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
     expect(unauth.status).toBe(401);
 
-    const missingKey = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    const missingKey = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
     expect(missingKey.status).toBe(422);
 
-    const submitted = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-1" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    const submitted = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-1" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate" }) }, env);
     expect(submitted.status).toBe(200);
-    expect(await submitted.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", recorded: [{ fieldKey: "difficulty", action: "confirmed", status: "submitted" }], alreadySubmitted: false });
-    expect(calls).toEqual([{ input: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }], submissionId: "00000000-0000-4000-8000-000000000003" }, key: "feedback-1", sessionToken: "session-token" }]);
+    expect(await submitted.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate", alreadySubmitted: false });
+    expect(calls).toEqual([{ input: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate", submissionId: "00000000-0000-4000-8000-000000000003" }, key: "feedback-1", sessionToken: "session-token" }]);
 
-    // Unsafe fields and malformed corrections are rejected at the contract boundary.
-    const unsafe = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-2" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "run_code", action: "confirmed" }] }) }, env);
-    expect(unsafe.status).toBe(422);
-    const missingValue = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-3" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected" }] }) }, env);
-    expect(missingValue.status).toBe(422);
+    // Transcription payloads and out-of-enum marks are rejected at the contract boundary.
+    const transcription = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-2" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "corrected", proposedValue: "一般" }] }) }, env);
+    expect(transcription.status).toBe(422);
+    const invalidMark = await feedbackApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-3" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "wrong" }) }, env);
+    expect(invalidMark.status).toBe(422);
 
     // Actionable service errors map to explicit HTTP states.
     const staleApp = createApp({ authenticate: auth, services: () => ({ ...services, submitPlayerOcrFeedback: async () => { throw new Error("OCR_PROMPT_STALE"); } }) });
-    const stale = await staleApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", items: [{ fieldKey: "difficulty", action: "confirmed" }] }) }, env);
+    const stale = await staleApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
     expect(stale.status).toBe(409);
     expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
+
+    const noResultApp = createApp({ authenticate: auth, services: () => ({ ...services, submitPlayerOcrFeedback: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); } }) });
+    const noResult = await noResultApp.request("http://localhost/v1/me/submissions/00000000-0000-4000-8000-000000000003/ocr-feedback", { method: "POST", headers: { "content-type": "application/json", cookie: "owb_session=session-token", "idempotency-key": "feedback-5" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(noResult.status).toBe(409);
+    expect((await noResult.json() as { error: { code: string } }).error.code).toBe("OCR_RESULT_NOT_FOUND");
   });
 
-  it("keeps annotation review routes maintainer-only with validated queries", async () => {
-    const proposalId = "00000000-0000-4000-8000-000000000005";
-    const proposal = {
-      proposalId,
-      submissionId: "00000000-0000-4000-8000-000000000003",
-      submissionMapName: "测试地图",
-      submissionCreatedAt: 1,
-      ocrResultId: "00000000-0000-4000-8000-000000000004",
-      fieldKey: "difficulty" as const,
-      originalValue: "困难",
-      feedbackType: "corrected" as const,
-      promptOrigin: "uncertainty" as const,
-      proposedValue: "一般",
-      modelVersion: "ocr-v1",
-      layoutVersion: "layout-v2",
-      playerSubmittedAt: 2,
-      reviewState: "pending" as const,
-      priority: { score: 25, category: "correction" as const, reasons: ["correction"] },
-    };
-    const annotationApp = createApp({
+  it("lets maintainers mark screenshot OCR accuracy with an idempotency key", async () => {
+    const calls: Array<{ input: unknown; key: string }> = [];
+    const accuracyApp = createApp({
       authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
       services: () => ({
         ...services,
-        listAdminAnnotationProposals: async (input) => ({ contractVersion: "1", items: [proposal], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
-        getAdminAnnotationProposal: async () => ({ contractVersion: "1", proposal, ocr: { mapName: "测试地图", difficulty: "困难", playerName: "Player", challengeCompleted: true } }),
-        decideAdminAnnotationProposal: async (input) => ({ contractVersion: "1", proposalId: input.proposalId, reviewState: input.action === "reject" ? "rejected" : "accepted", annotationId: input.action === "reject" ? null : "00000000-0000-4000-8000-000000000006" }),
-        createAdminReviewedAnnotation: async () => ({ contractVersion: "1", annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null }),
+        submitAdminOcrAccuracy: async (input, _auth, key) => {
+          calls.push({ input, key });
+          return { contractVersion: "1" as const, submissionId: input.submissionId, ocrResultId: input.ocrResultId, accuracy: input.accuracy, alreadySubmitted: false };
+        },
       }),
     });
 
-    expect((await app.request("http://localhost/v1/admin/annotations/proposals", {}, env)).status).toBe(403);
+    // Maintainer-only: the shared mark must not be writable by players or anonymous callers.
+    expect((await app.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-0" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env)).status).toBe(403);
     const unauthenticated = createApp({ authenticate: async () => null, services: () => services });
-    expect((await unauthenticated.request("http://localhost/v1/admin/annotations/proposals", {}, env)).status).toBe(401);
+    expect((await unauthenticated.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-0" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env)).status).toBe(401);
 
-    const list = await annotationApp.request("http://localhost/v1/admin/annotations/proposals?state=pending&fieldKey=difficulty&kind=correction&page=1&pageSize=10", {}, env);
-    expect(list.status).toBe(200);
-    expect(await list.json()).toMatchObject({ items: [{ proposalId, priority: { category: "correction" } }], total: 1 });
-    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals?state=bogus", {}, env)).status).toBe(422);
-    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals?page=0", {}, env)).status).toBe(422);
+    const missingKey = await accuracyApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(missingKey.status).toBe(422);
 
-    const detail = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}`, {}, env);
-    expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ proposal: { proposedValue: "一般" }, ocr: { mapName: "测试地图" } });
-    expect((await annotationApp.request("http://localhost/v1/admin/annotations/proposals/not-a-uuid", {}, env)).status).toBe(422);
+    const marked = await accuracyApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-1" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate" }) }, env);
+    expect(marked.status).toBe(200);
+    expect(await marked.json()).toEqual({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate", alreadySubmitted: false });
+    expect(calls).toEqual([{ input: { contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "inaccurate", submissionId: "00000000-0000-4000-8000-000000000003" }, key: "acc-1" }]);
 
-    const accept = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-1" }, body: JSON.stringify({ contractVersion: "1", action: "accept" }) }, env);
-    expect(accept.status).toBe(200);
-    expect(await accept.json()).toMatchObject({ reviewState: "accepted", annotationId: "00000000-0000-4000-8000-000000000006" });
-    const reject = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-2" }, body: JSON.stringify({ contractVersion: "1", action: "reject" }) }, env);
-    expect(reject.status).toBe(200);
-    expect(await reject.json()).toMatchObject({ reviewState: "rejected", annotationId: null });
-    // Reasons remain optional; edit_accept without a value is rejected.
-    const editAccept = await annotationApp.request(`http://localhost/v1/admin/annotations/proposals/${proposalId}/decision`, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-3" }, body: JSON.stringify({ contractVersion: "1", action: "edit_accept" }) }, env);
-    expect(editAccept.status).toBe(422);
+    const invalidMark = await accuracyApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-2" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "confirmed" }) }, env);
+    expect(invalidMark.status).toBe(422);
 
-    const direct = await annotationApp.request("http://localhost/v1/admin/annotations/direct", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "annotation-4" }, body: JSON.stringify({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000003", ocrResultId: "00000000-0000-4000-8000-000000000004", fieldKey: "map_name", reviewedValue: "皇家赛道" }) }, env);
-    expect(direct.status).toBe(200);
-    expect(await direct.json()).toMatchObject({ annotationId: "00000000-0000-4000-8000-000000000006", supersededAnnotationId: null });
+    const staleApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, submitAdminOcrAccuracy: async () => { throw new Error("OCR_PROMPT_STALE"); } }) });
+    const stale = await staleApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-3" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(stale.status).toBe(409);
+    expect((await stale.json() as { error: { code: string } }).error.code).toBe("OCR_PROMPT_STALE");
 
-    const reviewed = await annotationApp.request("http://localhost/v1/admin/annotations/reviewed?state=accepted", {}, env);
-    expect(reviewed.status).toBe(200);
-    expect(await reviewed.json()).toMatchObject({ items: [], total: 0 });
+    const noResultApp = createApp({ authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, submitAdminOcrAccuracy: async () => { throw new Error("OCR_RESULT_NOT_FOUND"); } }) });
+    const noResult = await noResultApp.request("http://localhost/v1/admin/submissions/00000000-0000-4000-8000-000000000003/ocr-accuracy", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "acc-4" }, body: JSON.stringify({ contractVersion: "1", ocrResultId: "00000000-0000-4000-8000-000000000004", accuracy: "accurate" }) }, env);
+    expect(noResult.status).toBe(409);
+    expect((await noResult.json() as { error: { code: string } }).error.code).toBe("OCR_RESULT_NOT_FOUND");
   });
 
-  it("creates, lists, and finalizes dataset drafts with immutable finalization", async () => {
-    const datasetApp = createApp({
+  it("no longer exposes annotation review, dataset, or OCRKit snapshot routes", async () => {
+    const maintainerApp = createApp({
       authenticate: async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" }),
-      services: () => ({
-        ...services,
-        createAdminDatasetDraft: async (input) => ({ contractVersion: "1", datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }),
-        listAdminDatasetCandidates: async ({ page, pageSize }) => ({ contractVersion: "1", items: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", submissionMapName: "萨摩亚" }], page, pageSize, total: 1, hasMore: false }),
-        listAdminDatasets: async (input) => ({ contractVersion: "1", items: [{ datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }], page: input.page, pageSize: input.pageSize, total: 1, hasMore: false }),
-        getAdminDataset: async () => ({ contractVersion: "1", snapshot: { datasetId: "00000000-0000-4000-8000-000000000007", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { eligibleCount: 2, excludedCount: 1, submissionCount: 1, annotationCount: 2 } }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { available: true, contentType: "image/png" } }], exclusions: [{ annotationId: "00000000-0000-4000-8000-000000000008", reason: "missing_model_version" }] }),
-        finalizeAdminDataset: async ({ datasetId }) => ({ contractVersion: "1", datasetId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
-      }),
+      services: () => services,
     });
-    expect((await app.request("http://localhost/v1/admin/datasets", {}, env)).status).toBe(403);
-
-    const created = await datasetApp.request("http://localhost/v1/admin/datasets", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-1" }, body: JSON.stringify({ contractVersion: "1", note: "v1 采样" }) }, env);
-    expect(created.status).toBe(201);
-    expect(await created.json()).toMatchObject({ version: 1, status: "draft", counts: { eligibleCount: 2, excludedCount: 1 } });
-
-    const list = await datasetApp.request("http://localhost/v1/admin/datasets?status=draft&page=1&pageSize=20", {}, env);
-    expect(list.status).toBe(200);
-    expect(await list.json()).toMatchObject({ items: [{ version: 1, status: "draft" }], total: 1 });
-    expect((await datasetApp.request("http://localhost/v1/admin/datasets?status=bogus", {}, env)).status).toBe(422);
-
-    const candidates = await datasetApp.request("http://localhost/v1/admin/datasets/candidates?page=1&pageSize=100", {}, env);
-    expect(candidates.status).toBe(200);
-    expect(await candidates.json()).toMatchObject({ items: [{ annotationId: "00000000-0000-4000-8000-000000000006", submissionMapName: "萨摩亚" }], total: 1 });
-    expect((await datasetApp.request("http://localhost/v1/admin/datasets/candidates?page=0", {}, env)).status).toBe(422);
-
-    const detail = await datasetApp.request("http://localhost/v1/admin/datasets/00000000-0000-4000-8000-000000000007", {}, env);
-    expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ members: [{ reviewedValue: "一般" }], exclusions: [{ reason: "missing_model_version" }] });
-
-    const finalized = await datasetApp.request("http://localhost/v1/admin/datasets/00000000-0000-4000-8000-000000000007/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-finalize-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
-    expect(finalized.status).toBe(200);
-    expect(await finalized.json()).toMatchObject({ status: "finalized" });
-    expect((await datasetApp.request("http://localhost/v1/admin/datasets/not-a-uuid/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "dataset-finalize-2" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
-  });
-
-  it("exposes finalized dataset snapshots only through the private versioned OCRKit contract", async () => {
-    const ocrkitDataset = { contractVersion: "1" as const, snapshot: { id: "00000000-0000-4000-8000-000000000007", version: 1, finalizedAt: 2, note: null }, members: [{ annotationId: "00000000-0000-4000-8000-000000000006", fieldKey: "difficulty" as const, reviewedValue: "一般", normalizedValue: "一般", originalOcrValue: "困难", modelVersion: "ocr-v1", layoutVersion: "layout-v2", evidence: { id: "00000000-0000-4000-8000-000000000006", available: true, contentType: "image/png" } }] };
-    const ocrkitApp = createApp({
-      authenticate: auth,
-      services: () => ({
-        ...services,
-        getOcrkitDataset: async () => ocrkitDataset,
-        getOcrkitDatasetEvidence: async () => ({ body: new Uint8Array([9, 8, 7]).buffer, contentType: "image/png" }),
-      }),
-    });
-    const envWithToken = { ...env, OCRKIT_SNAPSHOT_TOKEN: "ocrkit-snapshot-secret" } as typeof env;
-    const unauth = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", {}, envWithToken);
-    expect(unauth.status).toBe(401);
-    const wrongToken = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", { headers: { authorization: "Bearer nope" } }, envWithToken);
-    expect(wrongToken.status).toBe(401);
-
-    const dataset = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
-    expect(dataset.status).toBe(200);
-    const body = await dataset.json();
-    expect(body).toMatchObject({ members: [{ reviewedValue: "一般" }] });
-    // The OCRKit contract never leaks player identity, risk signals, grants, or mastery state.
-    expect(JSON.stringify(body)).not.toContain("playerAccountId");
-    expect(JSON.stringify(body)).not.toContain("qq");
-    expect(JSON.stringify(body)).not.toContain("grant");
-    expect(JSON.stringify(body)).not.toContain("mastery");
-    expect((await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/0", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken)).status).toBe(422);
-
-    const evidence = await ocrkitApp.request("http://localhost/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
-    expect(evidence.status).toBe(200);
-    expect(evidence.headers.get("content-type")).toBe("image/png");
-
-    const unavailableApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitDatasetEvidence: async () => { throw new Error("EVIDENCE_UNAVAILABLE"); } }) });
-    const unavailable = await unavailableApp.request("http://localhost/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006", { headers: { authorization: "Bearer ocrkit-snapshot-secret" } }, envWithToken);
-    expect(unavailable.status).toBe(410);
-    expect((await unavailable.json() as { error: { code: string } }).error.code).toBe("EVIDENCE_UNAVAILABLE");
+    const removed = [
+      ["GET", "/v1/admin/annotations/proposals"],
+      ["GET", "/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005"],
+      ["POST", "/v1/admin/annotations/proposals/00000000-0000-4000-8000-000000000005/decision"],
+      ["POST", "/v1/admin/annotations/direct"],
+      ["GET", "/v1/admin/annotations/reviewed"],
+      ["GET", "/v1/admin/datasets"],
+      ["POST", "/v1/admin/datasets"],
+      ["GET", "/v1/admin/datasets/candidates"],
+      ["GET", "/v1/admin/datasets/00000000-0000-4000-8000-000000000007"],
+      ["POST", "/v1/admin/datasets/00000000-0000-4000-8000-000000000007/finalize"],
+      ["GET", "/v1/ocrkit/datasets/1"],
+      ["GET", "/v1/ocrkit/datasets/1/evidence/00000000-0000-4000-8000-000000000006"],
+    ] as const;
+    for (const [method, path] of removed) {
+      const response = await maintainerApp.request(`http://localhost${path}`, { method, headers: { "content-type": "application/json", "idempotency-key": "removed-1", authorization: "Bearer whatever" }, ...(method === "POST" ? { body: "{}" } : {}) }, env);
+      expect(response.status, `${method} ${path}`).toBe(404);
+    }
   });
 
   it("limits review identity and moderation operations to maintainers", async () => {
