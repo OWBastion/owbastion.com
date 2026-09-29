@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { AuthContext, PlatformServices } from "@owbastion/domain";
+import { createHistoricalTitleMigrationService } from "./historical-title-migration-service";
 import {
   auditEvents,
   bindingClaims,
@@ -59,6 +60,7 @@ const bindingClaimSessionBootstrapTtlMs = 5 * 60 * 1000;
 const inviteTtlMs = 7 * 24 * 60 * 60 * 1000;
 
 type BindingServicesDependencies = {
+  database: D1Database;
   db: ReturnType<typeof drizzle>;
   now: () => number;
   hashRequest: (value: unknown) => Promise<string>;
@@ -74,18 +76,11 @@ type BindingServicesDependencies = {
   sessionTtlMs: number;
   pruneExpiredPortalSessions: (timestamp: number) => Promise<void>;
   pruneExpiredBindingClaims: (timestamp: number) => Promise<void>;
-  migrateAuthorizedHistoricalTitles: (input: {
-    inviteId: string;
-    playerAccountId: string;
-    claimId?: string;
-    grantSource?: string;
-    auth: AuthContext;
-    mode: "automatic" | "reviewed" | "retry";
-  }) => Promise<void>;
 };
 
 export const createBindingServices = (dependencies: BindingServicesDependencies): BindingServices => {
   const {
+    database,
     db,
     now,
     hashRequest,
@@ -101,8 +96,10 @@ export const createBindingServices = (dependencies: BindingServicesDependencies)
     sessionTtlMs,
     pruneExpiredPortalSessions,
     pruneExpiredBindingClaims,
-    migrateAuthorizedHistoricalTitles,
   } = dependencies;
+
+  const migrateAuthorizedHistoricalTitles = createHistoricalTitleMigrationService({ database, db, now, recordAudit });
+
   return {
     async createAdminBindingInvite(input, auth, idempotencyKey) {
       const replay = await replayOrConflict<ReturnType<PlatformServices["createAdminBindingInvite"]> extends Promise<infer T> ? T : never>(auth.subject, "admin.binding_invite.create", idempotencyKey, input);
