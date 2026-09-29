@@ -11,7 +11,7 @@ import { userEvidenceObjectKey } from "./object-key";
 import { fetchQqAttachmentImage } from "./qq-attachment";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessVerifiedRunOcrEvidence, hasReliableVerifiedRunField, normalizeOcrDifficulty, standaloneOcrMode, type OcrResponse } from "./ocr-response";
-import { resolvePortalSession } from "./portal-session";
+import { hashRequest, resolvePortalSession } from "./portal-session";
 import { createPlatformCache, instrumentDatabase } from "./platform-cache";
 import { createReviewServices } from "./review-service";
 import { createAdminPlayerServices } from "./admin-player-service";
@@ -102,9 +102,6 @@ const randomCode = (length: number) => {
   crypto.getRandomValues(value);
   return Array.from(value, (byte) => codeAlphabet[byte % codeAlphabet.length]).join("");
 };
-
-const hashRequest = (value: unknown) => digestHex(new TextEncoder().encode(JSON.stringify(value)));
-
 
 const hexToBytes = (value: string) => {
   if (!/^(?:[0-9a-f]{2})+$/i.test(value)) throw new Error("BINDING_INVITE_CODE_UNAVAILABLE");
