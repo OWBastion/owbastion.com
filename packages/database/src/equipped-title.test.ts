@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
+import { createTestD1 } from "../test/d1";
 import { createPlatformServices } from "./index";
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(`
+  const testD1 = createTestD1({ batchStatementMethod: "run" });
+  testD1.sqlite.exec(`
     CREATE TABLE player_accounts (id TEXT PRIMARY KEY, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
@@ -19,8 +19,7 @@ const createD1 = () => {
     CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
     CREATE TABLE audit_events (id TEXT PRIMARY KEY, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
   `);
-  const prepare = (query: string) => { let args: unknown[] = []; const statement = { bind(...values: unknown[]) { args = values; return statement; }, async first<T>() { return sqlite.prepare(query).get(...args) as T | undefined ?? null; }, async all<T>() { return { results: sqlite.prepare(query).all(...args) as T[], success: true, meta: {} }; }, async run() { sqlite.prepare(query).run(...args); return { success: true, meta: {} }; }, async raw<T extends unknown[] = unknown[]>() { const queryStatement = sqlite.prepare(query); queryStatement.setReturnArrays(true); return queryStatement.all(...args) as T[]; } }; return statement; };
-  return { sqlite, database: { prepare, async batch(statements: Array<ReturnType<typeof prepare>>) { for (const statement of statements) await statement.run(); return []; } } as unknown as D1Database };
+  return testD1;
 };
 
 describe("equipped title selection", () => {
