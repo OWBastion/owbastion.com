@@ -748,7 +748,6 @@ The accepted top-level areas are:
 - Players;
 - Invitations;
 - Screenshot Review;
-- OCR;
 - Reviews / Moderation.
 
 Secondary or contextual tools include:
@@ -759,8 +758,6 @@ Secondary or contextual tools include:
 - Seasons;
 - Leaderboards;
 - Audit;
-- Annotation;
-- Dataset;
 - OCR Feedback.
 
 Blog/Studio/changelog editing does not belong in the core admin application.

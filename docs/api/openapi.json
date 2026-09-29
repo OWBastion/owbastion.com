@@ -2095,7 +2095,7 @@
   "/v1/admin/submissions/{submissionId}/review": {
    "post": {
     "operationId": "reviewSubmission",
-    "description": "Maintainer approval may include complete visible values for safe structured OCR fields. The platform reruns canonical Challenge Conditions against corrected facts and records all matching supported outcomes. Each confirmed field creates or supersedes its accepted reviewed annotation in the same coherent review operation, preserving immutable OCR/model/layout provenance. Approval may also include confirmedChallengeIds: canonical Challenges the maintainer visually confirmed from the screenshot. Each must belong to the Submission's eligible Challenge set or the request fails with CHALLENGE_CONFIRMATION_INELIGIBLE; confirmed Challenges are then recorded through the normal Completion and Grant chain, which can still refuse them (for example CHALLENGE_NOT_COMPLETABLE or TITLE_GRANT_ADMINISTRATIVELY_REVOKED). Rejections and resubmission requests cannot carry confirmations. Every decision is kept as its own review record and the latest one is current, so a maintainer may decide again. A later decision changes only the Submission status and reason; it never revokes Grants or Verified Runs the Submission already produced. Re-approving a Submission with no new Challenge outcome is accepted on the active Grants it still holds from an earlier automatic or maintainer approval, reported in grants with alreadyOwned true alongside any recorded Verified Run outcome; the review audit lists them as retainedGrants.",
+    "description": "Maintainer approval may include complete visible values for safe structured OCR fields. The platform reruns canonical Challenge Conditions against corrected facts and records all matching supported outcomes. Corrections are business corrections only: they produce no OCR annotations or training labels, and raw OCR evidence remains unchanged. Approval may also include confirmedChallengeIds: canonical Challenges the maintainer visually confirmed from the screenshot. Each must belong to the Submission's eligible Challenge set or the request fails with CHALLENGE_CONFIRMATION_INELIGIBLE; confirmed Challenges are then recorded through the normal Completion and Grant chain, which can still refuse them (for example CHALLENGE_NOT_COMPLETABLE or TITLE_GRANT_ADMINISTRATIVELY_REVOKED). Rejections and resubmission requests cannot carry confirmations. Every decision is kept as its own review record and the latest one is current, so a maintainer may decide again. A later decision changes only the Submission status and reason; it never revokes Grants or Verified Runs the Submission already produced. Re-approving a Submission with no new Challenge outcome is accepted on the active Grants it still holds from an earlier automatic or maintainer approval, reported in grants with alreadyOwned true alongside any recorded Verified Run outcome; the review audit lists them as retainedGrants.",
     "parameters": [
      {
       "$ref": "#/components/parameters/submissionId"
@@ -2117,7 +2117,7 @@
   "/v1/admin/submissions/{submissionId}/review/preview": {
    "post": {
     "operationId": "previewSubmissionReview",
-    "description": "Read-only approval preview for the same fieldCorrections and confirmedChallengeIds an approval would send. Returns every eligible Challenge with its evidence state (matched, needs_confirmation, not_matched, unsupported) and missing evidence fields, the Completions and Titles approval would record, the Verified Run evidence state, and approvable/blockingCode. It writes nothing: no review, Completion, Grant, annotation, or canonical Challenge record. Canonical Challenges approval would create or archive are planned in memory and materialized only by the approval.",
+    "description": "Read-only approval preview for the same fieldCorrections and confirmedChallengeIds an approval would send. Returns every eligible Challenge with its evidence state (matched, needs_confirmation, not_matched, unsupported) and missing evidence fields, the Completions and Titles approval would record, the Verified Run evidence state, and approvable/blockingCode. It writes nothing: no review, Completion, Grant, or canonical Challenge record. Canonical Challenges approval would create or archive are planned in memory and materialized only by the approval.",
     "parameters": [
      {
       "$ref": "#/components/parameters/submissionId"
@@ -2455,139 +2455,6 @@
     "schema": {
      "type": "string",
      "format": "uuid"
-    }
-   },
-   "proposalId": {
-    "name": "proposalId",
-    "in": "path",
-    "required": true,
-    "schema": {
-     "type": "string",
-     "format": "uuid"
-    }
-   },
-   "datasetId": {
-    "name": "datasetId",
-    "in": "path",
-    "required": true,
-    "schema": {
-     "type": "string",
-     "format": "uuid"
-    }
-   },
-   "datasetVersion": {
-    "name": "version",
-    "in": "path",
-    "required": true,
-    "schema": {
-     "type": "integer",
-     "minimum": 1
-    }
-   },
-   "annotationId": {
-    "name": "annotationId",
-    "in": "path",
-    "required": true,
-    "schema": {
-     "type": "string",
-     "format": "uuid"
-    }
-   },
-   "datasetStatus": {
-    "name": "status",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "draft",
-      "finalized"
-     ]
-    }
-   },
-   "annotationProposalState": {
-    "name": "state",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "pending",
-      "accepted",
-      "rejected"
-     ]
-    }
-   },
-   "annotationReviewedState": {
-    "name": "state",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "accepted",
-      "superseded"
-     ]
-    }
-   },
-   "annotationFieldKey": {
-    "name": "fieldKey",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "map_name",
-      "difficulty",
-      "viewer_player",
-      "challenge_completed",
-      "achievement_titles"
-     ]
-    }
-   },
-   "annotationModelVersion": {
-    "name": "modelVersion",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "minLength": 1
-    }
-   },
-   "annotationLayoutVersion": {
-    "name": "layoutVersion",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "minLength": 1
-    }
-   },
-   "annotationPromptOrigin": {
-    "name": "promptOrigin",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "uncertainty",
-      "conflict",
-      "grouped",
-      "calibration",
-      "passive"
-     ]
-    }
-   },
-   "annotationKind": {
-    "name": "kind",
-    "in": "query",
-    "required": false,
-    "schema": {
-     "type": "string",
-     "enum": [
-      "correction",
-      "confirmation"
-     ]
     }
    },
    "adminVerifiedRunPlayerAccountId": {
