@@ -65,6 +65,19 @@ latest writer wins. A mark never alters the Submission decision, challenge,
 Grant, mastery, or OCR evidence; it is only a sampling/prioritization hint for
 OCRKit screenshot-set selection, never a training label.
 
+Screenshot sets are the platform's OCRKit training-supply boundary. Admin set
+management requires the maintainer role; the OCRKit read endpoint is a private,
+versioned contract requiring the `OCRKIT_SNAPSHOT_TOKEN` secret (a Worker
+secret, never a committed variable). It serves only finalized sets and returns
+only per-screenshot object facts — source id, R2 object key, SHA-256, MIME
+type, size, layout version, and the accuracy mark — never player identity, QQ
+identifiers, Submission decisions, Grant/mastery state, risk signals, or image
+bytes. OCRKit downloads member objects directly from the evidence bucket with
+its own read-only credentials scoped to the screenshot prefix; the platform
+never issues storage credentials to browsers or other clients. Set-member
+screenshots stay retained as training provenance even if the source Submission
+is later removed.
+
 Player ratings are D1-owned records keyed by the authenticated player account
 and a stable event/map target. The account association, audit events, hidden
 comment state, withdrawn rows, and invalidated rows remain private platform

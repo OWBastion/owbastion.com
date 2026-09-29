@@ -718,6 +718,31 @@ export const installSchema = (sqlite: DatabaseSync) => {
       updated_at INTEGER NOT NULL
     );
     CREATE UNIQUE INDEX ocr_accuracy_feedback_result_idx ON ocr_accuracy_feedback (submission_id, ocr_result_id);
+    CREATE TABLE screenshot_sets (
+      id TEXT PRIMARY KEY NOT NULL,
+      version INTEGER NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized')),
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      finalized_by TEXT,
+      finalized_at INTEGER,
+      note TEXT,
+      eligibility_json TEXT NOT NULL DEFAULT '{}'
+    );
+    CREATE TABLE screenshot_set_members (
+      set_id TEXT NOT NULL REFERENCES screenshot_sets(id),
+      source_id TEXT NOT NULL REFERENCES attachments(id),
+      position INTEGER NOT NULL,
+      submission_id TEXT NOT NULL,
+      ocr_result_id TEXT,
+      object_key TEXT NOT NULL,
+      sha256 TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      layout_version TEXT NOT NULL,
+      accuracy TEXT CHECK (accuracy IN ('accurate', 'inaccurate')),
+      PRIMARY KEY (set_id, source_id)
+    );
   `);
 };
 

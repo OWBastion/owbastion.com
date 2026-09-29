@@ -797,8 +797,39 @@ Idempotency-Key header. The mark carries no transcription content, never
 changes the Submission decision, challenge selection, Grants, Verified Run
 outcomes, or mastery state, and never overwrites original OCR evidence.
 
-OCRKit may consume the marks only as a sampling and prioritization hint when
-selecting screenshots for its own annotation workflow; a platform accuracy mark
-is never itself a training label. Historical `ocr_feedback_proposals`,
-`reviewed_annotations`, and dataset snapshot tables remain for audit but are no
-longer produced or consumed by any workflow.
+OCRKit may consume the marks only as a sampling and prioritization hint; a
+platform accuracy mark is never itself a training label. Historical
+`ocr_feedback_proposals`, `reviewed_annotations`, and dataset snapshot tables
+remain for audit but are no longer produced or consumed by any workflow.
+
+## OCR training screenshot sets
+
+The platform supplies OCRKit Model Studio with immutable, versioned screenshot
+sets. A set is the explicit approval that its member screenshots may be used
+for OCR training; ROI review, labels, crops, and train/holdout splits are
+produced entirely in OCRKit.
+
+Membership is selected automatically by rule, not by manual per-screenshot
+curation: the latest stored screenshot of every approved Submission, plus the
+latest stored screenshot of any Submission whose current recognition carries an
+`inaccurate` accuracy mark. A stale mark on an older result does not qualify a
+screenshot. Maintainers can exclude anomalous screenshots from a set before
+finalization; they do not opt normal screenshots in. Candidates that lack
+stored evidence or a usable layout version are recorded as automatic
+exclusions.
+
+Set membership freezes at draft creation and finalized sets are immutable: a
+later approval or mark change belongs to the next set version and never
+rewrites an existing set. Member rows carry the complete delivery payload and
+provenance — source screenshot id, R2 object key, SHA-256, MIME type, byte
+size, layout version, and the accuracy mark when present — so a finalized set
+remains complete and its evidence remains retained as training provenance even
+if the source Submission later changes or is removed.
+
+OCRKit reads set metadata and members through the private
+`GET /v1/ocrkit/screenshot-sets/{version}` endpoint, authenticated with the
+`OCRKIT_SNAPSHOT_TOKEN` secret. Only finalized sets are visible through it; the
+payload contains only the member facts above — never player identity, QQ data,
+Submission decisions, Grant/mastery state, or risk signals — and never returns
+image bytes. OCRKit downloads the member objects directly from the evidence
+bucket using its own read-only credentials scoped to the screenshot prefix.

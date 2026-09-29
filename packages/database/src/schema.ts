@@ -637,6 +637,42 @@ export const datasetSnapshotAnnotations = sqliteTable("dataset_snapshot_annotati
   annotationIdx: index("dataset_snapshot_annotations_annotation_idx").on(table.annotationId),
 }));
 
+// Immutable, versioned screenshot sets supplied to OCRKit for training (#255).
+// Membership is rule-selected at draft creation and frozen: a finalized set is
+// the explicit approval that its member screenshots may be used for OCR
+// training. Member rows store the complete delivery payload (object key,
+// sha256, mime type, size, layout version, accuracy mark) plus internal
+// provenance, so reads never rejoin mutable source tables.
+export const screenshotSets = sqliteTable("screenshot_sets", {
+  id: text("id").primaryKey(),
+  version: integer("version").notNull().unique(),
+  status: text("status").notNull().default("draft"),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  finalizedBy: text("finalized_by"),
+  finalizedAt: integer("finalized_at"),
+  note: text("note"),
+  eligibilityJson: text("eligibility_json").notNull().default("{}"),
+}, (table) => ({
+  statusIdx: index("screenshot_sets_status_idx").on(table.status, table.createdAt),
+}));
+
+export const screenshotSetMembers = sqliteTable("screenshot_set_members", {
+  setId: text("set_id").notNull().references(() => screenshotSets.id),
+  sourceId: text("source_id").notNull().references(() => attachments.id),
+  position: integer("position").notNull(),
+  submissionId: text("submission_id").notNull(),
+  ocrResultId: text("ocr_result_id"),
+  objectKey: text("object_key").notNull(),
+  sha256: text("sha256").notNull(),
+  mimeType: text("mime_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  layoutVersion: text("layout_version").notNull(),
+  accuracy: text("accuracy"),
+}, (table) => ({
+  setSource: primaryKey({ columns: [table.setId, table.sourceId] }),
+}));
+
 // Screenshot-level OCR accuracy marks (#253). One effective row per
 // (submission, OCR result); players and maintainers share the same mark and
 // the latest writer wins. A mark is a sampling/prioritization hint for OCRKit

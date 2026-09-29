@@ -165,6 +165,42 @@ export type AdminReviewAudit = { operation: string; actorType: string; actorId: 
 export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
 export type OcrAccuracyMark = "accurate" | "inaccurate";
 export type AdminOcrAccuracyResponse = { contractVersion: "1"; submissionId: string; ocrResultId: string; accuracy: OcrAccuracyMark; alreadySubmitted: boolean };
+export type AdminScreenshotSet = {
+  setId: string;
+  version: number;
+  status: "draft" | "finalized";
+  createdBy: string;
+  createdAt: number;
+  finalizedBy: string | null;
+  finalizedAt: number | null;
+  note: string | null;
+  counts: { memberCount: number; excludedCount: number };
+};
+export type AdminScreenshotSetCandidate = {
+  sourceId: string;
+  submissionId: string;
+  mapName: string;
+  submissionStatus: string;
+  accuracy: OcrAccuracyMark | null;
+  layoutVersion: string;
+  mimeType: string;
+  sizeBytes: number;
+  evidenceUrl: string | null;
+};
+export type AdminScreenshotSetMember = {
+  sourceId: string;
+  submissionId: string;
+  mapName: string;
+  objectKey: string;
+  sha256: string;
+  mimeType: string;
+  sizeBytes: number;
+  layoutVersion: string;
+  accuracy: OcrAccuracyMark | null;
+  evidenceUrl: string | null;
+};
+export type AdminScreenshotSetExclusion = { sourceId: string | null; submissionId: string; reason: string };
+export type AdminScreenshotSetDetail = { contractVersion: "1"; set: AdminScreenshotSet; members: AdminScreenshotSetMember[]; exclusions: AdminScreenshotSetExclusion[] };
 
 export function useAdminApi() {
   return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {

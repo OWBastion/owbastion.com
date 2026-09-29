@@ -671,6 +671,20 @@ transcription, never affects Submission review or business outcomes, and may
 be consumed by OCRKit as a sampling/prioritization hint only — never as a
 label.
 
+What the platform supplies OCRKit are immutable, versioned screenshot sets
+(`screenshot_sets`, `screenshot_set_members`): the explicit approval that a
+list of source screenshots may be used for OCR training. Members are selected
+by rule — the latest stored screenshot of every approved Submission, plus the
+latest stored screenshot of any Submission whose current recognition carries an
+`inaccurate` mark — and a maintainer may exclude anomalies before finalization.
+Member rows freeze the delivery payload and provenance (source id, R2 object
+key, SHA-256, MIME type, size, layout version, accuracy mark), so finalized
+sets stay complete as training provenance even if the source Submission later
+changes. The private OCRKit endpoint serves only finalized sets and only these
+member facts — never player identity, QQ data, Submission decisions,
+Grant/mastery state, or risk signals; OCRKit downloads the objects themselves
+from the evidence bucket with its own read-only credentials.
+
 Historical proposal/reviewed-annotation/dataset-snapshot records are retained
 for audit but no new records are produced or consumed.
 

@@ -48,6 +48,7 @@ const adminNavigationItems = computed(() => {
       ],
     },
     { label: "截图审核", icon: "i-lucide-scan-eye", to: "/admin/reviews", active: adminPathActive("/admin/reviews") },
+    { label: "截图集", icon: "i-lucide-images", to: "/admin/screenshot-sets", active: adminPathActive("/admin/screenshot-sets") },
     {
       label: "评价与审核",
       icon: "i-lucide-message-square-quote",
