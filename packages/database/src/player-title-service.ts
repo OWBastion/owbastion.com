@@ -13,16 +13,20 @@ export type ManualTitleGrantResolution = {
   manualChallengeId: string;
 };
 
+export const isInheritedConquerorGrant = (
+  source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
+  historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
+) => historical.titleKey === "CONQUEROR"
+  && source?.titleKey === "DOMINATOR"
+  && source.mapId === historical.mapId
+  && source.gameplayRevisionId === historical.gameplayRevisionId;
+
 type Dependencies = {
   now: () => number;
   hashRequest: (value: unknown) => Promise<string>;
   replayOrConflict: <T>(actorId: string, operation: string, key: string, input: unknown) => Promise<T | null>;
   getCurrentPortalPlayer: (sessionToken: string) => ReturnType<typeof resolvePortalSession>;
   findEquipableGrantIds: (playerAccountId: string, grantIds: string[]) => Promise<Array<{ id: string; titleKey: string }>>;
-  isInheritedConquerorGrant: (
-    source: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null } | null | undefined,
-    historical: { titleKey: string; mapId: string | null; gameplayRevisionId: string | null },
-  ) => boolean;
   resolveManualTitleGrantTarget: (input: Pick<AdminManualTitleGrantRequest, "titleKey" | "mapId" | "gameplayRevisionId">) => Promise<ManualTitleGrantResolution>;
 };
 
@@ -51,7 +55,6 @@ export const createPlayerTitleServices = (
     replayOrConflict,
     getCurrentPortalPlayer,
     findEquipableGrantIds,
-    isInheritedConquerorGrant,
     resolveManualTitleGrantTarget,
   } = dependencies;
 
