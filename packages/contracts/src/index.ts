@@ -193,6 +193,13 @@ export const mapChallengeSchema = z.object({
   retiredVersion: storedRetirementVersion.optional(),
 });
 
+const titleDisplayFields = {
+  icon: achievementIcon,
+  iconUrl: z.string().url().max(2048).nullable().optional(),
+  category: z.string().trim().min(1).max(128),
+  condition: z.string().trim().min(1).max(1024),
+};
+
 export const achievementChallengeSchema = z.object({
   challengeId: externalId,
   family: z.literal("achievement"),
@@ -200,10 +207,7 @@ export const achievementChallengeSchema = z.object({
   kind: z.literal("title_achievement"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
   status: z.enum(["scheduled", "active", "sunsetting"]),
@@ -574,10 +578,7 @@ const titleColorSchema = z.union([
 export const titleSchema = z.object({
   titleKey: externalId,
   label: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   lifecycle: z.enum(["draft", "active", "retired"]),
   publicVisibility: z.boolean().optional(),
   availability: z.enum(["active", "retired"]),
@@ -678,10 +679,7 @@ const adminCatalogTitleSchema = z.object({
   type: z.literal("title_catalog"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   lifecycle: z.enum(["draft", "active", "retired"]),
   publicVisibility: z.boolean(),
   availability: z.enum(["active", "retired"]),
@@ -1061,7 +1059,7 @@ export const adminVerifiedRunSchema = z.object({
   if (run.xpRuleVersion !== run.xpInputSnapshot.ruleVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["xpInputSnapshot", "ruleVersion"], message: "XP rule version must match its snapshot" });
 });
 
-const adminVerifiedRunDifficultyStatSchema = z.object({
+const verifiedRunDifficultyStatSchema = z.object({
   difficulty: verifiedRunDifficultySchema,
   verifiedRunCount: z.number().int().positive(),
   fastestCompletionSeconds: z.number().int().positive(),
@@ -1072,7 +1070,7 @@ export const adminVerifiedRunProjectionSchema = z.object({
   gameplayRevisionId: externalId,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().nonnegative(),
-  difficultyStats: z.array(adminVerifiedRunDifficultyStatSchema).max(6),
+  difficultyStats: z.array(verifiedRunDifficultyStatSchema).max(6),
   lowestDeaths: z.number().int().nonnegative().nullable(),
   fewestSkips: z.number().int().nonnegative().nullable(),
   highestSingleRunXp: z.number().int().nonnegative().nullable(),
@@ -1450,11 +1448,7 @@ export const playerVerifiedRunSchema = z.object({
   status: z.enum(["active", "invalidated"]),
 }).strict();
 
-export const playerVerifiedRunDifficultyStatSchema = z.object({
-  difficulty: verifiedRunDifficultySchema,
-  verifiedRunCount: z.number().int().positive(),
-  fastestCompletionSeconds: z.number().int().positive(),
-}).strict();
+export const playerVerifiedRunDifficultyStatSchema = verifiedRunDifficultyStatSchema;
 
 export const playerMasteryMapProfileSchema = z.object({
   mapId: externalId,
