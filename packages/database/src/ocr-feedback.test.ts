@@ -35,11 +35,6 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
     UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
   );
-  ${idempotencyKeysRequiredIdSchema}
-  ${auditEventsRequiredIdSchema}
-  ${attachmentsSchema}
-  ${submissionOutcomesSchema}
-  ${submissionReviewsSchema}
 `);
 
 const highConfidenceOcr = {
