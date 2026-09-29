@@ -824,12 +824,17 @@ rewrites an existing set. Member rows carry the complete delivery payload and
 provenance — source screenshot id, R2 object key, SHA-256, MIME type, byte
 size, layout version, and the accuracy mark when present — so a finalized set
 remains complete and its evidence remains retained as training provenance even
-if the source Submission later changes or is removed.
+if the source Submission later changes or is removed. Copies OCRKit already
+downloaded are OCRKit-local training data and are not recalled.
 
-OCRKit reads set metadata and members through the private
-`GET /v1/ocrkit/screenshot-sets/{version}` endpoint, authenticated with the
-`OCRKIT_SNAPSHOT_TOKEN` secret. Only finalized sets are visible through it; the
-payload contains only the member facts above — never player identity, QQ data,
-Submission decisions, Grant/mastery state, or risk signals — and never returns
-image bytes. OCRKit downloads the member objects directly from the evidence
-bucket using its own read-only credentials scoped to the screenshot prefix.
+A draft either becomes finalized or is discarded — drafts are not left open
+indefinitely, and correcting a draft means discarding it and creating a new
+version. Discarded sets stay readable to maintainers for audit but are never
+served to OCRKit; only finalized sets are visible through the private
+`GET /v1/ocrkit/screenshot-sets/{version}` endpoint, so the maintainer hands
+OCRKit the version of a finalized set. The endpoint is authenticated with the
+`OCRKIT_SNAPSHOT_TOKEN` secret; the payload contains only the member facts
+above — never player identity, QQ data, Submission decisions, Grant/mastery
+state, or risk signals — and never returns image bytes. OCRKit downloads the
+member objects directly from the evidence bucket using its own read-only
+credentials scoped to the screenshot prefix.

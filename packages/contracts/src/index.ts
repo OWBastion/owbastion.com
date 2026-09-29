@@ -1322,7 +1322,7 @@ export const adminPlayerRecentSubmissionSchema = submissionStatusResponseSchema.
 // Members are source screenshots selected by rule; a finalized set is the
 // explicit approval that its members may be used for OCR training.
 
-export const screenshotSetStatusSchema = z.enum(["draft", "finalized"]);
+export const screenshotSetStatusSchema = z.enum(["draft", "finalized", "discarded"]);
 
 export const screenshotSetCountsSchema = z.object({
   memberCount: z.number().int().nonnegative(),
@@ -1396,6 +1396,19 @@ export const adminScreenshotSetFinalizeResponseSchema = z.object({
   version: z.number().int().positive(),
   status: z.literal("finalized"),
   finalizedAt: z.number().int(),
+}).strict();
+
+export const adminScreenshotSetDiscardRequestSchema = z.object({
+  contractVersion,
+  note: z.string().trim().max(1000).optional(),
+}).strict();
+
+export const adminScreenshotSetDiscardResponseSchema = z.object({
+  contractVersion,
+  setId: z.string().uuid(),
+  version: z.number().int().positive(),
+  status: z.literal("discarded"),
+  discardedAt: z.number().int(),
 }).strict();
 
 export const adminScreenshotSetMemberSchema = z.object({
@@ -1602,6 +1615,8 @@ export type AdminScreenshotSetCreateRequest = z.infer<typeof adminScreenshotSetC
 export type AdminScreenshotSetCreateResponse = z.infer<typeof adminScreenshotSetCreateResponseSchema>;
 export type AdminScreenshotSetFinalizeRequest = z.infer<typeof adminScreenshotSetFinalizeRequestSchema>;
 export type AdminScreenshotSetFinalizeResponse = z.infer<typeof adminScreenshotSetFinalizeResponseSchema>;
+export type AdminScreenshotSetDiscardRequest = z.infer<typeof adminScreenshotSetDiscardRequestSchema>;
+export type AdminScreenshotSetDiscardResponse = z.infer<typeof adminScreenshotSetDiscardResponseSchema>;
 export type AdminScreenshotSetMember = z.infer<typeof adminScreenshotSetMemberSchema>;
 export type AdminScreenshotSetExclusion = z.infer<typeof adminScreenshotSetExclusionSchema>;
 export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSetDetailResponseSchema>;

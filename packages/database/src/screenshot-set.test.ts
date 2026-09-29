@@ -5,22 +5,31 @@ import { createPlatformServices } from "./index";
 const createD1 = () => {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");
+  // D1 rejects a query with more than 100 bound parameters; node:sqlite accepts
+  // ~32k, so the shim enforces the D1 limit to keep regressions meaningful.
+  const d1BoundParameterLimit = 100;
+  const assertD1ParameterLimit = (bound: unknown[]) => {
+    if (bound.length > d1BoundParameterLimit) throw new Error(`D1_ERROR: too many SQL variables (${bound.length} > ${d1BoundParameterLimit})`);
+  };
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
     const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
     const statement = {
       bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
+      async first<T>() { assertD1ParameterLimit(bound); return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
       async all<T>() {
+        assertD1ParameterLimit(bound);
         const results = sqlite.prepare(sql).all(...bound) as T[];
         const changes = isWrite ? Number((sqlite.prepare("SELECT changes() AS changes").get() as { changes: number }).changes) : 0;
         return { results, success: true, meta: { changes, duration: 0, size_after: 0, rows_read: results.length, rows_written: changes, last_row_id: 0, changed_db: changes > 0 } };
       },
       async run() {
+        assertD1ParameterLimit(bound);
         const info = sqlite.prepare(sql).run(...bound);
         return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
       },
       async raw<T extends unknown[] = unknown[]>() {
+        assertD1ParameterLimit(bound);
         const prepared = sqlite.prepare(sql);
         prepared.setReturnArrays(true);
         return prepared.all(...bound) as T[];
@@ -68,7 +77,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   CREATE TABLE screenshot_sets (
     id TEXT PRIMARY KEY NOT NULL,
     version INTEGER NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized', 'discarded')),
     created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     finalized_by TEXT,
@@ -279,5 +288,46 @@ describe("screenshot sets", () => {
     expect(sets.items).toHaveLength(1);
     expect(sets.items[0]).toMatchObject({ version: 1, status: "finalized", counts: { memberCount: 2, excludedCount: 0 } });
     await expect(services.getAdminScreenshotSet({ setId: "00000000-0000-4000-8000-0000000000aa" }, maintainer)).rejects.toThrow("SCREENSHOT_SET_NOT_FOUND");
+  });
+
+  it("evaluates eligibility for more than 100 candidates without exceeding D1's bound-parameter limit", async () => {
+    const { sqlite, services } = setup();
+    for (let index = 1; index <= 120; index += 1) {
+      const id = `sub-${index}`;
+      seedSubmission(sqlite, { id, status: "approved", attachmentId: `att-${index}`, ocrResultId: `ocr-${index}` });
+    }
+
+    const candidates = await services.listAdminScreenshotSetCandidates({ page: 1, pageSize: 100 }, maintainer);
+    expect(candidates.total).toBe(120);
+    expect(candidates.hasMore).toBe(true);
+
+    const created = await services.createAdminScreenshotSet({}, maintainer, "key-1");
+    expect(created.counts.memberCount).toBe(120);
+    const detail = await services.getAdminScreenshotSet({ setId: created.setId }, maintainer);
+    expect(detail.members).toHaveLength(120);
+  });
+
+  it("discards a draft, keeps it out of OCRKit, and rejects finalize", async () => {
+    const { sqlite, services } = setup();
+    seedSubmission(sqlite, { id: "sub-a", status: "approved", attachmentId: "att-a", ocrResultId: "ocr-a" });
+
+    const draft = await services.createAdminScreenshotSet({}, maintainer, "key-1");
+    const discarded = await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1");
+    expect(discarded).toMatchObject({ setId: draft.setId, version: 1, status: "discarded" });
+    expect(await services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d1")).toEqual(discarded);
+
+    const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
+    expect(detail.set.status).toBe("discarded");
+    const list = await services.listAdminScreenshotSets({ page: 1, pageSize: 20, status: "discarded" }, maintainer);
+    expect(list.items.map((item) => item.setId)).toEqual([draft.setId]);
+
+    await expect(services.discardAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-d2")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
+    await expect(services.finalizeAdminScreenshotSet({ setId: draft.setId }, maintainer, "key-f1")).rejects.toThrow("SCREENSHOT_SET_ALREADY_DISCARDED");
+    await expect(services.getOcrkitScreenshotSet({ version: draft.version })).rejects.toThrow("SCREENSHOT_SET_NOT_FINALIZED");
+
+    // Finalized sets cannot be discarded either.
+    const finalizedDraft = await services.createAdminScreenshotSet({}, maintainer, "key-2");
+    await services.finalizeAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-f2");
+    await expect(services.discardAdminScreenshotSet({ setId: finalizedDraft.setId }, maintainer, "key-d3")).rejects.toThrow("SCREENSHOT_SET_ALREADY_FINALIZED");
   });
 });

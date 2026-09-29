@@ -21,6 +21,7 @@ import {
   adminSubmissionOcrRetryRequestSchema,
   adminScreenshotSetCreateRequestSchema,
   adminScreenshotSetFinalizeRequestSchema,
+  adminScreenshotSetDiscardRequestSchema,
   screenshotSetStatusSchema,
   adminTitleGrantRequestSchema,
   adminTitleGrantBulkRequestSchema,
@@ -78,6 +79,18 @@ type AppDependencies = {
 
 type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
+
+// Constant-time Bearer comparison for private service tokens: a plain ===
+// leaks match progress through early-exit timing.
+const bearerTokenMatches = (authorization: string | undefined, secret: string) => {
+  if (!authorization) return false;
+  const provided = new TextEncoder().encode(authorization);
+  const expected = new TextEncoder().encode(`Bearer ${secret}`);
+  if (provided.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < provided.length; index += 1) difference |= provided[index]! ^ expected[index]!;
+  return difference === 0;
+};
 
 const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
 
@@ -339,8 +352,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   const allowAgents = (c: any) => {
     const token = c.env.BASTION_BUILD_TOKEN;
-    const authorization = c.req.header("authorization");
-    return Boolean(token && authorization === `Bearer ${token}`);
+    return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
   };
   const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
   const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
@@ -400,6 +412,7 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/screenshot-sets/candidates", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/screenshot-sets/:setId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/screenshot-sets/:setId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets/:setId/discard", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -424,8 +437,7 @@ export const createApp = (dependencies: AppDependencies) => {
   // closed.
   const allowOcrkit = (c: any) => {
     const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
-    const authorization = c.req.header("authorization");
-    return Boolean(token && authorization === `Bearer ${token}`);
+    return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
   };
 
   const requirePortalPlayer = async (c: any) => {
@@ -1932,7 +1944,7 @@ export const createApp = (dependencies: AppDependencies) => {
     const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
     const status = c.req.query("status");
     if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
-    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" } : {}) }, access.auth!));
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
   });
 
   app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
@@ -1988,7 +2000,28 @@ export const createApp = (dependencies: AppDependencies) => {
     } catch (error) {
       const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
       if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
-      if (code === "SCREENSHOT_SET_ALREADY_FINALIZED") return errorResponse(c, 409, code, "The screenshot set is already finalized");
+      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be finalized");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/screenshot-sets/:setId/discard", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const setId = c.req.param("setId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminScreenshotSetDiscardRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
+    try {
+      return c.json(await dependencies.services(c.env).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
+      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
+      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be discarded");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
       throw error;
     }

@@ -81,6 +81,7 @@ const services: PlatformServices = {
   listAdminScreenshotSets: async ({ page, pageSize }) => ({ contractVersion: "1" as const, items: [], page, pageSize, total: 0, hasMore: false }),
   getAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
   finalizeAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
+  discardAdminScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
   getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); },
   previewSubmissionReview: async ({ submissionId }) => ({ contractVersion: "1", submissionId, evidenceOutcome: "review", candidates: [], completions: [], titles: [], verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
@@ -2042,6 +2043,7 @@ describe("API", () => {
         listAdminScreenshotSets: async () => ({ contractVersion: "1" as const, items: [{ setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }], page: 1, pageSize: 20, total: 1, hasMore: false }),
         getAdminScreenshotSet: async () => ({ contractVersion: "1" as const, set: { setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }, members: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", objectKey: "uploads/submissions/00000000-0000-4000-8000-000000000011/object.png", sha256: "a".repeat(64), mimeType: "image/png", sizeBytes: 12, layoutVersion: "layout-v2", accuracy: "inaccurate" as const, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], exclusions: [{ sourceId: "00000000-0000-4000-8000-000000000012", submissionId: "00000000-0000-4000-8000-000000000013", reason: "missing_layout_version" }] }),
         finalizeAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
+        discardAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "discarded" as const, discardedAt: 3 }),
       }),
     });
 
@@ -2076,6 +2078,12 @@ describe("API", () => {
     const finalized = await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/finalize", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-finalize-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
     expect(finalized.status).toBe(200);
     expect(await finalized.json()).toMatchObject({ status: "finalized", version: 1 });
+
+    const discarded = await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-1" }, body: JSON.stringify({ contractVersion: "1" }) }, env);
+    expect(discarded.status).toBe(200);
+    expect(await discarded.json()).toMatchObject({ status: "discarded", version: 1 });
+    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
+    expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/not-a-uuid/discard", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-2" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
   });
 
   it("serves finalized screenshot sets only through the private OCRKit contract", async () => {

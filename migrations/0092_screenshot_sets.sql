@@ -6,8 +6,10 @@
 -- plus screenshots whose current recognition is marked inaccurate), frozen at
 -- draft creation, and immutable once finalized; a later accuracy mark or
 -- approval change belongs to a later set version and never silently alters an
--- existing set. Member rows carry the full delivery payload and provenance, so
--- a finalized set stays complete even if source metadata later changes.
+-- existing set. A draft that will not be finalized is discarded so the draft
+-- lifecycle always closes; discarded and draft sets are never visible to
+-- OCRKit. Member rows carry the full delivery payload and provenance, so a
+-- finalized set stays complete even if source metadata later changes.
 --
 -- Historical dataset_snapshots rows keep their reviewed-annotation semantics
 -- and remain audit-only; screenshot sets are a separate version sequence.
@@ -15,7 +17,7 @@
 CREATE TABLE screenshot_sets (
   id TEXT PRIMARY KEY NOT NULL,
   version INTEGER NOT NULL UNIQUE,
-  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized')),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'finalized', 'discarded')),
   created_by TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   finalized_by TEXT,

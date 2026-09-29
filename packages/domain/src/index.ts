@@ -62,7 +62,9 @@ import type {
   AdminScreenshotSetCreateRequest,
   AdminScreenshotSetCreateResponse,
   AdminScreenshotSetFinalizeResponse,
+  AdminScreenshotSetDiscardResponse,
   AdminScreenshotSetDetailResponse,
+  ScreenshotSetStatus,
   OcrkitScreenshotSetResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
@@ -266,9 +268,10 @@ export type PlatformServices = {
   submitAdminOcrAccuracy(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
   listAdminScreenshotSetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminScreenshotSetCandidateListResponse>;
   createAdminScreenshotSet(input: Omit<AdminScreenshotSetCreateRequest, "contractVersion">, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetCreateResponse>;
-  listAdminScreenshotSets(input: { page: number; pageSize: number; status?: "draft" | "finalized" }, auth: AuthContext): Promise<AdminScreenshotSetListResponse>;
+  listAdminScreenshotSets(input: { page: number; pageSize: number; status?: ScreenshotSetStatus }, auth: AuthContext): Promise<AdminScreenshotSetListResponse>;
   getAdminScreenshotSet(input: { setId: string }, auth: AuthContext): Promise<AdminScreenshotSetDetailResponse>;
   finalizeAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetFinalizeResponse>;
+  discardAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetDiscardResponse>;
   getOcrkitScreenshotSet(input: { version: number }): Promise<OcrkitScreenshotSetResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;

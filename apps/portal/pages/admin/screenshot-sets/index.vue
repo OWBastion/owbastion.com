@@ -20,13 +20,15 @@ const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailError = ref('');
 const finalizing = ref(false);
+const discarding = ref(false);
 const draftDialogOpen = ref(false);
 const draftCandidates = ref<AdminScreenshotSetCandidate[]>([]);
 const excludedSourceIds = ref<string[]>([]);
 const draftCandidatesLoading = ref(false);
 
 const formatTime = (value: number) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(value);
-const statusLabel = (status: string) => status === 'draft' ? '草稿' : '已定稿';
+const statusLabel = (status: string) => status === 'draft' ? '草稿' : status === 'discarded' ? '已废弃' : '已定稿';
+const statusTone = (status: string) => status === 'finalized' ? 'success' : status === 'discarded' ? 'warning' : 'default';
 const accuracyLabel = (accuracy: AdminScreenshotSetCandidate['accuracy']) => accuracy === 'inaccurate' ? '不准确' : accuracy === 'accurate' ? '准确' : '未标记';
 const exclusionReasonLabel = (reason: string) => ({ missing_layout_version: '缺少布局版本', missing_evidence: '缺少已保存截图', maintainer_excluded: '维护者排除异常' })[reason] ?? reason;
 
@@ -132,6 +134,23 @@ async function finalize() {
   finally { finalizing.value = false; }
 }
 
+async function discard() {
+  if (!selectedDetail.value || discarding.value) return;
+  discarding.value = true;
+  detailError.value = '';
+  try {
+    const response = await api<{ status: 'discarded'; version: number }>(`/v1/screenshot-sets/${encodeURIComponent(selectedDetail.value.set.setId)}/discard`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': createRequestId() },
+      body: { contractVersion: '1' },
+    });
+    toast.add({ title: `v${response.version} 已废弃`, color: 'success' });
+    closeDetail();
+    await load();
+  } catch (error) { detailError.value = portalErrorDetails(error, '废弃未完成，请稍后重试。').description; }
+  finally { discarding.value = false; }
+}
+
 watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
 </script>
 
@@ -148,10 +167,10 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
     <section aria-label='截图集列表'>
       <AdminDataTable :data='sets' :columns='columns' :mobile-columns='[{ id: "version", priority: "primary", order: 0 }, { id: "status", priority: "primary", order: 1 }, { id: "counts", priority: "detail", order: 2 }]' row-key='setId' :mobile-row-action='(row) => openDetail(row.setId)' :loading='loading' empty='暂无截图集。' table-key='admin-screenshot-sets' manual-filtering :reset-scroll-key='`${page}-${statusFilter}`'>
         <template #filters><div class='set-filters'>
-          <USelect v-model='statusFilter' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }]' />
+          <USelect v-model='statusFilter' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }, { label: "已废弃", value: "discarded" }]' />
         </div></template>
-        <template #mobile-primary><USelect v-model='statusFilter' class='w-full' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }]' /></template>
-        <template #status-cell='{ row }'><StatusBadge :label='statusLabel(row.original.status)' :tone='row.original.status === "finalized" ? "success" : "default"' /></template>
+        <template #mobile-primary><USelect v-model='statusFilter' class='w-full' aria-label='筛选状态' :items='[{ label: "全部状态", value: "all" }, { label: "草稿", value: "draft" }, { label: "已定稿", value: "finalized" }, { label: "已废弃", value: "discarded" }]' /></template>
+        <template #status-cell='{ row }'><StatusBadge :label='statusLabel(row.original.status)' :tone='statusTone(row.original.status)' /></template>
         <template #counts-cell='{ row }'><span>{{ row.original.counts.memberCount }} 张入选</span><span class='table-meta'>排除 {{ row.original.counts.excludedCount }} 张</span></template>
         <template #createdAt-cell='{ row }'><span>{{ formatTime(row.original.createdAt) }}</span><span class='table-meta'>{{ row.original.createdBy }}</span></template>
         <template #actions-cell='{ row }'><div class='table-actions'><UButton label='详情' size='sm' color='neutral' variant='outline' @click='openDetail(row.original.setId)' /></div></template>
@@ -176,14 +195,14 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
       </template>
     </AdminResponsiveDialog>
 
-    <AdminResponsiveDialog v-model:open='detailOpen' :title="selectedDetail ? `截图集 v${selectedDetail.set.version}` : '截图集'" :description="selectedDetail?.set.status === 'finalized' ? '已定稿集合的成员与来源不可再变更，OCRKit 可读取此版本。' : '草稿仅对维护者可见；定稿后成员与来源不再变更。'" size='lg' @update:open='(open) => { if (!open) closeDetail(); }'>
+    <AdminResponsiveDialog v-model:open='detailOpen' :title="selectedDetail ? `截图集 v${selectedDetail.set.version}` : '截图集'" :description="selectedDetail?.set.status === 'finalized' ? '已定稿集合的成员与来源不可再变更，OCRKit 可读取此版本。' : selectedDetail?.set.status === 'discarded' ? '已废弃集合不会再变更，OCRKit 不可读取此版本。' : '草稿仅对维护者可见；定稿后成员与来源不再变更。'" size='lg' @update:open='(open) => { if (!open) closeDetail(); }'>
       <template #body>
         <UAlert v-if='detailError' color='error' variant='subtle' :description='detailError' class='set-dialog-error' />
         <p v-if='detailLoading' class='set-dialog-message' role='status'>读取详情…</p>
         <template v-else-if='selectedDetail'>
           <dl class='set-facts'>
             <div><dt>版本</dt><dd>v{{ selectedDetail.set.version }}</dd></div>
-            <div><dt>状态</dt><dd><StatusBadge :label='statusLabel(selectedDetail.set.status)' :tone='selectedDetail.set.status === "finalized" ? "success" : "default"' /></dd></div>
+            <div><dt>状态</dt><dd><StatusBadge :label='statusLabel(selectedDetail.set.status)' :tone='statusTone(selectedDetail.set.status)' /></dd></div>
             <div><dt>创建时间</dt><dd>{{ formatTime(selectedDetail.set.createdAt) }}</dd></div>
             <div><dt>定稿时间</dt><dd>{{ selectedDetail.set.finalizedAt ? formatTime(selectedDetail.set.finalizedAt) : "—" }}</dd></div>
             <div><dt>入选 / 排除</dt><dd>{{ selectedDetail.set.counts.memberCount }} / {{ selectedDetail.set.counts.excludedCount }}</dd></div>
@@ -209,6 +228,7 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
         </template>
       </template>
       <template v-if='selectedDetail?.set.status === "draft"' #footer>
+        <UButton label='废弃' color='error' variant='outline' :loading='discarding' :disabled='discarding' @click='discard' />
         <UButton label='定稿' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
       </template>
     </AdminResponsiveDialog>

@@ -168,7 +168,7 @@ export type AdminOcrAccuracyResponse = { contractVersion: "1"; submissionId: str
 export type AdminScreenshotSet = {
   setId: string;
   version: number;
-  status: "draft" | "finalized";
+  status: "draft" | "finalized" | "discarded";
   createdBy: string;
   createdAt: number;
   finalizedBy: string | null;

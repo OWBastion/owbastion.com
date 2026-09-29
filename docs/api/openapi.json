@@ -2267,7 +2267,7 @@
   "/v1/admin/screenshot-sets/{setId}": {
    "get": {
     "operationId": "getAdminScreenshotSet",
-    "description": "Maintainer-only detail of one screenshot set: lifecycle status, member screenshot provenance (object key, sha256, mime type, size, layout version, accuracy mark), and recorded exclusions. Drafts and finalized sets are both readable here.",
+    "description": "Maintainer-only detail of one screenshot set: lifecycle status, member screenshot provenance (object key, sha256, mime type, size, layout version, accuracy mark), and recorded exclusions. Draft, finalized, and discarded sets are all readable here.",
     "parameters": [
      {
       "$ref": "#/components/parameters/screenshotSetId"
@@ -2295,7 +2295,41 @@
   "/v1/admin/screenshot-sets/{setId}/finalize": {
    "post": {
     "operationId": "finalizeAdminScreenshotSet",
-    "description": "Finalizes a draft screenshot set. Finalized sets are immutable: members, exclusions, and provenance cannot change; a later correction is a new set version. Only finalized sets are visible to OCRKit. Requires the Idempotency-Key header; an already-finalized set returns SCREENSHOT_SET_ALREADY_FINALIZED.",
+    "description": "Finalizes a draft screenshot set. Finalized sets are immutable: members, exclusions, and provenance cannot change; a later correction is a new set version. Only finalized sets are visible to OCRKit. Requires the Idempotency-Key header; an already-finalized set returns SCREENSHOT_SET_ALREADY_FINALIZED and a discarded set returns SCREENSHOT_SET_ALREADY_DISCARDED.",
+    "parameters": [
+     {
+      "$ref": "#/components/parameters/screenshotSetId"
+     },
+     {
+      "$ref": "#/components/parameters/idempotencyKey"
+     }
+    ],
+    "responses": {
+     "200": {
+      "$ref": "#/components/responses/Json"
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/screenshot-sets/{setId}/discard": {
+   "post": {
+    "operationId": "discardAdminScreenshotSet",
+    "description": "Discards a draft screenshot set so the draft lifecycle always closes: a draft that will not be finalized is discarded rather than left open forever. Discarded sets stay readable for audit but are never visible to OCRKit; a newer correction is a new set version. Requires the Idempotency-Key header; a finalized set returns SCREENSHOT_SET_ALREADY_FINALIZED and an already-discarded set returns SCREENSHOT_SET_ALREADY_DISCARDED.",
     "parameters": [
      {
       "$ref": "#/components/parameters/screenshotSetId"
@@ -2329,7 +2363,7 @@
   "/v1/ocrkit/screenshot-sets/{version}": {
    "get": {
     "operationId": "getOcrkitScreenshotSet",
-    "description": "Private, versioned OCRKit consumption contract. Requires the OCRKIT_SNAPSHOT_TOKEN secret as a Bearer credential; browser and player clients never use this surface. Reads only finalized sets and exposes schema_version, set_id, version, finalized, finalized_at, and one member per source screenshot (source_id, R2 object key, sha256, mime_type, size_bytes, layout_version, and the accuracy mark when present). The payload carries no player identity, QQ data, Submission decisions, Grant/mastery state, or risk signals, and never returns image bytes: OCRKit downloads the member objects directly from the evidence bucket with its own read-only credentials. Draft and unknown versions return 409 SCREENSHOT_SET_NOT_FINALIZED and 404 SCREENSHOT_SET_NOT_FOUND respectively.",
+    "description": "Private, versioned OCRKit consumption contract. Requires the OCRKIT_SNAPSHOT_TOKEN secret as a Bearer credential; browser and player clients never use this surface. Reads only finalized sets and exposes schema_version, set_id, version, finalized, finalized_at, and one member per source screenshot (source_id, R2 object key, sha256, mime_type, size_bytes, layout_version, and the accuracy mark when present). The payload carries no player identity, QQ data, Submission decisions, Grant/mastery state, or risk signals, and never returns image bytes: OCRKit downloads the member objects directly from the evidence bucket with its own read-only credentials. Draft or discarded and unknown versions return 409 SCREENSHOT_SET_NOT_FINALIZED and 404 SCREENSHOT_SET_NOT_FOUND respectively.",
     "parameters": [
      {
       "$ref": "#/components/parameters/screenshotSetVersion"
@@ -3055,7 +3089,8 @@
      "type": "string",
      "enum": [
       "draft",
-      "finalized"
+      "finalized",
+      "discarded"
      ]
     }
    },
