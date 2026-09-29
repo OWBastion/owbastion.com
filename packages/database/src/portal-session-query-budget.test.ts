@@ -7,10 +7,6 @@ import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
 import { hashRequest, resolvePortalSession } from "./portal-session";
 
-/**
- * Minimal D1Database shim over node:sqlite for query-budget tests.
- * Counts statement executions (all / first / run / raw / batch items / exec).
- */
 const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installSessionSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
