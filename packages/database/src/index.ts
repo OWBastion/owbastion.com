@@ -24,7 +24,7 @@ import { createBindingServices } from "./binding-service";
 import { createPortalAuthenticationServices } from "./portal-authentication-service";
 import { activeMasteryProfiles, asVerifiedRun, findConflictingVerifiedRun, loadActiveVerifiedRuns, loadPlayerMasteryHistory, masteryConflictFields, masteryRevisionLifecycle, normalizeVerifiedRunEventCounters, playerMasteryProfileView, playerVerifiedRunView, prepareVerifiedRun } from "./mastery-query";
 import { pageResult, paginate } from "./page-result";
-import { createAutomaticChallengeSnapshotResolver, type MapTitleRuleSnapshot } from "./automatic-challenge-snapshot";
+import { createChallengeSnapshotServices, type MapTitleRuleSnapshot } from "./challenge-snapshot-service";
 import { createChallengeCatalogServices } from "./challenge-catalog-service";
 
 export { maxReviewCommentLength, reviewSampleThreshold } from "./review-service";
@@ -178,6 +178,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     toTitleChallengeBase,
     validateChallengeMapScope,
   } = createChallengeCatalogServices({ db, now, pioneerExceptionIsSubmittable, publicTitleChallengeStatus });
+  const { batchResolveAutomaticSnapshots, resolveLegacyProjection, resolveMapTitleProjection, selectGameplayRevision, snapshotTitleChallenge } = createChallengeSnapshotServices({ db, now, pioneerExceptionIsSubmittable });
   const databaseServiceDependencies = {
     now,
     hashRequest,
@@ -271,180 +272,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       }
     }
     return recoveredCount;
-  };
-
-  // ── Map title rule resolution ────────────────────────────────────────────────
-  //
-  const toMapTitleRuleSnapshot = (
-    rule: typeof mapTitleRules.$inferSelect,
-    mapId: string,
-    revision: typeof gameplayRevisions.$inferSelect,
-    assignment: typeof gameplayRevisionChallengeAssignments.$inferSelect | undefined,
-    exception: typeof mapTitleRuleExceptions.$inferSelect | undefined,
-    eligibilityAt: number,
-  ): MapTitleRuleSnapshot | null => {
-    if (!assignment || assignment.enabled === 0 || rule.status === "inactive") return null;
-    const pioneer = rule.kind.trim().toLocaleLowerCase() === "pioneer";
-    if (pioneer && (rule.defaultScope !== "explicit" || !pioneerExceptionIsSubmittable(exception?.enabled ?? 0, exception?.startsAt ?? null, exception?.endsAt ?? null, eligibilityAt))) return null;
-    const activeException = exception?.enabled === 1 ? exception : null;
-    return {
-      ruleId: rule.id,
-      ruleRevision: Math.max(rule.updatedAt, assignment.updatedAt, exception?.updatedAt ?? 0),
-      mapId,
-      gameplayRevisionId: revision.id,
-      titleKey: rule.titleKey,
-      mapVariant: (rule.mapVariant as "classic" | null) ?? null,
-      slot: activeException?.slot ?? assignment.slot ?? rule.slot ?? null,
-      displayKind: rule.displayKind,
-      condition: activeException?.condition ?? assignment.condition ?? rule.condition,
-      evidenceRule: activeException?.evidenceRule ?? assignment.evidenceRule ?? rule.evidenceRule,
-      submissionMode: activeException?.submissionMode ?? assignment.submissionMode ?? rule.submissionMode,
-      defaultScope: rule.defaultScope,
-      exceptionId: activeException?.id ?? null,
-      startsAt: activeException?.startsAt ?? null,
-      endsAt: activeException?.endsAt ?? null,
-    };
-  };
-
-  const selectGameplayRevision = async (input: {
-    mapId: string;
-    mapVariant: "classic" | null;
-    gameplayRevisionId?: string | null;
-    allowHistorical?: boolean;
-  }) => {
-    if (input.gameplayRevisionId) {
-      const revision = await db.select().from(gameplayRevisions).where(eq(gameplayRevisions.id, input.gameplayRevisionId)).get();
-      if (!revision || revision.mapId !== input.mapId) return null;
-      if (!input.allowHistorical && !["default", "selectable"].includes(revision.lifecycle)) return null;
-      return revision;
-    }
-    return input.mapVariant === "classic"
-      ? await db.select().from(gameplayRevisions).where(and(
-        eq(gameplayRevisions.mapId, input.mapId),
-        eq(gameplayRevisions.legacyMapVariant, "classic"),
-        eq(gameplayRevisions.lifecycle, "selectable"),
-      )).get()
-      : await db.select().from(gameplayRevisions).where(and(
-        eq(gameplayRevisions.mapId, input.mapId),
-        isNull(gameplayRevisions.legacyMapVariant),
-        eq(gameplayRevisions.lifecycle, "default"),
-      )).get();
-  };
-
-  const resolveAssignedGameplayRevision = async (input: {
-    mapId: string;
-    mapVariant: "classic" | null;
-    challengeFamily: "map_challenge" | "map_title_rule" | "title_challenge";
-    challengeId: string;
-    gameplayRevisionId?: string | null;
-  }) => {
-    const revision = await selectGameplayRevision({
-      mapId: input.mapId,
-      mapVariant: input.mapVariant,
-      gameplayRevisionId: input.gameplayRevisionId,
-      allowHistorical: Boolean(input.gameplayRevisionId),
-    });
-    if (!revision) return null;
-    const assignment = await db.select().from(gameplayRevisionChallengeAssignments).where(and(
-      eq(gameplayRevisionChallengeAssignments.gameplayRevisionId, revision.id),
-      eq(gameplayRevisionChallengeAssignments.mapId, input.mapId),
-      eq(gameplayRevisionChallengeAssignments.challengeFamily, input.challengeFamily),
-      eq(gameplayRevisionChallengeAssignments.challengeId, input.challengeId),
-      eq(gameplayRevisionChallengeAssignments.enabled, 1),
-    )).get();
-    return assignment ? { revision, assignment } : null;
-  };
-
-  // Resolve a rule only when it is assigned to the selected gameplay revision.
-  const resolveMapTitleProjection = async (
-    ruleId: string,
-    mapId: string,
-    gameplayRevisionId?: string | null,
-    eligibilityAt = now(),
-  ): Promise<MapTitleRuleSnapshot | null> => {
-    // Step 1: check map status.
-    const map = await db.select({ id: maps.id, status: maps.status }).from(maps).where(eq(maps.id, mapId)).get();
-    if (!map || map.status !== "active") return null;
-
-    // Load the rule.
-    const rule = await db.select().from(mapTitleRules).where(eq(mapTitleRules.id, ruleId)).get();
-    if (!rule) return null;
-
-    const mapVariant = (rule.mapVariant as "classic" | null) ?? null;
-    const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "map_title_rule", challengeId: rule.id, gameplayRevisionId });
-    if (!resolved) return null;
-    const { revision, assignment } = resolved;
-    const exception = await db.select().from(mapTitleRuleExceptions)
-      .where(and(eq(mapTitleRuleExceptions.ruleId, ruleId), eq(mapTitleRuleExceptions.mapId, mapId)))
-      .get();
-    return toMapTitleRuleSnapshot(rule, mapId, revision, assignment, exception, eligibilityAt);
-  };
-
-  // Resolve a compat-mapped legacy challenge ID through the rule model.
-  // Returns the snapshot if the compat entry exists and the map is still active,
-  // or null if the map is retired / the compat entry is missing.
-  const resolveCompatProjection = async (
-    legacyChallengeId: string,
-    mapId: string,
-    gameplayRevisionId?: string | null,
-    eligibilityAt = now(),
-  ): Promise<MapTitleRuleSnapshot | null> => {
-    const compat = await db.select({ ruleId: mapTitleRuleCompat.ruleId })
-      .from(mapTitleRuleCompat)
-      .where(and(eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId), eq(mapTitleRuleCompat.mapId, mapId)))
-      .get();
-    if (!compat) return null;
-    return resolveMapTitleProjection(compat.ruleId, mapId, gameplayRevisionId, eligibilityAt);
-  };
-
-  const resolveLegacyProjection = async (legacyChallengeId: string, mapId?: string, gameplayRevisionId?: string | null, eligibilityAt = now()): Promise<MapTitleRuleSnapshot | null> => {
-    const rows = await db.select({ ruleId: mapTitleRuleCompat.ruleId, mapId: mapTitleRuleCompat.mapId })
-      .from(mapTitleRuleCompat)
-      .where(mapId ? and(eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId), eq(mapTitleRuleCompat.mapId, mapId)) : eq(mapTitleRuleCompat.legacyChallengeId, legacyChallengeId));
-    if (!rows.length) return null;
-    if (!mapId && rows.length > 1) throw new Error("MAP_REQUIRED");
-    const target = rows[0];
-    return resolveMapTitleProjection(target.ruleId, target.mapId, gameplayRevisionId, eligibilityAt);
-  };
-
-  const toTitleChallengeSnapshot = (
-    challenge: typeof titleChallenges.$inferSelect,
-    title: typeof titleCatalog.$inferSelect,
-    mapId: string | null,
-    gameplayRevisionId: string | null,
-    assignment?: typeof gameplayRevisionChallengeAssignments.$inferSelect,
-  ): MapTitleRuleSnapshot => ({
-    challengeId: challenge.id,
-    challengeType: mapId ? "map_title_achievement" : "title_achievement",
-    ruleId: `title-challenge:${challenge.id}`,
-    ruleRevision: assignment ? Math.max(challenge.updatedAt, assignment.updatedAt) : challenge.updatedAt,
-    mapId,
-    gameplayRevisionId,
-    titleKey: title.key,
-    mapVariant: (challenge.mapVariant as "classic" | null) ?? null,
-    slot: assignment?.slot ?? null,
-    displayKind: title.displayKind,
-    condition: assignment?.condition ?? challenge.condition,
-    evidenceRule: assignment?.evidenceRule ?? challenge.evidenceRule,
-    submissionMode: assignment?.submissionMode ?? challenge.submissionMode,
-    defaultScope: challenge.scope ?? (mapId ? "map" : "global"),
-    exceptionId: null,
-    startsAt: null,
-    endsAt: null,
-  });
-
-  const snapshotTitleChallenge = async (
-    challenge: typeof titleChallenges.$inferSelect,
-    title: typeof titleCatalog.$inferSelect,
-    mapId: string | null,
-    gameplayRevisionId?: string | null,
-  ): Promise<MapTitleRuleSnapshot | null> => {
-    if (!mapId) return toTitleChallengeSnapshot(challenge, title, null, null);
-    const mapVariant = (challenge.mapVariant as "classic" | null) ?? null;
-    const resolved = await resolveAssignedGameplayRevision({ mapId, mapVariant, challengeFamily: "title_challenge", challengeId: challenge.id, gameplayRevisionId });
-    if (!resolved) return null;
-    const { revision, assignment } = resolved;
-    return toTitleChallengeSnapshot(challenge, title, mapId, revision.id, assignment);
   };
 
   const resolveManualTitleGrantTarget = async (input: Pick<AdminManualTitleGrantRequest, "titleKey" | "mapId" | "gameplayRevisionId">): Promise<ManualTitleGrantResolution> => {
@@ -1534,8 +1361,6 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     const digest = await hashRequest({ submissionId, policy: "ocr-auto-v1" });
     return Number.parseInt(digest.slice(0, 8), 16) / 0xffffffff < ocrAutoReviewSampleRate;
   };
-
-  const batchResolveAutomaticSnapshots = createAutomaticChallengeSnapshotResolver({ db, toMapTitleRuleSnapshot, toTitleChallengeSnapshot });
 
   const {
     batchPlanCanonicalChallenges,
