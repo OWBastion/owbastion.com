@@ -15,6 +15,7 @@ import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
+import { hashRequest } from "./portal-session";
 
 const createD1 = () => createTestD1({ foreignKeys: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
@@ -41,11 +42,6 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${submissionReviewsSchema}
 `);
 
-const sha256Hex = async (value: string) => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
 const highConfidenceOcr = {
   schema_version: "1", ok: true, model_version: "ocr-v1", layout_version: "layout-v2",
   fields: { map_name: { confidence: 0.97, status: "ok" }, difficulty: { confidence: 0.95, status: "ok" }, viewer_player: { confidence: 0.96, status: "ok" }, challenge_completed: { confidence: 0.98, status: "ok" }, map_variant: { confidence: 0.96, status: "ok" }, achievement_titles: { confidence: 0.9, status: "ok" } },
@@ -57,8 +53,8 @@ const setup = async (options: { response?: unknown; playerStatus?: string; submi
   installSchema(sqlite);
   const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, undefined, "https://evidence.owbastion.codes");
   const now = Date.now();
-  const tokenHash = await sha256Hex("session-token");
-  const otherTokenHash = await sha256Hex("other-session-token");
+  const tokenHash = await hashRequest("session-token");
+  const otherTokenHash = await hashRequest("other-session-token");
   sqlite.exec(`
     INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES
       ('player-owner', '1001', 'Owner', 'owner', 0, '${options.playerStatus ?? "active"}', 1, 1),
