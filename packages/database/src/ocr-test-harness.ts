@@ -24,6 +24,7 @@ import {
   randomEventsSchema,
   submissionReviewsSchema,
   titleCatalogSchema,
+  verifiedRunsSchema,
 } from "../test/schema";
 import { DatabaseSync } from "node:sqlite";
 import { createTestD1 } from "../test/d1";
@@ -195,31 +196,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       updated_at INTEGER NOT NULL,
       UNIQUE (submission_id, position)
     );
-    CREATE TABLE mastery_runs (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_account_id TEXT NOT NULL,
-      source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_variant TEXT,
-      difficulty TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      run_code TEXT NOT NULL,
-      completion_duration_seconds INTEGER NOT NULL,
-      deaths INTEGER,
-      skips INTEGER,
-      event_counters_json TEXT NOT NULL,
-      acceptance_source TEXT NOT NULL,
-      accepted_at INTEGER NOT NULL,
-      status TEXT NOT NULL,
-      invalidated_at INTEGER,
-      invalidated_by TEXT,
-      invalidation_reason TEXT,
-      xp_rule_version TEXT NOT NULL,
-      xp_input_snapshot_json TEXT NOT NULL,
-      awarded_xp INTEGER NOT NULL,
-      created_at INTEGER NOT NULL
-    );
+    ${verifiedRunsSchema(false)}
     CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
     CREATE TABLE mastery_run_lifecycle_events (
       id TEXT PRIMARY KEY NOT NULL,
