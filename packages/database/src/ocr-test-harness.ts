@@ -17,12 +17,14 @@ export const createD1 = () => {
 
   const wrapStatement = (sql: string) => {
     let bound: unknown[] = [];
+    const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
     const statement = {
       bind(...params: unknown[]) { bound = params; return statement; },
       async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
       async all<T>() {
         const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
+        const changes = isWrite ? Number((sqlite.prepare("SELECT changes() AS changes").get() as { changes: number }).changes) : 0;
+        return { results, success: true, meta: { changes, duration: 0, size_after: 0, rows_read: results.length, rows_written: changes, last_row_id: 0, changed_db: changes > 0 } };
       },
       async run() {
         const info = sqlite.prepare(sql).run(...bound);

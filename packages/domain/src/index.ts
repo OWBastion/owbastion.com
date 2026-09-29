@@ -57,6 +57,15 @@ import type {
   PlayerUploadSessionResponse,
   OcrAccuracyFeedbackRequest,
   OcrAccuracyFeedbackResponse,
+  AdminScreenshotSetListResponse,
+  AdminScreenshotSetCandidateListResponse,
+  AdminScreenshotSetCreateRequest,
+  AdminScreenshotSetCreateResponse,
+  AdminScreenshotSetFinalizeResponse,
+  AdminScreenshotSetDiscardResponse,
+  AdminScreenshotSetDetailResponse,
+  ScreenshotSetStatus,
+  OcrkitScreenshotSetResponse,
   AgentEventListResponse, AgentMap, AgentMapListResponse, AgentAchievementListResponse, AgentTitle, AgentTitleListResponse, AgentSearchResponse, AgentSearchResult, AgentPlayerTitleGrantListResponse, AgentMapTitleHolderListResponse,
   AdminReview, AdminReviewAudit, AdminReviewListResponse,
 } from "@owbastion/contracts";
@@ -257,6 +266,13 @@ export type PlatformServices = {
   getPlayerSubmission(input: { submissionId: string }, sessionToken: string): Promise<PlayerSubmissionDetail>;
   submitPlayerOcrFeedback(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, sessionToken: string, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
   submitAdminOcrAccuracy(input: Omit<OcrAccuracyFeedbackRequest, "contractVersion"> & { submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<OcrAccuracyFeedbackResponse>;
+  listAdminScreenshotSetCandidates(input: { page: number; pageSize: number }, auth: AuthContext): Promise<AdminScreenshotSetCandidateListResponse>;
+  createAdminScreenshotSet(input: Omit<AdminScreenshotSetCreateRequest, "contractVersion">, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetCreateResponse>;
+  listAdminScreenshotSets(input: { page: number; pageSize: number; status?: ScreenshotSetStatus }, auth: AuthContext): Promise<AdminScreenshotSetListResponse>;
+  getAdminScreenshotSet(input: { setId: string }, auth: AuthContext): Promise<AdminScreenshotSetDetailResponse>;
+  finalizeAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetFinalizeResponse>;
+  discardAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetDiscardResponse>;
+  getOcrkitScreenshotSet(input: { version: number }): Promise<OcrkitScreenshotSetResponse>;
   requestManualReview(input: { submissionId: string }, sessionToken: string): Promise<void>;
   upsertQqGroupAccess(input: QqGroupAccessRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;
   registerQqGroup(input: QqGroupRegistrationRequest, auth: AuthContext, idempotencyKey: string): Promise<void>;

@@ -19,6 +19,10 @@ import {
   adminSubmissionReviewPreviewRequestSchema,
   adminSubmissionReviewRequestSchema,
   adminSubmissionOcrRetryRequestSchema,
+  adminScreenshotSetCreateRequestSchema,
+  adminScreenshotSetFinalizeRequestSchema,
+  adminScreenshotSetDiscardRequestSchema,
+  screenshotSetStatusSchema,
   adminTitleGrantRequestSchema,
   adminTitleGrantBulkRequestSchema,
   adminTitleGrantRevokeRequestSchema,
@@ -54,6 +58,7 @@ export type RuntimeEnv = {
   EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
+  OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
   QQBOT_POLICY_WEBHOOK_URL?: string;
@@ -72,8 +77,20 @@ type AppDependencies = {
   services: (env: RuntimeEnv) => PlatformServices;
 };
 
-type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "portal" | "qq" | "unknown";
+type RequestRouteClass = "admin" | "agents" | "catalog" | "health" | "local" | "ocrkit" | "portal" | "qq" | "unknown";
 type Variables = { requestId: string };
+
+// Constant-time Bearer comparison for private service tokens: a plain ===
+// leaks match progress through early-exit timing.
+const bearerTokenMatches = (authorization: string | undefined, secret: string) => {
+  if (!authorization) return false;
+  const provided = new TextEncoder().encode(authorization);
+  const expected = new TextEncoder().encode(`Bearer ${secret}`);
+  if (provided.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < provided.length; index += 1) difference |= provided[index]! ^ expected[index]!;
+  return difference === 0;
+};
 
 const deploymentRevision = (env?: RuntimeEnv) => env?.DEPLOYMENT_REVISION?.trim() || "unknown";
 
@@ -82,6 +99,7 @@ const routeClassForPath = (pathname: string): RequestRouteClass => {
   if (pathname.startsWith("/v1/admin/")) return "admin";
   if (pathname.startsWith("/v1/agents/")) return "agents";
   if (pathname.startsWith("/v1/__local/")) return "local";
+  if (pathname.startsWith("/v1/ocrkit/")) return "ocrkit";
   if (pathname.startsWith("/v1/qq/")) return "qq";
   if (["/v1/events", "/v1/maps", "/v1/public/achievements"].includes(pathname) || pathname.startsWith("/v1/public/achievement-icons/") || pathname.startsWith("/v1/challenges") || pathname.startsWith("/v1/titles")) return "catalog";
   if (pathname.startsWith("/v1/me") || pathname.startsWith("/v1/player/") || pathname.startsWith("/v1/uploads/") || pathname.startsWith("/v1/auth/") || pathname.startsWith("/v1/public/")) return "portal";
@@ -334,8 +352,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
   const allowAgents = (c: any) => {
     const token = c.env.BASTION_BUILD_TOKEN;
-    const authorization = c.req.header("authorization");
-    return Boolean(token && authorization === `Bearer ${token}`);
+    return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
   };
   const publicCacheEnabled = (c: any) => c.env.PUBLIC_HTTP_CACHE_ENABLED !== "false";
   const setPublicCatalogCache = (c: any, enabled = publicCacheEnabled(c)) => {
@@ -391,6 +408,11 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/verified-runs/:verifiedRunId/state", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/verified-runs/:verifiedRunId/corrections", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/verified-runs/:verifiedRunId/conflicts/:submissionId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets/candidates", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets/:setId", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets/:setId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/screenshot-sets/:setId/discard", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -408,6 +430,14 @@ export const createApp = (dependencies: AppDependencies) => {
     if (!auth) return { error: errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required") };
     if (!auth.roles.includes("maintainer")) return { error: errorResponse(c, 403, "FORBIDDEN", "The actor cannot manage administrative data") };
     return { auth };
+  };
+
+  // Private service boundary for OCRKit screenshot-set consumption (#255). The
+  // token is a secret, never a committed variable; without it the endpoints are
+  // closed.
+  const allowOcrkit = (c: any) => {
+    const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
+    return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
   };
 
   const requirePortalPlayer = async (c: any) => {
@@ -1901,6 +1931,113 @@ export const createApp = (dependencies: AppDependencies) => {
       if (code === "OCR_RESULT_NOT_FOUND") return errorResponse(c, 409, code, "Feedback is unavailable for this submission");
       if (code === "OCR_PROMPT_STALE") return errorResponse(c, 409, code, "The recognition is no longer current; refresh the submission");
       if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.get("/v1/admin/screenshot-sets", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const pageValue = Number(c.req.query("page") ?? 1);
+    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
+    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
+    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
+    const status = c.req.query("status");
+    if (!page || !pageSize || (status && !screenshotSetStatusSchema.safeParse(status).success)) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set query is invalid");
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSets({ page, pageSize, ...(status ? { status: status as "draft" | "finalized" | "discarded" } : {}) }, access.auth!));
+  });
+
+  app.get("/v1/admin/screenshot-sets/candidates", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const pageValue = Number(c.req.query("page") ?? 1);
+    const pageSizeValue = Number(c.req.query("pageSize") ?? 20);
+    const page = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 0;
+    const pageSize = Number.isInteger(pageSizeValue) && pageSizeValue > 0 && pageSizeValue <= 100 ? pageSizeValue : 0;
+    if (!page || !pageSize) return errorResponse(c, 422, "INVALID_REQUEST", "The screenshot set candidate query is invalid");
+    return c.json(await dependencies.services(c.env).listAdminScreenshotSetCandidates({ page, pageSize }, access.auth!));
+  });
+
+  app.post("/v1/admin/screenshot-sets", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminScreenshotSetCreateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      const { contractVersion: _contractVersion, ...input } = parsed.data;
+      return c.json(await dependencies.services(c.env).createAdminScreenshotSet(input, access.auth!, idempotencyKey), 201);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_CREATE_FAILED";
+      if (code === "SCREENSHOT_SET_EXCLUSION_INVALID") return errorResponse(c, 422, code, "An excluded screenshot is not eligible for this set");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.get("/v1/admin/screenshot-sets/:setId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const setId = c.req.param("setId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
+    try { return c.json(await dependencies.services(c.env).getAdminScreenshotSet({ setId }, access.auth!)); }
+    catch (error) { if (error instanceof Error && error.message === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, "SCREENSHOT_SET_NOT_FOUND", "The screenshot set does not exist"); throw error; }
+  });
+
+  app.post("/v1/admin/screenshot-sets/:setId/finalize", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const setId = c.req.param("setId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminScreenshotSetFinalizeRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
+    try {
+      return c.json(await dependencies.services(c.env).finalizeAdminScreenshotSet(input, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_FINALIZE_FAILED";
+      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
+      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be finalized");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.post("/v1/admin/screenshot-sets/:setId/discard", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    const setId = c.req.param("setId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(setId)) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_ID", "The screenshot set ID is invalid");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminScreenshotSetDiscardRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    const input = parsed.data.note === undefined ? { setId } : { setId, note: parsed.data.note };
+    try {
+      return c.json(await dependencies.services(c.env).discardAdminScreenshotSet(input, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "SCREENSHOT_SET_DISCARD_FAILED";
+      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
+      if (["SCREENSHOT_SET_ALREADY_FINALIZED", "SCREENSHOT_SET_ALREADY_DISCARDED", "SCREENSHOT_SET_NOT_DRAFT"].includes(code)) return errorResponse(c, 409, code, "The screenshot set is not a draft that can be discarded");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
+  app.get("/v1/ocrkit/screenshot-sets/:version", async (c) => {
+    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    c.header("Cache-Control", "private, no-store");
+    const version = Number(c.req.param("version"));
+    if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_VERSION", "The screenshot set version is invalid");
+    try {
+      return c.json(await dependencies.services(c.env).getOcrkitScreenshotSet({ version }));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "OCRKIT_SCREENSHOT_SET_READ_FAILED";
+      if (code === "SCREENSHOT_SET_NOT_FOUND") return errorResponse(c, 404, code, "The screenshot set does not exist");
+      if (code === "SCREENSHOT_SET_NOT_FINALIZED") return errorResponse(c, 409, code, "The screenshot set is not finalized");
       throw error;
     }
   });

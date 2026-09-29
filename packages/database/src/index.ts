@@ -6,8 +6,8 @@ import { createPasskeyAuthenticationOptions, createPasskeyRegistrationOptions, p
 import { buildMasteryProfiles, calculateVerifiedRunXpV2, isVerifiedRunGameVersionSupported, isVerifiedRunOcrLayoutSupported, parseCanonicalChallengeConditions, verifiedRunDifficulties, verifiedRunEvidenceCompatibilityV1, normalizeMatchCode } from "@owbastion/domain";
 import type { AdminVerifiedRunQuery, AgentAchievementQuery, AgentEventQuery, AgentMapQuery, AgentSearchQuery, AgentTitleQuery, AgentPlayerTitleGrantQuery, AgentMapTitleHolderQuery, AuthContext, VerifiedRunDifficulty, VerifiedRunEventCounters, VerifiedRunEvidenceCompatibilityV1, MasteryMapProfile, VerifiedRunActor, VerifiedRunConflictField, VerifiedRunForProjection, VerifiedRunXpSnapshot, PlatformServices, PublicReviewCommentPage, PublicReviewCommentQuery, RecordVerifiedRunResult, ReviewRating, ReviewRecord, ReviewSummary, ReviewSummaryBatchInput, ReviewTarget, ReviewTargetType, ReviewUpsertInput, AdminReviewDetail, AdminReviewQuery, VerifiedRun, VerifiedRunInput } from "@owbastion/domain";
 import { agentGameplayRevisionSchema, agentProjectedSpatialConfigSchema, agentSpatialConfigSchema } from "@owbastion/contracts";
-import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, SubmissionRequest, Title } from "@owbastion/contracts";
-import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
+import type { AdminAchievementCreateRequest, AdminChallenge, AdminChallengeUpdateRequest, AdminCatalogTitleUpdateRequest, AdminMapMetadataUpdateRequest, AdminMapEditorChallengeOption, AdminMapEditorResponse, AdminMapRevision, AdminMapRevisionChallengeAssignment, AdminMapRevisionCreateRequest, AdminMapRevisionUpdateRequest, AdminMapTitleRule, AdminMapTitleRuleCreateRequest, AdminMapTitleRuleUpdateRequest, AdminMapTitleRuleExceptionUpsertRequest, AdminRandomEventCreateRequest, AdminRandomEventImportRequest, AdminRandomEventUpdateRequest, AdminRandomEventVersionAvailabilityRequest, AdminRandomEventVersionListResponse, AdminScreenshotSetCandidateListResponse, AdminScreenshotSetCreateRequest, AdminScreenshotSetCreateResponse, AdminScreenshotSetDetailResponse, AdminScreenshotSetDiscardResponse, AdminScreenshotSetFinalizeResponse, AdminScreenshotSetListResponse, AdminSubmissionOcrRetryResponse, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse, AdminSubmissionReviewRequest, AdminSubmissionReviewResponse, AdminSubmissionSpotCheckResponse, AdminManualTitleGrantRequest, AdminManualTitleGrantResponse, AdminManualTitleGrantTarget, AdminManualTitleGrantBatchRequest, AdminManualTitleGrantBatchResponse, AdminVerifiedRun, AdminVerifiedRunConflict, AdminVerifiedRunDetailResponse, AdminVerifiedRunProjection, AdminVerifiedRunStateResponse, AdminVerifiedRunConflictResolutionResponse, AdminVerifiedRunCorrectionRequest, AdminVerifiedRunCorrectionResponse, AdminReview, AgentMap, AgentSearchResult, AgentSpatialConfig, AgentTitle, Challenge, CurrentPlayerMasteryResponse, Map, OcrAccuracyFeedbackRequest, OcrAccuracyFeedbackResponse, OcrAccuracyMark, OcrkitScreenshotSetResponse, PlayerSubmissionStatus, QqBindingRequest, QqGroupAccessRequest, QqLoginAttemptRequest, QqLoginVerifyRequest, RandomEvent, RandomEventVersion, ScreenshotSetStatus, SubmissionRequest, Title } from "@owbastion/contracts";
+import { achievementChallengeMaps, achievementChallenges, attachments, auditEvents, bindingClaims, bindingInvites, bindingInviteHistoricalTitleGrants, bindings, challengeCompletions, challengeSatisfies, challenges, effectGlossaryTerms, gameplayRevisionChallengeAssignments, gameplayRevisions, historicalTitleGrants, identities, idempotencyKeys, mapMetadata, mapTitleRewards, mapTitleRuleCompat, mapTitleRuleExceptions, mapTitleRules, maps, ocrAccuracyFeedback, ocrResults, passkeyChallenges, passkeyCredentials, passkeyRecoveryGrants, playerAccounts, playerEquippedTitles, playerTitleEntitlements, playerTitleGrants, portalSessions, qqGroupAccess, qqGroupPolicyOutbox, qqLoginAttempts, randomEventImports, randomEventMapChallenges, randomEvents, randomEventTitleChallenges, randomEventVersions, reviews, screenshotSetMembers, screenshotSets, submissionOutcomes, submissionReviews, submissionSpotChecks, submissions, titleCatalog, titleChallenges, uploadSessions, verifiedRunConflictResolutions, verifiedRunLifecycleEvents, verifiedRuns } from "./schema";
 import { userEvidenceObjectKey } from "./object-key";
 import { matchOcrAgainstChallenges, type AutoMatchCandidate, type CanonicalOcrChallenge } from "./ocr-auto-match";
 import { assessChallengeOcrQuality, type OcrResponse } from "./ocr-response";
@@ -1790,6 +1790,90 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
   };
 
   const getCurrentPortalPlayer = (sessionToken: string) => resolvePortalSession(db, sessionToken);
+
+  // Screenshot-set membership rule (#255): the latest stored screenshot of
+  // every approved Submission, plus the latest stored screenshot of any
+  // Submission whose current OCR result carries an `inaccurate` accuracy mark.
+  // A stale mark on an older result does not qualify the screenshot. Members
+  // need retrievable evidence (object key, sha256, size, type) and a layout
+  // version from the current recognition; anything missing is an automatic
+  // exclusion so the gap is auditable on the set.
+  type ScreenshotSetCandidate = {
+    sourceId: string;
+    submissionId: string;
+    ocrResultId: string | null;
+    mapName: string;
+    submissionStatus: string;
+    objectKey: string;
+    sha256: string;
+    mimeType: string;
+    sizeBytes: number;
+    layoutVersion: string;
+    accuracy: OcrAccuracyMark | null;
+  };
+  const loadScreenshotSetEligibility = async () => {
+    // The candidate rule stays inside SQL as a subquery: binding every
+    // candidate Submission id into IN (?, ...) would exceed D1's 100 bound
+    // parameters per query once there are more than ~100 candidates.
+    const candidateRule = or(
+      eq(submissions.status, "approved"),
+      inArray(submissions.id, db.select({ submissionId: ocrAccuracyFeedback.submissionId }).from(ocrAccuracyFeedback).where(eq(ocrAccuracyFeedback.accuracy, "inaccurate"))),
+    );
+    const candidateIds = () => db.select({ id: submissions.id }).from(submissions).where(candidateRule);
+    const candidateSubmissions = await db.select({ id: submissions.id, status: submissions.status, mapName: submissions.mapName, createdAt: submissions.createdAt })
+      .from(submissions)
+      .where(candidateRule)
+      .orderBy(asc(submissions.createdAt), asc(submissions.id))
+      .all();
+    const [attachmentRows, ocrRows, feedbackRows] = await Promise.all([
+      db.select().from(attachments).where(and(inArray(attachments.submissionId, candidateIds()), eq(attachments.uploadStatus, "stored"))).all(),
+      db.select().from(ocrResults).where(inArray(ocrResults.submissionId, candidateIds())).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).all(),
+      db.select().from(ocrAccuracyFeedback).where(inArray(ocrAccuracyFeedback.submissionId, candidateIds())).all(),
+    ]);
+    const latestAttachmentBySubmission = new Map<string, typeof attachments.$inferSelect>();
+    for (const row of [...attachmentRows].sort((left, right) => left.createdAt - right.createdAt)) latestAttachmentBySubmission.set(row.submissionId, row);
+    const latestOcrBySubmission = new Map<string, typeof ocrResults.$inferSelect>();
+    for (const row of ocrRows) if (!latestOcrBySubmission.has(row.submissionId)) latestOcrBySubmission.set(row.submissionId, row);
+    const accuracyByResult = new Map(feedbackRows.map((row) => [`${row.submissionId}:${row.ocrResultId}`, row.accuracy as OcrAccuracyMark]));
+
+    const candidates: ScreenshotSetCandidate[] = [];
+    const exclusions: Array<{ sourceId: string | null; submissionId: string; reason: string }> = [];
+    for (const submission of candidateSubmissions) {
+      const result = latestOcrBySubmission.get(submission.id);
+      const mark = result ? accuracyByResult.get(`${submission.id}:${result.id}`) ?? null : null;
+      if (submission.status !== "approved" && mark !== "inaccurate") continue;
+      const attachment = latestAttachmentBySubmission.get(submission.id);
+      if (!attachment?.objectKey || !attachment.sha256 || attachment.byteSize === null) {
+        exclusions.push({ sourceId: attachment?.id ?? null, submissionId: submission.id, reason: "missing_evidence" });
+        continue;
+      }
+      let layoutVersion: string | null = null;
+      if (result?.responseJson) {
+        try {
+          const response = JSON.parse(result.responseJson) as OcrResponse;
+          layoutVersion = response.layout_version ?? response.quality?.layout_version ?? null;
+        } catch { /* malformed history is an exclusion, not a crash */ }
+      }
+      if (!layoutVersion) {
+        exclusions.push({ sourceId: attachment.id, submissionId: submission.id, reason: "missing_layout_version" });
+        continue;
+      }
+      candidates.push({
+        sourceId: attachment.id,
+        submissionId: submission.id,
+        ocrResultId: result?.id ?? null,
+        mapName: submission.mapName,
+        submissionStatus: submission.status,
+        objectKey: attachment.objectKey,
+        sha256: attachment.sha256,
+        mimeType: attachment.contentType,
+        sizeBytes: attachment.byteSize,
+        layoutVersion,
+        accuracy: mark,
+      });
+    }
+    return { candidates, exclusions };
+  };
 
   const normalizeVerifiedRunEventCounters = (value: VerifiedRunEventCounters | undefined): VerifiedRunEventCounters => {
     const entries = Object.entries(value ?? {}).map(([key, count]) => {
@@ -5922,7 +6006,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const replay = await replayOrConflict<OcrAccuracyFeedbackResponse>(db, player.player.id, "ocr.accuracy.mark", idempotencyKey, input);
       if (replay) return { ...replay, alreadySubmitted: true };
       if (!ocrFeedbackEligibleStatuses.has(submission.status)) throw new Error("OCR_FEEDBACK_UNAVAILABLE");
-      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, submission.id)).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).limit(1).get();
       if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
       if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
       const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, submission.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
@@ -5947,7 +6031,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       if (replay) return { ...replay, alreadySubmitted: true };
       const row = await db.select().from(submissions).where(eq(submissions.id, input.submissionId)).get();
       if (!row) throw new Error("SUBMISSION_NOT_FOUND");
-      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
+      const result = await db.select().from(ocrResults).where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt), desc(ocrResults.id)).limit(1).get();
       if (!result?.responseJson) throw new Error("OCR_RESULT_NOT_FOUND");
       if (result.id !== input.ocrResultId) throw new Error("OCR_PROMPT_STALE");
       const existing = await db.select({ accuracy: ocrAccuracyFeedback.accuracy }).from(ocrAccuracyFeedback).where(and(eq(ocrAccuracyFeedback.submissionId, row.id), eq(ocrAccuracyFeedback.ocrResultId, result.id))).get();
@@ -5963,6 +6047,193 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       ];
       await database.batch(statements);
       return { ...responseBody, alreadySubmitted: existing?.accuracy === input.accuracy };
+    },
+
+    // ---- Immutable screenshot sets for OCRKit training (#255) ----
+
+    async listAdminScreenshotSetCandidates(input: { page: number; pageSize: number }, _auth: AuthContext): Promise<AdminScreenshotSetCandidateListResponse> {
+      const { candidates } = await loadScreenshotSetEligibility();
+      const page = Math.max(input.page, 1);
+      const pageSize = Math.min(Math.max(input.pageSize, 1), 100);
+      const total = candidates.length;
+      return {
+        contractVersion: "1",
+        items: candidates.slice((page - 1) * pageSize, page * pageSize).map((candidate) => ({
+          sourceId: candidate.sourceId,
+          submissionId: candidate.submissionId,
+          mapName: candidate.mapName,
+          submissionStatus: candidate.submissionStatus,
+          accuracy: candidate.accuracy,
+          layoutVersion: candidate.layoutVersion,
+          mimeType: candidate.mimeType,
+          sizeBytes: candidate.sizeBytes,
+          evidenceUrl: publicEvidenceUrl(candidate.objectKey),
+        })),
+        page,
+        pageSize,
+        total,
+        hasMore: page * pageSize < total,
+      };
+    },
+
+    async createAdminScreenshotSet(input: Omit<AdminScreenshotSetCreateRequest, "contractVersion">, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetCreateResponse> {
+      const replay = await replayOrConflict<AdminScreenshotSetCreateResponse>(db, auth.subject, "screenshot_set.draft.create", idempotencyKey, input);
+      if (replay) return replay;
+      const eligibility = await loadScreenshotSetEligibility();
+      const excludedSourceIds = new Set(input.excludedSourceIds ?? []);
+      const candidateIds = new Set(eligibility.candidates.map((candidate) => candidate.sourceId));
+      if ([...excludedSourceIds].some((sourceId) => !candidateIds.has(sourceId))) throw new Error("SCREENSHOT_SET_EXCLUSION_INVALID");
+      const members = eligibility.candidates.filter((candidate) => !excludedSourceIds.has(candidate.sourceId));
+      const exclusions = [
+        ...eligibility.exclusions,
+        ...eligibility.candidates.filter((candidate) => excludedSourceIds.has(candidate.sourceId)).map((candidate) => ({ sourceId: candidate.sourceId, submissionId: candidate.submissionId, reason: "maintainer_excluded" })),
+      ];
+      const timestamp = now();
+      const setId = crypto.randomUUID();
+      const counts = { memberCount: members.length, excludedCount: exclusions.length };
+      const eligibilityJson = JSON.stringify({ ...counts, exclusions });
+      // Version is allocated inside the batch (MAX(version)+1 evaluated in the
+      // same transaction), so concurrent creates cannot race a read-then-write
+      // into a UNIQUE(version) 500. The audit and idempotency payloads read the
+      // allocated version off the row the batch just wrote.
+      const responseVersion = "(SELECT version FROM screenshot_sets WHERE id = ?)";
+      const statements: D1PreparedStatement[] = [
+        database.prepare("INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES (?, (SELECT COALESCE(MAX(version), 0) + 1 FROM screenshot_sets), 'draft', ?, ?, ?, ?)").bind(setId, auth.subject, timestamp, input.note?.trim() ?? null, eligibilityJson),
+        ...members.map((member, index) => database.prepare("INSERT INTO screenshot_set_members (set_id, source_id, position, submission_id, map_name, ocr_result_id, object_key, sha256, mime_type, size_bytes, layout_version, accuracy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(setId, member.sourceId, index, member.submissionId, member.mapName, member.ocrResultId, member.objectKey, member.sha256, member.mimeType, member.sizeBytes, member.layoutVersion, member.accuracy)),
+        database.prepare(`INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) VALUES (?, ?, 'screenshot_set.draft.create', ?, json_object('contractVersion', '1', 'setId', ?, 'version', ${responseVersion}, 'status', 'draft', 'counts', json_object('memberCount', ?, 'excludedCount', ?)), ?)`).bind(`${auth.subject}:screenshot_set.draft.create:${idempotencyKey}`, auth.subject, await hashRequest(input), setId, setId, counts.memberCount, counts.excludedCount, timestamp),
+        database.prepare(`INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) VALUES (?, ?, ?, ?, 'screenshot_set.draft.created', 'screenshot_set', ?, json_object('version', ${responseVersion}, 'memberCount', ?, 'excludedCount', ?, 'exclusions', json(?)), ?)`).bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, setId, setId, counts.memberCount, counts.excludedCount, JSON.stringify(exclusions), timestamp),
+      ];
+      await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      const versionRow = await db.select({ version: screenshotSets.version }).from(screenshotSets).where(eq(screenshotSets.id, setId)).get();
+      if (!versionRow) throw new Error("SCREENSHOT_SET_CREATE_FAILED");
+      return { contractVersion: "1", setId, version: versionRow.version, status: "draft", counts };
+    },
+
+    async listAdminScreenshotSets(input: { page: number; pageSize: number; status?: ScreenshotSetStatus }, _auth: AuthContext): Promise<AdminScreenshotSetListResponse> {
+      const page = input.page >= 1 ? input.page : 1;
+      const pageSize = Math.min(Math.max(input.pageSize >= 1 ? input.pageSize : 20, 1), 100);
+      const condition = input.status ? eq(screenshotSets.status, input.status) : undefined;
+      const totalRow = await db.select({ total: count() }).from(screenshotSets).where(condition).get();
+      const total = totalRow?.total ?? 0;
+      const rows = await db.select().from(screenshotSets).where(condition).orderBy(desc(screenshotSets.createdAt)).limit(pageSize).offset((page - 1) * pageSize).all();
+      const items: AdminScreenshotSetListResponse["items"] = rows.map((row) => {
+        const eligibility = JSON.parse(row.eligibilityJson) as { memberCount: number; excludedCount: number };
+        return {
+          setId: row.id,
+          version: row.version,
+          status: row.status as ScreenshotSetStatus,
+          createdBy: row.createdBy,
+          createdAt: row.createdAt,
+          finalizedBy: row.finalizedBy,
+          finalizedAt: row.finalizedAt,
+          discardedBy: row.discardedBy,
+          discardedAt: row.discardedAt,
+          note: row.note,
+          counts: { memberCount: eligibility.memberCount, excludedCount: eligibility.excludedCount },
+        };
+      });
+      return { contractVersion: "1", items, page, pageSize, total, hasMore: page * pageSize < total };
+    },
+
+    async getAdminScreenshotSet(input: { setId: string }, _auth: AuthContext): Promise<AdminScreenshotSetDetailResponse> {
+      const set = await db.select().from(screenshotSets).where(eq(screenshotSets.id, input.setId)).get();
+      if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
+      const eligibility = JSON.parse(set.eligibilityJson) as { memberCount: number; excludedCount: number; exclusions?: Array<{ sourceId: string | null; submissionId: string; reason: string }> };
+      const members = await db.select().from(screenshotSetMembers).where(eq(screenshotSetMembers.setId, set.id)).orderBy(asc(screenshotSetMembers.position)).all();
+      return {
+        contractVersion: "1",
+        set: {
+          setId: set.id,
+          version: set.version,
+          status: set.status as ScreenshotSetStatus,
+          createdBy: set.createdBy,
+          createdAt: set.createdAt,
+          finalizedBy: set.finalizedBy,
+          finalizedAt: set.finalizedAt,
+          discardedBy: set.discardedBy,
+          discardedAt: set.discardedAt,
+          note: set.note,
+          counts: { memberCount: eligibility.memberCount, excludedCount: eligibility.excludedCount },
+        },
+        members: members.map((member) => ({
+          sourceId: member.sourceId,
+          submissionId: member.submissionId,
+          mapName: member.mapName,
+          objectKey: member.objectKey,
+          sha256: member.sha256,
+          mimeType: member.mimeType,
+          sizeBytes: member.sizeBytes,
+          layoutVersion: member.layoutVersion,
+          accuracy: member.accuracy as OcrAccuracyMark | null,
+          evidenceUrl: publicEvidenceUrl(member.objectKey),
+        })),
+        exclusions: (eligibility.exclusions ?? []).map((exclusion) => ({ sourceId: exclusion.sourceId, submissionId: exclusion.submissionId, reason: exclusion.reason })),
+      };
+    },
+
+    async finalizeAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetFinalizeResponse> {
+      const replay = await replayOrConflict<AdminScreenshotSetFinalizeResponse>(db, auth.subject, "screenshot_set.finalize", idempotencyKey, input);
+      if (replay) return replay;
+      const set = await db.select().from(screenshotSets).where(eq(screenshotSets.id, input.setId)).get();
+      if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
+      if (set.status !== "draft") throw new Error(set.status === "finalized" ? "SCREENSHOT_SET_ALREADY_FINALIZED" : "SCREENSHOT_SET_ALREADY_DISCARDED");
+      const timestamp = now();
+      const response: AdminScreenshotSetFinalizeResponse = { contractVersion: "1", setId: set.id, version: set.version, status: "finalized", finalizedAt: timestamp };
+      const statements: D1PreparedStatement[] = [
+        database.prepare("UPDATE screenshot_sets SET status = 'finalized', finalized_by = ?, finalized_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, set.id),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'screenshot_set.finalize', ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:screenshot_set.finalize:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'screenshot_set.finalized', 'screenshot_set', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, set.id, JSON.stringify({ version: set.version }), timestamp),
+      ];
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (Number(results[0]?.meta?.changes ?? 0) !== 1) throw new Error("SCREENSHOT_SET_NOT_DRAFT");
+      return response;
+    },
+
+    // A draft that will not be used is discarded instead of left open forever:
+    // discard closes the draft lifecycle without consuming the set as something
+    // OCRKit could ever read. Discarded sets stay readable for audit.
+    async discardAdminScreenshotSet(input: { setId: string; note?: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminScreenshotSetDiscardResponse> {
+      const replay = await replayOrConflict<AdminScreenshotSetDiscardResponse>(db, auth.subject, "screenshot_set.discard", idempotencyKey, input);
+      if (replay) return replay;
+      const set = await db.select().from(screenshotSets).where(eq(screenshotSets.id, input.setId)).get();
+      if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
+      if (set.status !== "draft") throw new Error(set.status === "finalized" ? "SCREENSHOT_SET_ALREADY_FINALIZED" : "SCREENSHOT_SET_ALREADY_DISCARDED");
+      const timestamp = now();
+      const response: AdminScreenshotSetDiscardResponse = { contractVersion: "1", setId: set.id, version: set.version, status: "discarded", discardedAt: timestamp };
+      const statements: D1PreparedStatement[] = [
+        database.prepare("UPDATE screenshot_sets SET status = 'discarded', discarded_by = ?, discarded_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, set.id),
+        database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'screenshot_set.discard', ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:screenshot_set.discard:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
+        database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'screenshot_set.discarded', 'screenshot_set', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, set.id, JSON.stringify({ version: set.version }), timestamp),
+      ];
+      const results = await database.batch(statements as [D1PreparedStatement, ...D1PreparedStatement[]]);
+      if (Number(results[0]?.meta?.changes ?? 0) !== 1) throw new Error("SCREENSHOT_SET_NOT_DRAFT");
+      return response;
+    },
+
+    // Private, versioned OCRKit consumption contract. Reads only the frozen
+    // member rows of finalized sets — never QQ identity, player-account
+    // internals, Submission decisions, Grant/mastery state, or risk signals.
+    async getOcrkitScreenshotSet(input: { version: number }): Promise<OcrkitScreenshotSetResponse> {
+      const set = await db.select().from(screenshotSets).where(eq(screenshotSets.version, input.version)).get();
+      if (!set) throw new Error("SCREENSHOT_SET_NOT_FOUND");
+      if (set.status !== "finalized" || set.finalizedAt === null) throw new Error("SCREENSHOT_SET_NOT_FINALIZED");
+      const members = await db.select().from(screenshotSetMembers).where(eq(screenshotSetMembers.setId, set.id)).orderBy(asc(screenshotSetMembers.position)).all();
+      return {
+        schema_version: 1,
+        set_id: set.id,
+        version: set.version,
+        finalized: true,
+        finalized_at: new Date(set.finalizedAt).toISOString(),
+        members: members.map((member) => ({
+          source_id: member.sourceId,
+          object_key: member.objectKey,
+          sha256: member.sha256,
+          mime_type: member.mimeType,
+          size_bytes: member.sizeBytes,
+          layout_version: member.layoutVersion,
+          accuracy: member.accuracy as OcrAccuracyMark | null,
+        })),
+      };
     },
 
     async requestManualReview(input, sessionToken) {

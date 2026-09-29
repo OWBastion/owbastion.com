@@ -271,9 +271,13 @@ the current screenshot contract.
 ### Evidence retention
 
 Evidence that still supports a Verified Run, Completion, Grant, or historical
-annotation provenance is retained. A Player must not be
-able to physically delete evidence whose removal would sever an accepted
-business fact from its provenance.
+annotation provenance is retained, and so is evidence that is a member of a
+finalized screenshot set: finalized membership is the platform's approval for
+OCR training, and the frozen member row is the training provenance. A Player
+must not be able to physically delete evidence whose removal would sever an
+accepted business fact or a finalized set member from its provenance. Copies of
+a finalized set that OCRKit already downloaded are OCRKit-local training data
+and are not recalled when a Submission or its evidence is later removed.
 
 Evidence with no accepted downstream fact, such as rejected evidence, may be
 eligible for deletion according to product and retention policy. No complex
@@ -670,6 +674,22 @@ latest writer wins between player and maintainer). The mark carries no
 transcription, never affects Submission review or business outcomes, and may
 be consumed by OCRKit as a sampling/prioritization hint only — never as a
 label.
+
+What the platform supplies OCRKit are immutable, versioned screenshot sets
+(`screenshot_sets`, `screenshot_set_members`): the explicit approval that a
+list of source screenshots may be used for OCR training. Members are selected
+by rule — the latest stored screenshot of every approved Submission, plus the
+latest stored screenshot of any Submission whose current recognition carries an
+`inaccurate` mark — and a maintainer may exclude anomalies before finalization.
+Member rows freeze the delivery payload and provenance (source id, R2 object
+key, SHA-256, MIME type, size, layout version, accuracy mark), so finalized
+sets stay complete as training provenance even if the source Submission later
+changes. A draft either becomes finalized or is discarded; discarded sets stay
+auditable but are never served to OCRKit. The private OCRKit endpoint serves
+only finalized sets and only these member facts — never player identity, QQ
+data, Submission decisions, Grant/mastery state, or risk signals; OCRKit
+downloads the objects themselves from the evidence bucket with its own
+read-only credentials.
 
 Historical proposal/reviewed-annotation/dataset-snapshot records are retained
 for audit but no new records are produced or consumed.

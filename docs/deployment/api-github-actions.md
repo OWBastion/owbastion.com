@@ -72,6 +72,7 @@ Configure these repository or production-environment secrets:
 | `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
 | `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
 | `OCRKIT_API_TOKEN` | Bearer credential shared only with OCRKit |
+| `OCRKIT_SNAPSHOT_TOKEN` | Bearer credential OCRKit uses to read finalized screenshot sets |
 | `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key material for re-copyable invitation codes; generate with `openssl rand -base64 32` and retain it while invitations remain active |
 | `ADMIN_BATTLETAG` | Full BattleTag, such as `TestPlayer#1234`, that receives administrator access during deployment |
 
