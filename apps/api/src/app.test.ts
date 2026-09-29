@@ -2040,8 +2040,8 @@ describe("API", () => {
         ...services,
         listAdminScreenshotSetCandidates: async () => ({ contractVersion: "1" as const, items: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", submissionStatus: "approved", accuracy: null, layoutVersion: "layout-v2", mimeType: "image/png", sizeBytes: 12, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], page: 1, pageSize: 100, total: 1, hasMore: false }),
         createAdminScreenshotSet: async () => ({ contractVersion: "1" as const, setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, counts: { memberCount: 1, excludedCount: 1 } }),
-        listAdminScreenshotSets: async () => ({ contractVersion: "1" as const, items: [{ setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }], page: 1, pageSize: 20, total: 1, hasMore: false }),
-        getAdminScreenshotSet: async () => ({ contractVersion: "1" as const, set: { setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }, members: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", objectKey: "uploads/submissions/00000000-0000-4000-8000-000000000011/object.png", sha256: "a".repeat(64), mimeType: "image/png", sizeBytes: 12, layoutVersion: "layout-v2", accuracy: "inaccurate" as const, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], exclusions: [{ sourceId: "00000000-0000-4000-8000-000000000012", submissionId: "00000000-0000-4000-8000-000000000013", reason: "missing_layout_version" }] }),
+        listAdminScreenshotSets: async () => ({ contractVersion: "1" as const, items: [{ setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, discardedBy: null, discardedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }], page: 1, pageSize: 20, total: 1, hasMore: false }),
+        getAdminScreenshotSet: async () => ({ contractVersion: "1" as const, set: { setId: "00000000-0000-4000-8000-000000000009", version: 1, status: "draft" as const, createdBy: "admin", createdAt: 1, finalizedBy: null, finalizedAt: null, discardedBy: null, discardedAt: null, note: null, counts: { memberCount: 1, excludedCount: 1 } }, members: [{ sourceId: "00000000-0000-4000-8000-000000000010", submissionId: "00000000-0000-4000-8000-000000000011", mapName: "测试地图", objectKey: "uploads/submissions/00000000-0000-4000-8000-000000000011/object.png", sha256: "a".repeat(64), mimeType: "image/png", sizeBytes: 12, layoutVersion: "layout-v2", accuracy: "inaccurate" as const, evidenceUrl: "https://evidence.owbastion.codes/uploads/submissions/00000000-0000-4000-8000-000000000011/object.png" }], exclusions: [{ sourceId: "00000000-0000-4000-8000-000000000012", submissionId: "00000000-0000-4000-8000-000000000013", reason: "missing_layout_version" }] }),
         finalizeAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "finalized" as const, finalizedAt: 2 }),
         discardAdminScreenshotSet: async ({ setId }) => ({ contractVersion: "1" as const, setId, version: 1, status: "discarded" as const, discardedAt: 3 }),
       }),
@@ -2084,6 +2084,25 @@ describe("API", () => {
     expect(await discarded.json()).toMatchObject({ status: "discarded", version: 1 });
     expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
     expect((await setApp.request("http://localhost/v1/admin/screenshot-sets/not-a-uuid/discard", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-2" }, body: JSON.stringify({ contractVersion: "1" }) }, env)).status).toBe(422);
+  });
+
+  it("maps screenshot-set discard lifecycle errors to 404 and 409", async () => {
+    const maintainerAuth = async () => ({ actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" });
+    const post = { method: "POST", headers: { "content-type": "application/json", "idempotency-key": "set-discard-err" }, body: JSON.stringify({ contractVersion: "1" }) };
+    const path = "http://localhost/v1/admin/screenshot-sets/00000000-0000-4000-8000-000000000009/discard";
+
+    for (const [thrown, status] of [
+      ["SCREENSHOT_SET_NOT_FOUND", 404],
+      ["SCREENSHOT_SET_ALREADY_FINALIZED", 409],
+      ["SCREENSHOT_SET_ALREADY_DISCARDED", 409],
+      ["SCREENSHOT_SET_NOT_DRAFT", 409],
+      ["IDEMPOTENCY_CONFLICT", 409],
+    ] as const) {
+      const errorApp = createApp({ authenticate: maintainerAuth, services: () => ({ ...services, discardAdminScreenshotSet: async () => { throw new Error(thrown); } }) });
+      const response = await errorApp.request(path, post, env);
+      expect(response.status).toBe(status);
+      expect((await response.json() as any).error.code).toBe(thrown);
+    }
   });
 
   it("serves finalized screenshot sets only through the private OCRKit contract", async () => {

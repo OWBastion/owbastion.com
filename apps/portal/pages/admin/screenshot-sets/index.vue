@@ -21,6 +21,7 @@ const detailLoading = ref(false);
 const detailError = ref('');
 const finalizing = ref(false);
 const discarding = ref(false);
+const discardConfirmOpen = ref(false);
 const draftDialogOpen = ref(false);
 const draftCandidates = ref<AdminScreenshotSetCandidate[]>([]);
 const excludedSourceIds = ref<string[]>([]);
@@ -148,7 +149,7 @@ async function discard() {
     closeDetail();
     await load();
   } catch (error) { detailError.value = portalErrorDetails(error, '废弃未完成，请稍后重试。').description; }
-  finally { discarding.value = false; }
+  finally { discarding.value = false; discardConfirmOpen.value = false; }
 }
 
 watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
@@ -205,6 +206,7 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
             <div><dt>状态</dt><dd><StatusBadge :label='statusLabel(selectedDetail.set.status)' :tone='statusTone(selectedDetail.set.status)' /></dd></div>
             <div><dt>创建时间</dt><dd>{{ formatTime(selectedDetail.set.createdAt) }}</dd></div>
             <div><dt>定稿时间</dt><dd>{{ selectedDetail.set.finalizedAt ? formatTime(selectedDetail.set.finalizedAt) : "—" }}</dd></div>
+            <div v-if='selectedDetail.set.discardedAt'><dt>废弃时间</dt><dd>{{ formatTime(selectedDetail.set.discardedAt) }} · {{ selectedDetail.set.discardedBy }}</dd></div>
             <div><dt>入选 / 排除</dt><dd>{{ selectedDetail.set.counts.memberCount }} / {{ selectedDetail.set.counts.excludedCount }}</dd></div>
           </dl>
           <div v-if='selectedDetail.members.length' class='set-members'>
@@ -228,8 +230,15 @@ watch(statusFilter, () => { page.value = 1; }, { flush: 'sync' });
         </template>
       </template>
       <template v-if='selectedDetail?.set.status === "draft"' #footer>
-        <UButton label='废弃' color='error' variant='outline' :loading='discarding' :disabled='discarding' @click='discard' />
-        <UButton label='定稿' color='primary' :loading='finalizing' :disabled='finalizing' @click='finalize' />
+        <UButton label='废弃' color='error' variant='outline' :disabled='finalizing || discarding' @click='discardConfirmOpen = true' />
+        <UButton label='定稿' color='primary' :loading='finalizing' :disabled='finalizing || discarding' @click='finalize' />
+      </template>
+    </AdminResponsiveDialog>
+
+    <AdminResponsiveDialog :open='discardConfirmOpen' title='确认废弃截图集' :description="selectedDetail ? `v${selectedDetail.set.version} 草稿废弃后不可再定稿，仅保留供审计查看，OCRKit 永远不可读取。` : undefined" size='sm' :dismissible='!discarding' @update:open='(open) => { if (!open && !discarding) discardConfirmOpen = false; }'>
+      <template #footer>
+        <UButton label='确认废弃' color='error' variant='soft' :loading='discarding' @click='discard' />
+        <UButton label='取消' color='neutral' variant='outline' :disabled='discarding' @click='discardConfirmOpen = false' />
       </template>
     </AdminResponsiveDialog>
   </AdminWorkspace>

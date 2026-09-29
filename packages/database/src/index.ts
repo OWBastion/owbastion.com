@@ -6126,6 +6126,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: row.createdAt,
           finalizedBy: row.finalizedBy,
           finalizedAt: row.finalizedAt,
+          discardedBy: row.discardedBy,
+          discardedAt: row.discardedAt,
           note: row.note,
           counts: { memberCount: eligibility.memberCount, excludedCount: eligibility.excludedCount },
         };
@@ -6148,6 +6150,8 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
           createdAt: set.createdAt,
           finalizedBy: set.finalizedBy,
           finalizedAt: set.finalizedAt,
+          discardedBy: set.discardedBy,
+          discardedAt: set.discardedAt,
           note: set.note,
           counts: { memberCount: eligibility.memberCount, excludedCount: eligibility.excludedCount },
         },
@@ -6197,7 +6201,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       const timestamp = now();
       const response: AdminScreenshotSetDiscardResponse = { contractVersion: "1", setId: set.id, version: set.version, status: "discarded", discardedAt: timestamp };
       const statements: D1PreparedStatement[] = [
-        database.prepare("UPDATE screenshot_sets SET status = 'discarded', note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(input.note?.trim() ?? null, set.id),
+        database.prepare("UPDATE screenshot_sets SET status = 'discarded', discarded_by = ?, discarded_at = ?, note = COALESCE(?, note) WHERE id = ? AND status = 'draft'").bind(auth.subject, timestamp, input.note?.trim() ?? null, set.id),
         database.prepare("INSERT INTO idempotency_keys (id, actor_id, operation, request_hash, response_json, created_at) SELECT ?, ?, 'screenshot_set.discard', ?, ?, ? WHERE changes() = 1").bind(`${auth.subject}:screenshot_set.discard:${idempotencyKey}`, auth.subject, await hashRequest(input), JSON.stringify(response), timestamp),
         database.prepare("INSERT INTO audit_events (id, correlation_id, actor_type, actor_id, operation, entity_type, entity_id, payload_json, created_at) SELECT ?, ?, ?, ?, 'screenshot_set.discarded', 'screenshot_set', ?, ?, ? WHERE changes() = 1").bind(crypto.randomUUID(), crypto.randomUUID(), auth.actorType, auth.subject, set.id, JSON.stringify({ version: set.version }), timestamp),
       ];

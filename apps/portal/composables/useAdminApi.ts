@@ -173,6 +173,8 @@ export type AdminScreenshotSet = {
   createdAt: number;
   finalizedBy: string | null;
   finalizedAt: number | null;
+  discardedBy: string | null;
+  discardedAt: number | null;
   note: string | null;
   counts: { memberCount: number; excludedCount: number };
 };

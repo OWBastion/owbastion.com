@@ -82,6 +82,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     created_at INTEGER NOT NULL,
     finalized_by TEXT,
     finalized_at INTEGER,
+    discarded_by TEXT,
+    discarded_at INTEGER,
     note TEXT,
     eligibility_json TEXT NOT NULL DEFAULT '{}'
   );
@@ -318,6 +320,8 @@ describe("screenshot sets", () => {
 
     const detail = await services.getAdminScreenshotSet({ setId: draft.setId }, maintainer);
     expect(detail.set.status).toBe("discarded");
+    expect(detail.set.discardedBy).toBe(maintainer.subject);
+    expect(detail.set.discardedAt).toBe(discarded.discardedAt);
     const list = await services.listAdminScreenshotSets({ page: 1, pageSize: 20, status: "discarded" }, maintainer);
     expect(list.items.map((item) => item.setId)).toEqual([draft.setId]);
 

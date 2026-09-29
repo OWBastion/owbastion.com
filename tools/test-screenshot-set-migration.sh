@@ -59,7 +59,8 @@ sqlite3 -bail "$representative_database" "UPDATE screenshot_sets SET status = 'f
 [[ "$(sqlite3 "$representative_database" "SELECT COUNT(*) FROM screenshot_set_members WHERE set_id = 'set-1';")" == "1" ]]
 
 # Discarded is a valid terminal status for a draft; arbitrary statuses are not.
-sqlite3 -bail "$representative_database" "INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES ('set-3', 2, 'discarded', 'maintainer-1', 6, NULL, '{}');"
+sqlite3 -bail "$representative_database" "INSERT INTO screenshot_sets (id, version, status, created_by, created_at, discarded_by, discarded_at, note, eligibility_json) VALUES ('set-3', 2, 'discarded', 'maintainer-1', 6, 'maintainer-1', 8, NULL, '{}');"
+[[ "$(sqlite3 "$representative_database" "SELECT discarded_by || ':' || discarded_at FROM screenshot_sets WHERE id = 'set-3';")" == "maintainer-1:8" ]]
 if sqlite3 -bail "$representative_database" "INSERT INTO screenshot_sets (id, version, status, created_by, created_at, note, eligibility_json) VALUES ('set-4', 3, 'bogus', 'maintainer-1', 7, NULL, '{}');" 2>/dev/null; then
   echo "Expected the status check constraint to reject an unknown status." >&2
   exit 1

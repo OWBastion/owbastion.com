@@ -651,6 +651,8 @@ export const screenshotSets = sqliteTable("screenshot_sets", {
   createdAt: integer("created_at").notNull(),
   finalizedBy: text("finalized_by"),
   finalizedAt: integer("finalized_at"),
+  discardedBy: text("discarded_by"),
+  discardedAt: integer("discarded_at"),
   note: text("note"),
   eligibilityJson: text("eligibility_json").notNull().default("{}"),
 }, (table) => ({

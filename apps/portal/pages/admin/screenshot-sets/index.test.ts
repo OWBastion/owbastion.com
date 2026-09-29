@@ -12,6 +12,8 @@ const set = {
   createdAt: 1,
   finalizedBy: null,
   finalizedAt: null,
+  discardedBy: null,
+  discardedAt: null,
   note: null,
   counts: { memberCount: 2, excludedCount: 1 },
 };
@@ -38,7 +40,8 @@ const adminApi = vi.fn((path: string, options?: { method?: string }) => {
   if (path === "/v1/screenshot-sets/candidates?page=1&pageSize=100") return Promise.resolve({ items: [candidate], total: 1, hasMore: false });
   if (path === "/v1/screenshot-sets/00000000-0000-4000-8000-000000000007") return Promise.resolve(detail);
   if (path === "/v1/screenshot-sets" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", setId: set.setId, version: 2, status: "draft", counts: { memberCount: 0, excludedCount: 1 } });
-  if (options?.method === "POST") return Promise.resolve({ contractVersion: "1", setId: set.setId, version: 1, status: "finalized", finalizedAt: 2 });
+  if (path === "/v1/screenshot-sets/00000000-0000-4000-8000-000000000007/finalize" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", setId: set.setId, version: 1, status: "finalized", finalizedAt: 2 });
+  if (path === "/v1/screenshot-sets/00000000-0000-4000-8000-000000000007/discard" && options?.method === "POST") return Promise.resolve({ contractVersion: "1", setId: set.setId, version: 1, status: "discarded", discardedAt: 3 });
   throw new Error(`Unexpected request: ${path}`);
 });
 mockNuxtImport("useAdminApi", () => () => adminApi);
@@ -107,5 +110,25 @@ describe("admin screenshot sets page", () => {
     await finalizeButton?.trigger("click");
     await flushPromises();
     expect(adminApi).toHaveBeenCalledWith("/v1/screenshot-sets/00000000-0000-4000-8000-000000000007/finalize", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
+  });
+
+  it("discards a draft only after confirmation", async () => {
+    adminApi.mockClear();
+    const wrapper = await mountSuspended(ScreenshotSetsPage, { global: { stubs } });
+    await flushPromises();
+    await wrapper.get('[role="row"]').find("button").trigger("click");
+    await flushPromises();
+
+    // The discard button opens a confirmation instead of posting immediately.
+    const discardButton = wrapper.findAll("button").find((button) => button.text().trim() === "废弃");
+    await discardButton?.trigger("click");
+    await flushPromises();
+    expect(adminApi).not.toHaveBeenCalledWith(expect.stringContaining("/discard"), expect.anything());
+    expect(wrapper.text()).toContain("确认废弃截图集");
+
+    const confirmButton = wrapper.findAll("button").find((button) => button.text().trim() === "确认废弃");
+    await confirmButton?.trigger("click");
+    await flushPromises();
+    expect(adminApi).toHaveBeenCalledWith("/v1/screenshot-sets/00000000-0000-4000-8000-000000000007/discard", expect.objectContaining({ method: "POST", body: { contractVersion: "1" } }));
   });
 });

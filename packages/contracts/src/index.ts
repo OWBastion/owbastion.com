@@ -1337,6 +1337,8 @@ export const adminScreenshotSetSchema = z.object({
   createdAt: z.number().int(),
   finalizedBy: z.string().nullable(),
   finalizedAt: z.number().int().nullable(),
+  discardedBy: z.string().nullable(),
+  discardedAt: z.number().int().nullable(),
   note: z.string().nullable(),
   counts: screenshotSetCountsSchema,
 }).strict();

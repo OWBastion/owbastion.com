@@ -22,6 +22,8 @@ CREATE TABLE screenshot_sets (
   created_at INTEGER NOT NULL,
   finalized_by TEXT,
   finalized_at INTEGER,
+  discarded_by TEXT,
+  discarded_at INTEGER,
   note TEXT,
   eligibility_json TEXT NOT NULL DEFAULT '{}'
 );
