@@ -9,7 +9,6 @@ const maintainerContext = { actorType: "user" as const, subject: "admin", roles:
 const authenticateAsMaintainer = async () => maintainerContext;
 const anonymousAuth = async () => null;
 const defaultServices: Partial<PlatformServices> = {
-  listAgentEvents: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   listAgentMaps: async () => ({ contractVersion: "1", items: [], page: 1, pageSize: 20, total: 0, hasMore: false }),
   listRandomEvents: async () => [],
   listMaps: async () => [],

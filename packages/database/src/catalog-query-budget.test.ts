@@ -20,10 +20,6 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
 
-/**
- * Minimal D1Database shim over node:sqlite for catalog query-budget tests.
- * Counts statement executions (all / first / run / raw / batch items).
- */
 const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
