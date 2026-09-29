@@ -349,13 +349,14 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   };
 
-  registerAdminVerifiedRunRoutes(app, {
+  const adminRouteDependencies = {
     services: dependencies.services,
     requireMaintainer,
     errorResponse,
     errorGroup,
     adminMutation,
-  });
+  };
+  registerAdminVerifiedRunRoutes(app, adminRouteDependencies);
 
 
 
