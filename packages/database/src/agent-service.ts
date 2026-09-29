@@ -1,7 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type {
-  AgentMap,
   AgentSearchResult,
   AgentTitle,
   Challenge,
@@ -18,6 +17,7 @@ import type {
   PlatformServices,
 } from "@owbastion/domain";
 import type { paginate } from "./page-result";
+import { loadAgentMapProjectionsFast as projectAgentMaps } from "./agent-map-projection";
 import {
   gameplayRevisions,
   mapTitleRewards,
@@ -45,9 +45,9 @@ type AgentServices = Pick<PlatformServices,
 >;
 
 type Dependencies = {
+  database: D1Database;
   now: () => number;
   paginate: typeof paginate;
-  loadAgentMapProjectionsFast: (input: { mapId?: string }) => Promise<AgentMap[]>;
   suspendedEventVersions: () => Promise<Set<string>>;
   listGlobalAgentTitles: () => Promise<AgentTitle[]>;
   loadChallengeMapIds: (challengeIds?: string[]) => Promise<globalThis.Map<string, string[]>>;
@@ -63,9 +63,9 @@ type Dependencies = {
 
 export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies: Dependencies): AgentServices => {
   const {
+    database,
     now,
     paginate,
-    loadAgentMapProjectionsFast,
     suspendedEventVersions,
     listGlobalAgentTitles,
     loadChallengeMapIds,
@@ -73,6 +73,7 @@ export const createAgentServices = (db: ReturnType<typeof drizzle>, dependencies
     toPublicTitleChallenge,
     titleChallengeIsSubmittable,
   } = dependencies;
+  const loadAgentMapProjectionsFast = (input: { mapId?: string }) => projectAgentMaps(database, input, now);
   const asMapAgentTitle = (
     title: typeof titleCatalog.$inferSelect,
     mapId: string,
