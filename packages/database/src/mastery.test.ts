@@ -7,6 +7,7 @@ import {
   ocrResultsSchema,
   playerAccountsSchema,
   portalSessionsSchema,
+  submissionOutcomesWithReferencesSchema,
   submissionReviewsSchema,
   verifiedRunsSchema,
 } from "../test/schema";
@@ -62,19 +63,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${verifiedRunsSchema(true)}
   CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
   CREATE TABLE mastery_run_lifecycle_events (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), transition TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE submission_outcomes (
-    id TEXT PRIMARY KEY NOT NULL,
-    submission_id TEXT NOT NULL REFERENCES submissions(id),
-    outcome_key TEXT NOT NULL,
-    outcome_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    entity_id TEXT,
-    awarded_xp INTEGER NOT NULL DEFAULT 0,
-    details_json TEXT NOT NULL DEFAULT '{}',
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    UNIQUE (submission_id, outcome_key)
-  );
+  ${submissionOutcomesWithReferencesSchema}
   ${idempotencyKeysRequiredIdSchema}
   ${auditEventsRequiredIdSchema}
   ${ocrResultsSchema}

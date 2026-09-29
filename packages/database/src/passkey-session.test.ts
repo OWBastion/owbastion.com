@@ -1,5 +1,6 @@
 import {
   auditEventsRequiredIdSchema,
+  bindingInvitesSchema,
   idempotencyKeysRequiredIdSchema,
   playerAccountsSchema,
 } from "../test/schema";
@@ -32,13 +33,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
   ${playerAccountsSchema}
   CREATE UNIQUE INDEX player_accounts_battletag_idx ON player_accounts(normalized_player_name, player_id);
   CREATE TABLE bindings (id TEXT PRIMARY KEY, identity_id TEXT, player_account_id TEXT NOT NULL, provider TEXT NOT NULL, group_open_id TEXT, member_open_id TEXT, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE binding_invites (
-    id TEXT PRIMARY KEY NOT NULL, code_hash TEXT NOT NULL, code_ciphertext TEXT, player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL,
-    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER,
-    legacy_passkey_player_account_id TEXT, legacy_passkey_challenge_id TEXT,
-    revoked_at INTEGER, revoked_by TEXT
-  );
+  ${bindingInvitesSchema}
   CREATE TABLE binding_invite_historical_title_grants (
     id TEXT PRIMARY KEY NOT NULL, invite_id TEXT NOT NULL, historical_title_grant_id TEXT NOT NULL,
     authorized_by TEXT NOT NULL, status TEXT NOT NULL, player_title_grant_id TEXT, last_error TEXT,

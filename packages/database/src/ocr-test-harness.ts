@@ -3,6 +3,7 @@ import {
   achievementChallengesSchema,
   attachmentsSchema,
   auditEventsRequiredIdSchema,
+  bindingInvitesSchema,
   bindingsSchema,
   effectGlossaryTermsSchema,
   gameplayRevisionChallengeAssignmentsSchema,
@@ -14,6 +15,7 @@ import {
   mapTitleRuleExceptionsSchema,
   mapTitleRulesSchema,
   mapsSchema,
+  ocrFeedbackProposalsWithoutReviewStateSchema,
   ocrResultsSchema,
   playerAccountsSchema,
   qqGroupAccessSchema,
@@ -23,6 +25,7 @@ import {
   randomEventTitleChallengesSchema,
   randomEventsSchema,
   reviewedAnnotationsSchemaWithoutReferences,
+  submissionOutcomesWithReferencesSchema,
   submissionReviewsSchema,
   titleCatalogSchema,
   verifiedRunsSchema,
@@ -219,19 +222,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       resolved_at INTEGER NOT NULL,
       UNIQUE (mastery_run_id, conflict_submission_id)
     );
-    CREATE TABLE submission_outcomes (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL REFERENCES submissions(id),
-      outcome_key TEXT NOT NULL,
-      outcome_type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      entity_id TEXT,
-      awarded_xp INTEGER NOT NULL DEFAULT 0,
-      details_json TEXT NOT NULL DEFAULT '{}',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (submission_id, outcome_key)
-    );
+    ${submissionOutcomesWithReferencesSchema}
     CREATE TABLE submission_spot_checks (
       id TEXT PRIMARY KEY NOT NULL,
       submission_id TEXT NOT NULL UNIQUE,
@@ -305,22 +296,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE binding_invites (
-      id TEXT PRIMARY KEY NOT NULL,
-      code_hash TEXT NOT NULL,
-      code_ciphertext TEXT,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      player_id TEXT NOT NULL,
-      created_by TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
-      redeemed_at INTEGER,
-      legacy_passkey_player_account_id TEXT,
-      legacy_passkey_challenge_id TEXT,
-      revoked_at INTEGER,
-      revoked_by TEXT
-    );
+    ${bindingInvitesSchema}
     CREATE UNIQUE INDEX binding_invites_code_idx ON binding_invites (code_hash);
     CREATE TABLE binding_claims (
       id TEXT PRIMARY KEY NOT NULL,
@@ -386,23 +362,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
     );
     ${ocrResultsSchema}
     ${attachmentsSchema}
-    CREATE TABLE ocr_feedback_proposals (
-      id TEXT PRIMARY KEY NOT NULL,
-      submission_id TEXT NOT NULL,
-      ocr_result_id TEXT NOT NULL,
-      field_key TEXT NOT NULL CHECK (field_key IN ('map_name', 'difficulty', 'viewer_player', 'challenge_completed', 'map_variant', 'achievement_titles')),
-      original_value TEXT,
-      feedback_type TEXT NOT NULL CHECK (feedback_type IN ('confirmed', 'corrected', 'passive_report')),
-      prompt_origin TEXT CHECK (prompt_origin IN ('uncertainty', 'conflict', 'grouped', 'calibration', 'passive')),
-      proposed_value TEXT,
-      model_version TEXT,
-      layout_version TEXT,
-      player_account_id TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'withdrawn')),
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
-    );
+    ${ocrFeedbackProposalsWithoutReviewStateSchema}
     ${reviewedAnnotationsSchemaWithoutReferences}
     CREATE UNIQUE INDEX reviewed_annotations_active_field_idx ON reviewed_annotations (submission_id, ocr_result_id, field_key) WHERE review_state = 'accepted';
     CREATE TABLE ocr_accuracy_feedback (

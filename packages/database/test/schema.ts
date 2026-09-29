@@ -47,6 +47,14 @@ export const bindingsSchema = `CREATE TABLE bindings (
     status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
   );`;
 
+export const bindingInvitesSchema = `CREATE TABLE binding_invites (
+    id TEXT PRIMARY KEY NOT NULL, code_hash TEXT NOT NULL, code_ciphertext TEXT, player_name TEXT NOT NULL,
+    normalized_player_name TEXT NOT NULL, player_id TEXT NOT NULL, created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, redeemed_at INTEGER,
+    legacy_passkey_player_account_id TEXT, legacy_passkey_challenge_id TEXT,
+    revoked_at INTEGER, revoked_by TEXT
+  );`;
+
 export const portalSessionsSchema = `CREATE TABLE portal_sessions (
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL,
     expires_at INTEGER NOT NULL
@@ -80,10 +88,13 @@ export const ocrFeedbackProposalsSchema = `CREATE TABLE ocr_feedback_proposals (
     prompt_origin TEXT CHECK (prompt_origin IN ('uncertainty', 'conflict', 'grouped', 'calibration', 'passive')),
     proposed_value TEXT, model_version TEXT, layout_version TEXT, player_account_id TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'withdrawn')),
-    review_state TEXT NOT NULL DEFAULT 'pending' CHECK (review_state IN ('pending', 'accepted', 'rejected')),
+    ${includeReviewState ? "review_state TEXT NOT NULL DEFAULT 'pending' CHECK (review_state IN ('pending', 'accepted', 'rejected'))," : ""}
     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
     UNIQUE (submission_id, ocr_result_id, field_key, player_account_id)
   );`;
+
+export const ocrFeedbackProposalsSchema = createOcrFeedbackProposalsSchema(true);
+export const ocrFeedbackProposalsWithoutReviewStateSchema = createOcrFeedbackProposalsSchema(false);
 
 const createReviewedAnnotationsSchema = (enforceReferences: boolean) => `CREATE TABLE reviewed_annotations (
     id TEXT PRIMARY KEY NOT NULL,
@@ -129,6 +140,20 @@ export const submissionOutcomesSchema = `CREATE TABLE submission_outcomes (
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, outcome_key TEXT NOT NULL,
     outcome_type TEXT NOT NULL, status TEXT NOT NULL, entity_id TEXT, awarded_xp INTEGER NOT NULL DEFAULT 0,
     details_json TEXT NOT NULL DEFAULT '{}', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  );`;
+
+export const submissionOutcomesWithReferencesSchema = `CREATE TABLE submission_outcomes (
+    id TEXT PRIMARY KEY NOT NULL,
+    submission_id TEXT NOT NULL REFERENCES submissions(id),
+    outcome_key TEXT NOT NULL,
+    outcome_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    entity_id TEXT,
+    awarded_xp INTEGER NOT NULL DEFAULT 0,
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (submission_id, outcome_key)
   );`;
 
 export const submissionReviewsSchema = `CREATE TABLE submission_reviews (
