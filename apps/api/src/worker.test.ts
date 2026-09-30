@@ -69,6 +69,7 @@ describe("OCR Queue consumer", () => {
     // Env values must land in the right createPlatformServices slots; unconfigured bindings are not asserted.
     const serviceArgs = createPlatformServices.mock.calls[0]!;
     expect(serviceArgs.slice(3, 5)).toEqual(["https://ocr.example", "ocr-token"]);
+    expect(serviceArgs.slice(8, 10)).toEqual([1, 0]);
     expect(serviceArgs[10]).toEqual({
       version: "v1",
       minimumGameVersion: null,
