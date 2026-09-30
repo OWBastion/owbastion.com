@@ -72,7 +72,6 @@ const groups = computed(() => {
     .sort((left, right) => left.category.localeCompare(right.category, "zh-CN"));
 });
 
-const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 </script>
 
 <template>

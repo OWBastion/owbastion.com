@@ -1,39 +1,12 @@
 import { mountSuspended } from "@nuxt/test-utils/runtime";
 import { describe, expect, it } from "vitest";
 import type { AdminVerifiedRunDetail as VerifiedRunDetail } from "~/composables/useAdminApi";
+import { createAdminVerifiedRun } from "~/tests/fixtures/admin-verified-run";
 import AdminVerifiedRunDetail from "./AdminVerifiedRunDetail.vue";
 
 const detail: VerifiedRunDetail = {
   contractVersion: "1",
-  run: {
-    runId: "00000000-0000-4000-8000-000000000001",
-    playerAccountId: "00000000-0000-4000-8000-000000000002",
-    playerId: "1234",
-    playerName: "Tester",
-    sourceSubmissionId: "00000000-0000-4000-8000-000000000003",
-    mapId: "map.test",
-    mapName: "测试地图",
-    gameplayRevisionId: "revision:map.test:initial",
-    gameplayRevisionLifecycle: "default",
-    mapVariant: null,
-    difficulty: "困难",
-    gameVersion: "26.0810.1",
-    matchCode: "1234-5678-9012",
-    completionDurationSeconds: 600,
-    deaths: 1,
-    skips: 0,
-    eventCounters: { "event.alpha": 2 },
-    acceptanceSource: "submission_review",
-    acceptedAt: 1,
-    status: "active",
-    invalidatedAt: null,
-    invalidatedBy: null,
-    invalidationReason: null,
-    xpRuleVersion: "v1",
-    xpInputSnapshot: { ruleVersion: "v1", baseDifficultyXp: 225, mapFactor: 1, performanceBonus: 11, performanceBonusReasons: ["no_skips"], challengeBonus: 0 },
-    awardedXp: 236,
-    conflictCount: 1,
-  },
+    run: createAdminVerifiedRun(),
   projection: {
     mapId: "map.test",
     gameplayRevisionId: "revision:map.test:initial",

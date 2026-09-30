@@ -27,3 +27,17 @@ export const proxyUnavailable = (event: H3Event, requestId: string, operation: s
   setResponseStatus(event, 502);
   return { contractVersion: "1" as const, error: { code: "UPSTREAM_UNAVAILABLE", message: "上游服务暂不可用，请稍后重试。", requestId } };
 };
+
+export const proxyResponseBody = async (event: H3Event, response: Response, requestId: string) => {
+  setResponseStatus(event, response.status);
+  const contentType = response.headers.get("content-type");
+  if (contentType) setResponseHeader(event, "content-type", contentType);
+  if (response.status === 204) return null;
+  const body = await response.text();
+  try {
+    return JSON.parse(body);
+  } catch {
+    setResponseHeader(event, "content-type", "application/json");
+    return { contractVersion: "1", error: { code: `UPSTREAM_${response.status}`, message: body.trim() || "上游 API 返回了无效响应。", requestId } };
+  }
+};

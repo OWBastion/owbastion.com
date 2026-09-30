@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, OcrAccuracyMark } from "~/composables/useAdminApi";
+import { useAutoFitStackedLayout } from "~/composables/useAutoFitStackedLayout";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
@@ -32,7 +33,6 @@ const emit = defineEmits<{
   "retry-ocr": [];
 }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const formatStatus = (value: string) => submissionStatusText[value] ?? value;
 const actionsLoading = computed(() => Boolean(props.actionLoading || props.ocrRetryLoading));
 
@@ -106,7 +106,7 @@ function approve() {
   emit("review", "approved");
 }
 
-function updateFieldCorrections(value: Array<{ fieldKey: string; reviewedValue: string }>) {
+function updateFieldCorrections(value: AdminSubmissionReviewInput["fieldCorrections"]) {
   reviewInput.value = { ...reviewInput.value, fieldCorrections: value };
   emit("review-input", reviewInput.value);
 }
@@ -130,36 +130,7 @@ function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
 
-/**
- * review-layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * width — there is no CSS query for "auto-fit resolved to one column," so
- * the narrow-mode order/stickiness overrides read the browser's own
- * resolved column count instead of guessing a matching breakpoint.
- */
-const reviewLayoutRef = ref<HTMLElement | null>(null);
-const reviewLayoutStacked = ref(false);
-let reviewLayoutObserver: ResizeObserver | null = null;
-
-function updateReviewLayoutStacked() {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  reviewLayoutStacked.value = columns.length <= 1;
-}
-
-onMounted(() => {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  updateReviewLayoutStacked();
-  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
-  reviewLayoutObserver.observe(el);
-});
-
-onBeforeUnmount(() => {
-  reviewLayoutObserver?.disconnect();
-  reviewLayoutObserver = null;
-});
+const { target: reviewLayoutRef, stacked: reviewLayoutStacked } = useAutoFitStackedLayout();
 </script>
 
 <template>
@@ -428,16 +399,6 @@ onBeforeUnmount(() => {
 .detail-meta__time {
   color: var(--quiet);
 }
-.player-link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: none;
-}
-.player-link:hover,
-.player-link:focus-visible {
-  text-decoration: underline;
-}
-
 .surface-panel,
 .flow-evidence,
 .flow-claim,
@@ -592,41 +553,11 @@ onBeforeUnmount(() => {
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
-.claim-kind {
-  flex: 0 0 auto;
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-  font-weight: 500;
-  white-space: nowrap;
-}
 .claim-meta {
   margin: 0.5rem 0 0;
   color: var(--muted);
   font-size: var(--type-label-sm-size);
   line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-.claim-facts {
-  display: grid;
-  gap: 0.5rem;
-  margin: 0.75rem 0 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--line);
-}
-.claim-facts > div {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-}
-.claim-facts dt {
-  color: var(--quiet);
-  font-size: var(--type-caption-size);
-}
-.claim-facts dd {
-  margin: 0;
-  color: var(--text);
-  font-size: var(--type-label-sm-size);
-  line-height: 1.45;
   overflow-wrap: anywhere;
 }
 .claim-empty {
@@ -719,9 +650,6 @@ onBeforeUnmount(() => {
   .detail-meta-bar {
     align-items: flex-start;
     flex-wrap: wrap;
-  }
-  .claim-kind {
-    margin-top: 0.15rem;
   }
 }
 

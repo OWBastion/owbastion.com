@@ -1,47 +1,26 @@
+import {
+  auditEventsRequiredIdSchema,
+  effectGlossaryTermsSchema,
+  idempotencyKeysRequiredIdSchema,
+  mapsSchema,
+  randomEventsSchema,
+  titleCatalogSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
 
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  const wrap = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() { const results = sqlite.prepare(sql).all(...bound) as T[]; return { results, success: true, meta: {} }; },
-      async run() { const result = sqlite.prepare(sql).run(...bound); return { success: true, meta: { changes: Number(result.changes ?? 0) } }; },
-      async raw<T extends unknown[] = unknown[]>() { const prepared = sqlite.prepare(sql); prepared.setReturnArrays(true); return prepared.all(...bound) as T[]; },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrap(sql); },
-    async batch(statements: Array<ReturnType<typeof wrap>>) { return Promise.all(statements.map((statement) => statement.run())); },
-    async exec(sql: string) { sqlite.exec(sql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
+const createD1 = () => createTestD1({ foreignKeys: true, batchStatementMethod: "run" });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE random_events (
-    id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, category TEXT NOT NULL, rarity TEXT NOT NULL,
-    description TEXT NOT NULL, duration_seconds INTEGER, cooldown_seconds REAL, weight REAL,
-    game_version TEXT NOT NULL, effect_tags_json TEXT NOT NULL DEFAULT '[]', release_status TEXT NOT NULL,
-    archived_at INTEGER, archived_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
+  ${randomEventsSchema}
   CREATE TABLE random_event_versions (
     game_version TEXT PRIMARY KEY NOT NULL, availability TEXT NOT NULL DEFAULT 'available',
     suspended_at INTEGER, suspended_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE TABLE random_event_map_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
   CREATE TABLE random_event_title_challenges (event_id TEXT NOT NULL, challenge_id TEXT NOT NULL, PRIMARY KEY (event_id, challenge_id));
-  CREATE TABLE maps (
-    id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL,
-    introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
+  ${mapsSchema}
   CREATE TABLE map_metadata (
     map_id TEXT PRIMARY KEY NOT NULL, difficulty_rating TEXT, mechanics_json TEXT NOT NULL DEFAULT '[]',
     cover_url TEXT, background_url TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL
@@ -67,12 +46,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     is_standard_instance INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL,
     PRIMARY KEY (legacy_challenge_id, map_id)
   );
-  CREATE TABLE title_catalog (
-    key TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL, icon TEXT NOT NULL DEFAULT 'award', icon_url TEXT,
-    icon_object_key TEXT, category TEXT NOT NULL, condition TEXT NOT NULL, availability TEXT NOT NULL,
-    lifecycle TEXT NOT NULL DEFAULT 'active', public_visibility INTEGER NOT NULL DEFAULT 1,
-    scope TEXT NOT NULL, display_kind TEXT NOT NULL, color_json TEXT NOT NULL DEFAULT 'null', game_version TEXT NOT NULL
-  );
+  ${titleCatalogSchema}
   CREATE TABLE title_challenges (
     id TEXT PRIMARY KEY NOT NULL, title_key TEXT NOT NULL, category_override TEXT, condition TEXT NOT NULL,
     evidence_rule TEXT NOT NULL, submission_mode TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL,
@@ -80,12 +54,9 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     scope TEXT NOT NULL DEFAULT 'global', map_variant TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE TABLE achievement_challenge_maps (challenge_id TEXT NOT NULL, map_id TEXT NOT NULL, PRIMARY KEY (challenge_id, map_id));
-  CREATE TABLE effect_glossary_terms (
-    key TEXT PRIMARY KEY NOT NULL, name_zh TEXT NOT NULL, aliases_json TEXT NOT NULL DEFAULT '[]', category TEXT NOT NULL,
-    summary TEXT NOT NULL, definition TEXT NOT NULL, rules_json TEXT NOT NULL DEFAULT '[]', source_version TEXT NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
-  CREATE TABLE audit_events (id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
+  ${effectGlossaryTermsSchema}
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 describe("random-event version availability", () => {

@@ -36,7 +36,7 @@ const openEvent = (event: RandomEvent) => {
 };
 const statusText = (value: RandomEvent["releaseStatus"]) => value === "implemented" ? "已实装" : value === "removed" ? "已移除" : "开发中";
 const challengeHref = (challenge: EventChallenge) => challenge.family === "map"
-  ? (challenge.mapId ? `/maps?mapId=${encodeURIComponent(challenge.mapId)}` : "/maps")
+  ? `/maps?mapId=${encodeURIComponent(challenge.mapId)}`
   : "/achievements";
 const challengeAction = (challenge: EventChallenge) => challenge.family === "map" ? "查看地图" : "查看成就";
 const categoryColor = (value: string) => value === "减益" ? "error" : value === "增益" ? "success" : value === "机制" ? "info" : "neutral";

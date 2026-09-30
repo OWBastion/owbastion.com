@@ -35,7 +35,7 @@ const hasHistory = computed(() => Boolean(props.history?.total) || props.history
       <UEmpty v-if="!profile" title="暂无精通记录" variant="naked" />
       <template v-else>
         <dl class="mastery-summary"><div><dt>精通 XP</dt><dd>{{ profile.totalXp }} XP</dd></div><div><dt>已验证通关</dt><dd>{{ profile.verifiedRunCount }} 次</dd></div><div><dt>最高难度</dt><dd>{{ profile.highestCompletedDifficulty ?? "暂无记录" }}</dd></div><div><dt>最低死亡</dt><dd>{{ profile.lowestDeaths ?? "暂无记录" }}</dd></div><div><dt>最少跳过</dt><dd>{{ profile.fewestSkips ?? "暂无记录" }}</dd></div><div><dt>单次最高 XP</dt><dd>{{ profile.highestSingleRunXp ?? "暂无记录" }}<template v-if="profile.highestSingleRunXp !== null"> XP</template></dd></div></dl>
-        <div class="difficulty-summary" aria-label="各难度通关记录"><div v-for="stat in profile.difficultyStats" :key="stat.difficulty"><strong>{{ stat.difficulty }}</strong><span>{{ stat.verifiedRunCount }} 次 · 最快 {{ formatMasteryDuration(stat.fastestCompletionSeconds) }}</span></div></div>
+        <div class="difficulty-summary" aria-label="各难度通关记录"><div v-for="stat in profile.difficultyStats" :key="stat.difficulty" class="content-stack"><strong>{{ stat.difficulty }}</strong><span>{{ stat.verifiedRunCount }} 次 · 最快 {{ formatMasteryDuration(stat.fastestCompletionSeconds) }}</span></div></div>
       </template>
       <MasteryRunHistory v-if="profile || hasHistory" :map-name="mapName" :history="history" :loading="historyLoading" :error="historyError" @change-page="emit('history-page', $event)" @retry="emit('retry-history')" />
     </template>
@@ -51,7 +51,7 @@ const hasHistory = computed(() => Boolean(props.history?.total) || props.history
 .mastery-summary dt { color: var(--muted); font-size: .76rem; }
 .mastery-summary dd { margin: 0; color: var(--text); font-size: .8rem; font-weight: 700; text-align: right; }
 .difficulty-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
-.difficulty-summary > div { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
+.difficulty-summary > div { padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface-raised); }
 .difficulty-summary strong { color: var(--text); font-size: .8rem; }
 .difficulty-summary span { color: var(--quiet); font-size: .72rem; overflow-wrap: anywhere; }
 @container (max-width: 23.99rem) {

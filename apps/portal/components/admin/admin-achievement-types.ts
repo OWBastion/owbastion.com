@@ -83,7 +83,6 @@ export const isMap = (item: AdminAchievement): item is MapAchievement => item.fa
 export const isCatalog = (item: AdminAchievement): item is CatalogTitle => item.family === "title_catalog";
 export const isDeveloperOnly = (item: CatalogTitle) => item.category === "开发保留";
 export const itemIdentity = (item: AdminAchievement) => isMap(item) ? `${item.mapId}:${item.challengeId}:${item.gameplayRevisionId}` : item.challengeId;
-export const itemName = (item: AdminAchievement) => isTitle(item) ? item.titleName : item.name;
 export const DEFAULT_EVIDENCE_RULE = "上传包含结算画面、称号条件与玩家信息的完整截图。";
 
 /** Canonical player/admin lifecycle labels for challenge-like entities. */

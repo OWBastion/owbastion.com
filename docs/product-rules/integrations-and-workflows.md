@@ -49,9 +49,6 @@ and Player Account authentication:
 - D1 stores Player Accounts, Passkey credentials and challenges, direct Portal
   sessions, optional bindings, submissions, attachment metadata, idempotency
   records, and audit events;
-- when EVIDENCE_BUCKET is configured, submission creation validates and
-  retrieves HTTPS image sources, writes private objects to R2, and records
-  content metadata;
 - public submission status is an unauthenticated, opaque-ID lookup that exposes
   the submission ID, map, timestamps, workflow status, and when present a safe
   Verified Run outcome (`created`, `reused`, `ineligible`, or `invalidated`) with

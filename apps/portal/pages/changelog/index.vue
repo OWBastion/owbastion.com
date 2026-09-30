@@ -22,7 +22,7 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
 
 <template>
   <main class="editorial-page page-shell">
-    <section class="page-intro" aria-labelledby="changelog-title">
+    <section class="editorial-page-intro" aria-labelledby="changelog-title">
       <h1 id="changelog-title" class="page-title">版本更新</h1>
     </section>
 
@@ -44,16 +44,3 @@ const changelogVersions = computed(() => entries.value.map((entry) => ({
     </section>
   </main>
 </template>
-
-<style scoped>
-.editorial-page { padding-block: clamp(4rem, 9vh, 6.5rem) 4.5rem; }
-.page-intro { margin-bottom: var(--space-8); }
-.editorial-directory { min-width: 0; padding: clamp(var(--space-5), 4vw, var(--space-8)); }
-.editorial-loading { min-height: 170px; display: grid; place-items: center; color: var(--muted); }
-.editorial-changelog-list :deep(article) { min-width: 0; }
-@media (max-width: 47.99rem) {
-  .editorial-page { padding-block: 3rem; }
-  .page-intro { margin-bottom: var(--space-5); }
-  .editorial-directory { padding: var(--space-4); }
-}
-</style>

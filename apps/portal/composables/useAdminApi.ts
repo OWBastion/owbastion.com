@@ -1,221 +1,47 @@
-import type { AdminSubmissionReviewCandidate, AdminSubmissionReviewPreviewResponse } from "@owbastion/contracts";
-import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
-import { recordPortalError } from "~/utils/portal-error";
-
-export type AdminPlayer = {
-  playerAccountId: string;
-  playerId: string;
-  playerName: string;
-  status: "active" | "banned";
-  bindingCount: number;
-  updatedAt: number;
-};
-
-export type AdminPlayerDetail = AdminPlayer & {
-  bindings: Array<{ bindingId: string; provider: "qq"; groupOpenId: string; memberOpenId: string; createdAt: number }>;
-  recentCompletions: Array<{
-    completionId: string;
-    challengeId: string;
-    titleKey: string;
-    titleName: string;
-    mapName: string | null;
-    gameplayRevisionId: string | null;
-    gameVersion: string | null;
-    status: "active" | "invalidated";
-    sourceType: string;
-    completedAt: number;
-  }>;
-  progression: {
-    activeVerifiedRunCount: number;
-    recentVerifiedRuns: Array<{ runId: string; mapName: string; gameplayRevisionId: string; gameVersion: string; difficulty: AdminVerifiedRunDifficulty; awardedXp: number; acceptedAt: number }>;
-  };
-  recentSubmissions: Array<{
-    submissionId: string;
-    status: string;
-    mapName: string;
-    challengeId?: string;
-    difficulty?: string;
-    reason?: string;
-    challenge?: { family: "map"; name: string; mapName: string; difficulty: string | null; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null;
-    createdAt: number;
-    updatedAt: number;
-  }>;
-  titleGrants: Array<{ grantId: string; titleKey: string; label: string; icon: string; iconUrl?: string | null; category: string; condition: string; scope: "global" | "map"; mapName?: string; slot?: "pioneer" | "conqueror" | "dominator"; grantedAt: number; status: "active" | "revoked"; revocationType: "administrator" | "evidence" | null; sourceType: "historical" | "submission" | "manual" | "automatic"; grantedBy: string; equipped?: boolean; equipable?: boolean }>;
-};
-
-export type AdminGroup = { groupOpenId: string; displayName: string; environment: "production" | "test"; status: "pending" | "active" | "legacy" | "disconnected"; bindEnabled: boolean; verifyEnabled: boolean; updatedAt: number };
-export type AdminBindingClaim = {
-  claimId: string;
-  playerName: string;
-  playerId: string;
-  status: "pending_confirmation" | "pending_review" | "approved" | "rejected" | "expired";
-  createdAt: number;
-  invitedBy: string;
-  affectedPlayerAccountId?: string;
-  memberOpenId?: string;
-  groupOpenId?: string;
-  targetAccountBinding?: { bindingId: string; memberOpenId: string; groupOpenId?: string };
-  qqBoundAccounts?: Array<{ playerAccountId: string; playerName: string; playerId: string }>;
-  revokingBindingCount?: number;
-  operationType?: "initial_binding" | "rebind_account" | "qq_transfer" | "conflict";
-};
-export type AdminBindingInvitation = {
-  inviteId: string;
-  playerName: string;
-  playerId: string;
-  status: "active" | "redeemed" | "expired" | "revoked";
-  codeAvailable: boolean;
-  createdAt: number;
-  expiresAt: number;
-  historicalMigration: { status: "not_requested" | "authorized" | "completed" | "partial" | "retry_required" | "cancelled"; requestedCount: number; completedCount: number; conflictCount: number; retryCount: number };
-};
+import type {
+  AdminBindingClaimListResponse,
+  AdminBindingInviteListResponse,
+  AdminPlayerListResponse,
+  AdminReviewDetailResponse as ContractAdminReviewDetail,
+  AdminSubmission as ContractAdminSubmission,
+  AdminSubmissionReviewPreviewRequest,
+  AdminSubmissionReviewPreviewResponse,
+  AdminVerifiedRun as ContractAdminVerifiedRun,
+  AdminVerifiedRunCorrectionRequest,
+  AdminVerifiedRunDetailResponse,
+  OcrAccuracyFeedbackResponse,
+  QqGroupAccessResponse,
+} from "@owbastion/contracts";
+import { createApiClient } from "~/utils/api-client";
+export type {
+  AdminPlayerDetail,
+  AdminReview,
+  AdminReviewAudit,
+  AdminScreenshotSet,
+  AdminScreenshotSetCandidate,
+  AdminScreenshotSetCreateResponse,
+  AdminScreenshotSetDetailResponse as AdminScreenshotSetDetail,
+  AdminScreenshotSetExclusion,
+  AdminScreenshotSetMember,
+  AdminSubmissionReviewCandidate,
+  AdminVerifiedRunConflict,
+  AdminVerifiedRunCorrectionResponse,
+  AdminVerifiedRunProjection,
+  OcrAccuracyMark,
+} from "@owbastion/contracts";
+export type AdminPlayer = AdminPlayerListResponse["items"][number];
+export type AdminGroup = Omit<QqGroupAccessResponse, "contractVersion">;
+export type AdminBindingClaim = AdminBindingClaimListResponse["items"][number];
+export type AdminBindingInvitation = AdminBindingInviteListResponse["items"][number];
 export type AdminSubmissionReviewPreview = AdminSubmissionReviewPreviewResponse;
-export type { AdminSubmissionReviewCandidate };
-export type AdminSubmissionReviewInput = { fieldCorrections: Array<{ fieldKey: string; reviewedValue: string }>; confirmedChallengeIds: string[] };
-export type AdminSubmission = { submissionId: string; status: string; challengeId: string; gameplayRevisionId?: string | null; challenge: { family: "map"; name: string; mapName: string; difficulty: string | null; kind?: "difficulty_completion" | "pioneer" | "classic_completion" | "map_title_achievement"; mapVariant?: "classic" } | { family: "achievement"; titleName: string; category: string; condition: string; evidenceRule: string; mapVariant?: "classic" } | null; mapName: string; difficulty: string; playerAccountId: string; playerName: string; createdAt: number; updatedAt: number; ocrStatus: "not_started" | "pending" | "matched" | "mismatch" | "review_required" | "error"; ocrAttempt: number | null; ocrErrorCode: string | null; ocrResultId?: string | null; ocrAccuracy?: OcrAccuracyMark | null; ocr: Record<string, unknown> | null; match?: Record<string, unknown> | null; reason?: string | null; evidenceUrl: string | null; spotCheck?: { status: "pending" | "confirmed" | "revoked"; sampledAt: number; resolvedAt: number | null; reviewer: string | null; reason: string | null } | null; review?: { decision: "approved" | "rejected" | "resubmission_required"; automatic: boolean; reason: string | null; reviewedAt: number } | null; activeTitleGrants?: Array<{ grantId: string; titleKey: string; titleName: string }>; verifiedRunOutcome?: { status: "created" | "reused" | "ineligible" | "conflict" | "invalidated"; verifiedRunId: string | null; awardedXp: number; reason: string | null; conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters"> } };
-export type AdminVerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
-export type AdminVerifiedRunCorrectionChanges = Partial<Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters">>;
-export type AdminVerifiedRun = {
-  runId: string;
-  playerAccountId: string;
-  playerId: string;
-  playerName: string;
-  sourceSubmissionId: string;
-  mapId: string;
-  mapName: string;
-  gameplayRevisionId: string;
-  mapVariant: "classic" | null;
-  difficulty: AdminVerifiedRunDifficulty;
-  gameVersion: string;
-  matchCode: string;
-  completionDurationSeconds: number;
-  deaths: number | null;
-  skips: number | null;
-  eventCounters: Record<string, number>;
-  acceptanceSource: "submission_automatic" | "submission_review";
-  acceptedAt: number;
-  status: "active" | "invalidated";
-  invalidatedAt: number | null;
-  invalidatedBy: string | null;
-  invalidationReason: string | null;
-  xpRuleVersion: "v1" | "v2";
-  xpInputSnapshot: { ruleVersion: "v1"; baseDifficultyXp: number; mapFactor: number; performanceBonus: number; performanceBonusReasons: Array<"no_deaths" | "no_skips">; challengeBonus: number } | { ruleVersion: "v2"; baseDifficultyXp: number; mapFactor: number; performanceBonus: number; performanceBonusReasons: Array<"no_deaths" | "no_skips"> };
-  awardedXp: number;
-  conflictCount: number;
-};
-export type AdminVerifiedRunProjection = {
-  mapId: string;
-  gameplayRevisionId: string;
-  totalXp: number;
-  verifiedRunCount: number;
-  difficultyStats: Array<{ difficulty: AdminVerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
-  lowestDeaths: number | null;
-  fewestSkips: number | null;
-  highestSingleRunXp: number | null;
-  highestCompletedDifficulty: AdminVerifiedRunDifficulty | null;
-};
-export type AdminVerifiedRunConflict = {
-  submissionId: string;
-  submissionStatus: string;
-  playerAccountId: string;
-  playerName: string;
-  conflictFields: Array<"match_code" | "map" | "gameplay_revision" | "map_variant" | "difficulty" | "game_version" | "completion_duration" | "deaths" | "skips" | "event_counters">;
-  facts: { mapName: string | null; mapVariant: "classic" | null; difficulty: AdminVerifiedRunDifficulty | null; gameVersion: string | null; matchCode: string | null; completionDurationSeconds: number | null; deaths: number | null; skips: number | null };
-  resolution: { action: "keep_existing" | "invalidate_existing"; actorType: "service" | "user"; actorId: string; reason: string | null; resolvedAt: number } | null;
-};
-export type AdminVerifiedRunDetail = {
-  contractVersion: "1";
-  run: AdminVerifiedRun;
-  projection: AdminVerifiedRunProjection;
-  sourceSubmission: AdminSubmission;
-  lifecycle: Array<{ transition: "accepted" | "invalidated" | "restored"; actorType: "service" | "user"; actorId: string; reason: string | null; createdAt: number }>;
-  corrections: Array<{
-    correctionId: string;
-    actorType: "service" | "user";
-    actorId: string;
-    reason: string | null;
-    createdAt: number;
-    before: Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "mapVariant" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters" | "xpRuleVersion" | "xpInputSnapshot" | "awardedXp">;
-    after: Pick<AdminVerifiedRun, "mapId" | "gameplayRevisionId" | "mapVariant" | "difficulty" | "gameVersion" | "matchCode" | "completionDurationSeconds" | "deaths" | "skips" | "eventCounters" | "xpRuleVersion" | "xpInputSnapshot" | "awardedXp">;
-  }>;
-  conflicts: AdminVerifiedRunConflict[];
-};
-export type AdminVerifiedRunCorrectionResponse = { contractVersion: "1"; detail: AdminVerifiedRunDetail; affectedProjections: AdminVerifiedRunProjection[] };
-export type AdminReview = {
-  reviewId: string;
-  targetType: "event" | "map";
-  targetId: string;
-  targetName: string;
-  playerAccountId: string;
-  playerId: string;
-  playerName: string;
-  rating: 1 | 2 | 3 | 4 | 5;
-  comment: string | null;
-  anonymous: boolean;
-  commentStatus: "visible" | "hidden";
-  status: "active" | "withdrawn" | "invalidated";
-  createdAt: number;
-  updatedAt: number;
-  withdrawnAt: number | null;
-  invalidatedAt: number | null;
-  invalidatedBy: string | null;
-  invalidationReason: string | null;
-};
-export type AdminReviewAudit = { operation: string; actorType: string; actorId: string; reason: string | null; createdAt: number };
-export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
-export type OcrAccuracyMark = "accurate" | "inaccurate";
-export type AdminOcrAccuracyResponse = { contractVersion: "1"; submissionId: string; ocrResultId: string; accuracy: OcrAccuracyMark; alreadySubmitted: boolean };
-export type AdminScreenshotSet = {
-  setId: string;
-  version: number;
-  status: "draft" | "finalized" | "discarded";
-  createdBy: string;
-  createdAt: number;
-  finalizedBy: string | null;
-  finalizedAt: number | null;
-  discardedBy: string | null;
-  discardedAt: number | null;
-  note: string | null;
-  counts: { memberCount: number; excludedCount: number };
-};
-export type AdminScreenshotSetCandidate = {
-  sourceId: string;
-  submissionId: string;
-  mapName: string;
-  submissionStatus: string;
-  accuracy: OcrAccuracyMark | null;
-  layoutVersion: string;
-  mimeType: string;
-  sizeBytes: number;
-  evidenceUrl: string | null;
-};
-export type AdminScreenshotSetMember = {
-  sourceId: string;
-  submissionId: string;
-  mapName: string;
-  objectKey: string;
-  sha256: string;
-  mimeType: string;
-  sizeBytes: number;
-  layoutVersion: string;
-  accuracy: OcrAccuracyMark | null;
-  evidenceUrl: string | null;
-};
-export type AdminScreenshotSetExclusion = { sourceId: string | null; submissionId: string; reason: string };
-export type AdminScreenshotSetDetail = { contractVersion: "1"; set: AdminScreenshotSet; members: AdminScreenshotSetMember[]; exclusions: AdminScreenshotSetExclusion[] };
-export type AdminScreenshotSetCreateResponse = { contractVersion: "1"; setId: string; version: number; status: "draft"; counts: { memberCount: number; excludedCount: number } };
+export type AdminSubmissionReviewInput = Required<Pick<AdminSubmissionReviewPreviewRequest, "fieldCorrections" | "confirmedChallengeIds">>;
+export type AdminSubmission = ContractAdminSubmission;
+export type AdminVerifiedRun = ContractAdminVerifiedRun;
+export type AdminVerifiedRunCorrectionChanges = AdminVerifiedRunCorrectionRequest["changes"];
+export type AdminVerifiedRunDetail = AdminVerifiedRunDetailResponse;
+export type AdminReviewDetail = ContractAdminReviewDetail;
+export type AdminOcrAccuracyResponse = OcrAccuracyFeedbackResponse;
 
 export function useAdminApi() {
-  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
-    const requestId = createRequestId();
-    const headers = new Headers(options?.headers as HeadersInit | undefined);
-    if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
-    try {
-      return await $fetch<T>(`/api/admin${path}`, { ...options, headers, cache: "no-store", credentials: "include", retry: 0, timeout: 8_000 });
-    } catch (error) {
-      Object.assign(error as object, { requestId });
-      recordPortalError(error, { operation: path, requestId });
-      throw error;
-    }
-  };
+  return createApiClient("/api/admin", $fetch, "no-store");
 }

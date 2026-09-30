@@ -1,106 +1,16 @@
+import {
+  playerAccountsSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
-import { resolvePortalSession } from "./portal-session";
+import { hashRequest, resolvePortalSession } from "./portal-session";
 
-/**
- * Minimal D1Database shim over node:sqlite for query-budget tests.
- * Counts statement executions (all / first / run / raw / batch items / exec).
- */
-const createCountingD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let statementCount = 0;
-
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) {
-        bound = params;
-        return statement;
-      },
-      async first<T>() {
-        statementCount += 1;
-        const row = sqlite.prepare(sql).get(...bound) as T | undefined;
-        return row ?? null;
-      },
-      async all<T>() {
-        statementCount += 1;
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        statementCount += 1;
-        const info = sqlite.prepare(sql).run(...bound);
-        return {
-          success: true,
-          meta: {
-            changes: Number(info.changes ?? 0),
-            duration: 0,
-            size_after: 0,
-            rows_read: 0,
-            rows_written: Number(info.changes ?? 0),
-            last_row_id: Number(info.lastInsertRowid ?? 0),
-            changed_db: true,
-          },
-        };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        statementCount += 1;
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-
-  const database = {
-    prepare(sql: string) {
-      return wrapStatement(sql);
-    },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const results = [];
-      for (const statement of statements) {
-        results.push(await statement.all());
-      }
-      return results;
-    },
-    async exec(sql: string) {
-      statementCount += 1;
-      sqlite.exec(sql);
-      return [{ results: [], success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false } }];
-    },
-    withSession() {
-      return database;
-    },
-  } as unknown as D1Database;
-
-  return {
-    database,
-    sqlite,
-    resetCount: () => {
-      statementCount = 0;
-    },
-    getCount: () => statementCount,
-  };
-};
-
+const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installSessionSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
-    CREATE TABLE player_accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'active',
-      banned_at INTEGER,
-      banned_by TEXT,
-      ban_reason TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${playerAccountsSchema}
     CREATE TABLE portal_sessions (
       id TEXT PRIMARY KEY NOT NULL,
       player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -131,12 +41,6 @@ const installSessionSchema = (sqlite: DatabaseSync) => {
   `);
 };
 
-const hashToken = async (token: string) => {
-  const encoded = new TextEncoder().encode(JSON.stringify(token));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
-
 describe("Portal session query budget and resolution semantics", () => {
   const setupFixture = async () => {
     const { database, sqlite, resetCount, getCount } = createCountingD1();
@@ -148,26 +52,26 @@ describe("Portal session query budget and resolution semantics", () => {
 
     // Portal sessions resolve directly to their stable Player Account.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.regular', '1001', 'RegularPlayer', 'regularplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.regular', 'player.regular', ?, ?, ?)").run(await hashToken("token.regular"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.regular', 'player.regular', ?, ?, ?)").run(await hashRequest("token.regular"), futureExpiry, timestamp);
 
     // 2. Admin active player
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.admin', '1002', 'AdminPlayer', 'adminplayer', 1, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.admin', 'player.admin', ?, ?, ?)").run(await hashToken("token.admin"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.admin', 'player.admin', ?, ?, ?)").run(await hashRequest("token.admin"), futureExpiry, timestamp);
 
     // 3. Expired session (regular player)
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.expired', 'player.regular', ?, ?, ?)").run(await hashToken("token.expired"), pastExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.expired', 'player.regular', ?, ?, ?)").run(await hashRequest("token.expired"), pastExpiry, timestamp);
 
     // 4. Player without any QQ binding retains a valid Portal session.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.revoked', '1003', 'RevokedPlayer', 'revokedplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.unbound', 'player.revoked', ?, ?, ?)").run(await hashToken("token.unbound"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.unbound', 'player.revoked', ?, ?, ?)").run(await hashRequest("token.unbound"), futureExpiry, timestamp);
 
     // 5. Banned player
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, banned_at, banned_by, ban_reason, created_at, updated_at) VALUES ('player.banned', '1004', 'BannedPlayer', 'bannedplayer', 0, 'banned', ?, 'admin', 'cheating', ?, ?)").run(timestamp, timestamp, timestamp);
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.banned', 'player.banned', ?, ?, ?)").run(await hashToken("token.banned"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.banned', 'player.banned', ?, ?, ?)").run(await hashRequest("token.banned"), futureExpiry, timestamp);
 
     // 6. Another unbound Player Account also resolves without a channel binding.
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.other', '1005', 'OtherProviderPlayer', 'otherproviderplayer', 0, 'active', ?, ?)").run(timestamp, timestamp);
-    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.other', 'player.other', ?, ?, ?)").run(await hashToken("token.other"), futureExpiry, timestamp);
+    sqlite.prepare("INSERT INTO portal_sessions (id, player_account_id, token_hash, expires_at, created_at) VALUES ('session.other', 'player.other', ?, ?, ?)").run(await hashRequest("token.other"), futureExpiry, timestamp);
 
     const services = createPlatformServices(database);
     resetCount();

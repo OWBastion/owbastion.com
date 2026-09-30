@@ -23,7 +23,6 @@ const masteryMaps = shallowRef<PortalMap[]>([]);
 const masteryChallenges = shallowRef<MapProgressChallenge[]>([]);
 const masteryCatalogError = shallowRef("");
 const recentTitles = computed(() => [...titles.value].sort((left, right) => right.grantedAt - left.grantedAt).slice(0, 3));
-const formatTitleDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium" }).format(timestamp);
 const titleMeta = (title: (typeof titles.value)[number]) => title.mapName ?? (title.scope === "global" ? title.category : "");
 
 const showSkeleton = computed(() => loading.value && !player.value);
@@ -142,7 +141,7 @@ onMounted(() => {
 
       <div v-if="showPasskeyNudge" class="passkey-nudge surface-card" role="region" aria-label="添加 Passkey">
         <UIcon name="i-lucide-fingerprint" class="passkey-nudge-icon" aria-hidden="true" />
-        <div class="passkey-nudge-copy">
+        <div class="passkey-nudge-copy content-stack">
           <strong>添加 Passkey，下次一键登录</strong>
           <span>用设备的指纹、面容或屏幕锁登录，无需在 QQ 群里验证。</span>
         </div>
@@ -202,10 +201,10 @@ onMounted(() => {
             <UButton label="重试" color="neutral" variant="outline" size="sm" :loading="retrying" @click="retryTitles" />
           </template>
         </UAlert>
-        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles">
-          <li v-for="title in recentTitles" :key="title.grantId" class="recent-title">
+        <ul v-else-if="titlesReady && recentTitles.length" class="recent-titles stacked-list">
+          <li v-for="title in recentTitles" :key="title.grantId" class="recent-title content-stack">
             <strong>{{ title.label }}</strong>
-            <span>{{ formatTitleDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
+            <span>{{ formatDate(title.grantedAt) }}<template v-if="titleMeta(title)"> · {{ titleMeta(title) }}</template></span>
           </li>
         </ul>
         <UEmpty v-else-if="titlesReady" title="暂无称号" variant="naked" />
@@ -290,14 +289,13 @@ onMounted(() => {
 .me-alert { margin-bottom: var(--space-5); }
 .passkey-nudge { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); padding: var(--space-4) var(--space-5); }
 .passkey-nudge-icon { flex: 0 0 auto; width: 1.5rem; height: 1.5rem; color: var(--accent); }
-.passkey-nudge-copy { display: grid; flex: 1; gap: var(--space-1); min-width: 0; }
+.passkey-nudge-copy { flex: 1; }
 .passkey-nudge-copy span { color: var(--muted); font-size: .86rem; line-height: 1.5; }
 .passkey-nudge-actions { display: flex; flex: 0 0 auto; align-items: center; gap: var(--space-2); }
 .section-block { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .section-block--first { margin-top: 0; }
 .titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
-.recent-titles { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.recent-title { display: grid; gap: var(--space-1); min-width: 0; padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
+.recent-title { padding: var(--space-4) var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); }
 .recent-title strong { overflow-wrap: anywhere; font-weight: 600; letter-spacing: var(--type-headline-tracking); }
 .recent-title span { color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; }
 .titles-loading { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
@@ -311,7 +309,6 @@ onMounted(() => {
 .me-skeleton-intro-copy { display: grid; gap: var(--space-3); min-width: 0; }
 .me-skeleton-intro-action { flex: 0 0 auto; width: 132px; height: 44px; border-radius: var(--radius-pill); }
 .me-skeleton-heading { width: min(58%, 360px); height: 46px; }
-.me-skeleton-avatar { flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%; }
 .me-skeleton-section { display: grid; gap: var(--space-4); margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section.titles-section { margin-top: clamp(var(--space-8), 5vw, var(--space-12)); }
 .me-skeleton-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }

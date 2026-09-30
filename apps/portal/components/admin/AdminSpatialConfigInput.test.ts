@@ -65,8 +65,7 @@ const stubs = {
     template: '<textarea :aria-label="ariaLabel" :value="modelValue" :disabled="disabled" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   AdminSpatialCoordinatesInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="coordinates-input" />' },
-  AdminCompositeSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="composite-input" />' },
-  AdminLegacyCompositeSpatialConfigInput: { props: ["modelValue"], emits: ["update:modelValue", "valid"], template: '<div data-testid="legacy-composite-input" />' },
+  AdminCompositeSpatialConfigInput: { props: ["modelValue", "mode"], emits: ["update:modelValue", "valid"], template: '<div :data-testid="mode === \'legacy\' ? \'legacy-composite-input\' : \'composite-input\'" />' },
 };
 
 const editorStubs = {

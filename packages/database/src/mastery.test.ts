@@ -1,80 +1,31 @@
+import {
+  auditEventsRequiredIdSchema,
+  gameplayRevisionsSchema,
+  idempotencyKeysRequiredIdSchema,
+  mapsSchema,
+  ocrAccuracyFeedbackSchema,
+  ocrResultsSchema,
+  playerAccountsSchema,
+  portalSessionsSchema,
+  submissionOutcomesWithReferencesSchema,
+  submissionReviewsSchema,
+  verifiedRunsSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import type { VerifiedRunInput } from "@owbastion/domain";
 import { createPlatformServices } from "./index";
+import { hashRequest } from "./portal-session";
 
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let pendingBatch: Promise<void> = Promise.resolve();
-  const wrapStatement = (statementSql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(statementSql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(statementSql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        const info = sqlite.prepare(statementSql).run(...bound);
-        return { success: true, meta: { changes: Number(info.changes ?? 0), duration: 0, size_after: 0, rows_read: 0, rows_written: Number(info.changes ?? 0), last_row_id: Number(info.lastInsertRowid ?? 0), changed_db: true } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(statementSql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(statementSql: string) { return wrapStatement(statementSql); },
-    batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const apply = async () => {
-        sqlite.exec("BEGIN;");
-        try {
-          const results = [];
-          for (const statement of statements) results.push(await statement.run());
-          sqlite.exec("COMMIT;");
-          return results;
-        } catch (error) {
-          sqlite.exec("ROLLBACK;");
-          throw error;
-        }
-      };
-      const batch = pendingBatch.then(apply, apply);
-      pendingBatch = batch.then(() => undefined, () => undefined);
-      return batch;
-    },
-    async exec(statementSql: string) { sqlite.exec(statementSql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
-const hashRequest = async (value: unknown) => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(value)));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
+const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "serialized", batchStatementMethod: "run" });
 
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL, normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL, introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE TABLE gameplay_revisions (
-    id TEXT PRIMARY KEY NOT NULL,
-    map_id TEXT NOT NULL REFERENCES maps(id),
-    lifecycle TEXT NOT NULL,
-    legacy_map_variant TEXT,
-    copied_from_revision_id TEXT,
-    reset_reason TEXT,
-    game_version TEXT NOT NULL,
-    spatial_config_json TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
+  ${playerAccountsSchema}
+  ${mapsSchema}
+  ${gameplayRevisionsSchema}
   CREATE TABLE bindings (id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id), provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL, status TEXT NOT NULL, revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE portal_sessions (id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL, token_hash TEXT NOT NULL, expires_at INTEGER NOT NULL);
+  ${portalSessionsSchema}
   CREATE TABLE submissions (
     id TEXT PRIMARY KEY NOT NULL,
     player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
@@ -109,53 +60,16 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     completion_id TEXT, revocation_type TEXT
   );
   CREATE TABLE submission_challenge_selections (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, position INTEGER NOT NULL, challenge_type TEXT NOT NULL, challenge_id TEXT NOT NULL, target_map_id TEXT, gameplay_revision_id TEXT, map_name TEXT NOT NULL, difficulty TEXT, rule_snapshot_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE TABLE mastery_runs (
-    id TEXT PRIMARY KEY NOT NULL,
-    player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
-    source_submission_id TEXT NOT NULL UNIQUE REFERENCES submissions(id),
-    map_id TEXT NOT NULL REFERENCES maps(id),
-    gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-    map_variant TEXT,
-    difficulty TEXT NOT NULL,
-    game_version TEXT NOT NULL,
-    run_code TEXT NOT NULL,
-    completion_duration_seconds INTEGER NOT NULL,
-    deaths INTEGER,
-    skips INTEGER,
-    event_counters_json TEXT NOT NULL,
-    acceptance_source TEXT NOT NULL,
-    accepted_at INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    invalidated_at INTEGER,
-    invalidated_by TEXT,
-    invalidation_reason TEXT,
-    xp_rule_version TEXT NOT NULL,
-    xp_input_snapshot_json TEXT NOT NULL,
-    awarded_xp INTEGER NOT NULL,
-    created_at INTEGER NOT NULL
-  );
+  ${verifiedRunsSchema(true)}
   CREATE UNIQUE INDEX mastery_runs_active_player_run_code_idx ON mastery_runs(player_account_id, run_code) WHERE status = 'active';
   CREATE TABLE mastery_run_lifecycle_events (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), transition TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE submission_outcomes (
-    id TEXT PRIMARY KEY NOT NULL,
-    submission_id TEXT NOT NULL REFERENCES submissions(id),
-    outcome_key TEXT NOT NULL,
-    outcome_type TEXT NOT NULL,
-    status TEXT NOT NULL,
-    entity_id TEXT,
-    awarded_xp INTEGER NOT NULL DEFAULT 0,
-    details_json TEXT NOT NULL DEFAULT '{}',
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    UNIQUE (submission_id, outcome_key)
-  );
-  CREATE TABLE idempotency_keys (id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL);
-  CREATE TABLE audit_events (id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL);
-  CREATE TABLE ocr_results (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL, status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL);
-  CREATE TABLE ocr_accuracy_feedback (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, ocr_result_id TEXT NOT NULL, accuracy TEXT NOT NULL CHECK (accuracy IN ('accurate', 'inaccurate')), marked_by TEXT NOT NULL, marked_by_type TEXT NOT NULL CHECK (marked_by_type IN ('player', 'maintainer')), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-  CREATE UNIQUE INDEX ocr_accuracy_feedback_result_idx ON ocr_accuracy_feedback (submission_id, ocr_result_id);
+  ${submissionOutcomesWithReferencesSchema}
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
+  ${ocrResultsSchema}
+  ${ocrAccuracyFeedbackSchema}
   CREATE TABLE title_catalog (key TEXT PRIMARY KEY NOT NULL, label TEXT NOT NULL);
-  CREATE TABLE submission_reviews (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT, reviewer TEXT NOT NULL, created_at INTEGER NOT NULL);
+  ${submissionReviewsSchema}
   CREATE TABLE submission_spot_checks (id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, status TEXT NOT NULL, policy_json TEXT NOT NULL, sampled_at INTEGER NOT NULL, resolved_at INTEGER, reviewer TEXT, reason TEXT);
   CREATE TABLE mastery_run_conflict_resolutions (id TEXT PRIMARY KEY NOT NULL, mastery_run_id TEXT NOT NULL REFERENCES mastery_runs(id), conflict_submission_id TEXT NOT NULL REFERENCES submissions(id), action TEXT NOT NULL, actor_type TEXT NOT NULL, actor_id TEXT NOT NULL, reason TEXT, resolved_at INTEGER NOT NULL, UNIQUE (mastery_run_id, conflict_submission_id));
 `);

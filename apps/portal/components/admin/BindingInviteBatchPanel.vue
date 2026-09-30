@@ -1,17 +1,10 @@
 <script setup lang="ts">
-import { bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
+import type { AdminBindingInviteBatchResponse } from "@owbastion/contracts";
+import { type ParsedBattleTag, bindingInviteCopyText, parseBattleTag } from "~/utils/binding-invite";
 import { portalErrorDetails } from "~/utils/portal-error";
 import { createRequestId } from "~/utils/request-id";
 
-type Invitation = {
-  inviteId: string;
-  code: string;
-  playerName: string;
-  playerId: string;
-  expiresAt: number;
-};
-
-type ParsedInvitation = Pick<Invitation, "playerName" | "playerId">;
+type Invitation = AdminBindingInviteBatchResponse["items"][number];
 
 const emit = defineEmits<{ created: [] }>();
 const api = useAdminApi();
@@ -22,7 +15,7 @@ const invitations = ref<Invitation[]>([]);
 const copiedInviteId = shallowRef<string | null>(null);
 
 const parsed = computed(() => {
-  const invitations: ParsedInvitation[] = [];
+  const invitations: ParsedBattleTag[] = [];
   const errors: string[] = [];
   const seen = new Set<string>();
 
@@ -62,7 +55,7 @@ async function createInvitations() {
   copiedInviteId.value = null;
 
   try {
-    const response = await api<{ items: Invitation[] }>("/v1/binding-invites/batch", {
+    const response = await api<AdminBindingInviteBatchResponse>("/v1/binding-invites/batch", {
       method: "POST",
       headers: { "Idempotency-Key": createRequestId() },
       body: { contractVersion: "1", invitations: parsed.value.invitations },
@@ -110,7 +103,7 @@ async function copyInvitation(invitation: Invitation) {
     <UAlert v-if="errorMessage" color="error" variant="subtle" :description="errorMessage" />
     <TransitionGroup v-if="invitations.length" name="invite-list" tag="div" class="invite-results" aria-label="本次生成的邀请码">
       <article v-for="invitation in invitations" :key="invitation.inviteId" class="invite-result">
-        <div class="invite-result__identity"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div>
+        <div class="invite-result__identity content-stack"><strong>{{ invitation.playerName }}#{{ invitation.playerId }}</strong><code>{{ invitation.code }}</code></div>
         <UButton :label="copiedInviteId === invitation.inviteId ? '已复制' : '复制口令'" :icon="copiedInviteId === invitation.inviteId ? 'i-lucide-check' : 'i-lucide-copy'" color="neutral" variant="outline" size="sm" :aria-label="`复制 ${invitation.playerName} 的绑定口令`" @click="copyInvitation(invitation)" />
       </article>
     </TransitionGroup>
@@ -118,25 +111,15 @@ async function copyInvitation(invitation: Invitation) {
 </template>
 
 <style scoped>
-.batch-invites { container-type: inline-size; display: grid; gap: var(--space-5); padding: clamp(var(--space-5), 3vw, var(--space-6)); }
-.batch-invites__header, .batch-invites__actions, .invite-result { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.batch-invites__hint, .batch-invites__count { margin: 0; color: var(--quiet); font-size: var(--type-caption-size); font-weight: 500; letter-spacing: .04em; }
-.batch-invites__header h2 { margin: 0; font-size: var(--type-headline-size); letter-spacing: -.035em; }
-.batch-invites__count { padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); }
 .batch-invites__form { display: grid; gap: var(--space-3); }
 .batch-invites__actions { min-height: 44px; }
 .batch-invites__validation { margin: 0; color: var(--danger); font-size: var(--type-label-sm-size); line-height: 1.5; }
-.invite-results { display: grid; gap: var(--space-2); }
-.invite-result { padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }
-.invite-result__identity { display: grid; min-width: 0; gap: var(--space-1); }
-.invite-result__identity strong { overflow-wrap: anywhere; font-size: var(--type-body-sm-size); letter-spacing: -.015em; }
-.invite-result__identity code { color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--type-caption-size); font-weight: 700; letter-spacing: .08em; }
+.invite-result { background: color-mix(in oklch, var(--surface-raised) 86%, transparent); }
+.invite-result__identity strong { letter-spacing: -.015em; }
 .invite-list-enter-active, .invite-list-leave-active { transition: opacity 180ms ease; }
 .invite-list-enter-from, .invite-list-leave-to { opacity: 0; }
 @container (max-width: 23.99rem) {
-  .batch-invites__header, .batch-invites__actions, .invite-result { align-items: stretch; flex-direction: column; }
   .batch-invites__count { align-self: flex-start; }
-  .batch-invites__actions :deep(button), .invite-result :deep(button) { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .invite-list-enter-active, .invite-list-leave-active { transition: opacity 120ms ease; } }
 @media (prefers-reduced-transparency: reduce) { .invite-result { background: var(--surface-raised); } }

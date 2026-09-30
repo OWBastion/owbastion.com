@@ -30,9 +30,9 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
       <div class="map-card-heading"><h2 class="type-card-title">{{ map.mapName }}</h2><span class="type-caption">{{ map.gameVersion }}</span></div>
       <ReviewSummaryBadge :summary="reviewSummary" :loading="reviewLoading" :error="reviewError" />
       <dl class="map-card-stats">
-        <div><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
-        <div><dt class="type-label-sm">精通</dt><dd v-if="!authenticated" class="type-label quiet">登录后查看</dd><dd v-else-if="masteryLoading" class="type-label quiet">读取中…</dd><dd v-else-if="masteryProfile" class="type-label">{{ masteryProfile.totalXp }} XP · {{ masteryProfile.verifiedRunCount }} 次</dd><dd v-else-if="masteryError" class="type-label quiet">暂不可用</dd><dd v-else class="type-label quiet">暂无记录</dd></div>
-        <div><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>
+        <div class="content-stack"><dt class="type-label-sm">地图评级</dt><dd class="type-label" :class="{ quiet: map.difficultyRating == null }">{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
+        <div class="content-stack"><dt class="type-label-sm">精通</dt><dd v-if="!authenticated" class="type-label quiet">登录后查看</dd><dd v-else-if="masteryLoading" class="type-label quiet">读取中…</dd><dd v-else-if="masteryProfile" class="type-label">{{ masteryProfile.totalXp }} XP · {{ masteryProfile.verifiedRunCount }} 次</dd><dd v-else-if="masteryError" class="type-label quiet">暂不可用</dd><dd v-else class="type-label quiet">暂无记录</dd></div>
+        <div class="content-stack"><dt class="type-label-sm">挑战</dt><dd class="type-label" :class="{ quiet: !mapChallenges.length }">{{ mapChallenges.length ? `${mapChallenges.length} 项` : "暂无记录" }}</dd></div>
       </dl>
       <div v-if="mechanics.length" class="map-card-tags"><UBadge v-for="mechanic in mechanics" :key="mechanic" :label="mechanic" color="neutral" variant="subtle" /></div>
     </div>
@@ -50,7 +50,7 @@ const mapIndex = computed(() => props.map.mapId.split(".").at(-1)?.slice(0, 2).t
 .map-card-heading h2 { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
 .map-card-heading span { flex: none; font-variant-numeric: tabular-nums; }
 .map-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
-.map-card-stats > div { display: grid; align-content: start; gap: var(--space-1); min-width: 0; }
+.map-card-stats > div { align-content: start; }
 .map-card-stats dt, .map-card-stats dd { margin: 0; overflow-wrap: anywhere; }
 .map-card-stats dd.quiet { color: var(--quiet); font-weight: 500; }
 .map-card-tags { display: flex; flex-wrap: wrap; gap: var(--space-2); }

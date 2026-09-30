@@ -37,7 +37,7 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
       <div class="review-comments" aria-labelledby="review-comments-title">
         <div class="review-subsection-heading"><h4 id="review-comments-title">玩家评价</h4><span>{{ total }} 条</span></div>
         <p v-if="!comments.length" class="review-empty">暂无文字评价。</p>
-        <ul v-else class="review-comment-list">
+        <ul v-else class="review-comment-list stacked-list">
           <li v-for="(item, index) in comments" :key="item.createdAt + '-' + index" class="review-comment">
             <div class="review-comment-meta"><span>{{ item.author?.displayName ?? "匿名评价" }}</span><span>{{ item.rating }} 星 · {{ formatDate(item.createdAt) }}</span></div>
             <p>{{ item.comment || "未填写文字内容" }}</p>
@@ -68,7 +68,6 @@ const formatDate = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { yea
 .review-comments { display: grid; gap: var(--space-3); }
 .review-subsection-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .review-subsection-heading h4 { margin: 0; color: var(--text); font-size: .9rem; }
-.review-comment-list { display: grid; gap: var(--space-2); padding: 0; margin: 0; list-style: none; }
 .review-comment { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-raised) 56%, transparent); }
 .review-comment-meta { display: flex; justify-content: space-between; gap: var(--space-2); }
 .review-comment p { margin: 0; color: var(--text); font-size: .82rem; line-height: 1.55; overflow-wrap: anywhere; }

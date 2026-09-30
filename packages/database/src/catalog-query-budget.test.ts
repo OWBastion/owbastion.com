@@ -1,139 +1,32 @@
+import {
+  achievementChallengeMapsSchema,
+  achievementChallengesSchema,
+  effectGlossaryTermsSchema,
+  gameplayRevisionChallengeAssignmentsSchema,
+  gameplayRevisionsSchema,
+  mapMetadataSchema,
+  mapTitleRewardsSchema,
+  mapTitleRuleCompatSchema,
+  mapTitleRuleExceptionsSchema,
+  mapTitleRulesSchema,
+  mapsSchema,
+  playerAccountsSchema,
+  randomEventMapChallengesSchema,
+  randomEventTitleChallengesSchema,
+  randomEventsSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { createPlatformServices } from "./index";
 
-/**
- * Minimal D1Database shim over node:sqlite for catalog query-budget tests.
- * Counts statement executions (all / first / run / raw / batch items).
- */
-const createCountingD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  let statementCount = 0;
-
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const statement = {
-      bind(...params: unknown[]) {
-        bound = params;
-        return statement;
-      },
-      async first<T>() {
-        statementCount += 1;
-        const row = sqlite.prepare(sql).get(...bound) as T | undefined;
-        return row ?? null;
-      },
-      async all<T>() {
-        statementCount += 1;
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        return { results, success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: results.length, rows_written: 0, last_row_id: 0, changed_db: false } };
-      },
-      async run() {
-        statementCount += 1;
-        const info = sqlite.prepare(sql).run(...bound);
-        return {
-          success: true,
-          meta: {
-            changes: Number(info.changes ?? 0),
-            duration: 0,
-            size_after: 0,
-            rows_read: 0,
-            rows_written: Number(info.changes ?? 0),
-            last_row_id: Number(info.lastInsertRowid ?? 0),
-            changed_db: true,
-          },
-        };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        statementCount += 1;
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-
-  const database = {
-    prepare(sql: string) {
-      return wrapStatement(sql);
-    },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      const results = [];
-      for (const statement of statements) {
-        results.push(await statement.all());
-      }
-      return results;
-    },
-    async exec(sql: string) {
-      statementCount += 1;
-      sqlite.exec(sql);
-      return [{ results: [], success: true, meta: { changes: 0, duration: 0, size_after: 0, rows_read: 0, rows_written: 0, last_row_id: 0, changed_db: false } }];
-    },
-    withSession() {
-      return database;
-    },
-  } as unknown as D1Database;
-
-  return {
-    database,
-    sqlite,
-    resetCount: () => {
-      statementCount = 0;
-    },
-    getCount: () => statementCount,
-  };
-};
-
+const createCountingD1 = () => createTestD1({ foreignKeys: true, countStatements: true, execReturnsD1Result: true });
 const installCatalogSchema = (sqlite: DatabaseSync) => {
   sqlite.exec(`
-    CREATE TABLE maps (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE gameplay_revisions (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      lifecycle TEXT NOT NULL,
-      legacy_map_variant TEXT,
-      copied_from_revision_id TEXT,
-      reset_reason TEXT,
-      game_version TEXT NOT NULL,
-      spatial_config_json TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE gameplay_revision_challenge_assignments (
-      id TEXT PRIMARY KEY NOT NULL,
-      gameplay_revision_id TEXT NOT NULL REFERENCES gameplay_revisions(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      challenge_family TEXT NOT NULL,
-      challenge_id TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_metadata (
-      map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id),
-      difficulty_rating TEXT,
-      mechanics_json TEXT NOT NULL DEFAULT '[]',
-      cover_url TEXT,
-      background_url TEXT,
-      updated_at INTEGER NOT NULL,
-      updated_by TEXT NOT NULL
-    );
+    ${mapsSchema}
+    ${gameplayRevisionsSchema}
+    ${gameplayRevisionChallengeAssignmentsSchema}
+    ${mapMetadataSchema}
     CREATE TABLE title_catalog (
       key TEXT PRIMARY KEY NOT NULL,
       label TEXT NOT NULL,
@@ -168,129 +61,21 @@ const installCatalogSchema = (sqlite: DatabaseSync) => {
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );
-    CREATE TABLE achievement_challenge_maps (
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id) ON DELETE CASCADE,
-      map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
-      PRIMARY KEY (challenge_id, map_id)
-    );
-    CREATE TABLE map_title_rewards (
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      slot TEXT NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      pioneer_prefixes_json TEXT NOT NULL,
-      PRIMARY KEY (map_id, slot)
-    );
-    CREATE TABLE map_title_rules (
-      id TEXT PRIMARY KEY NOT NULL,
-      title_key TEXT NOT NULL REFERENCES title_catalog(key),
-      kind TEXT NOT NULL,
-      condition TEXT NOT NULL,
-      evidence_rule TEXT NOT NULL,
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      display_kind TEXT NOT NULL,
-      slot TEXT,
-      map_variant TEXT,
-      default_scope TEXT NOT NULL DEFAULT 'all_active',
-      status TEXT NOT NULL DEFAULT 'active',
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_title_rule_exceptions (
-      id TEXT PRIMARY KEY NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      enabled INTEGER NOT NULL DEFAULT 1,
-      condition TEXT,
-      evidence_rule TEXT,
-      submission_mode TEXT,
-      slot TEXT,
-      starts_at INTEGER,
-      ends_at INTEGER,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE map_title_rule_compat (
-      legacy_challenge_id TEXT NOT NULL,
-      rule_id TEXT NOT NULL REFERENCES map_title_rules(id),
-      map_id TEXT NOT NULL REFERENCES maps(id),
-      is_standard_instance INTEGER NOT NULL DEFAULT 1,
-      created_at INTEGER NOT NULL,
-      PRIMARY KEY (legacy_challenge_id, map_id)
-    );
-    CREATE TABLE achievement_challenges (
-      id TEXT PRIMARY KEY NOT NULL,
-      map_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      name TEXT NOT NULL,
-      difficulty TEXT,
-      condition TEXT NOT NULL DEFAULT '',
-      evidence_rule TEXT NOT NULL DEFAULT '',
-      submission_mode TEXT NOT NULL DEFAULT 'manual',
-      reward_title_key TEXT,
-      game_version TEXT NOT NULL,
-      status TEXT NOT NULL,
-      introduced_version TEXT NOT NULL,
-      retired_version TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE random_events (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      rarity TEXT NOT NULL,
-      description TEXT NOT NULL,
-      duration_seconds INTEGER,
-      cooldown_seconds REAL,
-      weight REAL,
-      game_version TEXT NOT NULL,
-      effect_tags_json TEXT NOT NULL DEFAULT '[]',
-      release_status TEXT NOT NULL,
-      archived_at INTEGER,
-      archived_by TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${achievementChallengeMapsSchema}
+    ${mapTitleRewardsSchema}
+    ${mapTitleRulesSchema}
+    ${mapTitleRuleExceptionsSchema}
+    ${mapTitleRuleCompatSchema}
+    ${achievementChallengesSchema}
+    ${randomEventsSchema}
     CREATE TABLE random_event_versions (
       game_version TEXT PRIMARY KEY NOT NULL,
       availability TEXT NOT NULL DEFAULT 'available'
     );
-    CREATE TABLE random_event_map_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES achievement_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
-    CREATE TABLE random_event_title_challenges (
-      event_id TEXT NOT NULL REFERENCES random_events(id),
-      challenge_id TEXT NOT NULL REFERENCES title_challenges(id),
-      PRIMARY KEY (event_id, challenge_id)
-    );
-    CREATE TABLE effect_glossary_terms (
-      key TEXT PRIMARY KEY NOT NULL,
-      name_zh TEXT NOT NULL,
-      aliases_json TEXT NOT NULL DEFAULT '[]',
-      category TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      definition TEXT NOT NULL,
-      rules_json TEXT NOT NULL DEFAULT '[]',
-      source_version TEXT NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE player_accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      player_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      normalized_player_name TEXT NOT NULL,
-      is_admin INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'active',
-      banned_at INTEGER,
-      banned_by TEXT,
-      ban_reason TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
+    ${randomEventMapChallengesSchema}
+    ${randomEventTitleChallengesSchema}
+    ${effectGlossaryTermsSchema}
+    ${playerAccountsSchema}
     CREATE TABLE player_title_entitlements (player_account_id TEXT PRIMARY KEY, all_titles INTEGER NOT NULL DEFAULT 1);
     CREATE TABLE player_title_grants (
       id TEXT PRIMARY KEY NOT NULL,

@@ -53,7 +53,7 @@ onMounted(() => { hydrated.value = true; });
             <div><dt>地图评级</dt><dd>{{ map.difficultyRating ?? "暂无记录" }}</dd></div>
             <div><dt>挑战难度</dt><dd>{{ difficultyLabel }}</dd></div>
           </dl>
-          <ul v-if="mapChallenges.length" class="challenge-list">
+          <ul v-if="mapChallenges.length" class="challenge-list stacked-list">
             <li v-for="challenge in mapChallenges" :key="challenge.challengeId">
               <strong>{{ challenge.name }}</strong>
               <span>{{ [challenge.difficulty, challengeStatusLabel(challenge.status)].filter(Boolean).join(" · ") || "—" }}</span>
@@ -112,38 +112,21 @@ onMounted(() => { hydrated.value = true; });
 .section-title h3 { margin: 0; color: var(--text); font-size: 1rem; letter-spacing: -.025em; }
 .section-title > span { color: var(--quiet); font-size: .75rem; }
 .detail-facts { display: grid; gap: var(--space-2); margin: 0; }
-.detail-facts > div, .progress-row > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.detail-facts > div { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .detail-facts > div { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); }
-.detail-facts dt, .progress-row span, .empty-stat-grid span, .empty-stat-grid small { color: var(--muted); font-size: .8rem; }
+.detail-facts dt { color: var(--muted); font-size: .8rem; }
 .detail-facts dd { margin: 0; color: var(--text); font-size: .84rem; font-weight: 600; }
-.challenge-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .challenge-list li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
 .challenge-list strong { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: .84rem; }
 .challenge-list span { flex: 0 0 auto; color: var(--quiet); font-size: .76rem; }
-.detail-facts dd.muted, .empty-stat-grid small { color: var(--quiet); font-weight: 500; }
-.difficulty-pips { display: flex; gap: var(--space-1); }
-.difficulty-pips .icon { width: 16px; height: 16px; color: var(--line-strong); }
-.difficulty-pips .icon.active { color: var(--accent); }
-.progress-row { display: grid; gap: var(--space-2); }
-.progress-row strong { color: var(--quiet); font-size: .8rem; font-weight: 600; }
-.split-section { gap: var(--space-4); }
-.empty-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); }
-.empty-stat-grid > div { display: grid; gap: var(--space-2); padding: 0 var(--space-4); }
-.empty-stat-grid > div:first-child { padding-left: 0; border-right: 1px solid var(--line); }
-.empty-stat-grid > div:last-child { padding-right: 0; }
-.empty-stat-grid strong { color: var(--text); font-size: 1.45rem; letter-spacing: -.04em; }
-.muted-copy { margin: 0; color: var(--quiet); font-size: .84rem; }
 @container (max-width: 23.99rem) {
   .detail-content { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); }
   .detail-section { gap: var(--space-3); padding: var(--space-4) 0; }
   .detail-section:first-child { padding-top: var(--space-4); }
   .detail-facts { gap: var(--space-2); }
   .detail-facts > div { gap: var(--space-2); padding-bottom: var(--space-2); }
-  .detail-facts dt, .progress-row span, .empty-stat-grid span, .empty-stat-grid small { font-size: .76rem; }
+  .detail-facts dt { font-size: .76rem; }
   .detail-facts dd { max-width: 64%; overflow-wrap: anywhere; text-align: right; }
-  .empty-stat-grid { grid-template-columns: 1fr; gap: var(--space-3); }
-  .empty-stat-grid > div, .empty-stat-grid > div:first-child, .empty-stat-grid > div:last-child { padding: 0 0 var(--space-3); border-right: 0; border-bottom: 1px solid var(--line); }
-  .empty-stat-grid > div:last-child { padding-bottom: 0; border-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .detail-card :deep(*) { scroll-behavior: auto; } }
 </style>

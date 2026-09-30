@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { AdminPlayerDetail } from "~/composables/useAdminApi";
+import { useAutoFitStackedLayout } from "~/composables/useAutoFitStackedLayout";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
 
 const props = defineProps<{ player: AdminPlayerDetail; loading?: boolean }>();
 const emit = defineEmits<{ setStatus: [status: "active" | "banned"]; unbind: [bindingId: string]; grantCompleted: []; editIdentity: [] }>();
 
-const formatTime = (value: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(value);
 const battleTag = computed(() => `${props.player.playerName}#${props.player.playerId}`);
 const initials = computed(() => props.player.playerName.slice(0, 2));
 const statusLabel = computed(() => props.player.status === "active" ? "正常" : "已封禁");
@@ -34,33 +34,10 @@ function setActiveSection(id: (typeof sections)[number]["id"]) {
   activeSection.value = id;
 }
 
-/**
- * player-detail__layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * viewport width. A ResizeObserver reads the browser's own resolved column
- * count instead of a matching `matchMedia` breakpoint, so the "desktop
- * sidebar vs. stacked tab" layout and the submissions-tab active-state
- * tracking below can never disagree about which state they're in.
- */
-const layoutRef = ref<HTMLElement | null>(null);
-const stacked = ref(false);
-let layoutObserver: ResizeObserver | null = null;
-
-function updateStacked() {
-  const el = layoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  stacked.value = columns.length <= 1;
-}
+const { target: layoutRef, stacked } = useAutoFitStackedLayout();
 
 onMounted(() => {
   if (typeof window === "undefined") return;
-
-  if (layoutRef.value) {
-    updateStacked();
-    layoutObserver = new ResizeObserver(updateStacked);
-    layoutObserver.observe(layoutRef.value);
-  }
 
   if (typeof IntersectionObserver === "undefined") return;
   const ids = sections.map((section) => section.id);
@@ -90,8 +67,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   sectionObserver?.disconnect();
   sectionObserver = null;
-  layoutObserver?.disconnect();
-  layoutObserver = null;
 });
 </script>
 
@@ -198,9 +173,9 @@ onBeforeUnmount(() => {
             <h3 id="completions-title">最近挑战完成</h3>
             <span class="table-meta">{{ props.player.recentCompletions.length }} 项</span>
           </div>
-          <ul v-if="props.player.recentCompletions.length" class="player-activity-list">
+          <ul v-if="props.player.recentCompletions.length" class="player-activity-list stacked-list">
             <li v-for="completion in props.player.recentCompletions" :key="completion.completionId" class="player-activity-row">
-              <div class="player-activity-row__main">
+              <div class="player-activity-row__main content-stack">
                 <strong>{{ completion.titleName }}</strong>
                 <small>{{ [completion.mapName, completion.gameVersion, completionSourceLabel(completion.sourceType)].filter(Boolean).join(' · ') }}</small>
               </div>
@@ -216,9 +191,9 @@ onBeforeUnmount(() => {
             <h3 id="progression-title">通关进度</h3>
             <span class="table-meta">{{ props.player.progression.activeVerifiedRunCount }} 次已核验通关</span>
           </div>
-          <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list">
+          <ul v-if="props.player.progression.recentVerifiedRuns.length" class="player-activity-list stacked-list">
             <li v-for="run in props.player.progression.recentVerifiedRuns" :key="run.runId" class="player-activity-row">
-              <div class="player-activity-row__main">
+              <div class="player-activity-row__main content-stack">
                 <strong>{{ run.mapName }} · {{ run.difficulty }}</strong>
                 <small>{{ run.gameVersion }} · {{ run.awardedXp }} XP</small>
               </div>
@@ -551,10 +526,8 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.player-activity-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
 .player-activity-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .player-activity-row:last-child { border-bottom: 0; }
-.player-activity-row__main { display: grid; min-width: 0; gap: var(--space-1); }
 .player-activity-row__main strong, .player-activity-row__main small { overflow-wrap: anywhere; }
 .player-activity-row__main small, .player-activity-row time { color: var(--quiet); font-size: var(--type-caption-size); }
 @container (max-width: 28rem) { .player-activity-row { grid-template-columns: minmax(0, 1fr) auto; } .player-activity-row time { grid-column: 1 / -1; } }

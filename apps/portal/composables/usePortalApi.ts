@@ -1,83 +1,28 @@
-import { createRequestId, REQUEST_ID_HEADER } from "~/utils/request-id";
-import { recordPortalError, type PortalErrorData } from "~/utils/portal-error";
+import type {
+  CurrentPlayerResponse as ContractCurrentPlayerResponse,
+  CurrentPlayerMasteryResponse as ContractCurrentPlayerMasteryResponse,
+  Map,
+  PlayerMasteryMapProfile as ContractPlayerMasteryMapProfile,
+  PlayerSubmissionDetail,
+  PlayerVerifiedRun as ContractPlayerVerifiedRun,
+} from "@owbastion/contracts";
+import { createApiClient } from "~/utils/api-client";
+import type { PortalErrorData } from "~/utils/portal-error";
 
-export type SubmissionStatus = "processing" | "needs_review" | "completed" | "rejected";
+export type VerifiedRunSubmissionOutcome = NonNullable<PlayerSubmissionDetail["verifiedRunOutcome"]>;
 
-export type VerifiedRunSubmissionOutcome = {
-  status: "created" | "reused" | "ineligible" | "invalidated";
-  awardedXp: number;
-};
+export type PlayerVerifiedRun = ContractPlayerVerifiedRun;
 
-export type VerifiedRunDifficulty = "简单" | "一般" | "困难" | "专家" | "传奇" | "地狱";
+export type PlayerMasteryMapProfile = ContractPlayerMasteryMapProfile;
 
-export type PlayerVerifiedRun = {
-  runId: string;
-  mapId: string;
-  mapVariant: "classic" | null;
-  difficulty: VerifiedRunDifficulty;
-  completionDurationSeconds: number;
-  deaths: number | null;
-  skips: number | null;
-  awardedXp: number;
-  acceptedAt: number;
-  status: "active" | "invalidated";
-};
+export type PortalMap = Pick<Map, "mapId" | "mapName" | "defaultGameplayRevisionId">;
 
-export type PlayerMasteryMapProfile = {
-  mapId: string;
-  gameplayRevisionId?: string;
-  gameplayRevisionLifecycle?: "preparing" | "default" | "selectable" | "historical";
-  totalXp: number;
-  verifiedRunCount: number;
-  difficultyStats: Array<{ difficulty: VerifiedRunDifficulty; verifiedRunCount: number; fastestCompletionSeconds: number }>;
-  lowestDeaths: number | null;
-  fewestSkips: number | null;
-  highestSingleRunXp: number | null;
-  highestCompletedDifficulty: VerifiedRunDifficulty | null;
-  recentRuns: PlayerVerifiedRun[];
-};
+export type CurrentPlayerMasteryResponse = ContractCurrentPlayerMasteryResponse;
 
-export type PortalMap = {
-  mapId: string;
-  mapName: string;
-  defaultGameplayRevisionId?: string | null;
-};
-
-export type CurrentPlayerMasteryResponse = {
-  contractVersion: "1";
-  profiles: PlayerMasteryMapProfile[];
-  runs: PlayerVerifiedRun[];
-  page: number;
-  pageSize: number;
-  total: number;
-  hasMore: boolean;
-};
-
-export type CurrentPlayer = {
-  contractVersion: "1";
-  player: { playerId: string; playerName: string; isAdmin: boolean };
-  recentSubmissions: Array<{ submissionId: string; status: SubmissionStatus; resubmissionRequired?: boolean; mapName: string; challengeId?: string; difficulty?: string; reason?: string; verifiedRunOutcome?: VerifiedRunSubmissionOutcome; createdAt: number; updatedAt: number }>;
-};
+export type CurrentPlayer = ContractCurrentPlayerResponse;
 
 export type PortalApiError = Error & { statusCode?: number; requestId?: string; data?: { error?: PortalErrorData }; response?: { status?: number; headers?: Headers; _data?: unknown } };
 
-const requestOptions = (options: Parameters<typeof $fetch>[1], requestId: string) => {
-  const headers = new Headers(options?.headers as HeadersInit | undefined);
-  if (!headers.has(REQUEST_ID_HEADER)) headers.set(REQUEST_ID_HEADER, requestId);
-  return { ...options, headers };
-};
-
 export function usePortalApi() {
-  const requestFetch = import.meta.server ? useRequestFetch() : $fetch;
-
-  return async <T>(path: string, options: Parameters<typeof $fetch<T>>[1] = {}) => {
-    const requestId = createRequestId();
-    try {
-      return await requestFetch<T>(`/api/portal${path}`, { ...requestOptions(options, requestId), credentials: "include", retry: 0, timeout: 8_000 });
-    } catch (error) {
-      Object.assign(error as object, { requestId });
-      recordPortalError(error, { operation: path, requestId });
-      throw error;
-    }
-  };
+  return createApiClient("/api/portal", import.meta.server ? useRequestFetch() : $fetch);
 }

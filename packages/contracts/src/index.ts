@@ -2,6 +2,13 @@ import { z } from "zod";
 
 export const contractVersion = z.literal("1");
 
+const pageInfo = (maxPageSize?: number) => z.object({
+  page: z.number().int().positive(),
+  pageSize: maxPageSize === undefined ? z.number().int().positive() : z.number().int().positive().max(maxPageSize),
+  total: z.number().int().nonnegative(),
+  hasMore: z.boolean(),
+});
+
 const externalId = z.string().trim().min(1).max(256);
 const playerId = z.string().regex(/^\d{1,10}$/);
 const retirementVersion = z.string().regex(/^\d{2}\.\d{4}\.[1-9]\d*$/);
@@ -15,26 +22,6 @@ const optionalRetirementVersion = z.preprocess((value) => value === null ? undef
 const optionalScheduleTimestamp = z.preprocess((value) => value === null ? undefined : value, scheduleTimestamp.optional());
 const gameVersionValue = z.string().trim().min(1).max(64).nullable();
 const optionalGameVersion = gameVersionValue.optional();
-
-export const qqBindingRequestSchema = z.object({
-  contractVersion,
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
-
-export const qqBindingResponseSchema = z.object({
-  contractVersion,
-  bindingId: z.string().uuid(),
-  identityId: z.string().uuid(),
-  provider: z.literal("qq"),
-  groupOpenId: externalId,
-  memberOpenId: externalId,
-  playerName: z.string().trim().min(1).max(64),
-  playerId,
-});
 
 const inviteCode = z.string().trim().regex(/^[A-Z2-9]{12}$/);
 const inviteClaimCode = z.string().trim().regex(/^[A-Z2-9]{6}$/);
@@ -149,17 +136,9 @@ export const adminPlayerSummarySchema = z.object({
   bindingCount: z.number().int().nonnegative(),
   updatedAt: z.number().int(),
 });
-export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+export const adminPlayerListResponseSchema = z.object({ contractVersion, items: z.array(adminPlayerSummarySchema) }).merge(pageInfo());
 export const adminPlayerStatusRequestSchema = z.object({ contractVersion, status: adminPlayerStatus, reason: z.string().trim().max(256).optional() });
 export const adminPlayerIdentityRequestSchema = z.object({ contractVersion, playerName: z.string().trim().min(1).max(64) });
-
-const attachmentSchema = z.object({
-  externalAttachmentId: externalId,
-  contentType: z.string().trim().min(1).max(128),
-  byteSize: z.number().int().nonnegative().optional(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  sourceUrl: z.string().url().max(4096),
-});
 
 const submissionStatus = z.enum(["upload_pending", "ocr_pending", "awaiting_player_confirmation", "ready_for_review", "ocr_review_required", "approved", "rejected", "resubmission_required"]);
 export const verifiedRunDifficultySchema = z.enum(["简单", "一般", "困难", "专家", "传奇", "地狱"]);
@@ -214,6 +193,13 @@ export const mapChallengeSchema = z.object({
   retiredVersion: storedRetirementVersion.optional(),
 });
 
+const titleDisplayFields = {
+  icon: achievementIcon,
+  iconUrl: z.string().url().max(2048).nullable().optional(),
+  category: z.string().trim().min(1).max(128),
+  condition: z.string().trim().min(1).max(1024),
+};
+
 export const achievementChallengeSchema = z.object({
   challengeId: externalId,
   family: z.literal("achievement"),
@@ -221,10 +207,7 @@ export const achievementChallengeSchema = z.object({
   kind: z.literal("title_achievement"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   evidenceRule: z.string().trim().min(1).max(2048),
   gameVersion: z.string().trim().min(1).max(64),
   status: z.enum(["scheduled", "active", "sunsetting"]),
@@ -240,15 +223,18 @@ export const achievementChallengeSchema = z.object({
 export const challengeSchema = z.discriminatedUnion("family", [mapChallengeSchema, achievementChallengeSchema]);
 
 
-export const mapSchema = z.object({
-  mapId: externalId,
-  mapName: z.string().trim().min(1).max(256),
-  defaultGameplayRevisionId: externalId.nullable().optional(),
+const mapMetadataFields = {
   gameVersion: z.string().trim().min(1).max(64),
   difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
   mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
   coverUrl: z.string().trim().url().max(2048).nullable(),
   backgroundUrl: z.string().trim().url().max(2048).nullable(),
+};
+export const mapSchema = z.object({
+  mapId: externalId,
+  mapName: z.string().trim().min(1).max(256),
+  defaultGameplayRevisionId: externalId.nullable().optional(),
+  ...mapMetadataFields,
 });
 
 
@@ -451,6 +437,7 @@ export const adminRandomEventVersionListResponseSchema = z.object({ contractVers
 export const adminRandomEventVersionAvailabilityRequestSchema = z.object({ contractVersion, availability: randomEventVersionAvailability }).strict();
 
 export const reviewTargetTypeSchema = z.enum(["event", "map"]);
+const reviewRatingSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
 export const reviewTargetSchema = z.discriminatedUnion("targetType", [
   z.object({ targetType: z.literal("event"), targetId: externalId }).strict(),
   z.object({ targetType: z.literal("map"), targetId: externalId, gameplayRevisionId: externalId }).strict(),
@@ -469,7 +456,7 @@ export const publicReviewSummarySchema = z.discriminatedUnion("targetType", [
 ]);
 export const publicReviewSummaryResponseSchema = z.object({ contractVersion, summary: publicReviewSummarySchema }).strict();
 export const publicReviewCommentSchema = z.object({
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment,
   author: z.object({ displayName: z.string().trim().min(1).max(64) }).strict().nullable(),
   createdAt: z.number().int(),
@@ -480,17 +467,13 @@ export const publicReviewCommentPageSchema = z.object({
   targetId: externalId,
   gameplayRevisionId: externalId.nullable(),
   items: z.array(publicReviewCommentSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 export const playerReviewSchema = z.object({
   reviewId: z.string().uuid(),
   targetType: reviewTargetTypeSchema,
   targetId: externalId,
   gameplayRevisionId: externalId.nullable(),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   createdAt: z.number().int(),
@@ -499,7 +482,7 @@ export const playerReviewSchema = z.object({
 export const playerReviewResponseSchema = z.object({ contractVersion, review: playerReviewSchema.nullable() }).strict();
 export const playerReviewUpsertRequestSchema = z.object({
   contractVersion,
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable().optional(),
   anonymous: z.boolean().default(false),
 }).strict();
@@ -518,7 +501,7 @@ export const adminReviewSchema = z.object({
   playerAccountId: z.string().uuid(),
   playerId,
   playerName: z.string().trim().min(1).max(64),
-  rating: z.number().int().min(1).max(5),
+  rating: reviewRatingSchema,
   comment: reviewComment.nullable(),
   anonymous: z.boolean(),
   commentStatus: reviewCommentStatusSchema,
@@ -537,18 +520,14 @@ export const adminReviewAuditSchema = z.object({
   reason: z.string().nullable(),
   createdAt: z.number().int(),
 }).strict();
-export const adminReviewListResponseSchema = z.object({ contractVersion, items: z.array(adminReviewSchema).max(50), page: z.number().int().positive(), pageSize: z.number().int().positive().max(50), total: z.number().int().nonnegative(), hasMore: z.boolean() }).strict();
+export const adminReviewListResponseSchema = z.object({ contractVersion, items: z.array(adminReviewSchema).max(50) }).merge(pageInfo(50)).strict();
 export const adminReviewDetailResponseSchema = z.object({ contractVersion, review: adminReviewSchema, audit: z.array(adminReviewAuditSchema).max(50) }).strict();
 export const adminReviewCommentModerationRequestSchema = z.object({ contractVersion, action: z.enum(["hide", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
 export const adminReviewStateModerationRequestSchema = z.object({ contractVersion, action: z.enum(["invalidate", "restore"]), reason: z.string().trim().max(512).optional() }).strict();
 
 export const adminMapMetadataUpdateRequestSchema = z.object({
   contractVersion,
-  gameVersion: z.string().trim().min(1).max(64),
-  difficultyRating: z.enum(["T0", "T1", "T2", "T3", "T4", "T5"]).nullable(),
-  mechanics: z.array(z.string().trim().min(1).max(64)).max(16),
-  coverUrl: z.string().trim().url().max(2048).nullable(),
-  backgroundUrl: z.string().trim().url().max(2048).nullable(),
+  ...mapMetadataFields,
 });
 
 const adminMapRevisionLifecycle = z.enum(["preparing", "default", "selectable", "historical"]);
@@ -599,10 +578,7 @@ const titleColorSchema = z.union([
 export const titleSchema = z.object({
   titleKey: externalId,
   label: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   lifecycle: z.enum(["draft", "active", "retired"]),
   publicVisibility: z.boolean().optional(),
   availability: z.enum(["active", "retired"]),
@@ -619,13 +595,7 @@ export const agentTitleSchema = titleSchema.extend({
 });
 
 
-const agentPage = z.object({
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(100),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-});
-const agentPageQuery = z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().positive().max(100).default(20) });
+const agentPage = pageInfo(100);
 export const agentEventListResponseSchema = z.object({ contractVersion, items: z.array(randomEventSchema) }).merge(agentPage);
 export const agentMapListResponseSchema = z.object({ contractVersion, items: z.array(agentMapSchema) }).merge(agentPage);
 export const agentAchievementListResponseSchema = z.object({ contractVersion, items: z.array(challengeSchema) }).merge(agentPage);
@@ -662,23 +632,15 @@ export const adminHistoricalTitleHolderSchema = z.object({
 export const adminTitleGrantListResponseSchema = z.object({
   contractVersion,
   holders: z.array(adminHistoricalTitleHolderSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
   filter: adminHistoricalTitleHolderFilterSchema,
   stats: adminTitleGrantStatsSchema,
-});
+}).merge(pageInfo());
 export const adminTitleGrantHolderDetailResponseSchema = z.object({
   contractVersion,
   holder: adminHistoricalTitleHolderSchema,
   items: z.array(historicalTitleGrantSchema),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive(),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
   grantStatus: z.enum(["all", "unclaimed", "active", "revoked"]).optional(),
-});
+}).merge(pageInfo());
 export const historicalTitleGrantListResponseSchema = z.object({ contractVersion, items: z.array(historicalTitleGrantSchema) });
 export const adminTitleGrantRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), historicalTitleGrantId });
 export const adminTitleGrantBulkRequestSchema = z.object({ contractVersion, playerAccountId: z.string().uuid(), holderName: z.string().trim().min(1).max(256) });
@@ -717,10 +679,7 @@ const adminCatalogTitleSchema = z.object({
   type: z.literal("title_catalog"),
   titleKey: externalId,
   titleName: z.string().trim().min(1).max(256),
-  icon: achievementIcon,
-  iconUrl: z.string().url().max(2048).nullable().optional(),
-  category: z.string().trim().min(1).max(128),
-  condition: z.string().trim().min(1).max(1024),
+  ...titleDisplayFields,
   lifecycle: z.enum(["draft", "active", "retired"]),
   publicVisibility: z.boolean(),
   availability: z.enum(["active", "retired"]),
@@ -970,7 +929,7 @@ export const adminSubmissionSchema = z.object({
   verifiedRunOutcome: adminVerifiedRunSubmissionOutcomeSchema.optional(),
 });
 
-export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
+export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema) }).merge(pageInfo());
 const submissionReviewFieldCorrectionsSchema = z.array(z.object({
   fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]),
   reviewedValue: z.string().trim().min(1).max(2048),
@@ -1064,6 +1023,17 @@ const verifiedRunXpInputSnapshotV2Schema = z.object({
 }).strict();
 const verifiedRunXpInputSnapshotSchema = z.discriminatedUnion("ruleVersion", [verifiedRunXpInputSnapshotV1Schema, verifiedRunXpInputSnapshotV2Schema]);
 
+const verifiedRunFactFields = {
+  mapVariant: z.literal("classic").nullable(),
+  difficulty: verifiedRunDifficultySchema,
+  gameVersion: z.string().trim().min(1).max(64),
+  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
+  completionDurationSeconds: z.number().int().positive(),
+  deaths: z.number().int().nonnegative().nullable(),
+  skips: z.number().int().nonnegative().nullable(),
+  eventCounters: verifiedRunEventCountersSchema,
+};
+
 export const adminVerifiedRunSchema = z.object({
   runId: z.string().uuid(),
   playerAccountId: z.string().uuid(),
@@ -1074,14 +1044,7 @@ export const adminVerifiedRunSchema = z.object({
   mapName: z.string().trim().min(1).max(256),
   gameplayRevisionId: externalId,
   gameplayRevisionLifecycle: gameplayRevisionLifecycleSchema,
-  mapVariant: z.literal("classic").nullable(),
-  difficulty: verifiedRunDifficultySchema,
-  gameVersion: z.string().trim().min(1).max(64),
-  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
-  completionDurationSeconds: z.number().int().positive(),
-  deaths: z.number().int().nonnegative().nullable(),
-  skips: z.number().int().nonnegative().nullable(),
-  eventCounters: verifiedRunEventCountersSchema,
+  ...verifiedRunFactFields,
   acceptanceSource: masteryAcceptanceSourceSchema,
   acceptedAt: z.number().int().positive(),
   status: verifiedRunStatusSchema,
@@ -1096,7 +1059,7 @@ export const adminVerifiedRunSchema = z.object({
   if (run.xpRuleVersion !== run.xpInputSnapshot.ruleVersion) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["xpInputSnapshot", "ruleVersion"], message: "XP rule version must match its snapshot" });
 });
 
-const adminVerifiedRunDifficultyStatSchema = z.object({
+const verifiedRunDifficultyStatSchema = z.object({
   difficulty: verifiedRunDifficultySchema,
   verifiedRunCount: z.number().int().positive(),
   fastestCompletionSeconds: z.number().int().positive(),
@@ -1107,7 +1070,7 @@ export const adminVerifiedRunProjectionSchema = z.object({
   gameplayRevisionId: externalId,
   totalXp: z.number().int().nonnegative(),
   verifiedRunCount: z.number().int().nonnegative(),
-  difficultyStats: z.array(adminVerifiedRunDifficultyStatSchema).max(6),
+  difficultyStats: z.array(verifiedRunDifficultyStatSchema).max(6),
   lowestDeaths: z.number().int().nonnegative().nullable(),
   fewestSkips: z.number().int().nonnegative().nullable(),
   highestSingleRunXp: z.number().int().nonnegative().nullable(),
@@ -1150,22 +1113,11 @@ export const adminVerifiedRunConflictSchema = z.object({
 export const adminVerifiedRunListResponseSchema = z.object({
   contractVersion,
   items: z.array(adminVerifiedRunSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 const verifiedRunCorrectionSnapshotSchema = z.object({
   mapId: externalId,
   gameplayRevisionId: externalId,
-  mapVariant: z.literal("classic").nullable(),
-  difficulty: verifiedRunDifficultySchema,
-  gameVersion: z.string().trim().min(1).max(64),
-  matchCode: z.string().regex(/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/),
-  completionDurationSeconds: z.number().int().positive(),
-  deaths: z.number().int().nonnegative().nullable(),
-  skips: z.number().int().nonnegative().nullable(),
-  eventCounters: verifiedRunEventCountersSchema,
+  ...verifiedRunFactFields,
   xpRuleVersion: z.enum(["v1", "v2"]),
   xpInputSnapshot: verifiedRunXpInputSnapshotSchema,
   awardedXp: z.number().int().nonnegative(),
@@ -1231,33 +1183,6 @@ export const adminVerifiedRunCorrectionResponseSchema = z.object({
   detail: adminVerifiedRunDetailResponseSchema,
   affectedProjections: z.array(adminVerifiedRunProjectionSchema).min(1).max(2),
 }).strict();
-
-export const submissionRequestSchema = z.object({
-  contractVersion,
-  actor: z.object({
-    provider: z.literal("qq"),
-    groupOpenId: externalId,
-    memberOpenId: externalId,
-  }),
-  source: z.object({
-    provider: z.literal("qq"),
-    conversationId: externalId,
-    messageId: externalId,
-  }),
-  challenge: z.object({
-    type: z.literal("map_completion"),
-    mapName: z.string().trim().min(1).max(256),
-  }),
-  attachments: z.array(attachmentSchema).min(1).max(20),
-});
-
-export const submissionResponseSchema = z.object({
-  contractVersion,
-  submissionId: z.string().uuid(),
-  status: z.enum(["evidence_pending", "evidence_stored", "ocr_pending", "resubmission_required"]),
-  mapName: z.string(),
-  attachmentIds: z.array(z.string().uuid()),
-});
 
 export const submissionStatusResponseSchema = z.object({
   contractVersion,
@@ -1523,11 +1448,7 @@ export const playerVerifiedRunSchema = z.object({
   status: z.enum(["active", "invalidated"]),
 }).strict();
 
-export const playerVerifiedRunDifficultyStatSchema = z.object({
-  difficulty: verifiedRunDifficultySchema,
-  verifiedRunCount: z.number().int().positive(),
-  fastestCompletionSeconds: z.number().int().positive(),
-}).strict();
+export const playerVerifiedRunDifficultyStatSchema = verifiedRunDifficultyStatSchema;
 
 export const playerMasteryMapProfileSchema = z.object({
   mapId: externalId,
@@ -1547,11 +1468,7 @@ export const currentPlayerMasteryResponseSchema = z.object({
   contractVersion,
   profiles: z.array(playerMasteryMapProfileSchema).max(100),
   runs: z.array(playerVerifiedRunSchema).max(50),
-  page: z.number().int().positive(),
-  pageSize: z.number().int().positive().max(50),
-  total: z.number().int().nonnegative(),
-  hasMore: z.boolean(),
-}).strict();
+}).merge(pageInfo(50)).strict();
 
 export const errorResponseSchema = z.object({
   contractVersion,
@@ -1562,8 +1479,6 @@ export const errorResponseSchema = z.object({
   }),
 });
 
-export type QqBindingRequest = z.infer<typeof qqBindingRequestSchema>;
-export type QqBindingResponse = z.infer<typeof qqBindingResponseSchema>;
 export type AdminBindingInviteRequest = z.infer<typeof adminBindingInviteRequestSchema>;
 export type AdminBindingInviteResponse = z.infer<typeof adminBindingInviteResponseSchema>;
 export type AdminBindingInviteBatchRequest = z.infer<typeof adminBindingInviteBatchRequestSchema>;
@@ -1600,8 +1515,6 @@ export type AdminPlayerDetail = z.infer<typeof adminPlayerDetailSchema>;
 export type AdminPlayerListResponse = z.infer<typeof adminPlayerListResponseSchema>;
 export type AdminPlayerStatusRequest = z.infer<typeof adminPlayerStatusRequestSchema>;
 export type AdminPlayerIdentityRequest = z.infer<typeof adminPlayerIdentityRequestSchema>;
-export type SubmissionRequest = z.infer<typeof submissionRequestSchema>;
-export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SubmissionStatusResponse = z.infer<typeof submissionStatusResponseSchema>;
 export type PlayerSubmissionStatus = SubmissionStatusResponse["status"];
 export type PlayerSubmissionDetail = z.infer<typeof playerSubmissionDetailSchema>;
@@ -1625,6 +1538,7 @@ export type AdminScreenshotSetDetailResponse = z.infer<typeof adminScreenshotSet
 export type OcrkitScreenshotSetResponse = z.infer<typeof ocrkitScreenshotSetResponseSchema>;
 export type CurrentPlayerResponse = z.infer<typeof currentPlayerResponseSchema>;
 export type CurrentPlayerTitlesResponse = z.infer<typeof currentPlayerTitlesResponseSchema>;
+export type PlayerEquippedTitlesResponse = z.infer<typeof playerEquippedTitlesResponseSchema>;
 export type VerifiedRunDifficulty = z.infer<typeof verifiedRunDifficultySchema>;
 export type PlayerVerifiedRun = z.infer<typeof playerVerifiedRunSchema>;
 export type PlayerMasteryMapProfile = z.infer<typeof playerMasteryMapProfileSchema>;
@@ -1636,7 +1550,11 @@ export type AgentSpatialConfig = z.infer<typeof agentSpatialConfigSchema>;
 export type AgentMap = z.infer<typeof agentMapSchema>;
 export type RandomEvent = z.infer<typeof randomEventSchema>;
 export type RandomEventListResponse = z.infer<typeof randomEventListResponseSchema>;
+export type ReviewTargetType = z.infer<typeof reviewTargetTypeSchema>;
+export type ReviewRating = z.infer<typeof reviewRatingSchema>;
 export type ReviewTarget = z.infer<typeof reviewTargetSchema>;
+export type PublicReviewSummary = z.infer<typeof publicReviewSummarySchema>;
+export type PublicReviewSummaryResponse = z.infer<typeof publicReviewSummaryResponseSchema>;
 export type PublicReviewComment = z.infer<typeof publicReviewCommentSchema>;
 export type PublicReviewCommentPage = z.infer<typeof publicReviewCommentPageSchema>;
 export type PlayerReview = z.infer<typeof playerReviewSchema>;
@@ -1644,6 +1562,7 @@ export type PlayerReviewResponse = z.infer<typeof playerReviewResponseSchema>;
 export type AdminReview = z.infer<typeof adminReviewSchema>;
 export type AdminReviewAudit = z.infer<typeof adminReviewAuditSchema>;
 export type AdminReviewListResponse = z.infer<typeof adminReviewListResponseSchema>;
+export type AdminReviewDetailResponse = z.infer<typeof adminReviewDetailResponseSchema>;
 export type AdminRandomEventCreateRequest = z.infer<typeof adminRandomEventCreateRequestSchema>;
 export type AdminRandomEventUpdateRequest = z.infer<typeof adminRandomEventUpdateRequestSchema>;
 export type AdminRandomEventImportRequest = z.infer<typeof adminRandomEventImportRequestSchema>;

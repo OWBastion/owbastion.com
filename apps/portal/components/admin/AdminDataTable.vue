@@ -148,6 +148,11 @@ const mobileDetailColumns = computed(() => mobileColumns.value.filter((item) => 
 const mobileHasDetails = computed(() => mobileDetailColumns.value.length > 0);
 const mobileHasSecondaryControls = computed(() => Boolean(props.sortingOptions.length || props.groupingOptions.length || slots["mobile-secondary"]));
 const mobileExpanded = reactive<Record<string, boolean>>({});
+const valueFromColumn = (row: TData, column: AdminTableColumn<TData>) => {
+  if ("accessorKey" in column && typeof column.accessorKey === "string") return row[column.accessorKey as keyof TData];
+  if ("accessorFn" in column && typeof column.accessorFn === "function") return column.accessorFn(row, 0);
+  return undefined;
+};
 const rowIdentity = (row: TData) => {
   const value = typeof props.rowKey === "function" ? props.rowKey(row) : row[props.rowKey];
   if (typeof value !== "string" && typeof value !== "number") throw new Error(`AdminDataTable row key must resolve to a string or number for ${props.tableKey}`);
@@ -192,18 +197,10 @@ const mobileRow = (original: TData) => ({
   subRows: [],
   getValue: (id: string) => {
     const column = props.columns.find((candidate) => columnId(candidate) === id);
-    if (!column) return undefined;
-    if ("accessorKey" in column && typeof column.accessorKey === "string") return original[column.accessorKey as keyof TData];
-    if ("accessorFn" in column && typeof column.accessorFn === "function") return column.accessorFn(original, 0);
-    return undefined;
+    return column ? valueFromColumn(original, column) : undefined;
   },
 });
-const mobileValue = (row: TData, column: AdminTableColumn<TData>) => {
-  const key = columnId(column);
-  if ("accessorKey" in column && typeof column.accessorKey === "string") return row[column.accessorKey as keyof TData] ?? "—";
-  if ("accessorFn" in column && typeof column.accessorFn === "function") return column.accessorFn(row, 0) ?? "—";
-  return key ? row[key as keyof TData] ?? "—" : "—";
-};
+const mobileValue = (row: TData, column: AdminTableColumn<TData>) => valueFromColumn(row, column) ?? "—";
 
 const columnMenuItems = computed(() => props.columns
   .filter((column) => column.enableHiding !== false)
@@ -351,37 +348,27 @@ onBeforeUnmount(() => {
         <p v-else-if="!mobileData.length" class="admin-data-table__mobile-empty">{{ empty }}</p>
         <ul v-else class="admin-data-table__mobile-records">
           <li v-for="item in mobileData" :key="rowIdentity(item)" class="admin-data-table__mobile-record">
-            <NuxtLink v-if="props.mobileRowLink" class="admin-data-table__mobile-primary-link pressable-soft" :to="props.mobileRowLink(item)">
-              <div class="admin-data-table__mobile-primary">
-                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
+            <component
+              :is="props.mobileRowLink ? 'NuxtLink' : props.mobileRowAction ? 'button' : 'div'"
+              :class="props.mobileRowLink || props.mobileRowAction ? 'admin-data-table__mobile-primary-link pressable-soft' : 'admin-data-table__mobile-primary'"
+              :to="props.mobileRowLink?.(item)"
+              :type="props.mobileRowAction && !props.mobileRowLink ? 'button' : undefined"
+              @click="!props.mobileRowLink && props.mobileRowAction ? props.mobileRowAction(item) : undefined"
+            >
+              <div :class="{ 'admin-data-table__mobile-primary': Boolean(props.mobileRowLink || props.mobileRowAction) }">
+                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field content-stack">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                   <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
                   <span v-else>{{ mobileValue(item, field.column) }}</span>
                 </div>
               </div>
-            </NuxtLink>
-            <button v-else-if="props.mobileRowAction" class="admin-data-table__mobile-primary-link pressable-soft" type="button" @click="props.mobileRowAction(item)">
-              <div class="admin-data-table__mobile-primary">
-                <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
-                  <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
-                  <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
-                  <span v-else>{{ mobileValue(item, field.column) }}</span>
-                </div>
-              </div>
-            </button>
-            <div v-else class="admin-data-table__mobile-primary">
-              <div v-for="field in mobilePrimaryColumns" :key="field.id" class="admin-data-table__mobile-field">
-                <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
-                <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
-                <span v-else>{{ mobileValue(item, field.column) }}</span>
-              </div>
-            </div>
+            </component>
             <div v-if="mobileHasDetails" class="admin-data-table__mobile-disclosure">
               <button class="admin-data-table__mobile-disclosure-trigger pressable" type="button" :aria-expanded="Boolean(mobileExpanded[rowIdentity(item)])" :aria-controls="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" @click="mobileExpanded[rowIdentity(item)] = !mobileExpanded[rowIdentity(item)]">
                 <span>{{ mobileExpanded[rowIdentity(item)] ? '收起详情' : '查看详情' }}</span><span aria-hidden="true">⌄</span>
               </button>
               <div v-if="mobileExpanded[rowIdentity(item)]" :id="`admin-table-details-${props.tableKey}-${rowIdentity(item)}`" class="admin-data-table__mobile-details">
-                <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field">
+                <div v-for="field in mobileDetailColumns" :key="field.id" class="admin-data-table__mobile-field content-stack">
                   <span class="admin-data-table__mobile-label">{{ typeof field.column.header === 'string' ? field.column.header : field.id }}</span>
                   <slot v-if="tableSlots[`${field.id}-cell`]" :name="`${field.id}-cell`" :row="mobileRow(item)" />
                   <span v-else>{{ mobileValue(item, field.column) }}</span>
@@ -494,7 +481,6 @@ onBeforeUnmount(() => {
 .admin-data-table__mobile-primary-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .admin-data-table__mobile-primary, .admin-data-table__mobile-details { display: grid; gap: var(--space-3); }
 .admin-data-table__mobile-primary { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
-.admin-data-table__mobile-field { display: grid; gap: var(--space-1); min-width: 0; }
 .admin-data-table__mobile-label { color: var(--quiet); font-size: .72rem; font-weight: 700; letter-spacing: .025em; }
 .admin-data-table__mobile-disclosure { margin-top: var(--space-3); }
 .admin-data-table__mobile-disclosure-trigger { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--line); color: var(--quiet); background: transparent; font: inherit; font-size: .82rem; font-weight: 600; text-align: left; cursor: pointer; }

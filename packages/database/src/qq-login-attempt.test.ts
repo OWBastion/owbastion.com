@@ -1,10 +1,18 @@
+import {
+  auditEventsRequiredIdSchema,
+  bindingsSchema,
+  idempotencyKeysRequiredIdSchema,
+  playerAccountsSchema,
+  qqGroupAccessSchema,
+  qqLoginAttemptsSchema,
+} from "../test/schema";
+import { createTestD1 } from "../test/d1";
 import { DatabaseSync } from "node:sqlite";
-import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
+import { hashRequest } from "./portal-session";
 import type { AuthContext } from "@owbastion/domain";
 
-const hashRequest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const codeForByte = (byte: number) => codeAlphabet[byte % codeAlphabet.length].repeat(6);
 
@@ -13,78 +21,13 @@ const codeForByte = (byte: number) => codeAlphabet[byte % codeAlphabet.length].r
  * partial unique index on qq_login_attempts must reject a colliding INSERT
  * the same way SQLite/D1 does, and pruning runs through raw database.batch.
  */
-const createD1 = () => {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  const wrapStatement = (sql: string) => {
-    let bound: unknown[] = [];
-    const isWrite = /^\s*(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql);
-    const statement = {
-      bind(...params: unknown[]) { bound = params; return statement; },
-      async first<T>() { return (sqlite.prepare(sql).get(...bound) as T | undefined) ?? null; },
-      async all<T>() {
-        const results = sqlite.prepare(sql).all(...bound) as T[];
-        const changes = isWrite ? Number((sqlite.prepare("SELECT changes() AS changes").get() as { changes: number }).changes) : 0;
-        return { results, success: true, meta: { changes, duration: 0, size_after: 0, rows_read: results.length, rows_written: changes, last_row_id: 0, changed_db: changes > 0 } };
-      },
-      async run() {
-        const result = sqlite.prepare(sql).run(...bound);
-        const changes = Number(result.changes ?? 0);
-        return { success: true, meta: { changes, duration: 0, size_after: 0, rows_read: 0, rows_written: changes, last_row_id: Number(result.lastInsertRowid ?? 0), changed_db: changes > 0 } };
-      },
-      async raw<T extends unknown[] = unknown[]>() {
-        const prepared = sqlite.prepare(sql);
-        prepared.setReturnArrays(true);
-        return prepared.all(...bound) as T[];
-      },
-    };
-    return statement;
-  };
-  const database = {
-    prepare(sql: string) { return wrapStatement(sql); },
-    async batch(statements: Array<ReturnType<typeof wrapStatement>>) {
-      sqlite.exec("BEGIN");
-      try {
-        const results = [];
-        for (const statement of statements) results.push(await statement.all());
-        sqlite.exec("COMMIT");
-        return results;
-      } catch (error) {
-        sqlite.exec("ROLLBACK");
-        throw error;
-      }
-    },
-    async exec(sql: string) { sqlite.exec(sql); return []; },
-    withSession() { return database; },
-  } as unknown as D1Database;
-  return { database, sqlite };
-};
-
+const createD1 = () => createTestD1({ foreignKeys: true, batchMode: "transactional", reportWriteChangesInAll: true });
 const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
-  CREATE TABLE player_accounts (
-    id TEXT PRIMARY KEY NOT NULL, player_id TEXT NOT NULL, player_name TEXT NOT NULL,
-    normalized_player_name TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active', banned_at INTEGER, banned_by TEXT, ban_reason TEXT,
-    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE bindings (
-    id TEXT PRIMARY KEY NOT NULL, identity_id TEXT NOT NULL, player_account_id TEXT NOT NULL,
-    provider TEXT NOT NULL, group_open_id TEXT NOT NULL, member_open_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'active', revoked_at INTEGER, revoked_by TEXT, created_at INTEGER NOT NULL
-  );
+  ${playerAccountsSchema}
+  ${bindingsSchema}
   CREATE UNIQUE INDEX bindings_provider_member_idx ON bindings(provider, member_open_id);
-  CREATE TABLE qq_group_access (
-    group_open_id TEXT PRIMARY KEY NOT NULL, display_name TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
-    bind_enabled INTEGER NOT NULL DEFAULT 0, verify_enabled INTEGER NOT NULL DEFAULT 0,
-    lifecycle_occurred_at INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-  );
-  CREATE TABLE qq_login_attempts (
-    id TEXT PRIMARY KEY NOT NULL, token_hash TEXT NOT NULL, code_hash TEXT NOT NULL, status TEXT NOT NULL,
-    purpose TEXT NOT NULL DEFAULT 'login', player_account_id TEXT, target_group_open_id TEXT,
-    group_open_id TEXT, member_open_id TEXT, environment TEXT, message_id TEXT,
-    session_token_hash TEXT, session_issued_at INTEGER, expires_at INTEGER NOT NULL,
-    created_at INTEGER NOT NULL, verified_at INTEGER
-  );
+  ${qqGroupAccessSchema}
+  ${qqLoginAttemptsSchema}
   CREATE UNIQUE INDEX qq_login_attempts_token_idx ON qq_login_attempts(token_hash);
   CREATE INDEX qq_login_attempts_expiry_idx ON qq_login_attempts(expires_at, status);
   CREATE UNIQUE INDEX qq_login_attempts_pending_code_idx ON qq_login_attempts(code_hash) WHERE status = 'pending';
@@ -98,15 +41,8 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, player_account_id TEXT NOT NULL REFERENCES player_accounts(id),
     token_hash TEXT NOT NULL UNIQUE, passkey_challenge_id TEXT, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
   );
-  CREATE TABLE idempotency_keys (
-    id TEXT PRIMARY KEY NOT NULL, actor_id TEXT NOT NULL, operation TEXT NOT NULL,
-    request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE TABLE audit_events (
-    id TEXT PRIMARY KEY NOT NULL, correlation_id TEXT NOT NULL, actor_type TEXT NOT NULL,
-    actor_id TEXT NOT NULL, operation TEXT NOT NULL, entity_type TEXT NOT NULL,
-    entity_id TEXT NOT NULL, payload_json TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
+  ${idempotencyKeysRequiredIdSchema}
+  ${auditEventsRequiredIdSchema}
 `);
 
 const qqAuth: AuthContext = { actorType: "service", subject: "qqbot", roles: ["channel:write"], provider: "test" };

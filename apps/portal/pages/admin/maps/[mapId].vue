@@ -221,7 +221,7 @@ useSeoMeta({ title: "地图版本修订编辑器 · 躲避堡垒 3" });
             <strong>{{ auditLabels[item.operation] ?? item.operation }}</strong>
             <p>{{ auditPayload(item) }}</p>
           </div>
-          <span>{{ new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(item.createdAt) }}</span>
+          <span>{{ formatTime(item.createdAt) }}</span>
         </li>
       </ol>
       <UEmpty v-else title="暂无地图编辑记录" />

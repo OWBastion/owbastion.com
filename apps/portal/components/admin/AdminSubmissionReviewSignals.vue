@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
+import type { AdminSubmission, AdminSubmissionReviewCandidate, AdminSubmissionReviewInput, AdminSubmissionReviewPreview } from "~/composables/useAdminApi";
 import { ocrStatusLabel, ocrStatusTone } from "~/utils/ocrStatus";
 import { mapVariantLabel } from "~/utils/map-variant";
 import { reviewCandidateScopeLabel, reviewCandidateSearchText, reviewCandidateStatus, reviewFieldList } from "~/utils/submissionReview";
@@ -9,7 +9,7 @@ type OcrPayload = { data?: Record<string, unknown>; fields?: Record<string, OcrF
 
 const props = defineProps<{ submission: AdminSubmission; preview?: AdminSubmissionReviewPreview | null; previewLoading?: boolean; stacked?: boolean; disabled?: boolean }>();
 const emit = defineEmits<{
-  "field-corrections": [value: Array<{ fieldKey: string; reviewedValue: string }>];
+  "field-corrections": [value: AdminSubmissionReviewInput["fieldCorrections"]];
   "confirmed-challenges": [value: string[]];
 }>();
 
@@ -131,9 +131,9 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
       <section v-if="candidates.length" class="manual-add" aria-labelledby="manual-add-title">
         <h4 id="manual-add-title">搜索并添加 Challenge</h4>
         <UInput v-model="challengeQuery" icon="i-lucide-search" aria-label="搜索 Challenge" placeholder="输入称号、地图或条件" :disabled="disabled" />
-        <ul v-if="searchResults.length" class="manual-add__results">
+        <ul v-if="searchResults.length" class="manual-add__results stacked-list">
           <li v-for="candidate in searchResults" :key="candidate.challengeId" class="manual-add__result">
-            <div>
+            <div class="content-stack">
               <strong>{{ candidate.label }}</strong>
               <span class="candidate-scope">{{ reviewCandidateScopeLabel(candidate) }}<template v-if="candidateDetail(candidate)"> · {{ candidateDetail(candidate) }}</template></span>
             </div>
@@ -160,7 +160,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
           <p class="signal-kicker">识别</p>
           <h3 id="ocr-title">OCRKit</h3>
         </div>
-        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
+        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus ?? 'not_started')" :tone="ocrStatusTone(submission.ocrStatus ?? 'not_started')" />
       </header>
       <dl class="signal-meta">
         <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
@@ -292,13 +292,6 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   margin: 0;
   font-size: var(--type-label-sm-size);
 }
-.manual-add__results {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
 .manual-add__result {
   display: flex;
   align-items: center;
@@ -309,11 +302,6 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
-}
-.manual-add__result > div {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
 }
 .manual-add__result strong {
   overflow-wrap: anywhere;
@@ -348,16 +336,12 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   font-size: var(--type-label-sm-size);
   line-height: 1.5;
 }
-.signal-note,
-.signal-error {
+.signal-note {
   margin: var(--space-3) 0 0;
   color: var(--muted);
   font-size: var(--type-caption-size);
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-.signal-error {
-  color: var(--danger);
 }
 .signal-meta,
 .ocr-fields {

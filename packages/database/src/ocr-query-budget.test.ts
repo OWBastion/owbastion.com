@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
-import { createD1, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
+import { createD1, createOcrDifficultyResponse, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssignment, seedTitle } from "./ocr-test-harness";
 
 const now = Date.now();
 
@@ -42,36 +42,9 @@ const seedReviewableSubmission = (sqlite: DatabaseSync, submissionId: string, bi
 // scanned) but never satisfies a required-difficulty condition, so every scale keeps
 // the same "review"/"resubmit" outcome and never crosses into "automatic" — the one
 // path that materializes `challenges` rows.
-const nonMatchingOcrResponse = () => ({
-  schema_version: "1",
-  ok: true,
-  layout_version: "test-layout-v1",
-  fields: {
-    challenge_completed: { status: "ok", confidence: 0.99 },
-    viewer_player: { status: "ok", confidence: 0.99 },
-    map_name: { status: "ok", confidence: 0.99 },
-    difficulty: { status: "ok", confidence: 0.99 },
-  },
-  data: {
-    challenge_completed: true,
-    viewer_player: "Tester",
-    map_name: "地图 map.scale",
-    difficulty: "简单",
-  },
-});
+const nonMatchingOcrResponse = () => createOcrDifficultyResponse("地图 map.scale", "简单");
 
-const matchingOcrResponse = () => ({
-  schema_version: "1",
-  ok: true,
-  layout_version: "test-layout-v1",
-  fields: {
-    challenge_completed: { status: "ok", confidence: 0.99 },
-    viewer_player: { status: "ok", confidence: 0.99 },
-    map_name: { status: "ok", confidence: 0.99 },
-    difficulty: { status: "ok", confidence: 0.99 },
-  },
-  data: { challenge_completed: true, viewer_player: "Tester", map_name: "地图 map.scale", difficulty: "困难" },
-});
+const matchingOcrResponse = () => createOcrDifficultyResponse("地图 map.scale", "困难");
 
 describe("OCR auto-match query budgets (issue #241)", () => {
   const buildFixture = (candidateCount: number) => {

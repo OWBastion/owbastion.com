@@ -106,6 +106,26 @@ export type VerifiedRunXpAward = {
 
 const validSettlementCount = (value: number | null | undefined) => value === undefined || value === null || Number.isInteger(value) && value >= 0;
 
+const calculateBaseXp = (input: VerifiedRunXpInput, rule: {
+  baseDifficultyXp: Record<VerifiedRunDifficulty, number>;
+  defaultMapFactor: number;
+  performanceBonus: { noDeaths: number; noSkips: number; cap: number };
+}) => {
+  if (!Object.hasOwn(rule.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
+  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
+  const mapFactor = input.mapFactor ?? rule.defaultMapFactor;
+  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
+
+  const performanceBonusReasons: VerifiedRunXpSnapshot["performanceBonusReasons"] = [];
+  if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
+  if (input.skips === 0) performanceBonusReasons.push("no_skips");
+  const performanceBonus = Math.min(
+    rule.performanceBonus.cap,
+    performanceBonusReasons.reduce((bonus, reason) => bonus + rule.performanceBonus[reason === "no_deaths" ? "noDeaths" : "noSkips"], 0),
+  );
+  return { baseDifficultyXp: rule.baseDifficultyXp[input.difficulty], mapFactor, performanceBonus, performanceBonusReasons };
+};
+
 export const normalizeMatchCode = (value: string) => {
   const normalized = value.trim().replace(/[‐‑‒–—−﹘﹣－]/gu, "-").replace(/\s+/gu, "");
   if (!/^[1-9]\d{3}(?:-[1-9]\d{3}){2}$/.test(normalized)) throw new Error("MATCH_CODE_INVALID");
@@ -113,19 +133,7 @@ export const normalizeMatchCode = (value: string) => {
 };
 
 export const calculateVerifiedRunXpV1 = (input: VerifiedRunXpInput): { awardedXp: number; snapshot: VerifiedRunXpSnapshotV1 } => {
-  if (!Object.hasOwn(verifiedRunXpRuleV1.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
-  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
-  const mapFactor = input.mapFactor ?? verifiedRunXpRuleV1.defaultMapFactor;
-  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
-
-  const performanceBonusReasons: VerifiedRunXpSnapshotV1["performanceBonusReasons"] = [];
-  if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
-  if (input.skips === 0) performanceBonusReasons.push("no_skips");
-  const performanceBonus = Math.min(
-    verifiedRunXpRuleV1.performanceBonus.cap,
-    performanceBonusReasons.reduce((bonus, reason) => bonus + (reason === "no_deaths" ? verifiedRunXpRuleV1.performanceBonus.noDeaths : verifiedRunXpRuleV1.performanceBonus.noSkips), 0),
-  );
-  const baseDifficultyXp = verifiedRunXpRuleV1.baseDifficultyXp[input.difficulty];
+  const { baseDifficultyXp, mapFactor, performanceBonus, performanceBonusReasons } = calculateBaseXp(input, verifiedRunXpRuleV1);
   const awardedXp = Math.round(baseDifficultyXp * mapFactor * (1 + performanceBonus)) + verifiedRunXpRuleV1.challengeBonus;
 
   return {
@@ -149,19 +157,7 @@ export const verifiedRunXpRuleV2 = {
 } as const;
 
 export const calculateVerifiedRunXpV2 = (input: VerifiedRunXpInput): VerifiedRunXpAward => {
-  if (!Object.hasOwn(verifiedRunXpRuleV2.baseDifficultyXp, input.difficulty)) throw new Error("VERIFIED_RUN_DIFFICULTY_INVALID");
-  if (!validSettlementCount(input.deaths) || !validSettlementCount(input.skips)) throw new Error("VERIFIED_RUN_SETTLEMENT_VALUE_INVALID");
-  const mapFactor = input.mapFactor ?? verifiedRunXpRuleV2.defaultMapFactor;
-  if (!Number.isFinite(mapFactor) || mapFactor <= 0) throw new Error("VERIFIED_RUN_MAP_FACTOR_INVALID");
-
-  const performanceBonusReasons: VerifiedRunXpSnapshotV2["performanceBonusReasons"] = [];
-  if (input.deaths === 0) performanceBonusReasons.push("no_deaths");
-  if (input.skips === 0) performanceBonusReasons.push("no_skips");
-  const performanceBonus = Math.min(
-    verifiedRunXpRuleV2.performanceBonus.cap,
-    performanceBonusReasons.reduce((bonus, reason) => bonus + (reason === "no_deaths" ? verifiedRunXpRuleV2.performanceBonus.noDeaths : verifiedRunXpRuleV2.performanceBonus.noSkips), 0),
-  );
-  const baseDifficultyXp = verifiedRunXpRuleV2.baseDifficultyXp[input.difficulty];
+  const { baseDifficultyXp, mapFactor, performanceBonus, performanceBonusReasons } = calculateBaseXp(input, verifiedRunXpRuleV2);
 
   return {
     awardedXp: Math.round(baseDifficultyXp * mapFactor * (1 + performanceBonus)),
@@ -253,7 +249,7 @@ export type MasteryMapProfile = {
 
 const byMostRecent = (left: VerifiedRunForProjection, right: VerifiedRunForProjection) => right.acceptedAt - left.acceptedAt || right.runId.localeCompare(left.runId);
 
-const verifiedRunProjection = (run: VerifiedRunForProjection): VerifiedRunForProjection => ({
+export const verifiedRunProjection = (run: VerifiedRunForProjection): VerifiedRunForProjection => ({
   runId: run.runId,
   mapId: run.mapId,
   gameplayRevisionId: run.gameplayRevisionId,

@@ -57,7 +57,7 @@ watch([query, status], () => { page.value = 1; }, { flush: "sync" });
         <template #playerName-cell="{ row }"><strong><PlayerBattleTag :player-name="row.original.playerName" :player-id="row.original.playerId" /></strong></template>
         <template #status-cell="{ row }"><StatusBadge :label="row.original.status === 'banned' ? '已封禁' : '正常'" :tone="row.original.status === 'banned' ? 'warning' : 'success'" /></template>
         <template #bindingCount-cell="{ row }"><span>{{ row.original.bindingCount }} 条</span></template>
-        <template #updatedAt-cell="{ row }"><span class="table-meta">{{ new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(row.original.updatedAt) }}</span></template>
+        <template #updatedAt-cell="{ row }"><span class="table-meta">{{ formatTime(row.original.updatedAt) }}</span></template>
         <template #actions-cell="{ row }"><div class="table-actions"><UButton :to="`/admin/players/${row.original.playerAccountId}`" label="查看详情" size="sm" color="neutral" variant="outline" /></div></template>
       </AdminDataTable>
       <UPagination v-if="total > 20" v-model:page="page" :total="total" :items-per-page="20" class="pagination" />

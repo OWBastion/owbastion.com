@@ -6,7 +6,6 @@ defineProps<{
   submissions: Array<{ submissionId: string; mapName: string; status: string; resubmissionRequired?: boolean; updatedAt: number; verifiedRunOutcome?: VerifiedRunSubmissionOutcome }>;
 }>();
 
-const formatTime = (timestamp: number) => new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" }).format(timestamp);
 </script>
 
 <template>
