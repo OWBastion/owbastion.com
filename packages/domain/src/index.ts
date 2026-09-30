@@ -156,13 +156,13 @@ export type AdminReviewQuery = {
 export type AdminReviewDetail = { contractVersion: "1"; review: AdminReview; audit: AdminReviewAudit[] };
 
 export type AgentPageInput = { page: number; pageSize: number };
-export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string };
+export type AgentEventQuery = AgentPageInput & { query?: string; category?: string; rarity?: string; status?: RandomEvent["releaseStatus"] };
 export type AgentMapQuery = AgentPageInput & { query?: string; mechanic?: string };
 export type AgentAchievementQuery = AgentPageInput & { query?: string; status?: "active" | "sunsetting"; mapId?: string };
 export type AgentTitleQuery = AgentPageInput & { query?: string; category?: string; scope?: "global" | "map"; mapId?: string };
 export type AgentPlayerTitleGrantQuery = AgentPageInput;
 export type AgentMapTitleHolderQuery = AgentPageInput & { mapId: string };
-export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"] };
+export type AgentSearchQuery = AgentPageInput & { query: string; kind?: AgentSearchResult["kind"]; status?: RandomEvent["releaseStatus"] };
 export type AdminVerifiedRunQuery = AgentPageInput & {
   playerAccountId?: string;
   mapId?: string;
@@ -187,7 +187,7 @@ export type PlatformServices = {
   transitionAdminVerifiedRun(input: AdminVerifiedRunStateRequest & { verifiedRunId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminVerifiedRunStateResponse>;
   resolveAdminVerifiedRunConflict(input: AdminVerifiedRunConflictResolutionRequest & { verifiedRunId: string; submissionId: string }, auth: AuthContext, idempotencyKey: string): Promise<AdminVerifiedRunConflictResolutionResponse>;
   listAgentEvents(input: AgentEventQuery): Promise<AgentEventListResponse>;
-  getAgentEvent(input: { eventId: string }): Promise<RandomEvent | null>;
+  getAgentEvent(input: { eventId: string; status?: RandomEvent["releaseStatus"] }): Promise<RandomEvent | null>;
   listAgentMaps(input: AgentMapQuery): Promise<AgentMapListResponse>;
   getAgentMap(input: { mapId: string }): Promise<AgentMap | null>;
   listAgentAchievements(input: AgentAchievementQuery): Promise<AgentAchievementListResponse>;
@@ -197,8 +197,8 @@ export type PlatformServices = {
   listAgentMapTitleHolders(input: AgentMapTitleHolderQuery): Promise<AgentMapTitleHolderListResponse>;
   getAgentTitle(input: { titleKey: string }): Promise<AgentTitle | null>;
   searchAgentContent(input: AgentSearchQuery): Promise<AgentSearchResponse>;
-  listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: "implemented" | "removed"; includeArchived?: boolean }): Promise<RandomEvent[]>;
-  getRandomEvent(input: { eventId: string; includeArchived?: boolean }): Promise<RandomEvent | null>;
+  listRandomEvents(input: { query?: string; category?: string; rarity?: string; status?: RandomEvent["releaseStatus"]; includeArchived?: boolean }): Promise<RandomEvent[]>;
+  getRandomEvent(input: { eventId: string; status?: RandomEvent["releaseStatus"]; includeArchived?: boolean }): Promise<RandomEvent | null>;
   createAdminRandomEvent(input: AdminRandomEventCreateRequest, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   updateAdminRandomEvent(input: AdminRandomEventUpdateRequest & { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<RandomEvent>;
   archiveAdminRandomEvent(input: { eventId: string }, auth: AuthContext, idempotencyKey: string): Promise<void>;

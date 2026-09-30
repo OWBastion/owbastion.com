@@ -4122,14 +4122,14 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
 
     async listAgentEvents(input: AgentEventQuery) {
-      const [events, suspendedVersions] = await Promise.all([this.listRandomEvents({ category: input.category, rarity: input.rarity }), suspendedEventVersions()]);
+      const [events, suspendedVersions] = await Promise.all([this.listRandomEvents({ category: input.category, rarity: input.rarity, status: input.status }), suspendedEventVersions()]);
       const query = input.query?.toLocaleLowerCase();
       const available = events.filter((event) => !suspendedVersions.has(event.gameVersion));
       const filtered = query ? available.filter((event) => [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))) : available;
       return { contractVersion: "1" as const, ...paginate(filtered, input.page, input.pageSize) };
     },
     async getAgentEvent(input) {
-      const event = await this.getRandomEvent({ eventId: input.eventId });
+      const event = await this.getRandomEvent({ eventId: input.eventId, status: input.status });
       if (!event || (await suspendedEventVersions()).has(event.gameVersion)) return null;
       return event;
     },
@@ -4296,7 +4296,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
     },
     async searchAgentContent(input: AgentSearchQuery) {
       const query = input.query.toLocaleLowerCase();
-      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({}), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
+      const [events, suspendedVersions, maps, achievements, titles] = await Promise.all([this.listRandomEvents({ status: input.status }), suspendedEventVersions(), this.listMaps(), this.listChallenges({ family: "achievement" }), listGlobalAgentTitles()]);
       const results: AgentSearchResult[] = [];
       if (!input.kind || input.kind === "event") results.push(...events.filter((event) => !suspendedVersions.has(event.gameVersion) && [event.name, event.description, ...event.effectTags].some((value) => value.toLocaleLowerCase().includes(query))).map((event) => ({ kind: "event" as const, id: event.eventId, name: event.name, summary: event.description })));
       if (!input.kind || input.kind === "map") results.push(...maps.filter((map) => [map.mapName, ...map.mechanics].some((value) => value.toLocaleLowerCase().includes(query))).map((map) => ({ kind: "map" as const, id: map.mapId, name: map.mapName, summary: map.mechanics.join("、") || `游戏版本 ${map.gameVersion}` })));
@@ -4327,7 +4327,7 @@ export const createPlatformServices = (database: D1Database, evidenceBucket?: R2
       return rows.map((row): RandomEvent => { const effectTags = JSON.parse(row.effectTagsJson) as string[]; return { eventId: row.id, name: row.name, category: row.category, rarity: row.rarity, description: row.description, durationSeconds: row.durationSeconds, cooldownSeconds: row.cooldownSeconds, weight: row.weight, gameVersion: row.gameVersion, effectTags, effectAnnotations: effectTags.flatMap((tag) => { const term = byLabel.get(tag); return term ? [{ tag, term }] : []; }), releaseStatus: row.releaseStatus as RandomEvent["releaseStatus"], archived: row.archivedAt !== null, challenges: challengesByEvent.get(row.id) ?? [] }; });
     },
     async getRandomEvent(input) {
-      const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
+      const row = await db.select().from(randomEvents).where(and(eq(randomEvents.id, input.eventId), input.includeArchived ? undefined : isNull(randomEvents.archivedAt), input.status ? eq(randomEvents.releaseStatus, input.status) : input.includeArchived === undefined ? inArray(randomEvents.releaseStatus, ["implemented", "removed"]) : undefined)).get();
       return row ? asRandomEvent(row) : null;
     },
     async listAdminRandomEventVersions(_auth): Promise<AdminRandomEventVersionListResponse> {
