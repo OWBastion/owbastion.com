@@ -83,7 +83,7 @@ describe("AdminPlayerTitles", () => {
     await flushPromises();
     expect(wrapper.text()).toContain("该玩家需要选择佩戴称号");
     await wrapper.findAll("button").find((button) => button.text() === "编辑佩戴选择")!.trigger("click");
-    const checkboxes = wrapper.findAll("input[type='checkbox']");
+    const checkboxes = wrapper.get("fieldset").findAll("input[type='checkbox']");
     expect(checkboxes).toHaveLength(11);
     expect(wrapper.text()).toContain("萨摩亚");
     await checkboxes[0].setValue(true);
