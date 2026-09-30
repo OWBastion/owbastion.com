@@ -941,7 +941,7 @@
   "/v1/agents/events": {
    "get": {
     "operationId": "listAgentEvents",
-    "description": "Read-only Bastion build projection. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state.",
+    "description": "Read-only Bastion build projection. Events belonging to a suspended game version are omitted entirely; the projection does not expose the operational availability state. Without status, the projection covers implemented and removed events; an explicit status selects that single releaseStatus, including development events outside the default projection.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"
@@ -957,6 +957,9 @@
      },
      {
       "$ref": "#/components/parameters/agentRarity"
+     },
+     {
+      "$ref": "#/components/parameters/agentEventStatus"
      }
     ],
     "responses": {
@@ -969,10 +972,13 @@
   "/v1/agents/events/{eventId}": {
    "get": {
     "operationId": "getAgentEvent",
-    "description": "Returns an event only when its game version is available to the Bastion build projection.",
+    "description": "Returns an event only when its game version is available to the Bastion build projection and its releaseStatus matches the requested status filter; without status, only implemented or removed events are returned.",
     "parameters": [
      {
       "$ref": "#/components/parameters/eventId"
+     },
+     {
+      "$ref": "#/components/parameters/agentEventStatus"
      }
     ],
     "responses": {
@@ -1169,7 +1175,7 @@
   "/v1/agents/search": {
    "get": {
     "operationId": "searchAgentContent",
-    "description": "kind=title searches the same global title build projection as listAgentTitles and getAgentTitle; player release metadata and challenge lifecycle do not filter those stable definitions.",
+    "description": "kind=title searches the same global title build projection as listAgentTitles and getAgentTitle; player release metadata and challenge lifecycle do not filter those stable definitions. status filters event results by releaseStatus the same way as listAgentEvents; other kinds are unaffected.",
     "parameters": [
      {
       "$ref": "#/components/parameters/agentPage"
@@ -1182,6 +1188,9 @@
      },
      {
       "$ref": "#/components/parameters/agentKind"
+     },
+     {
+      "$ref": "#/components/parameters/agentEventStatus"
      }
     ],
     "responses": {
@@ -3005,6 +3014,20 @@
      "enum": [
       "active",
       "sunsetting"
+     ]
+    }
+   },
+   "agentEventStatus": {
+    "name": "status",
+    "in": "query",
+    "required": false,
+    "description": "Selects a single random-event releaseStatus. Only applies to event results; without it, the default projection covers implemented and removed events.",
+    "schema": {
+     "type": "string",
+     "enum": [
+      "development",
+      "implemented",
+      "removed"
      ]
     }
    },

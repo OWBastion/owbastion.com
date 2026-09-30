@@ -1111,19 +1111,19 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/agents/events", async (c) => {
-    const includePlayerIds = allowAgents(c); const page = agentPage(c); if (!page) return errorResponse(c, 422, "INVALID_REQUEST", "The pagination parameters are invalid");
-    const cacheable = !includePlayerIds && hasOnlyPaginationQuery(c.req.raw) && !c.req.query("q") && !c.req.query("category") && !c.req.query("rarity");
+    const includePlayerIds = allowAgents(c); const page = agentPage(c); const status = c.req.query("status"); if (!page || (status && !["development", "implemented", "removed"].includes(status))) return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
+    const cacheable = !includePlayerIds && hasOnlyPaginationQuery(c.req.raw) && !c.req.query("q") && !c.req.query("category") && !c.req.query("rarity") && !status;
     setAgentsCache(c, includePlayerIds, cacheable);
     return cachePublicResponse(c, {
       operation: "agents_events",
       cacheKey: publicCacheKey(c.req.raw, { page: String(page.page), pageSize: String(page.pageSize) }),
       eligible: cacheable,
       identityIndependent: true,
-      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined })) }),
+      response: async () => c.json({ ...await logServiceOperation(c, "agents_list_events", () => dependencies.services(c.env).listAgentEvents({ ...page, query: c.req.query("q")?.trim() || undefined, category: c.req.query("category")?.trim() || undefined, rarity: c.req.query("rarity")?.trim() || undefined, status: status as "development" | "implemented" | "removed" | undefined })) }),
     });
   });
   app.get("/v1/agents/events/:eventId", async (c) => {
-    const includePlayerIds = allowAgents(c);
+    const includePlayerIds = allowAgents(c); const status = c.req.query("status"); if (status && !["development", "implemented", "removed"].includes(status)) return errorResponse(c, 422, "INVALID_REQUEST", "The event status is invalid");
     const cacheable = !includePlayerIds && hasNoQuery(c.req.raw);
     setAgentsCache(c, includePlayerIds, cacheable);
     return cachePublicResponse(c, {
@@ -1132,7 +1132,7 @@ export const createApp = (dependencies: AppDependencies) => {
       eligible: cacheable,
       identityIndependent: true,
       response: async () => {
-        const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId") }));
+        const event = await logServiceOperation(c, "agents_get_event", () => dependencies.services(c.env).getAgentEvent({ eventId: c.req.param("eventId"), status: status as "development" | "implemented" | "removed" | undefined }));
         return event ? c.json({ contractVersion: "1", item: event }) : errorResponse(c, 404, "EVENT_NOT_FOUND", "The event does not exist");
       },
     });
@@ -1202,8 +1202,8 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
   app.get("/v1/agents/search", async (c) => {
-    allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
-    return c.json(await logServiceOperation(c, "agents_search", () => dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined })));
+    allowAgents(c); const page = agentPage(c); const query = c.req.query("q")?.trim(); const kind = c.req.query("kind"); const status = c.req.query("status"); if (!page || !query || (kind && !["event", "map", "achievement", "title"].includes(kind)) || (status && !["development", "implemented", "removed"].includes(status))) return errorResponse(c, 422, "INVALID_REQUEST", "The search parameters are invalid");
+    return c.json(await logServiceOperation(c, "agents_search", () => dependencies.services(c.env).searchAgentContent({ ...page, query, kind: kind as "event" | "map" | "achievement" | "title" | undefined, status: status as "development" | "implemented" | "removed" | undefined })));
   });
 
   app.post("/v1/player/uploads/session", async (c) => {

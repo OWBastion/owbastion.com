@@ -586,6 +586,28 @@ describe("API", () => {
     expect(publicResponse.headers.get("vary")).toBe("Authorization");
     expect(buildResponse.headers.get("cache-control")).toBe("private, no-store");
   });
+  it("exposes the Agents event release-status contract across list, detail, and search", async () => {
+    const listAgentEvents = vi.fn(async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 20, total: 0, hasMore: false }));
+    const getAgentEvent = vi.fn(async () => null);
+    const searchAgentContent = vi.fn(async () => ({ contractVersion: "1" as const, items: [], page: 1, pageSize: 20, total: 0, hasMore: false }));
+    const statusApp = createApp({ authenticate: auth, services: () => ({ ...services, listAgentEvents, getAgentEvent, searchAgentContent }) });
+
+    const devList = await statusApp.request("http://localhost/v1/agents/events?status=development", {}, env);
+    expect(devList.status).toBe(200);
+    expect(listAgentEvents).toHaveBeenCalledWith(expect.objectContaining({ status: "development" }));
+    expect(devList.headers.get("cache-control")).toBe("private, no-store");
+
+    await statusApp.request("http://localhost/v1/agents/events/event.dev?status=development", {}, env);
+    expect(getAgentEvent).toHaveBeenCalledWith({ eventId: "event.dev", status: "development" });
+
+    await statusApp.request("http://localhost/v1/agents/search?q=test&kind=event&status=development", {}, env);
+    expect(searchAgentContent).toHaveBeenCalledWith(expect.objectContaining({ status: "development" }));
+
+    for (const path of ["/v1/agents/events?status=bogus", "/v1/agents/events/event.dev?status=bogus", "/v1/agents/search?q=test&status=bogus"]) {
+      const response = await statusApp.request(`http://localhost${path}`, {}, env);
+      expect(response.status).toBe(422);
+    }
+  });
   it("requires a maintainer and an idempotency key for event imports", async () => {
     const request = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contractVersion: "1", fileName: "events.csv", csv: "名称" }) };
     expect((await app.request("http://localhost/v1/admin/events/imports", request, env)).status).toBe(403);

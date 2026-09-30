@@ -42,6 +42,10 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, game_version TEXT NOT NULL, status TEXT NOT NULL,
     introduced_version TEXT NOT NULL, retired_version TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
+  CREATE TABLE map_metadata (
+    map_id TEXT PRIMARY KEY NOT NULL, difficulty_rating TEXT, mechanics_json TEXT NOT NULL DEFAULT '[]',
+    cover_url TEXT, background_url TEXT, updated_at INTEGER NOT NULL, updated_by TEXT NOT NULL
+  );
   CREATE TABLE gameplay_revisions (
     id TEXT PRIMARY KEY NOT NULL, map_id TEXT NOT NULL, lifecycle TEXT NOT NULL, legacy_map_variant TEXT,
     copied_from_revision_id TEXT, reset_reason TEXT, game_version TEXT NOT NULL, spatial_config_json TEXT,
@@ -108,5 +112,27 @@ describe("random-event version availability", () => {
     ] });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM audit_events WHERE operation = 'admin.random-event-version.availability'").get()).toEqual({ count: 2 });
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM idempotency_keys WHERE operation = 'admin.random-event-version.availability'").get()).toEqual({ count: 2 });
+  });
+});
+
+describe("agents event release-status filter", () => {
+  it("keeps development events out of the default projection and exposes them through an explicit status", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    sqlite.exec("INSERT INTO random_events (id, name, category, rarity, description, duration_seconds, cooldown_seconds, weight, game_version, release_status, created_at, updated_at) VALUES ('event.dev', '开发事件', '机制', 'N', '开发中说明', 60, 1, 2, '26.0902.1', 'development', 1, 1), ('event.impl', '实装事件', '增益', 'SR', '实装说明', 30, 0.32, 0.7, '26.0902.1', 'implemented', 1, 1), ('event.rem', '移除事件', '机制', 'N', '移除说明', 10, 0.1, 0.2, '26.0902.1', 'removed', 1, 1), ('event.dev-suspended', '挂起开发事件', '机制', 'N', '挂起说明', 10, 0.1, 0.2, '26.0901.1', 'development', 1, 1);");
+    const services = createPlatformServices(database);
+    const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "test" };
+    await services.updateAdminRandomEventVersion({ contractVersion: "1", gameVersion: "26.0901.1", availability: "suspended" }, auth, "suspend-1");
+
+    await expect(services.listAgentEvents({ page: 1, pageSize: 10 })).resolves.toMatchObject({ total: 2, items: [{ eventId: "event.impl" }, { eventId: "event.rem" }] });
+    await expect(services.listAgentEvents({ page: 1, pageSize: 10, status: "development" })).resolves.toMatchObject({ total: 1, items: [{ eventId: "event.dev", releaseStatus: "development" }] });
+    await expect(services.listAgentEvents({ page: 1, pageSize: 10, status: "implemented" })).resolves.toMatchObject({ total: 1, items: [{ eventId: "event.impl" }] });
+    await expect(services.listAgentEvents({ page: 1, pageSize: 10, status: "removed" })).resolves.toMatchObject({ total: 1, items: [{ eventId: "event.rem" }] });
+    await expect(services.getAgentEvent({ eventId: "event.dev" })).resolves.toBeNull();
+    await expect(services.getAgentEvent({ eventId: "event.dev", status: "implemented" })).resolves.toBeNull();
+    await expect(services.getAgentEvent({ eventId: "event.dev", status: "development" })).resolves.toMatchObject({ eventId: "event.dev", releaseStatus: "development" });
+    await expect(services.searchAgentContent({ page: 1, pageSize: 10, query: "开发", kind: "event" })).resolves.toMatchObject({ total: 0 });
+    await expect(services.searchAgentContent({ page: 1, pageSize: 10, query: "开发", kind: "event", status: "development" })).resolves.toMatchObject({ total: 1, items: [{ kind: "event", id: "event.dev" }] });
+    await expect(services.getAgentEvent({ eventId: "event.dev-suspended", status: "development" })).resolves.toBeNull();
   });
 });

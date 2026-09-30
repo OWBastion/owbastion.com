@@ -494,6 +494,12 @@ idempotent operational state. Suspension leaves event lifecycle, balancing
 metadata, and admin visibility unchanged, but omits that version's events from
 the Bastion-facing `/v1/agents/events` projection. It takes effect on the next
 Bastion sync/build/release; the platform does not trigger those operations.
+The default projection covers implemented and removed events. An explicit
+`status` query parameter selects a single `releaseStatus` — `development`,
+`implemented`, or `removed` — so agents can inspect events still under
+development without putting them in the default build projection. The same
+status contract applies to the event detail lookup and to event search
+results.
 
 ## Agents content API
 
