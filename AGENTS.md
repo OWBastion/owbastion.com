@@ -12,6 +12,10 @@ This repository owns platform business metadata and state, player identities, su
 
 For cross-repository work, change the authoritative contract at its owner and integrate this repository separately as a consumer or producer.
 
+## Contribution to the organization goal
+
+Serves the [organization product goal](https://github.com/OWBastion/.github/blob/main/docs/product-goal.md) by recording what players have done in Bastion (challenges, titles, map results), verifying it with light friction, and, as creation grows, providing the structured creation, review, and publishing path for events, challenges, and titles. Official game quality takes priority over creation-platform work, and general Workshop or agent capability belongs in Wright, not here.
+
 ## Work from intent, not repeated setup
 
 A short request such as `implement #123`, `fix #123`, or `review #123` is sufficient. Follow the [organization preflight](https://github.com/OWBastion/.github/blob/main/docs/issue-readiness.md#preflight): inspect the worktree, linked Issue, source, tests, and evidence before claiming current behavior; route through the indexes below and load only the smallest relevant rule set; trace behavior through its authoritative owner, persistence, API/adapters, and consumers; surface material Issue/contract/code mismatches instead of deciding them.
