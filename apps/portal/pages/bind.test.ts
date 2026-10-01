@@ -16,20 +16,44 @@ const bindingState = {
 };
 
 mockNuxtImport("useBindingInvite", () => () => bindingState);
-mockNuxtImport("useRoute", () => () => ({ query: { code: "ABCDEFGHIJKL" } }));
 
 describe("bind page", () => {
-  it("can regenerate a confirmation code from the original invitation after expiry", async () => {
+  it("submits the manually entered invitation code", async () => {
+    bindingState.state.value = "ready";
     const wrapper = await mountSuspended(BindPage, {
       global: {
         stubs: {
           UCard: { template: "<div><slot /></div>" },
-          UButton: { props: ["label"], template: "<button @click=\"$emit('click')\">{{ label }}</button>" },
+          UInput: { props: ["modelValue"], template: "<input :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
+          UButton: { props: ["label"], template: "<button type=\"submit\">{{ label }}</button>" },
           UAlert: true,
         },
       },
     });
 
+    await wrapper.get("input").setValue("abcdefghijkl");
+    await wrapper.get("form").trigger("submit");
+
+    expect(submit).toHaveBeenCalledWith("abcdefghijkl");
+  });
+
+  it("can regenerate a confirmation code from the entered invitation after expiry", async () => {
+    bindingState.state.value = "ready";
+    submit.mockClear();
+    const wrapper = await mountSuspended(BindPage, {
+      global: {
+        stubs: {
+          UCard: { template: "<div><slot /></div>" },
+          UInput: { props: ["modelValue"], template: "<input :value=\"modelValue\" @input=\"$emit('update:modelValue', $event.target.value)\" />" },
+          UButton: { props: ["label"], template: "<button type=\"button\" @click=\"$emit('click')\">{{ label }}</button>" },
+          UAlert: true,
+        },
+      },
+    });
+
+    await wrapper.get("input").setValue("ABCDEFGHIJKL");
+    bindingState.state.value = "expired";
+    await flushPromises();
     await wrapper.get("button").trigger("click");
 
     expect(submit).toHaveBeenCalledWith("ABCDEFGHIJKL");

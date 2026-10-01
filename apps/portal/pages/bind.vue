@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { qqVerificationCommand } from "~/utils/binding-invite";
 
-const route = useRoute();
 const { state, invite, confirmationCode, errorMessage, refreshing, refreshStatus, submit } = useBindingInvite();
-const inviteCode = computed(() => typeof route.query.code === "string" ? route.query.code : "");
+const inviteCode = shallowRef("");
+const showForm = computed(() => state.value === "ready" || (state.value === "failed" && !invite.value) || (state.value === "expired" && !inviteCode.value.trim()));
 const copied = shallowRef(false);
 useSeoMeta({ title: "QQ 绑定 · 躲避堡垒 3" });
-
-onMounted(() => {
-  if (inviteCode.value && state.value === "ready") void submit(inviteCode.value);
-});
 
 async function copyCommand() {
   if (!confirmationCode.value || !navigator.clipboard) return;
@@ -26,9 +22,12 @@ async function copyCommand() {
     </section>
 
     <UCard class="binding-card" variant="subtle" aria-live="polite">
-      <section v-if="state === 'ready'" class="binding-state">
-        <p class="binding-note">请使用管理员发送的绑定链接打开此页面。</p>
-      </section>
+      <form v-if="showForm" class="binding-state" @submit.prevent="submit(inviteCode)">
+        <UInput v-model="inviteCode" label="邀请码" placeholder="请输入管理员发送的邀请码" aria-label="邀请码" autocomplete="off" />
+        <p v-if="state === 'failed'" class="binding-note error-note" role="alert">{{ errorMessage }}</p>
+        <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，请重新输入邀请码。</p>
+        <div class="action-row"><UButton type="submit" label="下一步" :disabled="!inviteCode.trim()" /></div>
+      </form>
 
       <section v-else-if="state === 'submitting'" class="binding-state"><p class="binding-note">读取绑定邀请中…</p></section>
 
@@ -39,7 +38,7 @@ async function copyCommand() {
         <p v-if="state === 'waiting'" class="binding-note">请手动输入 @，从列表选择机器人，再发送上方指令。验证成功后自动完成首次绑定并登录。</p>
         <p v-else-if="state === 'review'" class="binding-note">涉及现有绑定或其他冲突，待处理。</p>
         <p v-else-if="state === 'rejected'" class="binding-note error-note">绑定申请未通过。</p>
-        <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原绑定链接重新生成。</p>
+        <p v-else-if="state === 'expired'" class="binding-note warning-note">确认码已过期，可使用原邀请码重新生成。</p>
         <p v-else-if="state === 'failed'" class="binding-note error-note">{{ errorMessage }}</p>
         <p v-else class="binding-note">绑定完成，进入玩家中心…</p>
         <UAlert v-if="errorMessage && state !== 'failed'" color="error" variant="subtle" :description="errorMessage" />

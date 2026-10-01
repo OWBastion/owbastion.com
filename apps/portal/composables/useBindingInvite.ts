@@ -77,7 +77,7 @@ export function useBindingInvite() {
   const submit = async (inviteCode: string) => {
     const code = inviteCode.trim().toUpperCase();
     if (!code) {
-      errorMessage.value = "请使用管理员发送的绑定链接。";
+      errorMessage.value = "请输入管理员发送的邀请码。";
       state.value = "failed";
       return;
     }
@@ -94,7 +94,7 @@ export function useBindingInvite() {
       void pollStatus();
     } catch (error) {
       const details = portalErrorDetails(error, "无法打开绑定邀请，请稍后重试。");
-      errorMessage.value = details.code === "INVITE_INVALID" ? "绑定链接不可用，可能已过期、撤销或使用过。" : details.description;
+      errorMessage.value = details.code === "INVITE_INVALID" ? "邀请码不可用，可能已过期、撤销或使用过。" : details.description;
       state.value = "failed";
     }
   };

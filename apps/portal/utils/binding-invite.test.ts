@@ -13,9 +13,11 @@ describe("BattleTag helpers", () => {
 });
 
 describe("binding invitation links", () => {
-  it("puts the one-time invitation code in the administrator link", () => {
+  it("gives the invitation code separately from the bind page link", () => {
     const text = bindingInviteCopyText("ABCDEFGHIJKL", "https://owbastion.com");
-    expect(text).toContain("https://owbastion.com/bind?code=ABCDEFGHIJKL");
+    expect(text).toContain("https://owbastion.com/bind\n");
+    expect(text).toContain("邀请码：ABCDEFGHIJKL");
+    expect(text).not.toContain("?code=");
     expect(text).toContain("QQ 群完成验证");
     expect(text).toContain("添加 Passkey");
     expect(text).not.toContain("注册链接");
