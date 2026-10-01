@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, OcrAccuracyMark } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
-import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
+import { reviewBlockingMessage, reviewRecordLabel, verifiedRunIneligibleLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -88,6 +88,7 @@ function submitConfirm() {
   }
 }
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
+const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
 
 watch(
@@ -219,6 +220,7 @@ onBeforeUnmount(() => {
           </ul>
           <p v-if="satisfiedCompletions.length" class="claim-meta">联动完成：{{ satisfiedCompletions.map((completion) => completion.titleName).join("、") }}</p>
           <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
+          <p v-else-if="verifiedRunIneligible" class="claim-meta">{{ verifiedRunIneligible }}</p>
           <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
         </template>
         <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>

@@ -21,7 +21,13 @@ const annotatableFields = [
   { key: "challenge_completed", label: "通关标记" },
   { key: "map_variant", label: "地图版本" },
   { key: "achievement_titles", label: "完整成就列表" },
+  { key: "version", label: "游戏版本" },
+  { key: "run_code", label: "对局码" },
+  { key: "duration_seconds", label: "通关用时（秒）" },
+  { key: "deaths", label: "死亡次数" },
+  { key: "skips", label: "跳过次数" },
 ] as const;
+const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
@@ -174,12 +180,13 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
       <section class="field-review" aria-labelledby="field-review-title">
         <div>
           <h4 id="field-review-title">校正识别字段</h4>
-          <p>勾选并选择截图中的实际值后，会作为本次审核的业务校正随决定保存。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
+          <p>勾选并选择或填写截图中的实际值后，会作为本次审核的业务校正随决定保存。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
         </div>
         <div v-for="field in annotatableFields" :key="field.key" class="field-review__row">
           <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="disabled" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />
           <template v-if="confirmedFields.includes(field.key)">
             <USelectMenu v-if="field.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${field.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" />
+            <UInput v-else-if="field.key in typedFieldPlaceholder" v-model="correctionInputs[field.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(field.key) ? 'numeric' : 'text'" :aria-label="`截图中的${field.label}`" :placeholder="typedFieldPlaceholder[field.key]" :disabled="disabled" />
             <USelect v-else v-model="correctionInputs[field.key]" :items="fieldChoices(field.key)" :aria-label="`截图中的${field.label}完整值`" :placeholder="`选择截图中的${field.label}`" :disabled="disabled" />
           </template>
         </div>

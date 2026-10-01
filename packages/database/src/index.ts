@@ -1774,6 +1774,15 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
           else throw new Error("SUBMISSION_CORRECTION_INVALID");
           break;
         }
+        case "version": data.version = value; break;
+        case "run_code": data.run_code = value; break;
+        case "duration_seconds":
+        case "deaths":
+        case "skips": {
+          if (!/^\d+$/u.test(value)) throw new Error("SUBMISSION_CORRECTION_INVALID");
+          data[correction.fieldKey] = Number(value);
+          break;
+        }
         case "achievement_titles":
           data.achievement_titles = value.split(/[、,，\n]/u).map((title) => title.trim()).filter(Boolean);
           break;

@@ -40,7 +40,7 @@ const blockingMessages: Record<string, string> = {
   CHALLENGE_NOT_FOUND: "所选 Challenge 的配置不存在。",
   TITLE_NOT_FOUND: "所选 Challenge 的称号不存在。",
   SUBMISSION_NOT_REVIEWABLE: "该提交没有可核对的识别结果。可以重新发送 OCRKit 请求，或要求重新提交。",
-  SUBMISSION_CORRECTION_INVALID: "有字段值无法识别：通关标记填写“已完成”或“未完成”，地图版本填写“经典”或“标准”。",
+  SUBMISSION_CORRECTION_INVALID: "有字段值无法识别：通关用时、死亡次数、跳过次数需为整数。",
 };
 
 export const knownReviewBlockingMessage = (code: string | null | undefined) => code ? blockingMessages[code] ?? null : null;
@@ -51,6 +51,27 @@ export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPrevie
   : verifiedRun.status === "eligible"
     ? "将按识别结果记录 Verified Run"
     : null;
+
+const verifiedRunReasonLabels: Record<string, string> = {
+  completion_not_confirmed: "通关标记不是已完成",
+  missing_map: "缺少地图",
+  canonical_map_not_found: "地图不在平台地图列表中",
+  ambiguous_map: "地图名称对应多张地图",
+  submission_map_mismatch: "地图与提交的目标地图不一致",
+  invalid_difficulty: "难度无效",
+  unsupported_game_version: "游戏版本缺失或不受支持",
+  invalid_run_code: "对局码缺失或无效",
+  invalid_completion_duration: "通关用时缺失或无效",
+  invalid_settlement_value: "死亡或跳过次数无效",
+  required_map_variant_mismatch: "该挑战要求经典版本",
+  player_not_active: "玩家账号不可用",
+  conflicting_run_code_evidence: "与已有的同对局码记录冲突",
+};
+
+/** Why no Verified Run would be recorded; null when none is expected to explain (eligible/recorded, or nothing to report). */
+export const verifiedRunIneligibleLabel = (verifiedRun: AdminSubmissionReviewPreview["verifiedRun"]) => verifiedRun.status === "ineligible" && verifiedRun.reason
+  ? `不会记录 Verified Run：${verifiedRunReasonLabels[verifiedRun.reason] ?? verifiedRun.reason}`
+  : null;
 
 const reviewDecisionText: Record<NonNullable<AdminSubmission["review"]>["decision"], string> = {
   approved: "通过",

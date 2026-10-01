@@ -2136,6 +2136,34 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(corrected.candidates.some((candidate) => candidate.titleName === "称号 HERO")).toBe(true);
   });
 
+  it("records a Verified Run from fully reviewer-entered evidence when OCR failed", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedMap(sqlite, "map.mastery");
+    seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
+    seedMasterySubmission(sqlite, "submission.manual", "binding.one", "Tester", false);
+    sqlite.prepare("UPDATE submissions SET status = 'resubmission_required' WHERE id = 'submission.manual'").run();
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, error_code, created_at) VALUES ('ocr.manual', 'submission.manual', 1, 'error', 'OCR_NETWORK', ?)").run(now);
+    const services = createPlatformServices(database, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
+    const entered = [
+      { fieldKey: "map_name" as const, reviewedValue: "地图 map.mastery" },
+      { fieldKey: "difficulty" as const, reviewedValue: "困难" },
+      { fieldKey: "challenge_completed" as const, reviewedValue: "完成" },
+      { fieldKey: "version" as const, reviewedValue: "99.0101.1" },
+      { fieldKey: "run_code" as const, reviewedValue: "1234-5678-9012" },
+      { fieldKey: "duration_seconds" as const, reviewedValue: "600" },
+    ];
+
+    const incomplete = await services.previewSubmissionReview({ submissionId: "submission.manual", fieldCorrections: entered.slice(0, 3) }, auth);
+    expect(incomplete).toMatchObject({ approvable: false, verifiedRun: { status: "ineligible" } });
+    await expect(services.previewSubmissionReview({ submissionId: "submission.manual", fieldCorrections: [...entered, { fieldKey: "deaths", reviewedValue: "-1" }] }, auth)).rejects.toThrow("SUBMISSION_CORRECTION_INVALID");
+
+    const preview = await services.previewSubmissionReview({ submissionId: "submission.manual", fieldCorrections: entered }, auth);
+    expect(preview).toMatchObject({ approvable: true, blockingCode: null, verifiedRun: { status: "eligible" } });
+    await services.reviewSubmission({ submissionId: "submission.manual", decision: "approved", fieldCorrections: entered }, auth, "manual.run");
+    expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.manual' AND outcome_key = 'verified_run'").get()).toEqual({ status: "created" });
+  });
+
   it("rejects confirmations outside the Submission's eligible Challenges without writing", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
