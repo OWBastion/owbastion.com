@@ -3713,8 +3713,9 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
       .where(eq(ocrResults.submissionId, row.id)).orderBy(desc(ocrResults.createdAt)).limit(1).get();
     let rawResponse: OcrResponse | null = null;
     try { rawResponse = latestOcr?.responseJson ? JSON.parse(latestOcr.responseJson) as OcrResponse : null; } catch { rawResponse = null; }
-    if (!rawResponse) throw new Error("SUBMISSION_NOT_REVIEWABLE");
-    const correctedResponse = applySubmissionFieldCorrections(rawResponse, fieldCorrections);
+    // A failed recognition leaves no evidence; the reviewer's own field corrections then stand in for it.
+    if (!rawResponse && !fieldCorrections?.length) throw new Error("SUBMISSION_NOT_REVIEWABLE");
+    const correctedResponse = applySubmissionFieldCorrections(rawResponse ?? { ok: true, data: {}, fields: {} }, fieldCorrections);
     const prepared = await preparePlayerAutoMatchChallenges(row, correctedResponse);
     const decision = matchOcrAgainstChallenges(prepared.candidates, correctedResponse, prepared.mapIdsByName, prepared.titleNamesByKey, true);
     const candidatesById = new globalThis.Map(decision.candidates.map((candidate) => [candidate.canonicalChallengeId, candidate]));

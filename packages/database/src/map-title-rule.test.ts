@@ -2124,6 +2124,18 @@ describe("maintainer Challenge confirmation during submission review", () => {
     expect(sqlite.prepare("SELECT COUNT(*) AS count FROM reviewed_annotations WHERE submission_id = 'submission.add'").get()).toEqual({ count: 0 });
   });
 
+  it("lets reviewer field corrections stand in for a failed recognition", async () => {
+    const { database, sqlite } = createD1();
+    installSchema(sqlite);
+    seedAchievementEvidence(sqlite, ["SECOND"]);
+    sqlite.prepare("UPDATE ocr_results SET status = 'error', response_json = NULL, match_json = NULL, error_code = 'OCR_NETWORK' WHERE submission_id = 'submission.add'").run();
+    const services = createPlatformServices(database);
+
+    await expect(services.previewSubmissionReview({ submissionId: "submission.add" }, auth)).rejects.toThrow("SUBMISSION_NOT_REVIEWABLE");
+    const corrected = await services.previewSubmissionReview({ submissionId: "submission.add", fieldCorrections: [{ fieldKey: "achievement_titles", reviewedValue: "称号 HERO、SECOND" }] }, auth);
+    expect(corrected.candidates.some((candidate) => candidate.titleName === "称号 HERO")).toBe(true);
+  });
+
   it("rejects confirmations outside the Submission's eligible Challenges without writing", async () => {
     const { database, sqlite } = createD1();
     installSchema(sqlite);
