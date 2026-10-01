@@ -173,7 +173,7 @@ describe("admin review detail page", () => {
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
     await wrapper.findAll(".field-review__row")[0]!.get('[role="checkbox"]').trigger("click");
-    await wrapper.get('input[aria-label="截图中的地图完整值"]').setValue("花村");
+    wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
     await settlePreview();
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] } }));
     await wrapper.findAll("button").find((button) => button.text().includes("通过"))!.trigger("click");
