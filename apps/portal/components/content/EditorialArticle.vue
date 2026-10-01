@@ -103,7 +103,7 @@ const isChangelog = computed(() => props.kind === "changelog");
 .editorial-article--changelog { padding: clamp(var(--space-5), 4vw, var(--space-12)); }
 .editorial-article--changelog .editorial-article-header { gap: var(--space-3); padding-bottom: var(--space-5); }
 .editorial-article--changelog .editorial-article-body {
-  max-width: 62ch;
+  max-width: none;
   padding-top: var(--space-5);
   font-size: var(--type-body-size);
   line-height: 1.75;
