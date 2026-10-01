@@ -51,6 +51,14 @@ describe("BindingInvitePanel", () => {
     detailResponseOverride = null;
   });
 
+  it("keeps the search input when a search returns no holders", async () => {
+    adminApi.mockImplementationOnce(() => Promise.resolve({ holders: [] }));
+    const wrapper = await mountSuspended(BindingInvitePanel);
+    await flushPromises();
+    expect(wrapper.find('input[aria-label="搜索历史持有者或称号"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain("暂无未关联称号");
+  });
+
   it("loads pending holders and authorizes complete unclaimed grants for the selected holder", async () => {
     const wrapper = await mountSuspended(BindingInvitePanel, { attachTo: document.body });
     await flushPromises();
