@@ -972,9 +972,9 @@ export const adminSubmissionSchema = z.object({
 
 export const adminSubmissionListResponseSchema = z.object({ contractVersion, items: z.array(adminSubmissionSchema), page: z.number().int().positive(), pageSize: z.number().int().positive(), total: z.number().int().nonnegative(), hasMore: z.boolean() });
 const submissionReviewFieldCorrectionsSchema = z.array(z.object({
-  fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"]),
+  fieldKey: z.enum(["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles", "version", "run_code", "duration_seconds", "deaths", "skips"]),
   reviewedValue: z.string().trim().min(1).max(2048),
-}).strict()).max(5).superRefine((corrections, ctx) => {
+}).strict()).max(11).superRefine((corrections, ctx) => {
   if (new Set(corrections.map(({ fieldKey }) => fieldKey)).size !== corrections.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each OCR field may be confirmed only once" });
 });
 // Canonical Challenge IDs a maintainer visually confirmed from the screenshot.

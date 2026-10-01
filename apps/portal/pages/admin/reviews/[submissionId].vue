@@ -79,15 +79,18 @@ watch(ocrPending, (pending) => {
 onBeforeUnmount(stopOcrPoll);
 
 async function loadPreview() {
-  if (!submission.value?.ocr) {
+  const { fieldCorrections, confirmedChallengeIds } = reviewInput.value;
+  // Without a recognition result only the reviewer's field corrections can produce evidence.
+  if (!submission.value || (!submission.value.ocr && !fieldCorrections.length)) {
+    previewSequence++;
     preview.value = null;
-    previewKey.value = null;
+    previewKey.value = reviewInputKey.value;
+    previewLoading.value = false;
     previewError.value = "";
     return;
   }
   const sequence = ++previewSequence;
   const key = reviewInputKey.value;
-  const { fieldCorrections, confirmedChallengeIds } = reviewInput.value;
   previewLoading.value = true;
   previewError.value = "";
   try {

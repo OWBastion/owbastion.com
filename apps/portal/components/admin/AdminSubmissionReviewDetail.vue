@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AdminSubmission, AdminSubmissionReviewInput, AdminSubmissionReviewPreview, OcrAccuracyMark } from "~/composables/useAdminApi";
 import { submissionStatusText, submissionStatusTone } from "~/utils/submissionStatus";
-import { reviewBlockingMessage, reviewRecordLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
+import { reviewBlockingMessage, reviewRecordLabel, verifiedRunIneligibleLabel, verifiedRunPreviewLabel } from "~/utils/submissionReview";
 
 type ReviewDecision = "approved" | "rejected" | "resubmission_required";
 type SpotCheckDecision = "confirmed" | "revoked";
@@ -88,6 +88,7 @@ function submitConfirm() {
   }
 }
 const verifiedRunLabel = computed(() => props.preview ? verifiedRunPreviewLabel(props.preview.verifiedRun) : null);
+const verifiedRunIneligible = computed(() => props.preview ? verifiedRunIneligibleLabel(props.preview.verifiedRun) : null);
 const satisfiedCompletions = computed(() => props.preview?.completions.filter((completion) => completion.basis === "satisfies") ?? []);
 
 watch(
@@ -219,10 +220,11 @@ onBeforeUnmount(() => {
           </ul>
           <p v-if="satisfiedCompletions.length" class="claim-meta">联动完成：{{ satisfiedCompletions.map((completion) => completion.titleName).join("、") }}</p>
           <p v-if="verifiedRunLabel" class="claim-meta">{{ verifiedRunLabel }}</p>
+          <p v-else-if="verifiedRunIneligible" class="claim-meta">{{ verifiedRunIneligible }}</p>
           <p v-if="!preview.titles.length && !verifiedRunLabel" class="claim-empty">不会产生称号或 Verified Run。</p>
         </template>
         <p v-else-if="ocrPending" class="claim-empty" role="status">正在重新识别截图，完成后自动刷新。</p>
-        <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以重新发送 OCRKit 请求，或要求重新提交。</p>
+        <p v-else-if="!previewLoading && !previewError" class="claim-empty">没有可核对的识别结果，无法通过。可以在下方手动填写截图中的字段，重新发送 OCRKit 请求，或要求重新提交。</p>
         <p v-if="approvalHint" id="approval-hint" class="claim-hint" :class="{ 'claim-hint--error': !previewLoading && previewCurrent !== false && Boolean(previewError || preview?.blockingCode) }" role="status">{{ approvalHint }}</p>
         <UButton v-if="previewError && !previewLoading" type="button" label="重新计算" icon="i-lucide-refresh-cw" size="sm" color="neutral" variant="ghost" @click="emit('retry-preview')" />
       </section>
