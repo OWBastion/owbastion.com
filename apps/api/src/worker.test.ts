@@ -98,7 +98,7 @@ describe("OCR Queue consumer", () => {
       MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS: "test-layout-v1, test-layout-v2",
     } as never);
 
-    expect(createPlatformServices.mock.calls[0]?.at(-2)).toEqual({
+    expect(createPlatformServices.mock.calls[0]?.[10]).toEqual({
       version: "v1",
       minimumGameVersion: "99.0101.1",
       supportedOcrLayoutVersions: ["test-layout-v1", "test-layout-v2"],

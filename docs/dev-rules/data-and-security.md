@@ -6,6 +6,7 @@
 | --- | --- |
 | D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, source achievement rules, canonical Challenges, Challenge Completions and satisfaction relations, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
+| KV (`PLATFORM_CACHE`) | Read-through copies of D1 catalog and grant read projections only, under version-scoped keys invalidated by platform writes; entries expire within hours. Not business truth and never a public response boundary |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
 The OCR Queue carries only an opaque submission ID, object key, schema version,
