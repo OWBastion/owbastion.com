@@ -70,6 +70,7 @@ export type RuntimeEnv = {
   MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS?: string;
   DEPLOYMENT_REVISION?: string;
   PUBLIC_HTTP_CACHE_ENABLED?: string;
+  PLATFORM_CACHE?: KVNamespace;
 };
 
 type AppDependencies = {

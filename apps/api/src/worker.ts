@@ -19,7 +19,7 @@ const masteryCompatibility = (env: RuntimeEnv) => createVerifiedRunEvidenceCompa
 
 const app = createApp({
   authenticate: authenticateQqBot,
-  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN),
+  services: (env) => createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE),
 });
 
 const policySignature = async (secret: string, timestamp: string, body: string) => {
@@ -33,7 +33,7 @@ const isQqPolicyMessage = (body: OcrQueueMessage | QqPolicyQueueMessage): body i
 export default {
   fetch: app.fetch,
   async queue(batch: MessageBatch<OcrQueueMessage | QqPolicyQueueMessage>, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE);
     if (OCR_DEAD_LETTER_QUEUES.has(batch.queue)) {
       for (const message of batch.messages) {
         const body = message.body as OcrQueueMessage;
@@ -78,7 +78,7 @@ export default {
     }
   },
   async scheduled(_controller: ScheduledController, env: RuntimeEnv) {
-    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN);
+    const platform = createPlatformServices(env.DB, env.EVIDENCE_BUCKET, env.UPLOAD_ORIGIN, env.OCRKIT_BASE_URL, env.OCRKIT_API_TOKEN, env.OCR_QUEUE, env.QQ_POLICY_QUEUE, env.BINDING_INVITE_CODE_ENCRYPTION_KEY, ocrThreshold(env), ocrSampleRate(env), masteryCompatibility(env), env.EVIDENCE_PUBLIC_ORIGIN, env.PLATFORM_CACHE);
     await platform.reconcileStaleOcrJobs({ olderThan: Date.now() - OCR_PENDING_RECOVERY_AGE_MS });
   },
 };
