@@ -53,6 +53,22 @@ export const verifiedRunPreviewLabel = (verifiedRun: AdminSubmissionReviewPrevie
     : null;
 
 const verifiedRunReasonLabels: Record<string, string> = {
+  mastery_rollout_disabled: "Verified Run 尚未开启（平台未配置最低游戏版本与 OCR 布局版本）",
+  unsupported_schema_version: "识别结果的数据版本不受支持",
+  unsuccessful_response: "OCRKit 识别未成功",
+  unsupported_layout: "截图布局版本不受支持",
+  unreliable_challenge_completed: "通关标记识别可信度不足",
+  unreliable_map_name: "地图识别可信度不足",
+  unreliable_difficulty: "难度识别可信度不足",
+  unreliable_version: "游戏版本识别可信度不足",
+  unreliable_run_code: "对局码识别可信度不足",
+  unreliable_duration_seconds: "通关用时识别可信度不足",
+  invalid_map_variant: "地图版本无效",
+  unreliable_map_variant: "地图版本识别可信度不足",
+  gameplay_revision_not_found: "找不到该地图对应的玩法版本",
+  submission_revision_mismatch: "地图玩法版本与提交记录不一致",
+  mastery_run_invalidated: "该 Verified Run 已被作废",
+  same_player_run_code: "该玩家已有相同对局码的记录",
   completion_not_confirmed: "通关标记不是已完成",
   missing_map: "缺少地图",
   canonical_map_not_found: "地图不在平台地图列表中",
