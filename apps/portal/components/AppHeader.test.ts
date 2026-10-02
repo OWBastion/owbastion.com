@@ -202,6 +202,7 @@ describe("AppHeader", () => {
     expect(wrapper.find("#mobile-nav").exists()).toBe(true);
     expect(nav.text()).toContain("通关记录");
     expect(nav.text()).toContain("手动授予");
+    expect(nav.find('a[href="/admin/service-tokens"]').exists()).toBe(true);
     expect(nav.find("a[href=\"/admin/verified-runs\"]").exists()).toBe(true);
 
     await nav.get("a[href=\"/admin/bindings\"]").trigger("click");
@@ -236,6 +237,7 @@ describe("AppHeader", () => {
     await wrapper.get('button[aria-label="打开菜单"]').trigger("click");
     expect(wrapper.findAll("#mobile-nav a").filter((link) => link.text() === "版本更新")).toHaveLength(1);
     expect(wrapper.find("#mobile-nav a[href=\"/changelog\"]").exists()).toBe(true);
+    expect(wrapper.find('a[href="/admin/service-tokens"]').exists()).toBe(false);
     focusSpy.mockRestore();
   });
 });

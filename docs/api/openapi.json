@@ -2372,7 +2372,7 @@
   "/v1/ocrkit/screenshot-sets/{version}": {
    "get": {
     "operationId": "getOcrkitScreenshotSet",
-    "description": "Private, versioned OCRKit consumption contract. Requires the OCRKIT_SNAPSHOT_TOKEN secret as a Bearer credential; browser and player clients never use this surface. Reads only finalized sets and exposes schema_version, set_id, version, finalized, finalized_at, and one member per source screenshot (source_id, R2 object key, sha256, mime_type, size_bytes, layout_version, and the accuracy mark when present). The payload carries no player identity, QQ data, Submission decisions, Grant/mastery state, or risk signals, and never returns image bytes: OCRKit downloads the member objects directly from the evidence bucket with its own read-only credentials. Draft and discarded versions return 409 SCREENSHOT_SET_NOT_FINALIZED; unknown versions return 404 SCREENSHOT_SET_NOT_FOUND.",
+    "description": "Private, versioned OCRKit consumption contract. Requires the OCRKit screenshot-set Bearer credential configured through the maintainer service-token panel (KV-backed SHA-256 verification; fail-closed when unconfigured or unavailable); browser and player clients never use this surface. Reads only finalized sets and exposes schema_version, set_id, version, finalized, finalized_at, and one member per source screenshot (source_id, R2 object key, sha256, mime_type, size_bytes, layout_version, and the accuracy mark when present). The payload carries no player identity, QQ data, Submission decisions, Grant/mastery state, or risk signals, and never returns image bytes: OCRKit downloads the member objects directly from the evidence bucket with its own read-only credentials. Draft and discarded versions return 409 SCREENSHOT_SET_NOT_FINALIZED; unknown versions return 404 SCREENSHOT_SET_NOT_FOUND.",
     "parameters": [
      {
       "$ref": "#/components/parameters/screenshotSetVersion"
@@ -2462,6 +2462,116 @@
       "$ref": "#/components/responses/Json"
      },
      "422": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/service-tokens": {
+   "get": {
+    "operationId": "listAdminServiceTokens",
+    "description": "Requires a maintainer Portal session. Lists the configuration state of managed internal service credentials. Initially supports only OCRKit screenshot-set reads. Plaintext credentials and hashes are never returned. Missing/unavailable KV storage returns 503.",
+    "responses": {
+     "200": {
+      "description": "Configuration metadata only; never includes a token or hash",
+      "headers": {
+       "Cache-Control": {
+        "schema": {
+         "type": "string"
+        },
+        "description": "private, no-store"
+       }
+      },
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AdminServiceTokenListResponse"
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
+      "$ref": "#/components/responses/Json"
+     }
+    }
+   }
+  },
+  "/v1/admin/service-tokens/{serviceId}": {
+   "put": {
+    "operationId": "configureAdminServiceToken",
+    "description": "Requires a maintainer Portal session and Idempotency-Key. Saves a supplied 32-256-character base64url/hex credential as SHA-256 in a permanent KV record; token=null disables it. The Portal generates 32 random bytes locally and reveals that draft only in the current session. D1 records a redacted intent before the KV write and completion afterward. Completed retries replay metadata without overwriting newer state; incomplete requests return 409 SERVICE_TOKEN_WRITE_INCOMPLETE and must not automatically retry. KV propagation plus the 30-second isolate cache means replacements and revocations are not globally immediate. Unknown services return 404.",
+    "parameters": [
+     {
+      "name": "serviceId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "ocrkit-screenshot-sets"
+       ]
+      }
+     },
+     {
+      "name": "Idempotency-Key",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AdminServiceTokenUpdateRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Configuration metadata only; never includes a token or hash",
+      "headers": {
+       "Cache-Control": {
+        "schema": {
+         "type": "string"
+        },
+        "description": "private, no-store"
+       }
+      },
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ServiceTokenStatus"
+        }
+       }
+      }
+     },
+     "401": {
+      "$ref": "#/components/responses/Json"
+     },
+     "403": {
+      "$ref": "#/components/responses/Json"
+     },
+     "404": {
+      "$ref": "#/components/responses/Json"
+     },
+     "409": {
+      "$ref": "#/components/responses/Json"
+     },
+     "422": {
+      "$ref": "#/components/responses/Json"
+     },
+     "503": {
       "$ref": "#/components/responses/Json"
      }
     }
@@ -3148,6 +3258,77 @@
        "type": "object",
        "additionalProperties": true
       }
+     }
+    }
+   }
+  },
+  "schemas": {
+   "ServiceTokenStatus": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "serviceId",
+     "configured",
+     "updatedAt"
+    ],
+    "properties": {
+     "serviceId": {
+      "type": "string",
+      "enum": [
+       "ocrkit-screenshot-sets"
+      ]
+     },
+     "configured": {
+      "type": "boolean"
+     },
+     "updatedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "nullable": true
+     }
+    }
+   },
+   "AdminServiceTokenListResponse": {
+    "type": "object",
+    "required": [
+     "contractVersion",
+     "items"
+    ],
+    "properties": {
+     "contractVersion": {
+      "type": "string",
+      "enum": [
+       "1"
+      ]
+     },
+     "items": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/ServiceTokenStatus"
+      }
+     }
+    }
+   },
+   "AdminServiceTokenUpdateRequest": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "contractVersion",
+     "token"
+    ],
+    "properties": {
+     "contractVersion": {
+      "type": "string",
+      "enum": [
+       "1"
+      ]
+     },
+     "token": {
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "nullable": true
      }
     }
    }

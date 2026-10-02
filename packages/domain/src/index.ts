@@ -57,6 +57,8 @@ import type {
   PlayerUploadSessionResponse,
   OcrAccuracyFeedbackRequest,
   OcrAccuracyFeedbackResponse,
+  ServiceTokenStatus,
+  AdminServiceTokenListResponse,
   AdminScreenshotSetListResponse,
   AdminScreenshotSetCandidateListResponse,
   AdminScreenshotSetCreateRequest,
@@ -177,6 +179,9 @@ export type AdminVerifiedRunQuery = AgentPageInput & {
 };
 
 export type PlatformServices = {
+  listAdminServiceTokens(auth: AuthContext): Promise<AdminServiceTokenListResponse>;
+  configureAdminServiceToken(input: { serviceId: "ocrkit-screenshot-sets"; token: string | null }, auth: AuthContext, idempotencyKey: string): Promise<ServiceTokenStatus>;
+  authenticateOcrkitSnapshot(authorization: string | undefined): Promise<boolean>;
   recordVerifiedRun(input: VerifiedRunInput): Promise<RecordVerifiedRunResult>;
   invalidateVerifiedRun(input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor): Promise<VerifiedRun>;
   restoreVerifiedRun(input: { verifiedRunId: string; reason?: string }, actor: VerifiedRunActor): Promise<VerifiedRun>;

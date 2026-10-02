@@ -839,7 +839,7 @@ version. Discarded sets stay readable to maintainers for audit but are never
 served to OCRKit; only finalized sets are visible through the private
 `GET /v1/ocrkit/screenshot-sets/{version}` endpoint, so the maintainer hands
 OCRKit the version of a finalized set. The endpoint is authenticated with the
-`OCRKIT_SNAPSHOT_TOKEN` secret; the payload contains only the member facts
+admin-managed OCRKit screenshot-set credential; the payload contains only the member facts
 above — never player identity, QQ data, Submission decisions, Grant/mastery
 state, or risk signals — and never returns image bytes. OCRKit downloads the
 member objects directly from the evidence bucket using its own read-only

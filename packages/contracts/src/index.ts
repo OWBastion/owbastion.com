@@ -1717,3 +1717,20 @@ export type AdminVerifiedRunConflictResolutionRequest = z.infer<typeof adminVeri
 export type AdminVerifiedRunConflictResolutionResponse = z.infer<typeof adminVerifiedRunConflictResolutionResponseSchema>;
 export type AdminVerifiedRunCorrectionRequest = z.infer<typeof adminVerifiedRunCorrectionRequestSchema>;
 export type AdminVerifiedRunCorrectionResponse = z.infer<typeof adminVerifiedRunCorrectionResponseSchema>;
+
+export const serviceTokenStatusSchema = z.object({
+  serviceId: z.literal("ocrkit-screenshot-sets"),
+  configured: z.boolean(),
+  updatedAt: z.number().int().nonnegative().nullable(),
+});
+export const adminServiceTokenListResponseSchema = z.object({
+  contractVersion: z.literal("1"),
+  items: z.array(serviceTokenStatusSchema),
+});
+export const adminServiceTokenUpdateRequestSchema = z.object({
+  contractVersion: z.literal("1"),
+  token: z.string().min(32).max(256).regex(/^[A-Za-z0-9_-]+$/).nullable(),
+}).strict();
+export type ServiceTokenStatus = z.infer<typeof serviceTokenStatusSchema>;
+export type AdminServiceTokenListResponse = z.infer<typeof adminServiceTokenListResponseSchema>;
+export type AdminServiceTokenUpdateRequest = z.infer<typeof adminServiceTokenUpdateRequestSchema>;

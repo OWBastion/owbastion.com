@@ -6,7 +6,7 @@
 | --- | --- |
 | D1 | Player Accounts, Passkey public credentials and counters, one-time authentication/registration challenges, recovery grants, direct Portal sessions, optional QQ bindings, submissions, upload sessions, attachment metadata, OCR results, Verified Runs and lifecycle events, review records, idempotency records, audit events, title catalog, source achievement rules, canonical Challenges, Challenge Completions and satisfaction relations, map catalog metadata, map title rewards, map title rules, map title rule exceptions, map title rule compatibility mappings, historical title snapshots, and auditable player title grants |
 | R2 | Submission screenshots served as unlisted CDN assets, plus isolated public achievement icons served by their explicit public API route when the EVIDENCE_BUCKET binding is configured |
-| KV (`PLATFORM_CACHE`) | Read-through copies of D1 catalog and grant read projections only, under version-scoped keys invalidated by platform writes; entries expire within hours. Not business truth and never a public response boundary |
+| KV (`PLATFORM_CACHE`) | Expiring, version-scoped catalog/grant read projections, plus permanent hashes and configuration metadata for administrator-managed internal service credentials under a separate key prefix. Credential records are runtime configuration; catalog/grant business truth stays in D1. Never a public response boundary |
 | Bastion Git and release artifacts | Game implementation, builds, releases, and published game artifacts; Bastion reads current platform metadata through the Agents API |
 
 The OCR Queue carries only an opaque submission ID, object key, schema version,
@@ -68,8 +68,8 @@ OCRKit screenshot-set selection, never a training label.
 
 Screenshot sets are the platform's OCRKit training-supply boundary. Admin set
 management requires the maintainer role; the OCRKit read endpoint is a private,
-versioned contract requiring the `OCRKIT_SNAPSHOT_TOKEN` secret (a Worker
-secret, never a committed variable). It serves only finalized sets and returns
+versioned contract requiring the OCRKit screenshot-set credential managed at
+`/admin/service-tokens`. It serves only finalized sets and returns
 only per-screenshot object facts — source id, R2 object key, SHA-256, MIME
 type, size, layout version, and the accuracy mark — never player identity, QQ
 identifiers, Submission decisions, Grant/mastery state, risk signals, or image
@@ -78,6 +78,35 @@ its own read-only credentials scoped to the screenshot prefix; the platform
 never issues storage credentials to browsers or other clients. Set-member
 screenshots stay retained as training provenance even if the source Submission
 is later removed.
+
+Internal service credential management requires an authenticated administrator
+session, not a service token. The first managed credential grants only OCRKit
+screenshot-set reads; it never grants maintainer, QQBot, or build privileges.
+The Portal can generate a 32-byte random token or accept an existing token,
+then explicitly save it. Plaintext remains transient client state and is never
+returned by status reads. KV stores only a SHA-256 hash and update timestamp,
+under the permanent `owb:v1:service-token:ocrkit-screenshot-sets` key. Disabling
+stores a hash-free tombstone; there is no Worker-secret fallback. R2 credentials,
+encryption keys, and other infrastructure secrets retain their existing owners.
+
+Token reads share one in-flight request and a 30-second positive or negative
+cache per KV binding and Worker isolate. Keys do not depend on the supplied
+token, and missing or malformed Authorization headers never read KV. Read
+failures fail closed and are cached for five seconds to bound retry pressure;
+no stale credential is used after a refresh fails. Management has no polling
+and each intentional change writes only the fixed key. KV is eventually
+consistent: other isolates may keep an old token until KV propagation and their
+local cache expire. Revocation must never be advertised as globally immediate.
+
+D1 records a redacted mutation intent and reserves its idempotency key before
+the KV write, then records completion afterward. No token or token hash enters
+audit payloads or response JSON. Completed retries return their original
+metadata without restoring an old credential. A failed or uncertain write
+keeps its reserved key and returns an incomplete-write conflict on retries;
+the administrator must refresh status before explicitly making a new change.
+This avoids replaying a delayed request over a newer revocation. Concurrent
+distinct changes follow KV's last-write behavior; the intent/completion journal
+does not make KV and D1 one atomic transaction.
 
 Player ratings are D1-owned records keyed by the authenticated player account
 and a stable event/map target. The account association, audit events, hidden

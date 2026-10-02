@@ -1,3 +1,4 @@
+import { createServiceTokenServices } from "./service-token";
 import { count, desc, eq, and, gt, gte, like, or, inArray, isNull, isNotNull, ne, lt, lte, notExists, sql, asc } from "drizzle-orm";
 
 import { drizzle } from "drizzle-orm/d1";
@@ -4053,6 +4054,7 @@ export const createPlatformServices = (rawDatabase: D1Database, evidenceBucket?:
   };
 
   return {
+    ...createServiceTokenServices(rawDatabase, cacheKv),
     dispatchPendingQqGroupPolicyEvents,
     reconcileStaleOcrJobs,
     recordVerifiedRun,

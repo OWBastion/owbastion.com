@@ -72,9 +72,18 @@ Configure these repository or production-environment secrets:
 | `QQBOT_POLICY_WEBHOOK_URL` | QQBot's internal group-policy callback URL |
 | `QQBOT_POLICY_WEBHOOK_SECRET` | HMAC secret for the group-policy callback |
 | `OCRKIT_API_TOKEN` | Bearer credential shared only with OCRKit |
-| `OCRKIT_SNAPSHOT_TOKEN` | Bearer credential OCRKit uses to read finalized screenshot sets |
 | `BINDING_INVITE_CODE_ENCRYPTION_KEY` | AES-GCM key material for re-copyable invitation codes; generate with `openssl rand -base64 32` and retain it while invitations remain active |
 | `ADMIN_BATTLETAG` | Full BattleTag, such as `TestPlayer#1234`, that receives administrator access during deployment |
+
+OCRKit screenshot-set read credentials are managed at `/admin/service-tokens`,
+using the existing `PLATFORM_CACHE` KV binding. Generate or configure the
+credential there and copy it to the local Studio `OCRKIT_SCREENSHOT_SET_TOKEN`;
+`OCRKIT_SCREENSHOT_SET_BASE_URL` identifies this API. These credentials are not
+Worker secrets and are never supplied to Kaggle. The old
+`OCRKIT_SNAPSHOT_TOKEN` environment variable is no longer accepted. A disabled
+KV record stays present so that revocation never falls back to an old secret.
+KV propagation and a 30-second isolate cache make activation and revocation
+eventual rather than immediate. An unavailable binding fails closed.
 
 The workflow never prints secret values. `QQBOT_API_TOKEN` is sent to the
 Worker as a secret and must be the same value configured on the HKG QQBot.

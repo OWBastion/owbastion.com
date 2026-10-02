@@ -6,6 +6,9 @@ import { withPublicCache } from "./public-cache";
 
 const auth = async () => ({ actorType: "service" as const, subject: "qqbot", roles: ["channel:write"], provider: "test" });
 const services: PlatformServices = {
+  listAdminServiceTokens: async () => ({ contractVersion: "1", items: [{ serviceId: "ocrkit-screenshot-sets", configured: false, updatedAt: null }] }),
+  configureAdminServiceToken: async ({ serviceId, token }) => ({ serviceId, configured: token !== null, updatedAt: 1 }),
+  authenticateOcrkitSnapshot: async () => false,
   recordVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
   invalidateVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
   restoreVerifiedRun: async () => { throw new Error("VERIFIED_RUN_NOT_IMPLEMENTED"); },
@@ -2127,6 +2130,54 @@ describe("API", () => {
     }
   });
 
+  it("restricts service-token management to maintainers and never returns credential material", async () => {
+    const path = "http://localhost/v1/admin/service-tokens";
+    const update = `${path}/ocrkit-screenshot-sets`;
+    const token = "a".repeat(64);
+    const configured = vi.fn(services.configureAdminServiceToken);
+    const listed = vi.fn(services.listAdminServiceTokens);
+    const managed = { ...services, configureAdminServiceToken: configured, listAdminServiceTokens: listed };
+    const post = { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "token-replace" }, body: JSON.stringify({ contractVersion: "1", token }) };
+    const guest = createApp({ authenticate: async () => null, services: () => managed });
+    expect((await guest.request(path, {}, env)).status).toBe(401);
+    expect((await guest.request(update, post, env)).status).toBe(401);
+    const bot = createApp({ authenticate: auth, services: () => managed });
+    expect((await bot.request(update, post, env)).status).toBe(403);
+    expect(configured).not.toHaveBeenCalled();
+    expect(listed).not.toHaveBeenCalled();
+
+    const admin = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => managed });
+    const list = await admin.request(path, {}, env);
+    expect(list.status).toBe(200);
+    expect(list.headers.get("cache-control")).toBe("private, no-store");
+    expect(await list.json()).toEqual({ contractVersion: "1", items: [{ serviceId: "ocrkit-screenshot-sets", configured: false, updatedAt: null }] });
+
+    for (const invalidToken of ["short", " ".repeat(32), "x".repeat(257)]) {
+      expect((await admin.request(update, { ...post, body: JSON.stringify({ contractVersion: "1", token: invalidToken }) }, env)).status).toBe(422);
+    }
+    expect((await admin.request(`${path}/qqbot`, post, env)).status).toBe(404);
+    expect((await admin.request(update, { ...post, headers: { "content-type": "application/json" } }, env)).status).toBe(422);
+    expect((await admin.request(update, { ...post, body: JSON.stringify({ contractVersion: "1", token, scopes: ["maintainer"] }) }, env)).status).toBe(422);
+    expect(configured).not.toHaveBeenCalled();
+
+    const saved = await admin.request(update, post, env);
+    expect(saved.status).toBe(200);
+    expect(saved.headers.get("cache-control")).toBe("private, no-store");
+    expect(await saved.json()).toEqual({ serviceId: "ocrkit-screenshot-sets", configured: true, updatedAt: 1 });
+    expect(configured).toHaveBeenCalledWith({ serviceId: "ocrkit-screenshot-sets", token }, expect.objectContaining({ roles: ["maintainer"] }), "token-replace");
+    const disabled = await admin.request(update, { ...post, body: JSON.stringify({ contractVersion: "1", token: null }) }, env);
+    expect(await disabled.json()).toEqual({ serviceId: "ocrkit-screenshot-sets", configured: false, updatedAt: 1 });
+  });
+
+  it("reports service-token storage and uncertain write failures without pretending the update succeeded", async () => {
+    for (const [code, status] of [["SERVICE_TOKEN_STORE_UNAVAILABLE", 503], ["SERVICE_TOKEN_WRITE_INCOMPLETE", 409], ["IDEMPOTENCY_CONFLICT", 409]] as const) {
+      const admin = createApp({ authenticate: async () => ({ actorType: "user", subject: "admin", roles: ["maintainer"], provider: "test" }), services: () => ({ ...services, configureAdminServiceToken: async () => { throw new Error(code); } }) });
+      const response = await admin.request("http://localhost/v1/admin/service-tokens/ocrkit-screenshot-sets", { method: "PUT", headers: { "content-type": "application/json", "idempotency-key": "replace" }, body: JSON.stringify({ contractVersion: "1", token: "a".repeat(64) }) }, env);
+      expect(response.status).toBe(status);
+      expect(await response.json()).toMatchObject({ error: { code } });
+    }
+  });
+
   it("serves finalized screenshot sets only through the private OCRKit contract", async () => {
     const ocrkitSet = {
       schema_version: 1 as const,
@@ -2138,9 +2189,9 @@ describe("API", () => {
     };
     const ocrkitApp = createApp({
       authenticate: auth,
-      services: () => ({ ...services, getOcrkitScreenshotSet: async () => ocrkitSet }),
+      services: () => ({ ...services, authenticateOcrkitSnapshot: async (authorization) => authorization === "Bearer ocrkit-set-secret", getOcrkitScreenshotSet: async () => ocrkitSet }),
     });
-    const tokenEnv = { ...env, OCRKIT_SNAPSHOT_TOKEN: "ocrkit-set-secret" } as typeof env;
+    const tokenEnv = env;
 
     const unauthenticated = await ocrkitApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", {}, tokenEnv);
     expect(unauthenticated.status).toBe(401);
@@ -2161,10 +2212,10 @@ describe("API", () => {
 
     expect((await ocrkitApp.request("http://localhost/v1/ocrkit/screenshot-sets/0", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(422);
 
-    const draftApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FINALIZED"); } }) });
+    const draftApp = createApp({ authenticate: auth, services: () => ({ ...services, authenticateOcrkitSnapshot: async (authorization) => authorization === "Bearer ocrkit-set-secret", getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FINALIZED"); } }) });
     expect((await draftApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(409);
 
-    const missingApp = createApp({ authenticate: auth, services: () => ({ ...services, getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); } }) });
+    const missingApp = createApp({ authenticate: auth, services: () => ({ ...services, authenticateOcrkitSnapshot: async (authorization) => authorization === "Bearer ocrkit-set-secret", getOcrkitScreenshotSet: async () => { throw new Error("SCREENSHOT_SET_NOT_FOUND"); } }) });
     expect((await missingApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(404);
   });
 });

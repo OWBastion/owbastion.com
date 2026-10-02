@@ -22,6 +22,7 @@ import {
   adminScreenshotSetCreateRequestSchema,
   adminScreenshotSetFinalizeRequestSchema,
   adminScreenshotSetDiscardRequestSchema,
+  adminServiceTokenUpdateRequestSchema,
   screenshotSetStatusSchema,
   adminTitleGrantRequestSchema,
   adminTitleGrantBulkRequestSchema,
@@ -58,7 +59,6 @@ export type RuntimeEnv = {
   EVIDENCE_PUBLIC_ORIGIN?: string;
   OCRKIT_BASE_URL?: string;
   OCRKIT_API_TOKEN?: string;
-  OCRKIT_SNAPSHOT_TOKEN?: string;
   OCR_QUEUE?: Queue;
   QQ_POLICY_QUEUE?: Queue;
   QQBOT_POLICY_WEBHOOK_URL?: string;
@@ -253,8 +253,8 @@ export const createApp = (dependencies: AppDependencies) => {
     c.header("X-Request-ID", c.get("requestId"));
   });
 
-  // Administrative state is always read directly from D1; it must never share
-  // an intermediary or browser cache entry with another request.
+  // Administrative responses must never share an intermediary or browser
+  // cache entry with another request.
   app.use("/v1/admin/*", async (c, next) => {
     c.header("Cache-Control", "private, no-store");
     await next();
@@ -414,6 +414,8 @@ export const createApp = (dependencies: AppDependencies) => {
   app.options("/v1/admin/screenshot-sets/:setId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/screenshot-sets/:setId/finalize", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/admin/screenshot-sets/:setId/discard", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/service-tokens", (c) => { allowPortal(c); return c.body(null, 204); });
+  app.options("/v1/admin/service-tokens/:serviceId", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/player/submissions/:submissionId/manual-review", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/public/achievements", (c) => { allowPortal(c); return c.body(null, 204); });
   app.options("/v1/__local/accounts", (c) => { allowPortal(c); return c.body(null, 204); });
@@ -433,13 +435,7 @@ export const createApp = (dependencies: AppDependencies) => {
     return { auth };
   };
 
-  // Private service boundary for OCRKit screenshot-set consumption (#255). The
-  // token is a secret, never a committed variable; without it the endpoints are
-  // closed.
-  const allowOcrkit = (c: any) => {
-    const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
-    return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
-  };
+  const allowOcrkit = (c: any) => dependencies.services(c.env).authenticateOcrkitSnapshot(c.req.header("authorization"));
 
   const requirePortalPlayer = async (c: any) => {
     allowPortal(c);
@@ -1936,6 +1932,38 @@ export const createApp = (dependencies: AppDependencies) => {
     }
   });
 
+  app.get("/v1/admin/service-tokens", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    try {
+      return c.json(await dependencies.services(c.env).listAdminServiceTokens(access.auth!));
+    } catch (error) {
+      if (error instanceof Error && error.message === "SERVICE_TOKEN_STORE_UNAVAILABLE") return errorResponse(c, 503, error.message, "Service token storage is unavailable");
+      throw error;
+    }
+  });
+
+  app.put("/v1/admin/service-tokens/:serviceId", async (c) => {
+    const access = await requireMaintainer(c);
+    if (access.error) return access.error;
+    c.header("Cache-Control", "private, no-store");
+    if (c.req.param("serviceId") !== "ocrkit-screenshot-sets") return errorResponse(c, 404, "SERVICE_TOKEN_NOT_FOUND", "The service token is not managed here");
+    const idempotencyKey = c.req.header("idempotency-key");
+    if (!idempotencyKey) return errorResponse(c, 422, "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required");
+    const parsed = adminServiceTokenUpdateRequestSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success) return errorResponse(c, 422, "INVALID_REQUEST", "The request does not match contract v1");
+    try {
+      return c.json(await dependencies.services(c.env).configureAdminServiceToken({ serviceId: "ocrkit-screenshot-sets", token: parsed.data.token }, access.auth!, idempotencyKey));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "SERVICE_TOKEN_UPDATE_FAILED";
+      if (code === "SERVICE_TOKEN_STORE_UNAVAILABLE") return errorResponse(c, 503, code, "Service token storage is unavailable");
+      if (code === "SERVICE_TOKEN_WRITE_INCOMPLETE") return errorResponse(c, 409, code, "The previous write outcome is uncertain; refresh the configuration before an intentional new change");
+      if (code === "IDEMPOTENCY_CONFLICT") return errorResponse(c, 409, code, "The idempotency key was used with a different request");
+      throw error;
+    }
+  });
+
   app.get("/v1/admin/screenshot-sets", async (c) => {
     const access = await requireMaintainer(c);
     if (access.error) return access.error;
@@ -2029,7 +2057,7 @@ export const createApp = (dependencies: AppDependencies) => {
   });
 
   app.get("/v1/ocrkit/screenshot-sets/:version", async (c) => {
-    if (!allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
+    if (!await allowOcrkit(c)) return errorResponse(c, 401, "UNAUTHENTICATED", "Authentication is required");
     c.header("Cache-Control", "private, no-store");
     const version = Number(c.req.param("version"));
     if (!Number.isInteger(version) || version < 1) return errorResponse(c, 422, "INVALID_SCREENSHOT_SET_VERSION", "The screenshot set version is invalid");
