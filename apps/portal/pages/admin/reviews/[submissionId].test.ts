@@ -73,8 +73,7 @@ describe("admin review detail page", () => {
     expect(wrapper.text()).toContain("通过");
     expect(wrapper.text()).toContain("OCRKit");
     expect(wrapper.text()).not.toContain("识别字段与原始证据");
-    expect(wrapper.text()).toContain("98%");
-    expect(wrapper.text()).toContain("已识别");
+    expect(wrapper.text()).toContain("帕拉伊苏");
     expect(wrapper.text()).toContain("左侧成就面板");
     expect(wrapper.text()).toContain("无");
     expect(wrapper.text()).not.toContain("98% · ok");
@@ -213,7 +212,7 @@ describe("admin review detail page", () => {
     adminApi.mockClear();
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.get('button[aria-label="核对地图"]').trigger("click");
+    await wrapper.get('button[aria-label^="地图："]').trigger("click");
     wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
     await settlePreview();
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] } }));
@@ -225,53 +224,61 @@ describe("admin review detail page", () => {
     }));
   });
 
-  describe("recognition check table", () => {
-    const rowOf = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.findAll(".check-row").find((row) => row.get(".check-row__label").text() === label)!;
+  describe("recognition check", () => {
+    const chip = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.get(`button[aria-label^="${label}："]`);
+    const editor = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.find(`[role="group"][aria-label="${label}核对"]`);
 
-    it("lists each field with what was recognized, and offers to fill in what was not", async () => {
+    it("sums the fields up in one line and shows each as a chip with what was recognized", async () => {
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      expect(rowOf(wrapper, "地图").text()).toContain("帕拉伊苏");
-      expect(rowOf(wrapper, "地图").text()).toContain("98%");
-      expect(rowOf(wrapper, "难度").text()).toContain("地狱");
-      expect(rowOf(wrapper, "地图").find('button[aria-label="核对地图"]').exists()).toBe(true);
-      await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
-      expect(rowOf(wrapper, "对局码").text()).toContain("未识别");
-      expect(rowOf(wrapper, "对局码").find('button[aria-label="填写对局码"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain("5 项一致，1 项待你确认");
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
+      expect(chip(wrapper, "难度").attributes("aria-label")).toBe("难度：地狱，一致");
+      expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("待确认");
     });
 
-    it("points at the field a Challenge is waiting for until it is checked", async () => {
+    it("opens the field a Challenge is waiting for and shows what was recognized there", async () => {
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      expect(wrapper.text()).toContain("1 项待核对");
-      expect(rowOf(wrapper, "通关标记").text()).toContain("待核对");
-      await rowOf(wrapper, "通关标记").get('button[aria-label="核对通关标记"]').trigger("click");
+      expect(editor(wrapper, "通关标记").exists()).toBe(true);
+      expect(editor(wrapper, "通关标记").text()).toContain("99%");
+      expect(editor(wrapper, "地图").exists()).toBe(false);
+      await chip(wrapper, "地图").trigger("click");
+      expect(editor(wrapper, "地图").text()).toContain("帕拉伊苏");
+      expect(editor(wrapper, "通关标记").exists()).toBe(false);
+    });
+
+    it("settles the line once the waiting field is confirmed", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await wrapper.get('button[aria-label="核对通关标记"]').trigger("click");
       await settlePreview();
-      expect(wrapper.text()).not.toContain("1 项待核对");
-      expect(rowOf(wrapper, "通关标记").text()).toContain("已核对");
+      expect(wrapper.text()).toContain("6 项全部一致");
+      expect(chip(wrapper, "通关标记").attributes("aria-label")).toContain("已核对");
     });
 
     it("tells a corrected value from a confirmed one and lets the check be undone", async () => {
       adminApi.mockClear();
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      await rowOf(wrapper, "地图").get('button[aria-label="核对地图"]').trigger("click");
-      expect(rowOf(wrapper, "地图").text()).toContain("已核对");
+      await chip(wrapper, "地图").trigger("click");
       wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
       await settlePreview();
-      expect(rowOf(wrapper, "地图").text()).toContain("已校正");
-      await rowOf(wrapper, "地图").get('button[aria-label="撤销核对地图"]').trigger("click");
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：花村，已校正");
+      await wrapper.get('button[aria-label="撤销核对地图"]').trigger("click");
       await settlePreview();
-      expect(rowOf(wrapper, "地图").find('button[aria-label="核对地图"]').exists()).toBe(true);
+      expect(chip(wrapper, "地图").attributes("aria-label")).toBe("地图：帕拉伊苏，一致");
       expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1" } }));
     });
 
-    it("keeps the less common fields behind one control until needed", async () => {
+    it("keeps the less common fields behind one control and asks for a value before confirming one", async () => {
       const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
       await flushPromises();
-      expect(wrapper.findAll(".check-row").some((row) => row.get(".check-row__label").text() === "对局码")).toBe(false);
+      expect(wrapper.find('button[aria-label^="对局码："]').exists()).toBe(false);
       await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
-      expect(rowOf(wrapper, "对局码").exists()).toBe(true);
+      await chip(wrapper, "对局码").trigger("click");
+      expect(editor(wrapper, "对局码").text()).toContain("未识别");
+      expect(wrapper.get('button[aria-label="核对对局码"]').attributes("disabled")).toBeDefined();
     });
   });
 

@@ -121,70 +121,100 @@ const ocrFieldStatusLabel = (status: unknown) => {
 const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
 const candidates = computed(() => props.preview?.candidates ?? []);
 const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"];
-// Fields a still-unconfirmed Challenge is waiting for, so the table can point at what needs checking.
+// Fields a still-unconfirmed Challenge is waiting for, so the chips can point at what needs checking.
 const neededFields = computed(() => new Set<string>(candidates.value.filter((candidate) => candidate.evidence === "needs_confirmation" && candidate.selectedBy === null).flatMap((candidate) => candidate.missingFields)));
 const showExtraFields = ref(false);
+const openKey = ref<string | null>(null);
+// What the maintainer entered for a field, in words (a select stores values like "true" or "standard").
+const reviewedLabel = (key: string) => {
+  const value = correctionInputs[key] ?? "";
+  const choice = fieldChoices(key).find((item) => typeof item === "object" && item.value === value);
+  return typeof choice === "object" ? choice.label : value;
+};
 const fieldRows = computed(() => annotatableFields.map((field) => {
   const ocr = ocrPayload.value?.fields?.[field.key];
   const raw = ocr?.value ?? ocrPayload.value?.data?.[field.key];
   const attested = confirmedFields.value.includes(field.key);
   const isPanel = field.key === "achievement_titles";
+  const primary = primaryFieldKeys.includes(field.key);
+  // The panel and the map version always read as something ("无", the standard version); only truly absent values invite typing one in.
+  const recognized = isPanel || field.key === "map_variant" || (raw !== null && raw !== undefined);
+  const needed = neededFields.value.has(field.key) && !attested;
+  const attention = !attested && (needed || (primary && (!recognized || (ocr?.status !== undefined && ocr.status !== "ok"))));
+  const changed = attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? "");
+  const text = isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw);
+  const state = changed ? "corrected" : attested ? "reviewed" : attention ? "attention" : "ok";
   return {
     ...field,
-    primary: primaryFieldKeys.includes(field.key),
-    text: isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw),
-    // The panel and the map version always read as something ("无", the standard version); only truly absent values invite typing one in.
-    recognized: isPanel || field.key === "map_variant" || (raw !== null && raw !== undefined),
+    primary, text, recognized, needed, attested, changed, state,
     confidence: ocr?.confidence,
     status: ocr?.status,
-    attested,
-    needed: neededFields.value.has(field.key) && !attested,
-    changed: attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? ""),
+    shown: attested ? reviewedLabel(field.key) || text : text,
+    stateLabel: { corrected: "已校正", reviewed: "已核对", attention: "待确认", ok: "一致" }[state],
+    icon: { corrected: "i-lucide-pencil", reviewed: "i-lucide-check-check", attention: "i-lucide-circle-help", ok: "i-lucide-check" }[state],
   };
 }));
 const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed));
 const extraFieldCount = computed(() => fieldRows.value.filter((row) => !row.primary).length);
-const pendingFieldCount = computed(() => fieldRows.value.filter((row) => row.needed).length);
+const attentionCount = computed(() => visibleFieldRows.value.filter((row) => row.state === "attention").length);
+const summaryText = computed(() => {
+  const settled = visibleFieldRows.value.length - attentionCount.value;
+  return attentionCount.value ? `${settled} 项一致，${attentionCount.value} 项待你确认` : `${settled} 项全部一致`;
+});
+const openRow = computed(() => visibleFieldRows.value.find((row) => row.key === openKey.value) ?? null);
+const toggleOpen = (key: string) => { openKey.value = openKey.value === key ? null : key; };
+// Open the first field a Challenge is waiting for, so the common case needs no hunting.
+watch(() => fieldRows.value.find((row) => row.needed)?.key, (key) => { if (key && openKey.value === null) openKey.value = key; }, { immediate: true });
+const confirmField = (key: string) => toggleFieldConfirmation(key, true);
 </script>
 
 <template>
   <div class="fields">
     <AdminSignalPanel kicker="OCRKit" title="识别核对" title-id="check-title">
       <template #aside>
-        <div class="check-summary">
-          <span v-if="pendingFieldCount" class="check-pending">{{ pendingFieldCount }} 项待核对</span>
-          <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
-        </div>
+        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
       </template>
-      <p class="signal-note check-note">对照截图逐项核对。核对或修改后的值会随审核决定保存，批准时平台会据此重新判定 Verified Run 与全部 Challenge Conditions。</p>
       <p v-if="submission.ocrErrorCode" class="signal-error" role="status">识别错误：{{ submission.ocrErrorCode }}</p>
       <p v-if="Array.isArray(ocrPayload?.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
-      <ul class="check-rows" aria-label="识别字段">
-        <li v-for="row in visibleFieldRows" :key="row.key" class="check-row" :class="{ 'check-row--attested': row.attested }">
-          <span class="check-row__label">{{ row.label }}</span>
-          <span class="check-row__ocr">
-            <strong class="ocr-field-value" :class="{ 'ocr-field-value--missing': !row.recognized }">{{ row.text }}</strong>
-            <span class="ocr-field-meta">
-              <span v-if="hasOcrConfidence(row.confidence)" class="ocr-confidence">{{ ocrConfidence(row.confidence) }}</span>
-              <StatusBadge v-if="row.status" :label="ocrFieldStatusLabel(row.status)" :tone="ocrFieldStatusTone(row.status)" />
-              <StatusBadge v-if="row.needed" label="待核对" tone="warning" />
-            </span>
-          </span>
-          <span class="check-row__verify">
-            <UButton v-if="!row.attested" type="button" icon="i-lucide-check" :label="row.recognized ? '核对' : '填写'" size="sm" color="neutral" variant="outline" :aria-label="`${row.recognized ? '核对' : '填写'}${row.label}`" :disabled="disabled" @click="toggleFieldConfirmation(row.key, true)" />
-            <template v-else>
-              <USelectMenu v-if="row.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${row.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" />
-              <UInput v-else-if="row.key in typedFieldPlaceholder" v-model="correctionInputs[row.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(row.key) ? 'numeric' : 'text'" :aria-label="`截图中的${row.label}`" :placeholder="typedFieldPlaceholder[row.key]" :disabled="disabled" />
-              <USelect v-else v-model="correctionInputs[row.key]" :items="fieldChoices(row.key)" :aria-label="`截图中的${row.label}完整值`" :placeholder="`选择截图中的${row.label}`" :disabled="disabled" />
-              <span class="check-row__state">
-                <StatusBadge :label="row.changed ? '已校正' : '已核对'" tone="success" />
-                <UButton type="button" icon="i-lucide-undo-2" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${row.label}`" :disabled="disabled" @click="toggleFieldConfirmation(row.key, false)" />
-              </span>
-            </template>
-          </span>
+      <p class="check-line" :class="{ 'check-line--attention': attentionCount }" role="status">{{ summaryText }}</p>
+      <ul class="check-chips" aria-label="识别字段">
+        <li v-for="row in visibleFieldRows" :key="row.key">
+          <button
+            type="button"
+            class="check-chip pressable-soft"
+            :class="`check-chip--${row.state}`"
+            :aria-expanded="openKey === row.key"
+            :aria-controls="`check-editor-${row.key}`"
+            :aria-label="`${row.label}：${row.shown}，${row.stateLabel}`"
+            @click="toggleOpen(row.key)"
+          >
+            <UIcon :name="row.icon" class="check-chip__icon" aria-hidden="true" />
+            <span class="check-chip__label">{{ row.label }}</span>
+            <span class="check-chip__value">{{ row.shown }}</span>
+          </button>
+        </li>
+        <li v-if="extraFieldCount">
+          <UButton type="button" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起更多字段' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
         </li>
       </ul>
-      <UButton v-if="extraFieldCount" type="button" class="check-more" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起更多字段' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
+      <div v-if="openRow" :id="`check-editor-${openRow.key}`" class="check-editor" role="group" :aria-label="`${openRow.label}核对`">
+        <div class="check-editor__head">
+          <strong>{{ openRow.label }}</strong>
+          <span class="ocr-field-meta">
+            <span class="check-editor__ocr">识别：{{ openRow.text }}</span>
+            <span v-if="hasOcrConfidence(openRow.confidence)" class="ocr-confidence">{{ ocrConfidence(openRow.confidence) }}</span>
+            <StatusBadge v-if="openRow.status" :label="ocrFieldStatusLabel(openRow.status)" :tone="ocrFieldStatusTone(openRow.status)" />
+          </span>
+        </div>
+        <div class="check-editor__control">
+          <USelectMenu v-if="openRow.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${openRow.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UInput v-else-if="openRow.key in typedFieldPlaceholder" v-model="correctionInputs[openRow.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(openRow.key) ? 'numeric' : 'text'" :aria-label="`截图中的${openRow.label}`" :placeholder="typedFieldPlaceholder[openRow.key]" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <USelect v-else v-model="correctionInputs[openRow.key]" :items="fieldChoices(openRow.key)" :aria-label="`截图中的${openRow.label}完整值`" :placeholder="`选择截图中的${openRow.label}`" :disabled="disabled" @update:model-value="confirmField(openRow.key)" />
+          <UButton v-if="!openRow.attested" type="button" icon="i-lucide-check" label="确认无误" size="sm" color="neutral" variant="outline" :aria-label="`核对${openRow.label}`" :disabled="disabled || !(correctionInputs[openRow.key] ?? '').trim()" @click="confirmField(openRow.key)" />
+          <UButton v-else type="button" icon="i-lucide-undo-2" label="撤销核对" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${openRow.label}`" :disabled="disabled" @click="toggleFieldConfirmation(openRow.key, false)" />
+        </div>
+        <p class="check-editor__hint">核对后的值会随审核决定保存。</p>
+      </div>
       <details v-if="ocrPayload" class="ocr-detail">
         <summary>识别详情</summary>
         <dl class="signal-meta">
@@ -204,6 +234,112 @@ const pendingFieldCount = computed(() => fieldRows.value.filter((row) => row.nee
 .fields {
   container-type: inline-size;
   min-width: 0;
+}
+.check-line {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--type-label-sm-size);
+  font-weight: 600;
+}
+.check-line--attention {
+  color: var(--warning);
+}
+.check-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.check-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--type-label-sm-size);
+  cursor: pointer;
+}
+.check-chip__icon {
+  flex: none;
+  color: var(--success);
+}
+.check-chip__label {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.check-chip__value {
+  min-width: 0;
+  max-width: 12rem;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check-chip--attention {
+  border-color: color-mix(in oklch, var(--warning) 45%, transparent);
+  background: color-mix(in oklch, var(--warning) 14%, var(--surface));
+}
+.check-chip--attention .check-chip__icon {
+  color: var(--warning);
+}
+.check-chip--reviewed,
+.check-chip--corrected {
+  border-color: transparent;
+  background: var(--success-surface);
+}
+.check-chip[aria-expanded="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .check-chip {
+    min-height: var(--control-lg);
+  }
+}
+.check-editor {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+.check-editor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.check-editor__ocr {
+  color: var(--muted);
+  font-size: var(--type-caption-size);
+  overflow-wrap: anywhere;
+}
+.check-editor__control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.check-editor__control > :is(input, select, [role="combobox"]) {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.check-editor__hint {
+  margin: 0;
+  color: var(--quiet);
+  font-size: var(--type-caption-size);
 }
 .signal-meta {
   display: grid;
@@ -231,87 +367,26 @@ const pendingFieldCount = computed(() => fieldRows.value.filter((row) => row.nee
   font-size: var(--type-caption-size);
   text-align: right;
 }
-.check-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.check-pending {
-  color: var(--warning);
-  font-size: var(--type-caption-size);
-  font-weight: 600;
-}
-.check-note {
-  margin-top: 0;
-}
-.check-rows {
-  display: grid;
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.check-row {
-  display: grid;
-  grid-template-columns: minmax(5.5rem, .32fr) minmax(0, .8fr) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
-  align-items: center;
-  min-width: 0;
-  padding: var(--space-3) 0;
-  border-top: 1px solid var(--line);
-}
-.check-row__label {
-  color: var(--muted);
-  font-size: var(--type-label-sm-size);
-  font-weight: 500;
-}
-.check-row__ocr {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  min-width: 0;
-}
-.check-row__verify {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  min-width: 0;
-}
-.check-row__verify > :is(input, select, [role="combobox"]) {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-.check-row__state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.check-more {
-  margin-top: var(--space-2);
-}
-.ocr-field-value {
-  overflow-wrap: anywhere;
-  font-size: var(--type-label-size);
-}
-.ocr-field-value--missing {
-  color: var(--quiet);
-  font-weight: 500;
-}
-.ocr-field-value {
-  display: block;
-  color: var(--text);
-  font-weight: 600;
-}
 .ocr-field-meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+.ocr-detail {
+  margin-top: var(--space-3);
+}
+.ocr-detail pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  color: var(--muted);
+  background: var(--surface);
+  font-size: var(--type-caption-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .ocr-confidence,
 .ocr-source {
@@ -329,42 +404,5 @@ const pendingFieldCount = computed(() => fieldRows.value.filter((row) => row.nee
 }
 .ocr-confidence {
   color: var(--text);
-}
-.ocr-detail {
-  margin-top: var(--space-3);
-}
-.ocr-detail pre {
-  max-height: 220px;
-  overflow: auto;
-  margin: var(--space-2) 0 0;
-  padding: var(--space-3);
-  color: var(--muted);
-  background: var(--surface);
-  font-size: var(--type-caption-size);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-/* Narrow container: label and recognized value on the left, the check action on the right; a row being edited gives the control the full width. */
-@container (max-width: 35.99rem) {
-  .check-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "label verify"
-      "ocr verify";
-    gap: var(--space-1) var(--space-3);
-  }
-  .check-row__label { grid-area: label; }
-  .check-row__ocr { grid-area: ocr; }
-  .check-row__verify { grid-area: verify; }
-  .check-row--attested {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "label"
-      "ocr"
-      "verify";
-  }
-  .check-row--attested .check-row__verify {
-    justify-content: flex-start;
-  }
 }
 </style>

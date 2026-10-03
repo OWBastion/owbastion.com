@@ -92,8 +92,10 @@
 - The screenshot is the primary evidence and `EvidenceViewer` (wheel zoom, drag
   to pan, double-click fit/original size, fullscreen) shows it, never a
   fixed-size image. The check of the recognized fields sits directly under it,
-  where the maintainer compares them; the rail beside holds the outcome, the
-  decision and the Challenge match.
+  where the maintainer compares them, as one summary line and a chip per field;
+  a chip opens that field's editor, and the first field a Challenge waits for
+  opens by itself. The rail beside holds the outcome, the decision and the
+  Challenge match.
 - The decision rail leads with what approval will produce, then the decision
   controls, pinned in view on wide layouts. Secondary maintenance actions
   (resend recognition, accuracy mark) stay collapsed until needed or until they
