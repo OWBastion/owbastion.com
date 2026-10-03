@@ -20,6 +20,17 @@ persistence and submission state transitions are platform-owned, idempotent by
 request-correlation ID, and committed together.
 No private screenshot is committed to the repository.
 
+## Storage read paths
+
+Choose among shared HTTP cache, KV, and direct D1 using
+[ADR 0004](../adr/0004-storage-read-standard.md): low-volatility, identity-independent
+public projections go shared cache -> KV read-through -> D1; authenticated,
+player-specific, and mutable workflow/security state read D1 directly with
+`private, no-store` (ADR 0002 is the precedent). D1 stays authoritative; cache
+copies are disposable, KV unavailability falls back to D1, and list/batch
+projections must not grow queries or KV reads per item. Apply the ADR's endpoint
+checklist to any new or modified read path.
+
 ## Platform trust boundaries
 
 QQBot service calls require the configured QQBOT_API_TOKEN and receive
