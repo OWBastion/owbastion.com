@@ -3,7 +3,7 @@ import { createVerifiedRunEvidenceCompatibilityV1 } from "@owbastion/domain";
 import { createPlatformServices } from "@owbastion/database";
 import { createApp, type RuntimeEnv } from "./app";
 
-type OcrQueueMessage = { version: number; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
+type OcrQueueMessage = { version: number; jobId: string; submissionId: string; objectKey: string; manual?: boolean; requestId?: string };
 type QqPolicyQueueMessage = { version: 1; eventId: string };
 // Keep this aligned with `max_retries` for the OCR consumers in wrangler.toml and wrangler.local.toml.
 export const OCR_QUEUE_MAX_RETRIES = 3;
@@ -39,11 +39,11 @@ export default {
         const body = message.body as OcrQueueMessage;
         const requestId = body.requestId ?? crypto.randomUUID();
         try {
-          await platform.markOcrJobFailed({ submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: body.manual, requestId });
-          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovered", submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId }));
+          await platform.markOcrJobFailed({ jobId: body.jobId, submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: body.manual, requestId });
+          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovered", jobId: body.jobId, submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId }));
           message.ack();
         } catch (error) {
-          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovery_failed", submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) }));
+          console.error(JSON.stringify({ layer: "ocr", event: "dead_letter_recovery_failed", jobId: body.jobId, submissionId: body.submissionId, attempt: OCR_QUEUE_MAX_DELIVERIES, requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage: error instanceof Error ? error.message.slice(0, 256) : String(error).slice(0, 256) }));
           message.retry({ delaySeconds: 60 });
         }
       }
@@ -64,6 +64,11 @@ export default {
         }
         continue;
       }
+      if (message.body.version !== 2 || !message.body.jobId) {
+        console.warn(JSON.stringify({ layer: "ocr", event: "legacy_job_skipped", submissionId: message.body.submissionId }));
+        message.ack();
+        continue;
+      }
       const requestId = message.body.requestId ?? crypto.randomUUID();
       const submissionId = message.body.submissionId;
       try { await platform.processOcrJob({ ...message.body, attempt: message.attempts, requestId }); message.ack(); }
@@ -72,7 +77,7 @@ export default {
         console.error(JSON.stringify({ layer: "ocr", event: "queue_job_failed", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: error instanceof Error ? error.name : "UnknownError", errorMessage }));
         if (message.attempts < OCR_QUEUE_MAX_DELIVERIES) { console.warn(JSON.stringify({ layer: "ocr", event: "queue_job_retry", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, delaySeconds: Math.min(60, 5 * message.attempts), errorMessage })); message.retry({ delaySeconds: Math.min(60, 5 * message.attempts) }); continue; }
         const errorCode = error instanceof Error && error.message.startsWith("OCR_") ? error.message : "OCR_PROCESS_FAILED";
-        try { await platform.markOcrJobFailed({ submissionId, attempt: message.attempts, errorCode, manual: message.body.manual, requestId }); message.ack(); }
+        try { await platform.markOcrJobFailed({ jobId: message.body.jobId, submissionId, attempt: message.attempts, errorCode, manual: message.body.manual, requestId }); message.ack(); }
         catch (markError) { console.error(JSON.stringify({ layer: "ocr", event: "queue_failure_record_failed", submissionId, attempt: message.attempts, manual: Boolean(message.body.manual), requestId, errorName: markError instanceof Error ? markError.name : "UnknownError", errorMessage: markError instanceof Error ? markError.message.slice(0, 256) : String(markError).slice(0, 256) })); message.retry({ delaySeconds: 60 }); }
       }
     }

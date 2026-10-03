@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import {
+  ocrkitJobCallbackSchema,
   qqBindingRequestSchema,
   qqBindingClaimVerifyRequestSchema,
   qqLoginAttemptRequestSchema,
@@ -439,6 +440,21 @@ export const createApp = (dependencies: AppDependencies) => {
     const token = c.env.OCRKIT_SNAPSHOT_TOKEN;
     return Boolean(token && bearerTokenMatches(c.req.header("authorization"), token));
   };
+
+  app.post("/v1/ocrkit/jobs/:jobId/result", async (c) => {
+    c.header("Cache-Control", "private, no-store");
+    if (!c.env.OCRKIT_API_TOKEN || !bearerTokenMatches(c.req.header("authorization"), c.env.OCRKIT_API_TOKEN)) return errorResponse(c, 401, "UNAUTHENTICATED", "OCRKit authentication is required");
+    const jobId = c.req.param("jobId");
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) return errorResponse(c, 400, "INVALID_REQUEST", "A job UUID is required");
+    const parsed = ocrkitJobCallbackSchema.safeParse(await parseBody(c.req.raw));
+    if (!parsed.success || ("result" in parsed.data && parsed.data.result.request_id !== jobId)) return errorResponse(c, 400, "INVALID_REQUEST", "The callback does not match the job contract");
+    try {
+      await dependencies.services(c.env).completeOcrJob({ jobId, payload: parsed.data });
+      return c.body(null, 204);
+    } catch {
+      return errorResponse(c, 503, "OCR_CALLBACK_RETRY", "Retry delivery of this callback");
+    }
+  });
 
   const requirePortalPlayer = async (c: any) => {
     allowPortal(c);

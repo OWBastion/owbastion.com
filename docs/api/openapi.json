@@ -2456,6 +2456,147 @@
      }
     }
    }
+  },
+  "/v1/ocrkit/jobs/{jobId}/result": {
+   "post": {
+    "operationId": "completeOcrkitJob",
+    "summary": "Deliver an asynchronous OCRKit result",
+    "description": "Private OCRKit callback authenticated with OCRKIT_API_TOKEN. The job UUID identifies the current processing round. Duplicate, stale, and unknown jobs return 204. Concurrent or transient processing errors return 503 and must be retried. Recognition evidence is retained in full; known business fields are validated.",
+    "parameters": [
+     {
+      "name": "jobId",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "format": "uuid"
+      }
+     },
+     {
+      "name": "Authorization",
+      "in": "header",
+      "required": true,
+      "schema": {
+       "type": "string"
+      },
+      "description": "Bearer OCRKIT_API_TOKEN"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "oneOf": [
+         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "contractVersion",
+           "result"
+          ],
+          "properties": {
+           "contractVersion": {
+            "type": "string",
+            "enum": [
+             "1"
+            ]
+           },
+           "result": {
+            "type": "object",
+            "required": [
+             "schema_version",
+             "ok",
+             "request_id",
+             "fields",
+             "data"
+            ],
+            "properties": {
+             "schema_version": {
+              "type": "string",
+              "enum": [
+               "1"
+              ]
+             },
+             "ok": {
+              "type": "boolean"
+             },
+             "request_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Must equal the callback path jobId"
+             },
+             "fields": {
+              "type": "object",
+              "additionalProperties": {
+               "type": "object",
+               "additionalProperties": true,
+               "properties": {
+                "confidence": {
+                 "type": "number",
+                 "minimum": 0,
+                 "maximum": 1
+                },
+                "status": {
+                 "type": "string"
+                },
+                "value": {}
+               }
+              }
+             },
+             "data": {
+              "type": "object",
+              "nullable": true,
+              "additionalProperties": true
+             }
+            },
+            "additionalProperties": true
+           }
+          }
+         },
+         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+           "contractVersion",
+           "errorCode"
+          ],
+          "properties": {
+           "contractVersion": {
+            "type": "string",
+            "enum": [
+             "1"
+            ]
+           },
+           "errorCode": {
+            "type": "string",
+            "enum": [
+             "OCR_RECOGNITION_FAILED",
+             "OCR_JOB_EXPIRED"
+            ]
+           }
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "204": {
+      "description": "Result applied or duplicate, stale, or unknown job ignored"
+     },
+     "400": {
+      "description": "Malformed callback or mismatched request_id"
+     },
+     "401": {
+      "description": "Invalid service token"
+     },
+     "503": {
+      "description": "Retryable processing failure or concurrent callback"
+     }
+    }
+   }
   }
  },
  "components": {

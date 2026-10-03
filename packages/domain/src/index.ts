@@ -241,8 +241,9 @@ export type PlatformServices = {
   getAdminSubmission(input: { submissionId: string }, auth: AuthContext): Promise<AdminSubmission>;
   requestAdminOcr(input: { submissionId: string }, auth: AuthContext, idempotencyKey: string, requestId?: string): Promise<AdminSubmissionOcrRetryResponse>;
   resolveAdminSubmissionSpotCheck(input: { submissionId: string } & AdminSubmissionSpotCheckRequest, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionSpotCheckResponse>;
-  processOcrJob(input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
-  markOcrJobFailed(input: { submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
+  completeOcrJob(input: { jobId: string; payload: import("@owbastion/contracts").OcrkitJobCallback }): Promise<void>;
+  processOcrJob(input: { jobId: string; submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string }): Promise<void>;
+  markOcrJobFailed(input: { jobId?: string; submissionId: string; attempt: number; errorCode: string; manual?: boolean; requestId?: string }): Promise<void>;
   reconcileStaleOcrJobs(input: { olderThan: number }): Promise<number>;
   previewSubmissionReview(input: { submissionId: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext): Promise<AdminSubmissionReviewPreviewResponse>;
   reviewSubmission(input: { submissionId: string; decision: AdminSubmissionReviewRequest["decision"]; reason?: string; fieldCorrections?: AdminSubmissionReviewRequest["fieldCorrections"]; confirmedChallengeIds?: string[] }, auth: AuthContext, idempotencyKey: string): Promise<AdminSubmissionReviewResponse>;

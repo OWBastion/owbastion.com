@@ -206,3 +206,30 @@ container (`docs/deployment/portal-hkg.md`, "HKG operations"). The next read
 still goes through the Worker layer and may use an entry within that layer's
 own 300-second TTL. There is no remote purge for the Portal cache; a restart
 is the only way to clear it without waiting out `maxAge`.
+
+## Asynchronous OCR callback rollout
+
+1. Deploy OCRKit with its durable `/api/v1/ocr/challenge/jobs` intake and
+   callback worker, while retaining the existing synchronous endpoint for
+   the platform version still deployed. Configure its fixed callback base URL
+   as the platform API origin and use the same OCRKit API token on both ends.
+2. Apply forward-only platform migration `0093_async_ocr_callbacks.sql`, then
+   deploy this platform receiver and Queue dispatcher together. New Queue
+   messages use envelope version 2 and carry the pending OCR result UUID.
+3. Verify a newly submitted image receives HTTP 202 promptly, remains pending
+   during recognition, and reaches its expected business state via the
+   authenticated callback. Confirm OCRKit retries 503 responses.
+
+The 20-second HTTP timeout applies only to image intake, not recognition.
+OCRKit expires jobs that wait 10 minutes before inference starts; running
+inference is not forcibly interrupted. The platform's scheduled
+15-minute stale repair remains the recovery boundary for lost callbacks or
+abandoned processing claims. Legacy version-1 Queue messages are logged as
+`legacy_job_skipped` and acknowledged; their old pending Submissions recover
+through stale repair and can then be retried manually. Do not replay a legacy
+message as a new OCR round or reuse an earlier round's UUID.
+
+`job_accepted` logs dispatch acceptance; `job_completed` records the business
+completion. HTTP 202 and OCRKit health do not prove callback delivery or the
+final Submission outcome. No automatic production retry, migration, or
+submission mutation is part of the local implementation.
