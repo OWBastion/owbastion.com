@@ -8,7 +8,7 @@ import { createD1, fakeEvidenceBucket, installSchema, seedMap, seedRevisionAssig
 const now = Date.now();
 const localVerifiedRunEvidenceCompatibility = createVerifiedRunEvidenceCompatibilityV1({
   minimumGameVersion: "99.0101.1",
-  supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v6"],
+  supportedOcrLayoutVersions: ["test-layout-v1", "1280x720-v7"],
 });
 
 const synchronizeConcurrentBatches = (database: D1Database, callers: number): D1Database => {
@@ -593,7 +593,7 @@ describe("Admin map revision editor", () => {
       schema_version: "1",
       ok: true,
       model_version: "test",
-      layout_version: "1280x720-v6",
+      layout_version: "1280x720-v7",
       fields: {
         map_name: { status: "ok", confidence: 0.99 },
         achievement_titles: { status: "ok", confidence: 0.99 },
@@ -1015,7 +1015,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
-        layout_version: "1280x720-v6",
+        layout_version: "1280x720-v7",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1061,7 +1061,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
-        layout_version: "1280x720-v6",
+        layout_version: "1280x720-v7",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1126,7 +1126,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
-        layout_version: "1280x720-v6",
+        layout_version: "1280x720-v7",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1747,7 +1747,7 @@ describe("map title rule model – locked invariants", () => {
       const ocrResponse = {
         schema_version: "1",
         ok: true,
-        layout_version: "1280x720-v6",
+        layout_version: "1280x720-v7",
         fields: {
           challenge_completed: { status: "ok", confidence: 0.99 },
           viewer_player: { status: "ok", confidence: 0.99 },
@@ -1937,7 +1937,7 @@ describe("map title rule model – locked invariants", () => {
       sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.sub.1', 'sub.1', 1, 'review_required', ?, ?)").run(JSON.stringify({
         schema_version: "1",
         ok: true,
-        layout_version: "1280x720-v6",
+        layout_version: "1280x720-v7",
         fields: {
           map_name: { status: "ok", confidence: 0.99 },
           difficulty: { status: "ok", confidence: 0.99 },
@@ -1996,7 +1996,7 @@ describe("maintainer Challenge confirmation during submission review", () => {
     sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.confirm', 'binding.confirm', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.confirm', ?, ?)").run(now, now);
     // The completion marker is absent, so the Pioneer Conditions cannot be decided from OCR alone.
     sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, match_json, created_at) VALUES ('ocr.confirm', 'submission.confirm', 1, 'review_required', ?, ?, ?)").run(
-      JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v6", data: { map_name: "地图 map.paris", difficulty: "地狱" } }),
+      JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { map_name: "地图 map.paris", difficulty: "地狱" } }),
       JSON.stringify({ candidates: [{ challengeId: "map.paris.pioneer", quality: { accepted: false, reasons: ["achievement_evidence:low_confidence"] } }] }),
       now,
     );
@@ -2009,7 +2009,7 @@ describe("maintainer Challenge confirmation during submission review", () => {
     sqlite.prepare("INSERT INTO player_accounts (id, player_id, player_name, normalized_player_name, is_admin, status, created_at, updated_at) VALUES ('player.add', 'add-1', 'Tester', 'tester', 0, 'active', ?, ?)").run(now, now);
     sqlite.prepare("INSERT INTO bindings (id, identity_id, player_account_id, provider, group_open_id, member_open_id, created_at) VALUES ('binding.add', 'identity.add', 'player.add', 'qq', 'group.add', 'member.add', ?)").run(now);
     sqlite.prepare("INSERT INTO submissions (id, binding_id, status, challenge_type, map_name, player_name, source_provider, source_conversation_id, source_message_id, created_at, updated_at) VALUES ('submission.add', 'binding.add', 'ocr_review_required', 'unknown', '成就挑战', 'Tester', 'portal', 'portal', 'message.add', ?, ?)").run(now, now);
-    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.add', 'submission.add', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v6", data: { achievement_titles: titles } }), now);
+    sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, response_json, created_at) VALUES ('ocr.add', 'submission.add', 1, 'review_required', ?, ?)").run(JSON.stringify({ schema_version: "1", ok: true, layout_version: "1280x720-v7", data: { achievement_titles: titles } }), now);
   };
 
   it("previews and approves a displayed Challenge that the maintainer confirms from the screenshot", async () => {
@@ -2463,7 +2463,7 @@ describe("submission mastery outcomes", () => {
       seedTitle(sqlite, "CONQUEROR");
       sqlite.prepare("INSERT INTO achievement_challenges (id, map_id, type, name, difficulty, condition, evidence_rule, submission_mode, reward_title_key, game_version, status, introduced_version, created_at, updated_at) VALUES ('challenge.combined', 'map.mastery', 'difficulty_completion', '困难通关', '困难', '完成', '截图', 'manual', 'CONQUEROR', '99.0101.1', 'active', '99.0101.1', ?, ?)").run(now, now);
       seedRevisionAssignment(sqlite, { gameplayRevisionId: "revision:map.mastery:initial", mapId: "map.mastery", challengeFamily: "map_challenge", challengeId: "challenge.combined" });
-      const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ matchCode: "2345-6789-1234", durationSeconds: 599, layoutVersion: "1280x720-v6" }), requestId: "request.combined" });
+      const combined = await submit({ sessionToken: playerOneSession, bytes: "combined-image", ocr: masteryOcr({ matchCode: "2345-6789-1234", durationSeconds: 599, layoutVersion: "1280x720-v7" }), requestId: "request.combined" });
       expect(sqlite.prepare("SELECT outcome_type, status FROM submission_outcomes WHERE submission_id = ? ORDER BY outcome_type").all(combined.submissionId)).toEqual([
         { outcome_type: "challenge", status: "created" },
         { outcome_type: "title_grant", status: "created" },
@@ -2502,7 +2502,7 @@ describe("submission mastery outcomes", () => {
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.run-only-review", "binding.one", "Tester");
 
-    const ocr = masteryOcr({ matchCode: "3456-7890-1234", layoutVersion: "1280x720-v6" });
+    const ocr = masteryOcr({ matchCode: "3456-7890-1234", layoutVersion: "1280x720-v7" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
@@ -2734,7 +2734,7 @@ describe("submission mastery outcomes", () => {
     seedMasteryPlayer(sqlite, "player.one", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.revision-scoped", "binding.one", "Tester");
 
-    const ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
+    const ocr = masteryOcr({ layoutVersion: "1280x720-v7" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
@@ -3040,7 +3040,7 @@ describe("submission mastery outcomes", () => {
     seedMasterySubmission(sqlite, "submission.combined", "binding.one", "Tester");
     seedMasterySubmission(sqlite, "submission.legacy", "binding.one", "Tester");
 
-    let ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
+    let ocr = masteryOcr({ layoutVersion: "1280x720-v7" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
@@ -3057,7 +3057,7 @@ describe("submission mastery outcomes", () => {
       await services.revokeAdminTitleGrant({ grantId: combined.grant_id!, reason: "称号专项修复" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "title-only-revoke");
       expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.combined'").get()).toEqual({ status: "active" });
 
-      ocr = masteryOcr({ matchCode: null, layoutVersion: "1280x720-v6" });
+      ocr = masteryOcr({ matchCode: null, layoutVersion: "1280x720-v7" });
       await services.processOcrJob({ submissionId: "submission.legacy", objectKey: "evidence/submission.legacy.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
@@ -3077,7 +3077,7 @@ describe("submission mastery outcomes", () => {
     const queued: unknown[] = [];
     const queue = { send: async (message: unknown) => { queued.push(message); } } as Queue;
     const auth = { actorType: "user" as const, subject: "admin", roles: ["maintainer"], provider: "portal-session" };
-    const ocr = masteryOcr({ layoutVersion: "1280x720-v6" });
+    const ocr = masteryOcr({ layoutVersion: "1280x720-v7" });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue, undefined, undefined, 1, 1, localVerifiedRunEvidenceCompatibility);

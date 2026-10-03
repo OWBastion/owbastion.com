@@ -28,6 +28,18 @@ export type OcrResponse = {
     duration_seconds?: number | null;
     deaths?: number | null;
     skips?: number | null;
+    event?: {
+      name: string | null;
+      duration_seconds: number | null;
+      description: string[];
+      numbers: Array<{ text: string; value: number; unit: string | null }>;
+      text: string;
+    } | null;
+    ai_mark_detected?: boolean | null;
+    mode?: string | null;
+    restart_in_seconds?: number | null;
+    uptime_seconds?: number | null;
+    server_load?: number | null;
   };
 };
 
@@ -39,7 +51,7 @@ export type OcrQualityGate = {
 
 export const submissionOcrQualityPolicy = {
   schemaVersion: "1",
-  supportedLayoutVersions: ["1280x720-v6", "1280x800-v1"],
+  supportedLayoutVersions: ["1280x720-v7", "1280x800-v2"],
   minimumFieldConfidence: 0.85,
 } as const;
 

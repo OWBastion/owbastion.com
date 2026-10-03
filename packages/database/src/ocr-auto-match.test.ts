@@ -6,7 +6,7 @@ import { matchOcrAgainstChallenges, type CanonicalOcrChallenge } from "./ocr-aut
 const response = {
   schema_version: "1",
   ok: true,
-  layout_version: "1280x720-v6",
+  layout_version: "1280x720-v7",
   fields: {
     challenge_completed: { status: "ok", confidence: 0.98 },
     viewer_player: { status: "ok", confidence: 0.98 },

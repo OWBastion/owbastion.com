@@ -12,7 +12,7 @@ OCRKIT_BASE_URL = "https://ocr.owbastion.com"
 EVIDENCE_PUBLIC_ORIGIN = "https://evidence.owbastion.codes"
 OCR_AUTO_REVIEW_SAMPLE_RATE = "0"
 MASTERY_MIN_GAME_VERSION = "26.0811.1"
-MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS = "1280x720-v6,1280x800-v1"
+MASTERY_SUPPORTED_OCR_LAYOUT_VERSIONS = "1280x720-v7,1280x800-v2"
 
 [[routes]]
 pattern = "api.owbastion.com"

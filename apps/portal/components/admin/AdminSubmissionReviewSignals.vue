@@ -32,6 +32,38 @@ const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
 const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
+const runtimeEvidence = computed(() => {
+  const data = ocrPayload.value?.data;
+  if (!data) return [];
+  const labels: Record<string, string> = {
+    ai_mark_detected: "AI 标记", mode: "模式", restart_in_seconds: "重启倒计时（秒）",
+    uptime_seconds: "运行时间（秒）", server_load: "服务器负载",
+  };
+  return Object.entries(labels).filter(([key]) => key in data).map(([key, label]) => ({
+    key, label,
+    value: data[key] === null || data[key] === undefined ? "未识别"
+      : key === "ai_mark_detected" ? data[key] === true ? "已检测到" : "未检测到" : String(data[key]),
+  }));
+});
+const eventEvidence = computed(() => {
+  const event = ocrPayload.value?.data?.event;
+  if (!event || typeof event !== "object" || Array.isArray(event)) return [];
+  const data = event as Record<string, unknown>;
+  const descriptions = Array.isArray(data.description) ? data.description.filter((value): value is string => typeof value === "string") : [];
+  const numbers = Array.isArray(data.numbers) ? data.numbers.flatMap((number) => {
+    if (!number || typeof number !== "object") return [];
+    const item = number as Record<string, unknown>;
+    return typeof item.text === "string" && typeof item.value === "number"
+      ? [`${item.text}：${item.value}${typeof item.unit === "string" ? item.unit : ""}`] : [];
+  }) : [];
+  return [
+    { key: "event.name", label: "事件", value: typeof data.name === "string" ? data.name : "未识别" },
+    { key: "event.duration_seconds", label: "持续时间（秒）", value: typeof data.duration_seconds === "number" ? String(data.duration_seconds) : "未识别" },
+    { key: "event.description", label: "事件说明", value: descriptions.join("；") || "未识别" },
+    { key: "event.numbers", label: "事件数值", value: numbers.join("；") || "未识别" },
+    { key: "event.text", label: "事件原文", value: typeof data.text === "string" ? data.text : "未识别" },
+  ];
+});
 const correctionInputs = reactive<Record<string, string>>({});
 const confirmedFields = ref<string[]>([]);
 watch(() => ocrPayload.value?.data, (data) => {
@@ -210,6 +242,9 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
           <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd><strong class="ocr-field-value">{{ ocrDisplayValue(name, field.value ?? ocrPayload.data?.[name]) }}</strong><span class="ocr-field-meta"><span v-if="hasOcrConfidence(field.confidence)" class="ocr-confidence">{{ ocrConfidence(field.confidence) }}</span><StatusBadge :label="ocrFieldStatusLabel(field.status)" :tone="ocrFieldStatusTone(field.status)" /></span></dd></div>
           <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd><strong class="ocr-field-value">{{ mapVariantLabel(ocrPayload.data.map_variant) }}</strong><span class="ocr-field-meta"><span class="ocr-source">OCR 数据</span></span></dd></div>
           <div class="ocr-achievement-evidence"><dt>左侧成就面板</dt><dd><strong class="ocr-field-value">{{ achievementPanelLabel }}</strong></dd></div>
+        </dl>
+        <dl v-if="runtimeEvidence.length || eventEvidence.length" class="detail-grid" aria-label="对局环境识别证据">
+          <div v-for="field in [...runtimeEvidence, ...eventEvidence]" :key="field.key" class="detail-grid__row"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></div>
         </dl>
         <p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
         <details><summary>查看原始识别数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
