@@ -1,3 +1,4 @@
+import { deliverOcrFixture } from "./ocr-test-harness";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentSpatialConfig } from "@owbastion/contracts";
@@ -1030,7 +1031,7 @@ describe("map title rule model – locked invariants", () => {
         const queue = { send: async (message: unknown) => { sent.push(message); } } as Queue;
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue);
         await services.requestAdminOcr({ submissionId: "sub.legacy-classic" }, { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" }, "idem.1", "request.1");
-        await services.processOcrJob({ ...(sent[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
+        await deliverOcrFixture(services, sqlite, { ...(sent[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
       } finally {
         vi.unstubAllGlobals();
       }
@@ -1073,7 +1074,7 @@ describe("map title rule model – locked invariants", () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-        await services.processOcrJob({ submissionId: "submission.auto", objectKey: "evidence/auto.png", attempt: 1, requestId: "request.auto" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.auto", objectKey: "evidence/auto.png", attempt: 1, requestId: "request.auto" });
       } finally {
         vi.unstubAllGlobals();
       }
@@ -1094,7 +1095,7 @@ describe("map title rule model – locked invariants", () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-        await services.processOcrJob({ submissionId: "submission.auto.repeat", objectKey: "evidence/auto-repeat.png", attempt: 1, requestId: "request.auto.repeat" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.auto.repeat", objectKey: "evidence/auto-repeat.png", attempt: 1, requestId: "request.auto.repeat" });
       } finally {
         vi.unstubAllGlobals();
       }
@@ -1139,7 +1140,7 @@ describe("map title rule model – locked invariants", () => {
       vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-        await services.processOcrJob({ submissionId: "submission.shared.auto", objectKey: "evidence/shared-auto.png", attempt: 1, requestId: "request.shared.auto" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.shared.auto", objectKey: "evidence/shared-auto.png", attempt: 1, requestId: "request.shared.auto" });
         const reviewed = await services.reviewSubmission(
           { submissionId: "submission.shared.review", decision: "approved" },
           { actorType: "user", subject: "admin", roles: ["maintainer"], provider: "portal-session" },
@@ -1759,8 +1760,8 @@ describe("map title rule model – locked invariants", () => {
       vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Response(JSON.stringify(ocrResponse), { status: 200, headers: { "content-type": "application/json" } })));
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-        await services.processOcrJob({ submissionId: "submission.pioneer.inside", objectKey: "evidence/inside.png", attempt: 1, requestId: "request.inside" });
-        await services.processOcrJob({ submissionId: "submission.pioneer.at-end", objectKey: "evidence/at-end.png", attempt: 1, requestId: "request.at-end" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.pioneer.inside", objectKey: "evidence/inside.png", attempt: 1, requestId: "request.inside" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.pioneer.at-end", objectKey: "evidence/at-end.png", attempt: 1, requestId: "request.at-end" });
       } finally {
         vi.unstubAllGlobals();
       }
@@ -2414,7 +2415,7 @@ describe("submission mastery outcomes", () => {
       const job = queued.shift();
       if (!job) throw new Error("missing OCR queue job");
       ocrResponses.push(input.ocr);
-      await services.processOcrJob({ ...job, attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { ...job, attempt: 1 });
       return { submissionId: upload.submissionId, objectKey: job.objectKey };
     };
 
@@ -2485,7 +2486,7 @@ describe("submission mastery outcomes", () => {
       expect(storedObjects.size).toBe(6);
       expect([...storedObjects.keys()].every((key) => key.startsWith("uploads/submissions/"))).toBe(true);
       expect(ocrRequests).toHaveLength(6);
-      expect(ocrRequests.every(({ url, contentType, formFields }) => url === "https://ocr.example.com/api/v1/ocr/challenge" && contentType === "image/png" && formFields.length === 1 && formFields[0] === "file")).toBe(true);
+      expect(ocrRequests.every(({ url, contentType, formFields }) => url === "https://ocr.example.com/api/v1/ocr/challenge/jobs" && contentType === "image/png" && formFields.length === 2 && formFields[0] === "file" && formFields[1] === "job_id")).toBe(true);
       expect(queued).toEqual([]);
     } finally {
       vi.unstubAllGlobals();
@@ -2506,7 +2507,7 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.run-only-review", objectKey: "evidence/submission.run-only-review.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.run-only-review", objectKey: "evidence/submission.run-only-review.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2738,7 +2739,7 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.revision-scoped", objectKey: "evidence/submission.revision-scoped.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.revision-scoped", objectKey: "evidence/submission.revision-scoped.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2878,9 +2879,9 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.classic-missing", objectKey: "evidence/submission.classic-missing.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.classic-missing", objectKey: "evidence/submission.classic-missing.png", attempt: 1 });
       ocr = masteryOcr({ matchCode: "3456-7891-2345", mapVariant: "classic" });
-      await services.processOcrJob({ submissionId: "submission.classic-present", objectKey: "evidence/submission.classic-present.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.classic-present", objectKey: "evidence/submission.classic-present.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -2903,7 +2904,8 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", fetch);
     try {
       const services = createPlatformServices(database, { get } as unknown as R2Bucket, "https://api.example.com", "https://ocr.example.com", "token");
-      await expect(services.processOcrJob({ submissionId: "submission.bound", objectKey: "evidence/other-submission.png", attempt: 1 })).rejects.toThrow("OCR_EVIDENCE_UNAVAILABLE");
+      sqlite.prepare("INSERT INTO ocr_results (id, submission_id, attempt, status, created_at) VALUES ('job.bound', 'submission.bound', 0, 'pending', ?)").run(now);
+      await expect(services.processOcrJob({ jobId: "job.bound", submissionId: "submission.bound", objectKey: "evidence/other-submission.png", attempt: 1 })).rejects.toThrow("OCR_EVIDENCE_UNAVAILABLE");
       expect(get).not.toHaveBeenCalled();
       expect(fetch).not.toHaveBeenCalled();
     } finally {
@@ -2924,13 +2926,13 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.first", objectKey: "evidence/submission.first.png", attempt: 1 });
-      await services.processOcrJob({ submissionId: "submission.exact", objectKey: "evidence/submission.exact.png", attempt: 1 });
-      await services.processOcrJob({ submissionId: "submission.reencoded", objectKey: "evidence/submission.reencoded.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.first", objectKey: "evidence/submission.first.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.exact", objectKey: "evidence/submission.exact.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.reencoded", objectKey: "evidence/submission.reencoded.png", attempt: 1 });
       ocr = masteryOcr({ viewerPlayer: "Other#5678" });
-      await services.processOcrJob({ submissionId: "submission.other", objectKey: "evidence/submission.other.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.other", objectKey: "evidence/submission.other.png", attempt: 1 });
       ocr = masteryOcr({ difficulty: "传奇" });
-      await services.processOcrJob({ submissionId: "submission.conflict", objectKey: "evidence/submission.conflict.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.conflict", objectKey: "evidence/submission.conflict.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -3044,7 +3046,7 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", {} as Queue, undefined, undefined, 1, 0, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.combined", objectKey: "evidence/submission.combined.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.combined", objectKey: "evidence/submission.combined.png", attempt: 1 });
       const combined = sqlite.prepare("SELECT status, grant_id FROM submissions WHERE id = 'submission.combined'").get() as { status: string; grant_id: string | null };
       expect(combined.status).toBe("approved");
       expect(combined.grant_id).not.toBeNull();
@@ -3058,7 +3060,7 @@ describe("submission mastery outcomes", () => {
       expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.combined'").get()).toEqual({ status: "active" });
 
       ocr = masteryOcr({ matchCode: null, layoutVersion: "1280x720-v7" });
-      await services.processOcrJob({ submissionId: "submission.legacy", objectKey: "evidence/submission.legacy.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.legacy", objectKey: "evidence/submission.legacy.png", attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -3081,14 +3083,14 @@ describe("submission mastery outcomes", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(ocr), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token", queue, undefined, undefined, 1, 1, localVerifiedRunEvidenceCompatibility);
-      await services.processOcrJob({ submissionId: "submission.lifecycle", objectKey: "evidence/submission.lifecycle.png", attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.lifecycle", objectKey: "evidence/submission.lifecycle.png", attempt: 1 });
       const revoked = await services.resolveAdminSubmissionSpotCheck({ submissionId: "submission.lifecycle", decision: "revoked", reason: "证据无效" }, auth, "spot-check-revoke");
       expect(revoked).toMatchObject({ grantId: null, verifiedRunId: expect.any(String), status: "revoked" });
       expect(sqlite.prepare("SELECT status FROM mastery_runs WHERE source_submission_id = 'submission.lifecycle'").get()).toEqual({ status: "invalidated" });
       expect(sqlite.prepare("SELECT status FROM submission_outcomes WHERE submission_id = 'submission.lifecycle' AND outcome_key = 'verified_run'").get()).toEqual({ status: "invalidated" });
 
       await services.requestAdminOcr({ submissionId: "submission.lifecycle" }, auth, "ocr-revalidate", "request-revalidate");
-      await services.processOcrJob({ ...(queued[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
+      await deliverOcrFixture(services, sqlite, { ...(queued[0] as { submissionId: string; objectKey: string; manual: boolean; requestId: string }), attempt: 1 });
     } finally {
       vi.unstubAllGlobals();
     }
@@ -3124,12 +3126,15 @@ describe("OCR queue failure recovery", () => {
 
     const first = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.first");
     const second = services.requestAdminOcr({ submissionId: "submission.concurrent-same-key" }, auth, "idem.concurrent-same", "request.second");
+    const outcomes = Promise.allSettled([first, second]);
+    const losingAttempt = Promise.race([first.catch((error) => error), second.catch((error) => error)]);
     await queueSendStarted;
-    await expect(second).rejects.toThrow("OCR_RETRY_IN_PROGRESS");
+    expect(await losingAttempt).toEqual(new Error("OCR_RETRY_IN_PROGRESS"));
     expect(queue.send).toHaveBeenCalledOnce();
-
     releaseQueueSend();
-    await expect(first).resolves.toEqual({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" });
+    const settled = await outcomes;
+    expect(settled.filter((result) => result.status === "fulfilled")).toEqual([{ status: "fulfilled", value: { contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" } }]);
+    expect(settled.filter((result) => result.status === "rejected")).toEqual([{ status: "rejected", reason: new Error("OCR_RETRY_IN_PROGRESS") }]);
     expect(sqlite.prepare("SELECT response_json FROM idempotency_keys WHERE operation = 'submission.ocr.retry'").get()).toEqual({ response_json: JSON.stringify({ contractVersion: "1", submissionId: "submission.concurrent-same-key", status: "ocr_pending" }) });
   });
 

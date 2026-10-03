@@ -1,3 +1,4 @@
+import { deliverOcrFixture } from "./ocr-test-harness";
 import type { DatabaseSync } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import { createPlatformServices } from "./index";
@@ -91,7 +92,7 @@ describe("OCR auto-match query budgets (issue #241)", () => {
       try {
         const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
         resetPreparedStatementCount();
-        await services.processOcrJob({ submissionId: "submission.job", objectKey: "evidence/submission.job.png", attempt: 1, requestId: "request.job" });
+        await deliverOcrFixture(services, sqlite, { submissionId: "submission.job", objectKey: "evidence/submission.job.png", attempt: 1, requestId: "request.job" });
         const matchJson = (sqlite.prepare("SELECT match_json FROM ocr_results WHERE submission_id = 'submission.job'").get() as { match_json: string }).match_json;
         return { count: preparedStatementCount(), matchJson: JSON.parse(matchJson) as { outcome: string; candidates: unknown[] } };
       } finally {
@@ -160,7 +161,7 @@ describe("OCR auto-match query budgets (issue #241)", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(nonMatchingOcrResponse()), { status: 200, headers: { "content-type": "application/json" } })));
     try {
       const services = createPlatformServices(database, fakeEvidenceBucket, "https://api.example.com", "https://ocr.example.com", "token");
-      await services.processOcrJob({ submissionId: "submission.review-routed", objectKey: "evidence/submission.review-routed.png", attempt: 1, requestId: "request.review-routed" });
+      await deliverOcrFixture(services, sqlite, { submissionId: "submission.review-routed", objectKey: "evidence/submission.review-routed.png", attempt: 1, requestId: "request.review-routed" });
     } finally {
       vi.unstubAllGlobals();
     }

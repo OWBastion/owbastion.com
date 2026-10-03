@@ -58,7 +58,7 @@ const installSchema = (sqlite: DatabaseSync) => sqlite.exec(`
     ocr_fail_count INTEGER NOT NULL DEFAULT 0, rule_snapshot_json TEXT, source_provider TEXT NOT NULL,
     source_conversation_id TEXT NOT NULL, source_message_id TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
-  CREATE TABLE ocr_results (
+  CREATE TABLE ocr_results (manual INTEGER NOT NULL DEFAULT 0, callback_claimed INTEGER NOT NULL DEFAULT 0,
     id TEXT PRIMARY KEY NOT NULL, submission_id TEXT NOT NULL, request_id TEXT, attempt INTEGER NOT NULL,
     status TEXT NOT NULL, response_json TEXT, match_json TEXT, error_code TEXT, created_at INTEGER NOT NULL
   );

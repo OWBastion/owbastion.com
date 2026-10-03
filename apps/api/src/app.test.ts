@@ -86,6 +86,7 @@ const services: PlatformServices = {
   previewSubmissionReview: async ({ submissionId }) => ({ contractVersion: "1", submissionId, evidenceOutcome: "review", candidates: [], completions: [], titles: [], verifiedRun: { status: "ineligible", reason: "missing_match_code" }, approvable: false, blockingCode: "SUBMISSION_OUTCOME_NOT_CONFIGURED" }),
   reviewSubmission: async () => ({ contractVersion: "1", submissionId: "00000000-0000-4000-8000-000000000000", decision: "rejected", grant: null }),
   processOcrJob: async () => {},
+  completeOcrJob: async () => {},
   markOcrJobFailed: async () => {},
   requestManualReview: async () => {},
   createBinding: async () => { throw new Error("INVITE_REQUIRED"); },
@@ -2168,3 +2169,52 @@ describe("API", () => {
     expect((await missingApp.request("http://localhost/v1/ocrkit/screenshot-sets/1", { headers: { authorization: "Bearer ocrkit-set-secret" } }, tokenEnv)).status).toBe(404);
   });
 });
+
+describe("OCRKit result callbacks", () => {
+  const jobId = "b89dab0a-b89e-40b2-932e-ff4f295d8ba3";
+  const payload = { contractVersion: "1", result: { schema_version: "1", request_id: jobId, ok: true, fields: {}, data: {} } };
+  const callbackEnv = { ...env, OCRKIT_API_TOKEN: "callback-secret" };
+  const send = (target: ReturnType<typeof createApp>, body: unknown, token = "callback-secret") => target.request(`http://localhost/v1/ocrkit/jobs/${jobId}/result`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body) }, callbackEnv);
+
+  it("authenticates the service token and forwards a valid result", async () => {
+    const completeOcrJob = vi.fn().mockResolvedValue(undefined);
+    const target = createApp({ authenticate: auth, services: () => ({ ...services, completeOcrJob }) });
+    expect((await send(target, payload)).status).toBe(204);
+    expect(completeOcrJob).toHaveBeenCalledWith({ jobId, payload });
+    expect((await send(target, payload, "wrong-secret")).status).toBe(401);
+    expect(completeOcrJob).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { ...payload, result: { ...payload.result, request_id: "b89dab0a-b89e-40b2-932e-ff4f295d8ba4" } },
+    { ...payload, result: { ...payload.result, data: { viewer_player: 1 } } },
+    { ...payload, errorCode: "OCR_JOB_EXPIRED" },
+    { contractVersion: "1", errorCode: "UNKNOWN" },
+  ])("rejects malformed or mismatched callbacks", async (body) => {
+    expect((await send(app, body)).status).toBe(400);
+  });
+
+  it("asks OCRKit to retry transient or concurrent processing failures", async () => {
+    const completeOcrJob = vi.fn().mockRejectedValue(new Error("temporary D1 error"));
+    const target = createApp({ authenticate: auth, services: () => ({ ...services, completeOcrJob }) });
+    expect((await send(target, payload)).status).toBe(503);
+  });
+});
+
+  it("retains complete OCRKit evidence, including nullable low-quality data", async () => {
+    const jobId = "b89dab0a-b89e-40b2-932e-ff4f295d8ba3";
+    const result = {
+      schema_version: "1", request_id: jobId, ok: true, engine: "paddleocr", model_version: "m1",
+      fields: { map_name: { status: "ok", confidence: 0.99, value: "Paris", source_roi: "map_name", normalization: { raw: "Paris" } } },
+      data: { map_name: "Paris", heroes_completed: 3, heroes_total: 40, achievement_title: "Title", achievement_unlocked: true, duration_text: "1:23" },
+      quality: { original_size: [1920, 1080], resized_size: [1280, 720], cropped: false },
+    };
+    const completeOcrJob = vi.fn().mockResolvedValue(undefined);
+    const target = createApp({ authenticate: auth, services: () => ({ ...services, completeOcrJob }) });
+    const send = (body: unknown) => target.request(`http://localhost/v1/ocrkit/jobs/${jobId}/result`, { method: "POST", headers: { authorization: "Bearer callback-secret", "content-type": "application/json" }, body: JSON.stringify(body) }, { ...env, OCRKIT_API_TOKEN: "callback-secret" });
+    expect((await send({ contractVersion: "1", result })).status).toBe(204);
+    expect(completeOcrJob).toHaveBeenLastCalledWith({ jobId, payload: { contractVersion: "1", result } });
+    const lowQuality = { ...result, ok: false, data: null };
+    expect((await send({ contractVersion: "1", result: lowQuality })).status).toBe(204);
+    expect(completeOcrJob).toHaveBeenLastCalledWith({ jobId, payload: { contractVersion: "1", result: lowQuality } });
+  });

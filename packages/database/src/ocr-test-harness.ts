@@ -647,7 +647,7 @@ export const installSchema = (sqlite: DatabaseSync) => {
       expires_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
     );
-    CREATE TABLE ocr_results (
+    CREATE TABLE ocr_results (manual INTEGER NOT NULL DEFAULT 0, callback_claimed INTEGER NOT NULL DEFAULT 0,
       id TEXT PRIMARY KEY NOT NULL,
       submission_id TEXT NOT NULL,
       request_id TEXT,
@@ -752,4 +752,31 @@ export const seedTitle = (sqlite: DatabaseSync, key: string) => {
   sqlite.prepare(
     "INSERT INTO title_catalog (key, label, icon, category, condition, availability, scope, display_kind, color_json, game_version) VALUES (?, ?, 'trophy', '地图系列', '条件', 'active', 'map', 'map_name_suffix', 'null', '2026.07.15')",
   ).run(key, `称号 ${key}`);
+};
+
+/** Drive an existing recognition fixture through dispatch and callback delivery. */
+export const deliverOcrFixture = async (
+  services: import("@owbastion/domain").PlatformServices,
+  sqlite: DatabaseSync,
+  input: { submissionId: string; objectKey: string; attempt: number; manual?: boolean; requestId?: string; jobId?: string },
+) => {
+  const submission = sqlite.prepare("SELECT status, updated_at FROM submissions WHERE id = ?").get(input.submissionId) as { status: string; updated_at: number } | undefined;
+  if (!submission || submission.status !== "ocr_pending") return;
+  const pending = sqlite.prepare("SELECT id FROM ocr_results WHERE submission_id = ? AND status = 'pending' ORDER BY created_at DESC, id DESC LIMIT 1").get(input.submissionId) as { id: string } | undefined;
+  const jobId = input.jobId ?? pending?.id ?? crypto.randomUUID();
+  sqlite.prepare("INSERT OR IGNORE INTO ocr_results (id, submission_id, attempt, status, manual, created_at) VALUES (?, ?, ?, 'pending', ?, ?)").run(jobId, input.submissionId, input.attempt, Number(Boolean(input.manual)), submission.updated_at);
+  const fixtureFetch = globalThis.fetch;
+  let result: unknown;
+  globalThis.fetch = async (...args) => {
+    const response = await fixtureFetch(...args);
+    if (response.status !== 200) return response;
+    result = { ...await response.json() as object, request_id: jobId };
+    return Response.json({ jobId, status: "accepted" }, { status: 202 });
+  };
+  try {
+    await services.processOcrJob({ ...input, jobId });
+  } finally {
+    globalThis.fetch = fixtureFetch;
+  }
+  if (result) await services.completeOcrJob({ jobId, payload: { contractVersion: "1", result } as import("@owbastion/contracts").OcrkitJobCallback });
 };

@@ -681,6 +681,24 @@ components.
 
 ## OCR integration
 
+Portal upload completion and maintainer re-recognition create a pending OCR
+result whose UUID is the processing-round job ID. The Queue dispatches the
+stored image to `POST /api/v1/ocr/challenge/jobs` with multipart `file` and
+`job_id`; HTTP 202 `{jobId, status: "accepted"}` acknowledges intake, not
+recognition. Queue retries reuse the same UUID. The Submission stays
+`ocr_pending` while OCRKit recognizes the image.
+
+OCRKit sends the complete recognition evidence or `OCR_RECOGNITION_FAILED` /
+`OCR_JOB_EXPIRED` to `POST /v1/ocrkit/jobs/{jobId}/result`, authenticated with
+the existing `OCRKIT_API_TOKEN` Bearer credential. The platform owns matching
+and all business outcomes. A single conditional D1 claim serializes callbacks
+and manual review of the same pending round; transient failures release the
+claim and return 503 for delivery retry. Duplicate and stale callbacks return
+204 without repeating Grants or Verified Runs. The existing 15-minute stale
+repair bounds abandoned OCR rounds; claiming a result refreshes the processing
+window. A process crash during result handling retains its claim until stale
+repair recovers it.
+
 OCRKit remains the recognition-only service. The platform accepts only response
 schema version `1`, `ok: true`, and required field evidence at or above its
 configured confidence gate before value matching. For map challenges, this covers

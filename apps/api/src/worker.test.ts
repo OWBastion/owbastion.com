@@ -9,7 +9,7 @@ const createPlatformServices = vi.hoisted(() => vi.fn());
 vi.mock("@owbastion/database", () => ({ createPlatformServices }));
 
 const queueMessage = (attempts: number, overrides: { manual?: boolean } = {}) => ({
-  body: { version: 1, submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "test-request-1", ...overrides },
+  body: { version: 2, jobId: "test-job-1", submissionId: "submission-1", objectKey: "uploads/submission-1/evidence.upload", requestId: "test-request-1", ...overrides },
   attempts,
   ack: vi.fn(),
   retry: vi.fn(),
@@ -78,7 +78,8 @@ describe("OCR Queue consumer", () => {
     });
     expect(serviceArgs[11]).toBe("https://evidence.example");
     expect(processOcrJob).toHaveBeenCalledWith({
-      version: 1,
+      version: 2,
+      jobId: "test-job-1",
       submissionId: "submission-1",
       objectKey: "uploads/submission-1/evidence.upload",
       requestId: "test-request-1",
@@ -115,7 +116,7 @@ describe("OCR Queue consumer", () => {
 
     await worker.queue({ messages: [message] } as never, {} as never);
 
-    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
+    expect(markOcrJobFailed).toHaveBeenCalledWith({ jobId: "test-job-1", submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_NETWORK", manual: undefined, requestId: "test-request-1" });
     expect(message.ack).toHaveBeenCalledOnce();
     expect(message.retry).not.toHaveBeenCalled();
   });
@@ -162,7 +163,7 @@ describe("OCR Queue consumer", () => {
     await worker.queue({ queue, messages: [message] } as never, {} as never);
 
     expect(processOcrJob).not.toHaveBeenCalled();
-    expect(markOcrJobFailed).toHaveBeenCalledWith({ submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: false, requestId: "test-request-1" });
+    expect(markOcrJobFailed).toHaveBeenCalledWith({ jobId: "test-job-1", submissionId: "submission-1", attempt: OCR_QUEUE_MAX_DELIVERIES, errorCode: "OCR_QUEUE_EXHAUSTED", manual: false, requestId: "test-request-1" });
     expect(message.ack).toHaveBeenCalledOnce();
     expect(message.retry).not.toHaveBeenCalled();
   });

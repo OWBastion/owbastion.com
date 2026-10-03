@@ -40,7 +40,7 @@ export type OcrResponse = {
     restart_in_seconds?: number | null;
     uptime_seconds?: number | null;
     server_load?: number | null;
-  };
+  } | null;
 };
 
 export type OcrQualityGate = {

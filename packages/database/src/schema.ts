@@ -519,6 +519,8 @@ export const uploadSessions = sqliteTable("upload_sessions", {
 });
 
 export const ocrResults = sqliteTable("ocr_results", {
+  manual: integer("manual").notNull().default(0),
+  callbackClaimed: integer("callback_claimed").notNull().default(0),
   id: text("id").primaryKey(),
   submissionId: text("submission_id").notNull(),
   requestId: text("request_id"),

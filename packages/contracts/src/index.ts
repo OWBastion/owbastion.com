@@ -1717,3 +1717,30 @@ export type AdminVerifiedRunConflictResolutionRequest = z.infer<typeof adminVeri
 export type AdminVerifiedRunConflictResolutionResponse = z.infer<typeof adminVerifiedRunConflictResolutionResponseSchema>;
 export type AdminVerifiedRunCorrectionRequest = z.infer<typeof adminVerifiedRunCorrectionRequestSchema>;
 export type AdminVerifiedRunCorrectionResponse = z.infer<typeof adminVerifiedRunCorrectionResponseSchema>;
+
+export const ocrkitRecognitionResultSchema = z.object({
+  schema_version: z.literal("1"),
+  ok: z.boolean(),
+  request_id: z.string().uuid(),
+  model_version: z.string().optional(),
+  layout_version: z.string().optional(),
+  warnings: z.unknown().optional(),
+  quality: z.object({ warnings: z.unknown().optional(), layout_version: z.string().optional(), cropped: z.boolean().optional() }).passthrough().optional(),
+  fields: z.record(z.string(), z.object({ confidence: z.number().min(0).max(1).optional(), status: z.string().optional(), value: z.unknown().optional() }).passthrough()),
+  data: z.object({
+    map_name: z.string().nullable().optional(), map_variant: z.string().nullable().optional(),
+    difficulty: z.string().nullable().optional(), challenge_completed: z.boolean().nullable().optional(),
+    viewer_player: z.string().nullable().optional(), achievement_titles: z.array(z.string()).optional(),
+    achievement_panel_text: z.string().nullable().optional(), version: z.string().nullable().optional(),
+    run_code: z.string().nullable().optional(), duration_seconds: z.number().nullable().optional(),
+    deaths: z.number().nullable().optional(), skips: z.number().nullable().optional(),
+    event: z.object({ name: z.string().nullable(), duration_seconds: z.number().nullable(), description: z.array(z.string()), numbers: z.array(z.object({ text: z.string(), value: z.number(), unit: z.string().nullable() })), text: z.string() }).nullable().optional(),
+    ai_mark_detected: z.boolean().nullable().optional(), mode: z.string().nullable().optional(),
+    restart_in_seconds: z.number().nullable().optional(), uptime_seconds: z.number().nullable().optional(), server_load: z.number().nullable().optional(),
+  }).passthrough().nullable(),
+}).passthrough();
+export const ocrkitJobCallbackSchema = z.union([
+  z.object({ contractVersion, result: ocrkitRecognitionResultSchema }).strict(),
+  z.object({ contractVersion, errorCode: z.enum(["OCR_RECOGNITION_FAILED", "OCR_JOB_EXPIRED"]) }).strict(),
+]);
+export type OcrkitJobCallback = z.infer<typeof ocrkitJobCallbackSchema>;
