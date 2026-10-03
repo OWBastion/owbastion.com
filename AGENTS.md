@@ -14,7 +14,7 @@ For cross-repository work, change the authoritative contract at its owner and in
 
 ## Contribution to the organization goal
 
-Serves the [organization product goal](https://github.com/OWBastion/.github/blob/main/docs/product-goal.md) by recording what players have done in Bastion (challenges, titles, map results), verifying it with light friction, and, as creation grows, providing the structured creation, review, and publishing path for events, challenges, and titles. Official game quality takes priority over creation-platform work, and general Workshop or agent capability belongs in Wright, not here.
+Serves the [organization product goal](../.github/docs/product-goal.md) by recording what players have done in Bastion (challenges, titles, map results), verifying it with light friction, and, as creation grows, providing the structured creation, review, and publishing path for events, challenges, and titles. Official game quality takes priority over creation-platform work, and general Workshop or agent capability belongs in Wright, not here.
 
 ## Work from intent, not repeated setup
 
