@@ -34,6 +34,7 @@
 | [0001-platform-technology-stack.md](adr/0001-platform-technology-stack.md) | 架构决策 | reference | 技术栈、仓库组织、服务边界和跨仓 owner | 平台 |
 | [0002-submission-status-d1-reads.md](adr/0002-submission-status-d1-reads.md) | 架构决策 | reference | 提交状态读取、D1 新鲜度与缓存边界 | API / 数据层 |
 | [0003-platform-domain-convergence.md](adr/0003-platform-domain-convergence.md) | 架构决策 | reference | Verified Run、Challenge、Completion、Grant 与进度统一事实模型 | 平台 |
+| [0004-storage-read-standard.md](adr/0004-storage-read-standard.md) | 架构决策 | reference | D1/KV/HTTP 缓存读路径分类、缓存生命周期与查询形态标准 | API / 数据层 |
 | [openapi.json](api/openapi.json) | API 契约 | artifact | Worker API 路由、请求响应和部署契约 | API |
 | [api-github-actions.md](deployment/api-github-actions.md) | API 部署手册 | authoritative | GitHub Actions、Worker、Queue、QQBot 集成部署 | API / 运维 |
 | [api-observability.md](deployment/api-observability.md) | API 运维手册 | authoritative | 生产 revision、缓存、Queue OCR 和请求追踪验证 | API / 运维 |
