@@ -89,12 +89,17 @@
 
 ## Admin review workspace
 
-- The screenshot is the primary evidence: it gets the larger column and uses
-  `EvidenceViewer` (wheel zoom, drag to pan, double-click fit/original size,
-  fullscreen), never a fixed-size image.
+- The screenshot is the primary evidence and `EvidenceViewer` (wheel zoom, drag
+  to pan, double-click fit/original size, fullscreen) shows it, never a
+  fixed-size image. The check of the recognized fields sits directly under it,
+  where the maintainer compares them; the rail beside holds the outcome, the
+  decision and the Challenge match.
 - The decision rail leads with what approval will produce, then the decision
-  controls. Secondary maintenance actions (resend recognition, accuracy mark)
-  stay collapsed until needed or until they report an error.
+  controls, pinned in view on wide layouts. Secondary maintenance actions
+  (resend recognition, accuracy mark) stay collapsed until needed or until they
+  report an error.
+- Narrow layouts read in one column: outcome, decision, evidence, field check,
+  Challenge match; the decision is not pinned there.
 - After a decision on the default queue the next waiting submission opens;
   a filtered queue view returns to that view instead.
 

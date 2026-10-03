@@ -130,37 +130,6 @@ function confirmSpotCheck() {
 function spotCheckLoading(decision: SpotCheckDecision) {
   return Boolean(props.actionLoading && pendingSpotCheck.value === decision);
 }
-
-/**
- * review-layout's column count comes from `grid-template-columns:
- * repeat(auto-fit, …)`, which is content-driven rather than tied to a fixed
- * width — there is no CSS query for "auto-fit resolved to one column," so
- * the narrow-mode order/stickiness overrides read the browser's own
- * resolved column count instead of guessing a matching breakpoint.
- */
-const reviewLayoutRef = ref<HTMLElement | null>(null);
-const reviewLayoutStacked = ref(false);
-let reviewLayoutObserver: ResizeObserver | null = null;
-
-function updateReviewLayoutStacked() {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  const columns = getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).filter(Boolean);
-  reviewLayoutStacked.value = columns.length <= 1;
-}
-
-onMounted(() => {
-  const el = reviewLayoutRef.value;
-  if (!el) return;
-  updateReviewLayoutStacked();
-  reviewLayoutObserver = new ResizeObserver(updateReviewLayoutStacked);
-  reviewLayoutObserver.observe(el);
-});
-
-onBeforeUnmount(() => {
-  reviewLayoutObserver?.disconnect();
-  reviewLayoutObserver = null;
-});
 </script>
 
 <template>
@@ -180,14 +149,14 @@ onBeforeUnmount(() => {
     <UAlert v-if="reviewError" color="error" variant="subtle" :description="reviewError" role="alert" />
 
     <!--
-      Desktop: evidence | rail (claim → decide → verify → meta)
-      Narrow: single column claim → decide → evidence → verify → meta
+      Desktop: evidence and the field check under it | rail (claim → decide → Challenge match → meta)
+      Narrow: single column claim → decide → evidence → field check → Challenge match → meta
       Decisions stay in document flow (sticky), never fixed — fixed docks
       overflow when spot-check / OCR retry expand the control surface.
     -->
-    <div ref="reviewLayoutRef" class="review-layout" :class="{ 'review-layout--stacked': reviewLayoutStacked }">
-      <div class="evidence-col flow-evidence">
-        <UCard class="evidence-card surface-panel elevation-3">
+    <div class="review-layout">
+      <div class="evidence-col">
+        <UCard class="evidence-card surface-panel elevation-3 flow-evidence">
           <template #header>
             <div class="card-heading">
               <h3>提交截图</h3>
@@ -196,6 +165,14 @@ onBeforeUnmount(() => {
           <EvidenceViewer v-if="evidenceSrc && !evidenceError" :src="evidenceSrc" alt="玩家提交的挑战截图" @error="emit('evidence-error')" />
           <p v-else class="evidence-message" role="status">暂无截图。</p>
         </UCard>
+        <div class="flow-fields">
+          <AdminSubmissionReviewFields
+            :submission="submission"
+            :preview="preview"
+            :disabled="actionsLoading"
+            @field-corrections="updateFieldCorrections"
+          />
+        </div>
       </div>
 
       <div class="review-rail">
@@ -336,17 +313,15 @@ onBeforeUnmount(() => {
         </details>
       </section>
 
-      <!-- Verify: match + OCR stacked beside evidence -->
+      <!-- Challenge match: what approval would grant -->
       <div class="flow-signals">
-          <AdminSubmissionReviewSignals
-            stacked
-            :submission="submission"
-            :preview="preview"
-            :preview-loading="previewLoading"
-            :disabled="actionsLoading"
-            @field-corrections="updateFieldCorrections"
-            @confirmed-challenges="updateConfirmedChallenges"
-          />
+        <AdminSubmissionReviewChallenges
+          :submission="submission"
+          :preview="preview"
+          :preview-loading="previewLoading"
+          :disabled="actionsLoading"
+          @confirmed-challenges="updateConfirmedChallenges"
+        />
       </div>
 
       <!-- Traceability (low priority) -->
@@ -442,6 +417,7 @@ onBeforeUnmount(() => {
 .flow-evidence,
 .flow-claim,
 .flow-actions,
+.flow-fields,
 .flow-signals,
 .flow-meta {
   width: 100%;
@@ -462,21 +438,41 @@ onBeforeUnmount(() => {
   gap: var(--review-gap);
   grid-template-columns: minmax(0, 1fr);
 }
-/* The screenshot is what the maintainer inspects, so it gets the larger share once there is room for two columns. */
+/* One column: the two wrappers dissolve so every block takes its place in reading order (outcome and decision, then the evidence and what to check on it). */
+.evidence-col,
+.review-rail {
+  display: contents;
+}
+.flow-claim { order: 1; }
+.flow-actions { order: 2; }
+.flow-evidence { order: 3; }
+.flow-fields { order: 4; }
+.flow-signals { order: 5; }
+.flow-meta { order: 6; }
+/* The screenshot and the check on it get the larger column; the decision rail stays beside them, with the decision pinned in view. */
 @container (min-width: 56rem) {
   .review-layout { grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr); }
-}
-.review-rail {
-  display: grid;
-  gap: var(--review-gap);
-  min-width: 0;
+  .evidence-col,
+  .review-rail {
+    display: grid;
+    gap: var(--review-gap);
+    min-width: 0;
+    align-content: start;
+  }
+  .flow-claim,
+  .flow-actions,
+  .flow-evidence,
+  .flow-fields,
+  .flow-signals,
+  .flow-meta { order: 0; }
+  /* Sticky decisions stay in flow — never position:fixed */
+  .flow-actions {
+    position: sticky;
+    top: var(--review-sticky-top);
+    z-index: 5;
+  }
 }
 
-.evidence-col {
-  position: sticky;
-  top: var(--review-sticky-top);
-  min-width: 0;
-}
 .evidence-card {
   display: block;
   width: 100%;
@@ -702,26 +698,6 @@ onBeforeUnmount(() => {
 }
 .meta-disclosure .meta-list {
   padding: 0 var(--review-inset) 0.75rem;
-}
-
-/* Sticky decisions stay in flow — never position:fixed */
-.flow-actions {
-  position: sticky;
-  top: var(--review-sticky-top);
-  z-index: 5;
-}
-
-/* review-layout's auto-fit collapse (above) is content-driven, not tied to a
-   fixed width — there is no CSS query for "auto-fit resolved to one
-   column," so the narrow-order swap and the sticky evidence column read the
-   browser's own resolved grid-template-columns column count instead
-   (ResizeObserver in the script block) rather than approximating it with a
-   width value of our own. */
-.review-layout--stacked .review-rail {
-  order: -1;
-}
-.review-layout--stacked .evidence-col {
-  position: static;
 }
 
 @container (max-width: 23.99rem) {
