@@ -13,14 +13,13 @@ const emit = defineEmits<{
   "confirmed-challenges": [value: string[]];
 }>();
 
-const ocrLabels: Record<string, string> = { map_name: "地图", map_variant: "地图版本", difficulty: "难度", viewer_player: "玩家", challenge_completed: "通关标记" };
 const annotatableFields = [
   { key: "map_name", label: "地图" },
   { key: "difficulty", label: "难度" },
   { key: "viewer_player", label: "玩家名称" },
   { key: "challenge_completed", label: "通关标记" },
   { key: "map_variant", label: "地图版本" },
-  { key: "achievement_titles", label: "完整成就列表" },
+  { key: "achievement_titles", label: "左侧成就面板" },
   { key: "version", label: "游戏版本" },
   { key: "run_code", label: "对局码" },
   { key: "duration_seconds", label: "通关用时（秒）" },
@@ -29,7 +28,6 @@ const annotatableFields = [
 ] as const;
 const typedFieldPlaceholder: Record<string, string> = { version: "例如 2026.0928.1", run_code: "输入截图中的对局码", duration_seconds: "整数秒", deaths: "整数", skips: "整数" };
 const ocrPayload = computed(() => props.submission.ocr as OcrPayload | null);
-const ocrFields = computed(() => Object.entries(ocrPayload.value?.fields ?? {}).filter(([name]) => name in ocrLabels));
 const checkedTitles = computed(() => Array.isArray(ocrPayload.value?.data?.achievement_titles) ? ocrPayload.value?.data?.achievement_titles.filter((value): value is string => typeof value === "string" && value.trim().length > 0) : []);
 const achievementPanelLabel = computed(() => checkedTitles.value.length ? checkedTitles.value.join("、") : "无");
 const runtimeEvidence = computed(() => {
@@ -65,12 +63,15 @@ const eventEvidence = computed(() => {
   ];
 });
 const correctionInputs = reactive<Record<string, string>>({});
+// What the recognition produced, to tell a confirmed value from a corrected one.
+const initialInputs: Record<string, string> = {};
 const confirmedFields = ref<string[]>([]);
 watch(() => ocrPayload.value?.data, (data) => {
   if (!data) return;
   for (const field of annotatableFields) {
     const value = data[field.key];
     correctionInputs[field.key] = Array.isArray(value) ? value.join("、") : value === null || value === undefined ? "" : String(value);
+    initialInputs[field.key] = correctionInputs[field.key]!;
   }
 }, { immediate: true });
 const api = useAdminApi();
@@ -155,6 +156,31 @@ const ocrFieldStatusLabel = (status: unknown) => {
   return "需核对";
 };
 const ocrFieldStatusTone = (status: unknown): "default" | "success" | "warning" => status === "ok" ? "success" : status === "missing" || status === "low_confidence" || status === "unreadable" || status === "error" ? "warning" : "default";
+const primaryFieldKeys: readonly string[] = ["map_name", "difficulty", "viewer_player", "challenge_completed", "map_variant", "achievement_titles"];
+// Fields a still-unconfirmed Challenge is waiting for, so the table can point at what needs checking.
+const neededFields = computed(() => new Set<string>(candidates.value.filter((candidate) => candidate.evidence === "needs_confirmation" && candidate.selectedBy === null).flatMap((candidate) => candidate.missingFields)));
+const showExtraFields = ref(false);
+const fieldRows = computed(() => annotatableFields.map((field) => {
+  const ocr = ocrPayload.value?.fields?.[field.key];
+  const raw = ocr?.value ?? ocrPayload.value?.data?.[field.key];
+  const attested = confirmedFields.value.includes(field.key);
+  const isPanel = field.key === "achievement_titles";
+  return {
+    ...field,
+    primary: primaryFieldKeys.includes(field.key),
+    text: isPanel ? achievementPanelLabel.value : ocrDisplayValue(field.key, raw),
+    // The panel and the map version always read as something ("无", the standard version); only truly absent values invite typing one in.
+    recognized: isPanel || field.key === "map_variant" || (raw !== null && raw !== undefined),
+    confidence: ocr?.confidence,
+    status: ocr?.status,
+    attested,
+    needed: neededFields.value.has(field.key) && !attested,
+    changed: attested && (correctionInputs[field.key] ?? "") !== (initialInputs[field.key] ?? ""),
+  };
+}));
+const visibleFieldRows = computed(() => fieldRows.value.filter((row) => row.primary || showExtraFields.value || row.attested || row.needed));
+const extraFieldCount = computed(() => fieldRows.value.filter((row) => !row.primary).length);
+const pendingFieldCount = computed(() => fieldRows.value.filter((row) => row.needed).length);
 const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证据满足条件" : outcome === "review" ? "证据需人工确认" : outcome === "resubmit" ? "未匹配 Challenge" : "等待判定";
 </script>
 
@@ -209,47 +235,59 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
         </ul>
         <p v-else-if="challengeQuery.trim()" class="signal-empty">没有匹配的 Challenge。已拥有或已被管理员撤销的称号不会出现在列表中。</p>
       </section>
-      <section class="field-review" aria-labelledby="field-review-title">
-        <div>
-          <h4 id="field-review-title">校正识别字段</h4>
-          <p>勾选并选择或填写截图中的实际值后，会作为本次审核的业务校正随决定保存。批准时平台会用校正后的结构化证据重新判定 Verified Run 与全部 Challenge Conditions。</p>
-        </div>
-        <div v-for="field in annotatableFields" :key="field.key" class="field-review__row">
-          <UCheckbox :model-value="confirmedFields.includes(field.key)" :label="`已核对${field.label}`" :disabled="disabled" @update:model-value="toggleFieldConfirmation(field.key, Boolean($event))" />
-          <template v-if="confirmedFields.includes(field.key)">
-            <USelectMenu v-if="field.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${field.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" />
-            <UInput v-else-if="field.key in typedFieldPlaceholder" v-model="correctionInputs[field.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(field.key) ? 'numeric' : 'text'" :aria-label="`截图中的${field.label}`" :placeholder="typedFieldPlaceholder[field.key]" :disabled="disabled" />
-            <USelect v-else v-model="correctionInputs[field.key]" :items="fieldChoices(field.key)" :aria-label="`截图中的${field.label}完整值`" :placeholder="`选择截图中的${field.label}`" :disabled="disabled" />
-          </template>
-        </div>
-      </section>
     </section>
 
-    <section class="signal-panel ocr-panel" aria-labelledby="ocr-title">
+    <section class="signal-panel check-panel" aria-labelledby="check-title">
       <header class="signal-panel__header">
         <div>
-          <p class="signal-kicker">识别</p>
-          <h3 id="ocr-title">OCRKit</h3>
+          <p class="signal-kicker">OCRKit</p>
+          <h3 id="check-title">识别核对</h3>
         </div>
-        <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
+        <div class="check-summary">
+          <span v-if="pendingFieldCount" class="check-pending">{{ pendingFieldCount }} 项待核对</span>
+          <StatusBadge :label="ocrStatusLabel(submission.ocrStatus)" :tone="ocrStatusTone(submission.ocrStatus)" />
+        </div>
       </header>
-      <dl class="signal-meta">
-        <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
-        <div v-if="submission.ocrErrorCode"><dt>错误代码</dt><dd>{{ submission.ocrErrorCode }}</dd></div>
-      </dl>
-      <template v-if="ocrPayload">
-        <dl class="ocr-fields">
-          <div v-for="[name, field] in ocrFields" :key="name"><dt>{{ ocrLabels[name] }}</dt><dd><strong class="ocr-field-value">{{ ocrDisplayValue(name, field.value ?? ocrPayload.data?.[name]) }}</strong><span class="ocr-field-meta"><span v-if="hasOcrConfidence(field.confidence)" class="ocr-confidence">{{ ocrConfidence(field.confidence) }}</span><StatusBadge :label="ocrFieldStatusLabel(field.status)" :tone="ocrFieldStatusTone(field.status)" /></span></dd></div>
-          <div v-if="ocrPayload.data?.map_variant !== undefined && !ocrFields.some(([name]) => name === 'map_variant')"><dt>地图版本</dt><dd><strong class="ocr-field-value">{{ mapVariantLabel(ocrPayload.data.map_variant) }}</strong><span class="ocr-field-meta"><span class="ocr-source">OCR 数据</span></span></dd></div>
-          <div class="ocr-achievement-evidence"><dt>左侧成就面板</dt><dd><strong class="ocr-field-value">{{ achievementPanelLabel }}</strong></dd></div>
+      <p class="signal-note check-note">对照截图逐项核对。核对或修改后的值会随审核决定保存，批准时平台会据此重新判定 Verified Run 与全部 Challenge Conditions。</p>
+      <p v-if="submission.ocrErrorCode" class="signal-error" role="status">识别错误：{{ submission.ocrErrorCode }}</p>
+      <p v-if="Array.isArray(ocrPayload?.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
+      <ul class="check-rows" aria-label="识别字段">
+        <li v-for="row in visibleFieldRows" :key="row.key" class="check-row" :class="{ 'check-row--attested': row.attested }">
+          <span class="check-row__label">{{ row.label }}</span>
+          <span class="check-row__ocr">
+            <strong class="ocr-field-value" :class="{ 'ocr-field-value--missing': !row.recognized }">{{ row.text }}</strong>
+            <span class="ocr-field-meta">
+              <span v-if="hasOcrConfidence(row.confidence)" class="ocr-confidence">{{ ocrConfidence(row.confidence) }}</span>
+              <StatusBadge v-if="row.status" :label="ocrFieldStatusLabel(row.status)" :tone="ocrFieldStatusTone(row.status)" />
+              <StatusBadge v-if="row.needed" label="待核对" tone="warning" />
+            </span>
+          </span>
+          <span class="check-row__verify">
+            <UButton v-if="!row.attested" type="button" icon="i-lucide-check" :label="row.recognized ? '核对' : '填写'" size="sm" color="neutral" variant="outline" :aria-label="`${row.recognized ? '核对' : '填写'}${row.label}`" :disabled="disabled" @click="toggleFieldConfirmation(row.key, true)" />
+            <template v-else>
+              <USelectMenu v-if="row.key === 'achievement_titles'" v-model="selectedTitles" multiple :items="withCurrent(titleNames, selectedTitles)" :aria-label="`截图中的${row.label}完整值`" placeholder="选择截图中的全部成就" :disabled="disabled" />
+              <UInput v-else-if="row.key in typedFieldPlaceholder" v-model="correctionInputs[row.key]" :inputmode="['duration_seconds', 'deaths', 'skips'].includes(row.key) ? 'numeric' : 'text'" :aria-label="`截图中的${row.label}`" :placeholder="typedFieldPlaceholder[row.key]" :disabled="disabled" />
+              <USelect v-else v-model="correctionInputs[row.key]" :items="fieldChoices(row.key)" :aria-label="`截图中的${row.label}完整值`" :placeholder="`选择截图中的${row.label}`" :disabled="disabled" />
+              <span class="check-row__state">
+                <StatusBadge :label="row.changed ? '已校正' : '已核对'" tone="success" />
+                <UButton type="button" icon="i-lucide-undo-2" size="sm" color="neutral" variant="ghost" :aria-label="`撤销核对${row.label}`" :disabled="disabled" @click="toggleFieldConfirmation(row.key, false)" />
+              </span>
+            </template>
+          </span>
+        </li>
+      </ul>
+      <UButton v-if="extraFieldCount" type="button" class="check-more" size="sm" color="neutral" variant="ghost" :icon="showExtraFields ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="showExtraFields ? '收起更多字段' : `更多字段（${extraFieldCount}）`" :aria-expanded="showExtraFields" @click="showExtraFields = !showExtraFields" />
+      <details v-if="ocrPayload" class="ocr-detail">
+        <summary>识别详情</summary>
+        <dl class="signal-meta">
+          <div><dt>处理尝试</dt><dd>{{ submission.ocrAttempt ?? "暂无记录" }}</dd></div>
         </dl>
         <dl v-if="runtimeEvidence.length || eventEvidence.length" class="detail-grid" aria-label="对局环境识别证据">
           <div v-for="field in [...runtimeEvidence, ...eventEvidence]" :key="field.key" class="detail-grid__row"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></div>
         </dl>
-        <p v-if="Array.isArray(ocrPayload.warnings) && ocrPayload.warnings.length" class="signal-note">告警：{{ ocrPayload.warnings.join("、") }}</p>
         <details><summary>查看原始识别数据</summary><pre>{{ JSON.stringify(ocrPayload, null, 2) }}</pre></details>
-      </template>
-      <p v-else class="signal-empty">暂无 OCR 结果。</p>
+      </details>
+      <p v-else class="signal-empty">暂无 OCR 结果，可逐项填写截图中的实际值。</p>
     </section>
   </div>
 </template>
@@ -354,8 +392,7 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   justify-content: space-between;
   gap: var(--space-2);
 }
-.manual-add,
-.field-review {
+.manual-add {
   display: grid;
   gap: var(--space-2);
   margin-top: var(--space-4);
@@ -404,18 +441,6 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
 .candidate-condition {
   color: var(--text);
 }
-.field-review h4,
-.field-review p {
-  margin: 0;
-}
-.field-review h4 {
-  font-size: var(--type-label-sm-size);
-}
-.field-review p {
-  color: var(--muted);
-  font-size: var(--type-caption-size);
-  line-height: 1.5;
-}
 .signal-empty {
   margin: 0;
   color: var(--muted);
@@ -433,41 +458,101 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
 .signal-error {
   color: var(--danger);
 }
-.signal-meta,
-.ocr-fields {
+.signal-meta {
   display: grid;
   gap: 0;
   margin: 0;
 }
-.signal-meta > div,
-.ocr-fields > div {
+.signal-meta > div {
   display: grid;
   grid-template-columns: minmax(74px, .35fr) minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--line);
 }
-.signal-meta > div:last-child,
-.ocr-fields > div:last-child {
+.signal-meta > div:last-child {
   border-bottom: 0;
 }
-.signal-meta dt,
-.ocr-fields dt {
+.signal-meta dt {
   color: var(--muted);
   font-size: var(--type-caption-size);
 }
-.signal-meta dd,
-.ocr-fields dd {
+.signal-meta dd {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
   font-size: var(--type-caption-size);
   text-align: right;
 }
-.ocr-fields dd {
+.check-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.check-pending {
+  color: var(--warning);
+  font-size: var(--type-caption-size);
+  font-weight: 600;
+}
+.check-note {
+  margin-top: 0;
+}
+.check-rows {
   display: grid;
-  justify-items: end;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.check-row {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, .32fr) minmax(0, .8fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line);
+}
+.check-row__label {
+  color: var(--muted);
+  font-size: var(--type-label-sm-size);
+  font-weight: 500;
+}
+.check-row__ocr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.check-row__verify {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.check-row__verify > :is(input, select, [role="combobox"]) {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.check-row__state {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-1);
+}
+.check-more {
+  margin-top: var(--space-2);
+}
+.ocr-field-value {
+  overflow-wrap: anywhere;
+  font-size: var(--type-label-size);
+}
+.ocr-field-value--missing {
+  color: var(--quiet);
+  font-weight: 500;
 }
 .ocr-field-value {
   display: block;
@@ -498,15 +583,10 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
 .ocr-confidence {
   color: var(--text);
 }
-.ocr-achievement-evidence dd {
-  display: grid;
-  justify-items: end;
-  gap: var(--space-1);
-}
-.ocr-panel details {
+.ocr-detail {
   margin-top: var(--space-3);
 }
-.ocr-panel pre {
+.ocr-detail pre {
   max-height: 220px;
   overflow: auto;
   margin: var(--space-2) 0 0;
@@ -516,6 +596,29 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   font-size: var(--type-caption-size);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+/* Narrow rail: label and recognized value on the left, the check action on the right; a row being edited gives the control the full width. */
+@container (max-width: 35.99rem) {
+  .check-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "label verify"
+      "ocr verify";
+    gap: var(--space-1) var(--space-3);
+  }
+  .check-row__label { grid-area: label; }
+  .check-row__ocr { grid-area: ocr; }
+  .check-row__verify { grid-area: verify; }
+  .check-row--attested {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "ocr"
+      "verify";
+  }
+  .check-row--attested .check-row__verify {
+    justify-content: flex-start;
+  }
 }
 @container (max-width: 23.99rem) {
   .signals-grid {
@@ -527,18 +630,13 @@ const matchOutcomeLabel = (outcome?: string) => outcome === "automatic" ? "证�
   .signal-panel {
     padding: var(--space-4);
   }
-  .signal-meta > div,
-  .ocr-fields > div {
+  .signal-meta > div {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
   }
-  .signal-meta dd,
-  .ocr-fields dd {
+  .signal-meta dd {
     text-align: left;
     justify-items: start;
-  }
-  .ocr-field-meta {
-    justify-content: flex-start;
   }
 }
 </style>

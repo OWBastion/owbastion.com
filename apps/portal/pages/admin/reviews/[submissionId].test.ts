@@ -213,7 +213,7 @@ describe("admin review detail page", () => {
     adminApi.mockClear();
     const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
     await flushPromises();
-    await wrapper.findAll(".field-review__row")[0]!.get('[role="checkbox"]').trigger("click");
+    await wrapper.get('button[aria-label="核对地图"]').trigger("click");
     wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
     await settlePreview();
     expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1", fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] } }));
@@ -223,6 +223,56 @@ describe("admin review detail page", () => {
       method: "POST",
       body: expect.objectContaining({ fieldCorrections: [{ fieldKey: "map_name", reviewedValue: "花村" }] }),
     }));
+  });
+
+  describe("recognition check table", () => {
+    const rowOf = (wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) => wrapper.findAll(".check-row").find((row) => row.get(".check-row__label").text() === label)!;
+
+    it("lists each field with what was recognized, and offers to fill in what was not", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(rowOf(wrapper, "地图").text()).toContain("帕拉伊苏");
+      expect(rowOf(wrapper, "地图").text()).toContain("98%");
+      expect(rowOf(wrapper, "难度").text()).toContain("地狱");
+      expect(rowOf(wrapper, "地图").find('button[aria-label="核对地图"]').exists()).toBe(true);
+      await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
+      expect(rowOf(wrapper, "对局码").text()).toContain("未识别");
+      expect(rowOf(wrapper, "对局码").find('button[aria-label="填写对局码"]').exists()).toBe(true);
+    });
+
+    it("points at the field a Challenge is waiting for until it is checked", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(wrapper.text()).toContain("1 项待核对");
+      expect(rowOf(wrapper, "通关标记").text()).toContain("待核对");
+      await rowOf(wrapper, "通关标记").get('button[aria-label="核对通关标记"]').trigger("click");
+      await settlePreview();
+      expect(wrapper.text()).not.toContain("1 项待核对");
+      expect(rowOf(wrapper, "通关标记").text()).toContain("已核对");
+    });
+
+    it("tells a corrected value from a confirmed one and lets the check be undone", async () => {
+      adminApi.mockClear();
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      await rowOf(wrapper, "地图").get('button[aria-label="核对地图"]').trigger("click");
+      expect(rowOf(wrapper, "地图").text()).toContain("已核对");
+      wrapper.findComponent({ name: "USelect" }).vm.$emit("update:modelValue", "花村");
+      await settlePreview();
+      expect(rowOf(wrapper, "地图").text()).toContain("已校正");
+      await rowOf(wrapper, "地图").get('button[aria-label="撤销核对地图"]').trigger("click");
+      await settlePreview();
+      expect(rowOf(wrapper, "地图").find('button[aria-label="核对地图"]').exists()).toBe(true);
+      expect(adminApi).toHaveBeenLastCalledWith("/v1/submissions/submission-1/review/preview", expect.objectContaining({ body: { contractVersion: "1" } }));
+    });
+
+    it("keeps the less common fields behind one control until needed", async () => {
+      const wrapper = await mountPage({ route: "/admin/reviews/submission-1" });
+      await flushPromises();
+      expect(wrapper.findAll(".check-row").some((row) => row.get(".check-row__label").text() === "对局码")).toBe(false);
+      await wrapper.findAll("button").find((button) => button.text().includes("更多字段"))!.trigger("click");
+      expect(rowOf(wrapper, "对局码").exists()).toBe(true);
+    });
   });
 
   it("does not allow approval when the preview has no outcome", async () => {

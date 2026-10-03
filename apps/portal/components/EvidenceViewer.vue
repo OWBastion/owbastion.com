@@ -19,6 +19,8 @@ const offset = shallowRef({ x: 0, y: 0 });
 // While `fitted`, the image follows the viewport size; any manual zoom or pan leaves fit mode.
 const fitted = shallowRef(true);
 const dragging = shallowRef(false);
+// Buttons, keys and double-click ease between sizes; wheel and drag stay glued to the pointer.
+const eased = shallowRef(false);
 
 const hasImage = computed(() => natural.value.width > 0 && natural.value.height > 0 && box.value.width > 0 && box.value.height > 0);
 const fitScale = computed(() => hasImage.value ? Math.min(box.value.width / natural.value.width, box.value.height / natural.value.height) : 1);
@@ -34,6 +36,7 @@ function clampOffset(x: number, y: number, nextScale: number) {
 }
 
 function fit() {
+  eased.value = true;
   fitted.value = true;
   scale.value = fitScale.value;
   offset.value = clampOffset(0, 0, scale.value);
@@ -49,11 +52,15 @@ function zoomTo(next: number, anchorX = box.value.width / 2, anchorY = box.value
 }
 
 function actualSize() {
-  zoomTo(1);
+  zoomStep(1);
 }
 
-const zoomIn = () => zoomTo(scale.value * ZOOM_STEP);
-const zoomOut = () => zoomTo(scale.value / ZOOM_STEP);
+function zoomStep(next: number) {
+  eased.value = true;
+  zoomTo(next);
+}
+const zoomIn = () => zoomStep(scale.value * ZOOM_STEP);
+const zoomOut = () => zoomStep(scale.value / ZOOM_STEP);
 
 function pointerInViewport(event: { clientX: number; clientY: number }) {
   const rect = viewport.value!.getBoundingClientRect();
@@ -61,6 +68,7 @@ function pointerInViewport(event: { clientX: number; clientY: number }) {
 }
 
 function onWheel(event: WheelEvent) {
+  eased.value = false;
   const { x, y } = pointerInViewport(event);
   zoomTo(scale.value * Math.exp(-event.deltaY * 0.0016), x, y);
 }
@@ -68,6 +76,7 @@ function onWheel(event: WheelEvent) {
 let drag: { x: number; y: number; originX: number; originY: number } | null = null;
 function onPointerDown(event: PointerEvent) {
   if (event.button !== 0 || fitted.value) return;
+  eased.value = false;
   drag = { x: event.clientX, y: event.clientY, originX: offset.value.x, originY: offset.value.y };
   dragging.value = true;
   viewport.value?.setPointerCapture(event.pointerId);
@@ -84,6 +93,7 @@ function endDrag() {
 function onDoubleClick(event: MouseEvent) {
   if (fitted.value) {
     const { x, y } = pointerInViewport(event);
+    eased.value = true;
     zoomTo(1, x, y);
   } else fit();
 }
@@ -108,6 +118,7 @@ function measure() {
   const element = viewport.value;
   if (!element) return;
   box.value = { width: element.clientWidth, height: element.clientHeight };
+  eased.value = false;
   if (fitted.value) fit();
   else zoomTo(scale.value);
 }
@@ -149,7 +160,7 @@ watch(isFullscreen, () => nextTick(measure));
       <img
         ref="image"
         class="evidence-image"
-        :class="{ 'evidence-image--measured': hasImage }"
+        :class="{ 'evidence-image--measured': hasImage, 'evidence-image--eased': eased }"
         :src="src"
         :alt="alt"
         draggable="false"
@@ -181,6 +192,8 @@ watch(isFullscreen, () => nextTick(measure));
 /* Until the natural size is known the image fills the width, so a slow or failed load still shows something. */
 .evidence-image { display: block; width: 100%; height: auto; max-width: none; }
 .evidence-image--measured { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.evidence-image--eased { transition: transform 160ms cubic-bezier(0.2, 0, 0, 1); }
+@media (prefers-reduced-motion: reduce) { .evidence-image--eased { transition: none; } }
 .evidence-viewer--fullscreen { grid-template-rows: auto minmax(0, 1fr); padding: var(--space-3); background: var(--page); }
 .evidence-viewer--fullscreen .viewer-viewport { max-height: none; height: 100%; }
 </style>

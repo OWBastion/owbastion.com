@@ -237,6 +237,7 @@ onBeforeUnmount(() => {
             type="button"
             icon="i-lucide-check"
             label="通过"
+            size="lg"
             :aria-describedby="approvalHint ? 'approval-hint' : undefined"
             :loading="decisionLoading('approved')"
             :disabled="actionsLoading || approvalBlocked"
@@ -592,10 +593,10 @@ onBeforeUnmount(() => {
 }
 .claim-card__header h3 {
   margin: 0;
-  font-size: var(--type-body-size);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
+  color: var(--muted);
+  font-size: var(--type-label-sm-size);
+  font-weight: 600;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 .claim-kind {
@@ -655,7 +656,9 @@ onBeforeUnmount(() => {
 }
 .outcome-list strong {
   color: var(--text);
-  font-size: var(--type-label-sm-size);
+  font-size: var(--type-card-title-size);
+  font-weight: 600;
+  line-height: var(--type-card-title-leading);
   overflow-wrap: anywhere;
 }
 .outcome-list .claim-meta {
